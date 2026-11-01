@@ -7,8 +7,8 @@ the code departed from `design.md`.
 |---|---|---|
 | CP0 — the spec | ✅ shipped 2026-11-01 | #3 (CP-1) |
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
-| CP2 — the ledger | in progress | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8) |
-| CP3 — pantries and using things | in progress | #11 (CP-10) |
+| CP2 — the ledger | ✅ shipped 2026-11-02 | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22), #15 (CP-9) |
+| CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11) |
 | CP4 — the dish maker | | |
 | CP5 — splitting dishes | | |
 | CP6 — use it before it goes | | |
@@ -208,7 +208,7 @@ All three are closed by CP-9 (below).
   plan; null when no single third person explains it (the app then says
   what the shortcut does in general). 404 for yourself, for someone you
   share nothing with, and for a malformed id. Lines are every line since
-  the group began, not since your last settlement (risks CP-Q).
+  the group began, not since your last settlement (risks CP-S).
 - **The app**: `memberLabel` takes the names the screen has (from
   `myBalances().people`, or a group's member list), so Activity, Balances,
   Add expense, Settle up and People all show names; a person's avatar shows
@@ -228,3 +228,59 @@ All three are closed by CP-9 (below).
   another member an owner, or an admin, with `memberships.updateMemberRole`
   after a confirm dialog; the last-owner message on Leave links to it.
 
+### CP3 — using things (CP-11)
+
+- **Routes as built.** In a group: `POST …/items/{itm}/uses`
+  `{ quantity, unit?, consumers?, weights? }` (the design's
+  `{ qty, consumers, amounts? }`: shares are positive `weights`, `consumers`
+  defaults to the caller, `unit` to the item's own and must measure what the
+  item does), `POST …/items/{itm}/waste` `{ quantity?, unit? }`,
+  `GET …/items/{itm}/moves`, and `POST …/moves/{mov}/undo` (added, below).
+  Personal: `POST /v1/kitchen/me/items/{itm}/uses|waste|transfer`,
+  `GET /v1/kitchen/me/items/{itm}/moves`, `POST /v1/kitchen/me/moves/{mov}/undo`,
+  `GET /v1/kitchen/me/usuals`. Every write answers 201 `{ item, move, txn }`
+  (`txn` null when no money moved). Uses and waste need `kitchen.item.use`
+  (waste has no action of its own); everyone named must be on the roster.
+- **Columns the design did not list** (migration `240_kitchen_stock_moves`):
+  `consumers` (a JSON array: a use where every consumer is the buyer posts no
+  transaction, so the move is the only record of who had it), `unit` (as
+  logged, so history and "Do it again" say 250 ml, not 0.25 L), `reverses`
+  (a move is undone by a `reversal` move pointing at it — unique, so once)
+  and `idem_key` (unique per item: a retried use or waste answers with its
+  move instead of taking the stock twice).
+- **The write is optimistic.** A use is costed from the item as read (the
+  last use takes what is left of the price), so its batch applies only at
+  that version: the move's `item_id` is read from the item at the expected
+  version, and a NULL fails the NOT NULL constraint and the whole batch. An
+  over-draw fails the item's stock CHECK. The worker plans once more from a
+  fresh read; a second lost race is 409 `stale`.
+- **Waste split equally** charges every member on the roster, viewers
+  included ("every current member").
+- **Undo.** Reversing a `use` or `waste` transaction puts back every stock
+  move it made in the same batch, in any order (the cost taken stays the sum
+  of the moves still in effect). A reversal that put stock back cannot itself
+  be reversed (409 `not_reversible`): taking the stock again at its original
+  price after later uses would break "a used-up item costs exactly its
+  price" — log the use again instead. A move with no transaction is undone
+  through `…/moves/{mov}/undo`: the personal route, and a group route
+  (added, so a buyer's own use and buyer-absorbed waste can be undone too)
+  for the move's logger or `kitchen.txn.reverse_any`, audited as
+  `kitchen.move.undone` (an event the design did not list). Only the latest
+  move still in effect on its item (409 `not_latest`), once (409
+  `already_reversed`), and only uses and waste (`not_reversible`); a move
+  with a transaction is 409 `has_transaction`.
+- **Transfer** refuses a used item with the existing `item_used` (the same
+  condition edits and removal use), and gives the item the idempotency key
+  `transfer_<move id>` so it cannot collide in its new pantry. It moves no
+  money and is not undoable in v1.
+- **canUse and `usable=1`** (on `/v1/kitchen/me/items` and `…/search`, as
+  `ReachableItem`) come from membership's role: owner, admin and builder hold
+  `kitchen.item.use`, viewer does not (`USE_ROLES`, pinned against the policy
+  engine by a test). Every write still asks policy.
+- **Usuals** are uses in the last 90 days (`USUALS_DAYS`) that the caller
+  logged or was named in, not undone, of items with something left in
+  pantries they may use: most used first, then most recent, each with how it
+  was last logged (`lastQuantity`, `lastUnit`, `consumers`) and what is left
+  (`qtyLeftMilli`, so "Do it again" can tell whether it still fits).
+- **New reasons:** `insufficient_stock`, `stale`, `not_latest`,
+  `has_transaction`, `not_reversible`.

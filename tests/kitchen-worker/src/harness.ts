@@ -16,6 +16,9 @@
 //   - IDENTITY_WORKER answers the people lookup
 //     (/v1/internal/identity/users/lookup) from profiles the test fills with
 //     `profile` (CP-9); `failIdentity` makes it fail.
+//   - `beforeNextBatch` runs a write right before the worker's next D1 batch:
+//     another request landing between this one's read and its write, which
+//     is how a test races two writers deterministically.
 //
 // Every request goes through `route`, exactly as api-edge's service binding
 // delivers it: actor headers set, the edge's path and method unchanged.
@@ -50,8 +53,14 @@ export function migratedDatabase(): DatabaseSync {
   return db;
 }
 
+/** Seams into the D1 double. */
+export interface D1Hooks {
+  /** Runs before each batch, outside its transaction (as a concurrent request's write would). */
+  beforeBatch?: () => void;
+}
+
 /** A D1 binding backed by `db` — the subset the SQL executor uses. */
-export function d1Over(db: DatabaseSync): D1Database {
+export function d1Over(db: DatabaseSync, hooks: D1Hooks = {}): D1Database {
   return {
     prepare(query: string) {
       let bound: unknown[] = [];
@@ -60,19 +69,24 @@ export function d1Over(db: DatabaseSync): D1Database {
           bound = values;
           return statement;
         },
+        run<T>() {
+          return { results: db.prepare(query).all(...(bound as never[])) as T[], success: true };
+        },
         all<T>() {
-          const rows = db.prepare(query).all(...(bound as never[])) as T[];
-          return Promise.resolve({ results: rows, success: true });
+          return Promise.resolve(statement.run<T>());
         },
       };
       return statement;
     },
-    // D1's batch is one implicit transaction: all statements apply or none do.
-    async batch(statements: Array<{ all(): Promise<unknown> }>) {
+    // D1's batch is one implicit transaction: all statements apply or none do,
+    // and nothing else runs in between — concurrent requests' batches are
+    // serialized. So the statements run synchronously here: two requests
+    // racing never interleave inside one transaction.
+    async batch(statements: Array<{ run(): unknown }>) {
+      hooks.beforeBatch?.();
       db.exec("BEGIN");
       try {
-        const results = [];
-        for (const statement of statements) results.push(await statement.all());
+        const results = statements.map((statement) => statement.run());
         db.exec("COMMIT");
         return results;
       } catch (err) {
@@ -134,6 +148,12 @@ export interface Harness {
   failGroups: boolean;
   /** Every authorization decision the policy engine made, in order. */
   decisions: Array<{ request: AuthorizationRequest; allow: boolean }>;
+  /**
+   * Run `write` right before the worker's next D1 batch — after the request
+   * has read what it computes from, before it writes. Queue several to land
+   * one before each of the next batches.
+   */
+  beforeNextBatch(write: (db: DatabaseSync) => void): void;
   /** Send one request through the worker's router. */
   call(method: string, path: string, opts: CallOptions): Promise<Response>;
   close(): void;
@@ -157,6 +177,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const roster = new Map<string, Map<string, OrganizationRole>>();
   const known = new Map<string, Group>();
   const decisions: Harness["decisions"] = [];
+  const pendingWrites: Array<(db: DatabaseSync) => void> = [];
 
   let rosterCalls = 0;
   let groupsCalls = 0;
@@ -227,7 +248,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
 
   const base: Record<string, unknown> = {
     ENVIRONMENT: "test",
-    PLATFORM_DB: d1Over(db),
+    PLATFORM_DB: d1Over(db, { beforeBatch: () => pendingWrites.shift()?.(db) }),
     MEMBERSHIP_WORKER: membershipWorker,
     POLICY_WORKER: policyWorker,
     NOTIFICATIONS_WORKER: fetcher(async () => Response.json({ data: {} })),
@@ -254,6 +275,9 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     },
     set failGroups(value: boolean) {
       state.failGroups = value;
+    },
+    beforeNextBatch(write) {
+      pendingWrites.push(write);
     },
     grant(subjectId, group, role) {
       known.set(group.id, group);

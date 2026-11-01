@@ -128,7 +128,27 @@ can read as one day further from its date for those hours. Accepted for v1:
 the daily sweep runs at 08:00 IST, well inside the same day. If it shows,
 the app can send its own date (`?today=`) or a person can carry a time zone.
 
-## CP-Q — the people reads read every group's whole ledger (ACCEPTED)
+## CP-Q — usuals read a person's moves without an index on who had it (ACCEPTED)
+
+`GET /v1/kitchen/me/usuals` counts the uses a person logged or was named in.
+Who had a use is a JSON array on the move (`consumers`), so the read joins
+the person's reachable items to their moves through the item index and
+filters with `json_each`: every use of every reachable item in the last 90
+days. That is a few thousand rows for a flat that cooks every day, fine for
+v1. Revisit when the read shows in Server-Timing: a
+`kitchen_stock_move_consumers (move_id, subject_id)` table indexed by subject,
+written in the same batch as the move.
+
+## CP-R — members see each other's name or email prefix (ACCEPTED)
+
+A group's members (viewers included) see each other's display name, else
+the part of their email before the @, through the members list, People and
+every screen that names someone. They never see a whole email address.
+Anyone with a group's join link can join and see these names, which is the
+point of a shared kitchen. A person who does not want their email prefix
+shown sets a display name in Account.
+
+## CP-S — the people reads read every group's whole ledger (ACCEPTED)
 
 `GET /v1/kitchen/me/balances` and `GET /v1/kitchen/me/people/{usr}` load,
 for every group the caller is in, its roster (one membership hop each), its
@@ -144,13 +164,3 @@ settlement: a payment is a line too, so the sum still explains the amount;
 trimming to "since you last squared up" can come with the inbox (CP-19).
 The names lookup could become one `IN (json_each(…))` read
 (`getUsersByIds`) when `packages/db` is next in scope.
-
-## CP-R — members see each other's name or email prefix (ACCEPTED)
-
-A group's members (viewers included) see each other's display name, else
-the part of their email before the @, through the members list, People and
-every screen that names someone. They never see a whole email address.
-Anyone with a group's join link can join and see these names, which is the
-point of a shared kitchen. A person who does not want their email prefix
-shown sets a display name in Account.
-

@@ -18,6 +18,14 @@ export type KitchenRepositoryError =
   | { kind: "item_used" }
   /** The item was edited since the caller read it: it is now at `version`. */
   | { kind: "version_conflict"; version: number }
+  /** Not that much of the item is left (the stock or cost CHECK refused the write): `qtyLeftMilli` is. Nothing was written. */
+  | { kind: "insufficient_stock"; qtyLeftMilli: number }
+  /** The item changed between the read the write was computed from and the write: read it again. Nothing was written. */
+  | { kind: "stale" }
+  /** The stock move has been put back already, by `undoneBy`. */
+  | { kind: "already_undone"; undoneBy: string }
+  /** A reversal that put stock back cannot itself be reversed: that would take the stock again at a fixed price. */
+  | { kind: "not_reversible" }
   | { kind: "internal"; message: string };
 
 export type KitchenResult<T> =
@@ -122,6 +130,10 @@ export interface PostTxnInput {
   audit?: AppendEventWithAuditInput;
 }
 
+/**
+ * A reversal of a transaction that moved stock (a group use, split waste)
+ * also puts that stock back, in the same batch: see `reverseTxn`.
+ */
 export interface ReverseTxnInput {
   /** The transaction being undone, as `getTxn` read it. */
   original: KitchenTxnRecord;
@@ -362,6 +374,142 @@ export interface KitchenPantryTotalsQuery extends KitchenPantryScope {
   soonUntil: string;
 }
 
+// ── Stock moves (CP-11) ─────────────────────────────────────
+
+export type KitchenStockMoveKind = "use" | "dish" | "waste" | "transfer" | "adjust" | "reversal";
+
+/** One change to an item's stock, as stored. */
+export interface KitchenStockMoveRecord {
+  id: string;
+  itemId: string;
+  kind: KitchenStockMoveKind;
+  /** Always positive: a reversal puts back what the move it reverses took. */
+  qtyMilli: number;
+  costMinor: number;
+  /** Who logged it (`usr_…`). */
+  actor: string;
+  txnId: string | null;
+  dishId: string | null;
+  /** For a use: who had it, in the order named. */
+  consumers: string[] | null;
+  /** The unit it was logged in; null reads as the item's display unit. */
+  unit: string | null;
+  /** For a reversal: the move it puts back. */
+  reverses: string | null;
+  /** The reversal that put this move back, if any. Read by join, never stored. */
+  undoneBy: string | null;
+  idemKey: string | null;
+  createdAt: Date;
+}
+
+/** What every move a request writes carries. */
+export interface NewStockMove {
+  id: Uuid;
+  /** Who logged it (`usr_…`). */
+  actor: string;
+  /** The request's Idempotency-Key (or one minted for it); unique per item. */
+  idemKey: string;
+  /** Written as the move's created_at and the item's updated_at. */
+  now: Date;
+}
+
+/**
+ * Take some of an item — a use or waste — in ONE batch: the ledger
+ * transaction (when it moves money) with its splits, the move, the item's
+ * update and the audit event. The write applies only while the item is still
+ * at `expectedVersion` (the read its cost was computed from): otherwise
+ * `stale`, and nothing is written. Taking more than is left fails the stock
+ * CHECK: `insufficient_stock`, and nothing is written. A repeated idempotency
+ * key on the item writes nothing and answers the move it made
+ * (`replayed: true`).
+ */
+export interface TakeStockInput {
+  owner: KitchenPantryOwner;
+  itemId: Uuid;
+  expectedVersion: number;
+  move: NewStockMove & {
+    kind: "use" | "waste";
+    qtyMilli: number;
+    costMinor: number;
+    unit: string;
+    consumers: readonly string[] | null;
+  };
+  /** The transaction the move posts: a group use, or waste split equally. Its id becomes the move's txn_id. */
+  txn?: { txn: NewKitchenTxn; splits: readonly KitchenSplit[] } | null;
+  audit?: AppendEventWithAuditInput;
+}
+
+/** A write that moved stock: the item as it is now, the move, and the transaction it posted. */
+export interface StockMoved {
+  item: KitchenItemRecord;
+  move: KitchenStockMoveRecord;
+  txn: KitchenTxnRecord | null;
+  /** True when the idempotency key had already made this move: nothing was written. */
+  replayed: boolean;
+}
+
+/**
+ * Move a personal item into a group's pantry in ONE batch: pin the group's
+ * currency, the `transfer` move, the item's new owner, the audit event. Only
+ * while the item is unused (`item_used`), at `expectedVersion` (`stale`), and
+ * in the group's currency (`currency_mismatch`).
+ */
+export interface TransferItemInput {
+  /**
+   * The personal item as the caller read it. Its owner becomes its buyer in
+   * the group; the write applies only while it is still at this version.
+   */
+  item: KitchenItemRecord;
+  orgId: Uuid;
+  /** The group's currency as the caller read it; the item must be in it. */
+  currency: string;
+  move: NewStockMove;
+  audit?: AppendEventWithAuditInput;
+}
+
+/**
+ * Put back a move that posted no transaction, in ONE batch: a `reversal`
+ * move and the item's restore (what was taken, and what it cost, come back;
+ * a used-up or wasted item is active again). Only at `expectedVersion` — the
+ * version the caller saw the move as the item's latest at (`stale`).
+ */
+export interface UndoMoveInput {
+  owner: KitchenPantryOwner;
+  /** The move to put back, as `getMove` read it. */
+  move: KitchenStockMoveRecord;
+  expectedVersion: number;
+  reversal: NewStockMove;
+  audit?: AppendEventWithAuditInput;
+}
+
+/** A move with its item, and the item's latest move still in effect (what an undo may put back). */
+export interface KitchenMoveRead {
+  move: KitchenStockMoveRecord;
+  item: KitchenItemRecord;
+  latestMoveId: string | null;
+}
+
+/** One item someone often uses, from their uses since `since`. */
+export interface KitchenUsualRecord {
+  item: KitchenItemRecord;
+  usedCount: number;
+  lastQtyMilli: number;
+  lastUnit: string | null;
+  lastConsumers: string[] | null;
+  lastUsedAt: Date;
+}
+
+/**
+ * Uses since `since` that `subjectId` logged or was named in, of active items
+ * with something left in the scope, one row per item: most used first, then
+ * most recently used.
+ */
+export interface KitchenUsualsQuery extends KitchenPantryScope {
+  subjectId: string;
+  since: Date;
+  limit: number;
+}
+
 // ── Repository ──────────────────────────────────────────────
 
 export interface KitchenRepository {
@@ -387,6 +535,13 @@ export interface KitchenRepository {
    * Post the reversal of `original` (kind `reversal`, `reverses` = its id) the
    * way `postTxn` posts. A transaction is reversed at most once: a second
    * reversal under another key is `already_reversed`.
+   *
+   * When the original moved stock (a group use, waste split equally — its
+   * moves carry its id), the same batch puts every one of those moves back:
+   * a `reversal` move each, and each item gets the quantity and the cost
+   * back (a used-up or wasted item is active again). A reversal that put
+   * stock back cannot itself be reversed (`not_reversible`): that would take
+   * the stock again at a price fixed before other uses changed what is left.
    */
   reverseTxn(input: ReverseTxnInput): Promise<KitchenResult<PostedTxn>>;
   /** One transaction of the group, with its splits; `not_found` outside it. */
@@ -437,4 +592,25 @@ export interface KitchenRepository {
   searchItems(query: KitchenItemSearch): Promise<KitchenResult<KitchenItemRecord[]>>;
   /** Counts and worth of the scope's pantries, one row per pantry and currency. */
   pantryTotals(query: KitchenPantryTotalsQuery): Promise<KitchenResult<KitchenPantryTotals[]>>;
+
+  // ── Stock moves (CP-11) ──
+
+  /** Use or waste some of an item, with the transaction it posts, in ONE batch (see `TakeStockInput`). */
+  takeStock(input: TakeStockInput): Promise<KitchenResult<StockMoved>>;
+  /** Move an unused personal item into a group's pantry, in ONE batch (see `TransferItemInput`). */
+  transferItem(input: TransferItemInput): Promise<KitchenResult<StockMoved>>;
+  /**
+   * Put back a move that posted no transaction (see `UndoMoveInput`). A move
+   * is put back once: a second undo is `already_undone`. A repeated
+   * idempotency key answers the reversal it wrote (`replayed: true`).
+   */
+  undoMove(input: UndoMoveInput): Promise<KitchenResult<StockMoved>>;
+  /** One move of an item in the pantry, with the item and its latest move still in effect; `not_found` outside it. */
+  getMove(owner: KitchenPantryOwner, moveId: Uuid): Promise<KitchenResult<KitchenMoveRead>>;
+  /** The move a request with this idempotency key made on the pantry's item, if any. */
+  getMoveByIdemKey(owner: KitchenPantryOwner, itemId: Uuid, idemKey: string): Promise<KitchenResult<KitchenStockMoveRecord | null>>;
+  /** The pantry item's moves, newest first. */
+  listMoves(owner: KitchenPantryOwner, itemId: Uuid, limit: number): Promise<KitchenResult<KitchenStockMoveRecord[]>>;
+  /** What someone often uses (see `KitchenUsualsQuery`). */
+  usuals(query: KitchenUsualsQuery): Promise<KitchenResult<KitchenUsualRecord[]>>;
 }

@@ -27,7 +27,7 @@ import { myBalances, peopleIn, personGroupView, planTotals, type GroupLedger } f
 // than one policy hop per group. Each group's balances and plan are derived
 // from its whole ledger by the money engine, the same way …/balances and
 // …/settle-plan derive them, so the numbers here match Settle up. v1 reads
-// every group's ledger on each call (risks CP-Q): fine for a few small groups.
+// every group's ledger on each call (risks CP-S): fine for a few small groups.
 
 /** A public subject id as the edge forwards it (`usr_…`). */
 const SUBJECT_ID_RE = /^[A-Za-z0-9][\w-]{0,127}$/;

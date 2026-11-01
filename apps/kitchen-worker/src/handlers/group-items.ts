@@ -53,7 +53,7 @@ import { Fields } from "../validate.js";
 // 403 `not_buyer`; anyone without the route's grant the opaque 404.
 
 /** This group as the caller's membership sees it (its name and slug), for the item's pantry. */
-async function thisGroup(ctx: OrgContext): Promise<{ ok: true; group: MemberGroup } | { ok: false; response: Response }> {
+export async function thisGroup(ctx: OrgContext): Promise<{ ok: true; group: MemberGroup } | { ok: false; response: Response }> {
   const groups = await ctx.timings.measure("groups", () => ctx.groups.of(ctx.actor.subjectId));
   if (!groups.ok) return { ok: false, response: unavailable(ctx.requestId) };
   const group = groups.groups.find((g) => g.orgId === ctx.orgId);

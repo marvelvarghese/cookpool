@@ -36,6 +36,16 @@ export type {
   KitchenItemSearch,
   KitchenPantryTotals,
   KitchenPantryTotalsQuery,
+  KitchenStockMoveKind,
+  KitchenStockMoveRecord,
+  NewStockMove,
+  TakeStockInput,
+  StockMoved,
+  TransferItemInput,
+  UndoMoveInput,
+  KitchenMoveRead,
+  KitchenUsualRecord,
+  KitchenUsualsQuery,
 } from "./types.js";
 
 export { KITCHEN_DEFAULT_CURRENCY, KITCHEN_DEFAULT_WASTE_POLICY } from "./types.js";

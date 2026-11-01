@@ -11,6 +11,7 @@ import { KITCHEN_DEFAULT_CURRENCY, KITCHEN_DEFAULT_WASTE_POLICY } from "./types.
 import { isCheckViolation } from "../d1/errors.js";
 import { createLedgerRepository } from "./ledger.js";
 import { createPantryRepository } from "./pantry.js";
+import { createStockRepository } from "./stock.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -110,5 +111,6 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     upsertGroupSettings,
     ...createLedgerRepository(executor),
     ...createPantryRepository(executor),
+    ...createStockRepository(executor),
   };
 }

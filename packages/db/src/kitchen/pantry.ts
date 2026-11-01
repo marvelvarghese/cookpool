@@ -43,9 +43,16 @@ export type PantryRepository = Pick<
 
 // ── Row mappers ────────────────────────────────────────────
 
-const ITEM_COLUMNS = `id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
+export const ITEM_COLUMNS = `id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
   qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by, bought_on,
   expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key, created_at, updated_at`;
+
+/** ITEM_COLUMNS of the table aliased `alias`, for a join (the row keys stay the bare column names). */
+export function itemColumns(alias: string): string {
+  return ITEM_COLUMNS.split(",")
+    .map((column) => `${alias}.${column.trim()}`)
+    .join(", ");
+}
 
 /** Where an item without a use-by date sorts: after every real date. */
 const NO_EXPIRY_KEY = "9999-12-31";
@@ -60,7 +67,7 @@ function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value);
 }
 
-function mapItem(row: Row): KitchenItemRecord {
+export function mapItem(row: Row): KitchenItemRecord {
   return {
     id: row.id as string,
     ownerKind: row.owner_kind as "user" | "group",
@@ -104,7 +111,7 @@ function likeEscape(text: string): string {
  * Appends params and returns their `$n`. Lets a statement be assembled from
  * optional clauses without counting placeholders by hand.
  */
-class Params {
+export class Params {
   readonly values: unknown[] = [];
 
   add(value: unknown): string {
@@ -114,14 +121,14 @@ class Params {
 }
 
 /** `owner_subject_id = $n` or `org_id = $n`: the one pantry an owner names. */
-function ownerClause(params: Params, owner: KitchenPantryOwner): string {
+export function ownerClause(params: Params, owner: KitchenPantryOwner): string {
   return owner.kind === "user"
     ? `owner_kind = 'user' AND owner_subject_id = ${params.add(owner.subjectId)}`
     : `owner_kind = 'group' AND org_id = ${params.add(owner.orgId)}`;
 }
 
 /** Every pantry in the scope: the person's own, and each group. */
-function scopeClause(params: Params, scope: KitchenPantryScope): string {
+export function scopeClause(params: Params, scope: KitchenPantryScope): string {
   const groups = `org_id IN (SELECT value FROM json_each(${params.add(JSON.stringify(scope.orgIds))}))`;
   if (scope.ownerSubjectId === null) return `(${groups})`;
   return `(owner_subject_id = ${params.add(scope.ownerSubjectId)} OR ${groups})`;

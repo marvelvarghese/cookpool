@@ -57,6 +57,25 @@ export const KITCHEN_ERROR_REASONS = {
   NOT_BUYER: "not_buyer",
   /** 409 `conflict`: the item changed since the `version` the edit was based on (`details.version` is the current one). */
   VERSION_CONFLICT: "version_conflict",
+  /**
+   * 409 `conflict`: not that much of the item is left — an over-draw, or
+   * nothing left to waste (`details.qtyLeftMilli`). Nothing was written.
+   */
+  INSUFFICIENT_STOCK: "insufficient_stock",
+  /** 409 `conflict`: the item kept changing while the write was retried; read it again and retry. */
+  STALE: "stale",
+  /** 409 `conflict`: only the latest move still in effect on an item can be undone (`details.latestMoveId`). */
+  NOT_LATEST: "not_latest",
+  /**
+   * 409 `conflict`: the move posted a ledger transaction (`details.txnId`):
+   * reverse that transaction instead, which puts the stock back too.
+   */
+  HAS_TRANSACTION: "has_transaction",
+  /**
+   * 409 `conflict`: this cannot be undone — a transfer, an undo, or the
+   * reversal of a use or waste (log the use again instead).
+   */
+  NOT_REVERSIBLE: "not_reversible",
 } as const;
 
 export type KitchenErrorReason = (typeof KITCHEN_ERROR_REASONS)[keyof typeof KITCHEN_ERROR_REASONS];
@@ -400,10 +419,15 @@ export interface ItemsQuery {
   cursor?: string;
   /** 1–100, default 50. */
   limit?: number;
+  /**
+   * Only items the caller may use (`usable=1`): their own, and those of
+   * groups where their role holds `kitchen.item.use` — not a viewer's.
+   */
+  usable?: boolean;
 }
 
 /** GET /v1/organizations/{org}/kitchen/items (`kitchen.pantry.read`): one group's pantry. */
-export type GroupItemsQuery = Omit<ItemsQuery, "pantry">;
+export type GroupItemsQuery = Omit<ItemsQuery, "pantry" | "usable">;
 
 export interface ItemsPage {
   items: KitchenItem[];
@@ -421,10 +445,29 @@ export interface SearchItemsQuery {
   q?: string;
   /** 1–50, default 20. */
   limit?: number;
+  /** Only items the caller may use, as on `ItemsQuery`. */
+  usable?: boolean;
+}
+
+/**
+ * An item as the cross-pantry reads (`/v1/kitchen/me/items`, `…/search`)
+ * answer it: with whether the caller may use it. A viewer reads a group's
+ * pantry but may not use from it, so quick use and the dish maker offer only
+ * `canUse` items (or ask with `usable=1`).
+ */
+export interface ReachableItem extends KitchenItem {
+  canUse: boolean;
+}
+
+/** GET /v1/kitchen/me/items. */
+export interface ReachableItemsPage {
+  items: ReachableItem[];
+  /** Pass back as `cursor` for the next page; null on the last one. */
+  nextCursor: string | null;
 }
 
 export interface SearchItemsResponse {
-  items: KitchenItem[];
+  items: ReachableItem[];
 }
 
 /**
@@ -636,4 +679,177 @@ export interface KitchenMember {
  */
 export interface GroupMembersResponse {
   members: KitchenMember[];
+}
+
+// ── Using things (CP-11) ────────────────────────────────────
+//
+// Using some of an item, wasting it, moving a personal item into a group, and
+// undoing any of that. Every change to what is left of an item is a stock
+// move; a move that moves money also posts one ledger transaction, in the
+// same write. Using a group item pays its buyer back: the people who had it
+// owe the cost (`costOfUse`: proportional to what was paid, and the use that
+// takes the last of an item costs exactly what is left of its price, so a
+// used-up item has cost exactly its price). Quantities are decimals in a unit
+// of the item's dimension; `unit` defaults to the item's own.
+
+/** What a stock move did to an item. `dish` and `adjust` arrive with later tasks. */
+export const STOCK_MOVE_KINDS = ["use", "dish", "waste", "transfer", "adjust", "reversal"] as const;
+export type StockMoveKind = (typeof STOCK_MOVE_KINDS)[number];
+
+export interface KitchenStockMove {
+  /** `mov_…` */
+  id: string;
+  /** `itm_…` */
+  itemId: string;
+  kind: StockMoveKind;
+  /** How much moved, in thousandths of the dimension's base unit (always positive). */
+  qtyMilli: number;
+  /** The same quantity in `unit`. */
+  quantity: number;
+  /** The unit it was logged in (the item's display unit for a transfer). */
+  unit: string;
+  /** What it cost: charged to whoever had it (a group use), shared (split waste), or absorbed. 0 for a transfer. */
+  costMinor: number;
+  /** Who logged it (`usr_…`). */
+  actor: string;
+  /** For a use: who had it (`usr_…`), in the order they were named. Null for every other kind. */
+  consumers: string[] | null;
+  /** The ledger transaction it belongs to (`txn_…`), when it moved money. */
+  txnId: string | null;
+  /** For a reversal: the `mov_…` it put back. */
+  reverses: string | null;
+  at: string;
+  /** True once a reversal has put it back. */
+  undone: boolean;
+  /** That reversal's `mov_…`. */
+  undoneBy: string | null;
+}
+
+/**
+ * POST /v1/organizations/{org}/kitchen/items/{itm}/uses (`kitchen.item.use`).
+ * `consumers` (default: the caller) are who had it — the caller may log for
+ * others — and must be members (422 `not_in_group`). They owe the cost
+ * equally, or by `weights` (positive numbers, one per consumer); the odd paisa
+ * goes to the earliest named. The buyer is paid back, so a buyer who had some
+ * nets their own share to zero; when every consumer is the buyer, the move is
+ * recorded and no transaction posted. More than is left is 409
+ * `insufficient_stock`, and nothing is written.
+ */
+export interface UseGroupItemRequest {
+  quantity: string | number;
+  unit?: string;
+  consumers?: string[];
+  weights?: number[];
+}
+
+/** POST /v1/kitchen/me/items/{itm}/uses — a stock move only: a personal pantry has no ledger. */
+export interface UsePersonalItemRequest {
+  quantity: string | number;
+  unit?: string;
+}
+
+/**
+ * POST /v1/organizations/{org}/kitchen/items/{itm}/waste (`kitchen.item.use`)
+ * and POST /v1/kitchen/me/items/{itm}/waste. Without `quantity`, everything
+ * left. A group item follows its own waste rule, else the group's:
+ * `split_equally` posts a `waste` transaction — the buyer is paid back what
+ * the wasted part was worth and every current member owes an equal share —
+ * and `buyer_absorbs` (like any personal item) records the move only. Nothing
+ * left makes the item `wasted`.
+ */
+export interface WasteItemRequest {
+  quantity?: string | number;
+  unit?: string;
+}
+
+/**
+ * POST /v1/kitchen/me/items/{itm}/transfer — move a personal item into a
+ * group's pantry, where the caller holds `kitchen.item.create` (the opaque 404
+ * otherwise). Only while nothing of it has been used (409 `item_used`), and
+ * only into a group that counts in the item's currency (422
+ * `currency_mismatch`). It becomes a group item paid for by the caller,
+ * following the group's waste rule; a `transfer` move records it.
+ */
+export interface TransferItemRequest {
+  /** `org_…` */
+  orgId: string;
+}
+
+/**
+ * 201 from every write that moves stock — uses, waste, a transfer and an
+ * undo: the item as it is now, the move, and the transaction it posted (null
+ * when it moved no money).
+ */
+export interface StockMoveResponse {
+  item: KitchenItem;
+  move: KitchenStockMove;
+  txn: KitchenTxn | null;
+}
+
+export type UseItemResponse = StockMoveResponse;
+export type WasteItemResponse = StockMoveResponse;
+export type TransferItemResponse = StockMoveResponse;
+export type UndoMoveResponse = StockMoveResponse;
+
+/**
+ * GET /v1/organizations/{org}/kitchen/items/{itm}/moves (`kitchen.pantry.read`)
+ * and GET /v1/kitchen/me/items/{itm}/moves: the item's history, newest first.
+ */
+export interface MovesQuery {
+  /** 1–200, default 50. */
+  limit?: number;
+}
+
+export interface MovesResponse {
+  moves: KitchenStockMove[];
+}
+
+/*
+ * Undoing a move:
+ *   - a move that posted a transaction (a group use, split waste) is undone by
+ *     reversing that transaction (POST …/txns/{txn}/reverse): the reversal puts
+ *     the stock back in the same write, and the reversal of such a reversal is
+ *     409 `not_reversible`;
+ *   - POST /v1/kitchen/me/moves/{mov}/undo undoes a personal use or waste;
+ *   - POST /v1/organizations/{org}/kitchen/moves/{mov}/undo undoes a group move
+ *     that moved no money (a buyer's own use, waste the buyer absorbed): its
+ *     logger, or an owner or admin (`kitchen.txn.reverse_any`; 403 `not_creator`).
+ * Only the latest move still in effect on the item can be undone (409
+ * `not_latest`), and once (409 `already_reversed`); a move with a transaction
+ * is 409 `has_transaction`. The answer is the `reversal` move.
+ */
+
+/** How far back GET /v1/kitchen/me/usuals looks. */
+export const USUALS_DAYS = 90;
+
+/**
+ * One item the caller often uses: presets for quick use and "Do it again".
+ * Only items with something left that the caller may still use.
+ */
+export interface KitchenUsual {
+  /** `itm_…` */
+  itemId: string;
+  name: string;
+  pantry: PantryRef;
+  /** The last use, as it was logged. */
+  lastQtyMilli: number;
+  lastQuantity: number;
+  lastUnit: string;
+  /** Who had it the last time. */
+  consumers: string[];
+  /** Uses in the last USUALS_DAYS days that the caller logged or was named in. */
+  usedCount: number;
+  lastUsedAt: string;
+  /** What is left now, so "Do it again" can tell whether there is enough. */
+  qtyLeftMilli: number;
+}
+
+/** GET /v1/kitchen/me/usuals?limit= — most used first, then most recently used. */
+export interface UsualsQuery {
+  /** 1–50, default 10. */
+  limit?: number;
+}
+
+export interface UsualsResponse {
+  usuals: KitchenUsual[];
 }
