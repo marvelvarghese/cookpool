@@ -66,4 +66,4 @@ spec:
     surface: policy
     runtime: cloudflare
 # ci: trigger full-component verification (orun v2.12.0 upgrade — PR #183)
-# orun: redeploy 01-product 20261101T204055Z
+# orun: redeploy CP-3 policy-engine gained organization.join_code.* 20261101T212151Z

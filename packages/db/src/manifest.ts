@@ -183,5 +183,14 @@ export const manifest: MigrationManifest = {
       description:
         "Connection pointer on the inbound-delivery inbox (nullable connection_id + partial index) — lets the per-connection delivery log scope precisely; attributed by the IG2 cron drain",
     },
+    {
+      id: "200_membership_join_codes",
+      context: "membership",
+      path: "200_membership_join_codes/up.sql",
+      checksum:
+        "433bafcd71b95cae7cd1a7e96f2ab3b815236633063e073a7ac048bf9ec210fc",
+      description:
+        "Shareable join code per organization (nullable join_code on membership_organizations + partial unique index) — minted lazily, rotatable; opening a group's link joins it (Cookpool CP-3)",
+    },
   ],
 };

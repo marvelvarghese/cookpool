@@ -1,0 +1,30 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-3
+  title: "Join links: every group has a code; opening it joins straight away"
+spec:
+  goal: A signed-in person who opens a group's join link can see the group and join it in one step as a member, owners and admins can read and rotate the link, and a member can leave — all through api-edge, with the SDK able to drive it.
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/policy-engine
+    - default/cookpool/policy-engine-tests
+    - default/cookpool/policy-worker
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-3.TaskContract.yaml
+  doneWhen:
+    - migration 200_membership_join_codes adds a unique join_code to membership_organizations and applies cleanly on SQLite
+    - GET and rotate of /v1/organizations/{org}/join-code work for owners and admins and are refused (404) for members
+    - GET /v1/join/{code} previews the group (name, slug, member count, whether you are already in it) for any signed-in person
+    - POST /v1/join joins as a builder (member) in one atomic batch, is idempotent for an existing member, and respects the group's limit.members
+    - POST /v1/organizations/{org}/leave removes the caller, and refuses the last owner while others remain
+    - the SDK exposes getJoinCode, rotateJoinCode, previewJoin, join and leave; tests cover every route
+  gates: []

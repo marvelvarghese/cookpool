@@ -33,6 +33,8 @@ this epic.
 The baseline's invitation email carries no token and the console has no accept
 page. Decision: port ogpic's join links (code, optional approval, rotate,
 leave). Email invites stay in the API but are not offered in the app.
+As built (CP-3): no approval queue in v1 — opening a link joins straight
+away as a member, and rotating the code is how a group stops new joins.
 
 ## CP-E — rounding (RESOLVED)
 

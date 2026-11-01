@@ -13,7 +13,7 @@ disagree, the canvas shows intent for layout and this document for behaviour.
 | A person | identity subject `usr_…` | sign-in, sessions, email unchanged |
 | A group | membership organization `org_…` | name, slug, members, roles. A person belongs to many. |
 | Group roles | `owner`, `admin`, `builder`, `viewer` | joining by link grants `builder` ("member" in the UI); `viewer` is read-only |
-| Joining | `membership_join_links` (ported from ogpic, migration `230_membership_join_requests`) | a code per group; opening it joins straight away, or queues for approval if the group asks |
+| Joining | `membership_organizations.join_code` (migration `200_membership_join_codes`; ogpic's join codes without its request queue) | a code per group; opening it joins straight away. No approval queue in v1: rotating the code is how a group closes the door |
 | Audit | `appendEventWithAudit` into the shared D1 | every money write emits one event |
 | Email | `notifications-worker` templates | three new templates (§8) |
 
@@ -228,10 +228,14 @@ POST   …/settlements
 **Groups and joining** (membership-worker)
 ```
 POST   /v1/organizations                           create a group (baseline; free-plan cap lifted)
-POST   /v1/organizations/{org}/join-link           create or rotate; { requires_approval }
-GET    /v1/join/{code}                             group preview for the join page
-POST   /v1/join/{code}                             join
-DELETE /v1/organizations/{org}/members/me          leave (refused while your balance is not zero)
+GET    /v1/organizations/{org}/join-code           { code }, minted on first read (owner/admin)
+POST   /v1/organizations/{org}/join-code/rotate    { code }; the old link stops working (owner/admin)
+GET    /v1/join/{code}                             { orgId, name, slug, memberCount, alreadyMember }
+POST   /v1/join                                    { code } → 201 { orgId, slug, memberId, alreadyMember }
+                                                   (200 when already in; 412 + details.reason when full)
+POST   /v1/organizations/{org}/leave               { orgId, memberId, left }; the last owner is refused
+                                                   while others remain (409 last_owner). Refusing while
+                                                   your balance is not zero arrives with the ledger (CP2).
 ```
 
 Error codes added to `ERROR_CODES`: `insufficient_stock`, `currency_mismatch`,
@@ -250,7 +254,7 @@ New policy actions, mapped onto the baseline roles in `ORG_ROLE_PERMISSIONS`:
 | `kitchen.dish.cook`, `kitchen.dish.finalize` (own) | ✓ | ✓ | |
 | `kitchen.dish.finalize_any`, `kitchen.txn.reverse_any` | ✓ | | |
 | `kitchen.expense.create`, `kitchen.settlement.create`, `kitchen.txn.flag` | ✓ | ✓ | |
-| `kitchen.settings.manage`, `membership.join_link.manage` | ✓ | | |
+| `kitchen.settings.manage`, `organization.join_code.read`, `organization.join_code.rotate` | ✓ | | |
 
 The personal pantry is checked against the actor's subject, not the policy
 engine: only its owner can read or change it. A dish may use a group item only
@@ -296,8 +300,9 @@ icons and `start_url: /home`.
   wrangler templates, and `NEXT_PUBLIC_SOLO_MODE` false in the console.
 - `apps/billing-worker/src/plan-catalog.ts`, free plan: `limit.members` 50,
   `limit.organizations` 25, `feature.multi_org` true. Billing screens hidden.
-- Join links ported from ogpic (`230_membership_join_requests`, handlers
-  `join`, `join-authz`, `leave`), replacing email invites in the UI.
+- Join links ported from ogpic's join codes (migration
+  `200_membership_join_codes`, handlers `join`, `leave`), without its
+  approval queue, replacing email invites in the UI.
 - `apps/kitchen-worker` with bindings `PLATFORM_DB`, `MEMBERSHIP_WORKER`,
   `POLICY_WORKER` and `NOTIFICATIONS_WORKER`; `KITCHEN_WORKER` bound on
   api-edge; `kitchen` added to `BOUNDED_CONTEXTS`; migrations
@@ -307,7 +312,7 @@ icons and `start_url: /home`.
 `kitchen.item.wasted`, `kitchen.item.transferred`, `kitchen.dish.cooked`,
 `kitchen.dish.finalized`, `kitchen.expense.added`,
 `kitchen.settlement.recorded`, `kitchen.txn.reversed`, `kitchen.txn.flagged`,
-`membership.join_link.rotated`, `membership.joined_via_link`.
+`membership.join_link.rotated`, `membership.joined_via_link`, `membership.left`.
 
 **Emails** (notifications-worker, each with an opt-out in preferences):
 `kitchen.use_soon` (a daily digest of items within two days of use-by),

@@ -95,6 +95,12 @@ function createFakeRepo(opts: {
     async countBillableMembers() { return { ok: true as const, value: 0 }; },
     async listChildOrganizations() { return { ok: true as const, value: [] }; },
     async setOrganizationStatus() { return { ok: false as const, error: { kind: "not_found" as const } }; },
+    async getOrganizationByJoinCode() { return { ok: false as const, error: { kind: "not_found" as const } }; },
+    async setOrganizationJoinCode() { return { ok: false as const, error: { kind: "not_found" as const } }; },
+    async getActiveMemberBySubject() { return { ok: false as const, error: { kind: "not_found" as const } }; },
+    async countActiveMembers() { return { ok: true as const, value: 0 }; },
+    async joinOrganization() { return { ok: false as const, error: { kind: "internal" as const, message: "stub" } }; },
+    async leaveOrganization() { return { ok: false as const, error: { kind: "not_found" as const } }; },
   };
 }
 

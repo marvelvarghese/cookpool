@@ -16,6 +16,29 @@ const ORG_INVITATIONS_RE = /^\/v1\/organizations\/[^/]+\/invitations$/;
 const ORG_INVITATION_ID_RE = /^\/v1\/organizations\/[^/]+\/invitations\/[^/]+$/;
 const ORG_API_KEYS_RE = /^\/v1\/organizations\/[^/]+\/api-keys$/;
 const ORG_API_KEY_ID_RE = /^\/v1\/organizations\/[^/]+\/api-keys\/[^/]+$/;
+// Join links (Cookpool CP-3), served by membership-worker: joining by code is
+// a top-level route (the joiner is not in the org yet); reading/rotating the
+// code and leaving are org sub-resources. Same session, rate-limit ("org") and
+// idempotency path as every other org route.
+const JOIN_RE = /^\/v1\/join$/;
+const JOIN_PREVIEW_RE = /^\/v1\/join\/[^/]+$/;
+const ORG_JOIN_CODE_RE = /^\/v1\/organizations\/[^/]+\/join-code$/;
+const ORG_JOIN_CODE_ROTATE_RE = /^\/v1\/organizations\/[^/]+\/join-code\/rotate$/;
+const ORG_LEAVE_RE = /^\/v1\/organizations\/[^/]+\/leave$/;
+
+/** Join-link routes and the one method each accepts. */
+const JOIN_LINK_ROUTES: ReadonlyArray<readonly [RegExp, string]> = [
+  [JOIN_RE, "POST"],
+  [JOIN_PREVIEW_RE, "GET"],
+  [ORG_JOIN_CODE_RE, "GET"],
+  [ORG_JOIN_CODE_ROTATE_RE, "POST"],
+  [ORG_LEAVE_RE, "POST"],
+];
+
+/** Is this a join-link route (`/v1/join…`, `…/join-code…`, `…/leave`)? */
+export function isJoinLinkRoute(pathname: string): boolean {
+  return JOIN_LINK_ROUTES.some(([re]) => re.test(pathname));
+}
 
 const FORWARDED_HEADERS = [
   "content-type",
@@ -25,7 +48,7 @@ const FORWARDED_HEADERS = [
 ];
 
 export function isOrgRoute(pathname: string): boolean {
-  return pathname in ORG_ROUTES || ORG_ID_RE.test(pathname) || ORG_MEMBERS_RE.test(pathname) || ORG_MEMBER_ID_RE.test(pathname) || ORG_INVITATIONS_ACCEPT_RE.test(pathname) || ORG_INVITATIONS_RE.test(pathname) || ORG_INVITATION_ID_RE.test(pathname) || ORG_API_KEYS_RE.test(pathname) || ORG_API_KEY_ID_RE.test(pathname);
+  return pathname in ORG_ROUTES || ORG_ID_RE.test(pathname) || ORG_MEMBERS_RE.test(pathname) || ORG_MEMBER_ID_RE.test(pathname) || ORG_INVITATIONS_ACCEPT_RE.test(pathname) || ORG_INVITATIONS_RE.test(pathname) || ORG_INVITATION_ID_RE.test(pathname) || ORG_API_KEYS_RE.test(pathname) || ORG_API_KEY_ID_RE.test(pathname) || isJoinLinkRoute(pathname);
 }
 
 export async function handleOrgRoute(
@@ -69,6 +92,12 @@ export async function handleOrgRoute(
 
   if (ORG_ID_RE.test(pathname) && !ORG_API_KEYS_RE.test(pathname) && !ORG_API_KEY_ID_RE.test(pathname) && request.method !== "GET") {
     return errorResponse("unsupported", "Method not allowed", 405, requestId);
+  }
+
+  for (const [re, method] of JOIN_LINK_ROUTES) {
+    if (re.test(pathname) && request.method !== method) {
+      return errorResponse("unsupported", "Method not allowed", 405, requestId);
+    }
   }
 
   return replayOrExecute(request, requestId, env, "org", async () => {

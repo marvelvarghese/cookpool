@@ -7,6 +7,8 @@ import type {
   CreateOrganizationMemberInput,
   CreateRoleAssignmentInput,
   CursorPosition,
+  JoinOrganizationInput,
+  LeaveOrganizationInput,
   MembershipRepository,
   MembershipResult,
   Organization,
@@ -26,6 +28,7 @@ function mapOrganization(row: Record<string, unknown>): Organization {
     slugLower: row.slug_lower as string,
     status: row.status as string,
     parentOrgId: (row.parent_org_id as string | null) ?? null,
+    joinCode: (row.join_code as string | null) ?? null,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -167,6 +170,63 @@ export function createMembershipRepository(executor: SqlExecutor): MembershipRep
         return { ok: true, value: mapOrganization(result.rows[0]!) };
       } catch (err) {
         return safeError("Failed to set organization status", err);
+      }
+    },
+
+    async getOrganizationByJoinCode(joinCode: string): Promise<MembershipResult<Organization>> {
+      try {
+        const result = await executor.execute<Record<string, unknown>>(
+          `SELECT * FROM membership_organizations WHERE join_code = $1`,
+          [joinCode],
+        );
+        if (result.rowCount === 0) {
+          return { ok: false, error: { kind: "not_found" } };
+        }
+        return { ok: true, value: mapOrganization(result.rows[0]!) };
+      } catch (err) {
+        return safeError("Failed to get organization by join code", err);
+      }
+    },
+
+    async setOrganizationJoinCode(
+      orgId: string,
+      joinCode: string,
+      updatedAt: Date,
+      options?: { onlyIfUnset?: boolean },
+    ): Promise<MembershipResult<Organization>> {
+      try {
+        const onlyIfUnset = options?.onlyIfUnset === true;
+        const result = await executor.execute<Record<string, unknown>>(
+          onlyIfUnset
+            ? `UPDATE membership_organizations SET join_code = $2, updated_at = $3
+               WHERE id = $1 AND join_code IS NULL
+               RETURNING *`
+            : `UPDATE membership_organizations SET join_code = $2, updated_at = $3
+               WHERE id = $1
+               RETURNING *`,
+          [orgId, joinCode, updatedAt.toISOString()],
+        );
+        if (result.rowCount > 0) {
+          return { ok: true, value: mapOrganization(result.rows[0]!) };
+        }
+        if (!onlyIfUnset) {
+          return { ok: false, error: { kind: "not_found" } };
+        }
+        // Nothing updated under onlyIfUnset: either the org already has a code
+        // (another manager minted it first — keep theirs) or it does not exist.
+        const current = await executor.execute<Record<string, unknown>>(
+          `SELECT * FROM membership_organizations WHERE id = $1`,
+          [orgId],
+        );
+        if (current.rowCount === 0) {
+          return { ok: false, error: { kind: "not_found" } };
+        }
+        return { ok: true, value: mapOrganization(current.rows[0]!) };
+      } catch (err: unknown) {
+        if (isUniqueViolation(err)) {
+          return { ok: false, error: { kind: "conflict", entity: "join_code" } };
+        }
+        return safeError("Failed to set organization join code", err);
       }
     },
 
@@ -375,6 +435,157 @@ export function createMembershipRepository(executor: SqlExecutor): MembershipRep
         return { ok: true, value: mapMember(result.rows[0]!) };
       } catch (err) {
         return safeError("Failed to remove member", err);
+      }
+    },
+
+    async getActiveMemberBySubject(orgId: string, subjectId: string): Promise<MembershipResult<OrganizationMember>> {
+      try {
+        const result = await executor.execute<Record<string, unknown>>(
+          `SELECT * FROM membership_organization_members
+           WHERE org_id = $1 AND subject_id = $2 AND status = 'active'`,
+          [orgId, subjectId],
+        );
+        if (result.rowCount === 0) {
+          return { ok: false, error: { kind: "not_found" } };
+        }
+        return { ok: true, value: mapMember(result.rows[0]!) };
+      } catch (err) {
+        return safeError("Failed to get member by subject", err);
+      }
+    },
+
+    async countActiveMembers(orgId: string): Promise<MembershipResult<number>> {
+      try {
+        const result = await executor.execute<Record<string, unknown>>(
+          `SELECT COUNT(*) AS cnt FROM membership_organization_members
+           WHERE org_id = $1 AND status = 'active'`,
+          [orgId],
+        );
+        return { ok: true, value: Number(result.rows[0]?.cnt ?? 0) };
+      } catch (err) {
+        return safeError("Failed to count active members", err);
+      }
+    },
+
+    async joinOrganization(input: JoinOrganizationInput): Promise<MembershipResult<{ member: OrganizationMember; roleAssignment: RoleAssignment }>> {
+      // ONE ATOMIC BATCH, like acceptInvitation: the member row and its role
+      // land together or not at all.
+      //
+      // The member insert is an upsert on the (org_id, subject_id) unique
+      // index, because a person who left keeps their row as 'removed': the
+      // conflict branch re-activates that row, and only that row — an ACTIVE
+      // member matches the conflict but not its WHERE, so nothing changes and
+      // nothing is returned. The role insert then selects the member row the
+      // first statement just wrote (active, updated at exactly joinedAt), so
+      // when the first statement wrote nothing it inserts nothing either, and
+      // the caller gets a conflict with no orphan role. A duplicate active role
+      // (a concurrent join of the same person) trips the role_assignments
+      // unique index and rolls the whole batch back.
+      const joinedAt = input.joinedAt.toISOString();
+      try {
+        const [memberResult, roleResult] = await executeBatch(executor, [
+          {
+            text: `INSERT INTO membership_organization_members (id, org_id, subject_id, subject_type, status, created_at, updated_at)
+                   VALUES ($1, $2, $3, $4, 'active', $5, $5)
+                   ON CONFLICT (org_id, subject_id) DO UPDATE
+                     SET status = 'active', updated_at = excluded.updated_at
+                     WHERE membership_organization_members.status = 'removed'
+                   RETURNING *`,
+            params: [input.memberId, input.orgId, input.subjectId, input.subjectType, joinedAt],
+          },
+          {
+            text: `INSERT INTO membership_role_assignments (id, org_id, subject_id, subject_type, role, scope_kind, scope_ref, created_at)
+                   SELECT $1, org_id, subject_id, subject_type, $2, 'organization', NULL, $3
+                   FROM membership_organization_members
+                   WHERE org_id = $4 AND subject_id = $5 AND status = 'active' AND updated_at = $3
+                   RETURNING *`,
+            params: [input.roleAssignmentId, input.role, joinedAt, input.orgId, input.subjectId],
+          },
+        ]);
+        const memberRow = memberResult?.rows[0];
+        const roleRow = roleResult?.rows[0];
+        if (!memberRow || !roleRow) {
+          return { ok: false, error: { kind: "conflict", entity: "organization_member" } };
+        }
+        return { ok: true, value: { member: mapMember(memberRow), roleAssignment: mapRoleAssignment(roleRow) } };
+      } catch (err: unknown) {
+        if (isUniqueViolation(err)) {
+          return { ok: false, error: { kind: "conflict", entity: "organization_member" } };
+        }
+        return safeError("Failed to join organization", err);
+      }
+    },
+
+    async leaveOrganization(input: LeaveOrganizationInput): Promise<MembershipResult<{ member: OrganizationMember; revokedRoles: RoleAssignment[] }>> {
+      // ONE ATOMIC BATCH with the end state an admin removal leaves (member
+      // 'removed', every active role of theirs in the org revoked), so a leave
+      // can never strand a removed member who still holds a role.
+      //
+      // The member UPDATE carries the last-owner guard in its WHERE: an owner
+      // who is the org's only active owner cannot leave while anyone else is
+      // still an active member. The handler checks this first for a clean
+      // error; repeating it here makes it hold for two owners leaving at once.
+      // The role UPDATE only fires once the member row is 'removed' at exactly
+      // this instant, i.e. when the first statement matched.
+      const at = input.at.toISOString();
+      try {
+        const [memberResult, roleResult] = await executeBatch(executor, [
+          {
+            text: `UPDATE membership_organization_members
+                   SET status = 'removed', updated_at = $3
+                   WHERE org_id = $1 AND subject_id = $2 AND status = 'active'
+                     AND NOT (
+                       EXISTS (
+                         SELECT 1 FROM membership_role_assignments
+                         WHERE org_id = $1 AND subject_id = $2 AND role = 'owner'
+                           AND scope_kind = 'organization' AND revoked_at IS NULL
+                       )
+                       AND (
+                         SELECT COUNT(*) FROM membership_role_assignments ra
+                         INNER JOIN membership_organization_members m
+                           ON m.org_id = ra.org_id AND m.subject_id = ra.subject_id
+                         WHERE ra.org_id = $1 AND ra.role = 'owner' AND ra.scope_kind = 'organization'
+                           AND ra.revoked_at IS NULL AND m.status = 'active'
+                       ) <= 1
+                       AND (
+                         SELECT COUNT(*) FROM membership_organization_members
+                         WHERE org_id = $1 AND status = 'active'
+                       ) > 1
+                     )
+                   RETURNING *`,
+            params: [input.orgId, input.subjectId, at],
+          },
+          {
+            text: `UPDATE membership_role_assignments
+                   SET revoked_at = $3
+                   WHERE org_id = $1 AND subject_id = $2 AND revoked_at IS NULL
+                     AND EXISTS (
+                       SELECT 1 FROM membership_organization_members
+                       WHERE org_id = $1 AND subject_id = $2 AND status = 'removed' AND updated_at = $3
+                     )
+                   RETURNING *`,
+            params: [input.orgId, input.subjectId, at],
+          },
+        ]);
+        const memberRow = memberResult?.rows[0];
+        if (memberRow) {
+          return {
+            ok: true,
+            value: { member: mapMember(memberRow), revokedRoles: (roleResult?.rows ?? []).map(mapRoleAssignment) },
+          };
+        }
+        // Nothing changed: either not an active member, or the guard held.
+        const still = await executor.execute<Record<string, unknown>>(
+          `SELECT id FROM membership_organization_members
+           WHERE org_id = $1 AND subject_id = $2 AND status = 'active'`,
+          [input.orgId, input.subjectId],
+        );
+        if (still.rowCount > 0) {
+          return { ok: false, error: { kind: "conflict", entity: "last_owner" } };
+        }
+        return { ok: false, error: { kind: "not_found" } };
+      } catch (err) {
+        return safeError("Failed to leave organization", err);
       }
     },
 
