@@ -112,7 +112,7 @@ function createFakeRepository(): MembershipRepository & { _orgs: Map<string, Org
       if (_orgs.has(input.org.id) || [..._orgs.values()].some((o) => o.slugLower === input.org.slugLower)) {
         return { ok: false, error: { kind: "conflict", entity: "organization" } };
       }
-      const org: Organization = { ...input.org, status: "active", parentOrgId: null, updatedAt: input.org.createdAt };
+      const org: Organization = { ...input.org, status: "active", parentOrgId: null, joinCode: null, updatedAt: input.org.createdAt };
       const member: OrganizationMember = { ...input.member, status: "active", updatedAt: input.member.createdAt };
       const roleAssignment: RoleAssignment = { ...input.roleAssignment, scopeRef: input.roleAssignment.scopeRef ?? null, revokedAt: null };
       _orgs.set(org.id, org);
@@ -171,6 +171,12 @@ function createFakeRepository(): MembershipRepository & { _orgs: Map<string, Org
     async countBillableMembers() { return { ok: false, error: { kind: "internal" as const, message: "not implemented" } }; },
     async listChildOrganizations() { return { ok: true as const, value: [] }; },
     async setOrganizationStatus() { return { ok: false as const, error: { kind: "not_found" as const } }; },
+    async getOrganizationByJoinCode() { return { ok: false as const, error: { kind: "not_found" as const } }; },
+    async setOrganizationJoinCode() { return { ok: false as const, error: { kind: "not_found" as const } }; },
+    async getActiveMemberBySubject() { return { ok: false as const, error: { kind: "not_found" as const } }; },
+    async countActiveMembers() { return { ok: false as const, error: { kind: "internal" as const, message: "not implemented" } }; },
+    async joinOrganization() { return { ok: false as const, error: { kind: "internal" as const, message: "not implemented" } }; },
+    async leaveOrganization() { return { ok: false as const, error: { kind: "internal" as const, message: "not implemented" } }; },
   };
 
   return repo;
@@ -507,6 +513,7 @@ describe("member-list endpoint", () => {
       slugLower: "test",
       status: "active",
       parentOrgId: null,
+      joinCode: null,
       createdAt: fixedNow,
       updatedAt: fixedNow,
     };

@@ -57,6 +57,7 @@ function org(id: string, createdAt: string): Organization {
     slugLower: "acme",
     status: "active",
     parentOrgId: null,
+    joinCode: null,
     createdAt: new Date(createdAt),
     updatedAt: new Date(createdAt),
   };

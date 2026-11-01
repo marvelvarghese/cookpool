@@ -14,6 +14,7 @@ function org(id: string): Organization {
     slugLower: id.slice(0, 8),
     status: "active",
     parentOrgId: "2f65ddde-1f5b-4e93-8c0b-80e030e31229",
+    joinCode: null,
     createdAt: new Date("2026-02-01T00:00:00Z"),
     updatedAt: new Date("2026-02-01T00:00:00Z"),
   };

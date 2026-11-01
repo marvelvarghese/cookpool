@@ -88,3 +88,10 @@ describe("contracts: ORGANIZATION_ACTIONS", () => {
     expect(ORGANIZATION_ACTIONS).toContain("audit.read");
   });
 });
+
+describe("contracts: join-code actions (Cookpool CP-3)", () => {
+  it("lists organization.join_code.read and organization.join_code.rotate", () => {
+    expect(ORGANIZATION_ACTIONS).toContain("organization.join_code.read");
+    expect(ORGANIZATION_ACTIONS).toContain("organization.join_code.rotate");
+  });
+});

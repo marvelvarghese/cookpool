@@ -112,6 +112,53 @@ describe("MembershipsClient", () => {
       client(fetch).memberships.removeMember("org_1", "mem_1"),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  // Join links (Cookpool CP-3)
+
+  it("getJoinCode and rotateJoinCode hit the org's join-code paths", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ code: "KTCH2345" })));
+    const memberships = client(fetch).memberships;
+    expect(await memberships.getJoinCode("org_1")).toEqual({ code: "KTCH2345" });
+    await memberships.rotateJoinCode("org_1", { idempotencyKey: "ikey_rot_1" });
+    expect(calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/join-code");
+    expect(calls[0]!.init.method).toBe("GET");
+    expect(calls[1]!.url).toBe("https://api.test/v1/organizations/org_1/join-code/rotate");
+    expect(calls[1]!.init.method).toBe("POST");
+    expect(new Headers(calls[1]!.init.headers as HeadersInit).get("idempotency-key")).toBe("ikey_rot_1");
+  });
+
+  it("previewJoin encodes the code into the path", async () => {
+    const preview = { orgId: "org_1", name: "Flat 4B", slug: "flat-4b", memberCount: 3, alreadyMember: false };
+    const { fetch, calls } = captureFetch(jsonResponse(envelope(preview)));
+    expect(await client(fetch).memberships.previewJoin("KTCH 2345")).toEqual(preview);
+    expect(calls[0]!.url).toBe("https://api.test/v1/join/KTCH%202345");
+    expect(calls[0]!.init.method).toBe("GET");
+  });
+
+  it("join posts the code with the caller's idempotency key", async () => {
+    const joined = { orgId: "org_1", slug: "flat-4b", memberId: "mem_1", alreadyMember: false };
+    const { fetch, calls } = captureFetch(jsonResponse(envelope(joined), { status: 201 }));
+    expect(await client(fetch).memberships.join("KTCH2345", { idempotencyKey: "ikey_join_1" })).toEqual(joined);
+    expect(calls[0]!.url).toBe("https://api.test/v1/join");
+    expect(calls[0]!.init.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ code: "KTCH2345" });
+    expect(new Headers(calls[0]!.init.headers as HeadersInit).get("idempotency-key")).toBe("ikey_join_1");
+  });
+
+  it("join surfaces an unknown code as NotFoundError", async () => {
+    const { fetch } = captureFetch(errorResponse("not_found", 404));
+    await expect(client(fetch).memberships.join("NOPE2345")).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("leave posts to the org's leave path and surfaces last_owner as ConflictError", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ orgId: "org_1", memberId: "mem_1", left: true })));
+    expect(await client(fetch).memberships.leave("org_1")).toEqual({ orgId: "org_1", memberId: "mem_1", left: true });
+    expect(calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/leave");
+    expect(calls[0]!.init.method).toBe("POST");
+
+    const refused = captureFetch(errorResponse("conflict", 409));
+    await expect(client(refused.fetch).memberships.leave("org_1")).rejects.toBeInstanceOf(ConflictError);
+  });
 });
 
 // ---------------------------------------------------------------------------

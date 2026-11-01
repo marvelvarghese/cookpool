@@ -57,6 +57,8 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "organization.integration.manage",
     "organization.integration.token.issue",
     "project.repo_link.write",
+    "organization.join_code.read",
+    "organization.join_code.rotate",
   ],
   admin: [
     "organization.read",
@@ -98,6 +100,8 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "organization.integration.manage",
     "organization.integration.token.issue",
     "project.repo_link.write",
+    "organization.join_code.read",
+    "organization.join_code.rotate",
   ],
   builder: [
     "organization.read",
@@ -247,6 +251,11 @@ const ALL_KNOWN_ACTIONS: ReadonlySet<string> = new Set([
   "organization.integration.manage",
   "organization.integration.token.issue",
   "project.repo_link.write",
+  // Join links (Cookpool CP-3): reading and rotating a group's join code is for
+  // the people who manage the group. Joining and leaving need no grant — the
+  // code is the invitation, and anyone may leave.
+  "organization.join_code.read",
+  "organization.join_code.rotate",
 ]);
 
 function isOrgRole(role: string): role is OrganizationRole {

@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { randomUUID } from "node:crypto";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -487,5 +488,196 @@ describe("the writes onboarding makes, against a real SQLite engine", () => {
     expect(twice.ok).toBe(false);
     expect(count("membership_organization_members")).toBe(2);
     expect(count("membership_role_assignments")).toBe(2);
+  });
+});
+
+// Join links (Cookpool CP-3, migration 200): a code per organization, a join
+// that writes the member and its role in one batch, and a leave that removes
+// the member and revokes their roles in one batch — run on the real engine,
+// because the upsert, the dependent INSERT … SELECT and the last-owner guard
+// are exactly the SQL a stubbed executor cannot vouch for.
+describe("join links, against a real SQLite engine", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  const at = new Date("2026-01-01T00:00:00.000Z");
+  const orgId = asUuid("21212121-2121-4121-8121-212121212121");
+  const otherOrgId = asUuid("31313131-3131-4131-8131-313131313131");
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    executor = createSqlExecutor(d1Over(db));
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  function count(sql: string, ...params: string[]): number {
+    return (db.prepare(sql).get(...params) as { n: number }).n;
+  }
+
+  async function bootstrap(id: string, slug: string, owner = "usr_owner") {
+    const repo = createMembershipRepository(executor);
+    const org = asUuid(id);
+    const result = await repo.bootstrapOrganization({
+      org: { id: org, name: slug, slug, slugLower: slug, createdAt: at },
+      member: { id: randomUUID(), orgId: org, subjectId: owner, subjectType: "user", createdAt: at },
+      roleAssignment: {
+        id: randomUUID(), orgId: org, subjectId: owner, subjectType: "user",
+        role: "owner", scopeKind: "organization", scopeRef: null, createdAt: at,
+      },
+    });
+    expect(result.ok).toBe(true);
+    return repo;
+  }
+
+  function joinInput(subjectId: string, joinedAt: Date, org = orgId) {
+    return {
+      orgId: org, memberId: randomUUID(), roleAssignmentId: randomUUID(),
+      subjectId, subjectType: "user", role: "builder", joinedAt,
+    };
+  }
+
+  it("adds a nullable join_code whose partial unique index lets many orgs have none", async () => {
+    await bootstrap(orgId, "flat-4b");
+    await bootstrap(otherOrgId, "lunch-club");
+    const columns = (db.prepare("PRAGMA table_info(membership_organizations)").all() as { name: string }[])
+      .map((c) => c.name);
+    expect(columns).toContain("join_code");
+    expect(count("SELECT COUNT(*) AS n FROM membership_organizations WHERE join_code IS NULL")).toBe(2);
+
+    db.prepare("UPDATE membership_organizations SET join_code = 'ABCDEFGH' WHERE id = ?").run(orgId);
+    expect(() =>
+      db.prepare("UPDATE membership_organizations SET join_code = 'ABCDEFGH' WHERE id = ?").run(otherOrgId),
+    ).toThrow(/UNIQUE constraint failed/);
+  });
+
+  it("sets, finds and rotates a join code; a taken code is a conflict", async () => {
+    const repo = await bootstrap(orgId, "flat-4b");
+    await bootstrap(otherOrgId, "lunch-club");
+
+    const fresh = await repo.getOrganizationById(orgId);
+    expect(fresh.ok && fresh.value.joinCode).toBe(null);
+
+    const set = await repo.setOrganizationJoinCode(orgId, "KTCH2345", at);
+    expect(set.ok).toBe(true);
+    if (set.ok) expect(set.value.joinCode).toBe("KTCH2345");
+
+    const found = await repo.getOrganizationByJoinCode("KTCH2345");
+    expect(found.ok).toBe(true);
+    if (found.ok) expect(found.value.id).toBe(orgId);
+    expect((await repo.getOrganizationByJoinCode("NOPE2345")).ok).toBe(false);
+
+    // The lazy first mint never overwrites a code someone already minted.
+    const lazy = await repo.setOrganizationJoinCode(orgId, "OTHER234", at, { onlyIfUnset: true });
+    expect(lazy.ok).toBe(true);
+    if (lazy.ok) expect(lazy.value.joinCode).toBe("KTCH2345");
+
+    // Another org cannot take the code.
+    const taken = await repo.setOrganizationJoinCode(otherOrgId, "KTCH2345", at);
+    expect(taken.ok).toBe(false);
+    if (!taken.ok) expect(taken.error.kind).toBe("conflict");
+
+    // Rotating replaces it, and the old code stops resolving.
+    const rotated = await repo.setOrganizationJoinCode(orgId, "NEWC2345", new Date("2026-01-02T00:00:00.000Z"));
+    expect(rotated.ok && rotated.value.joinCode).toBe("NEWC2345");
+    expect((await repo.getOrganizationByJoinCode("KTCH2345")).ok).toBe(false);
+
+    const missing = await repo.setOrganizationJoinCode(asUuid("41414141-4141-4141-8141-414141414141"), "MISS2345", at, { onlyIfUnset: true });
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.error.kind).toBe("not_found");
+  });
+
+  it("joins as a member with one builder role, once", async () => {
+    const repo = await bootstrap(orgId, "flat-4b");
+    const joinedAt = new Date("2026-01-03T00:00:00.000Z");
+
+    const joined = await repo.joinOrganization(joinInput("usr_anu", joinedAt));
+    expect(joined.ok).toBe(true);
+    if (!joined.ok) return;
+    expect(joined.value.member.status).toBe("active");
+    expect(joined.value.member.subjectId).toBe("usr_anu");
+    expect(joined.value.roleAssignment.role).toBe("builder");
+    expect(joined.value.roleAssignment.scopeKind).toBe("organization");
+
+    const active = await repo.getActiveMemberBySubject(orgId, "usr_anu");
+    expect(active.ok && active.value.id).toBe(joined.value.member.id);
+    const members = await repo.countActiveMembers(orgId);
+    expect(members.ok && members.value).toBe(2);
+
+    // Already a member: a conflict, and nothing new is written.
+    const again = await repo.joinOrganization(joinInput("usr_anu", new Date("2026-01-04T00:00:00.000Z")));
+    expect(again.ok).toBe(false);
+    if (!again.ok) expect(again.error.kind).toBe("conflict");
+    expect(count("SELECT COUNT(*) AS n FROM membership_organization_members WHERE org_id = ?", orgId)).toBe(2);
+    expect(count("SELECT COUNT(*) AS n FROM membership_role_assignments WHERE org_id = ? AND subject_id = 'usr_anu'", orgId)).toBe(1);
+
+    // The owner joining their own group by link is also just a conflict.
+    const owner = await repo.joinOrganization(joinInput("usr_owner", new Date("2026-01-05T00:00:00.000Z")));
+    expect(owner.ok).toBe(false);
+    expect(count("SELECT COUNT(*) AS n FROM membership_role_assignments WHERE org_id = ? AND subject_id = 'usr_owner'", orgId)).toBe(1);
+  });
+
+  it("leaves in one batch, and a later join re-activates the same member row", async () => {
+    const repo = await bootstrap(orgId, "flat-4b");
+    const joined = await repo.joinOrganization(joinInput("usr_dev", new Date("2026-01-03T00:00:00.000Z")));
+    expect(joined.ok).toBe(true);
+    if (!joined.ok) return;
+
+    const left = await repo.leaveOrganization({ orgId, subjectId: "usr_dev", at: new Date("2026-01-04T00:00:00.000Z") });
+    expect(left.ok).toBe(true);
+    if (!left.ok) return;
+    expect(left.value.member.status).toBe("removed");
+    expect(left.value.revokedRoles.map((r) => r.role)).toEqual(["builder"]);
+    expect((await repo.getActiveMemberBySubject(orgId, "usr_dev")).ok).toBe(false);
+    expect(count("SELECT COUNT(*) AS n FROM membership_role_assignments WHERE org_id = ? AND subject_id = 'usr_dev' AND revoked_at IS NULL", orgId)).toBe(0);
+    const members = await repo.countActiveMembers(orgId);
+    expect(members.ok && members.value).toBe(1);
+
+    // Leaving twice: not a member any more.
+    const twice = await repo.leaveOrganization({ orgId, subjectId: "usr_dev", at: new Date("2026-01-05T00:00:00.000Z") });
+    expect(twice.ok).toBe(false);
+    if (!twice.ok) expect(twice.error.kind).toBe("not_found");
+
+    // Coming back: the old row is re-activated with a fresh builder role.
+    const back = await repo.joinOrganization(joinInput("usr_dev", new Date("2026-01-06T00:00:00.000Z")));
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(back.value.member.id).toBe(joined.value.member.id);
+    expect(back.value.member.status).toBe("active");
+    expect(count("SELECT COUNT(*) AS n FROM membership_organization_members WHERE org_id = ? AND subject_id = 'usr_dev'", orgId)).toBe(1);
+    expect(count("SELECT COUNT(*) AS n FROM membership_role_assignments WHERE org_id = ? AND subject_id = 'usr_dev' AND revoked_at IS NULL", orgId)).toBe(1);
+  });
+
+  it("keeps the last owner while others remain, and lets them go once alone", async () => {
+    const repo = await bootstrap(orgId, "flat-4b");
+    expect((await repo.joinOrganization(joinInput("usr_anu", new Date("2026-01-03T00:00:00.000Z")))).ok).toBe(true);
+
+    const blocked = await repo.leaveOrganization({ orgId, subjectId: "usr_owner", at: new Date("2026-01-04T00:00:00.000Z") });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.error).toEqual({ kind: "conflict", entity: "last_owner" });
+    expect((await repo.getActiveMemberBySubject(orgId, "usr_owner")).ok).toBe(true);
+    expect(count("SELECT COUNT(*) AS n FROM membership_role_assignments WHERE org_id = ? AND subject_id = 'usr_owner' AND revoked_at IS NULL", orgId)).toBe(1);
+
+    // The member leaves; the owner is now alone and may leave too.
+    expect((await repo.leaveOrganization({ orgId, subjectId: "usr_anu", at: new Date("2026-01-05T00:00:00.000Z") })).ok).toBe(true);
+    const alone = await repo.leaveOrganization({ orgId, subjectId: "usr_owner", at: new Date("2026-01-06T00:00:00.000Z") });
+    expect(alone.ok).toBe(true);
+    if (alone.ok) expect(alone.value.revokedRoles.map((r) => r.role)).toEqual(["owner"]);
+  });
+
+  it("lets one of two owners leave", async () => {
+    const repo = await bootstrap(orgId, "flat-4b");
+    expect((await repo.joinOrganization({ ...joinInput("usr_meera", new Date("2026-01-03T00:00:00.000Z")), role: "owner" })).ok).toBe(true);
+    expect((await repo.joinOrganization(joinInput("usr_anu", new Date("2026-01-03T00:00:01.000Z")))).ok).toBe(true);
+
+    const left = await repo.leaveOrganization({ orgId, subjectId: "usr_owner", at: new Date("2026-01-04T00:00:00.000Z") });
+    expect(left.ok).toBe(true);
+    const owners = await repo.countActiveOwners(orgId);
+    expect(owners.ok && owners.value).toBe(1);
+
+    // Meera is now the last owner, with Anu still in the group.
+    const blocked = await repo.leaveOrganization({ orgId, subjectId: "usr_meera", at: new Date("2026-01-05T00:00:00.000Z") });
+    expect(blocked.ok).toBe(false);
   });
 });

@@ -19,6 +19,7 @@ import { isProjectRoute } from "./project-facade";
 import { isMeteringRoute } from "./metering-facade";
 import { isWebhooksRoute } from "./webhooks-facade";
 import { isIntegrationsRoute, isIntegrationsIngressRoute } from "./integrations-facade";
+import { isJoinLinkRoute } from "./org-facade";
 
 /**
  * Is this instance running the M0/Solo profile? Deploy-time wrangler var; an
@@ -46,6 +47,8 @@ const ORG_API_KEYS_RE = /^\/v1\/organizations\/[^/]+\/api-keys(?:\/[^/]+)?$/;
  *   - outbound webhooks              — entire bounded context
  *   - integrations + install ingress — entire bounded context
  *   - org members & invitations      — collaboration surface
+ *   - join links (join, preview, the code, leave) — collaboration surface;
+ *     joining another org would break the one-org rule
  *   - org-scoped API keys            — credentials (M0-hidden; flag re-enables)
  *
  * Kept (NOT suppressed — the single-user surfaces):
@@ -83,6 +86,7 @@ export function isSoloSuppressed(pathname: string, _method: string): boolean {
   if (ORG_MEMBERS_RE.test(pathname)) return true;
   if (ORG_INVITATIONS_RE.test(pathname)) return true;
   if (ORG_API_KEYS_RE.test(pathname)) return true;
+  if (isJoinLinkRoute(pathname)) return true;
 
   return false;
 }

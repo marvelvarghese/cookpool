@@ -8,6 +8,8 @@ export type {
   CreateInvitationInput,
   CreateRoleAssignmentInput,
   AcceptInvitationInput,
+  JoinOrganizationInput,
+  LeaveOrganizationInput,
   BootstrapOrganizationInput,
   MembershipRepository,
   MembershipResult,

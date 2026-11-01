@@ -686,7 +686,8 @@ describe("listEffectivePermissions", () => {
     expect(result.derivedScope.orgId).toBe("org_1");
 
     const allowed = result.permissions.filter((p) => p.allow);
-    expect(allowed.length).toBe(31);
+    // 31 baseline actions + organization.join_code.{read,rotate} (Cookpool CP-3).
+    expect(allowed.length).toBe(33);
   });
 
   it("returns limited permissions for viewer", () => {
@@ -1014,5 +1015,55 @@ describe("project.repo_link.write (saas-integrations IG3)", () => {
         authReq("project.repo_link.write", ORG, [projectFact("project_builder", ORG, "p1")], "p1"),
       ).allow,
     ).toBe(false);
+  });
+});
+
+describe("join-code actions (Cookpool CP-3)", () => {
+  const ORG = "org-1";
+  const ACTIONS = ["organization.join_code.read", "organization.join_code.rotate"];
+
+  it("owner and admin can read and rotate a group's join code", () => {
+    for (const role of ["owner", "admin"]) {
+      for (const action of ACTIONS) {
+        const result = authorize(authReq(action, ORG, [orgFact(role, ORG)]));
+        expect(result.allow).toBe(true);
+        expect(result.reason).toBe(`org_${role}`);
+      }
+    }
+  });
+
+  it("members, viewers and billing admins cannot", () => {
+    for (const role of ["builder", "viewer", "billing_admin"]) {
+      for (const action of ACTIONS) {
+        const result = authorize(authReq(action, ORG, [orgFact(role, ORG)]));
+        expect(result.allow).toBe(false);
+        expect(result.reason).toBe("no_matching_role");
+      }
+    }
+  });
+
+  it("denies across org boundaries and for project roles", () => {
+    for (const action of ACTIONS) {
+      expect(authorize(authReq(action, ORG, [orgFact("owner", "org-2")])).allow).toBe(false);
+      expect(
+        authorize(authReq(action, ORG, [projectFact("project_admin", ORG, "p1")], "p1")).allow,
+      ).toBe(false);
+    }
+  });
+
+  it("are listed among the owner's and admin's effective permissions, not the builder's", () => {
+    const effective = (role: string) =>
+      listEffectivePermissions({
+        subject,
+        resource: { kind: "organization", orgId: ORG },
+        context: { memberships: [orgFact(role, ORG)] },
+      })
+        .permissions.filter((p) => p.allow)
+        .map((p) => p.action);
+    for (const action of ACTIONS) {
+      expect(effective("owner")).toContain(action);
+      expect(effective("admin")).toContain(action);
+      expect(effective("builder")).not.toContain(action);
+    }
   });
 });

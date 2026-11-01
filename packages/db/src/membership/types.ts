@@ -28,6 +28,12 @@ export interface Organization {
    * Resolve with `effectiveBillingOrgId`.
    */
   parentOrgId: string | null;
+  /**
+   * Shareable join code (Cookpool CP-3, migration 200). A signed-in person who
+   * has it can join the organization by link. NULL until an owner or admin
+   * first reads it (minted lazily); rotating replaces it. Unique while set.
+   */
+  joinCode: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -141,6 +147,36 @@ export interface AcceptInvitationInput {
   acceptedAt: Date;
 }
 
+/**
+ * Join an organization by its link (CP-3): one active member row plus one
+ * organization-scoped role assignment, written in ONE atomic batch. A person
+ * who left earlier is re-activated on their old member row; one who is
+ * already an active member gets a `conflict` and nothing is written.
+ */
+export interface JoinOrganizationInput {
+  orgId: Uuid;
+  /** Id for a brand-new member row (unused when an old row is re-activated). */
+  memberId: string;
+  roleAssignmentId: string;
+  subjectId: string;
+  subjectType: string;
+  /** Organization role granted (Cookpool grants `builder`, a "member"). */
+  role: string;
+  joinedAt: Date;
+}
+
+/**
+ * The caller leaves an organization (CP-3): the member row goes to 'removed'
+ * and every active role assignment of theirs in the org is revoked, in ONE
+ * atomic batch — the same end state `removeMember` + `revokeAllRoleAssignments`
+ * leave behind for an admin removal.
+ */
+export interface LeaveOrganizationInput {
+  orgId: Uuid;
+  subjectId: string;
+  at: Date;
+}
+
 export interface MembershipRepository {
   createOrganization(input: CreateOrganizationInput): Promise<MembershipResult<Organization>>;
   getOrganizationById(id: string): Promise<MembershipResult<Organization>>;
@@ -149,6 +185,21 @@ export interface MembershipRepository {
   listChildOrganizations(parentOrgId: string): Promise<MembershipResult<Organization[]>>;
   /** Set an org's lifecycle status (e.g. freeze a child to 'suspended', MO3). */
   setOrganizationStatus(orgId: string, status: string, updatedAt: Date): Promise<MembershipResult<Organization>>;
+  /** The organization a join code names (CP-3); `not_found` for an unknown code. */
+  getOrganizationByJoinCode(joinCode: string): Promise<MembershipResult<Organization>>;
+  /**
+   * Set (rotate) an organization's join code. `conflict` when another org
+   * already holds the code (the caller mints another and retries),
+   * `not_found` when the org does not exist. With `onlyIfUnset`, an org that
+   * already has a code keeps it and is returned unchanged — the lazy first
+   * mint, safe against two managers minting at once.
+   */
+  setOrganizationJoinCode(
+    orgId: Uuid,
+    joinCode: string,
+    updatedAt: Date,
+    options?: { onlyIfUnset?: boolean },
+  ): Promise<MembershipResult<Organization>>;
   listOrganizationsForSubject(subjectId: string): Promise<MembershipResult<Organization[]>>;
   listOrganizationsForSubjectPaged(subjectId: string, params: PageQueryParams): Promise<MembershipResult<PagedResult<Organization>>>;
 
@@ -159,6 +210,19 @@ export interface MembershipRepository {
   listMembers(orgId: Uuid): Promise<MembershipResult<OrganizationMember[]>>;
   listMembersPaged(orgId: Uuid, params: PageQueryParams): Promise<MembershipResult<PagedResult<OrganizationMember>>>;
   removeMember(orgId: Uuid, memberId: string, updatedAt: Date): Promise<MembershipResult<OrganizationMember>>;
+  /** The subject's ACTIVE member row in the org; `not_found` otherwise (CP-3). */
+  getActiveMemberBySubject(orgId: Uuid, subjectId: string): Promise<MembershipResult<OrganizationMember>>;
+  /** Active members only — no pending invitations (contrast countBillableMembers). */
+  countActiveMembers(orgId: Uuid): Promise<MembershipResult<number>>;
+  /** See JoinOrganizationInput. `conflict` when already an active member. */
+  joinOrganization(input: JoinOrganizationInput): Promise<MembershipResult<{ member: OrganizationMember; roleAssignment: RoleAssignment }>>;
+  /**
+   * See LeaveOrganizationInput. `not_found` when the subject is not an active
+   * member. `conflict` (entity `last_owner`) when they are the org's last
+   * active owner and other active members remain — checked inside the batch,
+   * so two owners leaving at once cannot leave a group with no owner.
+   */
+  leaveOrganization(input: LeaveOrganizationInput): Promise<MembershipResult<{ member: OrganizationMember; revokedRoles: RoleAssignment[] }>>;
 
   createInvitation(input: CreateInvitationInput): Promise<MembershipResult<OrganizationInvitation>>;
   getInvitationById(orgId: Uuid, invitationId: string): Promise<MembershipResult<OrganizationInvitation>>;
