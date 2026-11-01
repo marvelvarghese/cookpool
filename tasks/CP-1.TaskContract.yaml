@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-1
+spec:
+  goal: The Cookpool epic doc set is on main, the design behind the cookpool-kitchen epic and its seven milestones in Orunbase.
+  affects:
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-1.TaskContract.yaml
+  doneWhen:
+    - README.md, design.md, implementation-plan.md, risks-and-open-questions.md and IMPLEMENTATION-STATUS.md are on main under specs/epics/cookpool-kitchen
+    - orun task epic show cookpool-kitchen lists milestones CP0 to CP6
+    - orun task show CP-1 reads done
+  gates: []
