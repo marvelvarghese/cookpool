@@ -9,7 +9,7 @@ created in Orunbase under its milestone (`orun task create --adopt CP-<n>`)
 with its contract, `tasks/CP-<n>.TaskContract.yaml`, which lands in the pull
 request that implements it.
 
-## CP0 — the spec
+## CP0 — the spec ✅
 
 This doc set and the `CP-1` contract, merged to `main`. The epic
 `cookpool-kitchen`, its seven milestones and `CP-1` are created in Orunbase
@@ -19,7 +19,7 @@ before the pull request opens; the merge lands `CP-1`.
 - the five documents are on `main`
 - `task_get cookpool-kitchen` shows the epic and its seven milestones, and `CP-1` reads `done`
 
-## CP1 — groups you can join
+## CP1 — groups you can join ✅
 
 Open up the baseline for many small groups, and stand up the empty kitchen.
 

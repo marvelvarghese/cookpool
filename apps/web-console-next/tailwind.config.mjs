@@ -51,6 +51,20 @@ export default {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
         },
+        // Cookpool's own roles (CP-5). The variables exist only under the
+        // `.cookpool` wrapper (globals.css), so these never paint the admin console.
+        cp: {
+          "herb-tint": "hsl(var(--cp-herb-tint))",
+          tomato: "hsl(var(--cp-tomato))",
+          "tomato-tint": "hsl(var(--cp-tomato-tint))",
+          owed: "hsl(var(--cp-owed))",
+          "owed-tint": "hsl(var(--cp-owed-tint))",
+          owe: "hsl(var(--cp-owe))",
+          soon: "hsl(var(--cp-soon))",
+          "soon-tint": "hsl(var(--cp-soon-tint))",
+          expired: "hsl(var(--cp-expired))",
+          "expired-tint": "hsl(var(--cp-expired-tint))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

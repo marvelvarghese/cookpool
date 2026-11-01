@@ -61,6 +61,65 @@
     --ring: 245 90% 68%;
   }
 
+  /*
+   * Cookpool — the consumer app under src/app/(kitchen) (epic cookpool-kitchen,
+   * CP-5). Light-only and scoped: the kitchen layout puts `.cookpool` on its
+   * wrapper (and on <body> while it is mounted, so portalled dialogs, sheets
+   * and toasts match), which redefines the kit's tokens for that subtree only.
+   * The admin console's theme above is untouched. Every text pairing here
+   * meets 4.5:1; input borders meet 3:1 against white.
+   */
+  .cookpool {
+    color-scheme: light;
+    --font-sans: var(--font-cookpool), system-ui, sans-serif;
+
+    --background: 80 16% 96%; /* #F6F7F4 */
+    --foreground: 147 16% 11%; /* #17201B ink */
+    --card: 0 0% 100%;
+    --card-foreground: 147 16% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 147 16% 11%;
+    --primary: 150 60% 30%; /* #1F7A4D herb green */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 80 15% 92%; /* #ECEEE8 */
+    --secondary-foreground: 147 16% 11%;
+    --muted: 80 15% 92%;
+    --muted-foreground: 140 5% 37%; /* #5A635D */
+    --accent: 146 35% 92%; /* #E4F2EA green tint */
+    --accent-foreground: 147 16% 11%;
+    --destructive: 11 79% 34%; /* #9A2B12 */
+    --destructive-foreground: 0 0% 100%;
+    --warning: 38 100% 24%; /* #7A4E00 */
+    --warning-foreground: 38 100% 24%;
+    --success: 150 60% 30%;
+    --success-foreground: 0 0% 100%;
+    --border: 90 11% 89%; /* #E3E6E0 */
+    --input: 135 4% 56%; /* #8A928C, 3.2:1 on white */
+    --ring: 150 60% 30%;
+    --radius: 0.75rem;
+
+    /* Cookpool-only roles (the `cp-*` Tailwind colors). */
+    --cp-herb-tint: 146 35% 92%; /* #E4F2EA */
+    --cp-tomato: 18 88% 40%; /* #C2410C */
+    --cp-tomato-tint: 24 82% 93%; /* #FCEBE0 */
+    --cp-owed: 215 73% 42%; /* #1D5FB8 you're owed */
+    --cp-owed-tint: 215 61% 94%; /* #E6EEF9 */
+    --cp-owe: 18 88% 40%; /* #C2410C you owe */
+    --cp-soon: 38 100% 24%; /* #7A4E00 use soon */
+    --cp-soon-tint: 44 100% 89%; /* #FFF0C7 */
+    --cp-expired: 11 79% 34%; /* #9A2B12 */
+    --cp-expired-tint: 14 72% 92%; /* #F9E1DA */
+
+    font-family: var(--font-sans);
+  }
+
+  /* On phones, Cookpool's toasts sit above its bottom tab bar. */
+  @media (max-width: 899px) {
+    .cookpool .toast-viewport {
+      bottom: calc(env(safe-area-inset-bottom) + 4.5rem);
+    }
+  }
+
   * {
     @apply border-border;
   }

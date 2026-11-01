@@ -23,8 +23,17 @@ describe("query cache keys (qk)", () => {
       qk.billingSummary(org),
       qk.entitlements(org),
       qk.invoices(org),
+      qk.kitchenSettings(org),
+      qk.joinCode(org),
     ].map((k) => JSON.stringify(k));
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("Cookpool keys: kitchen settings and the join code per group, the preview per code (CP-5)", () => {
+    expect(qk.kitchenSettings("org_1")).toEqual(["kitchenSettings", "org_1"]);
+    expect(qk.joinCode("org_1")).toEqual(["joinCode", "org_1"]);
+    expect(qk.joinPreview("KTCH2345")).toEqual(["joinPreview", "KTCH2345"]);
+    expect(qk.joinCode("org_1")).not.toEqual(qk.joinCode("org_2"));
   });
 
   it("each key starts with a distinct resource tag", () => {

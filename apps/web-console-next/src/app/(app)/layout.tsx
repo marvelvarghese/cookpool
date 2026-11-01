@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 import { BottomTabs } from "@/components/shell/bottom-tabs";
@@ -61,16 +61,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
  * flow (create the parent org + pick a plan) from anywhere in the shell. Backed
  * by the shared `orgs` query the shell already fetches, so this adds no extra
  * request; on fetch errors it stays put rather than guessing.
+ *
+ * `/account` is exempt (Cookpool CP-5): it needs no organization, and the
+ * Cookpool app links to it as its settings — someone with no groups yet must
+ * reach it without being made to create an organization first.
  */
 function OnboardingGate() {
   const router = useRouter();
+  const pathname = usePathname();
   const { client } = useSession();
   const orgs = useApiQuery(qk.orgs(), () =>
     wrap(async () => (await client.organizations.list()).organizations),
   );
+  const exempt = pathname === "/account" || (pathname?.startsWith("/account/") ?? false);
   React.useEffect(() => {
-    if (orgs.data && orgs.data.length === 0) router.replace("/onboarding");
-  }, [orgs.data, router]);
+    if (!exempt && orgs.data && orgs.data.length === 0) router.replace("/onboarding");
+  }, [exempt, orgs.data, router]);
   return null;
 }
 

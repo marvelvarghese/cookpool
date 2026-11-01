@@ -27,4 +27,9 @@ export const qk = {
   billingSummary: (orgId: string) => ["billingSummary", orgId] as const,
   entitlements: (orgId: string) => ["entitlements", orgId] as const,
   invoices: (orgId: string) => ["invoices", orgId] as const,
+  // Cookpool (CP-5): a group's kitchen settings, its join code (owners and
+  // admins), and the preview a join link shows.
+  kitchenSettings: (orgId: string) => ["kitchenSettings", orgId] as const,
+  joinCode: (orgId: string) => ["joinCode", orgId] as const,
+  joinPreview: (code: string) => ["joinPreview", code] as const,
 };

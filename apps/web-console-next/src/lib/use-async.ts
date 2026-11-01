@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { ApiResult } from "@/lib/api";
 import { useSession, readStoredToken } from "@/lib/session";
+import { loginPathFor } from "@/lib/safe-next";
 
 export interface AsyncState<T> {
   data: T | null;
@@ -57,16 +58,22 @@ export function useAsync<T>(
  * suspenders guard we also re-check storage directly before redirecting: we
  * never bounce a user who actually has a token, even if context state hasn't
  * propagated yet. This is what prevents the "logged out after every reload" bug.
+ *
+ * `returnHere` (Cookpool CP-5) sends the person to `/login?next=<this page>` so
+ * sign-in brings them back (a join link must survive signing in). Off by
+ * default, so the admin console's redirect is unchanged.
  */
-export function useRequireAuth(): boolean {
+export function useRequireAuth(opts: { returnHere?: boolean } = {}): boolean {
   const { token } = useSession();
   const [ready, setReady] = React.useState(false);
+  const returnHere = opts.returnHere ?? false;
   React.useEffect(() => {
     setReady(true);
     if (typeof window === "undefined") return;
     if (!token && !readStoredToken()) {
-      window.location.href = "/login";
+      const { pathname, search, hash } = window.location;
+      window.location.href = returnHere ? loginPathFor(`${pathname}${search}${hash}`) : "/login";
     }
-  }, [token]);
+  }, [token, returnHere]);
   return ready && !!token;
 }

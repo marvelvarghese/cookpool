@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSession } from "@/lib/session";
-import { resolvePostAuthDestination } from "@/lib/last-org";
-import { wrap, createClient } from "@/lib/api";
+import { nextParamFrom, postLoginDestination } from "@/lib/safe-next";
+import { rememberLoginNext } from "@/lib/login-return";
+import { wrap } from "@/lib/api";
 import { consoleTitle } from "@/lib/app-config";
 import { useToast } from "@/components/ui/toast";
 import { ZodForm } from "@/components/ui/zod-form";
@@ -35,6 +36,15 @@ const PROVIDER_ICONS: Record<string, React.ReactNode> = {
     </svg>
   ),
 };
+
+/**
+ * Where sign-in lands: the page's `?next=` when it is a same-origin path (a
+ * join link sends people here and expects them back), else Cookpool's Home
+ * (CP-5). Read at call time, client only.
+ */
+function readNext(): string | null {
+  return typeof window === "undefined" ? null : nextParamFrom(window.location.search);
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -63,6 +73,8 @@ export default function LoginPage() {
   const startOAuth = React.useCallback(
     (providerId: string) => {
       if (typeof window === "undefined") return;
+      // The OAuth round trip leaves the app; the callback picks `next` back up.
+      rememberLoginNext(readNext());
       const returnTo = `${window.location.origin}/auth/callback`;
       window.location.href = client.auth.oauthStartUrl(providerId, returnTo);
     },
@@ -191,9 +203,7 @@ export default function LoginPage() {
                           }
                           setToken(r.data.token);
                           toast({ kind: "success", title: "Signed in" });
-                          router.push(
-                            await resolvePostAuthDestination(createClient(target, r.data.token)),
-                          );
+                          router.push(postLoginDestination(readNext()));
                         }}
                       >
                         Sign in
@@ -223,9 +233,7 @@ export default function LoginPage() {
                   onClick={async () => {
                     setToken(tokenInput);
                     toast({ kind: "success", title: "Token set" });
-                    router.push(
-                      await resolvePostAuthDestination(createClient(target, tokenInput)),
-                    );
+                    router.push(postLoginDestination(readNext()));
                   }}
                 >
                   Continue
