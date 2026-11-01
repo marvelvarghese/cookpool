@@ -1,0 +1,183 @@
+// Rendered to wrangler.jsonc by tooling/wire/render.mjs (BF6 deploy-time wiring).
+// Resource IDs are NEVER committed: @@wiring(<component>/<env>:<key>)@@ tokens are
+// resolved from the workspace's orun secrets at deploy time (wire-live) or from the
+// committed wiring.fixture.json for offline dry-runs (wire-fixture).
+{
+  "name": "cookpool-api-edge",
+  "compatibility_date": "2025-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/index.ts",
+  "minify": false,
+  "vars": {
+    "ENVIRONMENT": "local",
+    "CONSOLE_CUSTOM_DOMAIN": "",
+    // M0 / Solo profile (cookpool ships single-user). Set "false" to restore the
+    // full multi-tenant baseline. See specs/profiles/solo-m0.md.
+    "SOLO_MODE": "true"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "RATE_LIMITER_DO", "class_name": "RateLimiterDO" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["RateLimiterDO"] }
+  ],
+  "env": {
+    "dev": {
+      "vars": {
+        "ENVIRONMENT": "dev",
+        "CONSOLE_CUSTOM_DOMAIN": "",
+        "SOLO_MODE": "true"
+      },
+      "durable_objects": {
+        "bindings": [
+          { "name": "RATE_LIMITER_DO", "class_name": "RateLimiterDO" }
+        ]
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["RateLimiterDO"] }
+      ]
+    },
+    "stage": {
+      "vars": {
+        "ENVIRONMENT": "stage",
+        "CONSOLE_CUSTOM_DOMAIN": "stage.cookpool.app",
+        "SOLO_MODE": "true"
+      },
+      "d1_databases": [
+        {
+          "binding": "PLATFORM_DB",
+          "database_name": "cookpool-stage",
+          "database_id": "@@wiring(cloudflare-d1/stage:d1_database_id)@@"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "IDEMPOTENCY_KV",
+          "id": "@@wiring(cloudflare-kv/stage:api_edge_idempotency_kv_id)@@"
+        }
+      ],
+      "services": [
+        {
+          "binding": "IDENTITY_WORKER",
+          "service": "cookpool-identity-worker-stage"
+        },
+        {
+          "binding": "MEMBERSHIP_WORKER",
+          "service": "cookpool-membership-worker-stage"
+        },
+        {
+          "binding": "PROJECTS_WORKER",
+          "service": "cookpool-projects-worker-stage"
+        },
+        {
+          "binding": "EVENTS_WORKER",
+          "service": "cookpool-events-worker-stage"
+        },
+        {
+          "binding": "CONFIG_WORKER",
+          "service": "cookpool-config-worker-stage"
+        },
+        {
+          "binding": "WEBHOOKS_WORKER",
+          "service": "cookpool-webhooks-worker-stage"
+        },
+        {
+          "binding": "METERING_WORKER",
+          "service": "cookpool-metering-worker-stage"
+        },
+        {
+          "binding": "BILLING_WORKER",
+          "service": "cookpool-billing-worker-stage"
+        },
+        {
+          "binding": "NOTIFICATIONS_WORKER",
+          "service": "cookpool-notifications-worker-stage"
+        },
+        {
+          "binding": "INTEGRATIONS_WORKER",
+          "service": "cookpool-integrations-worker-stage"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "RATE_LIMITER_DO", "class_name": "RateLimiterDO" }
+        ]
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["RateLimiterDO"] }
+      ]
+    },
+    "prod": {
+      "vars": {
+        "ENVIRONMENT": "prod",
+        "CONSOLE_CUSTOM_DOMAIN": "prod.cookpool.app",
+        "SOLO_MODE": "true"
+      },
+      "d1_databases": [
+        {
+          "binding": "PLATFORM_DB",
+          "database_name": "cookpool-prod",
+          "database_id": "@@wiring(cloudflare-d1/prod:d1_database_id)@@"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "IDEMPOTENCY_KV",
+          "id": "@@wiring(cloudflare-kv/prod:api_edge_idempotency_kv_id)@@"
+        }
+      ],
+      "services": [
+        {
+          "binding": "IDENTITY_WORKER",
+          "service": "cookpool-identity-worker-prod"
+        },
+        {
+          "binding": "MEMBERSHIP_WORKER",
+          "service": "cookpool-membership-worker-prod"
+        },
+        {
+          "binding": "PROJECTS_WORKER",
+          "service": "cookpool-projects-worker-prod"
+        },
+        {
+          "binding": "EVENTS_WORKER",
+          "service": "cookpool-events-worker-prod"
+        },
+        {
+          "binding": "CONFIG_WORKER",
+          "service": "cookpool-config-worker-prod"
+        },
+        {
+          "binding": "WEBHOOKS_WORKER",
+          "service": "cookpool-webhooks-worker-prod"
+        },
+        {
+          "binding": "METERING_WORKER",
+          "service": "cookpool-metering-worker-prod"
+        },
+        {
+          "binding": "BILLING_WORKER",
+          "service": "cookpool-billing-worker-prod"
+        },
+        {
+          "binding": "NOTIFICATIONS_WORKER",
+          "service": "cookpool-notifications-worker-prod"
+        },
+        {
+          "binding": "INTEGRATIONS_WORKER",
+          "service": "cookpool-integrations-worker-prod"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "RATE_LIMITER_DO", "class_name": "RateLimiterDO" }
+        ]
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["RateLimiterDO"] }
+      ]
+    }
+  }
+}

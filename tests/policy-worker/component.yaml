@@ -1,0 +1,33 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: policy-worker-tests
+  description: policy-worker's tests (its authorization API), run on dev
+spec:
+  type: turbo-package
+  lifecycle: production
+  owner: platform
+  # Its pages, attached to it in the workspace's catalog: what the Docs
+  # library shows for it, and what the catalog's docs and runbook checks read.
+  # Generated from what this manifest declares
+  # (tooling/catalog/gen-component-docs.mjs).
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  domain: starter-tests
+  subscribe:
+    environments:
+      - name: dev
+        profile: quick-check
+  parameters:
+    nodeVersion: "22"
+    pnpmVersion: "10.12.1"
+    buildCommand: pnpm exec turbo run build --filter=./
+    typecheckCommand: pnpm exec turbo run typecheck --filter=./
+    preBuildCommand: pnpm exec turbo run test --filter=./
+  labels:
+    team: platform
+    layer: test
+# ci: trigger full-component verification (orun v2.12.0 upgrade — PR #183)

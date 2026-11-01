@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cookpool-web-console-next",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // The product's identity, read per request by src/lib/app-config.ts
+  // (saas-console-artifact CA1): a console built from any tree serves the
+  // product this file belongs to. The rebrand rewrites these with the rest.
+  "vars": {
+    "CONSOLE_PRODUCT_NAME": "cookpool",
+    "CONSOLE_WORKERS_DEV_SUBDOMAIN": "rahulvarghesepullely",
+    "CONSOLE_API_WORKER_PREFIX": "cookpool-api-edge",
+    "CONSOLE_STORAGE_PREFIX": "cookpool.next",
+    "CONSOLE_SALES_EMAIL": "sales@sourceplane.ai"
+  }
+}

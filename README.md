@@ -1,0 +1,104 @@
+# Cookpool
+
+A multi-tenant SaaS on Cloudflare alone, kept as an
+[Orun](https://github.com/sourceplane/orun) desired-state repository:
+twelve bounded-context Workers behind one public edge API, a Next.js console
+on Workers + Static Assets, and Cloudflare D1 and KV as the data plane.
+Merges to `main` deploy it to `stage` and `prod`.
+
+## Live deployment
+
+<!-- 08-docs:begin -->
+Not recorded yet. The bootstrap's last phase probes every live URL and
+writes the addresses, the workspace and the secrets the product uses into
+[ai/context/deployment.md](ai/context/deployment.md); how the product
+deploys and how to operate it is in
+[ai/context/operations.md](ai/context/operations.md).
+<!-- 08-docs:end -->
+
+## What is here
+
+| Surface | Where |
+|---|---|
+| The public HTTP API — the only Worker with a public route | `apps/api-edge` |
+| Bounded-context Workers (identity, membership, projects, policy, events, config, metering, billing, notifications, webhooks, integrations, admin), reached only through the edge | `apps/*-worker` |
+| The console | `apps/web-console-next` |
+| API, tenancy, event and error types shared by every Worker and the console | `packages/contracts` |
+| D1 executor, repositories and migrations | `packages/db` |
+| SDK and CLI | `packages/sdk`, `packages/cli` |
+| Data plane (D1 per environment, the edge's KV) and the parked custom domain | `infra/terraform/*` |
+| Migration runner, applied on merge | `infra/db-migrate` |
+| Tests, one suite per component | `tests/*` |
+| Environments, lanes, the pinned composition stack, the workspace | `intent.yaml` |
+| Each component's overview, architecture and runbook | `apps/*/docs`, `packages/*/docs` |
+
+Working with a coding agent? Start it at [AGENTS.md](AGENTS.md).
+
+## Getting started
+
+Node.js 20 or later and pnpm 10 or later.
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
+
+With the `orun` CLI at the version `.github/workflows/ci.yml` pins:
+
+```bash
+orun validate --intent intent.yaml
+orun plan --changed --intent intent.yaml --output plan.json
+```
+
+## How it deploys
+
+`.github/workflows/ci.yml` runs `orun plan --changed`, then one lane per
+group of planned jobs with `orun run --remote-state` against the workspace
+`intent.yaml` declares. A pull request plans and verifies; a merge to `main`
+deploys the changed components to `stage` and then `prod`. `dev` only
+verifies. The deploy credentials are brokered per run from the workspace's
+Cloudflare connection, CI signs in over GitHub OIDC, and Terraform state is
+kept by Orun Cloud — nothing provider-shaped is stored in this repository or
+in GitHub. [ai/context/operations.md](ai/context/operations.md) is the full
+operating contract.
+
+**Deploy by hand.** Orunbase's **Deploy** button on a component, or **Run
+workflow** on the CI workflow in GitHub's Actions tab (on `main`), runs
+`ci.yml` for the environment and components you pick, and each one deploys
+exactly as a merge would deploy it. Leave the component blank to redeploy
+every component in that environment, with nothing changed: after rotating a
+secret, say. A component with nothing to run in that environment (a test
+suite in `prod`) is left out with a notice.
+
+## Working with D1
+
+D1 is SQLite, and the code is explicit about what that costs:
+
+- **No interactive transactions.** `executor.transaction(...)` runs its
+  statements in order with no rollback. Where all-or-nothing matters, use a
+  single statement with `RETURNING`, or an upsert with `ON CONFLICT`.
+- **SQLite types.** Timestamps and JSON documents are text, booleans are
+  0/1; `@saas/db/json` owns the decoding.
+- **No schemas.** A bounded context's tables share a name prefix
+  (`identity_users`, `membership_organizations`), enforced by the
+  repositories.
+
+## What needs your credentials
+
+Sign-in with GitHub or Google needs OAuth client secrets; billing needs a
+Polar access token, a webhook secret and `POLAR_PRODUCT_MAP` pointed at your
+own Polar products; email needs Cloudflare Email Service set up for a
+verified sending domain. The header comments of
+`apps/identity-worker/wrangler.template.jsonc` and
+`apps/billing-worker/wrangler.template.jsonc` say how each secret is set,
+and `orun secrets set <KEY> --org <workspace> --env <env>` sets a runtime
+secret in the workspace.
+
+## Custom domain
+
+The product answers on workers.dev from its first deploy. To serve it on
+your own domain, follow "Setting the domain later" in
+[ai/context/operations.md](ai/context/operations.md).
