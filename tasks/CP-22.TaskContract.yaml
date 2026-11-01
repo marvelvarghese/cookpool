@@ -1,0 +1,16 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-22
+  title: "Self-hosted font: console builds no longer fetch from Google Fonts"
+spec:
+  goal: The Cookpool typeface ships with the console from an OFL-licensed npm package, so building the console never depends on a network call to Google Fonts.
+  affects:
+    - default/cookpool/web-console-next
+    - pnpm-lock.yaml
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-22.TaskContract.yaml
+  doneWhen:
+    - src/components/kitchen/theme.ts uses next/font/local with the variable Plus Jakarta Sans from @fontsource-variable/plus-jakarta-sans
+    - the console builds (next build + OpenNext) with the font emitted into its static media
+  gates: []

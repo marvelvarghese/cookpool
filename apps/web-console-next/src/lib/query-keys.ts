@@ -32,4 +32,13 @@ export const qk = {
   kitchenSettings: (orgId: string) => ["kitchenSettings", orgId] as const,
   joinCode: (orgId: string) => ["joinCode", orgId] as const,
   joinPreview: (code: string) => ["joinPreview", code] as const,
+  // Cookpool's ledger (CP-8), per group: the activity feed (paged), the whole
+  // feed (for the debts behind a settle plan), balances and the settle plan.
+  // Each starts with `kitchenLedger(orgId)`, so one invalidation of that
+  // prefix refreshes all four after a write.
+  kitchenLedger: (orgId: string) => ["kitchenLedger", orgId] as const,
+  kitchenActivity: (orgId: string) => ["kitchenLedger", orgId, "activity"] as const,
+  kitchenActivityAll: (orgId: string) => ["kitchenLedger", orgId, "activityAll"] as const,
+  kitchenBalances: (orgId: string) => ["kitchenLedger", orgId, "balances"] as const,
+  kitchenSettlePlan: (orgId: string) => ["kitchenLedger", orgId, "settlePlan"] as const,
 };

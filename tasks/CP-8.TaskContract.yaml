@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-8
+  title: "Ledger screens: activity, balances, add expense and settle up"
+spec:
+  goal: In the Cookpool app a member sees a group's activity and balances, adds an expense in any of the four split modes with live amounts, and settles up from the fewest-payments plan — with the maths from @saas/kitchen-engine.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - pnpm-lock.yaml
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-8.TaskContract.yaml
+  doneWhen:
+    - the group page has Activity, Balances, Pantry and Dishes tabs; Activity shows each entry with your signed amount, undo and flag
+    - Add expense previews every person's share live in all four modes, with the same rounding as the server, and refuses sums that don't add up
+    - Settle up shows the working (debts → pairs → payments), the debts behind it, and records a payment with a method
+    - tests/web-console-next passes, with model tests for the expense form, activity rows, the debts grouping and the All-groups merge
+  gates: []

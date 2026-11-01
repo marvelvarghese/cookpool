@@ -11,7 +11,9 @@ const nextConfig = {
   // import specifiers that resolve to the sibling `.ts` source. Next's
   // webpack pipeline does not perform that pairing for source-mode workspace
   // deps, so register an extension alias and run the package through SWC.
-  transpilePackages: ["@saas/sdk"],
+  // `@saas/kitchen-engine` (Cookpool's money and ledger maths, CP-8) is the
+  // same shape: source-mode TypeScript with `./*.js` specifiers.
+  transpilePackages: ["@saas/sdk", "@saas/kitchen-engine"],
   webpack(config) {
     config.resolve = config.resolve || {};
     config.resolve.extensionAlias = {
