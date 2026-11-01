@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut, User2, ShieldCheck, Sun, Moon } from "lucide-react";
+import { ChevronsUpDown, CookingPot, LogOut, User2, ShieldCheck, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu,
@@ -71,6 +71,11 @@ export function SidebarAccount() {
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="min-w-[220px]">
         {email && <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{email}</DropdownMenuLabel>}
+        {/* The consumer app (Cookpool, CP-5) — this shell is its settings side. */}
+        <DropdownMenuItem onSelect={() => router.push("/home")}>
+          <CookingPot className="h-4 w-4 opacity-70" /> Open Cookpool
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push("/account")}>
           <User2 className="h-4 w-4 opacity-70" /> Profile
         </DropdownMenuItem>

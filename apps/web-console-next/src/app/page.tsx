@@ -3,20 +3,18 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { readStoredToken } from "@/lib/session";
-import { readLastOrgSlug, defaultOrgDestination } from "@/lib/last-org";
+import { HOME_PATH } from "@/lib/safe-next";
 
 /**
- * App entry. Sends the operator to their last-used org (if remembered) so
- * returning visits land in a working org scope; otherwise to /onboarding, which
- * forwards to an existing org or creates the first one — or to /login when
- * there's no session. localStorage is client-only, so this resolves on the
- * client and replaces history (no extra entry).
+ * App entry. The console opens as Cookpool (CP-5): a signed-in person lands on
+ * Home, anyone else on /login. The admin console stays at /orgs and /account.
+ * localStorage is client-only, so this resolves on the client and replaces
+ * history (no extra entry).
  */
 export default function HomePage() {
   const router = useRouter();
   React.useEffect(() => {
-    const dest = readStoredToken() ? defaultOrgDestination(readLastOrgSlug()) : "/login";
-    router.replace(dest);
+    router.replace(readStoredToken() ? HOME_PATH : "/login");
   }, [router]);
 
   return (

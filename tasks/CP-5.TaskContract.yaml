@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-5
+  title: "The Cookpool app shell: tabs and sidebar, groups, joining by link"
+spec:
+  goal: The console opens as Cookpool — a mobile-first app with Home, Pantry, + Add, Groups and People — where a person creates groups, invites by link, joins from a link, sets a group's rules and leaves, on a phone and on desktop.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-5.TaskContract.yaml
+  doneWhen:
+    - a signed-in person lands on /home; below 900px the bottom tabs Home · Pantry · + Add · Groups · People show, and from 900px a sidebar
+    - /groups lists the person's groups with search and sort, and New group creates one with its currency and waste rule
+    - an owner or admin copies and rotates the join link on the group page; another person opens /join/<code>, signs in if needed, and joins in one tap
+    - the group page shows and (for admins) edits the waste rule, and Leave works with the last-owner refusal explained
+    - features not built yet show honest empty states, never invented numbers; the admin console still works
+    - tests/web-console-next passes, with tests for the nav model, group filtering, join-code parsing and the safe next-redirect
+  gates: []
