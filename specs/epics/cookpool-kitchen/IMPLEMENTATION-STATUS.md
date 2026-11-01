@@ -7,7 +7,7 @@ the code departed from `design.md`.
 |---|---|---|
 | CP0 — the spec | ✅ shipped 2026-11-01 | #3 (CP-1) |
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
-| CP2 — the ledger | in progress | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22) |
+| CP2 — the ledger | ✅ shipped 2026-11-02 | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22), #15 (CP-9) |
 | CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11) |
 | CP4 — the dish maker | | |
 | CP5 — splitting dishes | | |
@@ -49,6 +49,8 @@ Instead of hiding billing, the console now opens as Cookpool at `/home`
   neither), and members (non-admins) don't see a member count.
 - The last owner is told to hand over ownership, but no screen changes
   roles yet.
+
+All three are closed by CP-9 (below).
 
 ### CP2 — the ledger (CP-7)
 
@@ -153,6 +155,78 @@ Instead of hiding billing, the console now opens as Cookpool at `/home`
   are in, and its worth counts only those (amounts in two currencies do not
   add up). Item lists skip removed, used-up and wasted items.
 - **Dates are UTC days** (risks CP-P).
+
+### CP2 — the people view (CP-9)
+
+- **Names come from identity-worker**, through a new service-internal
+  `POST /v1/internal/identity/users/lookup` (`{ subjectIds }` → `{ users:
+  [{ subjectId, displayName, email }] }`, at most 100 ids, unknown ones left
+  out; api-edge routes nothing under `/v1/internal/`). kitchen-worker binds
+  `IDENTITY_WORKER` (stage and prod) and names people best-effort: a failed
+  lookup answers without names, never a 503. What members see as a
+  person's `displayName` is the name they set on their profile, else **the
+  part of their email before the @** (what Home already greets the
+  signed-in person with) — never the whole email; people who signed in by
+  email code have no name until they set one in Account. The lookup is one
+  primary-key read per person (`getUserById`, side by side): `packages/db`
+  was outside this task, so there is no batch repository read yet.
+- **identity-worker is private now.** The baseline published it on
+  workers.dev (stage and prod), and the lookup has no caller check of its
+  own, so it would have handed anyone with a user id that person's email.
+  Its stage and prod configs now set `workers_dev: false`, like
+  membership-worker; nothing called its public URL (api-edge reaches it by
+  service binding, and OAuth callbacks go through api-edge). A config test
+  keeps it that way.
+- **A group's members, for every member**: `GET
+  /v1/organizations/{org}/kitchen/members` (`kitchen.pantry.read`) →
+  `{ members: [{ subjectId, displayName, role, memberId, joinedAt }] }`,
+  oldest first. The design did not list it; it replaces the admin-only
+  `memberships.listMembers` in the app, so members and viewers see names,
+  roles and the count, and the app learns its own role exactly (viewers
+  included). For it, membership-worker's internal roster now also answers
+  each member's `memberId` (`mem_…`, what `updateMemberRole` takes) and
+  `joinedAt`; kitchen-worker reads both as null from a membership-worker that
+  does not send them yet.
+- **`GET /v1/kitchen/me/balances`** answers `{ groups, people, totals }`:
+  per group your balance, `role` and `memberCount` (people with a group
+  role); per person every group you share (and any group whose plan still
+  has a payment between you — someone who left owing), with `netMinor` =
+  what that group's **settle plan** has between you (so a person's nets in a
+  group add up to your balance there, and match Settle up); totals per
+  currency (`owedToYouMinor`, `youOweMinor`, `netMinor`), never added
+  across currencies. People are listed largest amount first, then by name;
+  settled co-members are included at zero. Like the all-pantries view, "your
+  groups" is membership's answer, not one policy hop per group.
+- **`GET /v1/kitchen/me/people/{usr}`** answers, per group you share (or
+  where money is still open between you), the engine's `personView`: the
+  lines between you (newest first, with `reversed` / `reverses` so the app
+  strikes undone ones through and files an undo under what it undoes),
+  `pairwiseMinor`, `planMinor`, `shortcutMinor` — plus, beyond the design,
+  `shortcutVia`: one three-person step (`from` owes `via`, `via` owes `to`,
+  so `from` pays `to` directly) that explains the shortcut, chosen from the
+  group's pairwise debts, preferring a step whose direct payment is in the
+  plan; null when no single third person explains it (the app then says
+  what the shortcut does in general). 404 for yourself, for someone you
+  share nothing with, and for a malformed id. Lines are every line since
+  the group began, not since your last settlement (risks CP-S).
+- **The app**: `memberLabel` takes the names the screen has (from
+  `myBalances().people`, or a group's member list), so Activity, Balances,
+  Add expense, Settle up and People all show names; a person's avatar shows
+  their initials. Home's balance card, Settle up's All groups and the Groups
+  list (your role, member count and balance per group) read the one
+  cross-group call instead of one `…/settle-plan` per group;
+  `homeSettleSummary` and `useSettlePlans` are gone. People (`/people`) and
+  the person view (`/people/{usr}`) are new; every balance on Home, People
+  and a group's Balances tab opens the person. Record payment on the person
+  view posts the plan's payment in the group you pick (UPI · Cash · Bank, 10
+  second undo); Remind is "Soon".
+- **Viewers see no write actions**: no Add expense (the Add sheet leaves
+  their groups out, and Add expense explains instead of showing the form),
+  no Record, no Undo, no Flag. While a role is loading the write actions
+  wait; if the member list cannot be read they show and the server decides.
+- **Make owner / Make admin**: on a group's Members card an owner can make
+  another member an owner, or an admin, with `memberships.updateMemberRole`
+  after a confirm dialog; the last-owner message on Leave links to it.
 
 ### CP3 — using things (CP-11)
 

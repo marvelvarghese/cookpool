@@ -10,22 +10,31 @@ import { Input } from "@/components/ui/input";
 import { SkeletonRow } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useGroups } from "@/components/kitchen/data";
-import { GROUP_SORTS, filterGroups, sortGroups, type GroupSort } from "@/components/kitchen/groups";
+import { GROUP_SORTS, filterGroups, roleFromKitchen, roleLabel, sortGroups, type GroupSort } from "@/components/kitchen/groups";
 import { GroupAvatar, IconBubble, KCard, K_BUTTON, K_INPUT, PageHeader, shortDate } from "@/components/kitchen/kit";
+import { Money } from "@/components/kitchen/ledger-ui";
+import { useMyBalances } from "@/components/kitchen/people-data";
 import { NewGroupDialog } from "@/components/kitchen/new-group-dialog";
 import { JoinGroupDialog } from "@/components/kitchen/join-group-dialog";
 
 /**
  * Groups (CP-5): every group the person is in, searchable by name and sorted
  * by Recent (opened on this device, then newest) or A–Z. One list however many
- * groups there are — no per-group tabs. New group and Join open dialogs;
- * `?new=1` / `?join=1` open them from elsewhere (Home's empty state).
+ * groups there are — no per-group tabs. Each row shows your role, how many
+ * are in it and your balance there (from the cross-group read, CP-9). New
+ * group and Join open dialogs; `?new=1` / `?join=1` open them from elsewhere
+ * (Home's empty state).
  */
 export default function GroupsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const groups = useGroups();
+  const balances = useMyBalances();
+  const kitchen = React.useMemo(
+    () => new Map((balances.data?.groups ?? []).map((g) => [g.orgId, g] as const)),
+    [balances.data],
+  );
   const recentSlugs = useRecentGroupSlugs();
   const [query, setQuery] = React.useState("");
   const [sort, setSort] = React.useState<GroupSort>("recent");
@@ -153,23 +162,40 @@ export default function GroupsPage() {
             </KCard>
           ) : (
             <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
-              {shown.map((g) => (
-                <li key={g.id}>
-                  <Link
-                    href={`/groups/${g.slug}`}
-                    className="flex min-h-[68px] items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                  >
-                    <GroupAvatar name={g.name} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-bold">{g.name}</span>
-                      <span className="block text-sm text-muted-foreground">
-                        Started {shortDate(g.createdAt)}
+              {shown.map((g) => {
+                const k = kitchen.get(g.id);
+                const role = roleFromKitchen(k?.role);
+                return (
+                  <li key={g.id}>
+                    <Link
+                      href={`/groups/${g.slug}`}
+                      className="flex min-h-[68px] items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      <GroupAvatar name={g.name} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-bold">{g.name}</span>
+                        <span className="block truncate text-sm text-muted-foreground">
+                          {k && role
+                            ? `${roleLabel(role)} · ${k.memberCount} ${k.memberCount === 1 ? "member" : "members"}`
+                            : `Started ${shortDate(g.createdAt)}`}
+                        </span>
                       </span>
-                    </span>
-                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-                  </Link>
-                </li>
-              ))}
+                      {k && k.balanceMinor !== 0 ? (
+                        <span
+                          className={cn(
+                            "shrink-0 text-right text-xs font-medium leading-snug",
+                            k.balanceMinor > 0 ? "text-cp-owed" : "text-cp-owe",
+                          )}
+                        >
+                          {k.balanceMinor > 0 ? "you get back" : "you owe"}
+                          <Money minor={Math.abs(k.balanceMinor)} currency={k.currency} className="block text-[15px] font-bold" />
+                        </span>
+                      ) : null}
+                      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>

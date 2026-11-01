@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 import { formatMinor } from "./money";
-import { memberInitials } from "./members";
+import { memberInitials, type MemberNames } from "./members";
 import type { KindTone } from "./activity";
 
 /**
@@ -44,14 +44,17 @@ export function BalanceWords({
   );
 }
 
-/** A person's round avatar: "You" in green, others' two-character tag in grey. */
+/** A person's round avatar: "You" in green, others' initials (or id tag) in grey. */
 export function PersonAvatar({
   subjectId,
   meId,
+  names,
   className,
 }: {
   subjectId: string;
   meId: string | null;
+  /** Display names (CP-9): a named person shows their initials. */
+  names?: MemberNames | null;
   className?: string;
 }) {
   const you = !!meId && subjectId === meId;
@@ -64,7 +67,7 @@ export function PersonAvatar({
         className,
       )}
     >
-      {memberInitials(subjectId, meId)}
+      {memberInitials(subjectId, meId, names)}
     </span>
   );
 }

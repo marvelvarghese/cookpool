@@ -1,0 +1,29 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-9
+  title: "People: balances across groups, \"You and Dev — why\", and real names"
+spec:
+  goal: Members see real names everywhere, every balance taps through to a person view that explains each amount across shared groups, Home shows totals from one cross-group read, and owners can hand over ownership.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/config-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-9.TaskContract.yaml
+  doneWhen:
+    - GET /v1/kitchen/me/balances returns per-group balances (with your role and member count), per-person nets that match Settle up, and totals per currency
+    - GET /v1/kitchen/me/people/{usr} explains every amount between you two in each shared group, including the group shortcut
+    - names come from identity through a service-internal lookup, and the app shows them wherever memberLabel was used
+    - the People tab and the person view exist; Home uses the cross-group read; viewers no longer see write actions
+    - an owner can make another member an owner or admin from the group page
+  gates: []

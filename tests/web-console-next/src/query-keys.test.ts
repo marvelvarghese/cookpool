@@ -61,4 +61,12 @@ describe("query cache keys (qk)", () => {
   it("webhook endpoint key carries both org and endpoint id", () => {
     expect(qk.webhookEndpoint("org_1", "ep_9")).toEqual(["webhookEndpoint", "org_1", "ep_9"]);
   });
+
+  it("Cookpool people keys share the kitchenMe prefix, so a ledger write refreshes them together (CP-9)", () => {
+    const prefix = qk.kitchenMe();
+    for (const k of [qk.kitchenMyBalances(), qk.kitchenPerson("usr_dev")]) expect(k.slice(0, prefix.length)).toEqual([...prefix]);
+    expect(qk.kitchenPerson("usr_dev")).not.toEqual(qk.kitchenPerson("usr_anu"));
+    expect(qk.kitchenMembers("org_1")).toEqual(["kitchenMembers", "org_1"]);
+    expect(qk.kitchenMembers("org_1")).not.toEqual(qk.members("org_1"));
+  });
 });

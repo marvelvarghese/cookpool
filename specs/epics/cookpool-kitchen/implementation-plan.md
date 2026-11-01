@@ -33,7 +33,7 @@ Open up the baseline for many small groups, and stand up the empty kitchen.
 - the free plan allows a sixth member and a second group
 - `GET /v1/organizations/{org}/kitchen/settings` answers on stage and prod
 
-## CP2 — the ledger
+## CP2 — the ledger ✅
 
 Splitwise inside each group, with every number explainable.
 

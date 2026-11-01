@@ -3,27 +3,26 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, HandCoins, UsersRound } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { cn } from "@/lib/cn";
-import { qk } from "@/lib/query";
 import { Button } from "@/components/ui/button";
-import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { IconBubble, KCard, K_BUTTON, PageHeader } from "@/components/kitchen/kit";
 import { GroupPickerButton } from "@/components/kitchen/group-picker";
-import { useGroupRole, useSettlePlan, useSettlePlans } from "@/components/kitchen/ledger-data";
+import { useGroupRole, useSettlePlan } from "@/components/kitchen/ledger-data";
+import { useMyBalances } from "@/components/kitchen/people-data";
 import { PaymentRow, SettleCard, SettleNote } from "@/components/kitchen/settle-card";
 import { Money } from "@/components/kitchen/ledger-ui";
-import { ALL_GROUPS, initialSettleChoice, mergeAllGroups, type GroupRef } from "@/components/kitchen/settle";
+import { ALL_GROUPS, groupPlansFromBalances, initialSettleChoice, mergeAllGroups } from "@/components/kitchen/settle";
 
 /**
  * Settle up (CP-8). A searchable group picker with All groups; it opens on
  * the group you came from (`?group=`), else All groups. One group: its
  * fewest-payments card — the working, the debts behind it, every payment
- * with Record. All groups: every group's payments that involve you, one call
- * per group (a server-side cross-group read arrives in CP-9).
+ * with Record. All groups: every group's payments that involve you, from one
+ * cross-group read (`myBalances`, CP-9). A viewer records nothing.
  */
 export default function SettlePage() {
   const router = useRouter();
@@ -73,7 +72,7 @@ export default function SettlePage() {
             <GroupPickerButton groups={list} value={choice} onChange={choose} allGroups label="Settle up in" />
           </div>
           <div className="min-w-0">
-            {group ? <OneGroup group={group} myId={myId} /> : <AllGroups groups={list} myId={myId} />}
+            {group ? <OneGroup group={group} myId={myId} /> : <AllGroups myId={myId} />}
           </div>
         </div>
       )}
@@ -83,7 +82,7 @@ export default function SettlePage() {
 
 function OneGroup({ group, myId }: { group: PublicOrganization; myId: string | null }) {
   const plan = useSettlePlan(group.id);
-  const { manager } = useGroupRole(group.id, myId);
+  const { manager, canWrite } = useGroupRole(group.id, myId);
   return (
     <div className="space-y-3">
       <SettleCard
@@ -94,6 +93,7 @@ function OneGroup({ group, myId }: { group: PublicOrganization; myId: string | n
         reload={plan.reload}
         meId={myId}
         canRecordAny={manager}
+        canWrite={canWrite}
         showGroup
       />
       <Link
@@ -107,15 +107,34 @@ function OneGroup({ group, myId }: { group: PublicOrganization; myId: string | n
   );
 }
 
-function AllGroups({ groups, myId }: { groups: readonly PublicOrganization[]; myId: string | null }) {
-  const qc = useQueryClient();
-  const refs: GroupRef[] = React.useMemo(() => groups.map((g) => ({ id: g.id, name: g.name, slug: g.slug })), [groups]);
-  const plans = useSettlePlans(refs);
+function AllGroups({ myId }: { myId: string | null }) {
+  const balances = useMyBalances();
+  const plans = React.useMemo(
+    () => (balances.data && myId ? groupPlansFromBalances(balances.data, myId) : []),
+    [balances.data, myId],
+  );
   const merged = mergeAllGroups(plans, myId);
+  // In a group you only view, your payments are listed but you don't record them.
+  const viewing = new Set((balances.data?.groups ?? []).filter((g) => g.role === "viewer").map((g) => g.orgId));
 
-  const retryFailed = () => {
-    for (const g of merged.failed) void qc.invalidateQueries({ queryKey: qk.kitchenSettlePlan(g.id) });
-  };
+  if (balances.loading) {
+    return (
+      <div className="space-y-4" aria-hidden>
+        <Skeleton className="h-24 w-full rounded-[20px]" />
+        <Skeleton className="h-40 w-full rounded-[20px]" />
+      </div>
+    );
+  }
+  if (balances.error || !balances.data) {
+    return (
+      <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t check your groups. {balances.error?.message ?? ""}</p>
+        <Button variant="outline" className={K_BUTTON} onClick={balances.reload}>
+          Try again
+        </Button>
+      </KCard>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -151,42 +170,18 @@ function AllGroups({ groups, myId }: { groups: readonly PublicOrganization[]; my
                 payment={p}
                 currency={p.currency}
                 meId={myId}
-                canRecord
+                canRecord={!viewing.has(p.group.id)}
                 groupName={p.group.name}
                 groupHref={`/settle?group=${encodeURIComponent(p.group.slug)}`}
               />
             ))}
           </ul>
-        ) : merged.pending === 0 ? (
+        ) : (
           <div className="mt-3 flex items-center gap-3">
             <IconBubble icon={HandCoins} tone="blue" />
-            <p className="text-sm text-muted-foreground">
-              {merged.failed.length > 0
-                ? "Nothing to settle in the groups that loaded."
-                : "You're settled up in every group."}
-            </p>
+            <p className="text-sm text-muted-foreground">You&apos;re settled up in every group.</p>
           </div>
-        ) : null}
-        {merged.pending > 0 ? (
-          <div aria-live="polite">
-            <p className="sr-only">
-              Checking {merged.pending} {merged.pending === 1 ? "group" : "groups"}
-            </p>
-            <div aria-hidden>
-              <SkeletonRow />
-            </div>
-          </div>
-        ) : null}
-        {merged.failed.length > 0 ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-background p-3">
-            <p className="text-sm text-muted-foreground">
-              Couldn&apos;t check {merged.failed.map((g) => g.name).join(", ")}.
-            </p>
-            <Button variant="outline" className={K_BUTTON} onClick={retryFailed}>
-              Try again
-            </Button>
-          </div>
-        ) : null}
+        )}
       </KCard>
     </div>
   );

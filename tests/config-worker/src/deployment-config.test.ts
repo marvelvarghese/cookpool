@@ -204,7 +204,7 @@ const HAS_API_EDGE = fs.existsSync(path.join(ROOT, "apps", "api-edge", "componen
 
 // ── kitchen-worker (Cookpool CP-4) ─────────────────────────────
 //
-// The kitchen bounded context: its own D1 wiring, its three service bindings,
+// The kitchen bounded context: its own D1 wiring, its four service bindings,
 // and api-edge's KITCHEN_WORKER binding to it in each deployed environment.
 
 describe("kitchen-worker deployment config", () => {
@@ -236,13 +236,15 @@ describe("kitchen-worker deployment config", () => {
       expect(renderedDb?.database_id).toMatch(D1_ID_RE);
     });
 
-    test(`${envName} is private and binds membership, policy and notifications`, () => {
+    test(`${envName} is private and binds membership, policy, notifications and identity`, () => {
       expect(rendered.env[envName]?.workers_dev).toBe(false);
       const services = Object.fromEntries((rendered.env[envName]?.services ?? []).map((s) => [s.binding, s.service]));
       expect(services).toEqual({
         MEMBERSHIP_WORKER: `cookpool-membership-worker-${envName}`,
         POLICY_WORKER: `cookpool-policy-worker-${envName}`,
         NOTIFICATIONS_WORKER: `cookpool-notifications-worker-${envName}`,
+        // People's names (CP-9): identity-worker's internal lookup.
+        IDENTITY_WORKER: `cookpool-identity-worker-${envName}`,
       });
     });
 
@@ -326,3 +328,52 @@ describe("every wrangler service binding is a declared dependsOn edge", () => {
   }
 });
 
+
+// ── identity-worker is private (Cookpool CP-9) ─────────────────
+//
+// identity-worker serves the service-internal people lookup
+// (/v1/internal/identity/users/lookup), which returns names and emails with
+// no caller check of its own. It must answer only over service bindings, so
+// stage and prod never publish a workers.dev URL; api-edge is the way in.
+
+/** JSONC with `//` comments removed outside strings (identity's vars hold `http://…` URLs). */
+function parseJsoncStrings(raw: string): Record<string, unknown> {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i]!;
+    if (inString) {
+      out += ch;
+      if (ch === "\\") out += raw[++i] ?? "";
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = true;
+      out += ch;
+    } else if (ch === "/" && raw[i + 1] === "/") {
+      while (i < raw.length && raw[i] !== "\n") i++;
+      out += "\n";
+    } else {
+      out += ch;
+    }
+  }
+  return JSON.parse(out);
+}
+
+describe("identity-worker deployment config", () => {
+  const outFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "wire-render-")), "wrangler.jsonc");
+  const result = spawnSync(process.execPath, [
+    path.join(ROOT, "tooling", "wire", "render.mjs"),
+    "--template", path.join(ROOT, "apps/identity-worker", "wrangler.template.jsonc"),
+    "--out", outFile,
+    "--map", path.join(ROOT, "apps/identity-worker", "wiring.fixture.json"),
+  ]);
+  if (result.status !== 0) throw new Error(`identity-worker render failed: ${String(result.stderr)}`);
+  const rendered = parseJsoncStrings(fs.readFileSync(outFile, "utf-8")) as unknown as {
+    env: Record<string, { workers_dev?: boolean }>;
+  };
+  for (const envName of ["stage", "prod"]) {
+    test(`${envName} has no public workers.dev URL`, () => {
+      expect(rendered.env[envName]?.workers_dev).toBe(false);
+    });
+  }
+});

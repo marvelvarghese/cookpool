@@ -1,15 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useInfiniteQuery, useQueries, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { ActivityPage, KitchenTxn, SettlePlan } from "@saas/contracts/kitchen";
-import type { PublicMember } from "@saas/contracts/membership";
+import { useInfiniteQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import type { ActivityPage, KitchenTxn } from "@saas/contracts/kitchen";
 import { wrap, type ApiErrorBody } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
 import { useToast } from "@/components/ui/toast";
-import { canManageGroup, roleFromAssignments, type GroupRole } from "./groups";
-import type { GroupPlan, GroupRef } from "./settle";
+import { canManageGroup, canWriteInGroup, roleFromKitchen, type GroupRole } from "./groups";
+import { useGroupMembers } from "./people-data";
 
 /**
  * Cookpool's ledger reads and writes (CP-8), per group, through the CP-7 SDK.
@@ -85,53 +84,30 @@ export function useSettlePlan(orgId: string, enabled = true) {
   return useApiQuery(qk.kitchenSettlePlan(orgId), () => wrap(() => client.kitchen.settlePlan(orgId)), { enabled });
 }
 
-/** Every group's settle plan (one call each; a cross-group read arrives in CP-9). */
-export function useSettlePlans(groups: readonly GroupRef[]): GroupPlan[] {
-  const { client } = useSession();
-  const results = useQueries({
-    queries: groups.map((g) => ({
-      queryKey: qk.kitchenSettlePlan(g.id),
-      queryFn: () => unwrap<SettlePlan>(() => client.kitchen.settlePlan(g.id)),
-    })),
-  });
-  return groups.map((group, i) => {
-    const r = results[i];
-    return {
-      group,
-      plan: r?.data ?? null,
-      loading: r?.isLoading ?? true,
-      failed: r?.isError ?? false,
-    };
-  });
-}
-
-/** Refresh everything the ledger shows for a group, after a write. */
+/**
+ * Refresh everything the ledger shows for a group after a write — and the
+ * cross-group reads (Home, People, a person's view), which add it up.
+ */
 export function refreshLedger(qc: QueryClient, orgId: string): void {
   void qc.invalidateQueries({ queryKey: qk.kitchenLedger(orgId) });
+  void qc.invalidateQueries({ queryKey: qk.kitchenMe() });
 }
 
 /**
- * The signed-in person's role in a group. Only owners and admins may list
- * members (`organization.member.list`); for anyone else the API answers 404,
- * which is also how the app learns the person is a member. Shares the
- * members cache with the group page.
+ * The signed-in person's role in a group, from the group's member list
+ * (`…/kitchen/members`, which every member may read — CP-9). `canWrite` is
+ * false for a viewer, who sees the ledger but adds, records, undoes and flags
+ * nothing, and while the role is loading; if the list cannot be read, the
+ * write actions show and the server stays the judge. Shares the members
+ * cache with the group page.
  */
 export function useGroupRole(orgId: string, myId: string | null) {
-  const { client } = useSession();
-  const members = useApiQuery<PublicMember[]>(qk.members(orgId), () =>
-    wrap(async () => (await client.memberships.listMembers(orgId)).members),
-  );
-  const membersHidden = members.error?.code === "not_found";
-  let role: GroupRole | null = null;
-  if (members.data) {
-    const me = myId ? members.data.find((m) => m.subjectId === myId) : undefined;
-    // Listing succeeded, so the person is an owner or admin either way.
-    role = (me && roleFromAssignments(me.roles)) || "admin";
-  } else if (membersHidden) {
-    role = "member";
-  }
-  const roleKnown = role !== null || (members.error !== null && !membersHidden);
-  return { members, membersHidden, role, roleKnown, manager: canManageGroup(role) };
+  const members = useGroupMembers(orgId);
+  const me = myId ? members.data?.find((m) => m.subjectId === myId) : undefined;
+  const role: GroupRole | null = me ? roleFromKitchen(me.role) : null;
+  const roleKnown = role !== null || members.error !== null || (members.data !== null && !me);
+  const canWrite = roleKnown && (role === null || canWriteInGroup(role));
+  return { members, role, roleKnown, manager: canManageGroup(role), canWrite };
 }
 
 /** How long an Undo stays on screen. */

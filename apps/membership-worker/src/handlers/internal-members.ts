@@ -1,15 +1,17 @@
 // The group roster for sibling workers (Cookpool CP-7).
 //
 //   GET /v1/internal/membership/organizations/:orgId/members
-//     → { members: [{ subjectId, subjectType, role }] }
+//     → { members: [{ subjectId, subjectType, role, memberId, joinedAt }] }
 //
 // Service-internal, like /v1/internal/membership/authorization-context: it is
 // reached over a service binding only, and api-edge routes nothing under
 // /v1/internal/. The caller has already authorized its own request; this
 // answers "who is in this group, in which role" so kitchen-worker can check
-// that everyone a transaction names is a member. `:orgId` is the
-// organization's UUID (or its `org_…` public id). An unknown organization
-// answers an empty list: membership facts, not existence, are the question.
+// that everyone a transaction names is a member and (CP-9) list the group's
+// members, each with the `mem_…` id an owner changes their role with.
+// `:orgId` is the organization's UUID (or its `org_…` public id). An unknown
+// organization answers an empty list: membership facts, not existence, are
+// the question.
 
 import type { Env } from "../env.js";
 import type { MembershipRepository, RoleAssignment } from "@saas/db/membership";
@@ -18,7 +20,7 @@ import { createSqlExecutor } from "@saas/db/d1";
 import { createMembershipRepository } from "@saas/db/membership";
 import { isUuid, type Uuid } from "@saas/db/ids";
 import { errorResponse, successResponse } from "../http.js";
-import { parseOrgPublicId } from "../ids.js";
+import { memberPublicId, parseOrgPublicId } from "../ids.js";
 
 export type RosterRepo = Pick<MembershipRepository, "listMembers" | "listRoleAssignments" | "listRoleAssignmentsForSubjects">;
 
@@ -94,6 +96,8 @@ export async function handleInternalMembers(
       subjectId: m.subjectId,
       subjectType: m.subjectType,
       role: highestOrgRole(roles.get(m.subjectId) ?? []),
+      memberId: memberPublicId(m.id),
+      joinedAt: m.createdAt.toISOString(),
     }));
     return successResponse<RosterResponse>({ members: roster }, requestId);
   } catch {

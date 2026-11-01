@@ -40,6 +40,10 @@
       }
     },
     "stage": {
+      // Private (CP-9): reached only through service bindings, like
+      // membership-worker. It serves /v1/internal/identity/users/lookup,
+      // which must never answer on a public URL; api-edge is the way in.
+      "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "stage",
         "DEBUG_DELIVERY": "true",
@@ -72,6 +76,10 @@
       ]
     },
     "prod": {
+      // Private (CP-9): reached only through service bindings, like
+      // membership-worker. It serves /v1/internal/identity/users/lookup,
+      // which must never answer on a public URL; api-edge is the way in.
+      "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "prod",
         "DEBUG_DELIVERY": "false",

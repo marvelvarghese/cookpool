@@ -7,7 +7,7 @@
 
 import type { ActivityPage, KitchenTxn, KitchenTxnKind } from "@saas/contracts/kitchen";
 import { formatMinor, formatSignedMinor } from "./money";
-import { memberLabel, memberLabelInline } from "./members";
+import { memberLabel, memberLabelInline, type MemberNames } from "./members";
 
 export type RowTone = "owed" | "owe" | "neutral";
 export type KindTone = "green" | "tomato" | "blue" | "neutral";
@@ -85,14 +85,23 @@ export interface ActivityRow {
   reversed: boolean;
   /** Its creator, or an owner or admin, may undo it (not a reversal, not already undone). */
   canUndo: boolean;
-  /** Someone it names may flag it (not once undone). */
+  /** Someone it names may flag it (not once undone, and not a viewer). */
   canFlag: boolean;
 }
 
 export function activityRow(
   txn: KitchenTxn,
-  ctx: { meId: string | null; canReverseAny: boolean; now: Date },
+  ctx: {
+    meId: string | null;
+    canReverseAny: boolean;
+    now: Date;
+    /** Display names (CP-9); people without one read "Member · 3f9a". */
+    names?: MemberNames | null;
+    /** False for a viewer, who writes nothing: no undo, no flag. Defaults to true. */
+    canWrite?: boolean;
+  },
 ): ActivityRow {
+  const canWrite = ctx.canWrite ?? true;
   const meta = TXN_KIND_META[txn.kind];
   const yourMinor = yourPartMinor(txn, ctx.meId);
   const tone: RowTone = yourMinor === null || yourMinor === 0 ? "neutral" : yourMinor > 0 ? "owed" : "owe";
@@ -113,16 +122,16 @@ export function activityRow(
     glyph: meta.glyph,
     kindLabel: meta.label,
     kindTone: meta.tone,
-    title: txn.kind === "settlement" ? settlementTitle(txn, ctx.meId) : txn.title,
-    whoWhen: [memberLabel(txn.createdBy, ctx.meId), when].filter(Boolean).join(" · "),
+    title: txn.kind === "settlement" ? settlementTitle(txn, ctx.meId, ctx.names) : txn.title,
+    whoWhen: [memberLabel(txn.createdBy, ctx.meId, ctx.names), when].filter(Boolean).join(" · "),
     yourMinor,
     tone,
     amountText: yourMinor === null ? null : formatSignedMinor(yourMinor, txn.currency),
     amountWords,
     totalText: formatMinor(txn.totalMinor, txn.currency),
     reversed: txn.reversed,
-    canUndo: !txn.reversed && txn.kind !== "reversal" && (mine || ctx.canReverseAny),
-    canFlag: !txn.reversed && yourMinor !== null,
+    canUndo: canWrite && !txn.reversed && txn.kind !== "reversal" && (mine || ctx.canReverseAny),
+    canFlag: canWrite && !txn.reversed && yourMinor !== null,
   };
 }
 
@@ -130,18 +139,19 @@ const METHOD_NAMES: Record<string, string> = { upi: "UPI", cash: "cash", bank: "
 
 /**
  * A payment's row title, from its two lines (the payer paid, the payee is
- * owed): "Member · b0b0 paid you · UPI". The stored title is just "Payment".
+ * owed): "Anu paid you · UPI". The stored title is just "Payment".
  */
 export function settlementTitle(
   txn: Pick<KitchenTxn, "title" | "splits" | "method">,
   meId: string | null | undefined,
+  names?: MemberNames | null,
 ): string {
   const from = txn.splits.find((s) => s.paidMinor > 0);
   const to = txn.splits.find((s) => s.owedMinor > 0);
   if (!from || !to) return txn.title;
-  const payer = memberLabel(from.subjectId, meId);
+  const payer = memberLabel(from.subjectId, meId, names);
   const method = txn.method ? ` · ${METHOD_NAMES[txn.method] ?? txn.method}` : "";
-  return `${payer} paid ${memberLabelInline(to.subjectId, meId)}${method}`;
+  return `${payer} paid ${memberLabelInline(to.subjectId, meId, names)}${method}`;
 }
 
 /**

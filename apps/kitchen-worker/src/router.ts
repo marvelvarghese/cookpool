@@ -38,6 +38,8 @@ import {
 import { createGroups } from "./groups-client.js";
 import { generateRequestId, parseOrgPublicId } from "./ids.js";
 import { createRoster } from "./roster-client.js";
+import { createPeople } from "./identity-client.js";
+import { handleGroupMembers, handleMyBalances, handlePerson } from "./handlers/people.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -127,6 +129,12 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)$/,
     methods: { GET: handleGetGroupItem, PATCH: handleUpdateGroupItem, DELETE: handleRemoveGroupItem },
   },
+  // Who is in the group, by name (CP-9).
+  {
+    name: "kitchen.members",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/members$/,
+    methods: { GET: handleGroupMembers },
+  },
   // Using things (CP-11).
   {
     name: "kitchen.item.uses",
@@ -176,6 +184,17 @@ const ME_ROUTES: readonly MeRoute[] = [
     pattern: /^\/v1\/kitchen\/me\/search$/,
     methods: { GET: handleSearch },
   },
+  // Balances across groups, and the "why" for one person (CP-9).
+  {
+    name: "kitchen.me.balances",
+    pattern: /^\/v1\/kitchen\/me\/balances$/,
+    methods: { GET: handleMyBalances },
+  },
+  {
+    name: "kitchen.me.person",
+    pattern: /^\/v1\/kitchen\/me\/people\/([^/]+)$/,
+    methods: { GET: handlePerson },
+  },
   // Using things (CP-11).
   {
     name: "kitchen.me.item.uses",
@@ -218,6 +237,7 @@ function requestContext(env: Env, requestId: string, actor: RequestContext["acto
     now: deps.now ?? (() => new Date()),
     roster: createRoster(env.MEMBERSHIP_WORKER, requestId),
     groups: createGroups(env.MEMBERSHIP_WORKER, requestId),
+    people: createPeople(env.IDENTITY_WORKER, requestId),
   };
 }
 

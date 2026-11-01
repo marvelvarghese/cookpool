@@ -31,29 +31,34 @@ import { CLOSE_44, IconBubble, KCard, K_BUTTON } from "./kit";
 import { KindBubble } from "./ledger-ui";
 import { activityRow, flattenActivity, withTxnReversed, type ActivityRow } from "./activity";
 import { refreshLedger, useActivityFeed, useOfferUndo } from "./ledger-data";
+import { useMemberNames } from "./people-data";
 
 /**
  * A group's Activity tab (CP-8): every entry newest first, a page at a time.
  * Each row shows the kind, title, who logged it and when, and what it did to
  * *your* balance (blue +, orange −, neutral). Undone entries are struck
  * through. The row menu offers Undo (its creator, or an owner or admin) and
- * Flag (someone it names).
+ * Flag (someone it names); a viewer gets neither, and no Add expense.
  */
 export function ActivityFeed({
   orgId,
   slug,
   meId,
   canReverseAny,
+  canWrite = true,
 }: {
   orgId: string;
   slug: string;
   meId: string | null;
   canReverseAny: boolean;
+  /** False for a viewer (CP-9). */
+  canWrite?: boolean;
 }) {
   const { client } = useSession();
   const qc = useQueryClient();
   const { toast } = useToast();
   const offerUndo = useOfferUndo();
+  const names = useMemberNames();
   const feed = useActivityFeed(orgId);
   const [flagging, setFlagging] = React.useState<KitchenTxn | null>(null);
   // "When" is relative to the moment the page rendered; refreshed every minute.
@@ -118,12 +123,14 @@ export function ActivityFeed({
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
           Bills, payments and, soon, what people use and cook show up here, newest first.
         </p>
-        <Button asChild className={cn(K_BUTTON, "mt-5")}>
-          <Link href={`/groups/${slug}/expense`}>
-            <Plus aria-hidden />
-            Add expense
-          </Link>
-        </Button>
+        {canWrite ? (
+          <Button asChild className={cn(K_BUTTON, "mt-5")}>
+            <Link href={`/groups/${slug}/expense`}>
+              <Plus aria-hidden />
+              Add expense
+            </Link>
+          </Button>
+        ) : null}
       </KCard>
     );
   }
@@ -132,7 +139,7 @@ export function ActivityFeed({
     <div className="space-y-3">
       <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
         {txns.map((txn) => {
-          const row = activityRow(txn, { meId, canReverseAny, now });
+          const row = activityRow(txn, { meId, canReverseAny, now, names, canWrite });
           return (
             <ActivityItem
               key={txn.id}
