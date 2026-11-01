@@ -19,6 +19,7 @@ import {
   handleIntegrationsRoute,
   handleIntegrationsIngressRoute,
 } from "./integrations-facade";
+import { isKitchenRoute, handleKitchenRoute } from "./kitchen-facade";
 import { isSoloMode, isSoloSuppressed } from "./solo-mode";
 
 // Durable Object class backing the PERF5 Stage B rate-limit counters. Must be
@@ -68,6 +69,10 @@ export default {
       response = await handleMeteringRoute(request, env, requestId, url.pathname);
     } else if (isBillingRoute(url.pathname)) {
       response = await handleBillingRoute(request, env, requestId, url.pathname);
+    } else if (isKitchenRoute(url.pathname)) {
+      // Cookpool's kitchen (CP-4): matched before the project and org facades,
+      // which own other sub-resources of /v1/organizations/{org}.
+      response = await handleKitchenRoute(request, env, requestId, url.pathname);
     } else if (isProjectRoute(url.pathname)) {
       response = await handleProjectRoute(request, env, requestId, url.pathname);
     } else if (isOrgRoute(url.pathname)) {

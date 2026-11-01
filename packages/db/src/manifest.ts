@@ -192,5 +192,14 @@ export const manifest: MigrationManifest = {
       description:
         "Shareable join code per organization (nullable join_code on membership_organizations + partial unique index) — minted lazily, rotatable; opening a group's link joins it (Cookpool CP-3)",
     },
+    {
+      id: "210_kitchen_settings",
+      context: "kitchen",
+      path: "210_kitchen_settings/up.sql",
+      checksum:
+        "d27c4c8c47096bdcce4f7d425782c75798bc0c3414cda73d41b0df2bd2854e84",
+      description:
+        "Kitchen bounded context, first table: kitchen_group_settings — one row per group (org_id PK) with its ledger currency (fixed once set) and default waste policy; no row reads as INR / split_equally (Cookpool CP-4)",
+    },
   ],
 };

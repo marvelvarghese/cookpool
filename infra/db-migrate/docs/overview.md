@@ -11,4 +11,5 @@ Applies this repo's ordered migrations to the environment's Cloudflare D1 databa
 
 ## Depended on by
 
+- **kitchen-worker** — Cloudflare Worker for the kitchen bounded context — group settings, pantries, the group ledger and dishes (Cookpool)
 - **notifications-worker** — Cloudflare Worker for the Notifications bounded context

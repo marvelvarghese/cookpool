@@ -98,6 +98,10 @@
         {
           "binding": "INTEGRATIONS_WORKER",
           "service": "cookpool-integrations-worker-stage"
+        },
+        {
+          "binding": "KITCHEN_WORKER",
+          "service": "cookpool-kitchen-worker-stage"
         }
       ],
       "durable_objects": {
@@ -168,6 +172,10 @@
         {
           "binding": "INTEGRATIONS_WORKER",
           "service": "cookpool-integrations-worker-prod"
+        },
+        {
+          "binding": "KITCHEN_WORKER",
+          "service": "cookpool-kitchen-worker-prod"
         }
       ],
       "durable_objects": {

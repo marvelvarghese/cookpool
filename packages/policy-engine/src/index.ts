@@ -59,6 +59,21 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "project.repo_link.write",
     "organization.join_code.read",
     "organization.join_code.rotate",
+    "kitchen.pantry.read",
+    "kitchen.ledger.read",
+    "kitchen.item.create",
+    "kitchen.item.use",
+    "kitchen.item.edit",
+    "kitchen.dish.cook",
+    "kitchen.dish.claim",
+    "kitchen.dish.finalize",
+    "kitchen.expense.create",
+    "kitchen.settlement.create",
+    "kitchen.txn.flag",
+    "kitchen.item.manage",
+    "kitchen.dish.finalize_any",
+    "kitchen.txn.reverse_any",
+    "kitchen.settings.manage",
   ],
   admin: [
     "organization.read",
@@ -102,6 +117,21 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "project.repo_link.write",
     "organization.join_code.read",
     "organization.join_code.rotate",
+    "kitchen.pantry.read",
+    "kitchen.ledger.read",
+    "kitchen.item.create",
+    "kitchen.item.use",
+    "kitchen.item.edit",
+    "kitchen.dish.cook",
+    "kitchen.dish.claim",
+    "kitchen.dish.finalize",
+    "kitchen.expense.create",
+    "kitchen.settlement.create",
+    "kitchen.txn.flag",
+    "kitchen.item.manage",
+    "kitchen.dish.finalize_any",
+    "kitchen.txn.reverse_any",
+    "kitchen.settings.manage",
   ],
   builder: [
     "organization.read",
@@ -118,6 +148,17 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "project.webhook.read",
     "organization.metering.read",
     "organization.integration.read",
+    "kitchen.pantry.read",
+    "kitchen.ledger.read",
+    "kitchen.item.create",
+    "kitchen.item.use",
+    "kitchen.item.edit",
+    "kitchen.dish.cook",
+    "kitchen.dish.claim",
+    "kitchen.dish.finalize",
+    "kitchen.expense.create",
+    "kitchen.settlement.create",
+    "kitchen.txn.flag",
   ],
   viewer: [
     "organization.read",
@@ -130,6 +171,8 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "project.webhook.read",
     "organization.metering.read",
     "organization.integration.read",
+    "kitchen.pantry.read",
+    "kitchen.ledger.read",
   ],
   billing_admin: [
     "organization.read",
@@ -256,6 +299,28 @@ const ALL_KNOWN_ACTIONS: ReadonlySet<string> = new Set([
   // code is the invitation, and anyone may leave.
   "organization.join_code.read",
   "organization.join_code.rotate",
+  // The kitchen (Cookpool CP-4), granted per design.md §6 of the
+  // cookpool-kitchen epic: every group role reads the pantry and the ledger;
+  // members (builder) add, use, cook, claim, spend, settle and flag; owners
+  // and admins also manage anyone's items, finalize any dish, reverse any
+  // transaction and change the group's settings. Billing admins hold none —
+  // they are not a group role. Personal pantries are checked against the
+  // actor's own subject in kitchen-worker, never here.
+  "kitchen.pantry.read",
+  "kitchen.ledger.read",
+  "kitchen.item.create",
+  "kitchen.item.use",
+  "kitchen.item.edit",
+  "kitchen.dish.cook",
+  "kitchen.dish.claim",
+  "kitchen.dish.finalize",
+  "kitchen.expense.create",
+  "kitchen.settlement.create",
+  "kitchen.txn.flag",
+  "kitchen.item.manage",
+  "kitchen.dish.finalize_any",
+  "kitchen.txn.reverse_any",
+  "kitchen.settings.manage",
 ]);
 
 function isOrgRole(role: string): role is OrganizationRole {

@@ -46,6 +46,10 @@ its total by construction, and property tests guard it.
 
 No conversion. A dish refuses ingredients in a currency other than its
 group's. Most groups live in one country; a later epic can add conversion.
+As built (CP-4): a group reads as INR until its settings are first saved, and
+the first save fixes the currency, even one that changes only the waste rule.
+The upsert enforces the lock in one statement, so racing first saves cannot
+disagree. The app should offer the currency on the first settings save.
 
 ## CP-G — logging a use on someone else's behalf (RISK, mitigated)
 

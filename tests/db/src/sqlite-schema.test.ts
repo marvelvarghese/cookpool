@@ -10,6 +10,7 @@ import { createProjectsRepository } from "@saas/db/projects";
 import { createMeteringRepository } from "@saas/db/metering";
 import { createWebhookRepository } from "@saas/db/webhooks";
 import { createEventsRepository } from "@saas/db/events";
+import { createKitchenRepository } from "@saas/db/kitchen";
 import { asUuid } from "@saas/db";
 import { D1ApiAdapter } from "@saas/db/runner";
 
@@ -679,5 +680,90 @@ describe("join links, against a real SQLite engine", () => {
     // Meera is now the last owner, with Anu still in the group.
     const blocked = await repo.leaveOrganization({ orgId, subjectId: "usr_meera", at: new Date("2026-01-05T00:00:00.000Z") });
     expect(blocked.ok).toBe(false);
+  });
+});
+
+// The kitchen's group settings (Cookpool CP-4, migration 210): one row per
+// group, absent until first changed, with a currency fixed once the row exists.
+// The lock lives inside the upsert's DO UPDATE … WHERE, so it is exactly the
+// SQL a stubbed executor cannot vouch for.
+describe("kitchen group settings, against a real SQLite engine", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  const orgId = asUuid("51515151-5151-4151-8151-515151515151");
+  const otherOrgId = asUuid("61616161-6161-4161-8161-616161616161");
+  const t0 = new Date("2026-11-01T00:00:00.000Z");
+  const t1 = new Date("2026-11-02T00:00:00.000Z");
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    executor = createSqlExecutor(d1Over(db));
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  it("has no row for a group that never changed its settings", async () => {
+    const got = await createKitchenRepository(executor).getGroupSettings(orgId);
+    expect(got).toEqual({ ok: true, value: null });
+  });
+
+  it("creates the row with the defaults for whatever the first write leaves out", async () => {
+    const repo = createKitchenRepository(executor);
+    const created = await repo.upsertGroupSettings({ orgId, wastePolicy: "buyer_absorbs", now: t0 });
+    expect(created).toEqual({
+      ok: true,
+      value: { orgId, currency: "INR", wastePolicy: "buyer_absorbs", createdAt: t0, updatedAt: t0 },
+    });
+    const other = await repo.upsertGroupSettings({ orgId: otherOrgId, currency: "USD", now: t0 });
+    expect(other.ok && other.value).toMatchObject({ currency: "USD", wastePolicy: "split_equally" });
+  });
+
+  it("updates the waste rule, keeps created_at, and accepts the same currency", async () => {
+    const repo = createKitchenRepository(executor);
+    await repo.upsertGroupSettings({ orgId, currency: "EUR", now: t0 });
+    const changed = await repo.upsertGroupSettings({ orgId, currency: "EUR", wastePolicy: "buyer_absorbs", now: t1 });
+    expect(changed).toEqual({
+      ok: true,
+      value: { orgId, currency: "EUR", wastePolicy: "buyer_absorbs", createdAt: t0, updatedAt: t1 },
+    });
+    const kept = await repo.upsertGroupSettings({ orgId, now: t1 });
+    expect(kept.ok && kept.value.wastePolicy).toBe("buyer_absorbs");
+  });
+
+  it("refuses a different currency once the row exists, and changes nothing", async () => {
+    const repo = createKitchenRepository(executor);
+    await repo.upsertGroupSettings({ orgId, now: t0 });
+    const locked = await repo.upsertGroupSettings({ orgId, currency: "USD", wastePolicy: "buyer_absorbs", now: t1 });
+    expect(locked).toEqual({ ok: false, error: { kind: "currency_locked", currency: "INR" } });
+    const stored = await repo.getGroupSettings(orgId);
+    expect(stored.ok && stored.value).toEqual({
+      orgId, currency: "INR", wastePolicy: "split_equally", createdAt: t0, updatedAt: t0,
+    });
+  });
+
+  it("checks the currency and the waste rule in the table itself", async () => {
+    const insert = (currency: string, wastePolicy: string) => () =>
+      db.prepare("INSERT INTO kitchen_group_settings (org_id, currency, waste_policy) VALUES (?, ?, ?)")
+        .run(randomUUID(), currency, wastePolicy);
+    expect(insert("INR", "split_equally")).not.toThrow();
+    expect(insert("inr", "split_equally")).toThrow(/CHECK constraint failed/);
+    expect(insert("RUPE", "split_equally")).toThrow(/CHECK constraint failed/);
+    expect(insert("IN", "split_equally")).toThrow(/CHECK constraint failed/);
+    expect(insert("INR", "nobody_pays")).toThrow(/CHECK constraint failed/);
+
+    const refused = await createKitchenRepository(executor).upsertGroupSettings({ orgId, currency: "us$", now: t0 });
+    expect(refused).toEqual({ ok: false, error: { kind: "invalid", reason: "settings_out_of_range" } });
+  });
+
+  it("defaults the timestamps to a parseable instant when a row is written without them", () => {
+    db.prepare("INSERT INTO kitchen_group_settings (org_id) VALUES (?)").run(orgId);
+    const row = db.prepare("SELECT currency, waste_policy, created_at FROM kitchen_group_settings").get() as {
+      currency: string; waste_policy: string; created_at: string;
+    };
+    expect(row.currency).toBe("INR");
+    expect(row.waste_policy).toBe("split_equally");
+    expect(row.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
 });

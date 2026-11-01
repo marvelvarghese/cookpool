@@ -82,6 +82,7 @@ const D1_WORKER_TEMPLATES = [
   "apps/events-worker/wrangler.template.jsonc",
   "apps/identity-worker/wrangler.template.jsonc",
   "apps/integrations-worker/wrangler.template.jsonc",
+  "apps/kitchen-worker/wrangler.template.jsonc",
   "apps/membership-worker/wrangler.template.jsonc",
   "apps/metering-worker/wrangler.template.jsonc",
   "apps/notifications-worker/wrangler.template.jsonc",
@@ -198,6 +199,66 @@ const HAS_API_EDGE = fs.existsSync(path.join(ROOT, "apps", "api-edge", "componen
     const cw = svc.find((s) => s.binding === "CONFIG_WORKER");
     expect(cw).toBeDefined();
     expect(cw!.service).toBe("cookpool-config-worker-prod");
+  });
+});
+
+// ── kitchen-worker (Cookpool CP-4) ─────────────────────────────
+//
+// The kitchen bounded context: its own D1 wiring, its three service bindings,
+// and api-edge's KITCHEN_WORKER binding to it in each deployed environment.
+
+describe("kitchen-worker deployment config", () => {
+  type Rendered = {
+    name: string;
+    env: Record<
+      string,
+      {
+        workers_dev?: boolean;
+        d1_databases?: Array<{ binding: string; database_name?: string; database_id: string }>;
+        services?: Array<{ binding: string; service: string }>;
+      }
+    >;
+  };
+  const template = readJsonc("apps/kitchen-worker/wrangler.template.jsonc") as unknown as Rendered;
+  const rendered = renderFromFixture("apps/kitchen-worker") as unknown as Rendered;
+  const edge = (HAS_API_EDGE ? renderFromFixture("apps/api-edge") : { env: {} }) as unknown as Rendered;
+
+  test("is named cookpool-kitchen-worker", () => {
+    expect(template.name).toBe("cookpool-kitchen-worker");
+  });
+
+  for (const envName of ["stage", "prod"]) {
+    test(`${envName} binds PLATFORM_DB to cookpool-${envName} through a wiring token`, () => {
+      const db = (template.env[envName]?.d1_databases ?? []).find((b) => b.binding === "PLATFORM_DB");
+      expect(db?.database_name).toBe(`cookpool-${envName}`);
+      expect(db?.database_id).toMatch(WIRING_TOKEN_RE);
+      const renderedDb = (rendered.env[envName]?.d1_databases ?? []).find((b) => b.binding === "PLATFORM_DB");
+      expect(renderedDb?.database_id).toMatch(D1_ID_RE);
+    });
+
+    test(`${envName} is private and binds membership, policy and notifications`, () => {
+      expect(rendered.env[envName]?.workers_dev).toBe(false);
+      const services = Object.fromEntries((rendered.env[envName]?.services ?? []).map((s) => [s.binding, s.service]));
+      expect(services).toEqual({
+        MEMBERSHIP_WORKER: `cookpool-membership-worker-${envName}`,
+        POLICY_WORKER: `cookpool-policy-worker-${envName}`,
+        NOTIFICATIONS_WORKER: `cookpool-notifications-worker-${envName}`,
+      });
+    });
+
+    (HAS_API_EDGE ? test : test.skip)(`api-edge ${envName} binds KITCHEN_WORKER to cookpool-kitchen-worker-${envName}`, () => {
+      const svc = (edge.env[envName]?.services ?? []).find((s) => s.binding === "KITCHEN_WORKER");
+      expect(svc?.service).toBe(`cookpool-kitchen-worker-${envName}`);
+    });
+  }
+
+  test("dev carries no bindings (verify-only)", () => {
+    expect(template.env.dev?.d1_databases).toBeUndefined();
+    expect(template.env.dev?.services).toBeUndefined();
+  });
+
+  (HAS_API_EDGE ? test : test.skip)("api-edge component.yaml depends on kitchen-worker", () => {
+    expect(readYaml("apps/api-edge/component.yaml")).toContain("component: kitchen-worker");
   });
 });
 

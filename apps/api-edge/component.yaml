@@ -48,6 +48,7 @@ spec:
     - component: membership-worker
     - component: metering-worker
     - component: notifications-worker
+    - component: kitchen-worker
     - component: policy-worker
       mode: enforced
       modeRules:

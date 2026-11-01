@@ -779,3 +779,60 @@ describe("NotificationsClient", () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Kitchen (Cookpool CP-4)
+// ---------------------------------------------------------------------------
+
+describe("KitchenClient", () => {
+  const settings = { currency: "INR", wastePolicy: "split_equally", updatedAt: null };
+
+  it("getSettings reads the group's settings path", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope(settings)));
+    expect(await client(fetch).kitchen.getSettings("org_1")).toEqual(settings);
+    expect(calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/settings");
+    expect(calls[0]!.init.method).toBe("GET");
+  });
+
+  it("updateSettings PATCHes the body with the caller's idempotency key", async () => {
+    const saved = { currency: "INR", wastePolicy: "buyer_absorbs", updatedAt: "2026-11-02T08:00:00.000Z" };
+    const { fetch, calls } = captureFetch(jsonResponse(envelope(saved)));
+    expect(
+      await client(fetch).kitchen.updateSettings(
+        "org_1",
+        { wastePolicy: "buyer_absorbs" },
+        { idempotencyKey: "ikey_settings_1" },
+      ),
+    ).toEqual(saved);
+    expect(calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/settings");
+    expect(calls[0]!.init.method).toBe("PATCH");
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ wastePolicy: "buyer_absorbs" });
+    expect(new Headers(calls[0]!.init.headers as HeadersInit).get("idempotency-key")).toBe("ikey_settings_1");
+  });
+
+  it("surfaces a locked currency as ConflictError carrying the reason", async () => {
+    const { fetch } = captureFetch(
+      jsonResponse(
+        {
+          error: {
+            code: "conflict",
+            message: "The group's currency is INR and cannot be changed",
+            details: { reason: "currency_locked", currency: "INR" },
+            requestId: "req_err",
+          },
+        },
+        { status: 409 },
+      ),
+    );
+    const failure = await client(fetch).kitchen.updateSettings("org_1", { currency: "USD" }).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(ConflictError);
+    expect((failure as ConflictError).details).toEqual({ reason: "currency_locked", currency: "INR" });
+  });
+
+  it("surfaces a member's PATCH as NotFoundError (the opaque deny)", async () => {
+    const { fetch } = captureFetch(errorResponse("not_found", 404));
+    await expect(
+      client(fetch).kitchen.updateSettings("org_1", { wastePolicy: "buyer_absorbs" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});

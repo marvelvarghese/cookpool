@@ -22,8 +22,9 @@ disagree, the canvas shows intent for layout and this document for behaviour.
 Ids follow the baseline's `<prefix>_<32hex>` rule.
 
 ```
-kitchen_group_settings        one row per group (org_id PK)
-  currency          text      ISO 4217, fixed at creation (INR default)
+kitchen_group_settings        one row per group (org_id PK), written on its first change;
+                              a group without one reads as INR / split_equally
+  currency          text      ISO 4217, fixed once the row exists (INR default)
   waste_policy      text      split_equally | buyer_absorbs
 
 kitchen_items         itm_    an item in one pantry
@@ -206,7 +207,8 @@ GET    /v1/kitchen/me/dishes?state=
 
 **Inside one group** (`/v1/organizations/{org}/kitchen/…`)
 ```
-GET    PATCH  …/settings                           currency (read-only after creation), waste_policy
+GET    PATCH  …/settings                           { currency, wastePolicy, updatedAt|null }; PATCH is
+                                                   owner/admin; currency fixed once saved (409 currency_locked)
 GET    POST   …/items                              the group pantry
 PATCH  DELETE …/items/{itm}                        buyer or admin
 POST   …/items/{itm}/uses                          { qty, consumers: [usr…], amounts? }
@@ -238,9 +240,11 @@ POST   /v1/organizations/{org}/leave               { orgId, memberId, left }; th
                                                    your balance is not zero arrives with the ledger (CP2).
 ```
 
-Error codes added to `ERROR_CODES`: `insufficient_stock`, `currency_mismatch`,
-`not_in_group`, `dish_not_open`, `claims_exceed_portions`, `already_reversed`,
-`balance_not_settled`.
+`ERROR_CODES` stay pinned. Kitchen outcomes ride on an existing code with
+`details.reason` (`KITCHEN_ERROR_REASONS` in `@saas/contracts/kitchen`):
+`currency_locked` (409, CP-4), and as their routes land `insufficient_stock`,
+`currency_mismatch`, `not_in_group`, `dish_not_open`, `claims_exceed_portions`,
+`already_reversed`, `balance_not_settled`.
 
 ## 6. Who can do what
 
@@ -255,6 +259,8 @@ New policy actions, mapped onto the baseline roles in `ORG_ROLE_PERMISSIONS`:
 | `kitchen.dish.finalize_any`, `kitchen.txn.reverse_any` | ✓ | | |
 | `kitchen.expense.create`, `kitchen.settlement.create`, `kitchen.txn.flag` | ✓ | ✓ | |
 | `kitchen.settings.manage`, `organization.join_code.read`, `organization.join_code.rotate` | ✓ | | |
+
+`billing_admin` holds no kitchen action: it is not a group role.
 
 The personal pantry is checked against the actor's subject, not the policy
 engine: only its owner can read or change it. A dish may use a group item only
@@ -306,7 +312,7 @@ icons and `start_url: /home`.
 - `apps/kitchen-worker` with bindings `PLATFORM_DB`, `MEMBERSHIP_WORKER`,
   `POLICY_WORKER` and `NOTIFICATIONS_WORKER`; `KITCHEN_WORKER` bound on
   api-edge; `kitchen` added to `BOUNDED_CONTEXTS`; migrations
-  `3x0_kitchen_*` with manifest entries.
+  `NNN_kitchen_*` from `210_kitchen_settings` on, with manifest entries.
 
 **Audit events**: `kitchen.item.added`, `kitchen.item.used`,
 `kitchen.item.wasted`, `kitchen.item.transferred`, `kitchen.dish.cooked`,

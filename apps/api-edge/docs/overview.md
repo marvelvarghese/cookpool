@@ -18,6 +18,7 @@ Part of the cookpool runtime: a Cloudflare Worker deployed per environment (`sta
 - **membership-worker** — Cloudflare Worker for the Membership org runtime
 - **metering-worker** — Cloudflare Worker for the Metering API surface (usage recording, quota checks)
 - **notifications-worker** — Cloudflare Worker for the Notifications bounded context
+- **kitchen-worker** — Cloudflare Worker for the kitchen bounded context — group settings, pantries, the group ledger and dishes (Cookpool)
 - **policy-worker** — Cloudflare Worker for policy authorization decisions
 
 ## Depended on by
