@@ -10,6 +10,7 @@ import type {
 import { KITCHEN_DEFAULT_CURRENCY, KITCHEN_DEFAULT_WASTE_POLICY } from "./types.js";
 import { isCheckViolation } from "../d1/errors.js";
 import { createLedgerRepository } from "./ledger.js";
+import { createPantryRepository } from "./pantry.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -40,6 +41,21 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
       );
       const row = result.rows[0];
       return { ok: true, value: row ? mapGroupSettings(row) : null };
+    } catch (err) {
+      return internal(err);
+    }
+  }
+
+  async function listGroupSettings(orgIds: readonly string[]): Promise<KitchenResult<KitchenGroupSettings[]>> {
+    if (orgIds.length === 0) return { ok: true, value: [] };
+    try {
+      // The groups bind as ONE JSON parameter, however many there are.
+      const result = await executor.execute(
+        `SELECT ${GROUP_SETTINGS_COLUMNS} FROM kitchen_group_settings
+         WHERE org_id IN (SELECT value FROM json_each($1))`,
+        [JSON.stringify(orgIds)],
+      );
+      return { ok: true, value: result.rows.map(mapGroupSettings) };
     } catch (err) {
       return internal(err);
     }
@@ -88,5 +104,11 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     }
   }
 
-  return { getGroupSettings, upsertGroupSettings, ...createLedgerRepository(executor) };
+  return {
+    getGroupSettings,
+    listGroupSettings,
+    upsertGroupSettings,
+    ...createLedgerRepository(executor),
+    ...createPantryRepository(executor),
+  };
 }

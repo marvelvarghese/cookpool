@@ -2,23 +2,35 @@ import type {
   ActivityPage,
   BalancesResponse,
   CreateExpenseRequest,
+  CreateGroupItemRequest,
+  CreatePersonalItemRequest,
   CreateSettlementRequest,
+  ItemsPage,
   KitchenAction,
+  KitchenItem,
   KitchenSettings,
   KitchenTxn,
+  Pantry,
+  PantriesResponse,
   SettlePlan,
+  UpdateGroupItemRequest,
   UpdateKitchenSettingsRequest,
 } from "@saas/contracts/kitchen";
+import type { SubjectOrganizationsResponse } from "@saas/contracts/membership";
 import {
   CURRENCY_CODE_RE,
   DEFAULT_KITCHEN_CURRENCY,
   DEFAULT_WASTE_POLICY,
+  DIMENSIONS,
   FLAG_STATES,
+  ITEM_FILTERS,
+  ITEM_STATES,
   KITCHEN_ACTIONS,
   KITCHEN_ERROR_REASONS,
   SETTLEMENT_METHODS,
   SPLIT_MODES,
   TXN_KINDS,
+  USE_SOON_DAYS,
   WASTE_POLICIES,
 } from "@saas/contracts/kitchen";
 import { ERROR_CODES } from "@saas/contracts/errors";
@@ -70,7 +82,7 @@ describe("contracts: the kitchen ledger (Cookpool CP-7)", () => {
     expect(FLAG_STATES).toEqual(["open", "resolved"]);
   });
 
-  it("carries every ledger refusal as a reason on an existing error code", () => {
+  it("carries every ledger and pantry refusal as a reason on an existing error code", () => {
     expect(KITCHEN_ERROR_REASONS).toEqual({
       CURRENCY_LOCKED: "currency_locked",
       CURRENCY_MISMATCH: "currency_mismatch",
@@ -79,6 +91,9 @@ describe("contracts: the kitchen ledger (Cookpool CP-7)", () => {
       IDEMPOTENCY_KEY_REUSED: "idempotency_key_reused",
       NOT_A_PARTY: "not_a_party",
       NOT_CREATOR: "not_creator",
+      ITEM_USED: "item_used",
+      NOT_BUYER: "not_buyer",
+      VERSION_CONFLICT: "version_conflict",
     });
     for (const reason of Object.values(KITCHEN_ERROR_REASONS)) {
       expect(Object.values(ERROR_CODES)).not.toContain(reason);
@@ -112,5 +127,42 @@ describe("contracts: the kitchen ledger (Cookpool CP-7)", () => {
     expect(page.items[0]!.splits.reduce((a, s) => a + s.paidMinor - s.owedMinor, 0)).toBe(0);
     expect(balances.balances).toHaveLength(1);
     expect(plan.working.payments).toBe(plan.payments.length);
+  });
+});
+
+describe("contracts: pantries and items (Cookpool CP-10)", () => {
+  it("names the item states, dimensions and list filters, and how far ahead 'use soon' looks", () => {
+    expect(ITEM_STATES).toEqual(["active", "used_up", "wasted", "removed"]);
+    expect(DIMENSIONS).toEqual(["count", "mass", "volume", "pack"]);
+    expect(ITEM_FILTERS).toEqual(["all", "soon", "expired"]);
+    expect(USE_SOON_DAYS).toBe(3);
+  });
+
+  it("types the requests and the shapes the routes answer with", () => {
+    const personal: CreatePersonalItemRequest = { name: "Rice", category: "Grains", quantity: "1.25", unit: "kg", priceMinor: 12500 };
+    const shared: CreateGroupItemRequest = { ...personal, paidBy: "usr_anu", wastePolicy: null };
+    const edit: UpdateGroupItemRequest = { expiresOn: null, wastePolicy: "buyer_absorbs", version: 2 };
+    const item: KitchenItem = {
+      id: "itm_1", pantry: { kind: "group", orgId: "org_1", slug: "flat-4b", name: "Flat 4B" }, name: "Rice", category: "Grains",
+      dimension: "mass", displayUnit: "kg", qtyBought: 1.25, qtyLeft: 1.25, qtyBoughtMilli: 1_250_000, qtyLeftMilli: 1_250_000,
+      priceMinor: 12500, currency: "INR", unitPriceMinor: 10000, worthMinor: 12500, paidBy: "usr_anu", boughtOn: "2026-11-02",
+      expiresOn: null, daysToUseBy: null, wastePolicy: "split_equally", wastePolicyOverride: null, state: "active", version: 1,
+      createdBy: "usr_rahul", createdAt: "2026-11-02T08:00:00.000Z", updatedAt: "2026-11-02T08:00:00.000Z",
+    };
+    const pantries: Pantry[] = [
+      { kind: "personal", name: "My pantry", itemCount: 0, useSoonCount: 0, expiredCount: 0, worthMinor: 0, currency: "INR" },
+      {
+        kind: "group", orgId: "org_1", slug: "flat-4b", name: "Flat 4B", itemCount: 1, useSoonCount: 0, expiredCount: 0,
+        worthMinor: 12500, currency: "INR", wastePolicy: "split_equally",
+      },
+    ];
+    const response: PantriesResponse = { pantries };
+    const page: ItemsPage = { items: [item], nextCursor: null };
+    const groups: SubjectOrganizationsResponse = { organizations: [{ orgId: "org_1", slug: "flat-4b", name: "Flat 4B", role: "builder" }] };
+    expect(shared.paidBy).toBe("usr_anu");
+    expect(edit.quantity).toBeUndefined();
+    expect(response.pantries[0]!.kind).toBe("personal");
+    expect(page.items[0]!.qtyLeftMilli).toBe(page.items[0]!.qtyBoughtMilli);
+    expect(groups.organizations).toHaveLength(1);
   });
 });

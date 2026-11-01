@@ -14,6 +14,10 @@ export type KitchenRepositoryError =
   | { kind: "already_reversed"; reversedBy: string }
   /** The group's ledger counts in `currency`, not the one the write named. */
   | { kind: "currency_mismatch"; currency: string }
+  /** Some of the item has been used (or charged): its quantity and price are fixed, and it cannot be removed. */
+  | { kind: "item_used" }
+  /** The item was edited since the caller read it: it is now at `version`. */
+  | { kind: "version_conflict"; version: number }
   | { kind: "internal"; message: string };
 
 export type KitchenResult<T> =
@@ -198,6 +202,166 @@ export interface CreatedFlag {
   replayed: boolean;
 }
 
+// ── Pantries (CP-10) ────────────────────────────────────────
+
+export type KitchenItemState = "active" | "used_up" | "wasted" | "removed";
+
+/** What a quantity measures; display units convert only inside one. */
+export type KitchenDimension = "count" | "mass" | "volume" | "pack";
+
+/** Whose pantry: a person's own (keyed by their `usr_…`), or a group's. */
+export type KitchenPantryOwner = { kind: "user"; subjectId: string } | { kind: "group"; orgId: Uuid };
+
+/** An item as stored. Quantities are thousandths of the dimension's base unit. */
+export interface KitchenItemRecord {
+  id: string;
+  ownerKind: "user" | "group";
+  /** Set for a personal item. */
+  ownerSubjectId: string | null;
+  /** Set for a group item. */
+  orgId: string | null;
+  name: string;
+  category: string;
+  dimension: KitchenDimension;
+  displayUnit: string;
+  qtyBoughtMilli: number;
+  qtyLeftMilli: number;
+  priceMinor: number;
+  costTakenMinor: number;
+  currency: string;
+  paidBy: string;
+  /** ISO date (YYYY-MM-DD). */
+  boughtOn: string;
+  expiresOn: string | null;
+  /** The item's own waste rule; null follows the group (always null for a personal item). */
+  wastePolicy: KitchenWastePolicy | null;
+  sourceDishId: string | null;
+  state: KitchenItemState;
+  version: number;
+  createdBy: string;
+  idemKey: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NewKitchenItem {
+  id: Uuid;
+  owner: KitchenPantryOwner;
+  name: string;
+  category: string;
+  dimension: KitchenDimension;
+  displayUnit: string;
+  /** What was bought; the item starts with all of it left. */
+  qtyMilli: number;
+  priceMinor: number;
+  /**
+   * ISO 4217. For a group item, the group's currency as the caller read it:
+   * the item is inserted only if the group still counts in it.
+   */
+  currency: string;
+  paidBy: string;
+  boughtOn: string;
+  expiresOn: string | null;
+  wastePolicy: KitchenWastePolicy | null;
+  /** Who added it (`usr_…`). */
+  createdBy: string;
+  /** The request's Idempotency-Key (or one minted for it); unique per pantry. */
+  idemKey: string;
+  /** Written as created_at and updated_at. */
+  now: Date;
+}
+
+export interface CreateItemInput {
+  item: NewKitchenItem;
+  /** The audit event, written in the same batch as the item (group items: personal pantries have no org to audit under). */
+  audit?: AppendEventWithAuditInput;
+}
+
+export interface CreatedItem {
+  item: KitchenItemRecord;
+  /**
+   * True when the idempotency key had already added an item to this pantry:
+   * `item` is that item and nothing was written.
+   */
+  replayed: boolean;
+}
+
+/** An edit. Quantity and price change only while nothing of the item has been used. */
+export interface KitchenItemChanges {
+  name?: string;
+  category?: string;
+  expiresOn?: string | null;
+  /** A new quantity (bought and left alike), in its unit. */
+  quantity?: { dimension: KitchenDimension; displayUnit: string; qtyMilli: number };
+  priceMinor?: number;
+  /** Group items only. */
+  wastePolicy?: KitchenWastePolicy | null;
+}
+
+export interface UpdateItemInput {
+  owner: KitchenPantryOwner;
+  itemId: Uuid;
+  changes: KitchenItemChanges;
+  /** When set, the edit applies only if the item is still at this version. */
+  expectedVersion?: number;
+  now: Date;
+}
+
+/** Keyset position in a list of items (soonest use-by first, then name). */
+export interface KitchenItemsCursor {
+  /** The use-by date, or "9999-12-31" for an item without one (they sort last). */
+  expiresKey: string;
+  /** The name, lower-cased. */
+  nameKey: string;
+  id: string;
+}
+
+/** Which pantries a read covers: the person's own (when `ownerSubjectId` is set) and these groups. */
+export interface KitchenPantryScope {
+  ownerSubjectId: string | null;
+  /** Group UUIDs. Any number: they bind as one JSON parameter. */
+  orgIds: readonly string[];
+}
+
+export interface KitchenItemsQuery extends KitchenPantryScope {
+  /** Name contains, case-insensitively. */
+  q: string | null;
+  /** Only items whose use-by is within [from, to] (ISO dates, inclusive), or before `before`. */
+  expires: { from: string; to: string } | { before: string } | null;
+  cursor: KitchenItemsCursor | null;
+  limit: number;
+}
+
+export interface KitchenItemsPage {
+  items: KitchenItemRecord[];
+  nextCursor: KitchenItemsCursor | null;
+}
+
+export interface KitchenItemSearch extends KitchenPantryScope {
+  /** Matched against the name: exactly, then as its start, then a word's start, then anywhere. Empty matches all. */
+  q: string;
+  limit: number;
+}
+
+/** One pantry's active items in one currency, summed. A pantry with items in two currencies has two rows. */
+export interface KitchenPantryTotals {
+  /** Null for the person's own pantry. */
+  orgId: string | null;
+  currency: string;
+  itemCount: number;
+  /** Use-by from `today` to `soonUntil`, inclusive. */
+  useSoonCount: number;
+  /** Use-by before `today`. */
+  expiredCount: number;
+  /** What is left of their prices (price − cost taken). */
+  worthMinor: number;
+}
+
+export interface KitchenPantryTotalsQuery extends KitchenPantryScope {
+  today: string;
+  soonUntil: string;
+}
+
 // ── Repository ──────────────────────────────────────────────
 
 export interface KitchenRepository {
@@ -242,4 +406,35 @@ export interface KitchenRepository {
   createFlag(input: CreateFlagInput): Promise<KitchenResult<CreatedFlag>>;
   /** The flags on one of the group's transactions, oldest first. */
   listFlags(orgId: Uuid, txnId: Uuid): Promise<KitchenResult<KitchenFlagRecord[]>>;
+
+  // ── Pantries (CP-10) ──
+
+  /** The settings rows of these groups (a group without one is absent: it uses the defaults). */
+  listGroupSettings(orgIds: readonly string[]): Promise<KitchenResult<KitchenGroupSettings[]>>;
+  /**
+   * Add an item, with its audit event, in ONE batch. A group item pins the
+   * group's settings row (its currency) when the group has none, as the
+   * ledger's first transaction does, and is inserted only in the group's
+   * currency: another is `currency_mismatch` and writes nothing. A repeated
+   * idempotency key in the same pantry writes nothing and returns the item it
+   * added (`replayed: true`).
+   */
+  createItem(input: CreateItemInput): Promise<KitchenResult<CreatedItem>>;
+  /** One item of the pantry; `not_found` for another pantry's item and for a removed one. */
+  getItem(owner: KitchenPantryOwner, itemId: Uuid): Promise<KitchenResult<KitchenItemRecord>>;
+  /**
+   * Edit an item in one conditional statement: a quantity or price change
+   * applies only while nothing has been used (`item_used` otherwise), and an
+   * `expectedVersion` only while the item is still at it (`version_conflict`).
+   * Bumps the version.
+   */
+  updateItem(input: UpdateItemInput): Promise<KitchenResult<KitchenItemRecord>>;
+  /** Mark an item `removed` (added by mistake). Only while nothing has been used: `item_used` otherwise. */
+  removeItem(owner: KitchenPantryOwner, itemId: Uuid, now: Date): Promise<KitchenResult<KitchenItemRecord>>;
+  /** Active items across the scope's pantries, soonest use-by first (none last), then name, then id. */
+  listItems(query: KitchenItemsQuery): Promise<KitchenResult<KitchenItemsPage>>;
+  /** Active items with something left whose name matches, best match first, then soonest use-by. */
+  searchItems(query: KitchenItemSearch): Promise<KitchenResult<KitchenItemRecord[]>>;
+  /** Counts and worth of the scope's pantries, one row per pantry and currency. */
+  pantryTotals(query: KitchenPantryTotalsQuery): Promise<KitchenResult<KitchenPantryTotals[]>>;
 }

@@ -1,0 +1,26 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-10
+  title: "Items and every pantry you can reach (backend)"
+spec:
+  goal: kitchen-worker keeps a personal pantry per person and a pantry per group — items with price, quantity, unit and use-by — readable as one all-pantries view with filters and search, through the SDK.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-10.TaskContract.yaml
+  doneWhen:
+    - migration 230_kitchen_pantry creates kitchen_items and kitchen_stock_moves with the design's constraints
+    - a person adds items to their personal pantry and, as a member, to any group pantry, in any supported unit
+    - GET /v1/kitchen/me/pantries and /items return every reachable pantry with counts, worth and use-soon, filtered and searchable
+    - another person's personal item is a 404; only the buyer or an admin edits a group item; edits to quantity or price are refused once used
+  gates: []

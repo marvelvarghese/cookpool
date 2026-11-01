@@ -86,15 +86,15 @@ function eventId(): string {
 }
 
 /**
- * The audit event a ledger write carries, written in the same batch as the
+ * The audit event a group write carries, written in the same batch as the
  * write itself: `kitchen.expense.added`, `kitchen.settlement.recorded`,
- * `kitchen.txn.reversed`, `kitchen.txn.flagged`.
+ * `kitchen.txn.reversed`, `kitchen.txn.flagged`, `kitchen.item.added`.
  */
 export function ledgerAudit(
   ctx: OrgContext,
   input: {
     type: string;
-    subjectKind: "kitchen_txn" | "kitchen_flag";
+    subjectKind: "kitchen_txn" | "kitchen_flag" | "kitchen_item";
     subjectId: string;
     idemKey: string;
     description: string;

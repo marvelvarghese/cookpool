@@ -954,3 +954,96 @@ describe("KitchenClient — the ledger (Cookpool CP-7)", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
+
+describe("KitchenClient — pantries (Cookpool CP-10)", () => {
+  const item = { id: "itm_1", name: "Rice", pantry: { kind: "personal", name: "My pantry" } };
+
+  function sent(call: CapturedCall): { method: string | undefined; body: unknown; key: string | null } {
+    return {
+      method: call.init.method,
+      body: call.init.body === undefined ? undefined : JSON.parse(String(call.init.body)),
+      key: new Headers(call.init.headers as HeadersInit).get("idempotency-key"),
+    };
+  }
+
+  it("pantries, items and searchItems read the caller's paths with their queries", async () => {
+    const pantries = { pantries: [{ kind: "personal", name: "My pantry", itemCount: 0 }] };
+    const p = captureFetch(jsonResponse(envelope(pantries)));
+    expect(await client(p.fetch).kitchen.pantries()).toEqual(pantries);
+    expect(p.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/pantries");
+
+    const page = { items: [item], nextCursor: null };
+    const all = captureFetch(jsonResponse(envelope(page)));
+    expect(await client(all.fetch).kitchen.items()).toEqual(page);
+    expect(all.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items");
+    const some = captureFetch(jsonResponse(envelope(page)));
+    await client(some.fetch).kitchen.items({ pantry: "org_1", q: "rice", filter: "soon", cursor: "abc", limit: 10 });
+    expect(some.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items?pantry=org_1&q=rice&filter=soon&cursor=abc&limit=10");
+
+    const found = captureFetch(jsonResponse(envelope({ items: [item] })));
+    expect(await client(found.fetch).kitchen.searchItems("ri ce", { limit: 5 })).toEqual({ items: [item] });
+    expect(found.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/search?q=ri+ce&limit=5");
+  });
+
+  it("creates, reads, edits and removes a personal item", async () => {
+    const body = { name: "Rice", category: "Grains", quantity: "1.25", unit: "kg", priceMinor: 12500 };
+    const created = captureFetch(jsonResponse(envelope({ item }), { status: 201 }));
+    expect(await client(created.fetch).kitchen.createPersonalItem(body, { idempotencyKey: "add-1" })).toEqual({ item });
+    expect(created.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items");
+    expect(sent(created.calls[0]!)).toEqual({ method: "POST", body, key: "add-1" });
+
+    const read = captureFetch(jsonResponse(envelope({ item })));
+    await client(read.fetch).kitchen.getPersonalItem("itm_1");
+    expect(read.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_1");
+    expect(read.calls[0]!.init.method).toBe("GET");
+
+    const edited = captureFetch(jsonResponse(envelope({ item })));
+    await client(edited.fetch).kitchen.updatePersonalItem("itm_1", { name: "Basmati", version: 1 });
+    expect(edited.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_1");
+    expect(sent(edited.calls[0]!)).toEqual({ method: "PATCH", body: { name: "Basmati", version: 1 }, key: null });
+
+    const removed = captureFetch(jsonResponse(envelope({ item })));
+    await client(removed.fetch).kitchen.removePersonalItem("itm_1");
+    expect(removed.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_1");
+    expect(removed.calls[0]!.init.method).toBe("DELETE");
+  });
+
+  it("lists, creates, reads, edits and removes a group item", async () => {
+    const page = { items: [item], nextCursor: "next" };
+    const listed = captureFetch(jsonResponse(envelope(page)));
+    expect(await client(listed.fetch).kitchen.groupItems("org_1", { filter: "expired" })).toEqual(page);
+    expect(listed.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items?filter=expired");
+
+    const body = { name: "Milk", category: "Dairy", quantity: 1, unit: "L", priceMinor: 6000, paidBy: "usr_anu" };
+    const created = captureFetch(jsonResponse(envelope({ item }), { status: 201 }));
+    await client(created.fetch).kitchen.createGroupItem("org_1", body, { idempotencyKey: "add-2" });
+    expect(created.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items");
+    expect(sent(created.calls[0]!)).toEqual({ method: "POST", body, key: "add-2" });
+
+    const read = captureFetch(jsonResponse(envelope({ item })));
+    await client(read.fetch).kitchen.getGroupItem("org_1", "itm_1");
+    expect(read.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items/itm_1");
+
+    const edited = captureFetch(jsonResponse(envelope({ item })));
+    await client(edited.fetch).kitchen.updateGroupItem("org_1", "itm_1", { wastePolicy: "buyer_absorbs" });
+    expect(sent(edited.calls[0]!)).toEqual({ method: "PATCH", body: { wastePolicy: "buyer_absorbs" }, key: null });
+
+    const removed = captureFetch(jsonResponse(envelope({ item })));
+    await client(removed.fetch).kitchen.removeGroupItem("org_1", "itm_1");
+    expect(removed.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items/itm_1");
+    expect(removed.calls[0]!.init.method).toBe("DELETE");
+  });
+
+  it("surfaces item_used as ConflictError and not_buyer as ForbiddenError", async () => {
+    const reason = (code: string, status: number, detail: string) =>
+      jsonResponse({ error: { code, message: code, details: { reason: detail }, requestId: "req_err" } }, { status });
+    const used = await client(captureFetch(reason("conflict", 409, "item_used")).fetch)
+      .kitchen.removePersonalItem("itm_1")
+      .catch((e: unknown) => e);
+    expect(used).toBeInstanceOf(ConflictError);
+    expect((used as ConflictError).details).toEqual({ reason: "item_used" });
+    await expect(
+      client(captureFetch(reason("forbidden", 403, "not_buyer")).fetch).kitchen.updateGroupItem("org_1", "itm_1", { name: "x" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});

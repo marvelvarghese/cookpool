@@ -210,5 +210,14 @@ export const manifest: MigrationManifest = {
       description:
         "Every group's append-only ledger: kitchen_txns (unique idempotency key per group; a transaction reversed at most once), kitchen_txn_splits (who paid, who owes) and kitchen_flags (Cookpool CP-7)",
     },
+    {
+      id: "230_kitchen_pantry",
+      context: "kitchen",
+      path: "230_kitchen_pantry/up.sql",
+      checksum:
+        "535ecb74e7762c5bad24f3b29f82e0bb36127ebbab24b5aa549cba2c84429d4d",
+      description:
+        "Pantries: kitchen_items (a personal item keyed by its owner, a group item by its group — the owner CHECK; 0 ≤ qty_left ≤ qty_bought; price and cost taken in minor units; unique idempotency key per pantry) and kitchen_stock_moves, every change to an item's stock (Cookpool CP-10)",
+    },
   ],
 };

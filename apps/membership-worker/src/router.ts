@@ -17,6 +17,7 @@ import { handleCreateServicePrincipalBinding, handleListServicePrincipalBindings
 import { handleGetJoinCode, handleRotateJoinCode, handlePreviewJoin, handleJoin } from "./handlers/join.js";
 import { handleLeaveOrganization } from "./handlers/leave.js";
 import { handleInternalMembers } from "./handlers/internal-members.js";
+import { handleInternalSubjectOrganizations } from "./handlers/internal-subject-organizations.js";
 import { errorResponse, notFound, methodNotAllowed } from "./http.js";
 import { generateRequestId } from "./ids.js";
 
@@ -55,6 +56,7 @@ const ORG_LEAVE_RE = /^\/v1\/organizations\/([^/]+)\/leave$/;
 const SP_BINDINGS_PATH = "/v1/internal/membership/service-principal-bindings";
 const SP_BINDING_ID_RE = /^\/v1\/internal\/membership\/service-principal-bindings\/([^/]+)$/;
 const INTERNAL_ORG_MEMBERS_RE = /^\/v1\/internal\/membership\/organizations\/([^/]+)\/members$/;
+const INTERNAL_SUBJECT_ORGS_RE = /^\/v1\/internal\/membership\/subjects\/([^/]+)\/organizations$/;
 
 export async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -98,6 +100,16 @@ export async function route(request: Request, env: Env): Promise<Response> {
     if (internalMembersMatch) {
       if (request.method === "GET") {
         return handleInternalMembers(env, requestId, internalMembersMatch[1]!);
+      }
+      return methodNotAllowed(requestId);
+    }
+
+    // Internal: a person's groups (Cookpool CP-10): kitchen-worker reads every
+    // pantry a person can reach. Service-binding only — not routed by api-edge.
+    const internalSubjectOrgsMatch = url.pathname.match(INTERNAL_SUBJECT_ORGS_RE);
+    if (internalSubjectOrgsMatch) {
+      if (request.method === "GET") {
+        return handleInternalSubjectOrganizations(env, requestId, internalSubjectOrgsMatch[1]!);
       }
       return methodNotAllowed(requestId);
     }

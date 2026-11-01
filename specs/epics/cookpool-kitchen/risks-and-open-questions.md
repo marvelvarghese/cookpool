@@ -118,3 +118,12 @@ group passes ~20k transactions or the read shows in Server-Timing: balances
 can become a `SUM(paid_minor − owed_minor) GROUP BY subject_id` query, and
 the working can be kept as running pairwise totals written in the same batch
 as each transaction.
+
+## CP-P — "today" is a UTC day (ACCEPTED)
+
+Use-by dates are calendar dates, and "use soon" (today to three days ahead)
+and "expired" (before today) are measured from today's date in UTC. Between
+midnight IST and 05:30 IST the server's day is still yesterday, so an item
+can read as one day further from its date for those hours. Accepted for v1:
+the daily sweep runs at 08:00 IST, well inside the same day. If it shows,
+the app can send its own date (`?today=`) or a person can carry a time zone.

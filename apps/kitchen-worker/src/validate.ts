@@ -56,6 +56,20 @@ export function instant(fields: Fields, name: string, value: unknown): Date | un
   return at;
 }
 
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** A calendar date as `YYYY-MM-DD` (a use-by or bought-on date). */
+export function isoDate(fields: Fields, name: string, value: unknown): string | undefined {
+  const match = typeof value === "string" ? ISO_DATE_RE.exec(value) : null;
+  if (!match) return fields.add(name, "Must be a date as YYYY-MM-DD");
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const at = new Date(Date.UTC(year, month - 1, day));
+  if (year < 2000 || at.getUTCMonth() !== month - 1 || at.getUTCDate() !== day) {
+    return fields.add(name, "Must be a real date as YYYY-MM-DD");
+  }
+  return value as string;
+}
+
 export function oneOf<T extends string>(
   fields: Fields,
   name: string,

@@ -2,6 +2,17 @@ import type {
   ActivityPage,
   ActivityQuery,
   BalancesResponse,
+  CreateGroupItemRequest,
+  CreatePersonalItemRequest,
+  GroupItemsQuery,
+  ItemsPage,
+  ItemsQuery,
+  KitchenItemResponse,
+  PantriesResponse,
+  SearchItemsQuery,
+  SearchItemsResponse,
+  UpdateGroupItemRequest,
+  UpdatePersonalItemRequest,
   CreateExpenseRequest,
   CreateExpenseResponse,
   CreateSettlementRequest,
@@ -22,8 +33,8 @@ import type { RequestOptions, Transport } from "./transport.js";
  * Kitchen resource client (Cookpool).
  *
  * Covers `apps/kitchen-worker` through the api-edge kitchen facade:
- * `/v1/organizations/:orgId/kitchen/…` for one group (and, as they land,
- * `/v1/kitchen/me/…` for the caller across every group).
+ * `/v1/organizations/:orgId/kitchen/…` for one group, and
+ * `/v1/kitchen/me/…` for the caller across every group.
  */
 export class KitchenClient {
   constructor(private readonly transport: Transport) {}
@@ -166,5 +177,157 @@ export class KitchenClient {
   /** GET /v1/organizations/:orgId/kitchen/settle-plan — the fewest payments, and the working. */
   settlePlan(orgId: string, opts: RequestOptions = {}): Promise<SettlePlan> {
     return this.transport.request<SettlePlan>({ method: "GET", path: this.groupPath(orgId, "settle-plan") }, opts);
+  }
+
+  // -------------------------------------------------------------------------
+  // Pantries (CP-10)
+  //
+  // The caller's personal pantry is under /v1/kitchen/me/… (only they can see
+  // it); a group's under /v1/organizations/:orgId/kitchen/items. POSTs take
+  // `opts.idempotencyKey`: the same key twice adds the item once.
+  // -------------------------------------------------------------------------
+
+  private mePath(rest: string): string {
+    return `/v1/kitchen/me/${rest}`;
+  }
+
+  /**
+   * GET /v1/kitchen/me/pantries
+   *
+   * The caller's own pantry first, then every group's they are in, by name,
+   * each with its item, use-soon and expired counts and what it is worth.
+   */
+  pantries(opts: RequestOptions = {}): Promise<PantriesResponse> {
+    return this.transport.request<PantriesResponse>({ method: "GET", path: this.mePath("pantries") }, opts);
+  }
+
+  /**
+   * GET /v1/kitchen/me/items
+   *
+   * Items across every pantry the caller can read (`pantry`: `all`,
+   * `personal` or a group's `org_…` id), soonest use-by first. Pass
+   * `nextCursor` back as `cursor` for the next page.
+   */
+  items(query: ItemsQuery = {}, opts: RequestOptions = {}): Promise<ItemsPage> {
+    return this.transport.request<ItemsPage>(
+      {
+        method: "GET",
+        path: this.mePath("items"),
+        query: { pantry: query.pantry, q: query.q, filter: query.filter, cursor: query.cursor, limit: query.limit },
+      },
+      opts,
+    );
+  }
+
+  /**
+   * GET /v1/kitchen/me/search
+   *
+   * Items with something left, across every pantry the caller can read, best
+   * name match first — for quick use and the dish maker.
+   */
+  searchItems(q: string, query: Omit<SearchItemsQuery, "q"> = {}, opts: RequestOptions = {}): Promise<SearchItemsResponse> {
+    return this.transport.request<SearchItemsResponse>(
+      { method: "GET", path: this.mePath("search"), query: { q, limit: query.limit } },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/items — add to the caller's personal pantry. */
+  createPersonalItem(body: CreatePersonalItemRequest, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
+    return this.transport.request<KitchenItemResponse>({ method: "POST", path: this.mePath("items"), body }, opts);
+  }
+
+  /** GET /v1/kitchen/me/items/:itemId — one of the caller's own items. */
+  getPersonalItem(itemId: string, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
+    return this.transport.request<KitchenItemResponse>(
+      { method: "GET", path: this.mePath(`items/${encodeURIComponent(itemId)}`) },
+      opts,
+    );
+  }
+
+  /**
+   * PATCH /v1/kitchen/me/items/:itemId
+   *
+   * Quantity and price change only while nothing has been used
+   * (`ConflictError`, `reason: "item_used"`); with `version`, only that
+   * version (`reason: "version_conflict"`).
+   */
+  updatePersonalItem(
+    itemId: string,
+    body: UpdatePersonalItemRequest,
+    opts: RequestOptions = {},
+  ): Promise<KitchenItemResponse> {
+    return this.transport.request<KitchenItemResponse>(
+      { method: "PATCH", path: this.mePath(`items/${encodeURIComponent(itemId)}`), body },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/kitchen/me/items/:itemId — added by mistake; refused once used (`reason: "item_used"`). */
+  removePersonalItem(itemId: string, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
+    return this.transport.request<KitchenItemResponse>(
+      { method: "DELETE", path: this.mePath(`items/${encodeURIComponent(itemId)}`) },
+      opts,
+    );
+  }
+
+  /** GET /v1/organizations/:orgId/kitchen/items — one group's pantry, with the same filters as `items`. */
+  groupItems(orgId: string, query: GroupItemsQuery = {}, opts: RequestOptions = {}): Promise<ItemsPage> {
+    return this.transport.request<ItemsPage>(
+      {
+        method: "GET",
+        path: this.groupPath(orgId, "items"),
+        query: { q: query.q, filter: query.filter, cursor: query.cursor, limit: query.limit },
+      },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/items
+   *
+   * Members, owners and admins. In the group's currency; `paidBy` (default:
+   * the caller) must be in the group (`ValidationError`, `reason:
+   * "not_in_group"`).
+   */
+  createGroupItem(orgId: string, body: CreateGroupItemRequest, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
+    return this.transport.request<KitchenItemResponse>(
+      { method: "POST", path: this.groupPath(orgId, "items"), body },
+      opts,
+    );
+  }
+
+  /** GET /v1/organizations/:orgId/kitchen/items/:itemId */
+  getGroupItem(orgId: string, itemId: string, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
+    return this.transport.request<KitchenItemResponse>(
+      { method: "GET", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}`) },
+      opts,
+    );
+  }
+
+  /**
+   * PATCH /v1/organizations/:orgId/kitchen/items/:itemId
+   *
+   * Its buyer, or an owner or admin (`ForbiddenError`, `reason:
+   * "not_buyer"`). Quantity and price only while nothing has been used.
+   */
+  updateGroupItem(
+    orgId: string,
+    itemId: string,
+    body: UpdateGroupItemRequest,
+    opts: RequestOptions = {},
+  ): Promise<KitchenItemResponse> {
+    return this.transport.request<KitchenItemResponse>(
+      { method: "PATCH", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}`), body },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/organizations/:orgId/kitchen/items/:itemId — its buyer, or an owner or admin; refused once used. */
+  removeGroupItem(orgId: string, itemId: string, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
+    return this.transport.request<KitchenItemResponse>(
+      { method: "DELETE", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}`) },
+      opts,
+    );
   }
 }

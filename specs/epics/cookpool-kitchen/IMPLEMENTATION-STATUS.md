@@ -7,8 +7,8 @@ the code departed from `design.md`.
 |---|---|---|
 | CP0 — the spec | ✅ shipped 2026-11-01 | #3 (CP-1) |
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
-| CP2 — the ledger | in progress | #7 (CP-6), #9 (CP-7) |
-| CP3 — pantries and using things | | |
+| CP2 — the ledger | in progress | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8) |
+| CP3 — pantries and using things | in progress | #11 (CP-10) |
 | CP4 — the dish maker | | |
 | CP5 — splitting dishes | | |
 | CP6 — use it before it goes | | |
@@ -111,3 +111,45 @@ Instead of hiding billing, the console now opens as Cookpool at `/home`
   list (struck through), because the server's working counts them too.
 - **The console bundles `@saas/kitchen-engine`** (`transpilePackages`), so an
   engine change must also touch `apps/web-console-next` to redeploy it.
+
+### CP3 — pantries (CP-10)
+
+- **Columns the design did not list:** `kitchen_items.created_by` (who added
+  it; the buyer is `paid_by`, and may be someone else) and
+  `kitchen_items.idem_key`, unique per pantry, so a retried add answers with
+  the item it added (as the ledger and flags do).
+- **"Nothing used" means nothing taken and nothing charged:**
+  `qty_left_milli = qty_bought_milli AND cost_taken_minor = 0`. The design
+  said `cost_taken_minor = 0`, but a use of a free item charges nothing.
+  Until then quantity and price can change, and the item can be removed;
+  after, `409 item_used` (mark it wasted instead, CP-11). Edits may send
+  `version` and get `409 version_conflict` on a stale read. A group PATCH
+  may also change the item's own waste rule.
+- **No `adjust` stock move for an edit.** Changing what was bought before
+  any use corrects the purchase rather than moving stock (and a move's
+  `qty_milli > 0` carries no sign). `kitchen_stock_moves` is created here and
+  first written by CP-11.
+- **Audit:** adding a group item writes `kitchen.item.added` in the same
+  batch, and no ledger transaction. A personal item writes no event: the
+  event log is per organization (`org_id` is NOT NULL) and a personal pantry
+  is in none. Edits and removals write no event (the design lists none).
+- **The first group item fixes the group's currency**, through the same
+  pinning statement the ledger's first transaction uses
+  (`pinGroupCurrencyStatement`); the item's currency is read from that row
+  inside the batch, so a group whose currency changed in between refuses the
+  whole batch (`422 currency_mismatch`).
+- **"Every pantry I can reach" trusts membership's role.** A new
+  service-internal route,
+  `GET /v1/internal/membership/subjects/{subjectId}/organizations`
+  (`{ orgId: "org_…", slug, name, role }`, active organizations, by name),
+  says which groups a person is in. The all-pantries reads keep the groups
+  where that role is owner, admin, builder or viewer — every one of which
+  holds `kitchen.pantry.read` — instead of one policy hop per group. Every
+  group route still authorizes through the policy engine.
+- **Shapes:** responses wrap their lists (`{ pantries }`,
+  `{ items, nextCursor }`, `{ item }`); DELETE answers the removed item.
+  `GET /v1/kitchen/me/items/{itm}` (and `getPersonalItem`) was added for the
+  item page. A personal pantry is shown in the currency most of its items
+  are in, and its worth counts only those (amounts in two currencies do not
+  add up). Item lists skip removed, used-up and wasted items.
+- **Dates are UTC days** (risks CP-P).

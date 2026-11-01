@@ -7,10 +7,12 @@
 //     route, not as a mock that agreed with it.
 //   - POLICY_WORKER runs the real policy engine (@saas/policy-engine), so a
 //     test exercises the actual kitchen.* grants, not a stubbed allow.
-//   - MEMBERSHIP_WORKER answers the authorization-context hop and the group
-//     roster (/v1/internal/membership/organizations/:orgId/members) from a
-//     roster the test fills with `grant` — the one thing membership-worker
-//     owns. `rosterCalls` counts the roster fetches.
+//   - MEMBERSHIP_WORKER answers the authorization-context hop, the group
+//     roster (/v1/internal/membership/organizations/:orgId/members) and a
+//     person's groups (/v1/internal/membership/subjects/:subjectId/organizations)
+//     from a roster the test fills with `grant` — the one thing
+//     membership-worker owns. `rosterCalls` and `groupsCalls` count those
+//     fetches; `failGroups` makes the groups fetch fail.
 //
 // Every request goes through `route`, exactly as api-edge's service binding
 // delivers it: actor headers set, the edge's path and method unchanged.
@@ -22,7 +24,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "@saas/policy-engine";
 import type { AuthorizationRequest, MembershipFact, OrganizationRole } from "@saas/contracts/policy";
-import type { RosterResponse } from "@saas/contracts/membership";
+import type { RosterResponse, SubjectOrganizationsResponse } from "@saas/contracts/membership";
 import { manifest } from "@saas/db";
 import { asUuid, type Uuid } from "@saas/db/ids";
 import { D1ApiAdapter } from "@saas/db/runner";
@@ -89,15 +91,18 @@ function fetcher(handle: (url: string, init: RequestInit) => Promise<Response>):
   } as unknown as Fetcher;
 }
 
-/** A group: its stored UUID and the `org_…` id the API uses. */
+/** A group: its stored UUID, the `org_…` id the API uses, and its name and slug. */
 export interface Group {
   id: Uuid;
   publicId: string;
+  name: string;
+  slug: string;
 }
 
-export function newGroup(): Group {
+export function newGroup(name = "Flat 4B"): Group {
   const id = asUuid(randomUUID());
-  return { id, publicId: `org_${id.replace(/-/g, "")}` };
+  const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${id.slice(0, 4)}`;
+  return { id, publicId: `org_${id.replace(/-/g, "")}`, name, slug };
 }
 
 export interface CallOptions {
@@ -119,6 +124,10 @@ export interface Harness {
   revoke(subjectId: string, group: Group): void;
   /** How many times the worker fetched a group's roster. */
   readonly rosterCalls: number;
+  /** How many times the worker fetched a person's groups. */
+  readonly groupsCalls: number;
+  /** While true, the person's-groups fetch answers 500. */
+  failGroups: boolean;
   /** Every authorization decision the policy engine made, in order. */
   decisions: Array<{ request: AuthorizationRequest; allow: boolean }>;
   /** Send one request through the worker's router. */
@@ -136,10 +145,28 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const db = migratedDatabase();
   let closed = false;
   const roster = new Map<string, Map<string, OrganizationRole>>();
+  const known = new Map<string, Group>();
   const decisions: Harness["decisions"] = [];
 
   let rosterCalls = 0;
+  let groupsCalls = 0;
+  const state = { failGroups: false };
   const membershipWorker = fetcher(async (url, init) => {
+    const groupsMatch = new URL(url).pathname.match(/^\/v1\/internal\/membership\/subjects\/([^/]+)\/organizations$/);
+    if (groupsMatch && (init.method ?? "GET") === "GET") {
+      groupsCalls += 1;
+      if (state.failGroups) return Response.json({ error: { code: "internal_error" } }, { status: 500 });
+      const organizations: SubjectOrganizationsResponse["organizations"] = [];
+      for (const [orgId, role] of roster.get(decodeURIComponent(groupsMatch[1]!)) ?? []) {
+        const group = known.get(orgId)!;
+        organizations.push({ orgId: group.publicId, slug: group.slug, name: group.name, role });
+      }
+      organizations.sort((a, b) => a.name.localeCompare(b.name));
+      return Response.json({
+        data: { organizations } satisfies SubjectOrganizationsResponse,
+        meta: { requestId: "req_membership", cursor: null },
+      });
+    }
     const rosterMatch = new URL(url).pathname.match(/^\/v1\/internal\/membership\/organizations\/([^/]+)\/members$/);
     if (rosterMatch && (init.method ?? "GET") === "GET") {
       rosterCalls += 1;
@@ -191,7 +218,17 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     get rosterCalls() {
       return rosterCalls;
     },
+    get groupsCalls() {
+      return groupsCalls;
+    },
+    get failGroups() {
+      return state.failGroups;
+    },
+    set failGroups(value: boolean) {
+      state.failGroups = value;
+    },
     grant(subjectId, group, role) {
+      known.set(group.id, group);
       const roles = roster.get(subjectId) ?? new Map<string, OrganizationRole>();
       roles.set(group.id, role);
       roster.set(subjectId, roles);

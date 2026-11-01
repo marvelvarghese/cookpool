@@ -875,6 +875,18 @@ export function createMembershipRepository(executor: SqlExecutor): MembershipRep
       }
     },
 
+    async listRoleAssignmentsForSubjectAcrossOrgs(subjectId: string): Promise<MembershipResult<RoleAssignment[]>> {
+      try {
+        const result = await executor.execute<Record<string, unknown>>(
+          `SELECT * FROM membership_role_assignments WHERE subject_id = $1 AND revoked_at IS NULL`,
+          [subjectId],
+        );
+        return { ok: true, value: result.rows.map(mapRoleAssignment) };
+      } catch (err) {
+        return safeError("Failed to list role assignments for subject", err);
+      }
+    },
+
     async revokeRoleAssignment(orgId: string, assignmentId: string, revokedAt: Date): Promise<MembershipResult<RoleAssignment>> {
       try {
         const result = await executor.execute<Record<string, unknown>>(
