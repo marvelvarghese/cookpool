@@ -4,6 +4,7 @@ import {
   KITCHEN_NAV_LINKS,
   KITCHEN_TABS,
   activeKitchenTab,
+  groupActionHref,
   isKitchenTabActive,
 } from "@web-console-next/components/kitchen/nav";
 
@@ -44,6 +45,11 @@ describe("activeKitchenTab", () => {
     expect(activeKitchenTab("/join/KTCH2345")).toBe("groups");
   });
 
+  it("treats Settle up as part of Groups (CP-8)", () => {
+    expect(activeKitchenTab("/settle")).toBe("groups");
+    expect(activeKitchenTab("/settlement")).toBeNull();
+  });
+
   it("ignores a trailing slash", () => {
     expect(activeKitchenTab("/groups/")).toBe("groups");
     expect(activeKitchenTab("/home/")).toBe("home");
@@ -75,24 +81,32 @@ describe("isKitchenTabActive", () => {
 });
 
 describe("the + Add sheet", () => {
-  it("offers the four tiles, each linking to its future route", () => {
+  it("offers the four tiles, each linking to its route", () => {
     expect(ADD_TILES.map((t) => [t.label, t.href])).toEqual([
       ["I used something", "/use"],
       ["I cooked", "/cook"],
       ["I bought food", "/pantry/new"],
-      ["I paid a bill", "/groups?expense=1"],
+      ["I paid a bill", "/groups/[slug]/expense"],
     ]);
   });
 
-  it("marks every tile Soon until its feature ships (no pantry, dish or ledger yet)", () => {
-    expect(ADD_TILES.every((t) => !t.live)).toBe(true);
+  it("marks the pantry and dish tiles Soon; I paid a bill is live since the ledger (CP-8)", () => {
+    expect(ADD_TILES.filter((t) => t.live).map((t) => t.id)).toEqual(["bill"]);
   });
 
-  it("has Record a payment (Soon) and Invite to a group (live, to /groups)", () => {
+  it("asks for a group before Add expense, then goes to that group's", () => {
+    const bill = ADD_TILES.find((t) => t.id === "bill")!;
+    expect(bill.pickGroup).toBe(true);
+    expect(ADD_TILES.filter((t) => t.pickGroup).map((t) => t.id)).toEqual(["bill"]);
+    expect(groupActionHref(bill, "flat-4b-k3x9")).toBe("/groups/flat-4b-k3x9/expense");
+  });
+
+  it("has Record a payment (live, to /settle) and Invite to a group (live, to /groups)", () => {
     const payment = ADD_SECONDARY.find((a) => a.id === "payment")!;
     const invite = ADD_SECONDARY.find((a) => a.id === "invite")!;
     expect(payment.label).toBe("Record a payment");
-    expect(payment.live).toBe(false);
+    expect(payment.live).toBe(true);
+    expect(payment.href).toBe("/settle");
     expect(invite.label).toBe("Invite to a group");
     expect(invite.live).toBe(true);
     expect(invite.href).toBe("/groups");

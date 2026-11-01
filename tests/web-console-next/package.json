@@ -12,6 +12,7 @@
   "devDependencies": {
     "@saas/contracts": "workspace:*",
     "@saas/eslint-config": "workspace:*",
+    "@saas/kitchen-engine": "workspace:*",
     "@saas/tsconfig": "workspace:*",
     "@types/jest": "^29.5.14",
     "@types/react": "npm:types-react@19.0.0-rc.1",
@@ -31,6 +32,8 @@
       "^@saas/contracts$": "<rootDir>/../../packages/contracts/src/index.ts",
       "^@saas/contracts/(.*)$": "<rootDir>/../../packages/contracts/src/$1.ts",
       "^@saas/sdk$": "<rootDir>/../../packages/sdk/src/index.ts",
+      "^@saas/kitchen-engine$": "<rootDir>/../../packages/kitchen-engine/src/index.ts",
+      "^@saas/kitchen-engine/(.*)$": "<rootDir>/../../packages/kitchen-engine/src/$1.ts",
       "^@/(.*)$": "<rootDir>/../../apps/web-console-next/src/$1",
       "^@web-console-next/(.*)$": "<rootDir>/../../apps/web-console-next/src/$1"
     },

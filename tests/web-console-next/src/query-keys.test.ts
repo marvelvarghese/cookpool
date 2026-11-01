@@ -36,6 +36,20 @@ describe("query cache keys (qk)", () => {
     expect(qk.joinCode("org_1")).not.toEqual(qk.joinCode("org_2"));
   });
 
+  it("Cookpool ledger keys share one per-group prefix, so one invalidation refreshes them all (CP-8)", () => {
+    const prefix = qk.kitchenLedger("org_1");
+    const keys = [
+      qk.kitchenActivity("org_1"),
+      qk.kitchenActivityAll("org_1"),
+      qk.kitchenBalances("org_1"),
+      qk.kitchenSettlePlan("org_1"),
+    ];
+    for (const k of keys) expect(k.slice(0, prefix.length)).toEqual([...prefix]);
+    expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
+    expect(qk.kitchenBalances("org_1")).not.toEqual(qk.kitchenBalances("org_2"));
+    expect(qk.kitchenLedger("org_1")).not.toEqual(qk.kitchenSettings("org_1"));
+  });
+
   it("each key starts with a distinct resource tag", () => {
     expect(qk.orgs()[0]).toBe("orgs");
     expect(qk.projects("o")[0]).toBe("projects");
