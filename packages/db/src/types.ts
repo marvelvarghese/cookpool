@@ -15,6 +15,8 @@ export const BOUNDED_CONTEXTS = [
   "notifications",
   "support",
   "integrations",
+  // Cookpool (CP-4): pantries, the group ledger and dishes — every `kitchen_*` table.
+  "kitchen",
 ] as const;
 
 export type BoundedContext = (typeof BOUNDED_CONTEXTS)[number];

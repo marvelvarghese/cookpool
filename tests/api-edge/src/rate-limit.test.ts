@@ -97,6 +97,7 @@ describe("api-edge rate limiter (Task 0097)", () => {
         "metering",
         "billing",
         "audit",
+        "kitchen",
       ];
       for (const f of families) {
         expect(__rateLimitConfigForTest[f].org.limit).toBeGreaterThan(0);

@@ -57,7 +57,8 @@ export type RouteFamily =
   | "billing"
   | "audit"
   | "notifications"
-  | "integrations";
+  | "integrations"
+  | "kitchen";
 
 interface BucketLimits {
   /** Bucket capacity (max tokens). */
@@ -117,6 +118,12 @@ const LIMITS: Record<RouteFamily, FamilyConfig> = {
     org: { limit: 300, windowSec: 60 },
   },
   integrations: {
+    identity: { limit: 60, windowSec: 60 },
+    org: { limit: 300, windowSec: 60 },
+  },
+  // Cookpool's kitchen (CP-4): the same budget as projects — interactive app
+  // reads and writes (logging uses, cooking, settling up).
+  kitchen: {
     identity: { limit: 60, windowSec: 60 },
     org: { limit: 300, windowSec: 60 },
   },

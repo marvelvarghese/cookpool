@@ -13,6 +13,7 @@
 import { ApiKeysClient } from "./apiKeys.js";
 import { AuthClient } from "./auth.js";
 import { IntegrationsClient } from "./integrations.js";
+import { KitchenClient } from "./kitchen.js";
 import { BillingClient } from "./billing.js";
 import { ConfigClient } from "./config.js";
 import { EnvironmentsClient } from "./environments.js";
@@ -41,6 +42,7 @@ export class Cookpool {
   readonly notifications: NotificationsClient;
   readonly auth: AuthClient;
   readonly integrations: IntegrationsClient;
+  readonly kitchen: KitchenClient;
   /** Underlying HTTP transport. Exposed for advanced extension. */
   readonly transport: Transport;
 
@@ -60,6 +62,7 @@ export class Cookpool {
     this.notifications = new NotificationsClient(this.transport);
     this.auth = new AuthClient(this.transport);
     this.integrations = new IntegrationsClient(this.transport);
+    this.kitchen = new KitchenClient(this.transport);
   }
 }
 
@@ -98,6 +101,7 @@ export { ConfigClient, type ConfigScope } from "./config.js";
 export { NotificationsClient } from "./notifications.js";
 export { AuthClient } from "./auth.js";
 export { IntegrationsClient } from "./integrations.js";
+export { KitchenClient } from "./kitchen.js";
 
 // Transport surface.
 export {
@@ -318,3 +322,21 @@ export type {
   UpdateProfileRequest,
   AuthUser,
 } from "@saas/contracts/auth";
+
+export type {
+  KitchenAction,
+  KitchenErrorReason,
+  KitchenSettings,
+  WastePolicy,
+  GetKitchenSettingsResponse,
+  UpdateKitchenSettingsRequest,
+  UpdateKitchenSettingsResponse,
+} from "@saas/contracts/kitchen";
+
+export {
+  KITCHEN_ACTIONS,
+  KITCHEN_ERROR_REASONS,
+  WASTE_POLICIES,
+  DEFAULT_KITCHEN_CURRENCY,
+  DEFAULT_WASTE_POLICY,
+} from "@saas/contracts/kitchen";

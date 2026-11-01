@@ -8,6 +8,7 @@ import type {
   PolicyResource,
 } from "@saas/contracts/policy";
 import type { TenancyRole, RoleScopeKind } from "@saas/contracts/tenancy";
+import { KITCHEN_ACTIONS } from "@saas/contracts/kitchen";
 
 const subject: PolicySubject = { type: "user", id: "usr_abc123" };
 
@@ -686,8 +687,9 @@ describe("listEffectivePermissions", () => {
     expect(result.derivedScope.orgId).toBe("org_1");
 
     const allowed = result.permissions.filter((p) => p.allow);
-    // 31 baseline actions + organization.join_code.{read,rotate} (Cookpool CP-3).
-    expect(allowed.length).toBe(33);
+    // 31 baseline actions + organization.join_code.{read,rotate} (Cookpool CP-3)
+    // + the 15 kitchen.* actions (Cookpool CP-4).
+    expect(allowed.length).toBe(48);
   });
 
   it("returns limited permissions for viewer", () => {
@@ -699,6 +701,8 @@ describe("listEffectivePermissions", () => {
     const result = listEffectivePermissions(input);
     const allowed = result.permissions.filter((p) => p.allow);
     expect(allowed.map((p) => p.action).sort()).toEqual([
+      "kitchen.ledger.read",
+      "kitchen.pantry.read",
       "organization.config.read",
       "organization.integration.read",
       "organization.metering.read",
@@ -1064,6 +1068,81 @@ describe("join-code actions (Cookpool CP-3)", () => {
       expect(effective("owner")).toContain(action);
       expect(effective("admin")).toContain(action);
       expect(effective("builder")).not.toContain(action);
+    }
+  });
+});
+
+describe("kitchen actions (Cookpool CP-4)", () => {
+  const ORG = "org-1";
+  // design.md §6 of the cookpool-kitchen epic, role by role.
+  const READ = ["kitchen.ledger.read", "kitchen.pantry.read"];
+  const MEMBER = [
+    ...READ,
+    "kitchen.dish.claim",
+    "kitchen.dish.cook",
+    "kitchen.dish.finalize",
+    "kitchen.expense.create",
+    "kitchen.item.create",
+    "kitchen.item.edit",
+    "kitchen.item.use",
+    "kitchen.settlement.create",
+    "kitchen.txn.flag",
+  ];
+  const MANAGER = [
+    ...MEMBER,
+    "kitchen.dish.finalize_any",
+    "kitchen.item.manage",
+    "kitchen.settings.manage",
+    "kitchen.txn.reverse_any",
+  ];
+  const GRANTS: Record<string, string[]> = {
+    owner: MANAGER,
+    admin: MANAGER,
+    builder: MEMBER,
+    viewer: READ,
+    billing_admin: [],
+  };
+
+  const kitchenGrants = (role: string) =>
+    listEffectivePermissions({
+      subject,
+      resource: { kind: "organization", orgId: ORG },
+      context: { memberships: [orgFact(role, ORG)] },
+    })
+      .permissions.filter((p) => p.allow && p.action.startsWith("kitchen."))
+      .map((p) => p.action)
+      .sort();
+
+  it.each(Object.entries(GRANTS))("grants %s exactly its kitchen actions", (role, expected) => {
+    expect(kitchenGrants(role)).toEqual([...expected].sort());
+  });
+
+  it("knows every action the kitchen contract names, and no other kitchen action", () => {
+    expect([...KITCHEN_ACTIONS].sort()).toEqual([...MANAGER].sort());
+    for (const action of KITCHEN_ACTIONS) {
+      expect(authorize(authReq(action, ORG, [orgFact("owner", ORG)])).reason).toBe("org_owner");
+    }
+    expect(authorize(authReq("kitchen.pantry.delete", ORG, [orgFact("owner", ORG)])).reason).toBe("unknown_action");
+  });
+
+  it("allows with the role's reason, and denies without a grant", () => {
+    expect(authorize(authReq("kitchen.item.use", ORG, [orgFact("builder", ORG)]))).toMatchObject({
+      allow: true,
+      reason: "org_builder",
+    });
+    expect(authorize(authReq("kitchen.settings.manage", ORG, [orgFact("builder", ORG)]))).toMatchObject({
+      allow: false,
+      reason: "no_matching_role",
+    });
+    expect(authorize(authReq("kitchen.item.create", ORG, [orgFact("viewer", ORG)])).allow).toBe(false);
+  });
+
+  it("denies across group boundaries and for project roles", () => {
+    for (const action of KITCHEN_ACTIONS) {
+      expect(authorize(authReq(action, ORG, [orgFact("owner", "org-2")])).allow).toBe(false);
+      expect(
+        authorize(authReq(action, ORG, [projectFact("project_admin", ORG, "p1")], "p1")).allow,
+      ).toBe(false);
     }
   });
 });

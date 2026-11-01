@@ -1,0 +1,33 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-4
+  title: "The kitchen worker: a new bounded context behind api-edge, starting with group settings"
+spec:
+  goal: apps/kitchen-worker is deployed behind api-edge as the kitchen bounded context, with its policy actions, its first table and group settings readable by members and editable by admins through the SDK.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/policy-engine
+    - default/cookpool/policy-engine-tests
+    - default/cookpool/policy-worker
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/config-worker-tests
+    - .gitignore
+    - pnpm-lock.yaml
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-4.TaskContract.yaml
+  doneWhen:
+    - cookpool-kitchen-worker deploys to stage and prod and answers /health
+    - GET /v1/organizations/{org}/kitchen/settings returns the group's currency and waste rule (defaults INR, split equally) to any member, through api-edge
+    - PATCH of the settings is allowed for owners and admins only; currency is locked once set
+    - the kitchen.* policy actions exist with the role grants in design.md §6, and policy-worker redeploys with them
+    - tests/kitchen-worker, tests/api-edge, tests/policy-engine, tests/db and tests/config-worker pass
+  gates: []
