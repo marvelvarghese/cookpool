@@ -7,8 +7,10 @@
 //     route, not as a mock that agreed with it.
 //   - POLICY_WORKER runs the real policy engine (@saas/policy-engine), so a
 //     test exercises the actual kitchen.* grants, not a stubbed allow.
-//   - MEMBERSHIP_WORKER answers the authorization-context hop from a roster
-//     the test fills with `grant` — the one thing membership-worker owns.
+//   - MEMBERSHIP_WORKER answers the authorization-context hop and the group
+//     roster (/v1/internal/membership/organizations/:orgId/members) from a
+//     roster the test fills with `grant` — the one thing membership-worker
+//     owns. `rosterCalls` counts the roster fetches.
 //
 // Every request goes through `route`, exactly as api-edge's service binding
 // delivers it: actor headers set, the edge's path and method unchanged.
@@ -20,6 +22,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorize } from "@saas/policy-engine";
 import type { AuthorizationRequest, MembershipFact, OrganizationRole } from "@saas/contracts/policy";
+import type { RosterResponse } from "@saas/contracts/membership";
 import { manifest } from "@saas/db";
 import { asUuid, type Uuid } from "@saas/db/ids";
 import { D1ApiAdapter } from "@saas/db/runner";
@@ -112,6 +115,10 @@ export interface Harness {
   env: Env;
   /** Give `subjectId` `role` in `group` (replacing any role it had there). */
   grant(subjectId: string, group: Group, role: OrganizationRole): void;
+  /** Take `subjectId` out of `group` (they left, or were removed). */
+  revoke(subjectId: string, group: Group): void;
+  /** How many times the worker fetched a group's roster. */
+  readonly rosterCalls: number;
   /** Every authorization decision the policy engine made, in order. */
   decisions: Array<{ request: AuthorizationRequest; allow: boolean }>;
   /** Send one request through the worker's router. */
@@ -131,7 +138,18 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const roster = new Map<string, Map<string, OrganizationRole>>();
   const decisions: Harness["decisions"] = [];
 
+  let rosterCalls = 0;
   const membershipWorker = fetcher(async (url, init) => {
+    const rosterMatch = new URL(url).pathname.match(/^\/v1\/internal\/membership\/organizations\/([^/]+)\/members$/);
+    if (rosterMatch && (init.method ?? "GET") === "GET") {
+      rosterCalls += 1;
+      const members: RosterResponse["members"] = [];
+      for (const [subjectId, roles] of roster) {
+        const role = roles.get(rosterMatch[1]!);
+        if (role) members.push({ subjectId, subjectType: "user", role });
+      }
+      return Response.json({ data: { members } satisfies RosterResponse, meta: { requestId: "req_membership", cursor: null } });
+    }
     if (!url.endsWith("/v1/internal/membership/authorization-context")) {
       return Response.json({ error: { code: "not_found" } }, { status: 404 });
     }
@@ -170,10 +188,16 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     db,
     env,
     decisions,
+    get rosterCalls() {
+      return rosterCalls;
+    },
     grant(subjectId, group, role) {
       const roles = roster.get(subjectId) ?? new Map<string, OrganizationRole>();
       roles.set(group.id, role);
       roster.set(subjectId, roles);
+    },
+    revoke(subjectId, group) {
+      roster.get(subjectId)?.delete(group.id);
     },
     call(method, path, opts) {
       const headers = new Headers({ "x-request-id": "req_test", ...(opts.headers ?? {}) });

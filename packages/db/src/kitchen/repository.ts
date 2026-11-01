@@ -9,6 +9,7 @@ import type {
 } from "./types.js";
 import { KITCHEN_DEFAULT_CURRENCY, KITCHEN_DEFAULT_WASTE_POLICY } from "./types.js";
 import { isCheckViolation } from "../d1/errors.js";
+import { createLedgerRepository } from "./ledger.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -87,5 +88,5 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     }
   }
 
-  return { getGroupSettings, upsertGroupSettings };
+  return { getGroupSettings, upsertGroupSettings, ...createLedgerRepository(executor) };
 }

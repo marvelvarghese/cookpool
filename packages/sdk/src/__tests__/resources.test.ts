@@ -836,3 +836,121 @@ describe("KitchenClient", () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
+
+describe("KitchenClient — the ledger (Cookpool CP-7)", () => {
+  const txn = {
+    id: "txn_1",
+    orgId: "org_1",
+    kind: "expense",
+    title: "Dinner",
+    totalMinor: 1000,
+    currency: "INR",
+    occurredAt: "2026-11-02T08:00:00.000Z",
+    createdBy: "usr_rahul",
+    createdAt: "2026-11-02T08:00:00.000Z",
+    sourceKind: null,
+    sourceId: null,
+    reverses: null,
+    reversed: false,
+    reversedBy: null,
+    method: null,
+    note: null,
+    splits: [
+      { subjectId: "usr_rahul", paidMinor: 1000, owedMinor: 500 },
+      { subjectId: "usr_anu", paidMinor: 0, owedMinor: 500 },
+    ],
+  };
+
+  function sent(call: CapturedCall): { method: string | undefined; body: unknown; key: string | null } {
+    return {
+      method: call.init.method,
+      body: call.init.body === undefined ? undefined : JSON.parse(String(call.init.body)),
+      key: new Headers(call.init.headers as HeadersInit).get("idempotency-key"),
+    };
+  }
+
+  it("createExpense POSTs the expense with the caller's idempotency key", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ txn }), { status: 201 }));
+    const body = {
+      title: "Dinner",
+      totalMinor: 1000,
+      payers: [{ subjectId: "usr_rahul", amountMinor: 1000 }],
+      mode: "equal" as const,
+      participants: [{ subjectId: "usr_rahul" }, { subjectId: "usr_anu" }],
+    };
+    expect(await client(fetch).kitchen.createExpense("org_1", body, { idempotencyKey: "exp-1" })).toEqual({ txn });
+    expect(calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/expenses");
+    expect(sent(calls[0]!)).toEqual({ method: "POST", body, key: "exp-1" });
+  });
+
+  it("createSettlement POSTs the payment", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ txn }), { status: 201 }));
+    const body = { fromSubjectId: "usr_anu", toSubjectId: "usr_rahul", amountMinor: 500, method: "upi" as const };
+    await client(fetch).kitchen.createSettlement("org_1", body, { idempotencyKey: "pay-1" });
+    expect(calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/settlements");
+    expect(sent(calls[0]!)).toEqual({ method: "POST", body, key: "pay-1" });
+  });
+
+  it("reverseTxn and flagTxn POST under the transaction", async () => {
+    const reversed = captureFetch(jsonResponse(envelope({ txn }), { status: 201 }));
+    await client(reversed.fetch).kitchen.reverseTxn("org_1", "txn_1");
+    expect(reversed.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/txns/txn_1/reverse");
+    expect(sent(reversed.calls[0]!)).toEqual({ method: "POST", body: {}, key: null });
+
+    const flag = { id: "flg_1", txnId: "txn_1", orgId: "org_1", subjectId: "usr_anu", reason: "Not me", state: "open" };
+    const flagged = captureFetch(jsonResponse(envelope({ flag }), { status: 201 }));
+    expect(await client(flagged.fetch).kitchen.flagTxn("org_1", "txn_1", { reason: "Not me" })).toEqual({ flag });
+    expect(flagged.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/txns/txn_1/flags");
+  });
+
+  it("activity passes the cursor and limit, and balances and settlePlan read their paths", async () => {
+    const page = { items: [txn], nextCursor: "abc" };
+    const activity = captureFetch(jsonResponse(envelope(page)));
+    expect(await client(activity.fetch).kitchen.activity("org_1", { cursor: "xyz", limit: 10 })).toEqual(page);
+    expect(activity.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/activity?cursor=xyz&limit=10");
+
+    const first = captureFetch(jsonResponse(envelope(page)));
+    await client(first.fetch).kitchen.activity("org_1");
+    expect(first.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/activity");
+
+    const balances = { currency: "INR", balances: [{ subjectId: "usr_rahul", balanceMinor: 500 }] };
+    const b = captureFetch(jsonResponse(envelope(balances)));
+    expect(await client(b.fetch).kitchen.balances("org_1")).toEqual(balances);
+    expect(b.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/balances");
+
+    const plan = {
+      currency: "INR",
+      payments: [{ fromSubjectId: "usr_anu", toSubjectId: "usr_rahul", amountMinor: 500 }],
+      working: { debts: 1, pairs: 1, payments: 1 },
+    };
+    const p = captureFetch(jsonResponse(envelope(plan)));
+    expect(await client(p.fetch).kitchen.settlePlan("org_1")).toEqual(plan);
+    expect(p.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/settle-plan");
+  });
+
+  it("surfaces already_reversed as ConflictError and not_a_party as ForbiddenError", async () => {
+    const reason = (code: string, status: number, detail: string) =>
+      jsonResponse({ error: { code, message: code, details: { reason: detail }, requestId: "req_err" } }, { status });
+    const again = await client(captureFetch(reason("conflict", 409, "already_reversed")).fetch)
+      .kitchen.reverseTxn("org_1", "txn_1")
+      .catch((e: unknown) => e);
+    expect(again).toBeInstanceOf(ConflictError);
+    expect((again as ConflictError).details).toEqual({ reason: "already_reversed" });
+    await expect(
+      client(captureFetch(reason("forbidden", 403, "not_a_party")).fetch).kitchen.createSettlement("org_1", {
+        fromSubjectId: "usr_anu",
+        toSubjectId: "usr_rahul",
+        amountMinor: 1,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      client(captureFetch(reason("validation_failed", 422, "not_in_group")).fetch).kitchen.createExpense("org_1", {
+        title: "x",
+        totalMinor: 1,
+        payers: [],
+        mode: "equal",
+        participants: [],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+});

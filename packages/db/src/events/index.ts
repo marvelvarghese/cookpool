@@ -13,4 +13,4 @@ export type {
   AuditOrgFilters,
 } from "./types.js";
 
-export { createEventsRepository } from "./repository.js";
+export { createEventsRepository, eventWithAuditStatements } from "./repository.js";

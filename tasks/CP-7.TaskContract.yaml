@@ -1,0 +1,28 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-7
+  title: "The ledger: expenses, settlements, reversal, flags, activity, balances and the fewest-payments plan"
+spec:
+  goal: Every group has an append-only ledger in kitchen-worker — members add expenses in four split modes, record payments, reverse and flag entries, and read activity, balances and the fewest-payments plan with its working, all through the SDK.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-7.TaskContract.yaml
+  doneWhen:
+    - migration 220_kitchen_ledger creates kitchen_txns, kitchen_txn_splits and kitchen_flags, and every money write is one atomic batch
+    - an expense in each split mode posts through api-edge and balances match the engine's
+    - recording the settle plan's payments brings every balance to zero
+    - a reversal restores balances exactly and a second reversal is refused (409 already_reversed)
+    - a repeated Idempotency-Key does not post twice
+    - viewers can read but not post, and non-members get 404
+  gates: []

@@ -10,7 +10,8 @@ import { createProjectsRepository } from "@saas/db/projects";
 import { createMeteringRepository } from "@saas/db/metering";
 import { createWebhookRepository } from "@saas/db/webhooks";
 import { createEventsRepository } from "@saas/db/events";
-import { createKitchenRepository } from "@saas/db/kitchen";
+import { createKitchenRepository, type NewKitchenTxn } from "@saas/db/kitchen";
+import type { AppendEventWithAuditInput } from "@saas/db/events";
 import { asUuid } from "@saas/db";
 import { D1ApiAdapter } from "@saas/db/runner";
 
@@ -765,5 +766,287 @@ describe("kitchen group settings, against a real SQLite engine", () => {
     expect(row.currency).toBe("INR");
     expect(row.waste_policy).toBe("split_equally");
     expect(row.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  });
+});
+
+// The kitchen ledger (Cookpool CP-7, migration 220): append-only transactions
+// and their splits, every money write one batch with its audit event, a
+// unique idempotency key per group, and a transaction reversed at most once.
+// Each rule lives in the SQL — a partial unique index, a conditional insert,
+// a foreign key that fails the batch — so it is proved here, on SQLite.
+describe("kitchen ledger, against a real SQLite engine", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  const orgId = asUuid("71717171-7171-4171-8171-717171717171");
+  const otherOrgId = asUuid("81818181-8181-4181-8181-818181818181");
+  const now = new Date("2026-11-02T09:00:00.000Z");
+  let seq = 0;
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    executor = createSqlExecutor(d1Over(db));
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  const count = (table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
+
+  function newTxn(overrides: Partial<NewKitchenTxn> = {}): NewKitchenTxn {
+    seq += 1;
+    return {
+      id: asUuid(randomUUID()),
+      orgId,
+      kind: "expense",
+      title: "Dinner",
+      totalMinor: 900,
+      currency: "INR",
+      occurredAt: new Date(now.getTime() + seq * 1000),
+      createdBy: "usr_rahul",
+      idemKey: `key-${seq}`,
+      now,
+      ...overrides,
+    };
+  }
+
+  const dinnerSplits = [
+    { subjectId: "usr_rahul", paidMinor: 900, owedMinor: 300 },
+    { subjectId: "usr_anu", paidMinor: 0, owedMinor: 300 },
+    { subjectId: "usr_dev", paidMinor: 0, owedMinor: 300 },
+  ];
+
+  function audit(txnId: string, eventId = randomUUID().replace(/-/g, "")): AppendEventWithAuditInput {
+    return {
+      event: {
+        id: eventId,
+        type: "kitchen.expense.added",
+        version: 1,
+        source: "kitchen-worker",
+        occurredAt: now,
+        actorType: "user",
+        actorId: "usr_rahul",
+        orgId,
+        subjectKind: "kitchen_txn",
+        subjectId: txnId,
+        requestId: "req_ledger",
+        payload: {},
+      },
+      audit: { id: randomUUID().replace(/-/g, ""), category: "kitchen", description: "Expense" },
+    };
+  }
+
+  it("posts the transaction, its splits in order and its audit event in one batch", async () => {
+    const repo = createKitchenRepository(executor);
+    const txn = newTxn({ note: "Thali" });
+    const posted = await repo.postTxn({ txn, splits: dinnerSplits, audit: audit(txn.id) });
+    expect(posted.ok && posted.value.replayed).toBe(false);
+    expect(count("kitchen_txns")).toBe(1);
+    expect(count("kitchen_txn_splits")).toBe(3);
+    expect(count("events_event_log")).toBe(1);
+    expect(count("events_audit_entries")).toBe(1);
+
+    const got = await repo.getTxn(orgId, txn.id);
+    expect(got.ok && got.value).toMatchObject({
+      id: txn.id, orgId, kind: "expense", totalMinor: 900, currency: "INR", note: "Thali",
+      reverses: null, reversedBy: null, method: null, idemKey: txn.idemKey, splits: dinnerSplits,
+    });
+    expect(await repo.getTxn(otherOrgId, txn.id)).toEqual({ ok: false, error: { kind: "not_found" } });
+  });
+
+  it("writes nothing when a later statement of the batch fails", async () => {
+    const repo = createKitchenRepository(executor);
+    const first = newTxn();
+    const eventId = randomUUID().replace(/-/g, "");
+    await repo.postTxn({ txn: first, splits: dinnerSplits, audit: audit(first.id, eventId) });
+
+    // The second post's event id collides, so its LAST statements fail after
+    // its transaction and splits were inserted: the batch must roll them back.
+    const second = newTxn();
+    const failed = await repo.postTxn({ txn: second, splits: dinnerSplits, audit: audit(second.id, eventId) });
+    expect(failed.ok).toBe(false);
+    expect(count("kitchen_txns")).toBe(1);
+    expect(count("kitchen_txn_splits")).toBe(3);
+    expect(count("events_event_log")).toBe(1);
+  });
+
+  it("answers a repeated idempotency key with the transaction it posted, writing nothing", async () => {
+    const repo = createKitchenRepository(executor);
+    const txn = newTxn();
+    await repo.postTxn({ txn, splits: dinnerSplits, audit: audit(txn.id) });
+    const again = await repo.postTxn({
+      txn: { ...newTxn(), idemKey: txn.idemKey, totalMinor: 100 },
+      splits: [{ subjectId: "usr_anu", paidMinor: 100, owedMinor: 100 }],
+      audit: audit("ignored"),
+    });
+    expect(again.ok && again.value.replayed).toBe(true);
+    expect(again.ok && again.value.txn.id).toBe(txn.id);
+    expect(count("kitchen_txns")).toBe(1);
+    expect(count("events_event_log")).toBe(1);
+
+    // The same key in another group is another request.
+    const elsewhere = await repo.postTxn({ txn: { ...newTxn(), orgId: otherOrgId, idemKey: txn.idemKey }, splits: dinnerSplits });
+    expect(elsewhere.ok && elsewhere.value.replayed).toBe(false);
+  });
+
+  it("pins the group's currency with its first transaction and refuses another", async () => {
+    const repo = createKitchenRepository(executor);
+    expect(await repo.getGroupSettings(orgId)).toEqual({ ok: true, value: null });
+    await repo.postTxn({ txn: newTxn(), splits: dinnerSplits });
+    const settings = await repo.getGroupSettings(orgId);
+    expect(settings.ok && settings.value).toMatchObject({ currency: "INR", wastePolicy: "split_equally" });
+
+    const usd = newTxn({ currency: "USD" });
+    const refused = await repo.postTxn({ txn: usd, splits: dinnerSplits, audit: audit(usd.id) });
+    expect(refused).toEqual({ ok: false, error: { kind: "currency_mismatch", currency: "INR" } });
+    expect(count("kitchen_txns")).toBe(1);
+    expect(count("events_event_log")).toBe(0);
+    // And the settings currency stays locked.
+    const locked = await repo.upsertGroupSettings({ orgId, currency: "USD", now });
+    expect(locked.ok).toBe(false);
+  });
+
+  it("posts in a currency the group saved before its first transaction", async () => {
+    const repo = createKitchenRepository(executor);
+    await repo.upsertGroupSettings({ orgId, currency: "EUR", now });
+    expect((await repo.postTxn({ txn: newTxn({ currency: "EUR" }), splits: dinnerSplits })).ok).toBe(true);
+    const inr = await repo.postTxn({ txn: newTxn(), splits: dinnerSplits });
+    expect(inr).toEqual({ ok: false, error: { kind: "currency_mismatch", currency: "EUR" } });
+  });
+
+  it.each([
+    ["unbalanced", [{ subjectId: "usr_a", paidMinor: 900, owedMinor: 899 }]],
+    ["duplicate_subject", [{ subjectId: "usr_a", paidMinor: 900, owedMinor: 0 }, { subjectId: "usr_a", paidMinor: 0, owedMinor: 900 }]],
+    ["split_out_of_range", [{ subjectId: "usr_a", paidMinor: 1000, owedMinor: 900 }, { subjectId: "usr_b", paidMinor: -100, owedMinor: 0 }]],
+    ["no_splits", []],
+  ])("refuses splits that break the invariant (%s) before writing", async (reason, splits) => {
+    const result = await createKitchenRepository(executor).postTxn({ txn: newTxn(), splits });
+    expect(result).toEqual({ ok: false, error: { kind: "invalid", reason } });
+    expect(count("kitchen_txns")).toBe(0);
+  });
+
+  it("reverses a transaction once, swapping paid and owed", async () => {
+    const repo = createKitchenRepository(executor);
+    const txn = newTxn();
+    await repo.postTxn({ txn, splits: dinnerSplits });
+    const original = await repo.getTxn(orgId, txn.id);
+    if (!original.ok) throw new Error("not posted");
+
+    const swapped = dinnerSplits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.owedMinor, owedMinor: s.paidMinor }));
+    const reversal = { id: asUuid(randomUUID()), title: "Reversal: Dinner", occurredAt: now, createdBy: "usr_rahul", idemKey: "undo-1", now };
+    const first = await repo.reverseTxn({ original: original.value, reversal, splits: swapped });
+    expect(first.ok && first.value.txn).toMatchObject({ kind: "reversal", reverses: txn.id, totalMinor: 900, currency: "INR" });
+
+    const reread = await repo.getTxn(orgId, txn.id);
+    expect(reread.ok && reread.value.reversedBy).toBe(reversal.id);
+
+    const second = await repo.reverseTxn({
+      original: original.value,
+      reversal: { ...reversal, id: asUuid(randomUUID()), idemKey: "undo-2" },
+      splits: swapped,
+    });
+    expect(second).toEqual({ ok: false, error: { kind: "already_reversed", reversedBy: reversal.id } });
+
+    const replay = await repo.reverseTxn({
+      original: original.value,
+      reversal: { ...reversal, id: asUuid(randomUUID()) },
+      splits: swapped,
+    });
+    expect(replay.ok && replay.value).toMatchObject({ replayed: true, txn: { id: reversal.id } });
+    expect(count("kitchen_txns")).toBe(2);
+  });
+
+  it("lists activity newest first with splits, paging by cursor", async () => {
+    const repo = createKitchenRepository(executor);
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      const txn = newTxn({ title: `Meal ${i}` });
+      ids.push(txn.id);
+      await repo.postTxn({ txn, splits: dinnerSplits });
+    }
+    await repo.postTxn({ txn: newTxn({ orgId: otherOrgId }), splits: dinnerSplits });
+
+    const first = await repo.listActivity(orgId, { cursor: null, limit: 3 });
+    if (!first.ok) throw new Error("list failed");
+    expect(first.value.items.map((t) => t.id)).toEqual([ids[4], ids[3], ids[2]]);
+    expect(first.value.items.every((t) => t.splits.length === 3)).toBe(true);
+    expect(first.value.nextCursor).not.toBeNull();
+
+    const rest = await repo.listActivity(orgId, { cursor: first.value.nextCursor, limit: 3 });
+    expect(rest.ok && rest.value.items.map((t) => t.id)).toEqual([ids[1], ids[0]]);
+    expect(rest.ok && rest.value.nextCursor).toBeNull();
+  });
+
+  it("loads the whole ledger, oldest first, for balances", async () => {
+    const repo = createKitchenRepository(executor);
+    const a = newTxn();
+    const b = newTxn({ kind: "settlement", title: "Payment", totalMinor: 300, method: "upi" });
+    await repo.postTxn({ txn: a, splits: dinnerSplits });
+    await repo.postTxn({
+      txn: b,
+      splits: [
+        { subjectId: "usr_anu", paidMinor: 300, owedMinor: 0 },
+        { subjectId: "usr_rahul", paidMinor: 0, owedMinor: 300 },
+      ],
+    });
+    const ledger = await repo.listSplitsForGroup(orgId);
+    expect(ledger.ok && ledger.value.map((t) => [t.id, t.kind, t.splits.length])).toEqual([
+      [a.id, "expense", 3],
+      [b.id, "settlement", 2],
+    ]);
+    expect(await repo.listSplitsForGroup(otherOrgId)).toEqual({ ok: true, value: [] });
+  });
+
+  it("flags a transaction once per idempotency key, and lists its flags", async () => {
+    const repo = createKitchenRepository(executor);
+    const txn = newTxn();
+    await repo.postTxn({ txn, splits: dinnerSplits });
+    const input = { id: asUuid(randomUUID()), txnId: txn.id, orgId, subjectId: "usr_anu", reason: "I wasn't there", idemKey: "flag-1", now };
+    const created = await repo.createFlag(input);
+    expect(created.ok && created.value).toMatchObject({ replayed: false, flag: { state: "open", reason: "I wasn't there" } });
+    const again = await repo.createFlag({ ...input, id: asUuid(randomUUID()) });
+    expect(again.ok && again.value).toMatchObject({ replayed: true, flag: { id: input.id } });
+    const flags = await repo.listFlags(orgId, txn.id);
+    expect(flags.ok && flags.value.map((f) => f.id)).toEqual([input.id]);
+    expect(await repo.listFlags(otherOrgId, txn.id)).toEqual({ ok: true, value: [] });
+
+    const missing = await repo.createFlag({ ...input, id: asUuid(randomUUID()), txnId: asUuid(randomUUID()), idemKey: "flag-2" });
+    expect(missing).toEqual({ ok: false, error: { kind: "not_found" } });
+  });
+
+  it("checks kinds, amounts, reversals and settlement methods in the tables themselves", () => {
+    const insertTxn = (values: { kind?: string; total?: number; reverses?: string | null; method?: string | null }) => () =>
+      db.prepare(
+        `INSERT INTO kitchen_txns (id, org_id, kind, title, total_minor, currency, occurred_at, created_by, reverses, method, idem_key)
+         VALUES (?, ?, ?, 'x', ?, 'INR', '2026-11-02T00:00:00.000Z', 'usr_a', ?, ?, ?)`,
+      ).run(randomUUID(), orgId, values.kind ?? "expense", values.total ?? 0, values.reverses ?? null, values.method ?? null, randomUUID());
+    expect(insertTxn({})).not.toThrow();
+    expect(insertTxn({ kind: "gift" })).toThrow(/CHECK constraint failed/);
+    expect(insertTxn({ total: -1 })).toThrow(/CHECK constraint failed/);
+    expect(insertTxn({ kind: "reversal" })).toThrow(/CHECK constraint failed/);
+    expect(insertTxn({ method: "upi" })).toThrow(/CHECK constraint failed/);
+    expect(insertTxn({ kind: "settlement", method: "upi" })).not.toThrow();
+    expect(insertTxn({ kind: "settlement", method: "cheque" })).toThrow(/CHECK constraint failed/);
+    expect(insertTxn({ kind: "reversal", reverses: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
+
+    const txnId = randomUUID();
+    db.prepare(
+      `INSERT INTO kitchen_txns (id, org_id, kind, title, total_minor, currency, occurred_at, created_by, idem_key)
+       VALUES (?, ?, 'expense', 'x', 5, 'INR', '2026-11-02T00:00:00.000Z', 'usr_a', 'k')`,
+    ).run(txnId, orgId);
+    const split = (subject: string, paid: number, owed: number) => () =>
+      db.prepare("INSERT INTO kitchen_txn_splits (txn_id, subject_id, position, paid_minor, owed_minor) VALUES (?, ?, 0, ?, ?)")
+        .run(txnId, subject, paid, owed);
+    expect(split("usr_a", 5, 0)).not.toThrow();
+    expect(split("usr_a", 0, 5)).toThrow(/UNIQUE constraint failed|PRIMARY KEY/);
+    expect(split("usr_b", -1, 0)).toThrow(/CHECK constraint failed/);
+    expect(split("usr_c", 0, -1)).toThrow(/CHECK constraint failed/);
+    // The same idempotency key twice in one group.
+    expect(() =>
+      db.prepare(
+        `INSERT INTO kitchen_txns (id, org_id, kind, title, total_minor, currency, occurred_at, created_by, idem_key)
+         VALUES (?, ?, 'expense', 'x', 5, 'INR', '2026-11-02T00:00:00.000Z', 'usr_a', 'k')`,
+      ).run(randomUUID(), orgId),
+    ).toThrow(/UNIQUE constraint failed/);
   });
 });

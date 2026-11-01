@@ -201,5 +201,14 @@ export const manifest: MigrationManifest = {
       description:
         "Kitchen bounded context, first table: kitchen_group_settings — one row per group (org_id PK) with its ledger currency (fixed once set) and default waste policy; no row reads as INR / split_equally (Cookpool CP-4)",
     },
+    {
+      id: "220_kitchen_ledger",
+      context: "kitchen",
+      path: "220_kitchen_ledger/up.sql",
+      checksum:
+        "a5b3f6cbc68fb46a3821f5df5b0687b97323d709b91f4ad880127b47ddbf3f57",
+      description:
+        "Every group's append-only ledger: kitchen_txns (unique idempotency key per group; a transaction reversed at most once), kitchen_txn_splits (who paid, who owes) and kitchen_flags (Cookpool CP-7)",
+    },
   ],
 };

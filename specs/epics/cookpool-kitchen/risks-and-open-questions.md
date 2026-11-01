@@ -50,6 +50,9 @@ As built (CP-4): a group reads as INR until its settings are first saved, and
 the first save fixes the currency, even one that changes only the waste rule.
 The upsert enforces the lock in one statement, so racing first saves cannot
 disagree. The app should offer the currency on the first settings save.
+As built (CP-7): a group's first transaction also fixes it — the posting
+batch writes the settings row when there is none, and only inserts the
+transaction if the group's currency is the one it names.
 
 ## CP-G — logging a use on someone else's behalf (RISK, mitigated)
 
@@ -103,3 +106,15 @@ A `scheduled()` handler without `triggers` in wrangler never runs, and fails
 silently. Mitigation: triggers declared per environment, a test asserting
 they are present in the rendered wrangler config, and `/health` reporting the
 last sweep time.
+
+## CP-O — balances read the whole ledger (ACCEPTED)
+
+`…/balances` and `…/settle-plan` load every transaction and split of the group
+(`listSplitsForGroup`) and let the engine compute them, because the plan's
+working (debts → pairs) needs every transaction's pairwise lines, not only
+the per-person sums. That is one indexed query and a few thousand rows for a
+flat that logs a few meals a day for a year — fine for v1. Revisit when a
+group passes ~20k transactions or the read shows in Server-Timing: balances
+can become a `SUM(paid_minor − owed_minor) GROUP BY subject_id` query, and
+the working can be kept as running pairwise totals written in the same batch
+as each transaction.
