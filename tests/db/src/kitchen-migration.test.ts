@@ -40,4 +40,23 @@ describe("kitchen migrations", () => {
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS kitchen_group_settings/);
     expect(sql).toMatch(/org_id\s+TEXT PRIMARY KEY/);
   });
+
+  it("adds the ledger as 220_kitchen_ledger, right after the settings", () => {
+    const ids = manifest.migrations.map((m) => m.id);
+    expect(kitchen.map((m) => m.id)).toEqual(["210_kitchen_settings", "220_kitchen_ledger"]);
+    expect(ids.indexOf("220_kitchen_ledger")).toBe(ids.indexOf("210_kitchen_settings") + 1);
+  });
+
+  it("creates the ledger's three tables, its once-only reversal and its idempotency key", () => {
+    const sql = readFileSync(resolve(MIGRATIONS_ROOT, "220_kitchen_ledger/up.sql"), "utf8").replace(/--.*$/gm, "");
+    for (const table of ["kitchen_txns", "kitchen_txn_splits", "kitchen_flags"]) {
+      expect(sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`));
+    }
+    expect(sql).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS kitchen_txns_reverses_uq\s+ON kitchen_txns \(reverses\) WHERE reverses IS NOT NULL/);
+    expect(sql).toMatch(/UNIQUE \(org_id, idem_key\)/);
+    expect(sql).toMatch(/PRIMARY KEY \(txn_id, subject_id\)/);
+    expect(sql).toMatch(/kitchen_txns \(org_id, occurred_at DESC, id DESC\)/);
+    // Append-only: the ledger migration never alters or drops anything.
+    expect(sql).not.toMatch(/\b(ALTER|DROP|UPDATE|DELETE)\b/i);
+  });
 });

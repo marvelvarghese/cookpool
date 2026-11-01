@@ -20,11 +20,11 @@ export function withTimings(response: Response, requestId: string, route: string
   return response;
 }
 
-export function successResponse<T>(data: T, requestId: string, status = 200): Response {
+export function successResponse<T>(data: T, requestId: string, status = 200, cursor: string | null = null): Response {
   return Response.json(
     {
       data,
-      meta: { requestId, cursor: null },
+      meta: { requestId, cursor },
     },
     { status, headers: { "content-type": "application/json" } },
   );
@@ -76,6 +76,28 @@ export function validationError(requestId: string, fields: Record<string, string
   return errorResponse("validation_failed", "Validation failed", 422, requestId, { fields });
 }
 
+/**
+ * A well-formed request the group's members or currency refuse (a person not
+ * in the group, another currency); `reason` says which (KITCHEN_ERROR_REASONS).
+ */
+export function unprocessable(
+  requestId: string,
+  message: string,
+  reason: string,
+  details: Record<string, unknown> = {},
+): Response {
+  return errorResponse("validation_failed", message, 422, requestId, { reason, ...details });
+}
+
+/**
+ * A member of the group asking for something only certain members may do
+ * (the people a payment is between, a transaction's creator). Not the opaque
+ * 404: the caller can already see the group and the transaction.
+ */
+export function forbidden(requestId: string, message: string, reason: string): Response {
+  return errorResponse("forbidden", message, 403, requestId, { reason });
+}
+
 /** A request the current state refuses; `reason` says why (KITCHEN_ERROR_REASONS). */
 export function conflict(
   requestId: string,
@@ -89,10 +111,16 @@ export function conflict(
 /**
  * Read a JSON object body. `null` when the body is not JSON or not an object;
  * callers answer that with `validationError(requestId, { body: [...] })`.
+ * With `optional`, an empty body reads as `{}`.
  */
-export async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
+export async function readJsonObject(
+  request: Request,
+  options: { optional?: boolean } = {},
+): Promise<Record<string, unknown> | null> {
   try {
-    const body: unknown = await request.json();
+    const text = await request.text();
+    if (options.optional && text.trim() === "") return {};
+    const body: unknown = JSON.parse(text);
     return body !== null && typeof body === "object" && !Array.isArray(body)
       ? (body as Record<string, unknown>)
       : null;

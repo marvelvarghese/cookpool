@@ -164,3 +164,24 @@ export interface LeaveResponse {
   memberId: string;
   left: true;
 }
+
+// ── The group roster (service-internal, Cookpool CP-7) ───────────
+// GET /v1/internal/membership/organizations/:orgId/members — for sibling
+// workers over a service binding only (api-edge does not route
+// /v1/internal/…). kitchen-worker reads it to check that everyone a
+// transaction names is in the group. `:orgId` is the organization's UUID (or
+// its `org_…` public id); an organization with nobody in it, or none at all,
+// answers an empty list.
+
+/** One active member and their highest organization-scoped role. */
+export interface RosterMember {
+  /** The person's public id (`usr_…`), as role assignments store it. */
+  subjectId: string;
+  subjectType: string;
+  /** owner > admin > builder > viewer > billing_admin; null when they hold no organization-scoped role. */
+  role: string | null;
+}
+
+export interface RosterResponse {
+  members: RosterMember[];
+}

@@ -1,4 +1,4 @@
-import { executeBatch, type SqlExecutor } from "../d1/executor.js";
+import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executor.js";
 import type {
   AppendEventInput,
   AppendEventWithAuditInput,
@@ -114,6 +114,86 @@ function extractNextCursor<T extends { occurredAt: Date; id: string }>(
   return { trimmed: items, nextCursor: null };
 }
 
+/**
+ * The two statements `appendEventWithAudit` runs as one batch: the event, then
+ * its audit entry. Exported so a context whose write must land atomically WITH
+ * its audit trail (a ledger post, say) can append them to its own batch
+ * instead of writing the event afterwards. Each statement returns its row.
+ */
+export function eventWithAuditStatements(input: AppendEventWithAuditInput): SqlStatement[] {
+  const { event, audit } = input;
+  const params = [
+    event.id,
+    event.type,
+    event.version,
+    event.source,
+    event.occurredAt.toISOString(),
+    event.actorType,
+    event.actorId,
+    event.actorSessionId ?? null,
+    event.actorIp ?? null,
+    event.orgId,
+    event.projectId ?? null,
+    event.environmentId ?? null,
+    event.subjectKind,
+    event.subjectId,
+    event.subjectName ?? null,
+    event.requestId,
+    event.correlationId ?? null,
+    event.causationId ?? null,
+    event.idempotencyKey ?? null,
+    JSON.stringify(event.payload),
+    JSON.stringify(event.redactPaths ?? []),
+    audit.id,
+    audit.projectId ?? event.projectId ?? null,
+    audit.environmentId ?? event.environmentId ?? null,
+    audit.category ?? "general",
+    audit.description ?? "",
+  ];
+  return [
+    {
+      text: `INSERT INTO events_event_log (
+        id, type, version, source, occurred_at,
+        actor_type, actor_id, actor_session_id, actor_ip,
+        org_id, project_id, environment_id,
+        subject_kind, subject_id, subject_name,
+        request_id, correlation_id, causation_id, idempotency_key,
+        payload, redact_paths
+      ) VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9,
+        $10, $11, $12,
+        $13, $14, $15,
+        $16, $17, $18, $19,
+        $20, $21
+      )
+      RETURNING *`,
+      params,
+    },
+    {
+      text: `INSERT INTO events_audit_entries (
+        id, event_id, org_id, project_id, environment_id,
+        actor_type, actor_id,
+        event_type, event_version, source,
+        subject_kind, subject_id, subject_name,
+        category, description, occurred_at,
+        request_id, correlation_id,
+        payload, redact_paths
+      ) VALUES (
+        $22, $1, $10, $23, $24,
+        $6, $7,
+        $2, $3, $4,
+        $13, $14, $15,
+        $25, $26, $5,
+        $16, $17,
+        $20, $21
+      )
+      RETURNING *`,
+      params,
+    },
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -179,7 +259,6 @@ export function createEventsRepository(executor: SqlExecutor): EventsRepository 
     },
 
     async appendEventWithAudit(input: AppendEventWithAuditInput): Promise<EventsResult<{ event: StoredEvent; audit: StoredAuditEntry }>> {
-      const { event, audit } = input;
       try {
         // ONE ATOMIC BATCH: the event and its audit entry land together or not
         // at all. This was a Postgres data-modifying CTE with `row_to_json`,
@@ -187,76 +266,7 @@ export function createEventsRepository(executor: SqlExecutor): EventsRepository 
         // No ON CONFLICT on the event: a replayed id raises a unique
         // violation, the batch rolls back, and the caller gets the same
         // conflict it got before — with no second audit entry.
-        const params = [
-          event.id,
-          event.type,
-          event.version,
-          event.source,
-          event.occurredAt.toISOString(),
-          event.actorType,
-          event.actorId,
-          event.actorSessionId ?? null,
-          event.actorIp ?? null,
-          event.orgId,
-          event.projectId ?? null,
-          event.environmentId ?? null,
-          event.subjectKind,
-          event.subjectId,
-          event.subjectName ?? null,
-          event.requestId,
-          event.correlationId ?? null,
-          event.causationId ?? null,
-          event.idempotencyKey ?? null,
-          JSON.stringify(event.payload),
-          JSON.stringify(event.redactPaths ?? []),
-          audit.id,
-          audit.projectId ?? event.projectId ?? null,
-          audit.environmentId ?? event.environmentId ?? null,
-          audit.category ?? "general",
-          audit.description ?? "",
-        ];
-        const [eventResult, auditResult] = await executeBatch(executor, [
-          {
-            text: `INSERT INTO events_event_log (
-              id, type, version, source, occurred_at,
-              actor_type, actor_id, actor_session_id, actor_ip,
-              org_id, project_id, environment_id,
-              subject_kind, subject_id, subject_name,
-              request_id, correlation_id, causation_id, idempotency_key,
-              payload, redact_paths
-            ) VALUES (
-              $1, $2, $3, $4, $5,
-              $6, $7, $8, $9,
-              $10, $11, $12,
-              $13, $14, $15,
-              $16, $17, $18, $19,
-              $20, $21
-            )
-            RETURNING *`,
-            params,
-          },
-          {
-            text: `INSERT INTO events_audit_entries (
-              id, event_id, org_id, project_id, environment_id,
-              actor_type, actor_id,
-              event_type, event_version, source,
-              subject_kind, subject_id, subject_name,
-              category, description, occurred_at,
-              request_id, correlation_id,
-              payload, redact_paths
-            ) VALUES (
-              $22, $1, $10, $23, $24,
-              $6, $7,
-              $2, $3, $4,
-              $13, $14, $15,
-              $25, $26, $5,
-              $16, $17,
-              $20, $21
-            )
-            RETURNING *`,
-            params,
-          },
-        ]);
+        const [eventResult, auditResult] = await executeBatch(executor, eventWithAuditStatements(input));
 
         const eventRow = eventResult?.rows[0];
         const auditRow = auditResult?.rows[0];

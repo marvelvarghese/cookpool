@@ -16,6 +16,7 @@ import { handleResolveBillingParent } from "./handlers/resolve-billing-parent.js
 import { handleCreateServicePrincipalBinding, handleListServicePrincipalBindings, handleRevokeServicePrincipalBinding } from "./handlers/service-principal-bindings.js";
 import { handleGetJoinCode, handleRotateJoinCode, handlePreviewJoin, handleJoin } from "./handlers/join.js";
 import { handleLeaveOrganization } from "./handlers/leave.js";
+import { handleInternalMembers } from "./handlers/internal-members.js";
 import { errorResponse, notFound, methodNotAllowed } from "./http.js";
 import { generateRequestId } from "./ids.js";
 
@@ -53,6 +54,7 @@ const ORG_JOIN_CODE_ROTATE_RE = /^\/v1\/organizations\/([^/]+)\/join-code\/rotat
 const ORG_LEAVE_RE = /^\/v1\/organizations\/([^/]+)\/leave$/;
 const SP_BINDINGS_PATH = "/v1/internal/membership/service-principal-bindings";
 const SP_BINDING_ID_RE = /^\/v1\/internal\/membership\/service-principal-bindings\/([^/]+)$/;
+const INTERNAL_ORG_MEMBERS_RE = /^\/v1\/internal\/membership\/organizations\/([^/]+)\/members$/;
 
 export async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -85,6 +87,17 @@ export async function route(request: Request, env: Env): Promise<Response> {
     if (url.pathname === "/v1/internal/membership/organizations/billing-parent") {
       if (request.method === "POST") {
         return handleResolveBillingParent(request, env, requestId);
+      }
+      return methodNotAllowed(requestId);
+    }
+
+    // Internal group roster (Cookpool CP-7): kitchen-worker checks that the
+    // people a transaction names are in the group. Service-binding only — not
+    // routed by api-edge.
+    const internalMembersMatch = url.pathname.match(INTERNAL_ORG_MEMBERS_RE);
+    if (internalMembersMatch) {
+      if (request.method === "GET") {
+        return handleInternalMembers(env, requestId, internalMembersMatch[1]!);
       }
       return methodNotAllowed(requestId);
     }

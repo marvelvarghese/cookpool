@@ -66,3 +66,13 @@ export function requireGroupAction(ctx: OrgContext, action: KitchenAction): Prom
     requireOrgAction(ctx.env, ctx.requestId, ctx.actor, ctx.orgId, action),
   );
 }
+
+/**
+ * Does the actor hold `action` in the request's group? For a finer check
+ * AFTER `requireGroupAction` let the request in — "or an owner or admin" —
+ * where a no is a 403 with a reason rather than the opaque 404: the caller
+ * already knows the group. Any denial or failed hop is false.
+ */
+export async function groupAllows(ctx: OrgContext, action: KitchenAction): Promise<boolean> {
+  return (await requireGroupAction(ctx, action)) === null;
+}
