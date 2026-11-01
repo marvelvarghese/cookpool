@@ -19,6 +19,7 @@ import { debtsBehind } from "./debts";
 import { TXN_KIND_META } from "./activity";
 import { SETTLE_METHODS, paymentSentence, settlementRequest, workingLine, type GroupRef } from "./settle";
 import { refreshLedger, useAllActivity, useOfferUndo } from "./ledger-data";
+import { useMemberNames } from "./people-data";
 
 /**
  * "Fewest payments" for one group (CP-8): the working (debts → pairs →
@@ -35,6 +36,7 @@ export function SettleCard({
   reload,
   meId,
   canRecordAny,
+  canWrite = true,
   showGroup = false,
   className,
 }: {
@@ -46,6 +48,8 @@ export function SettleCard({
   meId: string | null;
   /** Owners and admins may record anyone's payment. */
   canRecordAny: boolean;
+  /** False for a viewer (CP-9): they record nothing, not even their own payments. */
+  canWrite?: boolean;
   /** Name the group in the card's heading (Settle up). */
   showGroup?: boolean;
   className?: string;
@@ -96,11 +100,15 @@ export function SettleCard({
                     payment={p}
                     currency={plan.currency}
                     meId={meId}
-                    canRecord={canRecordAny || p.fromSubjectId === meId || p.toSubjectId === meId}
+                    canRecord={canWrite && (canRecordAny || p.fromSubjectId === meId || p.toSubjectId === meId)}
                   />
                 ))}
               </ul>
-              {!canRecordAny && plan.payments.some((p) => p.fromSubjectId !== meId && p.toSubjectId !== meId) ? (
+              {!canWrite ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  You view this group: the people in a payment, or an owner or admin, record it.
+                </p>
+              ) : !canRecordAny && plan.payments.some((p) => p.fromSubjectId !== meId && p.toSubjectId !== meId) ? (
                 <p className="mt-2 text-xs text-muted-foreground">
                   The two people in a payment, or an owner or admin, can record it.
                 </p>
@@ -119,6 +127,7 @@ function DebtsBehind({ orgId, meId, currency }: { orgId: string; meId: string | 
   const [open, setOpen] = React.useState(false);
   const panelId = React.useId();
   const all = useAllActivity(orgId, open);
+  const names = useMemberNames();
   const debts = React.useMemo(() => (all.data ? debtsBehind(all.data.txns) : null), [all.data]);
 
   return (
@@ -160,13 +169,13 @@ function DebtsBehind({ orgId, meId, currency }: { orgId: string; meId: string | 
                   <p className="text-sm font-semibold">
                     {pair.debtorId && pair.creditorId ? (
                       <>
-                        {memberLabel(pair.debtorId, meId)} {pair.debtorId === meId ? "owe" : "owes"}{" "}
-                        {memberLabelInline(pair.creditorId, meId)}{" "}
+                        {memberLabel(pair.debtorId, meId, names)} {pair.debtorId === meId ? "owe" : "owes"}{" "}
+                        {memberLabelInline(pair.creditorId, meId, names)}{" "}
                         <Money minor={pair.netMinor} currency={currency} className="font-bold" />
                       </>
                     ) : (
                       <>
-                        {memberLabel(pair.a, meId)} and {memberLabelInline(pair.b, meId)}:{" "}
+                        {memberLabel(pair.a, meId, names)} and {memberLabelInline(pair.b, meId, names)}:{" "}
                         <span className="font-normal text-muted-foreground">cancels out</span>
                       </>
                     )}
@@ -179,8 +188,8 @@ function DebtsBehind({ orgId, meId, currency }: { orgId: string; meId: string | 
                             {line.title}
                           </span>
                           <span className="block text-muted-foreground">
-                            {TXN_KIND_META[line.kind].label} · {memberLabel(line.debtorId, meId)}{" "}
-                            {line.debtorId === meId ? "owe" : "owes"} {memberLabelInline(line.creditorId, meId)}
+                            {TXN_KIND_META[line.kind].label} · {memberLabel(line.debtorId, meId, names)}{" "}
+                            {line.debtorId === meId ? "owe" : "owes"} {memberLabelInline(line.creditorId, meId, names)}
                           </span>
                         </span>
                         <Money minor={line.amountMinor} currency={currency} className="shrink-0 font-semibold" />
@@ -226,8 +235,11 @@ export function PaymentRow({
   const [choosing, setChoosing] = React.useState(false);
   const [busy, setBusy] = React.useState<SettlementMethod | null>(null);
   const chipsId = React.useId();
-  const sentence = paymentSentence(payment, meId);
+  const names = useMemberNames();
+  const sentence = paymentSentence(payment, meId, names);
   const counterpart = payment.fromSubjectId === meId ? payment.toSubjectId : payment.fromSubjectId;
+  // Your own payments open the person: everything between you two, across groups.
+  const involvesMe = !!meId && (payment.fromSubjectId === meId || payment.toSubjectId === meId);
 
   const record = async (method: SettlementMethod) => {
     if (busy) return;
@@ -263,9 +275,18 @@ export function PaymentRow({
     <li className="py-3">
       {/* One line from 560px; on a phone, Record wraps under the amount. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <PersonAvatar subjectId={counterpart} meId={meId} />
+        <PersonAvatar subjectId={counterpart} meId={meId} names={names} />
         <div className="min-w-[10rem] flex-1">
-          <p className="text-[15px] font-semibold leading-snug">{sentence}</p>
+          {involvesMe ? (
+            <Link
+              href={`/people/${encodeURIComponent(counterpart)}`}
+              className="block rounded text-[15px] font-semibold leading-snug underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {sentence}
+            </Link>
+          ) : (
+            <p className="text-[15px] font-semibold leading-snug">{sentence}</p>
+          )}
           {groupName ? (
             groupHref ? (
               <Link href={groupHref} className="text-xs text-muted-foreground underline-offset-2 hover:underline">

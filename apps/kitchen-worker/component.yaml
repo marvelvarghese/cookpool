@@ -34,6 +34,8 @@ spec:
           when:
             triggerRef: github-pull-request
     - component: notifications-worker
+    # People's names (CP-9): POST /v1/internal/identity/users/lookup.
+    - component: identity-worker
     - component: cloudflare-d1
       mode: enforced
       modeRules:

@@ -25,6 +25,9 @@ import type {
   SettlePlan,
   UpdateKitchenSettingsRequest,
   UpdateKitchenSettingsResponse,
+  GroupMembersResponse,
+  MyBalancesResponse,
+  PersonViewResponse,
 } from "@saas/contracts/kitchen";
 
 import type { RequestOptions, Transport } from "./transport.js";
@@ -329,5 +332,39 @@ export class KitchenClient {
       { method: "DELETE", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}`) },
       opts,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // People across groups (CP-9)
+  // -------------------------------------------------------------------------
+
+  /**
+   * GET /v1/kitchen/me/balances
+   *
+   * The caller's groups (balance, role, member count), everyone they share a
+   * group with and what each group's settle plan has between them, and the
+   * totals per currency — one read for Home, People and Settle up.
+   */
+  myBalances(opts: RequestOptions = {}): Promise<MyBalancesResponse> {
+    return this.transport.request<MyBalancesResponse>({ method: "GET", path: this.mePath("balances") }, opts);
+  }
+
+  /**
+   * GET /v1/kitchen/me/people/:subjectId
+   *
+   * Every amount between the caller and one person, in each group they
+   * share: the lines, what they owe each other directly, what the plan asks,
+   * and the group shortcut. A `NotFoundError` when they share no group.
+   */
+  person(subjectId: string, opts: RequestOptions = {}): Promise<PersonViewResponse> {
+    return this.transport.request<PersonViewResponse>(
+      { method: "GET", path: this.mePath(`people/${encodeURIComponent(subjectId)}`) },
+      opts,
+    );
+  }
+
+  /** GET /v1/organizations/:orgId/kitchen/members — who is in the group, by name and role (any member). */
+  groupMembers(orgId: string, opts: RequestOptions = {}): Promise<GroupMembersResponse> {
+    return this.transport.request<GroupMembersResponse>({ method: "GET", path: this.groupPath(orgId, "members") }, opts);
   }
 }

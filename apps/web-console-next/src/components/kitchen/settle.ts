@@ -1,21 +1,23 @@
 /**
  * Settling up (Cookpool CP-8) as a pure model: the working line, who pays
  * whom, a person's net from a group's plan, the "All groups" merge of every
- * group's payments that involve you, Home's summary, and the settlement a
- * Record posts. Dependency-free (contract types only), so it is unit-testable.
+ * group's payments that involve you, and the settlement a Record posts.
+ * Dependency-free (contract types only), so it is unit-testable.
  *
- * Every group's plan comes from its own `…/settle-plan` (one call per group:
- * a server-side cross-group read arrives in CP-9). Groups can count in
- * different currencies, so totals are kept per currency.
+ * One group's plan comes from its `…/settle-plan`; "All groups" reads the
+ * payments that involve you from the cross-group `myBalances()` (CP-9), whose
+ * per-person nets are each group's plan. Groups can count in different
+ * currencies, so totals are kept per currency.
  */
 
 import type {
   CreateSettlementRequest,
+  MyBalancesResponse,
   SettlePayment,
   SettlePlan,
   SettlementMethod,
 } from "@saas/contracts/kitchen";
-import { memberLabel, memberLabelInline } from "./members";
+import { memberLabel, memberLabelInline, type MemberNames } from "./members";
 
 export interface GroupRef {
   id: string;
@@ -47,11 +49,12 @@ export function paymentDirection(p: SettlePayment, meId: string | null | undefin
   return "others";
 }
 
-/** "You pay Member · 3f9a", "Member · 3f9a pays you", "Member · 1a2b pays Member · 3f9a". */
-export function paymentSentence(p: SettlePayment, meId: string | null | undefined): string {
-  const from = memberLabel(p.fromSubjectId, meId);
-  const to = memberLabelInline(p.toSubjectId, meId);
-  return `${from} ${from === "You" ? "pay" : "pays"} ${to}`;
+/** "You pay Dev", "Dev pays you", "Anu pays Member · 3f9a". */
+export function paymentSentence(p: SettlePayment, meId: string | null | undefined, names?: MemberNames | null): string {
+  const you = !!meId && p.fromSubjectId === meId;
+  const from = memberLabel(p.fromSubjectId, meId, names);
+  const to = memberLabelInline(p.toSubjectId, meId, names);
+  return `${from} ${you ? "pay" : "pays"} ${to}`;
 }
 
 /**
@@ -73,12 +76,39 @@ export function settlementRequest(p: SettlePayment, method: SettlementMethod): C
   return { fromSubjectId: p.fromSubjectId, toSubjectId: p.toSubjectId, amountMinor: p.amountMinor, method };
 }
 
-/** One group's plan as the screens hold it while the per-group calls come back. */
+/** One group's plan (or the part of it that involves you) as the screens hold it. */
 export interface GroupPlan {
   group: GroupRef;
-  plan: SettlePlan | null;
+  plan: Pick<SettlePlan, "currency" | "payments"> | null;
   loading: boolean;
   failed: boolean;
+}
+
+/**
+ * Each of your groups' payments that involve you, from the cross-group read:
+ * a person's positive net in a group is them paying you, a negative one you
+ * paying them — exactly that group's plan, minus the payments between others.
+ */
+export function groupPlansFromBalances(data: MyBalancesResponse, meId: string): GroupPlan[] {
+  return data.groups.map((g) => {
+    const payments: SettlePayment[] = [];
+    for (const p of data.people) {
+      for (const n of p.groups) {
+        if (n.orgId !== g.orgId || n.netMinor === 0) continue;
+        payments.push(
+          n.netMinor > 0
+            ? { fromSubjectId: p.subjectId, toSubjectId: meId, amountMinor: n.netMinor }
+            : { fromSubjectId: meId, toSubjectId: p.subjectId, amountMinor: -n.netMinor },
+        );
+      }
+    }
+    return {
+      group: { id: g.orgId, name: g.name, slug: g.slug },
+      plan: { currency: g.currency, payments },
+      loading: false,
+      failed: false,
+    };
+  });
 }
 
 export interface MergedPayment extends SettlePayment {
@@ -142,45 +172,6 @@ export function mergeAllGroups(groups: readonly GroupPlan[], meId: string | null
     else t.youGetMinor += p.amountMinor;
   }
   return { payments, totals, pending, failed };
-}
-
-export interface HomeGroupBalance {
-  group: GroupRef;
-  currency: string;
-  /** Your balance in the group (positive: you get money back); never zero here. */
-  netMinor: number;
-}
-
-export interface HomeSettleSummary {
-  /** Groups where your balance isn't zero, largest first. */
-  balances: HomeGroupBalance[];
-  /** Some group's plan has a payment that involves you: show Settle up. */
-  settleUp: boolean;
-  /** Still waiting for some group's plan. */
-  loading: boolean;
-}
-
-/** Home's balance card, from the same per-group plans. */
-export function homeSettleSummary(groups: readonly GroupPlan[], meId: string | null | undefined): HomeSettleSummary {
-  const balances: HomeGroupBalance[] = [];
-  let settleUp = false;
-  let loading = false;
-  for (const g of groups) {
-    if (!g.plan) {
-      if (g.loading) loading = true;
-      continue;
-    }
-    if (!meId) continue;
-    if (g.plan.payments.some((p) => paymentDirection(p, meId) !== "others")) settleUp = true;
-    const netMinor = netFromPlan(g.plan, meId);
-    if (netMinor !== 0) balances.push({ group: g.group, currency: g.plan.currency, netMinor });
-  }
-  balances.sort(
-    (x, y) =>
-      Math.abs(y.netMinor) - Math.abs(x.netMinor) ||
-      x.group.name.localeCompare(y.group.name, undefined, { sensitivity: "base", numeric: true }),
-  );
-  return { balances, settleUp, loading };
 }
 
 /** The value of the "All groups" choice in the settle-up group picker. */

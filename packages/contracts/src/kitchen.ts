@@ -487,3 +487,153 @@ export interface UpdateGroupItemRequest extends UpdatePersonalItemRequest {
 export interface KitchenItemResponse {
   item: KitchenItem;
 }
+
+// ── People: balances across groups, and the "why" (CP-9) ────
+//
+// A person's money is still settled inside each group; these reads add it up
+// across the caller's groups and explain it. Every amount is in its group's
+// currency, and nothing is added across currencies: totals are per currency.
+// `displayName` is the name a person set on their profile, else the start of
+// their email (before the @); null when it could not be read.
+
+/** The roles that make someone part of a group's kitchen (`builder` is "member" in the app). */
+export const KITCHEN_GROUP_ROLES = ["owner", "admin", "builder", "viewer"] as const;
+export type KitchenGroupRole = (typeof KITCHEN_GROUP_ROLES)[number];
+
+/** One of the caller's groups, as GET /v1/kitchen/me/balances reads it. */
+export interface MyGroupBalance {
+  /** `org_…` */
+  orgId: string;
+  slug: string;
+  name: string;
+  currency: string;
+  /** The caller's balance in it: Σ paid − Σ owed (positive: they get money back). */
+  balanceMinor: number;
+  /** The caller's role in it. A `viewer` reads but writes nothing. */
+  role: KitchenGroupRole;
+  /** People in the group with a group role, the caller included. */
+  memberCount: number;
+}
+
+/** What one group's settle plan says between the caller and one person. */
+export interface PersonGroupNet {
+  orgId: string;
+  slug: string;
+  name: string;
+  currency: string;
+  /** Positive: they pay you; negative: you pay them; zero: nothing between you in the plan. */
+  netMinor: number;
+}
+
+export interface PersonBalance {
+  /** `usr_…` */
+  subjectId: string;
+  displayName: string | null;
+  /** Every group you share, and any group whose plan still has a payment between you, by name. */
+  groups: PersonGroupNet[];
+}
+
+/** The caller's money in one currency, across every group that counts in it. */
+export interface CurrencyTotal {
+  currency: string;
+  /** What the plans say others pay you. */
+  owedToYouMinor: number;
+  /** What the plans say you pay others. */
+  youOweMinor: number;
+  /** owedToYouMinor − youOweMinor: the sum of your balances in those groups. */
+  netMinor: number;
+}
+
+/**
+ * GET /v1/kitchen/me/balances — the caller's groups (by name) with their
+ * balance, role and member count; everyone they share a group with (largest
+ * amount first, then by name), with what each group's settle plan says
+ * between them — the same numbers Settle up shows; and the totals per
+ * currency, in the order the groups first use them.
+ */
+export interface MyBalancesResponse {
+  groups: MyGroupBalance[];
+  people: PersonBalance[];
+  totals: CurrencyTotal[];
+}
+
+/** One transaction line between the caller and the person, from the caller's side. */
+export interface PersonLine {
+  /** `txn_…` */
+  txnId: string;
+  kind: KitchenTxnKind;
+  title: string;
+  occurredAt: string;
+  /** Positive: it left them owing you; negative: it left you owing them. */
+  signedMinor: number;
+  /** A later reversal undid it (that reversal is a line too). */
+  reversed: boolean;
+  /** For a reversal: the `txn_…` it undoes. */
+  reverses: string | null;
+}
+
+/**
+ * The group shortcut in one step: `from` owes `via` and `via` owes `to`, so
+ * the plan has `from` pay `to` directly. `amountMinor` is what `from` owes
+ * `via` (their pairwise net in the group).
+ */
+export interface ShortcutVia {
+  fromSubjectId: string;
+  viaSubjectId: string;
+  toSubjectId: string;
+  amountMinor: number;
+  /** The display name of whichever of the three is neither you nor the person. */
+  thirdDisplayName: string | null;
+}
+
+/** "Why · {group}": every amount between the caller and the person in one group. */
+export interface PersonGroupView {
+  orgId: string;
+  slug: string;
+  name: string;
+  currency: string;
+  /** The caller's role in the group (a `viewer` cannot record a payment). */
+  role: KitchenGroupRole;
+  /** Every line between you two since the group began, newest first. */
+  lines: PersonLine[];
+  /** Σ lines — what you two owe each other directly. Positive: they owe you. */
+  pairwiseMinor: number;
+  /** What the group's settle plan asks of you two. Positive: they pay you. */
+  planMinor: number;
+  /** planMinor − pairwiseMinor: what the group's fewest-payments plan routes through you two. */
+  shortcutMinor: number;
+  /** One three-person step that explains the shortcut; null when it is zero or no single person explains it. */
+  shortcutVia: ShortcutVia | null;
+}
+
+/**
+ * GET /v1/kitchen/me/people/{usr} — every group the caller shares with the
+ * person (or where money is still open between them), by name; 404 when there
+ * is none. `totals` adds up `planMinor` per currency.
+ */
+export interface PersonViewResponse {
+  subjectId: string;
+  displayName: string | null;
+  groups: PersonGroupView[];
+  totals: { currency: string; netMinor: number }[];
+}
+
+/** One member of a group, as every member sees them. */
+export interface KitchenMember {
+  /** `usr_…` */
+  subjectId: string;
+  displayName: string | null;
+  role: KitchenGroupRole;
+  /** `mem_…`: what `memberships.updateMemberRole` takes. Null until membership-worker reports it. */
+  memberId: string | null;
+  /** When they joined; null until membership-worker reports it. */
+  joinedAt: string | null;
+}
+
+/**
+ * GET /v1/organizations/{org}/kitchen/members (`kitchen.pantry.read`, so every
+ * member, viewers too): who is in the group, oldest first, with names and roles.
+ */
+export interface GroupMembersResponse {
+  members: KitchenMember[];
+}

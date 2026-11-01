@@ -17,7 +17,7 @@ const env: Env = { ENVIRONMENT: "test" };
 
 function member(subjectId: string, joinedMinutes: number, subjectType = "user"): OrganizationMember {
   const at = new Date(T0.getTime() + joinedMinutes * 60_000);
-  return { id: `mem-${subjectId}`, orgId: ORG, subjectId, subjectType, status: "active", createdAt: at, updatedAt: at };
+  return { id: subjectId, orgId: ORG, subjectId, subjectType, status: "active", createdAt: at, updatedAt: at };
 }
 
 function role(subjectId: string, name: string, scopeKind = "organization", revokedAt: Date | null = null): RoleAssignment {
@@ -72,10 +72,17 @@ describe("membership-worker: the internal group roster", () => {
       ],
     );
     expect(await roster(await handleInternalMembers(env, "req_1", ORG, { repo }))).toEqual([
-      { subjectId: "usr_rahul", subjectType: "user", role: "owner" },
-      { subjectId: "usr_anu", subjectType: "user", role: "viewer" },
-      { subjectId: "sp_bot", subjectType: "service_principal", role: null },
+      { subjectId: "usr_rahul", subjectType: "user", role: "owner", memberId: "mem_usr_rahul", joinedAt: "2026-11-01T00:00:00.000Z" },
+      { subjectId: "usr_anu", subjectType: "user", role: "viewer", memberId: "mem_usr_anu", joinedAt: "2026-11-01T00:05:00.000Z" },
+      { subjectId: "sp_bot", subjectType: "service_principal", role: null, memberId: "mem_sp_bot", joinedAt: "2026-11-01T00:09:00.000Z" },
     ]);
+  });
+
+  it("names each membership by its public mem_ id, the one the member routes take (CP-9)", async () => {
+    const id = "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e";
+    const repo = fakeRepo([{ ...member("usr_rahul", 0), id }], [role("usr_rahul", "owner")]);
+    const [rahul] = await roster(await handleInternalMembers(env, "req_1", ORG, { repo }));
+    expect(rahul).toMatchObject({ memberId: "mem_0f1e2d3c4b5a49688778695a4b3c2d1e", joinedAt: T0.toISOString() });
   });
 
   it("accepts the organization's public id as well as its UUID", async () => {

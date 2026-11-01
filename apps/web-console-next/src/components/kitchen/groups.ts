@@ -4,7 +4,8 @@
  * dependency-free (types only) so it is unit-testable.
  *
  * A group is a baseline organization; the list API returns id, name, slug and
- * createdAt (no role or member count), so those are what sorting can use.
+ * createdAt, so those are what sorting can use. Your role and the member count
+ * come from the kitchen's cross-group read (`myBalances`, CP-9).
  * "Recent" is the order the person last opened groups on this device.
  */
 
@@ -124,6 +125,20 @@ export function roleFromAssignments(
     if (best === null || ROLE_RANK[r.role]! > ROLE_RANK[best]!) best = r.role;
   }
   return best ? ROLE_OF[best]! : null;
+}
+
+/**
+ * A role as the kitchen API names it (`owner`, `admin`, `builder`, `viewer`:
+ * `myBalances().groups[].role`, a group's members) in the app's words; null
+ * for anything else.
+ */
+export function roleFromKitchen(role: string | null | undefined): GroupRole | null {
+  return role && Object.hasOwn(ROLE_OF, role) ? ROLE_OF[role]! : null;
+}
+
+/** Viewers read a group but write nothing in it: no expenses, payments, undo or flags. */
+export function canWriteInGroup(role: GroupRole | null): boolean {
+  return role !== null && role !== "viewer";
 }
 
 export function roleLabel(role: GroupRole): string {

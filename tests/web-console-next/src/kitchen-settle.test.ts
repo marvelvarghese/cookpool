@@ -1,8 +1,8 @@
-import type { SettlePlan } from "@saas/contracts/kitchen";
+import type { MyBalancesResponse, SettlePlan } from "@saas/contracts/kitchen";
 import {
   ALL_GROUPS,
   SETTLE_METHODS,
-  homeSettleSummary,
+  groupPlansFromBalances,
   initialSettleChoice,
   mergeAllGroups,
   netFromPlan,
@@ -123,25 +123,59 @@ describe("All groups: every group's payments that involve you", () => {
   });
 });
 
-describe("Home's balance card", () => {
-  it("lists your non-zero balance per group, largest first, and shows Settle up", () => {
-    const s = homeSettleSummary(
-      [loaded(FLAT, flatPlan), loaded(LUNCH, lunchPlan), loaded(OFFICE, { ...lunchPlan, payments: [] })],
-      ME,
-    );
-    expect(s.balances.map((b) => [b.group.name, b.netMinor, b.currency])).toEqual([
-      ["Flat 4B", 8_650, "INR"],
-      ["Lunch club", -2_400, "INR"],
-    ]);
-    expect(s.settleUp).toBe(true);
-    expect(s.loading).toBe(false);
+describe("All groups from the cross-group read (CP-9)", () => {
+  // What GET /v1/kitchen/me/balances says for the flat, lunch and trip plans above.
+  const balances: MyBalancesResponse = {
+    groups: [
+      { orgId: FLAT.id, slug: FLAT.slug, name: FLAT.name, currency: "INR", balanceMinor: 8_650, role: "owner", memberCount: 3 },
+      { orgId: TRIP.id, slug: TRIP.slug, name: TRIP.name, currency: "USD", balanceMinor: -5_000, role: "builder", memberCount: 2 },
+      { orgId: LUNCH.id, slug: LUNCH.slug, name: LUNCH.name, currency: "INR", balanceMinor: -2_400, role: "viewer", memberCount: 2 },
+    ],
+    people: [
+      {
+        subjectId: DEV,
+        displayName: "Dev",
+        groups: [
+          { orgId: FLAT.id, slug: FLAT.slug, name: FLAT.name, currency: "INR", netMinor: 4_575 },
+          { orgId: TRIP.id, slug: TRIP.slug, name: TRIP.name, currency: "USD", netMinor: -5_000 },
+        ],
+      },
+      { subjectId: ANU, displayName: "Anu", groups: [{ orgId: FLAT.id, slug: FLAT.slug, name: FLAT.name, currency: "INR", netMinor: 4_075 }] },
+      { subjectId: KIRAN, displayName: null, groups: [{ orgId: LUNCH.id, slug: LUNCH.slug, name: LUNCH.name, currency: "INR", netMinor: -2_400 }] },
+    ],
+    totals: [
+      { currency: "INR", owedToYouMinor: 8_650, youOweMinor: 2_400, netMinor: 6_250 },
+      { currency: "USD", owedToYouMinor: 0, youOweMinor: 5_000, netMinor: -5_000 },
+    ],
+  };
+
+  it("turns each person's net in a group into the payment that group's plan has between you", () => {
+    const plans = groupPlansFromBalances(balances, ME);
+    expect(plans.map((p) => p.group)).toEqual([FLAT, TRIP, LUNCH]);
+    expect(plans[0]!.plan).toEqual({
+      currency: "INR",
+      payments: [
+        { fromSubjectId: DEV, toSubjectId: ME, amountMinor: 4_575 },
+        { fromSubjectId: ANU, toSubjectId: ME, amountMinor: 4_075 },
+      ],
+    });
+    expect(plans[1]!.plan).toEqual({ currency: "USD", payments: [{ fromSubjectId: ME, toSubjectId: DEV, amountMinor: 5_000 }] });
+    expect(plans.every((p) => !p.loading && !p.failed)).toBe(true);
   });
 
-  it("keeps the empty state (no balances, no Settle up) when no plan involves you", () => {
-    const others: SettlePlan = { ...flatPlan, payments: [{ fromSubjectId: ANU, toSubjectId: DEV, amountMinor: 1_000 }] };
-    expect(homeSettleSummary([loaded(FLAT, others)], ME)).toEqual({ balances: [], settleUp: false, loading: false });
-    expect(homeSettleSummary([{ group: FLAT, plan: null, loading: true, failed: false }], ME).loading).toBe(true);
-    expect(homeSettleSummary([loaded(FLAT, flatPlan)], null).settleUp).toBe(false);
+  it("merges into the same payments and per-currency totals as every group's own plan", () => {
+    const fromBalances = mergeAllGroups(groupPlansFromBalances(balances, ME), ME);
+    const fromPlans = mergeAllGroups([loaded(FLAT, flatPlan), loaded(LUNCH, lunchPlan), loaded(TRIP, tripPlan)], ME);
+    expect(fromBalances.payments).toEqual(fromPlans.payments);
+    expect(fromBalances.totals).toEqual(fromPlans.totals);
+  });
+
+  it("is empty when nothing is open between you and anyone", () => {
+    const settled: MyBalancesResponse = {
+      ...balances,
+      people: balances.people.map((p) => ({ ...p, groups: p.groups.map((g) => ({ ...g, netMinor: 0 })) })),
+    };
+    expect(mergeAllGroups(groupPlansFromBalances(settled, ME), ME).payments).toEqual([]);
   });
 });
 

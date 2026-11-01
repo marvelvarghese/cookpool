@@ -199,7 +199,7 @@ POST   /v1/kitchen/me/items/{itm}/transfer         move it into a group pantry
 GET    /v1/kitchen/me/search?q=                    quick-use and dish-maker search across all pantries
 GET    /v1/kitchen/me/usuals                       presets and "Do it again" from my history
 GET    /v1/kitchen/me/inbox                        Home: dishes to claim or finalize, items to use, payments due
-GET    /v1/kitchen/me/balances                     per group and per person
+GET    /v1/kitchen/me/balances                     per group and per person, totals per currency
 GET    /v1/kitchen/me/people/{usr}                 the "why" view for one person
 POST   /v1/kitchen/me/dishes                       cook: ingredients from any reachable pantry; optional org
 GET    /v1/kitchen/me/dishes?state=
@@ -225,6 +225,7 @@ GET    …/activity?cursor=
 GET    …/balances
 GET    …/settle-plan                               { payments, working: { debts, pairs, payments } }
 POST   …/settlements
+GET    …/members                                   every member's name and role (any member; CP-9)
 ```
 
 **Groups and joining** (membership-worker)

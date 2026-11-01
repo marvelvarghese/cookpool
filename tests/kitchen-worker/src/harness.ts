@@ -13,6 +13,9 @@
 //     from a roster the test fills with `grant` — the one thing
 //     membership-worker owns. `rosterCalls` and `groupsCalls` count those
 //     fetches; `failGroups` makes the groups fetch fail.
+//   - IDENTITY_WORKER answers the people lookup
+//     (/v1/internal/identity/users/lookup) from profiles the test fills with
+//     `profile` (CP-9); `failIdentity` makes it fail.
 //
 // Every request goes through `route`, exactly as api-edge's service binding
 // delivers it: actor headers set, the edge's path and method unchanged.
@@ -25,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { authorize } from "@saas/policy-engine";
 import type { AuthorizationRequest, MembershipFact, OrganizationRole } from "@saas/contracts/policy";
 import type { RosterResponse, SubjectOrganizationsResponse } from "@saas/contracts/membership";
+import type { UsersLookupRequest, UsersLookupResponse } from "@saas/contracts/auth";
 import { manifest } from "@saas/db";
 import { asUuid, type Uuid } from "@saas/db/ids";
 import { D1ApiAdapter } from "@saas/db/runner";
@@ -133,6 +137,12 @@ export interface Harness {
   /** Send one request through the worker's router. */
   call(method: string, path: string, opts: CallOptions): Promise<Response>;
   close(): void;
+  /** Give `subjectId` a profile in identity (CP-9): what the people lookup answers. */
+  profile(subjectId: string, profile: { displayName: string | null; email: string }): void;
+  /** How many times the worker asked identity for names. */
+  readonly identityCalls: number;
+  /** While true, the identity lookup answers 500. */
+  failIdentity: boolean;
 }
 
 export interface HarnessOptions {
@@ -173,7 +183,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
       const members: RosterResponse["members"] = [];
       for (const [subjectId, roles] of roster) {
         const role = roles.get(rosterMatch[1]!);
-        if (role) members.push({ subjectId, subjectType: "user", role });
+        if (role) members.push({ subjectId, subjectType: "user", role, memberId: `mem_${subjectId}`, joinedAt: "2026-11-01T00:00:00.000Z" });
       }
       return Response.json({ data: { members } satisfies RosterResponse, meta: { requestId: "req_membership", cursor: null } });
     }
@@ -198,12 +208,30 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     return Response.json({ data: decision, meta: { requestId: "req_policy", cursor: null } });
   });
 
+  // identity-worker's people lookup (CP-9), from profiles the test fills with `profile`.
+  const profiles = new Map<string, { displayName: string | null; email: string }>();
+  const identityState = { calls: 0, fail: false };
+  const identityWorker = fetcher(async (url, init) => {
+    if (!url.endsWith("/v1/internal/identity/users/lookup") || init.method !== "POST") {
+      return Response.json({ error: { code: "not_found" } }, { status: 404 });
+    }
+    identityState.calls += 1;
+    if (identityState.fail) return Response.json({ error: { code: "internal_error" } }, { status: 500 });
+    const { subjectIds } = JSON.parse(String(init.body)) as UsersLookupRequest;
+    const users = subjectIds.flatMap((subjectId) => {
+      const p = profiles.get(subjectId);
+      return p ? [{ subjectId, ...p }] : [];
+    });
+    return Response.json({ data: { users } satisfies UsersLookupResponse, meta: { requestId: "req_identity", cursor: null } });
+  });
+
   const base: Record<string, unknown> = {
     ENVIRONMENT: "test",
     PLATFORM_DB: d1Over(db),
     MEMBERSHIP_WORKER: membershipWorker,
     POLICY_WORKER: policyWorker,
     NOTIFICATIONS_WORKER: fetcher(async () => Response.json({ data: {} })),
+    IDENTITY_WORKER: identityWorker,
   };
   for (const [key, value] of Object.entries(options.env ?? {})) {
     if (value === undefined) delete base[key];
@@ -257,6 +285,18 @@ export function createHarness(options: HarnessOptions = {}): Harness {
       if (closed) return;
       closed = true;
       db.close();
+    },
+    profile(subjectId, profile) {
+      profiles.set(subjectId, profile);
+    },
+    get identityCalls() {
+      return identityState.calls;
+    },
+    get failIdentity() {
+      return identityState.fail;
+    },
+    set failIdentity(value: boolean) {
+      identityState.fail = value;
     },
   };
 }
