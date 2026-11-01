@@ -101,7 +101,7 @@ export function groupPantryRef(group: Pick<MemberGroup, "publicId" | "slug" | "n
 }
 
 /** A quantity in `unit` for display: three decimals at most (the exact value is the *Milli field). */
-function displayQuantity(milli: number, unit: string): number {
+export function displayQuantity(milli: number, unit: string): number {
   return Math.round(fromMilli(milli, unit) * 1000) / 1000;
 }
 

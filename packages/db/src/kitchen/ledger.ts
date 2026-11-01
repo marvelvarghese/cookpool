@@ -2,10 +2,11 @@
 //
 // Append-only: transactions and their splits are inserted, never updated. A
 // correction is a reversal transaction. Every money write is ONE batch — the
-// transaction, its splits and its audit event — so D1 applies all of it or
-// none. The money maths (splitting, balances, the settle plan) lives in
-// kitchen-worker's engine; this module stores what the engine produced and
-// refuses rows that do not add up.
+// transaction, its splits and its audit event (and, for a use or waste, its
+// stock moves: see ./stock.ts) — so D1 applies all of it or none. The money
+// maths (splitting, balances, the settle plan) lives in the kitchen engine;
+// this module stores what the engine produced and refuses rows that do not
+// add up.
 
 import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executor.js";
 import { isCheckViolation, isForeignKeyViolation, isUniqueViolation } from "../d1/errors.js";
@@ -20,10 +21,13 @@ import type {
   KitchenResult,
   KitchenSettlementMethod,
   KitchenSplit,
+  KitchenStockMoveRecord,
   KitchenTxnKind,
   KitchenTxnRecord,
+  NewKitchenTxn,
   PostedTxn,
 } from "./types.js";
+import { MOVE_COLUMNS, mapMove, newMoveId, restockStatements, reversalRecord } from "./moves.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -98,7 +102,7 @@ function invalid(reason: string): KitchenResult<never> {
  * total. The engine builds splits that hold it; this refuses any that do not
  * before a row is written. `null` when they hold.
  */
-function splitsProblem(totalMinor: number, splits: readonly KitchenSplit[]): string | null {
+export function splitsProblem(totalMinor: number, splits: readonly KitchenSplit[]): string | null {
   if (!Number.isSafeInteger(totalMinor) || totalMinor < 0) return "total_out_of_range";
   if (splits.length === 0) return "no_splits";
   const seen = new Set<string>();
@@ -141,9 +145,90 @@ export function pinGroupCurrencyStatement(orgId: string, currency: string, at: D
 }
 
 /** Everything one insert of a transaction needs, reversal or not. */
-interface TxnWrite {
+export interface TxnWrite {
   record: KitchenTxnRecord;
   audit: AppendEventWithAuditInput | undefined;
+  /**
+   * Statements that belong to the same money event, written after the
+   * transaction and its splits and before the audit event — the stock moves
+   * and item updates of a use, waste or reversal.
+   */
+  extra?: readonly SqlStatement[];
+}
+
+/** The record `postTxn` writes for a new transaction. */
+export function txnRecordOf(txn: NewKitchenTxn, splits: readonly KitchenSplit[]): KitchenTxnRecord {
+  return {
+    id: txn.id,
+    orgId: txn.orgId,
+    kind: txn.kind,
+    title: txn.title,
+    totalMinor: txn.totalMinor,
+    currency: txn.currency,
+    occurredAt: txn.occurredAt,
+    createdBy: txn.createdBy,
+    sourceKind: txn.sourceKind ?? null,
+    sourceId: txn.sourceId ?? null,
+    reverses: null,
+    reversedBy: null,
+    method: txn.method ?? null,
+    note: txn.note ?? null,
+    idemKey: txn.idemKey,
+    createdAt: txn.now,
+    splits: splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.paidMinor, owedMinor: s.owedMinor })),
+  };
+}
+
+/**
+ * The batch for one transaction:
+ *   1. pin the group's settings row (its currency) if the group has none;
+ *   2. the transaction, inserted only if the group's currency is the one it
+ *      names — otherwise nothing is inserted and step 3's foreign key fails
+ *      the whole batch;
+ *   3. one statement per split (D1 caps bound parameters per statement, so
+ *      a multi-row VALUES list would not scale to a full group);
+ *   4. the `extra` statements, if any;
+ *   5. the audit event and its audit entry.
+ * The transaction insert is always statement 1 and returns its id.
+ */
+export function txnStatements({ record, audit, extra }: TxnWrite): SqlStatement[] {
+  const statements: SqlStatement[] = [
+    pinGroupCurrencyStatement(record.orgId, record.currency, record.createdAt),
+    {
+      text: `INSERT INTO kitchen_txns (
+               id, org_id, kind, title, total_minor, currency, occurred_at, created_by,
+               source_kind, source_id, reverses, method, note, idem_key, created_at
+             )
+             SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+             WHERE EXISTS (SELECT 1 FROM kitchen_group_settings WHERE org_id = $2 AND currency = $6)
+             RETURNING id`,
+      params: [
+        record.id,
+        record.orgId,
+        record.kind,
+        record.title,
+        record.totalMinor,
+        record.currency,
+        record.occurredAt,
+        record.createdBy,
+        record.sourceKind,
+        record.sourceId,
+        record.reverses,
+        record.method,
+        record.note,
+        record.idemKey,
+        record.createdAt,
+      ],
+    },
+    ...record.splits.map((split, position) => ({
+      text: `INSERT INTO kitchen_txn_splits (txn_id, subject_id, position, paid_minor, owed_minor)
+             VALUES ($1, $2, $3, $4, $5)`,
+      params: [record.id, split.subjectId, position, split.paidMinor, split.owedMinor],
+    })),
+    ...(extra ?? []),
+  ];
+  if (audit) statements.push(...eventWithAuditStatements(audit));
+  return statements;
 }
 
 export function createLedgerRepository(executor: SqlExecutor): LedgerRepository {
@@ -160,55 +245,6 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
     const result = await executor.execute(`SELECT ${TXN_COLUMNS} FROM kitchen_txns t WHERE ${where}`, params);
     const row = result.rows[0];
     return row ? mapTxn(row, await splitsFor(row.id as string)) : null;
-  }
-
-  /**
-   * The batch for one transaction:
-   *   1. pin the group's settings row (its currency) if the group has none;
-   *   2. the transaction, inserted only if the group's currency is the one it
-   *      names — otherwise nothing is inserted and step 3's foreign key fails
-   *      the whole batch;
-   *   3. one statement per split (D1 caps bound parameters per statement, so
-   *      a multi-row VALUES list would not scale to a full group);
-   *   4. the audit event and its audit entry.
-   */
-  function txnStatements({ record, audit }: TxnWrite): SqlStatement[] {
-    const statements: SqlStatement[] = [
-      pinGroupCurrencyStatement(record.orgId, record.currency, record.createdAt),
-      {
-        text: `INSERT INTO kitchen_txns (
-                 id, org_id, kind, title, total_minor, currency, occurred_at, created_by,
-                 source_kind, source_id, reverses, method, note, idem_key, created_at
-               )
-               SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-               WHERE EXISTS (SELECT 1 FROM kitchen_group_settings WHERE org_id = $2 AND currency = $6)
-               RETURNING id`,
-        params: [
-          record.id,
-          record.orgId,
-          record.kind,
-          record.title,
-          record.totalMinor,
-          record.currency,
-          record.occurredAt,
-          record.createdBy,
-          record.sourceKind,
-          record.sourceId,
-          record.reverses,
-          record.method,
-          record.note,
-          record.idemKey,
-          record.createdAt,
-        ],
-      },
-      ...record.splits.map((split, position) => ({
-        text: `INSERT INTO kitchen_txn_splits (txn_id, subject_id, position, paid_minor, owed_minor)
-               VALUES ($1, $2, $3, $4, $5)`,
-        params: [record.id, split.subjectId, position, split.paidMinor, split.owedMinor],
-      })),
-    ];
-    if (audit) statements.push(...eventWithAuditStatements(audit));
-    return statements;
   }
 
   async function writeTxn(write: TxnWrite): Promise<KitchenResult<PostedTxn>> {
@@ -254,31 +290,34 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
 
   return {
     postTxn({ txn, splits, audit }) {
-      return writeTxn({
-        record: {
-          id: txn.id,
-          orgId: txn.orgId,
-          kind: txn.kind,
-          title: txn.title,
-          totalMinor: txn.totalMinor,
-          currency: txn.currency,
-          occurredAt: txn.occurredAt,
-          createdBy: txn.createdBy,
-          sourceKind: txn.sourceKind ?? null,
-          sourceId: txn.sourceId ?? null,
-          reverses: null,
-          reversedBy: null,
-          method: txn.method ?? null,
-          note: txn.note ?? null,
-          idemKey: txn.idemKey,
-          createdAt: txn.now,
-          splits: splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.paidMinor, owedMinor: s.owedMinor })),
-        },
-        audit,
-      });
+      return writeTxn({ record: txnRecordOf(txn, splits), audit });
     },
 
-    reverseTxn({ original, reversal, splits, audit }) {
+    async reverseTxn({ original, reversal, splits, audit }) {
+      // The stock the original took comes back with its reversal. Its moves
+      // are fixed once it posted (they are written in its own batch), so the
+      // read here cannot miss one.
+      let moves: KitchenStockMoveRecord[];
+      try {
+        const result = await executor.execute(
+          `SELECT ${MOVE_COLUMNS} FROM kitchen_stock_moves m WHERE m.txn_id = $1 ORDER BY m.created_at, m.rowid`,
+          [original.id],
+        );
+        moves = result.rows.map(mapMove);
+      } catch (err) {
+        return internal(err);
+      }
+      // A reversal that put stock back would have to take it again, at a cost
+      // fixed before later uses changed what is left: refused. Log it again.
+      if (original.kind === "reversal" && moves.length > 0) return { ok: false, error: { kind: "not_reversible" } };
+
+      const restock = moves.flatMap((move) =>
+        restockStatements(
+          move,
+          reversalRecord(move, { id: newMoveId(), actor: reversal.createdBy, txnId: reversal.id, idemKey: null, now: reversal.now }),
+          "id",
+        ),
+      );
       return writeTxn({
         record: {
           id: reversal.id,
@@ -300,6 +339,7 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
           splits: splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.paidMinor, owedMinor: s.owedMinor })),
         },
         audit,
+        extra: restock,
       });
     },
 

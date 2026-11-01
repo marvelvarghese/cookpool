@@ -1047,3 +1047,105 @@ describe("KitchenClient — pantries (Cookpool CP-10)", () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
+
+describe("KitchenClient — using things (Cookpool CP-11)", () => {
+  const moved = {
+    item: { id: "itm_1", name: "Milk" },
+    move: { id: "mov_1", kind: "use", qtyMilli: 250_000 },
+    txn: null,
+  };
+
+  function sent(call: CapturedCall): { method: string | undefined; body: unknown; key: string | null } {
+    return {
+      method: call.init.method,
+      body: call.init.body === undefined ? undefined : JSON.parse(String(call.init.body)),
+      key: new Headers(call.init.headers as HeadersInit).get("idempotency-key"),
+    };
+  }
+
+  it("uses and wastes a group item, reads its history and undoes a move", async () => {
+    const body = { quantity: "250", unit: "ml", consumers: ["usr_rahul", "usr_anu"] };
+    const used = captureFetch(jsonResponse(envelope(moved), { status: 201 }));
+    expect(await client(used.fetch).kitchen.useGroupItem("org_1", "itm_1", body, { idempotencyKey: "use-1" })).toEqual(moved);
+    expect(used.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items/itm_1/uses");
+    expect(sent(used.calls[0]!)).toEqual({ method: "POST", body, key: "use-1" });
+
+    const wasted = captureFetch(jsonResponse(envelope(moved), { status: 201 }));
+    await client(wasted.fetch).kitchen.wasteGroupItem("org_1", "itm_1");
+    expect(wasted.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items/itm_1/waste");
+    expect(sent(wasted.calls[0]!)).toEqual({ method: "POST", body: {}, key: null });
+
+    const moves = { moves: [moved.move] };
+    const history = captureFetch(jsonResponse(envelope(moves)));
+    expect(await client(history.fetch).kitchen.groupItemMoves("org_1", "itm_1", { limit: 20 })).toEqual(moves);
+    expect(history.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items/itm_1/moves?limit=20");
+
+    const undone = captureFetch(jsonResponse(envelope(moved), { status: 201 }));
+    await client(undone.fetch).kitchen.undoGroupMove("org_1", "mov_1", { idempotencyKey: "undo-1" });
+    expect(undone.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/moves/mov_1/undo");
+    expect(sent(undone.calls[0]!)).toEqual({ method: "POST", body: {}, key: "undo-1" });
+  });
+
+  it("uses, wastes, moves and undoes a personal item, and reads its history and the usuals", async () => {
+    const used = captureFetch(jsonResponse(envelope(moved), { status: 201 }));
+    await client(used.fetch).kitchen.usePersonalItem("itm_1", { quantity: 0.5 });
+    expect(used.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_1/uses");
+    expect(sent(used.calls[0]!)).toEqual({ method: "POST", body: { quantity: 0.5 }, key: null });
+
+    const wasted = captureFetch(jsonResponse(envelope(moved), { status: 201 }));
+    await client(wasted.fetch).kitchen.wastePersonalItem("itm_1", { quantity: "100", unit: "g" });
+    expect(wasted.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_1/waste");
+
+    const transferred = captureFetch(jsonResponse(envelope(moved), { status: 201 }));
+    await client(transferred.fetch).kitchen.transferPersonalItem("itm_1", { orgId: "org_1" }, { idempotencyKey: "move-1" });
+    expect(transferred.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_1/transfer");
+    expect(sent(transferred.calls[0]!)).toEqual({ method: "POST", body: { orgId: "org_1" }, key: "move-1" });
+
+    const history = captureFetch(jsonResponse(envelope({ moves: [] })));
+    await client(history.fetch).kitchen.personalItemMoves("itm_1");
+    expect(history.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_1/moves");
+
+    const undone = captureFetch(jsonResponse(envelope(moved), { status: 201 }));
+    await client(undone.fetch).kitchen.undoPersonalMove("mov_1");
+    expect(undone.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/moves/mov_1/undo");
+    expect(undone.calls[0]!.init.method).toBe("POST");
+
+    const usuals = { usuals: [{ itemId: "itm_1", name: "Milk", usedCount: 3 }] };
+    const read = captureFetch(jsonResponse(envelope(usuals)));
+    expect(await client(read.fetch).kitchen.usuals({ limit: 5 })).toEqual(usuals);
+    expect(read.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/usuals?limit=5");
+  });
+
+  it("asks items and searchItems for usable items only with usable=1", async () => {
+    const page = { items: [{ ...moved.item, canUse: true }], nextCursor: null };
+    const all = captureFetch(jsonResponse(envelope(page)));
+    expect(await client(all.fetch).kitchen.items({ usable: true })).toEqual(page);
+    expect(all.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items?usable=1");
+    const unrestricted = captureFetch(jsonResponse(envelope(page)));
+    await client(unrestricted.fetch).kitchen.items({ usable: false });
+    expect(unrestricted.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items");
+    const found = captureFetch(jsonResponse(envelope({ items: page.items })));
+    await client(found.fetch).kitchen.searchItems("milk", { usable: true });
+    expect(found.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/search?q=milk&usable=1");
+  });
+
+  it("surfaces insufficient_stock and not_latest as ConflictError, not_in_group as ValidationError", async () => {
+    const reason = (code: string, status: number, details: Record<string, unknown>) =>
+      jsonResponse({ error: { code, message: code, details, requestId: "req_err" } }, { status });
+    const over = await client(captureFetch(reason("conflict", 409, { reason: "insufficient_stock", qtyLeftMilli: 0 })).fetch)
+      .kitchen.useGroupItem("org_1", "itm_1", { quantity: "1" })
+      .catch((e: unknown) => e);
+    expect(over).toBeInstanceOf(ConflictError);
+    expect((over as ConflictError).details).toEqual({ reason: "insufficient_stock", qtyLeftMilli: 0 });
+    await expect(
+      client(captureFetch(reason("conflict", 409, { reason: "not_latest" })).fetch).kitchen.undoPersonalMove("mov_1"),
+    ).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      client(captureFetch(reason("validation_failed", 422, { reason: "not_in_group" })).fetch).kitchen.useGroupItem(
+        "org_1",
+        "itm_1",
+        { quantity: "1", consumers: ["usr_x"] },
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+});

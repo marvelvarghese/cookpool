@@ -23,6 +23,20 @@ export interface MemberGroup {
 
 export type GroupsResult = { ok: true; groups: MemberGroup[] } | { ok: false };
 
+/**
+ * The group roles whose grant holds `kitchen.item.use` (design.md §6): every
+ * role but viewer. The cross-pantry reads say from this which items the
+ * caller may use (`canUse`, `usable=1`) without a policy hop per group; every
+ * write still asks the policy engine. tests/kitchen-worker pins it against the
+ * engine's grants.
+ */
+export const USE_ROLES: ReadonlySet<string> = new Set(["owner", "admin", "builder"]);
+
+/** May someone with this membership use the group's items? */
+export function canUseIn(group: Pick<MemberGroup, "role">): boolean {
+  return USE_ROLES.has(group.role);
+}
+
 export interface Groups {
   /** The groups `subjectId` is an active member of with a group role, by name. */
   of(subjectId: string): Promise<GroupsResult>;

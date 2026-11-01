@@ -17,6 +17,10 @@ import { Fields, text } from "../validate.js";
 //   two cancel to the paisa. A transaction is reversed once: the second try is
 //   409 `already_reversed`. Corrections are always reversals; nothing in the
 //   ledger is edited or deleted.
+//   Reversing a use or waste puts its stock back in the same batch (a
+//   `reversal` stock move; the item's quantity and cost come back, and a
+//   used-up or wasted item is active again). Such a reversal cannot itself be
+//   reversed: 409 `not_reversible`.
 //
 // POST …/kitchen/txns/{txn}/flags     kitchen.txn.flag, and named in the transaction
 //   "This looks wrong": a flag on the transaction for its logger and the
