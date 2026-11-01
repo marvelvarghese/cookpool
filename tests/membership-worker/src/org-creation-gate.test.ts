@@ -160,6 +160,71 @@ describe("handleCreateOrganization — MO2 additional-org gate", () => {
     });
   });
 
+  // Cookpool CP-2: every group a person creates stands alone. The earliest org
+  // a person belongs to may be someone else's group they joined, so it must
+  // never become the billing parent, and the multi-org plan check is skipped.
+  describe("with OPEN_GROUPS on", () => {
+    const openEnv = { ENVIRONMENT: "test", OPEN_GROUPS: "true" } as Env;
+
+    function capturing(existing: Organization[]) {
+      const seen: { parentOrgId: string | null | undefined; entitlementChecks: string[]; fanOuts: number } = { parentOrgId: undefined, entitlementChecks: [], fanOuts: 0 };
+      const deps = {
+        repo: {
+          bootstrapOrganization: async (input: BootstrapOrganizationInput) => {
+            seen.parentOrgId = input.org.parentOrgId;
+            return {
+              ok: true as const,
+              value: {
+                org: org("00000000-0000-0000-0000-0000000000cc", "2026-06-01T00:00:00Z"),
+                member: { id: "m", orgId: "o", subjectId: "usr_1", subjectType: "user", status: "active", createdAt: new Date(), updatedAt: new Date() },
+                roleAssignment: { id: "r", orgId: "o", subjectId: "usr_1", subjectType: "user", role: "owner", scopeKind: "organization", scopeRef: null, createdAt: new Date(), revokedAt: null },
+              },
+            };
+          },
+        },
+        listOrgsForSubject: async (): Promise<MembershipResult<Organization[]>> => ({ ok: true, value: existing }),
+        checkEntitlement: async (_b: Fetcher, _o: string, key: string) => {
+          seen.entitlementChecks.push(key);
+          return { kind: "decision" as const, decision: denied(key, "disabled") };
+        },
+        fanOut: async () => {
+          seen.fanOuts += 1;
+          return { kind: "ok" as const };
+        },
+      };
+      return { deps, seen };
+    }
+
+    it("creates a second group standalone even when the plan denies multi-org", async () => {
+      const joined = org("00000000-0000-0000-0000-0000000000a1", "2026-01-01T00:00:00Z");
+      const { deps, seen } = capturing([joined]);
+      const res = await handleCreateOrganization(req(), openEnv, "req_t", ACTOR, deps);
+      expect(res.status).toBe(201);
+      expect(seen.parentOrgId ?? null).toBeNull();
+      expect(seen.entitlementChecks).toEqual([]);
+      expect(seen.fanOuts).toBe(0);
+    });
+
+    it("allows the 50th group and refuses the 51st with 412 groups_per_person", async () => {
+      const many = (n: number) =>
+        Array.from({ length: n }, (_, i) => org(`00000000-0000-0000-0000-${String(i).padStart(12, "0")}`, "2026-01-01T00:00:00Z"));
+      const ok = await handleCreateOrganization(req(), openEnv, "req_t", ACTOR, capturing(many(49)).deps);
+      expect(ok.status).toBe(201);
+      const refused = await handleCreateOrganization(req(), openEnv, "req_t", ACTOR, capturing(many(50)).deps);
+      expect(refused.status).toBe(412);
+      const body = (await refused.json()) as { error: { code: string } };
+      expect(body.error.code).toBe("precondition_failed");
+      expect(JSON.stringify(body)).toContain("groups_per_person");
+    });
+
+    it("SOLO_MODE still wins when both are on", async () => {
+      const both = { ENVIRONMENT: "test", OPEN_GROUPS: "true", SOLO_MODE: "true" } as Env;
+      const { deps } = capturing([org("00000000-0000-0000-0000-0000000000a1", "2026-01-01T00:00:00Z")]);
+      const res = await handleCreateOrganization(req(), both, "req_t", ACTOR, deps);
+      expect(res.status).toBe(403);
+    });
+  });
+
   it("links an allowed additional org as a child and fans out the parent plan (MO3)", async () => {
     const PARENT_HEX = "00000000-0000-0000-0000-0000000000a1";
     let capturedParentOrgId: string | null | undefined;

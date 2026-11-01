@@ -7,4 +7,6 @@ export interface Env {
   DEBUG_DELIVERY?: string;
   /** M0 / Solo profile switch — see ./solo-mode.ts. */
   SOLO_MODE?: string;
+  /** Cookpool open groups — every group stands alone; see ./open-groups.ts. */
+  OPEN_GROUPS?: string;
 }

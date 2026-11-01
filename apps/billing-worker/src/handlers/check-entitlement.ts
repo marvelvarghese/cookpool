@@ -54,7 +54,8 @@ interface ParsedRequest {
 const DEFAULT_TIER_ENTITLEMENTS: Record<string, number> = {
   "limit.projects": 3,
   "limit.environments": 3,
-  "limit.members": 5,
+  // Kept equal to the free plan (Cookpool CP-2: 50 people per group).
+  "limit.members": 50,
   // saas-integrations D4 default recommendation (activation-friendly,
   // Vercel-style): GitHub integration available on the default tier with one
   // repo link. Catalog rows override these the moment plans configure them.

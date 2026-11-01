@@ -682,7 +682,7 @@ describe("decideEntitlement", () => {
     for (const [key, limit] of [
       ["limit.projects", 3],
       ["limit.environments", 3],
-      ["limit.members", 5],
+      ["limit.members", 50],
     ] as const) {
       const repo = fakeRepo({ ok: false, error: { kind: "not_found" } });
       const outcome = await decideEntitlement(repo, {
