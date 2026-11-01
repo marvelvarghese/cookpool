@@ -1,0 +1,112 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: notifications-worker
+  description: Cloudflare Worker for the Notifications bounded context
+spec:
+  type: cloudflare-worker-turbo
+  lifecycle: production
+  owner: platform
+  # Its pages, attached to it in the workspace's catalog: what the Docs
+  # library shows for it, and what the catalog's docs and runbook checks read.
+  # Generated from what this manifest declares
+  # (tooling/catalog/gen-component-docs.mjs).
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  domain: starter-runtime
+  path: apps/notifications-worker
+  dependsOn:
+    # ENFORCED ON MAIN (one-landing bootstrap): the data plane before anything
+    # that reads its wiring, and policy-worker before anything that holds a
+    # service binding — its pre-deploy creates a placeholder for every binding
+    # target that does not exist yet (tooling/deploy/fleet-stubs.mjs), so each
+    # worker's first deploy can carry its full bindings. Peer edges stay
+    # advisory: they are runtime calls, not deploy order. A pull request deploys
+    # nothing, so nothing on one waits.
+    - component: events-worker
+    - component: db-migrate
+    - component: policy-worker
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+    - component: cloudflare-d1
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+  # BF6 wiring documents from orun secrets (SEC-JOB): lease-published by
+  # the infra components; wire-live renders the wrangler template from
+  # these instead of Secrets Manager documents.
+  secretEnv:
+    WIRING_CLOUDFLARE_D1_STAGE: "secret://ws_QX130J0D/cookpool/stage/WIRING_CLOUDFLARE_D1"
+    WIRING_CLOUDFLARE_D1_PROD: "secret://ws_QX130J0D/cookpool/prod/WIRING_CLOUDFLARE_D1"
+
+  subscribe:
+    environments:
+      - name: dev
+        profile: verify
+      - name: stage
+        # A pull request deploys nothing, so nothing on one waits; a merge
+        # keeps the ordering (migrations, infrastructure, the edge).
+        dependencyRules:
+          - mode: advisory
+            when:
+              triggerRef: github-pull-request
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+      - name: prod
+        # A pull request deploys nothing, so nothing on one waits; a merge
+        # keeps the ordering (migrations, infrastructure, the edge).
+        dependencyRules:
+          - mode: advisory
+            when:
+              triggerRef: github-pull-request
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+  parameters:
+    nodeVersion: "22"
+    pnpmVersion: "10.12.1"
+    workspaceDir: ../..
+    appDir: .
+    # BF6b: deploy-time wiring — wrangler.jsonc is rendered, never committed.
+    # Verify lanes render from wiring.fixture.json (offline); deploy lanes
+    # resolve real IDs from the Secrets Manager wiring manifest (BF5).
+    orgName: sourceplane
+    owner: sourceplane
+    repo: cookpool
+
+    turboFilter: "@saas/notifications-worker"
+    wranglerConfig: wrangler.jsonc
+    wranglerTemplate: wrangler.template.jsonc
+    wiringComponents: "cloudflare-d1"
+    wiringEnvs: "stage,prod"
+    wiringFixture: wiring.fixture.json
+    installCommand: pnpm install --frozen-lockfile
+    buildCommand: pnpm exec turbo run build --filter=@saas/notifications-worker
+    typecheckCommand: pnpm exec turbo run typecheck --filter=@saas/notifications-worker
+    dryRunCommand: pnpm exec wrangler deploy --dry-run --config wrangler.jsonc --env prod
+    deployCommand: pnpm exec wrangler deploy --config wrangler.jsonc --env prod
+    preDeployCommand: "echo 'No pre-deploy step configured.'"
+    migrationCommand: "echo 'No migrations configured.'"
+    smokeCommand: "echo 'Internal-only worker; no public smoke endpoint.'"
+  labels:
+    team: platform
+    layer: runtime
+    surface: notifications
+    runtime: cloudflare
+# ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
+# ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
+# ci: re-trigger deploy (verify orun-secrets brokered CLOUDFLARE_API_TOKEN resolve in worker deploy lane, 20260727T153639Z)
+# orun: redeploy 01-product 20261101T204055Z

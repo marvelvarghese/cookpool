@@ -1,0 +1,185 @@
+apiVersion: sourceplane.io/v1
+kind: Intent
+
+metadata:
+  name: cookpool
+  description: Reusable Cloudflare-only multi-tenant SaaS starter (Workers, D1, KV)
+  namespace: sourceplane
+
+execution:
+  state:
+    backendUrl: https://api-edge-prod.oruncloud.workers.dev
+    # Declared, enforced tenancy: the workspace claim is sent on every remote op
+    # (including the credential-free CI OIDC exchange) so orun-cloud can enforce
+    # claim ⊆ authorized. Declaring it implies strict mode — a non-interactive
+    # run that resolves no workspace fails fast (specs/oidc-ci-tenancy §4.1).
+    # `workspace` is the leading spelling in orun v2.20.0 (a ws_ Workspace ID,
+    # slug, or legacy org_ id); it supersedes the deprecated `org:` alias.
+    workspace: ws_QX130J0D
+    requireOrg: true
+    # Push/sync the resolved catalog to orun-cloud after a successful plan on the
+    # default branch, keeping the org-global catalog head fresh without an
+    # explicit `--push-catalog`.
+    autopushCatalog: true
+  # Lanes (orun ≥ v2.76.0): CI runs one GitHub job per LANE, not per orun job.
+  # Auto mode leaves a plan of up to 6 jobs as one lane per job and packs a
+  # bigger one into at most 6 lanes, keeping each environment on its own
+  # runners and every dependency chain (db-migrate → the workers that wait on
+  # it) inside one lane. web-console-next is isolated (component.yaml): its
+  # build is the longest and must not hold up a lane. Isolated lanes count
+  # against maxLanes, so a plan with the console packs everything else into
+  # one lane per environment; concurrency 6 keeps about as many jobs in
+  # flight as the 16 runners did, on 6 runner start-ups instead of 16. Every
+  # job still gets its own check run, named as before, so branch protection
+  # is unaffected.
+  lanes:
+    mode: auto
+    # The budget is the runner pool: a free GitHub plan starts 20 jobs at
+    # once, and `plan` is done before the lanes start, so 18 lanes fit in
+    # one wave. Auto mode shares them between environments by job count, so
+    # a bootstrap's fleet landing (13 stage + 13 prod + 25 dev verify jobs)
+    # gives stage and prod four or five lanes each instead of one. Measured
+    # with one lane per environment at `concurrency: 6`: thirteen deploys on
+    # one 4-vCPU runner took ~3 min each and 04-workers' convergence 10-13 min.
+    maxLanes: 18
+    # Jobs in flight inside a lane = the runner's cores (4 on ubuntu-latest):
+    # above that each job only slows the others down.
+    concurrency: auto
+
+compositions:
+  sources:
+    # The composition stack lives in sourceplane/stack-tectonic and is consumed
+    # as a published OCI artifact rather than a repo-local directory. Pin an
+    # explicit version: a bare repository reference resolves to `:latest`, which
+    # would let a catalog release change this repo's execution contracts without
+    # a commit here. Bumping the tag is the deliberate upgrade step.
+    - name: stack-tectonic
+      kind: oci
+      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.20.0
+  resolution:
+    precedence:
+      - stack-tectonic
+    bindings:
+      terraform: stack-tectonic
+      cloudflare-domain: stack-tectonic
+      db-migrate: stack-tectonic
+
+discovery:
+  roots:
+    - apps/
+    - infra/
+    - packages/
+    - tests/
+
+automation:
+  triggerBindings:
+    github-pull-request:
+      description: Pull request validation
+      on:
+        provider: github
+        event: pull_request
+        actions:
+          - opened
+          - synchronize
+          - reopened
+          - ready_for_review
+        baseBranches:
+          - main
+      plan:
+        scope: changed
+        base: pull_request.base.sha
+        head: pull_request.head.sha
+
+    github-push-main:
+      description: Main branch stack convergence after merge
+      on:
+        provider: github
+        event: push
+        branches:
+          - main
+
+    local-development:
+      description: Local testing with full Terraform execution
+      on:
+        provider: local
+
+environments:
+  dev:
+    description: Verify-only. Pull requests plan and verify here; nothing is deployed, so there is no door.
+    activation:
+      triggerRefs:
+        - github-pull-request
+        # @dev-lanes-deferred:ICAgICAgICAtIGdpdGh1Yi1wdXNoLW1haW4= (tooling/bootstrap/dev-lanes.mjs --restore puts it back)
+        - local-development
+    # dev only ever verifies (no component deploys to it), so nothing in it
+    # has to wait for anything: every dev job starts the moment a runner does.
+    dependencyMode: advisory
+    parameterDefaults:
+      terraform:
+        lane: verify
+        namespace: sourceplane
+        namespacePrefix: dev-
+        owner: sourceplane
+        repo: cookpool
+        CONSOLE_CUSTOM_DOMAIN: ""
+    policies:
+      requireApproval: "false"
+    env:
+      BASE_DOMAIN: cookpool.app
+
+  stage:
+    description: The fleet, the API edge and the console, deployed on every merge to main before prod.
+    url: https://cookpool-web-console-next-stage.rahulvarghesepullely.workers.dev
+    links:
+      - { title: API, url: https://cookpool-api-edge-stage.rahulvarghesepullely.workers.dev }
+      - { title: Health, url: https://cookpool-api-edge-stage.rahulvarghesepullely.workers.dev/health }
+    activation:
+      triggerRefs:
+        - github-pull-request
+        - github-push-main
+    parameterDefaults:
+      terraform:
+        lane: verify
+        namespace: sourceplane
+        namespacePrefix: stg-
+        owner: sourceplane
+        repo: cookpool
+        CONSOLE_CUSTOM_DOMAIN: stage.cookpool.app
+    policies:
+      requireApproval: "false"
+    env:
+      BASE_DOMAIN: cookpool.app
+
+  prod:
+    description: Where customers are. Deploys after stage converges on the same commit.
+    url: https://cookpool-web-console-next-prod.rahulvarghesepullely.workers.dev
+    links:
+      - { title: API, url: https://cookpool-api-edge-prod.rahulvarghesepullely.workers.dev }
+      - { title: Health, url: https://cookpool-api-edge-prod.rahulvarghesepullely.workers.dev/health }
+    activation:
+      triggerRefs:
+        - github-pull-request
+        - github-push-main
+    # @promotion-deferred:ICAgIHByb21vdGlvbjoKICAgICAgZGVwZW5kc09uOgogICAgICAgIC0gZW52aXJvbm1lbnQ6IHN0YWdl (tooling/bootstrap/promotion.mjs --restore puts it back)
+    parameterDefaults:
+      terraform:
+        lane: verify
+        namespace: sourceplane
+        namespacePrefix: prod-
+        owner: sourceplane
+        repo: cookpool
+        CONSOLE_CUSTOM_DOMAIN: prod.cookpool.app
+    policies:
+      requireApproval: "false"
+    env:
+      BASE_DOMAIN: cookpool.app
+
+# Repo-level catalog entity: front page + role-tagged docs (rendered in
+# the workspace Docs library, pinned to the commit by `orun plan`).
+repo:
+  displayName: cookpool
+  docs:
+    overview: README.md
+    pages:
+      - { path: ai/context/operations.md, role: runbook, title: Operating contract }
+      - { path: ai/context/deployment.md, role: reference, title: Live deployment manifest }

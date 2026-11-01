@@ -1,0 +1,77 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+
+metadata:
+  name: cloudflare-domain
+  description: Manages the Cloudflare zone and attaches custom domains to environment-specific Worker services (web-console-next)
+  labels:
+    domain: infra
+    scope: dns-and-custom-domains
+
+spec:
+  type: terraform
+  lifecycle: production
+  owner: platform
+  # Its pages, attached to it in the workspace's catalog: what the Docs
+  # library shows for it, and what the catalog's docs and runbook checks read.
+  # Generated from what this manifest declares
+  # (tooling/catalog/gen-component-docs.mjs).
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  domain: infra
+
+  parameters:
+    orgName: sourceplane
+    stackName: cloudflare-domain
+    terraformDir: terraform
+    terraformVersion: "1.15.3"
+    baseDomain: cookpool.app
+    zoneMode: existing
+    workerNamePrefix: cookpool-web-console-next
+    # NOTE: `CONSOLE_CUSTOM_DOMAIN` is intentionally NOT declared here.
+    # It is supplied per-environment via
+    # `environments.{dev,stage,prod}.parameterDefaults.terraform.CONSOLE_CUSTOM_DOMAIN`
+    # in `intent.yaml` (dev: "", stage: stage.cookpool.app,
+    # prod: prod.cookpool.app) and surfaced to Terraform as
+    # `TF_VAR_CONSOLE_CUSTOM_DOMAIN` by the generic `.parameters` →
+    # `TF_VAR_<key>` loop in the cloudflare-domain-validate job template.
+    # Declaring a default here would shadow the parameterDefault override
+    # and cause the rendered TF_VAR to resolve to the local default ('')
+    # in every environment — exactly the silent-empty failure that
+    # broke Task 0083 (0 added, 0 changed, 0 destroyed). The Terraform
+    # variable itself already defaults to "" in
+    # `terraform/variables.tf`, so absence here is safe for dev.
+
+  dependsOn:
+    - component: web-console-next
+
+  # PARKED — no environment subscriptions, so no jobs are planned. The zone
+  # this stack manages (`baseDomain`) must exist in the connected Cloudflare
+  # account, or `data.cloudflare_zone.existing` fails every plan with "no
+  # zone found" — and a product is born with no domain at all: `baseDomain`
+  # and `workerNamePrefix` are the baseline's own identity, which the rebrand
+  # turns into the product's placeholder domain and console Worker. Restore
+  # the subscribe block below once the real domain replaces the placeholder
+  # and its zone exists in the account (and finish the 0085b v5 re-import).
+  #
+  # subscribe:
+  #   environments:
+  #     - name: stage
+  #       profile: plan-only
+  #       profileRules:
+  #         - profile: apply
+  #           when:
+  #             triggerRef: github-push-main
+  #
+  #     - name: prod
+  #       profile: plan-only
+  #       profileRules:
+  #         - profile: apply
+  #           when:
+  #             triggerRef: github-push-main
+  subscribe:
+    environments: []
+# ci: trigger full-component verification (orun v2.12.0 upgrade — PR #183)
