@@ -7,8 +7,8 @@ the code departed from `design.md`.
 |---|---|---|
 | CP0 — the spec | ✅ shipped 2026-11-01 | #3 (CP-1) |
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
-| CP2 — the ledger | in progress | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8) |
-| CP3 — pantries and using things | in progress | #11 (CP-10) |
+| CP2 — the ledger | in progress | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22) |
+| CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11) |
 | CP4 — the dish maker | | |
 | CP5 — splitting dishes | | |
 | CP6 — use it before it goes | | |
