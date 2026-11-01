@@ -48,7 +48,8 @@ describe("routing", () => {
     const group = newGroup();
     for (const path of [
       "/",
-      "/v1/kitchen/me/pantries",
+      "/v1/kitchen/me",
+      "/v1/kitchen/me/cupboard",
       `/v1/organizations/${group.publicId}/kitchen`,
       `/v1/organizations/${group.publicId}/kitchen/settings/extra`,
     ]) {

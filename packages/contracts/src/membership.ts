@@ -185,3 +185,24 @@ export interface RosterMember {
 export interface RosterResponse {
   members: RosterMember[];
 }
+
+// ── A person's groups (service-internal, Cookpool CP-10) ───────────
+// GET /v1/internal/membership/subjects/:subjectId/organizations — for sibling
+// workers over a service binding only (api-edge does not route
+// /v1/internal/…). kitchen-worker reads it for "every pantry I can reach": the
+// all-pantries view and search. Active memberships of active organizations,
+// by name; a subject in none answers an empty list.
+
+/** One organization the subject is an active member of, and their highest organization-scoped role in it. */
+export interface SubjectOrganization {
+  /** The organization's public id (`org_…`). */
+  orgId: string;
+  slug: string;
+  name: string;
+  /** owner > admin > builder > viewer > billing_admin; null when they hold no organization-scoped role. */
+  role: string | null;
+}
+
+export interface SubjectOrganizationsResponse {
+  organizations: SubjectOrganization[];
+}

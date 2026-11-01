@@ -20,6 +20,22 @@ export type {
   KitchenFlagRecord,
   CreateFlagInput,
   CreatedFlag,
+  KitchenItemState,
+  KitchenDimension,
+  KitchenPantryOwner,
+  KitchenItemRecord,
+  NewKitchenItem,
+  CreateItemInput,
+  CreatedItem,
+  KitchenItemChanges,
+  UpdateItemInput,
+  KitchenItemsCursor,
+  KitchenPantryScope,
+  KitchenItemsQuery,
+  KitchenItemsPage,
+  KitchenItemSearch,
+  KitchenPantryTotals,
+  KitchenPantryTotalsQuery,
 } from "./types.js";
 
 export { KITCHEN_DEFAULT_CURRENCY, KITCHEN_DEFAULT_WASTE_POLICY } from "./types.js";

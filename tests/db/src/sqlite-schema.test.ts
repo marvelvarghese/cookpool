@@ -10,7 +10,7 @@ import { createProjectsRepository } from "@saas/db/projects";
 import { createMeteringRepository } from "@saas/db/metering";
 import { createWebhookRepository } from "@saas/db/webhooks";
 import { createEventsRepository } from "@saas/db/events";
-import { createKitchenRepository, type NewKitchenTxn } from "@saas/db/kitchen";
+import { createKitchenRepository, type NewKitchenItem, type NewKitchenTxn } from "@saas/db/kitchen";
 import type { AppendEventWithAuditInput } from "@saas/db/events";
 import { asUuid } from "@saas/db";
 import { D1ApiAdapter } from "@saas/db/runner";
@@ -682,6 +682,26 @@ describe("join links, against a real SQLite engine", () => {
     const blocked = await repo.leaveOrganization({ orgId, subjectId: "usr_meera", at: new Date("2026-01-05T00:00:00.000Z") });
     expect(blocked.ok).toBe(false);
   });
+
+  // A person's groups (Cookpool CP-10): every active role they hold, in every
+  // organization, in one read — what membership-worker answers kitchen-worker's
+  // "which pantries can I reach" with.
+  it("lists one subject's active roles across every organization", async () => {
+    const repo = await bootstrap(orgId, "flat-4b", "usr_anu");
+    await bootstrap(otherOrgId, "lunch-club");
+    expect((await repo.joinOrganization(joinInput("usr_anu", new Date("2026-01-03T00:00:00.000Z"), otherOrgId))).ok).toBe(true);
+
+    const roles = await repo.listRoleAssignmentsForSubjectAcrossOrgs!("usr_anu");
+    expect(roles.ok && roles.value.map((r) => [r.orgId, r.role]).sort()).toEqual(
+      [[orgId, "owner"], [otherOrgId, "builder"]].sort(),
+    );
+
+    // Leaving revokes the role: it is no longer listed.
+    expect((await repo.leaveOrganization({ orgId: otherOrgId, subjectId: "usr_anu", at: new Date("2026-01-04T00:00:00.000Z") })).ok).toBe(true);
+    const after = await repo.listRoleAssignmentsForSubjectAcrossOrgs!("usr_anu");
+    expect(after.ok && after.value.map((r) => r.orgId)).toEqual([orgId]);
+    expect(await repo.listRoleAssignmentsForSubjectAcrossOrgs!("usr_nobody")).toEqual({ ok: true, value: [] });
+  });
 });
 
 // The kitchen's group settings (Cookpool CP-4, migration 210): one row per
@@ -1048,5 +1068,203 @@ describe("kitchen ledger, against a real SQLite engine", () => {
          VALUES (?, ?, 'expense', 'x', 5, 'INR', '2026-11-02T00:00:00.000Z', 'usr_a', 'k')`,
       ).run(randomUUID(), orgId),
     ).toThrow(/UNIQUE constraint failed/);
+  });
+});
+
+// Pantries (Cookpool CP-10, migration 230): an item belongs to exactly one
+// pantry — a person's or a group's — and its stock never goes below zero or
+// above what was bought. A group item is in the group's currency, pinned by
+// the same batch that adds it; edits to what was bought stop once anything is
+// used. Every rule is SQL (CHECKs, a NOT NULL that fails the batch, conditional
+// UPDATEs, json_each scopes), so it is proved here, on SQLite.
+describe("kitchen pantries, against a real SQLite engine", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  const orgId = asUuid("91919191-9191-4191-8191-919191919191");
+  const otherOrgId = asUuid("a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1");
+  const now = new Date("2026-11-02T09:00:00.000Z");
+  let seq = 0;
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    executor = createSqlExecutor(d1Over(db));
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  const count = (table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
+
+  function newItem(overrides: Partial<NewKitchenItem> = {}): NewKitchenItem {
+    seq += 1;
+    return {
+      id: asUuid(randomUUID()),
+      owner: { kind: "user", subjectId: "usr_rahul" },
+      name: `Item ${seq}`,
+      category: "Veg",
+      dimension: "mass",
+      displayUnit: "kg",
+      qtyMilli: 1_000_000,
+      priceMinor: 4000,
+      currency: "INR",
+      paidBy: "usr_rahul",
+      boughtOn: "2026-11-01",
+      expiresOn: null,
+      wastePolicy: null,
+      createdBy: "usr_rahul",
+      idemKey: `add-${seq}`,
+      now,
+      ...overrides,
+    };
+  }
+
+  const group = { kind: "group", orgId } as const;
+  const me = { kind: "user", subjectId: "usr_rahul" } as const;
+
+  it("adds a personal item and a group item; the group's first item pins its currency", async () => {
+    const repo = createKitchenRepository(executor);
+    const personal = await repo.createItem({ item: newItem({ currency: "USD" }) });
+    expect(personal.ok && personal.value.item).toMatchObject({
+      ownerKind: "user", ownerSubjectId: "usr_rahul", orgId: null, currency: "USD",
+      qtyBoughtMilli: 1_000_000, qtyLeftMilli: 1_000_000, costTakenMinor: 0, state: "active", version: 1,
+    });
+    expect(await repo.getGroupSettings(orgId)).toEqual({ ok: true, value: null });
+
+    const added = await repo.createItem({ item: newItem({ owner: group }) });
+    expect(added.ok && added.value.item).toMatchObject({ ownerKind: "group", ownerSubjectId: null, orgId, currency: "INR" });
+    const settings = await repo.getGroupSettings(orgId);
+    expect(settings.ok && settings.value).toMatchObject({ currency: "INR", wastePolicy: "split_equally" });
+
+    // Another currency now writes nothing.
+    const usd = await repo.createItem({ item: newItem({ owner: group, currency: "USD" }) });
+    expect(usd).toEqual({ ok: false, error: { kind: "currency_mismatch", currency: "INR" } });
+    expect(count("kitchen_items")).toBe(2);
+  });
+
+  it("answers a repeated key in the same pantry with the item it added", async () => {
+    const repo = createKitchenRepository(executor);
+    const first = await repo.createItem({ item: newItem({ owner: group, idemKey: "same" }) });
+    const again = await repo.createItem({ item: newItem({ owner: group, idemKey: "same" }) });
+    expect(again.ok && again.value).toMatchObject({ replayed: true, item: { id: first.ok && first.value.item.id } });
+    // The same key in another pantry is another request.
+    expect((await repo.createItem({ item: newItem({ owner: { kind: "group", orgId: otherOrgId }, idemKey: "same" }) })).ok).toBe(true);
+    expect((await repo.createItem({ item: newItem({ idemKey: "same" }) })).ok).toBe(true);
+    expect(count("kitchen_items")).toBe(3);
+  });
+
+  it("reads an item only in its own pantry, and never once removed", async () => {
+    const repo = createKitchenRepository(executor);
+    const item = newItem();
+    await repo.createItem({ item });
+    expect((await repo.getItem(me, item.id)).ok).toBe(true);
+    expect(await repo.getItem({ kind: "user", subjectId: "usr_anu" }, item.id)).toEqual({ ok: false, error: { kind: "not_found" } });
+    expect(await repo.getItem(group, item.id)).toEqual({ ok: false, error: { kind: "not_found" } });
+    const removed = await repo.removeItem(me, item.id, now);
+    expect(removed.ok && removed.value).toMatchObject({ state: "removed", version: 2 });
+    expect(await repo.getItem(me, item.id)).toEqual({ ok: false, error: { kind: "not_found" } });
+  });
+
+  it("edits what was bought only while nothing is used, and only at the expected version", async () => {
+    const repo = createKitchenRepository(executor);
+    const item = newItem();
+    await repo.createItem({ item });
+    const edited = await repo.updateItem({
+      owner: me, itemId: item.id, now,
+      changes: { name: "Tomatoes", quantity: { dimension: "count", displayUnit: "pcs", qtyMilli: 6000 }, priceMinor: 3000 },
+    });
+    expect(edited.ok && edited.value).toMatchObject({
+      name: "Tomatoes", dimension: "count", displayUnit: "pcs", qtyBoughtMilli: 6000, qtyLeftMilli: 6000, priceMinor: 3000, version: 2,
+    });
+    const stale = await repo.updateItem({ owner: me, itemId: item.id, changes: { name: "x" }, expectedVersion: 1, now });
+    expect(stale).toEqual({ ok: false, error: { kind: "version_conflict", version: 2 } });
+
+    db.prepare("UPDATE kitchen_items SET qty_left_milli = 4000, cost_taken_minor = 1000 WHERE id = ?").run(item.id);
+    const refused = await repo.updateItem({ owner: me, itemId: item.id, changes: { priceMinor: 1 }, now });
+    expect(refused).toEqual({ ok: false, error: { kind: "item_used" } });
+    expect(await repo.removeItem(me, item.id, now)).toEqual({ ok: false, error: { kind: "item_used" } });
+    const renamed = await repo.updateItem({ owner: me, itemId: item.id, changes: { name: "Cherry tomatoes" }, expectedVersion: 2, now });
+    expect(renamed.ok && renamed.value).toMatchObject({ name: "Cherry tomatoes", priceMinor: 3000, version: 3 });
+  });
+
+  it("lists and totals across a scope bound as one JSON parameter, however many groups", async () => {
+    const repo = createKitchenRepository(executor);
+    await repo.createItem({ item: newItem({ name: "Milk", expiresOn: "2026-11-03" }) });
+    await repo.createItem({ item: newItem({ name: "Curd", expiresOn: "2026-10-30", priceMinor: 500 }) });
+    await repo.createItem({ item: newItem({ owner: group, name: "Eggs", expiresOn: "2026-11-02" }) });
+    await repo.createItem({ item: newItem({ owner: { kind: "group", orgId: otherOrgId }, name: "Onions" }) });
+    await repo.createItem({ item: newItem({ owner: { kind: "user", subjectId: "usr_anu" }, name: "Anu's" }) });
+
+    // 150 groups: more than D1 lets one statement bind, as one parameter.
+    const orgIds = [orgId, ...Array.from({ length: 149 }, () => randomUUID())];
+    const page = await repo.listItems({ ownerSubjectId: "usr_rahul", orgIds, q: null, expires: null, cursor: null, limit: 10 });
+    expect(page.ok && page.value.items.map((i) => i.name)).toEqual(["Curd", "Eggs", "Milk"]);
+
+    const soon = await repo.listItems({
+      ownerSubjectId: "usr_rahul", orgIds, q: null, expires: { from: "2026-11-02", to: "2026-11-05" }, cursor: null, limit: 10,
+    });
+    expect(soon.ok && soon.value.items.map((i) => i.name)).toEqual(["Eggs", "Milk"]);
+
+    const totals = await repo.pantryTotals({ ownerSubjectId: "usr_rahul", orgIds, today: "2026-11-02", soonUntil: "2026-11-05" });
+    expect(totals.ok && totals.value).toEqual([
+      { orgId: null, currency: "INR", itemCount: 2, useSoonCount: 1, expiredCount: 1, worthMinor: 4500 },
+      { orgId, currency: "INR", itemCount: 1, useSoonCount: 1, expiredCount: 0, worthMinor: 4000 },
+    ]);
+    const settings = await repo.listGroupSettings(orgIds);
+    expect(settings.ok && settings.value.map((s) => s.orgId)).toEqual([orgId]);
+    expect(await repo.listGroupSettings([])).toEqual({ ok: true, value: [] });
+  });
+
+  it("checks the owner, stock, money and state rules in the table itself", () => {
+    const insert = (values: Record<string, unknown>) => () => {
+      const row = {
+        id: randomUUID(), owner_kind: "user", owner_subject_id: "usr_a", org_id: null, qty_bought_milli: 1000,
+        qty_left_milli: 1000, price_minor: 100, cost_taken_minor: 0, waste_policy: null, state: "active", dimension: "mass",
+        currency: "INR", ...values,
+      };
+      db.prepare(
+        `INSERT INTO kitchen_items (id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
+           qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by, bought_on, waste_policy,
+           state, created_by, idem_key)
+         VALUES (?, ?, ?, ?, 'x', 'y', ?, 'g', ?, ?, ?, ?, ?, 'usr_a', '2026-11-02', ?, ?, 'usr_a', ?)`,
+      ).run(
+        row.id as string, row.owner_kind as string, row.owner_subject_id as string | null, row.org_id as string | null,
+        row.dimension as string, row.qty_bought_milli as number, row.qty_left_milli as number, row.price_minor as number,
+        row.cost_taken_minor as number, row.currency as string, row.waste_policy as string | null, row.state as string, randomUUID(),
+      );
+    };
+    expect(insert({})).not.toThrow();
+    expect(insert({ owner_kind: "group", owner_subject_id: null, org_id: orgId, waste_policy: "buyer_absorbs" })).not.toThrow();
+    expect(insert({ org_id: orgId })).toThrow(/CHECK constraint failed/);
+    expect(insert({ owner_kind: "group", org_id: orgId })).toThrow(/CHECK constraint failed/);
+    expect(insert({ owner_subject_id: null })).toThrow(/CHECK constraint failed/);
+    expect(insert({ waste_policy: "buyer_absorbs" })).toThrow(/CHECK constraint failed/);
+    expect(insert({ qty_left_milli: 1001 })).toThrow(/CHECK constraint failed/);
+    expect(insert({ qty_left_milli: -1 })).toThrow(/CHECK constraint failed/);
+    expect(insert({ qty_bought_milli: 0, qty_left_milli: 0 })).toThrow(/CHECK constraint failed/);
+    expect(insert({ price_minor: -1 })).toThrow(/CHECK constraint failed/);
+    expect(insert({ cost_taken_minor: 101 })).toThrow(/CHECK constraint failed/);
+    expect(insert({ state: "eaten" })).toThrow(/CHECK constraint failed/);
+    expect(insert({ dimension: "weight" })).toThrow(/CHECK constraint failed/);
+    expect(insert({ currency: "inr" })).toThrow(/CHECK constraint failed/);
+  });
+
+  it("records stock moves against an item, and a transaction when one moved money", async () => {
+    const repo = createKitchenRepository(executor);
+    const item = newItem();
+    await repo.createItem({ item });
+    const move = (values: { item?: string; kind?: string; qty?: number; cost?: number; txn?: string | null }) => () =>
+      db.prepare(
+        `INSERT INTO kitchen_stock_moves (id, item_id, kind, qty_milli, cost_minor, actor, txn_id)
+         VALUES (?, ?, ?, ?, ?, 'usr_rahul', ?)`,
+      ).run(randomUUID(), values.item ?? item.id, values.kind ?? "use", values.qty ?? 100, values.cost ?? 10, values.txn ?? null);
+    expect(move({})).not.toThrow();
+    for (const kind of ["dish", "waste", "transfer", "adjust", "reversal"]) expect(move({ kind })).not.toThrow();
+    expect(move({ kind: "gift" })).toThrow(/CHECK constraint failed/);
+    expect(move({ qty: 0 })).toThrow(/CHECK constraint failed/);
+    expect(move({ cost: -1 })).toThrow(/CHECK constraint failed/);
+    expect(move({ item: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
+    expect(move({ txn: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
+    expect(count("kitchen_stock_moves")).toBe(6);
   });
 });
