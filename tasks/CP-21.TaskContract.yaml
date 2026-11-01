@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-21
+  title: "The engine becomes a shared package, @saas/kitchen-engine"
+spec:
+  goal: The money, units and ledger maths live in packages/kitchen-engine, imported by kitchen-worker today and by the console next, so both round every amount the same way.
+  affects:
+    - default/cookpool/kitchen-engine
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - pnpm-lock.yaml
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-21.TaskContract.yaml
+  doneWhen:
+    - packages/kitchen-engine exports money, units and ledger, with no runtime dependencies
+    - kitchen-worker imports only @saas/kitchen-engine for its maths and redeploys
+    - every engine, ledger and worked-example test still passes
+  gates: []

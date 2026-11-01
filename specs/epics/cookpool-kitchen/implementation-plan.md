@@ -38,6 +38,7 @@ Open up the baseline for many small groups, and stand up the empty kitchen.
 Splitwise inside each group, with every number explainable.
 
 - **CP-6 the money engine**: pure `engine/money.ts` (largest remainder, split modes), `engine/ledger.ts` (balances, pairwise attribution, settle plan with its working); property tests.
+- **CP-21 the shared engine package**: the engine moves to `packages/kitchen-engine` (`@saas/kitchen-engine`) so the console's previews use the same maths (added during the build).
 - **CP-7 ledger storage and routes**: `kitchen_txns`, `kitchen_txn_splits`, `kitchen_flags`; expenses, settlements, reversal, flag, activity, balances, settle-plan; one batch per write; idempotency.
 - **CP-8 ledger screens**: add expense (four modes), group activity and balances, settle up with the working, record a payment.
 - **CP-9 the people view**: `GET /v1/kitchen/me/balances`, `GET /v1/kitchen/me/people/{usr}`, the People tab and the "You and Dev" screen.

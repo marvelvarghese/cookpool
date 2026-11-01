@@ -14,9 +14,11 @@
       "@saas/policy-engine": ["../../packages/policy-engine/src/index.ts"],
       "@saas/db": ["../../packages/db/src/index.ts"],
       "@saas/db/*": ["../../packages/db/src/*/index.ts"],
+      "@saas/kitchen-engine": ["../../packages/kitchen-engine/src/index.ts"],
+      "@saas/kitchen-engine/*": ["../../packages/kitchen-engine/src/*.ts"],
       "@kitchen-worker/*": ["../../apps/kitchen-worker/src/*.ts"]
     }
   },
-  "include": ["src/**/*.ts", "../../apps/kitchen-worker/src/**/*.ts"],
+  "include": ["src/**/*.ts", "../../apps/kitchen-worker/src/**/*.ts", "../../packages/kitchen-engine/src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
