@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-2
+  title: "Groups open up: single-user mode off, many standalone groups per person"
+spec:
+  goal: Cookpool runs as a multi-group product — single-user mode is off, a person can create or join many groups that each stand alone, and a group holds up to 50 people on the free plan.
+  affects:
+    - default/cookpool/api-edge
+    - default/cookpool/identity-worker
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/billing-worker
+    - default/cookpool/billing-worker-tests
+    - default/cookpool/web-console-next
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-2.TaskContract.yaml
+  doneWhen:
+    - SOLO_MODE is "false" in every environment of api-edge, identity-worker and membership-worker, and the console defaults NEXT_PUBLIC_SOLO_MODE to "false"
+    - with OPEN_GROUPS on, a person who already belongs to someone else's group creates their own group as a standalone organization, with no billing parent
+    - a person belongs to at most 50 groups; creating a 51st is refused with 412 groups_per_person
+    - the free plan allows 50 members per group
+    - tests/membership-worker and tests/billing-worker pass
+  gates: []

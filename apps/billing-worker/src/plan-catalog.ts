@@ -80,7 +80,9 @@ export const PLAN_CATALOG: PlanDefinition[] = [
     entitlements: [
       { entitlementKey: "limit.projects", valueType: "quantity", enabled: true, limitValue: 3 },
       { entitlementKey: "limit.environments", valueType: "quantity", enabled: true, limitValue: 3 },
-      { entitlementKey: "limit.members", valueType: "quantity", enabled: true, limitValue: 5 },
+      // Cookpool (CP-2): a group is a flat, a lunch club or a hostel batch, so
+      // the free plan holds 50 people. Raised from 5; never lowered (no-regress).
+      { entitlementKey: "limit.members", valueType: "quantity", enabled: true, limitValue: 50 },
       { entitlementKey: "feature.custom_domains", valueType: "boolean", enabled: false, limitValue: null },
       { entitlementKey: "feature.multi_org", valueType: "boolean", enabled: false, limitValue: null },
       { entitlementKey: "limit.organizations", valueType: "quantity", enabled: true, limitValue: 1 },

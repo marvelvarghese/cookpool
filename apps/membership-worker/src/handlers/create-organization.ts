@@ -17,6 +17,7 @@ import {
   type FanOutResult,
 } from "../billing-client.js";
 import { isSoloMode } from "../solo-mode.js";
+import { MAX_GROUPS_PER_PERSON, isOpenGroups } from "../open-groups.js";
 
 /** Plan code assigned to every organization at bootstrap. Stable contract with
  * billing-worker's plan catalog (plan-catalog.ts DEFAULT_PLAN_CODE). */
@@ -117,6 +118,25 @@ async function gateAdditionalOrg(
         { reason: "solo_profile" },
       ),
     };
+  }
+
+  // Open groups (Cookpool): an additional group stands alone. No billing parent
+  // (the earliest org may be someone else's group the person joined) and no
+  // multi-org plan check — only a per-person cap. See ../open-groups.ts.
+  if (isOpenGroups(env)) {
+    if (existing.length >= MAX_GROUPS_PER_PERSON) {
+      return {
+        kind: "block",
+        response: errorResponse(
+          "precondition_failed",
+          `A person can be in at most ${MAX_GROUPS_PER_PERSON} groups`,
+          412,
+          requestId,
+          { reason: "groups_per_person", limit: MAX_GROUPS_PER_PERSON },
+        ),
+      };
+    }
+    return { kind: "allow" };
   }
 
   const entitlementFn = deps?.checkEntitlement ?? checkBillingEntitlement;

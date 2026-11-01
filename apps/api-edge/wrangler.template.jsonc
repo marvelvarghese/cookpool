@@ -11,9 +11,9 @@
   "vars": {
     "ENVIRONMENT": "local",
     "CONSOLE_CUSTOM_DOMAIN": "",
-    // M0 / Solo profile (cookpool ships single-user). Set "false" to restore the
+    // M0 / Solo profile — OFF: Cookpool is many small groups (CP-2). Set "false" to restore the
     // full multi-tenant baseline. See specs/profiles/solo-m0.md.
-    "SOLO_MODE": "true"
+    "SOLO_MODE": "false"
   },
   "durable_objects": {
     "bindings": [
@@ -28,7 +28,7 @@
       "vars": {
         "ENVIRONMENT": "dev",
         "CONSOLE_CUSTOM_DOMAIN": "",
-        "SOLO_MODE": "true"
+        "SOLO_MODE": "false"
       },
       "durable_objects": {
         "bindings": [
@@ -43,7 +43,7 @@
       "vars": {
         "ENVIRONMENT": "stage",
         "CONSOLE_CUSTOM_DOMAIN": "stage.cookpool.app",
-        "SOLO_MODE": "true"
+        "SOLO_MODE": "false"
       },
       "d1_databases": [
         {
@@ -113,7 +113,7 @@
       "vars": {
         "ENVIRONMENT": "prod",
         "CONSOLE_CUSTOM_DOMAIN": "prod.cookpool.app",
-        "SOLO_MODE": "true"
+        "SOLO_MODE": "false"
       },
       "d1_databases": [
         {
