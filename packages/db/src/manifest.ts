@@ -219,5 +219,14 @@ export const manifest: MigrationManifest = {
       description:
         "Pantries: kitchen_items (a personal item keyed by its owner, a group item by its group — the owner CHECK; 0 ≤ qty_left ≤ qty_bought; price and cost taken in minor units; unique idempotency key per pantry) and kitchen_stock_moves, every change to an item's stock (Cookpool CP-10)",
     },
+    {
+      id: "240_kitchen_stock_moves",
+      context: "kitchen",
+      path: "240_kitchen_stock_moves/up.sql",
+      checksum:
+        "db23670f21dc2378f7791a1ff8d80c33ae43e1ae42ddd0cec386ea6a27d0a788",
+      description:
+        "What a stock move records once people use, waste, move and undo things: nullable consumers (JSON array), unit, reverses (a move put back at most once — partial unique index; only a reversal reverses) and idem_key (unique per item) on kitchen_stock_moves (Cookpool CP-11)",
+    },
   ],
 };

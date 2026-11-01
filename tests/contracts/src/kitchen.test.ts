@@ -12,7 +12,17 @@ import type {
   KitchenTxn,
   Pantry,
   PantriesResponse,
+  ReachableItem,
+  ReachableItemsPage,
+  SearchItemsResponse,
   SettlePlan,
+  StockMoveResponse,
+  TransferItemRequest,
+  UseGroupItemRequest,
+  UsePersonalItemRequest,
+  UsualsResponse,
+  WasteItemRequest,
+  MovesResponse,
   UpdateGroupItemRequest,
   UpdateKitchenSettingsRequest,
 } from "@saas/contracts/kitchen";
@@ -29,8 +39,10 @@ import {
   KITCHEN_ERROR_REASONS,
   SETTLEMENT_METHODS,
   SPLIT_MODES,
+  STOCK_MOVE_KINDS,
   TXN_KINDS,
   USE_SOON_DAYS,
+  USUALS_DAYS,
   WASTE_POLICIES,
 } from "@saas/contracts/kitchen";
 import { ERROR_CODES } from "@saas/contracts/errors";
@@ -94,6 +106,11 @@ describe("contracts: the kitchen ledger (Cookpool CP-7)", () => {
       ITEM_USED: "item_used",
       NOT_BUYER: "not_buyer",
       VERSION_CONFLICT: "version_conflict",
+      INSUFFICIENT_STOCK: "insufficient_stock",
+      STALE: "stale",
+      NOT_LATEST: "not_latest",
+      HAS_TRANSACTION: "has_transaction",
+      NOT_REVERSIBLE: "not_reversible",
     });
     for (const reason of Object.values(KITCHEN_ERROR_REASONS)) {
       expect(Object.values(ERROR_CODES)).not.toContain(reason);
@@ -164,5 +181,52 @@ describe("contracts: pantries and items (Cookpool CP-10)", () => {
     expect(response.pantries[0]!.kind).toBe("personal");
     expect(page.items[0]!.qtyLeftMilli).toBe(page.items[0]!.qtyBoughtMilli);
     expect(groups.organizations).toHaveLength(1);
+  });
+});
+
+describe("contracts: using things (Cookpool CP-11)", () => {
+  it("names the six stock move kinds, and how far back usuals look", () => {
+    expect(STOCK_MOVE_KINDS).toEqual(["use", "dish", "waste", "transfer", "adjust", "reversal"]);
+    expect(USUALS_DAYS).toBe(90);
+  });
+
+  it("types the requests and the shapes the routes answer with", () => {
+    const use: UseGroupItemRequest = { quantity: "250", unit: "ml", consumers: ["usr_rahul", "usr_anu"], weights: [1, 1] };
+    const personal: UsePersonalItemRequest = { quantity: 0.25 };
+    const waste: WasteItemRequest = {};
+    const transfer: TransferItemRequest = { orgId: "org_1" };
+    const item: ReachableItem = {
+      id: "itm_1", pantry: { kind: "group", orgId: "org_1", slug: "flat-4b", name: "Flat 4B" }, name: "Milk", category: "Dairy",
+      dimension: "volume", displayUnit: "L", qtyBought: 1, qtyLeft: 0.75, qtyBoughtMilli: 1_000_000, qtyLeftMilli: 750_000,
+      priceMinor: 6000, currency: "INR", unitPriceMinor: 6000, worthMinor: 4500, paidBy: "usr_meera", boughtOn: "2026-11-02",
+      expiresOn: null, daysToUseBy: null, wastePolicy: "split_equally", wastePolicyOverride: null, state: "active", version: 2,
+      createdBy: "usr_meera", createdAt: "2026-11-02T08:00:00.000Z", updatedAt: "2026-11-02T08:00:00.000Z", canUse: true,
+    };
+    const moved: StockMoveResponse = {
+      item,
+      move: {
+        id: "mov_1", itemId: "itm_1", kind: "use", qtyMilli: 250_000, quantity: 250, unit: "ml", costMinor: 1500,
+        actor: "usr_rahul", consumers: ["usr_rahul", "usr_anu"], txnId: null, reverses: null,
+        at: "2026-11-02T08:00:00.000Z", undone: false, undoneBy: null,
+      },
+      txn: null,
+    };
+    const moves: MovesResponse = { moves: [moved.move] };
+    const page: ReachableItemsPage = { items: [item], nextCursor: null };
+    const found: SearchItemsResponse = { items: [item] };
+    const usuals: UsualsResponse = {
+      usuals: [{
+        itemId: "itm_1", name: "Milk", pantry: item.pantry, lastQtyMilli: 250_000, lastQuantity: 250, lastUnit: "ml",
+        consumers: ["usr_rahul"], usedCount: 3, lastUsedAt: "2026-11-02T08:00:00.000Z", qtyLeftMilli: 750_000,
+      }],
+    };
+    expect(use.consumers).toHaveLength(2);
+    expect(personal.unit).toBeUndefined();
+    expect(waste.quantity).toBeUndefined();
+    expect(transfer.orgId).toBe("org_1");
+    expect(moves.moves[0]!.costMinor).toBe(1500);
+    expect(page.items[0]!.canUse).toBe(true);
+    expect(found.items).toHaveLength(1);
+    expect(usuals.usuals[0]!.usedCount).toBe(3);
   });
 });

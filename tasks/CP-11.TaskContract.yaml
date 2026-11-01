@@ -1,0 +1,25 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-11
+  title: "Using things: uses for several people, waste, moving items to a group, undo"
+spec:
+  goal: Anyone can use any item they can reach — alone or for several people — and the buyer is paid back exactly; waste follows the group's or the item's rule; a personal item can move into a group; every use can be undone with its stock restored.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-11.TaskContract.yaml
+  doneWhen:
+    - logging "250 ml of milk for me and Anu" from a group pantry posts one use transaction where Meera (the buyer) is paid back and each consumer owes their share to the paisa
+    - a used-up item has cost exactly its price across all its uses; an over-draw is refused and nothing is written
+    - waste follows the item's override or the group rule; personal waste and buyer-absorbs post no transaction
+    - reversing a use or waste transaction restores the stock in the same batch; a personal use can be undone
+    - search and items accept usable=1 and report canUse, so viewers are never offered items they cannot use
+  gates: []

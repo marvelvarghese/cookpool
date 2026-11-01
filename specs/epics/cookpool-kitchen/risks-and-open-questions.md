@@ -127,3 +127,14 @@ midnight IST and 05:30 IST the server's day is still yesterday, so an item
 can read as one day further from its date for those hours. Accepted for v1:
 the daily sweep runs at 08:00 IST, well inside the same day. If it shows,
 the app can send its own date (`?today=`) or a person can carry a time zone.
+
+## CP-Q — usuals read a person's moves without an index on who had it (ACCEPTED)
+
+`GET /v1/kitchen/me/usuals` counts the uses a person logged or was named in.
+Who had a use is a JSON array on the move (`consumers`), so the read joins
+the person's reachable items to their moves through the item index and
+filters with `json_each`: every use of every reachable item in the last 90
+days. That is a few thousand rows for a flat that cooks every day, fine for
+v1. Revisit when the read shows in Server-Timing: a
+`kitchen_stock_move_consumers (move_id, subject_id)` table indexed by subject,
+written in the same batch as the move.

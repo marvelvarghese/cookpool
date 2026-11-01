@@ -373,6 +373,24 @@ export type {
   UpdatePersonalItemRequest,
   UpdateGroupItemRequest,
   KitchenItemResponse,
+  ReachableItem,
+  ReachableItemsPage,
+  StockMoveKind,
+  KitchenStockMove,
+  UseGroupItemRequest,
+  UsePersonalItemRequest,
+  WasteItemRequest,
+  TransferItemRequest,
+  StockMoveResponse,
+  UseItemResponse,
+  WasteItemResponse,
+  TransferItemResponse,
+  UndoMoveResponse,
+  MovesQuery,
+  MovesResponse,
+  KitchenUsual,
+  UsualsQuery,
+  UsualsResponse,
 } from "@saas/contracts/kitchen";
 
 export {
@@ -389,4 +407,6 @@ export {
   DIMENSIONS,
   ITEM_FILTERS,
   USE_SOON_DAYS,
+  STOCK_MOVE_KINDS,
+  USUALS_DAYS,
 } from "@saas/contracts/kitchen";

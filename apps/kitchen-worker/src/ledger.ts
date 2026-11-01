@@ -88,7 +88,9 @@ function eventId(): string {
 /**
  * The audit event a group write carries, written in the same batch as the
  * write itself: `kitchen.expense.added`, `kitchen.settlement.recorded`,
- * `kitchen.txn.reversed`, `kitchen.txn.flagged`, `kitchen.item.added`.
+ * `kitchen.txn.reversed`, `kitchen.txn.flagged`, `kitchen.item.added`,
+ * `kitchen.item.used`, `kitchen.item.wasted`, `kitchen.item.transferred`,
+ * `kitchen.move.undone`.
  */
 export function ledgerAudit(
   ctx: OrgContext,
@@ -158,6 +160,12 @@ export function postedTxnResponse(
       return conflict(ctx.requestId, "This transaction has already been reversed", KITCHEN_ERROR_REASONS.ALREADY_REVERSED, {
         reversedBy: toPublicId("txn", error.reversedBy),
       });
+    case "not_reversible":
+      return conflict(
+        ctx.requestId,
+        "This reversal put stock back; it cannot itself be reversed — log the use again instead",
+        KITCHEN_ERROR_REASONS.NOT_REVERSIBLE,
+      );
     case "invalid":
       // The engine builds splits that add up, so this is a bug, not a bad request.
       return errorResponse("internal_error", "The transaction did not add up", 500, ctx.requestId, { reason: error.reason });

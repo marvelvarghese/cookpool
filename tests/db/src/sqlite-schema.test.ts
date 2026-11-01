@@ -1253,18 +1253,61 @@ describe("kitchen pantries, against a real SQLite engine", () => {
     const repo = createKitchenRepository(executor);
     const item = newItem();
     await repo.createItem({ item });
-    const move = (values: { item?: string; kind?: string; qty?: number; cost?: number; txn?: string | null }) => () =>
+    const firstId = randomUUID();
+    const move = (values: {
+      id?: string;
+      item?: string;
+      kind?: string;
+      qty?: number;
+      cost?: number;
+      txn?: string | null;
+      reverses?: string | null;
+    }) => () =>
       db.prepare(
-        `INSERT INTO kitchen_stock_moves (id, item_id, kind, qty_milli, cost_minor, actor, txn_id)
-         VALUES (?, ?, ?, ?, ?, 'usr_rahul', ?)`,
-      ).run(randomUUID(), values.item ?? item.id, values.kind ?? "use", values.qty ?? 100, values.cost ?? 10, values.txn ?? null);
-    expect(move({})).not.toThrow();
-    for (const kind of ["dish", "waste", "transfer", "adjust", "reversal"]) expect(move({ kind })).not.toThrow();
+        `INSERT INTO kitchen_stock_moves (id, item_id, kind, qty_milli, cost_minor, actor, txn_id, reverses)
+         VALUES (?, ?, ?, ?, ?, 'usr_rahul', ?, ?)`,
+      ).run(
+        values.id ?? randomUUID(), values.item ?? item.id, values.kind ?? "use", values.qty ?? 100, values.cost ?? 10,
+        values.txn ?? null, values.reverses ?? null,
+      );
+    expect(move({ id: firstId })).not.toThrow();
+    for (const kind of ["dish", "waste", "transfer", "adjust"]) expect(move({ kind })).not.toThrow();
+    // A reversal names the move it puts back (240_kitchen_stock_moves), and only a reversal does.
+    expect(move({ kind: "reversal", reverses: firstId })).not.toThrow();
+    expect(move({ kind: "reversal" })).toThrow(/CHECK constraint failed/);
+    expect(move({ kind: "use", reverses: firstId })).toThrow(/CHECK constraint failed/);
     expect(move({ kind: "gift" })).toThrow(/CHECK constraint failed/);
     expect(move({ qty: 0 })).toThrow(/CHECK constraint failed/);
     expect(move({ cost: -1 })).toThrow(/CHECK constraint failed/);
     expect(move({ item: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
     expect(move({ txn: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
     expect(count("kitchen_stock_moves")).toBe(6);
+  });
+
+  it("puts a move back at most once, and keeps a request's key once per item (240_kitchen_stock_moves)", async () => {
+    const repo = createKitchenRepository(executor);
+    const item = newItem();
+    const other = newItem();
+    await repo.createItem({ item });
+    await repo.createItem({ item: other });
+    const insert = (values: { kind?: string; reverses?: string; idem?: string; consumers?: string; on?: string }) => {
+      const id = randomUUID();
+      db.prepare(
+        `INSERT INTO kitchen_stock_moves (id, item_id, kind, qty_milli, cost_minor, actor, reverses, idem_key, consumers, unit)
+         VALUES (?, ?, ?, 100, 10, 'usr_rahul', ?, ?, ?, 'g')`,
+      ).run(id, values.on ?? item.id, values.kind ?? "use", values.reverses ?? null, values.idem ?? null, values.consumers ?? null);
+      return id;
+    };
+    const used = insert({ idem: "use-1", consumers: JSON.stringify(["usr_rahul", "usr_anu"]) });
+    insert({ kind: "reversal", reverses: used });
+    expect(() => insert({ kind: "reversal", reverses: used })).toThrow(/UNIQUE constraint failed/);
+    expect(() => insert({ idem: "use-1" })).toThrow(/UNIQUE constraint failed/);
+    // The same key on another item is another request; moves without a key never collide.
+    expect(() => insert({ idem: "use-1", on: other.id })).not.toThrow();
+    expect(() => insert({})).not.toThrow();
+    expect(() => insert({})).not.toThrow();
+    expect(() => insert({ consumers: "{}" })).toThrow(/CHECK constraint failed/);
+    expect(() => insert({ consumers: "not json" })).toThrow(/CHECK constraint failed/);
+    expect(() => insert({ reverses: randomUUID(), kind: "reversal" })).toThrow(/FOREIGN KEY constraint failed/);
   });
 });

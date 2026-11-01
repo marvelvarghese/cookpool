@@ -14,10 +14,19 @@ import {
 } from "./handlers/group-items.js";
 import { handleHealth } from "./handlers/health.js";
 import { handleCreateMyItem, handleGetMyItem, handleRemoveMyItem, handleUpdateMyItem } from "./handlers/my-items.js";
+import {
+  handleMyItemMoves,
+  handleTransferMyItem,
+  handleUndoMyMove,
+  handleUseMyItem,
+  handleUsuals,
+  handleWasteMyItem,
+} from "./handlers/my-uses.js";
 import { handleMyItems, handleMyPantries, handleSearch } from "./handlers/pantries.js";
 import { handleCreateSettlement } from "./handlers/settlements.js";
 import { handleGetSettings, handleUpdateSettings } from "./handlers/settings.js";
 import { handleFlagTxn, handleReverseTxn } from "./handlers/txns.js";
+import { handleGroupItemMoves, handleUndoGroupMove, handleUseGroupItem, handleWasteGroupItem } from "./handlers/uses.js";
 import {
   errorResponse,
   methodNotAllowed,
@@ -118,6 +127,27 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)$/,
     methods: { GET: handleGetGroupItem, PATCH: handleUpdateGroupItem, DELETE: handleRemoveGroupItem },
   },
+  // Using things (CP-11).
+  {
+    name: "kitchen.item.uses",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)\/uses$/,
+    methods: { POST: handleUseGroupItem },
+  },
+  {
+    name: "kitchen.item.waste",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)\/waste$/,
+    methods: { POST: handleWasteGroupItem },
+  },
+  {
+    name: "kitchen.item.moves",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)\/moves$/,
+    methods: { GET: handleGroupItemMoves },
+  },
+  {
+    name: "kitchen.move.undo",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/moves\/([^/]+)\/undo$/,
+    methods: { POST: handleUndoGroupMove },
+  },
 ];
 
 // The caller's own routes, /v1/kitchen/me/…: their personal pantry, and every
@@ -145,6 +175,37 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.search",
     pattern: /^\/v1\/kitchen\/me\/search$/,
     methods: { GET: handleSearch },
+  },
+  // Using things (CP-11).
+  {
+    name: "kitchen.me.item.uses",
+    pattern: /^\/v1\/kitchen\/me\/items\/([^/]+)\/uses$/,
+    methods: { POST: handleUseMyItem },
+  },
+  {
+    name: "kitchen.me.item.waste",
+    pattern: /^\/v1\/kitchen\/me\/items\/([^/]+)\/waste$/,
+    methods: { POST: handleWasteMyItem },
+  },
+  {
+    name: "kitchen.me.item.transfer",
+    pattern: /^\/v1\/kitchen\/me\/items\/([^/]+)\/transfer$/,
+    methods: { POST: handleTransferMyItem },
+  },
+  {
+    name: "kitchen.me.item.moves",
+    pattern: /^\/v1\/kitchen\/me\/items\/([^/]+)\/moves$/,
+    methods: { GET: handleMyItemMoves },
+  },
+  {
+    name: "kitchen.me.move.undo",
+    pattern: /^\/v1\/kitchen\/me\/moves\/([^/]+)\/undo$/,
+    methods: { POST: handleUndoMyMove },
+  },
+  {
+    name: "kitchen.me.usuals",
+    pattern: /^\/v1\/kitchen\/me\/usuals$/,
+    methods: { GET: handleUsuals },
   },
 ];
 

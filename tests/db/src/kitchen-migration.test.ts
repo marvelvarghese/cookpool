@@ -49,8 +49,30 @@ describe("kitchen migrations", () => {
 
   it("adds the pantries as 230_kitchen_pantry, right after the ledger", () => {
     const ids = manifest.migrations.map((m) => m.id);
-    expect(kitchen.map((m) => m.id)).toEqual(["210_kitchen_settings", "220_kitchen_ledger", "230_kitchen_pantry"]);
+    expect(kitchen.map((m) => m.id).slice(0, 3)).toEqual(["210_kitchen_settings", "220_kitchen_ledger", "230_kitchen_pantry"]);
     expect(ids.indexOf("230_kitchen_pantry")).toBe(ids.indexOf("220_kitchen_ledger") + 1);
+  });
+
+  it("adds what stock moves record as 240_kitchen_stock_moves, right after the pantries", () => {
+    const ids = manifest.migrations.map((m) => m.id);
+    expect(kitchen.map((m) => m.id)).toEqual([
+      "210_kitchen_settings",
+      "220_kitchen_ledger",
+      "230_kitchen_pantry",
+      "240_kitchen_stock_moves",
+    ]);
+    expect(ids.indexOf("240_kitchen_stock_moves")).toBe(ids.indexOf("230_kitchen_pantry") + 1);
+
+    const sql = readFileSync(resolve(MIGRATIONS_ROOT, "240_kitchen_stock_moves/up.sql"), "utf8").replace(/--.*$/gm, "");
+    // Additive: nullable columns on the moves table and partial unique indexes; nothing dropped or rewritten.
+    for (const column of ["consumers", "unit", "reverses", "idem_key"]) {
+      expect(sql).toMatch(new RegExp(`ALTER TABLE kitchen_stock_moves ADD COLUMN ${column} TEXT`));
+    }
+    expect(sql).toMatch(/reverses TEXT REFERENCES kitchen_stock_moves\(id\)/);
+    expect(sql).toMatch(/\(kind = 'reversal'\) = \(reverses IS NOT NULL\)/);
+    expect(sql).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS kitchen_stock_moves_reverses_uq\s+ON kitchen_stock_moves \(reverses\) WHERE reverses IS NOT NULL/);
+    expect(sql).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS kitchen_stock_moves_item_idem_uq\s+ON kitchen_stock_moves \(item_id, idem_key\) WHERE idem_key IS NOT NULL/);
+    expect(sql).not.toMatch(/\b(DROP|UPDATE|DELETE)\b/i);
   });
 
   it("creates items with their owner rule and stock moves tied to the ledger", () => {

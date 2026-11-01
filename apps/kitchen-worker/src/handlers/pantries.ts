@@ -1,9 +1,9 @@
 import type {
   GroupPantry,
-  ItemsPage,
-  KitchenItem,
   PantriesResponse,
   PersonalPantry,
+  ReachableItem,
+  ReachableItemsPage,
   SearchItemsResponse,
   WastePolicy,
 } from "@saas/contracts/kitchen";
@@ -11,7 +11,7 @@ import type { KitchenItemRecord, KitchenPantryScope, KitchenRepository } from "@
 import { DEFAULT_KITCHEN_CURRENCY } from "@saas/contracts/kitchen";
 import type { RequestContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
-import type { MemberGroup } from "../groups-client.js";
+import { canUseIn, type MemberGroup } from "../groups-client.js";
 import { notFound, successResponse, unavailable, validationError } from "../http.js";
 import { parseOrgPublicId } from "../ids.js";
 import {
@@ -36,8 +36,8 @@ import { Fields } from "../validate.js";
 // Every pantry the caller can reach, read as one:
 //
 //   GET /v1/kitchen/me/pantries                      their own, then each group's by name, with counts and worth
-//   GET /v1/kitchen/me/items?pantry=&q=&filter=      items across them, soonest use-by first
-//   GET /v1/kitchen/me/search?q=&limit=              items with something left, best name match first
+//   GET /v1/kitchen/me/items?pantry=&q=&filter=&usable=   items across them, soonest use-by first
+//   GET /v1/kitchen/me/search?q=&limit=&usable=           items with something left, best name match first
 //
 // "Can reach" is the caller's personal pantry and the pantry of every group
 // membership says they are in with a group role (owner, admin, builder,
@@ -45,6 +45,12 @@ import { Fields } from "../validate.js";
 // design.md §6), so the role membership returns is the check here: asking
 // policy once per group would cost a hop per group on every read. Group
 // writes still go through the group's own routes and the policy engine.
+//
+// Reading is not using: a viewer reads a group's pantry but may not use from
+// it. Every item these reads return says `canUse` — its own pantry, or a
+// group where the caller's role holds kitchen.item.use (USE_ROLES) — and
+// `usable=1` keeps only those, so quick use and the dish maker never offer an
+// item whose use would be refused.
 
 /** The caller's groups, by name; null when membership could not be read. */
 async function myGroups(ctx: RequestContext): Promise<MemberGroup[] | null> {
@@ -53,8 +59,13 @@ async function myGroups(ctx: RequestContext): Promise<MemberGroup[] | null> {
   return [...result.groups].sort((a, b) => a.name.localeCompare(b.name) || a.slug.localeCompare(b.slug));
 }
 
+/** The groups a read covers: all of them, or with `usable`, those the caller may use from. */
+function reachable(groups: readonly MemberGroup[], usable: boolean): readonly MemberGroup[] {
+  return usable ? groups.filter(canUseIn) : groups;
+}
+
 /**
- * Items as the API shows them, each with its pantry. The groups' waste rules
+ * Items as the API shows them, each with its pantry and whether the caller may use it. The groups' waste rules
  * are read in one query for the groups the items are in.
  */
 async function present(
@@ -62,7 +73,7 @@ async function present(
   repo: KitchenRepository,
   groups: readonly MemberGroup[],
   records: readonly KitchenItemRecord[],
-): Promise<KitchenItem[] | null> {
+): Promise<ReachableItem[] | null> {
   const byId = new Map(groups.map((g) => [g.orgId as string, g]));
   const orgIds = [...new Set(records.flatMap((r) => (r.orgId ? [r.orgId] : [])))];
   const settings = await ctx.timings.measure("db", () => repo.listGroupSettings(orgIds));
@@ -70,15 +81,18 @@ async function present(
   const rules = new Map<string, WastePolicy>(settings.value.map((s) => [s.orgId, s.wastePolicy]));
 
   const { today } = todayOf(ctx.now());
-  const items: KitchenItem[] = [];
+  const items: ReachableItem[] = [];
   for (const record of records) {
     if (record.orgId === null) {
-      items.push(toKitchenItem(record, personalPantryRef(), null, today));
+      items.push({ ...toKitchenItem(record, personalPantryRef(), null, today), canUse: true });
       continue;
     }
     const group = byId.get(record.orgId);
     if (!group) continue; // Not reachable: the scope only reads groups in `groups`.
-    items.push(toKitchenItem(record, groupPantryRef(group), rules.get(record.orgId) ?? wastePolicyOf(null), today));
+    items.push({
+      ...toKitchenItem(record, groupPantryRef(group), rules.get(record.orgId) ?? wastePolicyOf(null), today),
+      canUse: canUseIn(group),
+    });
   }
   return items;
 }
@@ -133,11 +147,21 @@ function pantryParam(fields: Fields, url: URL): PantryChoice {
   return { kind: "all" };
 }
 
+/** `usable=1` (or `true`): only items the caller may use. */
+function usableParam(fields: Fields, url: URL): boolean {
+  const raw = url.searchParams.get("usable");
+  if (raw === null || raw === "" || raw === "0" || raw === "false") return false;
+  if (raw === "1" || raw === "true") return true;
+  fields.add("usable", "Must be 1 or 0");
+  return false;
+}
+
 export async function handleMyItems(ctx: RequestContext, request: Request): Promise<Response> {
   const url = new URL(request.url);
   const fields = new Fields();
   const choice = pantryParam(fields, url);
   const params = parseItemsListParams(fields, url);
+  const usable = usableParam(fields, url);
   if (!fields.ok) return validationError(ctx.requestId, fields.errors);
 
   // The personal pantry alone needs nothing from membership.
@@ -153,14 +177,15 @@ export async function handleMyItems(ctx: RequestContext, request: Request): Prom
       scope = { ownerSubjectId: ctx.actor.subjectId, orgIds: [] };
       break;
     case "group": {
-      // A group the caller is not in reads as one that does not exist.
+      // A group the caller is not in reads as one that does not exist; one
+      // they may only read has nothing usable.
       const group = groups.find((g) => g.publicId === choice.publicId);
       if (!group) return notFound(ctx.requestId);
-      scope = { ownerSubjectId: null, orgIds: [group.orgId] };
+      scope = { ownerSubjectId: null, orgIds: usable && !canUseIn(group) ? [] : [group.orgId] };
       break;
     }
     default:
-      scope = { ownerSubjectId: ctx.actor.subjectId, orgIds: groups.map((g) => g.orgId) };
+      scope = { ownerSubjectId: ctx.actor.subjectId, orgIds: reachable(groups, usable).map((g) => g.orgId) };
   }
 
   return withKitchenRepo(ctx, async (repo) => {
@@ -177,7 +202,7 @@ export async function handleMyItems(ctx: RequestContext, request: Request): Prom
     const items = await present(ctx, repo, groups, page.value.items);
     if (!items) return unavailable(ctx.requestId);
     const nextCursor = page.value.nextCursor ? encodeItemsCursor(page.value.nextCursor) : null;
-    return successResponse<ItemsPage>({ items, nextCursor }, ctx.requestId, 200, nextCursor);
+    return successResponse<ReachableItemsPage>({ items, nextCursor }, ctx.requestId, 200, nextCursor);
   });
 }
 
@@ -186,14 +211,16 @@ export async function handleSearch(ctx: RequestContext, request: Request): Promi
   const fields = new Fields();
   const q = queryParam(fields, url);
   const limit = limitParam(fields, url, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT);
+  const usable = usableParam(fields, url);
   if (!fields.ok) return validationError(ctx.requestId, fields.errors);
 
   const groups = await myGroups(ctx);
   if (!groups) return unavailable(ctx.requestId);
+  const orgIds = reachable(groups, usable).map((g) => g.orgId);
 
   return withKitchenRepo(ctx, async (repo) => {
     const found = await ctx.timings.measure("db", () =>
-      repo.searchItems({ ownerSubjectId: ctx.actor.subjectId, orgIds: groups.map((g) => g.orgId), q: q ?? "", limit }),
+      repo.searchItems({ ownerSubjectId: ctx.actor.subjectId, orgIds, q: q ?? "", limit }),
     );
     if (!found.ok) return unavailable(ctx.requestId);
     const items = await present(ctx, repo, groups, found.value);

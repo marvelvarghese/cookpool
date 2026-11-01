@@ -8,9 +8,19 @@ import type {
   ItemsPage,
   ItemsQuery,
   KitchenItemResponse,
+  MovesQuery,
+  MovesResponse,
   PantriesResponse,
+  ReachableItemsPage,
   SearchItemsQuery,
   SearchItemsResponse,
+  StockMoveResponse,
+  TransferItemRequest,
+  UseGroupItemRequest,
+  UsePersonalItemRequest,
+  UsualsQuery,
+  UsualsResponse,
+  WasteItemRequest,
   UpdateGroupItemRequest,
   UpdatePersonalItemRequest,
   CreateExpenseRequest,
@@ -205,15 +215,23 @@ export class KitchenClient {
    * GET /v1/kitchen/me/items
    *
    * Items across every pantry the caller can read (`pantry`: `all`,
-   * `personal` or a group's `org_…` id), soonest use-by first. Pass
-   * `nextCursor` back as `cursor` for the next page.
+   * `personal` or a group's `org_…` id), soonest use-by first, each saying
+   * whether the caller may use it (`canUse`; `usable: true` keeps only those).
+   * Pass `nextCursor` back as `cursor` for the next page.
    */
-  items(query: ItemsQuery = {}, opts: RequestOptions = {}): Promise<ItemsPage> {
-    return this.transport.request<ItemsPage>(
+  items(query: ItemsQuery = {}, opts: RequestOptions = {}): Promise<ReachableItemsPage> {
+    return this.transport.request<ReachableItemsPage>(
       {
         method: "GET",
         path: this.mePath("items"),
-        query: { pantry: query.pantry, q: query.q, filter: query.filter, cursor: query.cursor, limit: query.limit },
+        query: {
+          pantry: query.pantry,
+          q: query.q,
+          filter: query.filter,
+          cursor: query.cursor,
+          limit: query.limit,
+          usable: query.usable ? 1 : undefined,
+        },
       },
       opts,
     );
@@ -223,11 +241,16 @@ export class KitchenClient {
    * GET /v1/kitchen/me/search
    *
    * Items with something left, across every pantry the caller can read, best
-   * name match first — for quick use and the dish maker.
+   * name match first — for quick use and the dish maker. Pass `usable: true`
+   * to leave out groups where the caller may only read.
    */
   searchItems(q: string, query: Omit<SearchItemsQuery, "q"> = {}, opts: RequestOptions = {}): Promise<SearchItemsResponse> {
     return this.transport.request<SearchItemsResponse>(
-      { method: "GET", path: this.mePath("search"), query: { q, limit: query.limit } },
+      {
+        method: "GET",
+        path: this.mePath("search"),
+        query: { q, limit: query.limit, usable: query.usable ? 1 : undefined },
+      },
       opts,
     );
   }
@@ -327,6 +350,138 @@ export class KitchenClient {
   removeGroupItem(orgId: string, itemId: string, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
     return this.transport.request<KitchenItemResponse>(
       { method: "DELETE", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}`) },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Using things (CP-11)
+  //
+  // Every write answers `{ item, move, txn }`: the item as it is now, the
+  // stock move, and the transaction it posted (null when it moved no money).
+  // POSTs take `opts.idempotencyKey`: the same key twice moves the stock once.
+  // -------------------------------------------------------------------------
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/items/:itemId/uses
+   *
+   * Members, owners and admins. `consumers` (default: the caller) owe the
+   * cost — equally, or by `weights` — and the buyer is paid back. More than
+   * is left is a `ConflictError` with `reason: "insufficient_stock"`; someone
+   * not in the group a `ValidationError` with `reason: "not_in_group"`.
+   */
+  useGroupItem(
+    orgId: string,
+    itemId: string,
+    body: UseGroupItemRequest,
+    opts: RequestOptions = {},
+  ): Promise<StockMoveResponse> {
+    return this.transport.request<StockMoveResponse>(
+      { method: "POST", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}/uses`), body },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/items/:itemId/waste
+   *
+   * Everything left unless `quantity` says otherwise. Split equally (a
+   * `waste` transaction every member shares) or absorbed by the buyer, by the
+   * item's rule or the group's.
+   */
+  wasteGroupItem(
+    orgId: string,
+    itemId: string,
+    body: WasteItemRequest = {},
+    opts: RequestOptions = {},
+  ): Promise<StockMoveResponse> {
+    return this.transport.request<StockMoveResponse>(
+      { method: "POST", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}/waste`), body },
+      opts,
+    );
+  }
+
+  /** GET /v1/organizations/:orgId/kitchen/items/:itemId/moves — the item's history, newest first. */
+  groupItemMoves(orgId: string, itemId: string, query: MovesQuery = {}, opts: RequestOptions = {}): Promise<MovesResponse> {
+    return this.transport.request<MovesResponse>(
+      {
+        method: "GET",
+        path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}/moves`),
+        query: { limit: query.limit },
+      },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/moves/:moveId/undo
+   *
+   * Puts back a group move that moved no money (a buyer's own use, waste the
+   * buyer absorbed): its logger, or an owner or admin. A move with a
+   * transaction is undone with `reverseTxn` (`reason: "has_transaction"`);
+   * only the latest move of an item (`reason: "not_latest"`).
+   */
+  undoGroupMove(orgId: string, moveId: string, opts: RequestOptions = {}): Promise<StockMoveResponse> {
+    return this.transport.request<StockMoveResponse>(
+      { method: "POST", path: this.groupPath(orgId, `moves/${encodeURIComponent(moveId)}/undo`), body: {} },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/items/:itemId/uses — use some of the caller's own item (no ledger). */
+  usePersonalItem(itemId: string, body: UsePersonalItemRequest, opts: RequestOptions = {}): Promise<StockMoveResponse> {
+    return this.transport.request<StockMoveResponse>(
+      { method: "POST", path: this.mePath(`items/${encodeURIComponent(itemId)}/uses`), body },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/items/:itemId/waste — everything left unless `quantity` says otherwise. */
+  wastePersonalItem(itemId: string, body: WasteItemRequest = {}, opts: RequestOptions = {}): Promise<StockMoveResponse> {
+    return this.transport.request<StockMoveResponse>(
+      { method: "POST", path: this.mePath(`items/${encodeURIComponent(itemId)}/waste`), body },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/kitchen/me/items/:itemId/transfer
+   *
+   * Move an unused personal item into a group's pantry (`reason:
+   * "item_used"` once any is used; `"currency_mismatch"` for a group counting
+   * in another currency).
+   */
+  transferPersonalItem(
+    itemId: string,
+    body: TransferItemRequest,
+    opts: RequestOptions = {},
+  ): Promise<StockMoveResponse> {
+    return this.transport.request<StockMoveResponse>(
+      { method: "POST", path: this.mePath(`items/${encodeURIComponent(itemId)}/transfer`), body },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/me/items/:itemId/moves — the item's history, newest first. */
+  personalItemMoves(itemId: string, query: MovesQuery = {}, opts: RequestOptions = {}): Promise<MovesResponse> {
+    return this.transport.request<MovesResponse>(
+      { method: "GET", path: this.mePath(`items/${encodeURIComponent(itemId)}/moves`), query: { limit: query.limit } },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/moves/:moveId/undo — put back the latest use or waste of one of the caller's items. */
+  undoPersonalMove(moveId: string, opts: RequestOptions = {}): Promise<StockMoveResponse> {
+    return this.transport.request<StockMoveResponse>(
+      { method: "POST", path: this.mePath(`moves/${encodeURIComponent(moveId)}/undo`), body: {} },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/me/usuals — what the caller often uses, most first: presets and "Do it again". */
+  usuals(query: UsualsQuery = {}, opts: RequestOptions = {}): Promise<UsualsResponse> {
+    return this.transport.request<UsualsResponse>(
+      { method: "GET", path: this.mePath("usuals"), query: { limit: query.limit } },
       opts,
     );
   }
