@@ -6,7 +6,7 @@ import {
   splitEqual,
   splitExact,
   splitPercent,
-} from "@kitchen-worker/engine/money";
+} from "@saas/kitchen-engine/money";
 import {
   LedgerError,
   balances,
@@ -21,8 +21,8 @@ import {
   reverseSplits,
   settlePlan,
   type Txn,
-} from "@kitchen-worker/engine/ledger";
-import { UnitError, formatQuantity, fromMilli, pricePerUnit, toMilli } from "@kitchen-worker/engine/units";
+} from "@saas/kitchen-engine/ledger";
+import { UnitError, formatQuantity, fromMilli, pricePerUnit, toMilli } from "@saas/kitchen-engine/units";
 
 // A small seeded PRNG so property tests are repeatable.
 function rng(seed: number): () => number {

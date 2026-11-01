@@ -18,7 +18,7 @@ import type {
   PostedTxn,
 } from "@saas/db/kitchen";
 import type { OrgContext } from "./context.js";
-import type { Txn } from "./engine/ledger.js";
+import type { Txn } from "@saas/kitchen-engine/ledger";
 import { conflict, errorResponse, successResponse, unavailable, unprocessable } from "./http.js";
 import { toPublicId, type KitchenIdPrefix } from "./ids.js";
 

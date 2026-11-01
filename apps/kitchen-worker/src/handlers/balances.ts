@@ -2,7 +2,7 @@ import type { Balance, BalancesResponse, SettlePlan } from "@saas/contracts/kitc
 import { requireGroupAction } from "../authz.js";
 import type { OrgContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
-import { balances, settlePlan } from "../engine/ledger.js";
+import { balances, settlePlan } from "@saas/kitchen-engine/ledger";
 import { successResponse, unavailable } from "../http.js";
 import { groupCurrency, toEngineTxns } from "../ledger.js";
 

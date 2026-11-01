@@ -13,7 +13,7 @@ import type {
 import { asUuid } from "@saas/db/ids";
 import { createSqlExecutor } from "@saas/db/d1";
 import { createKitchenRepository } from "@saas/db/kitchen";
-import { balances, buildExpense, type ExpenseInput, type Txn } from "@kitchen-worker/engine/ledger";
+import { balances, buildExpense, type ExpenseInput, type Txn } from "@saas/kitchen-engine/ledger";
 import { createHarness, d1Over, envelope, newGroup, type Envelope, type Group, type Harness } from "./harness.js";
 
 const BASE = Date.parse("2026-11-02T08:00:00.000Z");

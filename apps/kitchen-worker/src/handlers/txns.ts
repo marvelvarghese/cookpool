@@ -3,7 +3,7 @@ import { asUuid } from "@saas/db/ids";
 import { groupAllows, requireGroupAction } from "../authz.js";
 import type { OrgContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
-import { reverseSplits } from "../engine/ledger.js";
+import { reverseSplits } from "@saas/kitchen-engine/ledger";
 import { forbidden, notFound, readJsonObject, successResponse, unavailable, validationError } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";

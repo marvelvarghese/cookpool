@@ -9,7 +9,7 @@ import type { ActivityPage, BalancesResponse, SettlePlan } from "@saas/contracts
 import { createSqlExecutor } from "@saas/db/d1";
 import { asUuid, type Uuid } from "@saas/db/ids";
 import { createKitchenRepository, type KitchenRepository, type NewKitchenTxn } from "@saas/db/kitchen";
-import { buildDish, buildIngredientTake, type Split } from "@kitchen-worker/engine/ledger";
+import { buildDish, buildIngredientTake, type Split } from "@saas/kitchen-engine/ledger";
 import { createHarness, d1Over, envelope, newGroup, type Group, type Harness } from "./harness.js";
 
 const RAHUL = "usr_rahul";
