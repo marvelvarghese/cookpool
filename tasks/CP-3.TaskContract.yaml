@@ -8,6 +8,7 @@ spec:
   affects:
     - default/cookpool/db
     - default/cookpool/db-tests
+    - default/cookpool/db-migrate
     - default/cookpool/membership-worker
     - default/cookpool/membership-worker-tests
     - default/cookpool/api-edge
