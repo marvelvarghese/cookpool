@@ -48,6 +48,15 @@ export const KITCHEN_ERROR_REASONS = {
   NOT_A_PARTY: "not_a_party",
   /** 403 `forbidden`: only its creator, or an owner or admin, may reverse a transaction. */
   NOT_CREATOR: "not_creator",
+  /**
+   * 409 `conflict`: some of the item has been used, so what was bought (its
+   * quantity and price) is fixed, and it cannot be removed — mark it wasted.
+   */
+  ITEM_USED: "item_used",
+  /** 403 `forbidden`: only a group item's buyer (`paidBy`), or an owner or admin, may change or remove it. */
+  NOT_BUYER: "not_buyer",
+  /** 409 `conflict`: the item changed since the `version` the edit was based on (`details.version` is the current one). */
+  VERSION_CONFLICT: "version_conflict",
 } as const;
 
 export type KitchenErrorReason = (typeof KITCHEN_ERROR_REASONS)[keyof typeof KITCHEN_ERROR_REASONS];
@@ -270,4 +279,211 @@ export interface SettlePlan {
   currency: string;
   payments: SettlePayment[];
   working: { debts: number; pairs: number; payments: number };
+}
+
+// ── Pantries and items (CP-10) ──────────────────────────────
+//
+// Every person has a personal pantry, which only they can see, and every group
+// has a pantry its members share. An item is something bought: what it is,
+// how much (a decimal in a display unit, stored as integer thousandths of the
+// dimension's base unit — pieces, grams, millilitres, packs), what was paid
+// and by whom, and when to use it by. Buying splits nothing: money moves when
+// a group item is used or wasted (CP-11). Units are the engine's
+// (`UNIT_KEYS` in `@saas/kitchen-engine/units`): pcs, dozen, g, kg, ml, L,
+// tsp, tbsp, cup, pack.
+
+export const ITEM_STATES = ["active", "used_up", "wasted", "removed"] as const;
+export type KitchenItemState = (typeof ITEM_STATES)[number];
+
+/** What a quantity measures. Display units convert only inside one. */
+export const DIMENSIONS = ["count", "mass", "volume", "pack"] as const;
+export type KitchenDimension = (typeof DIMENSIONS)[number];
+
+/** `soon`: a use-by date from today to USE_SOON_DAYS ahead; `expired`: before today. */
+export const ITEM_FILTERS = ["all", "soon", "expired"] as const;
+export type ItemFilter = (typeof ITEM_FILTERS)[number];
+
+/** How many days ahead "use soon" looks (today included). */
+export const USE_SOON_DAYS = 3;
+
+/** Which pantry an item is in. */
+export type PantryRef =
+  | { kind: "personal"; name: string }
+  | { kind: "group"; orgId: string; slug: string; name: string };
+
+/** What a pantry holds right now: its active items, counted and valued. */
+export interface PantryTotals {
+  itemCount: number;
+  /** Items to use within USE_SOON_DAYS (and not yet past their date). */
+  useSoonCount: number;
+  /** Items past their use-by date. */
+  expiredCount: number;
+  /** What is left of the items' prices, in `currency`. */
+  worthMinor: number;
+  currency: string;
+}
+
+export interface PersonalPantry extends PantryTotals {
+  kind: "personal";
+  name: string;
+}
+
+export interface GroupPantry extends PantryTotals {
+  kind: "group";
+  /** `org_…` */
+  orgId: string;
+  slug: string;
+  name: string;
+  /** The group's waste rule (what an item without its own follows). */
+  wastePolicy: WastePolicy;
+}
+
+export type Pantry = PersonalPantry | GroupPantry;
+
+/** GET /v1/kitchen/me/pantries: the caller's own pantry first, then every group's by name. */
+export interface PantriesResponse {
+  pantries: Pantry[];
+}
+
+export interface KitchenItem {
+  /** `itm_…` */
+  id: string;
+  pantry: PantryRef;
+  name: string;
+  category: string;
+  dimension: KitchenDimension;
+  /** The unit it was entered in; `qtyBought`, `qtyLeft` and `unitPriceMinor` are in it. */
+  displayUnit: string;
+  qtyBought: number;
+  qtyLeft: number;
+  /** Exact quantities: thousandths of the dimension's base unit. */
+  qtyBoughtMilli: number;
+  qtyLeftMilli: number;
+  /** What was paid. */
+  priceMinor: number;
+  currency: string;
+  /** Price per one `displayUnit`. */
+  unitPriceMinor: number;
+  /** What is left of the price: what using (or wasting) the rest would cost. */
+  worthMinor: number;
+  /** The buyer (`usr_…`). */
+  paidBy: string;
+  /** ISO date. */
+  boughtOn: string;
+  /** ISO date, if it has one. */
+  expiresOn: string | null;
+  /** Days from today to the use-by date (negative once past); null without one. */
+  daysToUseBy: number | null;
+  /** Who pays if it is wasted: the item's own rule, else its group's. Null for a personal item. */
+  wastePolicy: WastePolicy | null;
+  /** The item's own rule; null when it follows the group. */
+  wastePolicyOverride: WastePolicy | null;
+  state: KitchenItemState;
+  /** Counts edits; send it back as `version` to refuse an edit on a stale read. */
+  version: number;
+  /** Who added it (`usr_…`); may differ from the buyer. */
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * GET /v1/kitchen/me/items — every pantry the caller can read: `pantry` is
+ * `all` (default), `personal`, or a group's `org_…` id. Soonest use-by first
+ * (items without one last), then by name.
+ */
+export interface ItemsQuery {
+  pantry?: string;
+  /** Name contains, case-insensitively. */
+  q?: string;
+  filter?: ItemFilter;
+  cursor?: string;
+  /** 1–100, default 50. */
+  limit?: number;
+}
+
+/** GET /v1/organizations/{org}/kitchen/items (`kitchen.pantry.read`): one group's pantry. */
+export type GroupItemsQuery = Omit<ItemsQuery, "pantry">;
+
+export interface ItemsPage {
+  items: KitchenItem[];
+  /** Pass back as `cursor` for the next page; null on the last one. */
+  nextCursor: string | null;
+}
+
+/**
+ * GET /v1/kitchen/me/search?q=&limit= — active items with something left,
+ * across every pantry the caller can read: names equal to `q` first, then
+ * starting with it, then with a word starting with it, then containing it;
+ * soonest use-by first within each.
+ */
+export interface SearchItemsQuery {
+  q?: string;
+  /** 1–50, default 20. */
+  limit?: number;
+}
+
+export interface SearchItemsResponse {
+  items: KitchenItem[];
+}
+
+/**
+ * POST /v1/kitchen/me/items — add to the caller's personal pantry.
+ * `quantity` is a decimal in `unit` ("1.25" kg); `currency` defaults to INR.
+ */
+export interface CreatePersonalItemRequest {
+  name: string;
+  category: string;
+  quantity: string | number;
+  unit: string;
+  priceMinor: number;
+  currency?: string;
+  /** ISO date; defaults to today. */
+  boughtOn?: string;
+  expiresOn?: string | null;
+}
+
+/**
+ * POST /v1/organizations/{org}/kitchen/items (`kitchen.item.create`). In the
+ * group's currency (`currency`, when given, must be it: 422
+ * `currency_mismatch`). `paidBy` defaults to the caller and must be in the
+ * group (422 `not_in_group`). `wastePolicy` overrides the group's rule for
+ * this item; null (the default) follows it.
+ */
+export interface CreateGroupItemRequest extends CreatePersonalItemRequest {
+  paidBy?: string;
+  wastePolicy?: WastePolicy | null;
+}
+
+/**
+ * PATCH /v1/kitchen/me/items/{itm} — at least one field. `quantity` (with
+ * `unit`, default the item's) and `priceMinor` change only while nothing of
+ * the item has been used (409 `item_used`). With `version`, the edit applies
+ * only to that version (409 `version_conflict`).
+ */
+export interface UpdatePersonalItemRequest {
+  name?: string;
+  category?: string;
+  expiresOn?: string | null;
+  quantity?: string | number;
+  unit?: string;
+  priceMinor?: number;
+  version?: number;
+}
+
+/**
+ * PATCH /v1/organizations/{org}/kitchen/items/{itm} — its buyer, or an owner
+ * or admin (`kitchen.item.manage`; 403 `not_buyer` otherwise).
+ */
+export interface UpdateGroupItemRequest extends UpdatePersonalItemRequest {
+  wastePolicy?: WastePolicy | null;
+}
+
+/**
+ * One item: 201 from POST, 200 from GET, PATCH and DELETE. DELETE marks it
+ * `removed` (added by mistake), only while nothing has been used (409
+ * `item_used`: mark it wasted instead).
+ */
+export interface KitchenItemResponse {
+  item: KitchenItem;
 }

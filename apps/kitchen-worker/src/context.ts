@@ -1,6 +1,7 @@
 import type { Timings } from "@saas/contracts/timing";
 import type { Uuid } from "@saas/db/ids";
 import type { Env } from "./env.js";
+import type { Groups } from "./groups-client.js";
 import type { Roster } from "./roster-client.js";
 
 /** Who is calling: set by api-edge from the resolved session or API key. */
@@ -25,6 +26,8 @@ export interface RequestContext {
   now(): Date;
   /** Who is in a group: fetched from membership-worker once per group per request. */
   roster: Roster;
+  /** Which groups someone is in: fetched from membership-worker once per person per request. */
+  groups: Groups;
 }
 
 /** A request under `/v1/organizations/{org}/kitchen/…`: one group. */

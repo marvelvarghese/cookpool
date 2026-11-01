@@ -242,6 +242,13 @@ export interface MembershipRepository {
    * per-subject `listRoleAssignments`; the live repository always implements it.
    */
   listRoleAssignmentsForSubjects?(orgId: Uuid, subjectIds: string[]): Promise<MembershipResult<Map<string, RoleAssignment[]>>>;
+  /**
+   * Every active role assignment one subject holds, in every organization, in
+   * one query: the reverse of `listRoleAssignments` for "which groups am I in,
+   * and as what" (Cookpool CP-10). Optional like `listRoleAssignmentsForSubjects`:
+   * callers and fakes fall back to `listRoleAssignments` per organization.
+   */
+  listRoleAssignmentsForSubjectAcrossOrgs?(subjectId: string): Promise<MembershipResult<RoleAssignment[]>>;
   revokeRoleAssignment(orgId: Uuid, assignmentId: string, revokedAt: Date): Promise<MembershipResult<RoleAssignment>>;
   revokeAllRoleAssignments(orgId: Uuid, subjectId: string, revokedAt: Date): Promise<MembershipResult<RoleAssignment[]>>;
   countActiveOwners(orgId: Uuid): Promise<MembershipResult<number>>;

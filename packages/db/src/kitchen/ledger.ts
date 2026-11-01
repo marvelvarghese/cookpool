@@ -118,8 +118,27 @@ function splitsProblem(totalMinor: number, splits: readonly KitchenSplit[]): str
 
 // ── Repository functions ───────────────────────────────────
 
-/** The ledger half of the kitchen repository (the other half is group settings). */
-export type LedgerRepository = Omit<KitchenRepository, "getGroupSettings" | "upsertGroupSettings">;
+/** The ledger part of the kitchen repository (the rest is group settings and pantries). */
+export type LedgerRepository = Pick<
+  KitchenRepository,
+  "postTxn" | "reverseTxn" | "getTxn" | "listActivity" | "listSplitsForGroup" | "createFlag" | "listFlags"
+>;
+
+/**
+ * Pin the group's currency: write its settings row with `currency` (and the
+ * default waste rule) when it has none. The first money-bearing write of a
+ * group — its first transaction, or its first pantry item — puts this first
+ * in its batch, then inserts only if the group's currency is the one it
+ * names, so a group can never change currency under existing money.
+ */
+export function pinGroupCurrencyStatement(orgId: string, currency: string, at: Date): SqlStatement {
+  return {
+    text: `INSERT INTO kitchen_group_settings (org_id, currency, created_at, updated_at)
+           VALUES ($1, $2, $3, $3)
+           ON CONFLICT (org_id) DO NOTHING`,
+    params: [orgId, currency, at],
+  };
+}
 
 /** Everything one insert of a transaction needs, reversal or not. */
 interface TxnWrite {
@@ -155,12 +174,7 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
    */
   function txnStatements({ record, audit }: TxnWrite): SqlStatement[] {
     const statements: SqlStatement[] = [
-      {
-        text: `INSERT INTO kitchen_group_settings (org_id, currency, created_at, updated_at)
-               VALUES ($1, $2, $3, $3)
-               ON CONFLICT (org_id) DO NOTHING`,
-        params: [record.orgId, record.currency, record.createdAt],
-      },
+      pinGroupCurrencyStatement(record.orgId, record.currency, record.createdAt),
       {
         text: `INSERT INTO kitchen_txns (
                  id, org_id, kind, title, total_minor, currency, occurred_at, created_by,
