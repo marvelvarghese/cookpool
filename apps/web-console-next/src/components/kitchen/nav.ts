@@ -39,10 +39,10 @@ export const KITCHEN_NAV_LINKS: readonly KitchenNavLink[] = KITCHEN_TABS.filter(
   (t): t is KitchenNavLink => t.kind === "link",
 );
 
-// Paths that belong to a tab besides its own: opening a join link is part of
-// Groups.
+// Paths that belong to a tab besides its own: opening a join link and settling
+// up (a group's money, or every group's) are part of Groups.
 const EXTRA_PREFIXES: Partial<Record<KitchenNavLink["id"], readonly string[]>> = {
-  groups: ["/join"],
+  groups: ["/join", "/settle"],
 };
 
 function underPrefix(prefix: string, pathname: string): boolean {
@@ -75,14 +75,27 @@ export interface AddAction {
   id: string;
   label: string;
   hint: string;
-  /** Where it goes once the feature exists. */
+  /**
+   * Where it goes once the feature exists. With `pickGroup`, a template whose
+   * `[slug]` is the group the person picks first (`groupActionHref`).
+   */
   href: string;
   icon: string;
   /** False until the feature ships: the tile shows "Soon" and does nothing. */
   live: boolean;
+  /** Pick a group first (in the sheet), then go to `href` for it. */
+  pickGroup?: boolean;
 }
 
-/** "What happened?" — the four big tiles. None of their features has shipped yet. */
+/** An action's destination for the group `slug` (its `[slug]` filled in). */
+export function groupActionHref(action: Pick<AddAction, "href">, slug: string): string {
+  return action.href.replace("[slug]", encodeURIComponent(slug));
+}
+
+/**
+ * "What happened?" — the four big tiles. "I paid a bill" is live since the
+ * ledger screens (CP-8): it asks which group, then opens Add expense there.
+ */
 export const ADD_TILES: readonly AddAction[] = [
   {
     id: "use",
@@ -112,9 +125,10 @@ export const ADD_TILES: readonly AddAction[] = [
     id: "bill",
     label: "I paid a bill",
     hint: "Split it in a group",
-    href: "/groups?expense=1",
+    href: "/groups/[slug]/expense",
     icon: "Receipt",
-    live: false,
+    live: true,
+    pickGroup: true,
   },
 ];
 
@@ -124,9 +138,9 @@ export const ADD_SECONDARY: readonly AddAction[] = [
     id: "payment",
     label: "Record a payment",
     hint: "Someone paid you back",
-    href: "/groups?settle=1",
+    href: "/settle",
     icon: "Wallet",
-    live: false,
+    live: true,
   },
   {
     id: "invite",

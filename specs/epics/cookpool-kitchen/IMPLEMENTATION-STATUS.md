@@ -86,3 +86,28 @@ Instead of hiding billing, the console now opens as Cookpool at `/home`
   (§5, CP-L) needs membership-worker to ask kitchen-worker and is a follow-up.
   Someone who left with a balance still shows in `…/balances`, but a payment
   to or from them is refused (`not_in_group`): an admin reverses instead.
+
+### CP2 — the ledger screens (CP-8)
+
+- **Settle up is `/settle`, not `/groups/[slug]/settle`.** One page with a
+  searchable group picker that includes *All groups*; it opens on the group
+  it came from (`?group=<slug>`), else All groups. All groups, Home's balance
+  card and its Settle up button read every group's `…/settle-plan` (one call
+  per group) until the cross-group read lands (CP-9).
+- **People are "You" or "Member · 3f9a"** (the last four of their id), all
+  through `memberLabel` (`components/kitchen/members.ts`), which CP-9 points
+  at real names. The add-expense roster is the group's balances list (every
+  member, plus anyone who left with money still open); owners and admins
+  narrow it to current members, and a `not_in_group` refusal drops whoever
+  it names from the form.
+- **Money actions confirm by undo.** Saving an expense, recording a payment
+  and undoing an entry each end in a 10-second toast whose Undo posts a
+  reversal (the kit's toast gained an optional action and duration). Undo on
+  a row strikes it through at once and puts it back if the reversal fails.
+  A reversal row offers no Undo of its own; the toast is the way back.
+- **The debts behind a plan** are computed in the browser with the engine's
+  `pairLines` over the whole feed (read 100 at a time, at most 5,000
+  entries), grouped per pair. Undone entries and their reversals stay in the
+  list (struck through), because the server's working counts them too.
+- **The console bundles `@saas/kitchen-engine`** (`transpilePackages`), so an
+  engine change must also touch `apps/web-console-next` to redeploy it.

@@ -12,6 +12,13 @@ interface ToastItem {
   kind: ToastKind;
   title: string;
   description?: string | undefined;
+  /**
+   * One button beside the message (Cookpool's "Undo", CP-8). Pressing it runs
+   * `onClick` and closes the toast.
+   */
+  action?: { label: string; onClick: () => void } | undefined;
+  /** How long it stays, in ms (default 4500). */
+  duration?: number | undefined;
 }
 
 interface ToastCtx {
@@ -38,7 +45,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {items.map((t) => (
           <ToastPrimitive.Root
             key={t.id}
-            duration={4500}
+            duration={t.duration ?? 4500}
             onOpenChange={(open) => {
               if (!open) setItems((cur) => cur.filter((x) => x.id !== t.id));
             }}
@@ -50,7 +57,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               t.kind === "error" && "border-destructive/30",
             )}
           >
-            <div className="grid gap-1">
+            <div className="grid min-w-0 flex-1 gap-1">
               <ToastPrimitive.Title className="text-sm font-semibold">{t.title}</ToastPrimitive.Title>
               {t.description && (
                 <ToastPrimitive.Description className="text-xs text-muted-foreground">
@@ -58,6 +65,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 </ToastPrimitive.Description>
               )}
             </div>
+            {t.action ? (
+              <ToastPrimitive.Action
+                altText={t.action.label}
+                onClick={t.action.onClick}
+                className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm font-semibold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t.action.label}
+              </ToastPrimitive.Action>
+            ) : null}
             <ToastPrimitive.Close className="absolute right-2 top-2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground">
               <X className="h-3.5 w-3.5" />
             </ToastPrimitive.Close>

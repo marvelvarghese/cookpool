@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowLeft, CookingPot, DoorOpen, Refrigerator, RefreshCw, Scale, User, UsersRound } from "lucide-react";
+import { ArrowLeft, CookingPot, DoorOpen, HandCoins, Plus, Refrigerator, RefreshCw, UsersRound } from "lucide-react";
 import type { PublicMember, PublicOrganization } from "@saas/contracts/membership";
-import type { KitchenSettings, UpdateKitchenSettingsRequest, WastePolicy } from "@saas/contracts/kitchen";
+import type { BalancesResponse, KitchenSettings, UpdateKitchenSettingsRequest, WastePolicy } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -18,14 +18,13 @@ import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import {
   GROUP_CURRENCIES,
   WASTE_RULES,
-  canManageGroup,
   roleFromAssignments,
   wasteRuleLabel,
-  type GroupRole,
 } from "@/components/kitchen/groups";
 import { formatJoinCode, joinUrl } from "@/components/kitchen/join-code";
 import {
@@ -36,12 +35,19 @@ import {
   RoleBadge,
   shortDate,
 } from "@/components/kitchen/kit";
+import { useBalances, useGroupRole, useSettlePlan } from "@/components/kitchen/ledger-data";
+import { ActivityFeed } from "@/components/kitchen/activity-feed";
+import { SettleCard, SettleNote } from "@/components/kitchen/settle-card";
+import { BalanceWords, Money, PersonAvatar } from "@/components/kitchen/ledger-ui";
+import { memberLabel } from "@/components/kitchen/members";
 
 /**
- * One group (CP-5): who is in it and your role, the join link (owners and
- * admins copy and rotate it), the group's rules (waste rule and currency;
- * owners and admins edit), leaving, and honest "coming soon" cards for
- * activity, balances, pantry and dishes.
+ * One group (CP-5, the ledger since CP-8): your balance in it with Add expense
+ * and Settle up, then the tabs Activity · Balances · Pantry · Dishes (pantry
+ * and dishes are honest empty states until CP3/CP4); beside them who is in it
+ * and your role, the join link (owners and admins copy and rotate it), the
+ * group's rules (owners and admins edit) and leaving. `?tab=` keeps the open
+ * tab in the address.
  */
 export default function GroupPage() {
   const params = useParams<{ orgSlug: string }>();
@@ -74,28 +80,43 @@ export default function GroupPage() {
   return <GroupView group={group} onLeft={() => setLeft(true)} />;
 }
 
-function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () => void }) {
-  const { client } = useSession();
-  const profile = useProfile();
-  // Only owners and admins may list members (organization.member.list); for
-  // anyone else the API answers 404, which is also how the page learns the
-  // person is a member rather than an owner or admin.
-  const members = useApiQuery(qk.members(group.id), () =>
-    wrap(async () => (await client.memberships.listMembers(group.id)).members),
-  );
-  const membersHidden = members.error?.code === "not_found";
+const GROUP_TABS = [
+  { id: "activity", label: "Activity" },
+  { id: "balances", label: "Balances" },
+  { id: "pantry", label: "Pantry" },
+  { id: "dishes", label: "Dishes" },
+] as const;
+type GroupTab = (typeof GROUP_TABS)[number]["id"];
 
+function isGroupTab(value: string | null | undefined): value is GroupTab {
+  return GROUP_TABS.some((t) => t.id === value);
+}
+
+function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () => void }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const profile = useProfile();
   const myId = profile.data?.id ?? null;
-  let role: GroupRole | null = null;
-  if (members.data) {
-    const me = myId ? members.data.find((m) => m.subjectId === myId) : undefined;
-    // Listing succeeded, so the person is an owner or admin either way.
-    role = (me && roleFromAssignments(me.roles)) || "admin";
-  } else if (membersHidden) {
-    role = "member";
-  }
-  const roleKnown = role !== null || (members.error !== null && !membersHidden);
-  const manager = canManageGroup(role);
+  const { members, membersHidden, role, roleKnown, manager } = useGroupRole(group.id, myId);
+  const balances = useBalances(group.id);
+
+  // The open tab switches at once and is mirrored into the address with the
+  // history API (no navigation), so a reload or a shared link opens it again;
+  // a link to another `?tab=` (Home's balance rows) still switches it.
+  const tabParam = searchParams?.get("tab");
+  const [tab, setTabState] = React.useState<GroupTab>(isGroupTab(tabParam) ? tabParam : "activity");
+  React.useEffect(() => {
+    setTabState(isGroupTab(tabParam) ? tabParam : "activity");
+  }, [tabParam]);
+  const setTab = (next: string) => {
+    if (!isGroupTab(next)) return;
+    setTabState(next);
+    const params = new URLSearchParams(window.location.search);
+    if (next === "activity") params.delete("tab");
+    else params.set("tab", next);
+    const qs = params.toString();
+    window.history.replaceState(null, "", `${pathname ?? `/groups/${group.slug}`}${qs ? `?${qs}` : ""}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -130,7 +151,49 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
       </header>
 
       <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,340px)] min-[900px]:items-start">
-        <div className="space-y-5 min-[900px]:order-2">
+        <div className="min-w-0 space-y-5">
+          <YourBalanceCard group={group} myId={myId} balances={balances} />
+
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="grid h-auto w-full grid-cols-4 rounded-xl border border-input bg-card p-0.5">
+              {GROUP_TABS.map((t) => (
+                <TabsTrigger
+                  key={t.id}
+                  value={t.id}
+                  className="min-h-11 rounded-[10px] px-1 text-sm font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                >
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <TabsContent value="activity">
+              <ActivityFeed orgId={group.id} slug={group.slug} meId={myId} canReverseAny={manager} />
+            </TabsContent>
+            <TabsContent value="balances">
+              <BalancesPanel group={group} myId={myId} balances={balances} manager={manager} />
+            </TabsContent>
+            <TabsContent value="pantry">
+              <ComingSoonCard
+                headingLevel={3}
+                icon={Refrigerator}
+                tone="neutral"
+                title="Nothing in the group pantry yet"
+                body="What the group buys, and what to use first, arrives with pantries."
+              />
+            </TabsContent>
+            <TabsContent value="dishes">
+              <ComingSoonCard
+                headingLevel={3}
+                icon={CookingPot}
+                tone="tomato"
+                title="No dishes shared yet"
+                body="Dishes shared with the group, and who had how much, arrive with the dish maker."
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <div className="min-w-0 space-y-5">
           {manager ? <InviteCard group={group} /> : null}
           <RulesCard group={group} manager={manager} roleKnown={roleKnown} />
           <MembersCard
@@ -140,46 +203,129 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
             error={membersHidden ? null : members.error}
             myId={myId}
           />
-        </div>
-
-        <div className="space-y-5 min-[900px]:order-1">
-          <section aria-labelledby="group-coming" className="space-y-3">
-            <h2 id="group-coming" className="text-lg font-bold tracking-tight">
-              In this group
-            </h2>
-            <ComingSoonCard
-              headingLevel={3}
-              icon={Activity}
-              tone="green"
-              title="Activity"
-              body="Every use, dish, bill and payment in the group, newest first."
-            />
-            <ComingSoonCard
-              headingLevel={3}
-              icon={Scale}
-              tone="blue"
-              title="Balances"
-              body="Who owes whom in this group, with every amount explained."
-            />
-            <ComingSoonCard
-              headingLevel={3}
-              icon={Refrigerator}
-              tone="neutral"
-              title="Pantry"
-              body="What the group has bought, and what to use first."
-            />
-            <ComingSoonCard
-              headingLevel={3}
-              icon={CookingPot}
-              tone="tomato"
-              title="Dishes"
-              body="Dishes shared with the group, and who had how much."
-            />
-          </section>
           <LeaveCard group={group} onLeft={onLeft} />
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Your balance ───────────────────────────────────────────────────
+
+type BalancesState = ReturnType<typeof useBalances>;
+
+function YourBalanceCard({
+  group,
+  myId,
+  balances,
+}: {
+  group: PublicOrganization;
+  myId: string | null;
+  balances: BalancesState;
+}) {
+  const mine = myId ? balances.data?.balances.find((b) => b.subjectId === myId) : undefined;
+  const minor = mine?.balanceMinor ?? 0;
+  const currency = balances.data?.currency ?? "INR";
+  return (
+    <KCard className="p-5">
+      <h2 className="text-sm font-medium text-muted-foreground">Your balance in {group.name}</h2>
+      {balances.loading || (!balances.data && !balances.error) ? (
+        <Skeleton className="mt-2 h-8 w-48" />
+      ) : balances.error ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Couldn&apos;t load it. {balances.error.message}{" "}
+          <button type="button" onClick={balances.reload} className="min-h-11 font-semibold text-primary underline-offset-2 hover:underline">
+            Try again
+          </button>
+        </p>
+      ) : minor === 0 ? (
+        <p className="mt-1 text-2xl font-extrabold tracking-tight">You&apos;re settled up</p>
+      ) : (
+        <p className={cn("mt-1 text-2xl font-extrabold tracking-tight", minor > 0 ? "text-cp-owed" : "text-cp-owe")}>
+          {minor > 0 ? "You get back " : "You owe "}
+          <Money minor={Math.abs(minor)} currency={currency} />
+        </p>
+      )}
+      <div className="mt-4 grid grid-cols-2 gap-2 min-[560px]:flex">
+        <Button asChild className={K_BUTTON}>
+          <Link href={`/groups/${group.slug}/expense`}>
+            <Plus aria-hidden />
+            Add expense
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className={K_BUTTON}>
+          <Link href={`/settle?group=${encodeURIComponent(group.slug)}`}>
+            <HandCoins aria-hidden />
+            Settle up
+          </Link>
+        </Button>
+      </div>
+    </KCard>
+  );
+}
+
+// ── Balances ───────────────────────────────────────────────────────
+
+function BalancesPanel({
+  group,
+  myId,
+  balances,
+  manager,
+}: {
+  group: PublicOrganization;
+  myId: string | null;
+  balances: BalancesState;
+  manager: boolean;
+}) {
+  const plan = useSettlePlan(group.id);
+  return (
+    <div className="space-y-5">
+      <KCard className="p-5">
+        <h3 className="text-base font-bold tracking-tight">Everyone&apos;s balance</h3>
+        {balances.loading ? (
+          <div aria-hidden>
+            <SkeletonRow />
+            <SkeletonRow />
+          </div>
+        ) : balances.error || !balances.data ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">Couldn&apos;t load the balances. {balances.error?.message ?? ""}</p>
+            <Button variant="outline" className={K_BUTTON} onClick={balances.reload}>
+              Try again
+            </Button>
+          </div>
+        ) : (
+          <BalanceList data={balances.data} myId={myId} />
+        )}
+      </KCard>
+      <SettleCard
+        group={group}
+        plan={plan.data}
+        loading={plan.loading}
+        error={plan.error}
+        reload={plan.reload}
+        meId={myId}
+        canRecordAny={manager}
+      />
+      <SettleNote className="px-1" />
+    </div>
+  );
+}
+
+function BalanceList({ data, myId }: { data: BalancesResponse; myId: string | null }) {
+  if (data.balances.length === 0) {
+    return <p className="mt-2 text-sm text-muted-foreground">No one has a balance yet.</p>;
+  }
+  return (
+    <ul className="mt-2 divide-y">
+      {data.balances.map((b) => (
+        <li key={b.subjectId} className="flex min-h-14 items-center gap-3 py-2">
+          <PersonAvatar subjectId={b.subjectId} meId={myId} />
+          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{memberLabel(b.subjectId, myId)}</span>
+          <BalanceWords minor={b.balanceMinor} currency={data.currency} className="shrink-0 text-right" />
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -474,22 +620,11 @@ function MembersCard({
         <ul className="mt-2 divide-y">
           {sorted.map((m) => {
             const role = roleFromAssignments(m.roles);
-            const you = m.subjectId === myId;
             return (
               <li key={m.id} className="flex min-h-14 items-center gap-3 py-2">
-                <span
-                  aria-hidden
-                  className={cn(
-                    "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-bold",
-                    you ? "bg-cp-herb-tint text-primary" : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {you ? "You" : <User className="h-4 w-4" />}
-                </span>
+                <PersonAvatar subjectId={m.subjectId} meId={myId} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">
-                    {you ? "You" : <span className="font-mono text-xs">{shortSubject(m.subjectId)}</span>}
-                  </span>
+                  <span className="block truncate text-sm font-semibold">{memberLabel(m.subjectId, myId)}</span>
                   <span className="block text-xs text-muted-foreground">Joined {shortDate(m.joinedAt)}</span>
                 </span>
                 {role ? <RoleBadge role={role} /> : null}
@@ -500,11 +635,6 @@ function MembersCard({
       )}
     </KCard>
   );
-}
-
-/** `usr_8h2k…`: enough of an id to tell members apart (the API has no names yet). */
-function shortSubject(id: string): string {
-  return id.length > 12 ? `${id.slice(0, 12)}…` : id;
 }
 
 // ── Leave ──────────────────────────────────────────────────────────
@@ -533,7 +663,12 @@ function LeaveCard({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
     router.replace("/groups");
     forgetRecentGroup(group.slug);
     qc.setQueryData<PublicOrganization[]>(qk.orgs(), (old) => old?.filter((g) => g.id !== group.id));
-    for (const key of [qk.members(group.id), qk.joinCode(group.id), qk.kitchenSettings(group.id)]) {
+    for (const key of [
+      qk.members(group.id),
+      qk.joinCode(group.id),
+      qk.kitchenSettings(group.id),
+      qk.kitchenLedger(group.id),
+    ]) {
       qc.removeQueries({ queryKey: key });
     }
     void qc.invalidateQueries({ queryKey: qk.orgs() });

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronRight, Plus, Scale, Search, Ticket, UsersRound } from "lucide-react";
+import { ChevronRight, HandCoins, Plus, Scale, Search, Ticket, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { initials } from "@/components/account/profile";
@@ -11,11 +11,14 @@ import { useGroups, useProfile } from "@/components/kitchen/data";
 import { friendlyName, greetingFor } from "@/components/kitchen/home";
 import { sortGroups } from "@/components/kitchen/groups";
 import { GroupAvatar, IconBubble, KCard, K_BUTTON, SoonBadge } from "@/components/kitchen/kit";
+import { useSettlePlans } from "@/components/kitchen/ledger-data";
+import { BalanceWords } from "@/components/kitchen/ledger-ui";
+import { homeSettleSummary } from "@/components/kitchen/settle";
 
 /**
- * Home (CP-5). The inbox, quick use and balances arrive with later
- * milestones; until then Home greets the person, shows the quick-use field
- * as "Soon", an honest balance card (no numbers), and their groups.
+ * Home (CP-5; balances since CP-8). The inbox and quick use arrive with
+ * later milestones; Home greets the person, shows the quick-use field as
+ * "Soon", the balance card, and their groups.
  */
 export default function HomePage() {
   const profile = useProfile();
@@ -77,17 +80,77 @@ function QuickUse() {
   );
 }
 
+/** Groups listed on the balance card before "and N more". */
+const HOME_BALANCE_ROWS = 4;
+
+/**
+ * Your balance in each group where it isn't zero, from each group's settle
+ * plan (one call per group; a server-side cross-group balance arrives in
+ * CP-9), and Settle up when any plan has a payment that involves you. The
+ * empty state stays until you have a balance.
+ */
 function BalanceCard() {
+  const groups = useGroups();
+  const profile = useProfile();
+  const refs = React.useMemo(
+    () => (groups.data ?? []).map((g) => ({ id: g.id, name: g.name, slug: g.slug })),
+    [groups.data],
+  );
+  const plans = useSettlePlans(refs);
+  const summary = homeSettleSummary(plans, profile.data?.id ?? null);
+  const shown = summary.balances.slice(0, HOME_BALANCE_ROWS);
+  const more = summary.balances.length - shown.length;
+
   return (
     <KCard className="p-5">
       <div className="flex items-center gap-3">
         <IconBubble icon={Scale} tone="blue" />
-        <h2 className="text-base font-bold tracking-tight">Your balance</h2>
+        <h2 className="min-w-0 flex-1 text-base font-bold tracking-tight">Your balance</h2>
+        {summary.settleUp ? (
+          <Button asChild variant="outline" className={K_BUTTON}>
+            <Link href="/settle">
+              <HandCoins aria-hidden />
+              Settle up
+            </Link>
+          </Button>
+        ) : null}
       </div>
-      <p className="mt-4 text-lg font-bold">No balances yet</p>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Balances appear once your groups start logging.
-      </p>
+      {shown.length > 0 ? (
+        <ul className="mt-3 divide-y">
+          {shown.map((b) => (
+            <li key={b.group.id}>
+              <Link
+                href={`/groups/${b.group.slug}?tab=balances`}
+                className="-mx-2 flex min-h-14 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <GroupAvatar name={b.group.name} size="sm" />
+                <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{b.group.name}</span>
+                <BalanceWords minor={b.netMinor} currency={b.currency} you className="shrink-0 text-right" />
+              </Link>
+            </li>
+          ))}
+          {more > 0 ? (
+            <li className="pt-2 text-sm text-muted-foreground">
+              and {more} more {more === 1 ? "group" : "groups"} — see{" "}
+              <Link href="/settle" className="font-semibold text-primary underline-offset-2 hover:underline">
+                Settle up
+              </Link>
+            </li>
+          ) : null}
+        </ul>
+      ) : summary.loading || groups.loading ? (
+        <div className="mt-4 space-y-2" aria-hidden>
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+      ) : (
+        <>
+          <p className="mt-4 text-lg font-bold">No balances yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Balances appear once your groups start logging.
+          </p>
+        </>
+      )}
     </KCard>
   );
 }

@@ -402,6 +402,9 @@ importers:
       '@saas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@saas/kitchen-engine':
+        specifier: workspace:*
+        version: link:../../packages/kitchen-engine
       '@saas/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -1231,6 +1234,9 @@ importers:
       '@saas/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
+      '@saas/kitchen-engine':
+        specifier: workspace:*
+        version: link:../../packages/kitchen-engine
       '@saas/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig

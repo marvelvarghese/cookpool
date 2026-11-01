@@ -11,7 +11,9 @@
       "@/*": ["../../apps/web-console-next/src/*"],
       "@web-console-next/*": ["../../apps/web-console-next/src/*"],
       "@saas/contracts": ["../../packages/contracts/src/index.ts"],
-      "@saas/contracts/*": ["../../packages/contracts/src/*.ts"]
+      "@saas/contracts/*": ["../../packages/contracts/src/*.ts"],
+      "@saas/kitchen-engine": ["../../packages/kitchen-engine/src/index.ts"],
+      "@saas/kitchen-engine/*": ["../../packages/kitchen-engine/src/*.ts"]
     }
   },
   "include": [
