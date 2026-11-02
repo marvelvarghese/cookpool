@@ -9,7 +9,7 @@ the code departed from `design.md`.
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
 | CP2 — the ledger | ✅ shipped 2026-11-02 | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22), #15 (CP-9) |
 | CP3 — pantries and using things | ✅ shipped 2026-11-02 | #11 (CP-10), #14 (CP-11), #18 (CP-12), #20 (CP-13) |
-| CP4 — the dish maker | in progress | #16 (CP-14) |
+| CP4 — the dish maker | ✅ shipped 2026-11-02 | #16 (CP-14), #23 (CP-15) |
 | CP5 — splitting dishes | ✅ shipped 2026-11-02 | #17 (CP-16), #22 (CP-17) |
 | CP6 — use it before it goes | in progress | #19 (CP-18), #21 (CP-19) |
 
@@ -927,3 +927,86 @@ The backend half of the original CP-19 (the screens are CP-23).
   + Add sheet's "I cooked" (CP-15), Home's inbox (CP-23), reminders (no
   API). The group's Activity does not link a dish transaction to its dish
   page yet (`sourceKind: dish`, `sourceId` are there) — a follow-up.
+
+### CP4 — the dish maker (CP-15)
+
+- **Where it opens.** `/cook`; `/cook?item=me:itm_…` / `org:org_…:itm_…`
+  starts with that item in the dish (the item page's **Cook with it**, now a
+  link). The sidebar's **Cook a dish** and the + Add sheet's **I cooked** are
+  live, so every Add tile is. Cooking opens `/dishes/{dsh}` (CP-17's page,
+  built alongside: on a branch without it, that link is a 404).
+- **One request, then the split.** `cookDish` with each pantry ingredient in
+  its base unit (as a use is sent) and what was just bought as `newItems`
+  (category `other`; `useQuantity` in the base unit only when less than all of
+  it goes in). Claims: `splitMode: claims` with the group (the dish is open).
+  Assign: `splitMode: assign`, then `setDishShares` right away — you first,
+  then the group's member order (the order the server splits by), nobody at
+  zero — and the dish stays a draft: it is **not finalized here**; the dish
+  page finalizes. The canvas's help line said "It posts straight away"; it
+  now says the split posts with the dish and is finalized on the dish page.
+  Just me: `orgId: null`, `splitMode: assign`, no shares, not finalized here.
+  If the shares are refused after cooking, the dish is still cooked and a
+  second toast says to set who ate on the dish page.
+- **Undo.** Cooking moves money, so it confirms by undo like every other
+  money action (design §7): a ten-second toast whose Undo cancels the dish
+  (`POST …/me/dishes/{dsh}/cancel`). A dish finalized in the meantime says to
+  correct it on the dish page instead. The canvas's "Save draft" is not
+  built: there is no draft of a dish before it is cooked.
+- **Every number is the engine's.** Line costs are `costOfUse` through the
+  item page's `amountCost` (price − worth as cost taken, so the last of an
+  item costs what is left of its price); something just bought costs
+  `costOfUse` as a fresh item. "You take on" is `buildIngredientTake` per
+  source group read with `pairLines` (a group item the cook bought is no
+  debt; one buyer's items in a group are one line; the same buyer in two
+  groups is two). The assign rows are `buildDish` over the shares as sent;
+  portions nobody is down for fall to the cook and are shown apart, worth what
+  the server's `unclaimedMinor` would be (`splitByWeights` of the cook's
+  part). design §3's example reproduces to the paisa: ₹211.00, ₹52.75 a
+  portion, ₹153.00 from your own pantry, Rahul ₹79.13 / Anu ₹52.75 / Dev
+  ₹52.75 / Meera ₹26.37. Each portion reads "about ₹33.33" when the total does
+  not divide into whole paise. The cost card's "From your own pantry" reads
+  "Paid for by you" when it includes something the cook bought for a group.
+- **The note.** "Whoever eats owes you ₹X a portion." Then, only when the cook
+  owes buyers in the shared group itself, "Inside {group}, that cancels
+  against the ₹Y you owe {buyers}, so settle-up only shows what's left." —
+  omitted when there is nothing to net there — and "What you owe {buyer} in
+  {group} stays in that group's balance" for every other group. Just me says
+  who is still owed, group by group, or that nobody owes anyone.
+- **Who it is shared with, to start.** The linked item's group, else the group
+  opened last that you cook in and that counts in the dish's currency, else
+  Just me; once picked, the choice stays. Groups you only view are never
+  offered; a group counting in another currency than what is in the dish is
+  shown but can't be picked. While your groups load, the button waits (it
+  would otherwise cook "just me").
+- **One currency.** Once the picked group or the first pantry ingredient fixes
+  the dish's currency, items counting in another show "Counts in USD" with no
+  Add; the server's `currency_mismatch` is still put in words if it happens.
+- **Steps.** The item page's 50 g / 50 ml are too coarse for a spoon of
+  something, so a line steps by what was bought: 10 g (≤ 250 g bought), 25 g
+  (≤ 1 kg), 50 g (≤ 3 kg), 100 g beyond; one piece; one pack. A new line
+  starts at four steps (one piece or pack), never more than is left; the
+  amount can also be typed. A step down from the smallest amount takes the
+  line out ("Take out tomatoes"), and focus goes to the Ingredients heading.
+- **Take from any pantry.** Before a search, the cook's usable items
+  (`items?usable=1&limit=100`, soonest use-by first; 30 shown); a search is
+  quick use's (`search?usable=1`, debounced). Nothing matching offers "Not in
+  any pantry. Bought it just now?" — name, how much in a unit, what you paid,
+  with the live per-unit line; no use-by date in this small form. Lines are
+  kept fresh from that list after every stock write (amounts cut to what is
+  left); after `insufficient_stock` the line is cut to what the server says is
+  left at once. A retry after any answered refusal uses a new idempotency key
+  (CP-13's rule).
+- **Layout.** Phones: one column, the panel opens under the ingredients, and
+  the button sticks above the tab bar for the whole page. From 900px: two
+  panels ("Take from any pantry" sticky on the left, 17rem, 340px from
+  1200px) and the button in a sticky header. The ingredients table
+  (Ingredient · From · Amount · Cost · You owe) needs the room, so it shows
+  from 1200px; between 900 and 1199px the dish column keeps the phone's cards
+  (and the extras and portions steppers stack below 1100px).
+- **Query keys.** `kitchenCookable()` under `kitchenPantry()`, and a
+  `kitchenDishes()` prefix that cooking and Undo invalidate — dish reads
+  (CP-17) belong under it. No SDK or contract change.
+- **Not in this task:** a group page's Dishes card still says dishes arrive
+  with the dish maker (CP-17 lists them); cooking from a group page with that
+  group chosen (`/cook` takes no `?group=`); a use-by date for what was just
+  bought.

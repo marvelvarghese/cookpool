@@ -97,7 +97,8 @@ export function groupActionHref(action: Pick<AddAction, "href">, slug: string): 
  * ledger screens (CP-8): it asks which group, then opens Add expense there.
  * "I bought food" is live since the pantry screens (CP-12): Add an item picks
  * the pantry itself. "I used something" is live since quick use (CP-13):
- * /use searches every pantry. "I cooked" waits for the dish maker (CP-15).
+ * /use searches every pantry. "I cooked" is live since the dish maker
+ * (CP-15): /cook takes from any pantry.
  */
 export const ADD_TILES: readonly AddAction[] = [
   {
@@ -114,7 +115,7 @@ export const ADD_TILES: readonly AddAction[] = [
     hint: "Share a dish and its cost",
     href: "/cook",
     icon: "CookingPot",
-    live: false,
+    live: true,
   },
   {
     id: "buy",

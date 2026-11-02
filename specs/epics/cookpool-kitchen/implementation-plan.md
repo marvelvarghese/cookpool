@@ -62,7 +62,7 @@ The product becomes useful on its own.
 - using the last of an item charges exactly what is left of its price
 - an over-draw is refused and nothing is written
 
-## CP4 — the dish maker
+## CP4 — the dish maker ✅
 
 - **CP-14 cooking**: `kitchen_dishes`, `kitchen_dish_ingredients`; `POST /v1/kitchen/me/dishes` takes ingredients from any reachable pantry, posts one `use` transaction per source group charging the cook, rejects mixed currencies.
 - **CP-15 the dish maker screen**: search across pantries, inline new item, extras, portions, share-with picker, the cost card with what the cook takes on.

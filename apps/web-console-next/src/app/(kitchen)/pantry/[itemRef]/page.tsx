@@ -70,6 +70,7 @@ import {
   wastePreview,
 } from "@/components/kitchen/item-use";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
+import { cookHref } from "@/components/kitchen/dish-maker";
 
 /**
  * One item (CP-12): how much is left of what was bought, what it cost and is
@@ -455,16 +456,14 @@ function ActionsCard({ itemRef, item, meId, names, roster }: ItemCtx) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2.5">
-        {/* The dish maker arrives with CP-15: shown, honestly not clickable yet. */}
-        <button
-          type="button"
-          aria-disabled="true"
-          className="relative flex min-h-[50px] cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[14px] border border-input bg-card px-3 text-[15px] font-bold text-muted-foreground"
+        {/* The dish maker (CP-15), with this item already in the dish. */}
+        <Link
+          href={cookHref(itemRef)}
+          className="flex min-h-[50px] items-center justify-center gap-2 whitespace-nowrap rounded-[14px] border border-input bg-card px-3 text-[15px] font-bold text-cp-tomato transition-colors hover:bg-cp-tomato-tint/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <CookingPot className="h-5 w-5 shrink-0" aria-hidden />
           Cook with it
-          <SoonBadge className="absolute -top-2.5 right-2 border bg-card" />
-        </button>
+        </Link>
         <button
           type="button"
           aria-expanded={open}
