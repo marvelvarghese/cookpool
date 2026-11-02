@@ -10,6 +10,7 @@ Part of the cookpool runtime: a Cloudflare Worker deployed per environment (`sta
 - **policy-worker** — Cloudflare Worker for policy authorization decisions
 - **membership-worker** — Cloudflare Worker for the Membership org runtime
 - **notifications-worker** — Cloudflare Worker for the Notifications bounded context
+- **db-migrate** — Applies database migrations to the stage and prod Cloudflare D1 databases
 
 ## Depended on by
 

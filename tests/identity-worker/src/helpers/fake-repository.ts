@@ -21,6 +21,7 @@ import type {
   ApiKeyPageQueryParams,
   ApiKeyPagedResult,
 } from "@saas/db/identity";
+import { LOGIN_CHALLENGE_MAX_ATTEMPTS } from "@saas/db/identity";
 
 interface StoredChallenge extends LoginChallenge {
   codeHash: string;
@@ -133,6 +134,23 @@ export function createFakeRepository(): IdentityRepository & {
     },
 
     async createLoginChallenge(input: CreateLoginChallengeInput): Promise<IdentityResult<LoginChallenge>> {
+      // Mirrors the D1 repository's guarded insert (SI-2): count the user's
+      // challenges created after the window's start, refuse at the limit with
+      // when the max-th newest leaves it. No await between count and insert,
+      // so it is as atomic here as the one statement is on D1.
+      if (input.limit) {
+        const windowStart = input.createdAt.getTime() - input.limit.windowMs;
+        const inWindow = [...challenges.values()]
+          .filter((c) => c.userId === input.userId && c.createdAt.getTime() > windowStart)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        if (inWindow.length >= input.limit.max) {
+          const blocking = inWindow[input.limit.max - 1]!;
+          return {
+            ok: false,
+            error: { kind: "rate_limited", retryAt: new Date(blocking.createdAt.getTime() + input.limit.windowMs) },
+          };
+        }
+      }
       const challenge: StoredChallenge = {
         id: input.id,
         userId: input.userId,
@@ -140,6 +158,7 @@ export function createFakeRepository(): IdentityRepository & {
         expiresAt: input.expiresAt,
         consumedAt: null,
         createdAt: input.createdAt,
+        attempts: 0,
         codeHash: input.codeHash,
       };
       challenges.set(input.id, challenge);
@@ -153,11 +172,22 @@ export function createFakeRepository(): IdentityRepository & {
     },
 
     async consumeLoginChallenge(id: string, codeHash: string, consumedAt: Date): Promise<IdentityResult<LoginChallenge>> {
+      // Mirrors the D1 repository's one guarded UPDATE (SI-2): only an
+      // unconsumed, unexpired challenge with tries left is touched; the right
+      // code consumes it, a wrong one adds a try. No await inside, so parallel
+      // calls each count, as they do against the real statement.
       const c = challenges.get(id);
       if (!c) return { ok: false, error: { kind: "not_found" } };
       if (c.consumedAt !== null) return { ok: false, error: { kind: "already_consumed" } };
+      if (c.attempts >= LOGIN_CHALLENGE_MAX_ATTEMPTS) return { ok: false, error: { kind: "too_many_attempts" } };
       if (c.expiresAt.getTime() <= consumedAt.getTime()) return { ok: false, error: { kind: "expired" } };
-      if (c.codeHash !== codeHash) return { ok: false, error: { kind: "not_found" } };
+      if (c.codeHash !== codeHash) {
+        c.attempts += 1;
+        const attemptsLeft = LOGIN_CHALLENGE_MAX_ATTEMPTS - c.attempts;
+        return attemptsLeft === 0
+          ? { ok: false, error: { kind: "too_many_attempts" } }
+          : { ok: false, error: { kind: "wrong_code", attemptsLeft } };
+      }
       c.consumedAt = consumedAt;
       return { ok: true, value: c };
     },

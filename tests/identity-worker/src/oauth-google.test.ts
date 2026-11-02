@@ -98,7 +98,7 @@ describe("google provider", () => {
 describe("provider enablement", () => {
   const base: Env = {
     ENVIRONMENT: "stage",
-    DEBUG_DELIVERY: "true",
+    DEBUG_DELIVERY_DOMAINS: "*",
     OAUTH_STATE_SECRET: "state-secret-0123456789abcdef",
     OAUTH_REDIRECT_BASE_URL: "https://api.example.com",
   };

@@ -33,6 +33,19 @@ function createFakeExecutor(options?: {
   return { executor, queries };
 }
 
+/** An executor that answers each query with the next scripted rows (SI-2: a statement, then the read that says why). */
+function createScriptedExecutor(answers: Record<string, unknown>[][]): { executor: SqlExecutor; queries: QueryRecord[] } {
+  const queries: QueryRecord[] = [];
+  const executor: SqlExecutor = {
+    async execute<T extends SqlRow = SqlRow>(text: string, params?: unknown[]): Promise<SqlExecutorResult<T>> {
+      queries.push({ text, params: params ?? [] });
+      const rows = (answers[queries.length - 1] ?? []) as unknown as T[];
+      return { rows, rowCount: rows.length };
+    },
+  };
+  return { executor, queries };
+}
+
 const NOW = new Date("2026-01-15T10:00:00Z");
 const FUTURE = new Date("2099-01-15T11:00:00Z");
 const PAST = new Date("2020-01-15T09:00:00Z");
@@ -317,6 +330,57 @@ describe("IdentityRepository", () => {
       expect(queries[0]!.params[3]).toBe("sha256-hashed-code");
       expect(queries[0]!.text).toContain("$4");
     });
+
+    // SI-2: 5 codes per address per 15 minutes, counted in the insert itself.
+    const LIMITED = {
+      id: "ch-006",
+      userId: "u-001",
+      method: "email_code",
+      codeHash: "sha256-hashed-code",
+      expiresAt: FUTURE,
+      createdAt: NOW,
+      limit: { max: 5, windowMs: 15 * 60 * 1000 },
+    };
+    const WINDOW_START = new Date(NOW.getTime() - 15 * 60 * 1000).toISOString();
+
+    it("with a limit, counts the user's challenges in the window in the same statement that inserts", async () => {
+      const { executor, queries } = createScriptedExecutor([[SAMPLE_CHALLENGE_ROW]]);
+      const repo = createIdentityRepository(executor);
+
+      const result = await repo.createLoginChallenge(LIMITED);
+
+      expect(result.ok).toBe(true);
+      expect(queries).toHaveLength(1);
+      const sql = queries[0]!.text.replace(/\s+/g, " ");
+      expect(sql).toContain("INSERT INTO identity_login_challenges (id, user_id, method, code_hash, expires_at, created_at) SELECT $1, $2, $3, $4, $5, $6");
+      expect(sql).toContain("WHERE (SELECT COUNT(*) FROM identity_login_challenges WHERE user_id = $2 AND created_at > $7) < $8");
+      // The RETURNING list leaves the hash out.
+      expect(sql).toMatch(/RETURNING id, user_id, method, expires_at, consumed_at, created_at, attempts$/);
+      expect(queries[0]!.params).toEqual([
+        "ch-006", "u-001", "email_code", "sha256-hashed-code", FUTURE.toISOString(), NOW.toISOString(), WINDOW_START, 5,
+      ]);
+    });
+
+    it("with a limit, answers rate_limited with when the max-th newest leaves the window", async () => {
+      const oldest = new Date(NOW.getTime() - 10 * 60 * 1000).toISOString();
+      const { executor, queries } = createScriptedExecutor([[], [{ created_at: oldest }]]);
+      const repo = createIdentityRepository(executor);
+
+      const result = await repo.createLoginChallenge(LIMITED);
+
+      expect(result).toEqual({ ok: false, error: { kind: "rate_limited", retryAt: new Date(NOW.getTime() + 5 * 60 * 1000) } });
+      expect(queries[1]!.text).toMatch(/ORDER BY created_at DESC\s+LIMIT 1 OFFSET \$3/);
+      expect(queries[1]!.params).toEqual(["u-001", WINDOW_START, 4]);
+    });
+
+    it("with a limit, answers conflict when nothing was inserted and the window has room", async () => {
+      const { executor } = createScriptedExecutor([[], []]);
+      const repo = createIdentityRepository(executor);
+
+      const result = await repo.createLoginChallenge(LIMITED);
+
+      expect(result).toEqual({ ok: false, error: { kind: "conflict", entity: "login_challenge" } });
+    });
   });
 
   describe("getLoginChallengeById", () => {
@@ -382,14 +446,71 @@ describe("IdentityRepository", () => {
       expect(queries[0]!.params).toEqual(["ch-001", "sha256-hashed-code", NOW.toISOString()]);
     });
 
-    it("returns already_consumed when no rows affected", async () => {
-      const { executor } = createFakeExecutor({ rows: [], rowCount: 0 });
+    // SI-2: no rows affected no longer means "used" by itself (a wrong code,
+    // a spent or an expired challenge touch nothing either): a read of the
+    // row says which. Used is still already_consumed.
+    it("returns already_consumed when no rows affected and the challenge has been used", async () => {
+      const { executor, queries } = createScriptedExecutor([
+        [],
+        [{ consumed_at: NOW.toISOString(), attempts: 0, expires_at: FUTURE.toISOString() }],
+      ]);
       const repo = createIdentityRepository(executor);
 
       const result = await repo.consumeLoginChallenge("ch-001", "sha256-hashed-code", NOW);
 
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.kind).toBe("already_consumed");
+      expect(queries[1]!.text).toMatch(/^SELECT consumed_at, attempts, expires_at FROM identity_login_challenges WHERE id = \$1$/);
+      expect(queries[1]!.params).toEqual(["ch-001"]);
+    });
+
+    it("decides and counts the try in one guarded UPDATE (SI-2)", async () => {
+      const { executor, queries } = createScriptedExecutor([[{ ...SAMPLE_CHALLENGE_ROW, consumed_at: NOW.toISOString() }]]);
+      const repo = createIdentityRepository(executor);
+
+      await repo.consumeLoginChallenge("ch-001", "sha256-hashed-code", NOW);
+
+      expect(queries).toHaveLength(1);
+      const sql = queries[0]!.text.replace(/\s+/g, " ");
+      expect(sql).toMatch(/^UPDATE identity_login_challenges SET /);
+      expect(sql).toContain("consumed_at = CASE WHEN code_hash = $2 THEN $3 ELSE NULL END");
+      expect(sql).toContain("attempts = CASE WHEN code_hash = $2 THEN attempts ELSE attempts + 1 END");
+      expect(sql).toContain("WHERE id = $1 AND consumed_at IS NULL AND attempts < 5 AND expires_at > $3");
+      expect(sql).toContain("RETURNING id, user_id, method, expires_at, consumed_at, created_at, attempts");
+    });
+
+    it("answers a wrong code with the tries left, and the 5th with too_many_attempts", async () => {
+      for (const [attempts, expected] of [
+        [1, { kind: "wrong_code", attemptsLeft: 4 }],
+        [4, { kind: "wrong_code", attemptsLeft: 1 }],
+        [5, { kind: "too_many_attempts" }],
+      ] as const) {
+        const { executor, queries } = createScriptedExecutor([[{ ...SAMPLE_CHALLENGE_ROW, attempts }]]);
+        const repo = createIdentityRepository(executor);
+        const result = await repo.consumeLoginChallenge("ch-001", "wrong-hash", NOW);
+        expect(result).toEqual({ ok: false, error: expected });
+        expect(queries).toHaveLength(1);
+      }
+    });
+
+    it("says why nothing was touched: missing, spent or expired", async () => {
+      for (const [row, kind] of [
+        [undefined, "not_found"],
+        [{ consumed_at: null, attempts: 5, expires_at: FUTURE.toISOString() }, "too_many_attempts"],
+        [{ consumed_at: null, attempts: 2, expires_at: PAST.toISOString() }, "expired"],
+      ] as const) {
+        const { executor } = createScriptedExecutor([[], row ? [row] : []]);
+        const repo = createIdentityRepository(executor);
+        const result = await repo.consumeLoginChallenge("ch-001", "sha256-hashed-code", NOW);
+        expect(result).toEqual({ ok: false, error: { kind } });
+      }
+    });
+
+    it("maps the attempt count onto the challenge it returns", async () => {
+      const { executor } = createScriptedExecutor([[{ ...SAMPLE_CHALLENGE_ROW, consumed_at: NOW.toISOString(), attempts: 3 }]]);
+      const repo = createIdentityRepository(executor);
+      const result = await repo.consumeLoginChallenge("ch-001", "sha256-hashed-code", NOW);
+      expect(result.ok && result.value.attempts).toBe(3);
     });
 
     it("does not expose codeHash in returned challenge", async () => {

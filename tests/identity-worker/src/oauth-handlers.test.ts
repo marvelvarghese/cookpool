@@ -16,7 +16,7 @@ import type { OAuthProvider } from "../../../apps/identity-worker/src/oauth/prov
 
 const ENV: Env = {
   ENVIRONMENT: "local",
-  DEBUG_DELIVERY: "true",
+  DEBUG_DELIVERY_DOMAINS: "*",
   GITHUB_OAUTH_CLIENT_ID: "client-abc",
   GITHUB_OAUTH_CLIENT_SECRET: "secret-xyz",
   OAUTH_STATE_SECRET: "state-secret-0123456789abcdef",

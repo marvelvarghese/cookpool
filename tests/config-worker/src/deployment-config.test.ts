@@ -442,11 +442,29 @@ describe("identity-worker deployment config", () => {
   ]);
   if (result.status !== 0) throw new Error(`identity-worker render failed: ${String(result.stderr)}`);
   const rendered = parseJsoncStrings(fs.readFileSync(outFile, "utf-8")) as unknown as {
-    env: Record<string, { workers_dev?: boolean }>;
+    vars: Record<string, string>;
+    env: Record<string, { workers_dev?: boolean; vars: Record<string, string> }>;
   };
   for (const envName of ["stage", "prod"]) {
     test(`${envName} has no public workers.dev URL`, () => {
       expect(rendered.env[envName]?.workers_dev).toBe(false);
     });
   }
+
+  // Cookpool SI-2: sign-in codes are shown on screen only for test domains.
+  // Stage used to return every code (DEBUG_DELIVERY=true), so anyone could
+  // sign in to stage as anyone; now only name@cookpool.test addresses get one.
+  test("stage shows codes only for cookpool.test, prod for no address, local and dev for every address", () => {
+    expect(rendered.env["stage"]?.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("cookpool.test");
+    expect(rendered.env["prod"]?.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("");
+    expect(rendered.env["dev"]?.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("*");
+    expect(rendered.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("*");
+  });
+
+  test("no environment carries the old all-or-nothing DEBUG_DELIVERY", () => {
+    expect(rendered.vars).not.toHaveProperty("DEBUG_DELIVERY");
+    for (const envName of ["dev", "stage", "prod"]) {
+      expect(rendered.env[envName]?.vars).not.toHaveProperty("DEBUG_DELIVERY");
+    }
+  });
 });

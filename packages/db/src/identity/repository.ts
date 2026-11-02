@@ -58,6 +58,7 @@ function mapLoginChallenge(row: Record<string, unknown>): LoginChallenge {
     expiresAt: new Date(row.expires_at as string),
     consumedAt: row.consumed_at ? new Date(row.consumed_at as string) : null,
     createdAt: new Date(row.created_at as string),
+    attempts: Number(row.attempts ?? 0),
   };
 }
 
@@ -126,6 +127,16 @@ function mapApiKey(row: Record<string, unknown>): ApiKey {
 function safeError(message: string): IdentityResult<never> {
   return { ok: false, error: { kind: "internal", message } };
 }
+
+/**
+ * Wrong codes a login challenge takes before it is spent (Cookpool SI-2). The
+ * guarded UPDATE in `consumeLoginChallenge` holds it; `@saas/contracts/auth`
+ * publishes the same number as LOGIN_CODE_MAX_ATTEMPTS for the app.
+ */
+export const LOGIN_CHALLENGE_MAX_ATTEMPTS = 5;
+
+/** The columns a login challenge is read back with: everything but code_hash. */
+const CHALLENGE_COLUMNS = "id, user_id, method, expires_at, consumed_at, created_at, attempts";
 
 
 export function createIdentityRepository(executor: SqlExecutor): IdentityRepository {
@@ -246,12 +257,45 @@ export function createIdentityRepository(executor: SqlExecutor): IdentityReposit
 
     async createLoginChallenge(input: CreateLoginChallengeInput): Promise<IdentityResult<LoginChallenge>> {
       try {
+        const values = [input.id, input.userId, input.method, input.codeHash, input.expiresAt.toISOString(), input.createdAt.toISOString()];
+        if (input.limit) {
+          // SI-2: the count and the insert are ONE statement, so two requests
+          // at the limit cannot both get in. A challenge counts while it was
+          // created after the window's start. (The SELECT's WHERE also keeps
+          // SQLite from reading ON CONFLICT as a join's ON.)
+          const windowStart = new Date(input.createdAt.getTime() - input.limit.windowMs).toISOString();
+          const guarded = await executor.execute<Record<string, unknown>>(
+            `INSERT INTO identity_login_challenges (id, user_id, method, code_hash, expires_at, created_at)
+             SELECT $1, $2, $3, $4, $5, $6
+             WHERE (SELECT COUNT(*) FROM identity_login_challenges WHERE user_id = $2 AND created_at > $7) < $8
+             ON CONFLICT (id) DO NOTHING
+             RETURNING ${CHALLENGE_COLUMNS}`,
+            [...values, windowStart, input.limit.max],
+          );
+          if (guarded.rowCount > 0) return { ok: true, value: mapLoginChallenge(guarded.rows[0]!) };
+          // Refused. Read only to say until when: a new one fits once fewer
+          // than `max` remain, i.e. when the max-th newest leaves the window
+          // (the oldest of five, when there are five).
+          const blocking = await executor.execute<Record<string, unknown>>(
+            `SELECT created_at FROM identity_login_challenges
+             WHERE user_id = $1 AND created_at > $2
+             ORDER BY created_at DESC
+             LIMIT 1 OFFSET $3`,
+            [input.userId, windowStart, input.limit.max - 1],
+          );
+          const oldest = blocking.rows[0];
+          if (oldest) {
+            const retryAt = new Date(new Date(oldest.created_at as string).getTime() + input.limit.windowMs);
+            return { ok: false, error: { kind: "rate_limited", retryAt } };
+          }
+          return { ok: false, error: { kind: "conflict", entity: "login_challenge" } };
+        }
         const result = await executor.execute<Record<string, unknown>>(
           `INSERT INTO identity_login_challenges (id, user_id, method, code_hash, expires_at, created_at)
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (id) DO NOTHING
            RETURNING *`,
-          [input.id, input.userId, input.method, input.codeHash, input.expiresAt.toISOString(), input.createdAt.toISOString()],
+          values,
         );
         if (result.rowCount === 0) {
           return { ok: false, error: { kind: "conflict", entity: "login_challenge" } };
@@ -268,7 +312,7 @@ export function createIdentityRepository(executor: SqlExecutor): IdentityReposit
     async getLoginChallengeById(id: string): Promise<IdentityResult<LoginChallenge>> {
       try {
         const result = await executor.execute<Record<string, unknown>>(
-          `SELECT id, user_id, method, expires_at, consumed_at, created_at FROM identity_login_challenges WHERE id = $1`,
+          `SELECT ${CHALLENGE_COLUMNS} FROM identity_login_challenges WHERE id = $1`,
           [id],
         );
         if (result.rowCount === 0) {
@@ -289,17 +333,46 @@ export function createIdentityRepository(executor: SqlExecutor): IdentityReposit
 
     async consumeLoginChallenge(id: string, codeHash: string, consumedAt: Date): Promise<IdentityResult<LoginChallenge>> {
       try {
+        // SI-2: ONE guarded statement decides the try and records it. Only an
+        // unconsumed, unexpired challenge with tries left is touched; there the
+        // right code consumes it and a wrong one adds a try (SET reads the row
+        // as it was). Never read-then-write: parallel guesses each count, and
+        // none gets past the limit. The code is compared as its hash, in SQL,
+        // as before.
+        const at = consumedAt.toISOString();
         const result = await executor.execute<Record<string, unknown>>(
           `UPDATE identity_login_challenges
-           SET consumed_at = $3
-           WHERE id = $1 AND code_hash = $2 AND consumed_at IS NULL
-           RETURNING *`,
-          [id, codeHash, consumedAt.toISOString()],
+           SET consumed_at = CASE WHEN code_hash = $2 THEN $3 ELSE NULL END,
+               attempts = CASE WHEN code_hash = $2 THEN attempts ELSE attempts + 1 END
+           WHERE id = $1 AND consumed_at IS NULL AND attempts < ${LOGIN_CHALLENGE_MAX_ATTEMPTS} AND expires_at > $3
+           RETURNING ${CHALLENGE_COLUMNS}`,
+          [id, codeHash, at],
         );
-        if (result.rowCount === 0) {
-          return { ok: false, error: { kind: "already_consumed" } };
+        const row = result.rows[0];
+        if (row) {
+          const challenge = mapLoginChallenge(row);
+          if (challenge.consumedAt !== null) return { ok: true, value: challenge };
+          const attemptsLeft = Math.max(0, LOGIN_CHALLENGE_MAX_ATTEMPTS - challenge.attempts);
+          return attemptsLeft === 0
+            ? { ok: false, error: { kind: "too_many_attempts" } }
+            : { ok: false, error: { kind: "wrong_code", attemptsLeft } };
         }
-        return { ok: true, value: mapLoginChallenge(result.rows[0]!) };
+
+        // Nothing was touched. This read only says why — the statement above
+        // has already decided. A challenge's state only moves forward (used,
+        // spent, expired never revert), so what this sees is what refused it.
+        const state = await executor.execute<Record<string, unknown>>(
+          `SELECT consumed_at, attempts, expires_at FROM identity_login_challenges WHERE id = $1`,
+          [id],
+        );
+        const current = state.rows[0];
+        if (!current) return { ok: false, error: { kind: "not_found" } };
+        if (current.consumed_at) return { ok: false, error: { kind: "already_consumed" } };
+        if (Number(current.attempts ?? 0) >= LOGIN_CHALLENGE_MAX_ATTEMPTS) {
+          return { ok: false, error: { kind: "too_many_attempts" } };
+        }
+        if ((current.expires_at as string) <= at) return { ok: false, error: { kind: "expired" } };
+        return safeError("Login challenge changed while it was checked");
       } catch {
         return safeError("Failed to consume login challenge");
       }

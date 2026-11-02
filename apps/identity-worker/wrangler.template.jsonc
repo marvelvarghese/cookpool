@@ -18,9 +18,13 @@
   //       wrangler secret put OAUTH_STATE_SECRET         --env <env>
   //   - Each OAuth app's authorized redirect/callback URL must be:
   //       {OAUTH_REDIRECT_BASE_URL}/v1/auth/oauth/{github|google}/callback
+  // DEBUG_DELIVERY_DOMAINS (Cookpool SI-2): the email domains whose sign-in
+  // codes login/start returns on screen instead of emailing; `*` is every
+  // domain. Local and dev `*`, stage `cookpool.test` only (testers sign in as
+  // name@cookpool.test), prod none.
   "vars": {
     "ENVIRONMENT": "local",
-    "DEBUG_DELIVERY": "true",
+    "DEBUG_DELIVERY_DOMAINS": "*",
     "GITHUB_OAUTH_CLIENT_ID": "",
     "GOOGLE_OAUTH_CLIENT_ID": "",
     "OAUTH_REDIRECT_BASE_URL": "http://localhost:8787",
@@ -31,7 +35,7 @@
     "dev": {
       "vars": {
         "ENVIRONMENT": "dev",
-        "DEBUG_DELIVERY": "true",
+        "DEBUG_DELIVERY_DOMAINS": "*",
         "GITHUB_OAUTH_CLIENT_ID": "",
         "GOOGLE_OAUTH_CLIENT_ID": "",
         "OAUTH_REDIRECT_BASE_URL": "",
@@ -46,7 +50,7 @@
       "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "stage",
-        "DEBUG_DELIVERY": "true",
+        "DEBUG_DELIVERY_DOMAINS": "cookpool.test",
         "GITHUB_OAUTH_CLIENT_ID": "Ov23liKBsjAqJJsmBavV",
         "GOOGLE_OAUTH_CLIENT_ID": "441163126775-7fabhvpbl9tsga921rklpdlde7mduq34.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://cookpool-api-edge-stage.rahulvarghesepullely.workers.dev",
@@ -82,7 +86,7 @@
       "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "prod",
-        "DEBUG_DELIVERY": "false",
+        "DEBUG_DELIVERY_DOMAINS": "",
         "GITHUB_OAUTH_CLIENT_ID": "Ov23lilp2aoyeBDVU8Vc",
         "GOOGLE_OAUTH_CLIENT_ID": "441163126775-7fabhvpbl9tsga921rklpdlde7mduq34.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://cookpool-api-edge-prod.rahulvarghesepullely.workers.dev",

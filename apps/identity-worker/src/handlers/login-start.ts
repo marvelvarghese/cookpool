@@ -6,10 +6,12 @@ import { createIdentityRepository } from "@saas/db/identity";
 import { createAuthService } from "../services/auth.js";
 import { successResponse, errorResponse, validationError } from "../http.js";
 import { extractRequestContext } from "../request-context.js";
+import { deliversCodeInline } from "../debug-delivery.js";
 import {
   enqueueNotification,
   buildIdempotencyKey,
 } from "@saas/notifications-client";
+import { AUTH_ERROR_REASONS } from "@saas/contracts/auth";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -39,6 +41,8 @@ export interface HandleLoginStartDeps {
    * absent `env.NOTIFICATIONS_WORKER` binding is a no-op).
    */
   enqueueNotification?: typeof enqueueNotification;
+  /** Injectable clock for tests (the 15-minute code window, SI-2). */
+  now?: () => Date;
 }
 
 export async function handleLoginStart(
@@ -71,20 +75,32 @@ export async function handleLoginStart(
   try {
     const repo = deps?.repo ?? createIdentityRepository(executor!);
     const ctx = extractRequestContext(request, requestId);
-    const auth = createAuthService({ repo, now: () => new Date(), ctx });
+    const auth = createAuthService({ repo, now: deps?.now ?? (() => new Date()), ctx });
     const result = await auth.startLogin(email);
 
     if ("error" in result) {
+      if (result.error === "rate_limited") {
+        // SI-2: 5 codes per address per 15 minutes. Same shape as the edge's
+        // per-IP 429 (details.retryAfterSeconds + Retry-After), plus a reason.
+        const response = errorResponse("rate_limited", result.message, 429, requestId, {
+          reason: AUTH_ERROR_REASONS.TOO_MANY_CODES,
+          retryAfterSeconds: result.retryAfterSeconds,
+        });
+        response.headers.set("Retry-After", String(result.retryAfterSeconds));
+        return response;
+      }
       return errorResponse(result.error, result.message, 500, requestId);
     }
 
-    const isDebug = env.DEBUG_DELIVERY === "true";
+    // SI-2: only addresses in DEBUG_DELIVERY_DOMAINS get the code on screen
+    // (`*` locally and on dev, cookpool.test on stage, none on prod).
+    const isDebug = deliversCodeInline(env.DEBUG_DELIVERY_DOMAINS, email.trim());
 
-    // Non-debug path: enqueue a magic-link notification through
+    // Emailed path: enqueue a magic-link notification through
     // notifications-worker over the internal service binding. Best-effort —
     // a notifications failure must NOT 5xx the login response.
     //
-    // Debug path: skip enqueue entirely. `code` is returned inline in the
+    // Inline path: skip enqueue entirely. `code` is returned inline in the
     // response (existing local_debug contract), so emitting an additional
     // notification would be redundant and would write a `local-debug`
     // provider row for every dev call.

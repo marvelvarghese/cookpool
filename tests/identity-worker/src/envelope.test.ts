@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { deliversCodeInline } from "../../../apps/identity-worker/src/debug-delivery";
 
 if (!globalThis.crypto?.subtle) {
   Object.defineProperty(globalThis, "crypto", { value: crypto.webcrypto });
@@ -51,27 +52,34 @@ describe("API Envelope Contract", () => {
 });
 
 describe("Debug delivery boundary", () => {
-  it("stage (DEBUG_DELIVERY=true) includes code in delivery", () => {
-    const isDebug = "true" === "true";
-    const delivery = {
-      mode: isDebug ? "local_debug" : "email",
-      emailHint: "t***@example.com",
-      ...(isDebug ? { code: "123456" } : {}),
+  // SI-2: DEBUG_DELIVERY (on/off for every address) became
+  // DEBUG_DELIVERY_DOMAINS (the domains whose codes are shown on screen).
+  it("stage (DEBUG_DELIVERY_DOMAINS=cookpool.test) includes the code only for a cookpool.test address", () => {
+    const delivery = (email: string) => {
+      const isDebug = deliversCodeInline("cookpool.test", email);
+      return {
+        mode: isDebug ? "local_debug" : "email",
+        emailHint: "t***@example.com",
+        ...(isDebug ? { code: "123456" } : {}),
+      } as Record<string, unknown>;
     };
-    expect(delivery.code).toBe("123456");
-    expect(delivery.mode).toBe("local_debug");
+    expect(delivery("tester@cookpool.test")["code"]).toBe("123456");
+    expect(delivery("tester@cookpool.test")["mode"]).toBe("local_debug");
+    expect(delivery("someone@example.com")["code"]).toBeUndefined();
+    expect(delivery("someone@example.com")["mode"]).toBe("email");
   });
 
-  it("prod (DEBUG_DELIVERY=false) never includes code in delivery", () => {
-    const debugFlag: string = "false";
-    const isDebug = debugFlag === "true";
-    const delivery: Record<string, unknown> = {
-      mode: isDebug ? "local_debug" : "email",
-      emailHint: "t***@example.com",
-      ...(isDebug ? { code: "123456" } : {}),
-    };
-    expect(delivery["code"]).toBeUndefined();
-    expect(delivery["mode"]).toBe("email");
+  it("prod (DEBUG_DELIVERY_DOMAINS empty) never includes code in delivery", () => {
+    for (const email of ["t@example.com", "tester@cookpool.test", "a@gmail.com"]) {
+      const isDebug = deliversCodeInline("", email);
+      const delivery: Record<string, unknown> = {
+        mode: isDebug ? "local_debug" : "email",
+        emailHint: "t***@example.com",
+        ...(isDebug ? { code: "123456" } : {}),
+      };
+      expect(delivery["code"]).toBeUndefined();
+      expect(delivery["mode"]).toBe("email");
+    }
   });
 });
 

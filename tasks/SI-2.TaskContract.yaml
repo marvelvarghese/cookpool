@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-2
+  title: "Limits on sign-in codes"
+spec:
+  goal: A sign-in code allows 5 tries, an address can ask for at most 5 codes in 15 minutes, and codes are shown on screen only for test domains, so nobody can guess or request their way into someone else's account.
+  affects:
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-2.TaskContract.yaml
+  doneWhen:
+    - a 6th wrong code is refused with too_many_attempts, and the right code is refused after that too
+    - a 6th code request for one address within 15 minutes is refused with rate_limited and retryAfterSeconds
+    - only addresses in DEBUG_DELIVERY_DOMAINS get the code in the response; stage lists cookpool.test, prod none
+  gates: []

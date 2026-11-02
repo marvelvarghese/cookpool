@@ -25,4 +25,4 @@ export type {
   UpdateUserProfileInput,
 } from "./types.js";
 
-export { createIdentityRepository } from "./repository.js";
+export { createIdentityRepository, LOGIN_CHALLENGE_MAX_ATTEMPTS } from "./repository.js";

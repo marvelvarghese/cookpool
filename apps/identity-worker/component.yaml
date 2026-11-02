@@ -40,6 +40,16 @@ spec:
             triggerRef: github-pull-request
     - component: membership-worker
     - component: notifications-worker
+    # The identity_* columns this worker reads exist before it serves: on main
+    # the migrations apply first (a peer edge would not order under the
+    # advisory dependency mode below). SI-2's login/complete reads
+    # identity_login_challenges.attempts (280_identity_login_attempts).
+    - component: db-migrate
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
   # Runtime secrets, wire-now-seed-later: best-effort references —
   # an unseeded key is skipped at resolve (and by secrets-live), so
   # this block is inert until the value is stored in orun secrets.

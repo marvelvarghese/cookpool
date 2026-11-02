@@ -1,4 +1,9 @@
 import type { IdentityRepository, IdentityResult, User } from "@saas/db/identity";
+import {
+  AUTH_ERROR_REASONS,
+  LOGIN_CODES_PER_WINDOW,
+  LOGIN_CODE_WINDOW_SECONDS,
+} from "@saas/contracts/auth";
 import { hashSha256 } from "../crypto.js";
 import {
   generateUserId,
@@ -36,10 +41,10 @@ export interface StartLoginResult {
   rawCode: string;
 }
 
-export interface StartLoginError {
-  error: "internal_error";
-  message: string;
-}
+export type StartLoginError =
+  | { error: "internal_error"; message: string }
+  /** SI-2: this address already asked for LOGIN_CODES_PER_WINDOW codes in the window. */
+  | { error: "rate_limited"; message: string; retryAfterSeconds: number };
 
 export interface CompleteLoginResult {
   token: string;
@@ -50,6 +55,11 @@ export interface CompleteLoginResult {
 export interface CompleteLoginError {
   error: "not_found" | "precondition_failed" | "internal_error";
   message: string;
+  /**
+   * SI-2: `{ attemptsLeft }` on a wrong code with tries left (`not_found`);
+   * `{ reason, attemptsLeft? }` on `precondition_failed`.
+   */
+  details?: Record<string, unknown>;
 }
 
 export interface LoginWithOAuthInput {
@@ -119,6 +129,8 @@ export interface UpdateProfileError {
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** SI-2: at most LOGIN_CODES_PER_WINDOW codes per address in LOGIN_CODE_WINDOW_SECONDS. */
+const CODE_REQUEST_LIMIT = { max: LOGIN_CODES_PER_WINDOW, windowMs: LOGIN_CODE_WINDOW_SECONDS * 1000 };
 
 function emailHint(email: string): string {
   const at = email.indexOf("@");
@@ -215,6 +227,8 @@ export function createAuthService(deps: AuthServiceDeps) {
       const currentTime = now();
       const expiresAt = new Date(currentTime.getTime() + CHALLENGE_TTL_MS);
 
+      // Counted per address (its user), in the statement that inserts: the
+      // edge's per-IP bucket does not hold against requests spread over IPs.
       const challengeResult = await repo.createLoginChallenge({
         id: challengeUuid,
         userId: userResult.value.id,
@@ -222,9 +236,29 @@ export function createAuthService(deps: AuthServiceDeps) {
         codeHash,
         expiresAt,
         createdAt: currentTime,
+        limit: CODE_REQUEST_LIMIT,
       });
 
       if (!challengeResult.ok) {
+        if (challengeResult.error.kind === "rate_limited") {
+          const retryAfterSeconds = Math.max(
+            1,
+            Math.ceil((challengeResult.error.retryAt.getTime() - currentTime.getTime()) / 1000),
+          );
+          // Best effort: the refusal stands whether or not the event lands.
+          await repo.recordSecurityEvent({
+            ...eventBase(),
+            eventType: "login.start.failed",
+            outcome: "rate_limited",
+            userId: userResult.value.id,
+            metadata: { method: "email_code", retryAfterSeconds },
+          });
+          return {
+            error: "rate_limited",
+            message: "Too many codes for this address. Try again later.",
+            retryAfterSeconds,
+          };
+        }
         return { error: "internal_error", message: "Failed to create login challenge" };
       }
 
@@ -265,26 +299,55 @@ export function createAuthService(deps: AuthServiceDeps) {
       const consumeResult = await repo.consumeLoginChallenge(challengeUuid, codeHash, now());
 
       if (!consumeResult.ok) {
+        const failure = consumeResult.error;
         const outcomeMap: Record<string, string> = {
           not_found: "invalid_code_or_challenge",
+          wrong_code: "invalid_code_or_challenge",
+          too_many_attempts: "too_many_attempts",
           expired: "expired_challenge",
           already_consumed: "already_consumed",
         };
         await repo.recordSecurityEvent({
           ...eventBase(),
           eventType: "login.complete.failed",
-          outcome: outcomeMap[consumeResult.error.kind] ?? "internal_error",
+          outcome: outcomeMap[failure.kind] ?? "internal_error",
           challengeId: challengeUuid,
-          metadata: { method: "email_code" },
+          metadata:
+            failure.kind === "wrong_code"
+              ? { method: "email_code", attemptsLeft: failure.attemptsLeft }
+              : { method: "email_code" },
         });
 
-        switch (consumeResult.error.kind) {
+        switch (failure.kind) {
           case "not_found":
             return { error: "not_found", message: "Challenge not found or code is invalid" };
+          case "wrong_code":
+            // As before (not_found), plus how many tries the code has left.
+            return {
+              error: "not_found",
+              message: "Challenge not found or code is invalid",
+              details: { attemptsLeft: failure.attemptsLeft },
+            };
+          case "too_many_attempts":
+            // Spent: this was the last wrong try, or none were left. Even the
+            // right code is refused from here on; the app asks for a new one.
+            return {
+              error: "precondition_failed",
+              message: "Too many wrong codes. Ask for a new code.",
+              details: { reason: AUTH_ERROR_REASONS.TOO_MANY_ATTEMPTS, attemptsLeft: 0 },
+            };
           case "expired":
-            return { error: "precondition_failed", message: "Challenge has expired" };
+            return {
+              error: "precondition_failed",
+              message: "Challenge has expired",
+              details: { reason: AUTH_ERROR_REASONS.CODE_EXPIRED },
+            };
           case "already_consumed":
-            return { error: "precondition_failed", message: "Challenge has already been used" };
+            return {
+              error: "precondition_failed",
+              message: "Challenge has already been used",
+              details: { reason: AUTH_ERROR_REASONS.CODE_USED },
+            };
           default:
             return { error: "internal_error", message: "Failed to complete login" };
         }
