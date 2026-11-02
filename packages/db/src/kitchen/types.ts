@@ -641,6 +641,19 @@ export interface KitchenRepository {
   finalizeDish(input: FinalizeDishInput): Promise<KitchenDishResult<SplitDish>>;
   /** Correct a finalized dish: a reversal and a new dish transaction, in ONE batch (see `CorrectDishInput`). */
   correctDish(input: CorrectDishInput): Promise<KitchenDishResult<SplitDish>>;
+
+  // ── The daily sweep (CP-18) ──
+
+  /**
+   * Active items with something left whose use-by date is in the window, in
+   * every pantry — personal and group alike — soonest first, then by name.
+   * One indexed read (`kitchen_items_expires_idx`), however many pantries.
+   */
+  listUseSoonItems(query: KitchenUseSoonQuery): Promise<KitchenResult<KitchenItemRecord[]>>;
+  /** Record a run of the sweep: one row per day swept; a re-run of the day replaces its counts. */
+  recordSweep(input: RecordSweepInput): Promise<KitchenResult<KitchenSweepRecord>>;
+  /** The latest day swept, or null when the sweep has never run. */
+  lastSweep(): Promise<KitchenResult<KitchenSweepRecord | null>>;
 }
 
 // ── Dishes (CP-14) ──────────────────────────────────────────
@@ -956,4 +969,38 @@ export interface SplitDish {
   dish: KitchenDishRecord;
   /** True when nothing was written: the dish was already finalized (or this correction already made). */
   replayed: boolean;
+}
+
+// ── The daily sweep (CP-18) ─────────────────────────────────
+
+/** The items the daily sweep reads: every pantry's, by use-by date. */
+export interface KitchenUseSoonQuery {
+  /** The first use-by date in the window (YYYY-MM-DD, inclusive): today. */
+  from: string;
+  /** The last (inclusive). */
+  through: string;
+  /** At most this many items, soonest first (a bound on one run, not a page). */
+  limit: number;
+}
+
+/** One run of the sweep, as recorded (migration 270_kitchen_sweeps). */
+export interface RecordSweepInput {
+  /** The UTC day swept (YYYY-MM-DD). */
+  date: string;
+  startedAt: Date;
+  finishedAt: Date;
+  /** Items in the window. */
+  items: number;
+  /** People with at least one of them to use. */
+  people: number;
+  /** Digests notifications-worker accepted. */
+  sent: number;
+  /** Digests that could not be enqueued. */
+  failed: number;
+}
+
+/** The latest run of one day's sweep. */
+export interface KitchenSweepRecord extends RecordSweepInput {
+  /** How many times this day was swept. */
+  runs: number;
 }

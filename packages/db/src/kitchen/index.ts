@@ -69,6 +69,9 @@ export type {
   DishLeftoverChange,
   CorrectDishInput,
   SplitDish,
+  KitchenUseSoonQuery,
+  RecordSweepInput,
+  KitchenSweepRecord,
 } from "./types.js";
 
 export { KITCHEN_DEFAULT_CURRENCY, KITCHEN_DEFAULT_WASTE_POLICY } from "./types.js";

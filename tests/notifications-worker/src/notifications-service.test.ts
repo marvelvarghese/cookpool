@@ -20,7 +20,12 @@ import type {
   MarkNotificationStatusInput,
   UpsertNotificationPreferenceInput,
 } from "@saas/db/notifications";
-import type { NotificationProvider, ProviderSendContext, ProviderSendResult } from "@saas/contracts/notifications";
+import type {
+  EnqueueNotificationRequest,
+  NotificationProvider,
+  ProviderSendContext,
+  ProviderSendResult,
+} from "@saas/contracts/notifications";
 import { asUuid } from "@saas/db";
 
 if (!(globalThis as Record<string, unknown>).crypto) {
@@ -476,5 +481,97 @@ describe("toDeliveryStatus", () => {
     expect(status.queuedAt).toBe(fixedNow.toISOString());
     expect(status.sentAt).toBe(fixedNow.toISOString());
     expect(status.failedAt).toBeNull();
+  });
+});
+
+describe("enqueueNotification — preferences (Cookpool CP-18)", () => {
+  // A recipient tagged with their subject is checked against their
+  // preferences in the request's org: an explicit `false` for the request's
+  // category records the notification as suppressed, without a send.
+  const kitchenRequest = {
+    orgId: ORG_UUID,
+    category: "product" as const,
+    templateKey: "kitchen.dish_posted",
+    templateData: { cookName: "Meera", dishName: "Egg fried rice" },
+    recipient: { channel: "email" as const, address: "anu@example.com", subjectKind: "user" as const, subjectId: "usr_anu" },
+    idempotencyKey: "kitchen.dish_posted:dsh_1:usr_anu",
+  };
+
+  async function run(
+    repo: ReturnType<typeof createFakeRepo>,
+    request: EnqueueNotificationRequest = kitchenRequest,
+    id = "55555555-5555-4555-8555-555555555555",
+  ) {
+    const provider = createLocalDebugProvider();
+    let sends = 0;
+    const realSend = provider.send.bind(provider);
+    provider.send = async (ctx) => {
+      sends++;
+      return realSend(ctx);
+    };
+    const cap = createCapturingEmitter();
+    const result = await enqueueNotification(
+      {
+        repo,
+        provider,
+        env: fakeEnv,
+        actorType: "system",
+        actorId: "kitchen-worker",
+        requestId: "req_pref",
+        now: () => fixedNow,
+        generateUuid: () => id,
+        emit: cap.emit,
+      },
+      request,
+    );
+    if (!("outcome" in result)) throw new Error("expected an outcome");
+    return { outcome: result.outcome, sends, events: cap.events.map((e) => e.type) };
+  }
+
+  async function prefer(repo: ReturnType<typeof createFakeRepo>, categories: Record<string, boolean | null>, orgId = ORG_UUID) {
+    await repo.upsertPreference({
+      id: "66666666-6666-4666-8666-666666666666",
+      orgId,
+      subjectKind: "user",
+      subjectId: "usr_anu",
+      channel: "email",
+      categories,
+      updatedAt: fixedNow,
+    });
+  }
+
+  it("suppresses a send the recipient opted out of, and a retry collapses onto it", async () => {
+    const repo = createFakeRepo();
+    await prefer(repo, { product: false });
+    const first = await run(repo);
+    expect(first.sends).toBe(0);
+    expect(first.outcome.status).toBe("suppressed");
+    expect(first.outcome.response.notification.status).toBe("suppressed");
+    expect(first.events).toEqual(["notification.suppressed"]);
+
+    const retry = await run(repo, kitchenRequest, "77777777-7777-4777-8777-777777777777");
+    expect(retry.outcome.status).toBe("idempotent_hit");
+    expect(retry.sends).toBe(0);
+    expect(repo._store.notifications.size).toBe(1);
+  });
+
+  it("sends when the category is on, unset or null, or another category is off", async () => {
+    for (const categories of [{ product: true }, {}, { product: null }, { invitation: false, billing: false }]) {
+      const repo = createFakeRepo();
+      await prefer(repo, categories);
+      const { outcome, sends } = await run(repo);
+      expect([categories, outcome.status, sends]).toEqual([categories, "created", 1]);
+    }
+  });
+
+  it("reads preferences only in the request's org, and only for a tagged recipient", async () => {
+    const elsewhere = createFakeRepo();
+    await prefer(elsewhere, { product: false }, asUuid("99999999-9999-4999-8999-999999999999"));
+    expect((await run(elsewhere)).outcome.status).toBe("created");
+
+    const untagged = createFakeRepo();
+    await prefer(untagged, { product: false });
+    const address = { channel: "email" as const, address: kitchenRequest.recipient.address };
+    expect((await run(untagged, { ...kitchenRequest, recipient: address })).outcome.status).toBe("created");
   });
 });

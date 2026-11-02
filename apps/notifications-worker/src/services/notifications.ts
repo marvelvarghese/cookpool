@@ -141,6 +141,27 @@ export interface EnqueueOutcome {
 }
 
 /**
+ * Has the recipient opted out of this request's category in this org?
+ *
+ * Only a recipient tagged with `subjectKind` + `subjectId` is looked up (the
+ * contract's rule: untagged sends are system-level and skip preferences),
+ * and only an explicit `false` opts out — a missing row, a missing key or
+ * `null` is the default, opted in. A preference read that fails sends: a
+ * transactional email is not dropped because a preference could not be read.
+ */
+async function optedOut(
+  repo: NotificationsRepository,
+  orgUuid: Parameters<NotificationsRepository["listPreferences"]>[0],
+  request: EnqueueNotificationRequest,
+): Promise<boolean> {
+  const { subjectKind, subjectId, channel } = request.recipient;
+  if (!subjectKind || !subjectId) return false;
+  const prefs = await repo.listPreferences(orgUuid, subjectKind, subjectId, channel);
+  if (!prefs.ok) return false;
+  return prefs.value.some((p) => p.categories[request.category] === false);
+}
+
+/**
  * Enqueue + (synchronously) attempt to send via the configured provider.
  *
  * V1 is intentionally request-time send: no Queues, no retry loop. The
@@ -182,9 +203,16 @@ export async function enqueueNotification(
     }
   }
 
-  // Suppression short-circuit.
+  // Suppression short-circuit: a suppressed address, or (CP-18) a recipient
+  // tagged with their subject who opted out of this category in this org.
   const suppressed = await repo.isSuppressed(orgUuid, request.recipient.channel, request.recipient.address);
-  if (suppressed.ok && suppressed.value) {
+  const blockedBy =
+    suppressed.ok && suppressed.value
+      ? "suppression"
+      : (await optedOut(repo, orgUuid, request))
+        ? "preference"
+        : null;
+  if (blockedBy) {
     const id = genUuid();
     const create = await repo.createNotification({
       id,
@@ -215,7 +243,7 @@ export async function enqueueNotification(
       requestId: deps.requestId,
       correlationId: request.correlationId ?? null,
       category: "notifications",
-      description: `Notification ${notificationPublicId(create.value.id)} short-circuited by suppression`,
+      description: `Notification ${notificationPublicId(create.value.id)} short-circuited by ${blockedBy}`,
       payload: {
         orgId: request.orgId,
         category: request.category,
