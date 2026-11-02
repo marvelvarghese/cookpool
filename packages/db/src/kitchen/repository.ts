@@ -13,6 +13,7 @@ import { createLedgerRepository } from "./ledger.js";
 import { createPantryRepository } from "./pantry.js";
 import { createStockRepository } from "./stock.js";
 import { createDishesRepository } from "./dishes.js";
+import { createSweepRepository } from "./sweep.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -114,5 +115,6 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     ...createPantryRepository(executor),
     ...createStockRepository(executor),
     ...createDishesRepository(executor),
+    ...createSweepRepository(executor),
   };
 }

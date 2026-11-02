@@ -42,7 +42,10 @@ function readYaml(relPath: string): string {
  * Offline fixture render of a worker's committed template, exactly as the
  * composition's wire-fixture step does it (same script, same fixture).
  */
-function renderFromFixture(appDir: string): Record<string, unknown> {
+function renderFromFixture(
+  appDir: string,
+  parse: (raw: string) => Record<string, unknown> = parseJsonc,
+): Record<string, unknown> {
   const outFile = path.join(
     fs.mkdtempSync(path.join(os.tmpdir(), "wire-render-")),
     "wrangler.jsonc",
@@ -63,7 +66,7 @@ function renderFromFixture(appDir: string): Record<string, unknown> {
   if (result.status !== 0) {
     throw new Error(`wire render failed for ${appDir}: ${result.stderr}`);
   }
-  return parseJsonc(fs.readFileSync(outFile, "utf-8"));
+  return parse(fs.readFileSync(outFile, "utf-8"));
 }
 
 // Valid Cloudflare D1 database ID: a UUID, or the 32-hex form the offline
@@ -206,21 +209,38 @@ const HAS_API_EDGE = fs.existsSync(path.join(ROOT, "apps", "api-edge", "componen
 //
 // The kitchen bounded context: its own D1 wiring, its four service bindings,
 // and api-edge's KITCHEN_WORKER binding to it in each deployed environment.
+// Its vars hold the app's URL (CP-18), so it is read with the string-aware
+// JSONC parser.
 
 describe("kitchen-worker deployment config", () => {
+  type Triggers = { crons?: string[] };
   type Rendered = {
     name: string;
+    triggers?: Triggers;
     env: Record<
       string,
       {
         workers_dev?: boolean;
+        triggers?: Triggers;
+        vars?: Record<string, string>;
         d1_databases?: Array<{ binding: string; database_name?: string; database_id: string }>;
         services?: Array<{ binding: string; service: string }>;
       }
     >;
   };
-  const template = readJsonc("apps/kitchen-worker/wrangler.template.jsonc") as unknown as Rendered;
-  const rendered = renderFromFixture("apps/kitchen-worker") as unknown as Rendered;
+  const template = parseJsoncStrings(
+    fs.readFileSync(path.join(ROOT, "apps/kitchen-worker/wrangler.template.jsonc"), "utf-8"),
+  ) as unknown as Rendered;
+  const rendered = renderFromFixture("apps/kitchen-worker", parseJsoncStrings) as unknown as Rendered;
+
+  // The daily use-soon sweep (CP-18, risks CP-N): scheduled() never runs
+  // without a cron trigger, and fails silently. `triggers` is inheritable in
+  // wrangler: declared at the top level, an environment carries it unless it
+  // declares its own — so each deployed environment's effective crons are
+  // its own `triggers`, else the top level's.
+  const SWEEP_CRON = "30 2 * * *";
+  const cronsOf = (envName: string): string[] =>
+    (rendered.env[envName]?.triggers ?? rendered.triggers)?.crons ?? [];
   const edge = (HAS_API_EDGE ? renderFromFixture("apps/api-edge") : { env: {} }) as unknown as Rendered;
 
   test("is named cookpool-kitchen-worker", () => {
@@ -248,6 +268,18 @@ describe("kitchen-worker deployment config", () => {
       });
     });
 
+    test(`${envName} runs the daily sweep: its rendered config carries the ${SWEEP_CRON} cron trigger`, () => {
+      expect(cronsOf(envName)).toEqual([SWEEP_CRON]);
+    });
+
+    test(`${envName} links emails to the ${envName} app over https`, () => {
+      // The live console on workers.dev: cookpool.app is not registered yet,
+      // so links to it would not open. Change both when the domain exists.
+      expect(rendered.env[envName]?.vars?.APP_URL).toBe(
+        `https://cookpool-web-console-next-${envName}.rahulvarghesepullely.workers.dev`,
+      );
+    });
+
     (HAS_API_EDGE ? test : test.skip)(`api-edge ${envName} binds KITCHEN_WORKER to cookpool-kitchen-worker-${envName}`, () => {
       const svc = (edge.env[envName]?.services ?? []).find((s) => s.binding === "KITCHEN_WORKER");
       expect(svc?.service).toBe(`cookpool-kitchen-worker-${envName}`);
@@ -257,6 +289,17 @@ describe("kitchen-worker deployment config", () => {
   test("dev carries no bindings (verify-only)", () => {
     expect(template.env.dev?.d1_databases).toBeUndefined();
     expect(template.env.dev?.services).toBeUndefined();
+  });
+
+  test("the sweep's trigger is declared once, at the top level, and no environment overrides it", () => {
+    expect(template.triggers?.crons).toEqual([SWEEP_CRON]);
+    for (const envName of Object.keys(template.env)) expect(template.env[envName]?.triggers).toBeUndefined();
+  });
+
+  test("the worker's entry exports scheduled() beside fetch()", () => {
+    const entry = fs.readFileSync(path.join(ROOT, "apps/kitchen-worker/src/index.ts"), "utf-8");
+    expect(entry).toMatch(/async scheduled\(/);
+    expect(entry).toMatch(/async fetch\(/);
   });
 
   (HAS_API_EDGE ? test : test.skip)("api-edge component.yaml depends on kitchen-worker", () => {

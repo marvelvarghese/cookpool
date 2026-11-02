@@ -4,8 +4,10 @@ import { USERS_LOOKUP_MAX, type UserSummary } from "@saas/contracts/auth";
 // (POST /v1/internal/identity/users/lookup). Membership holds no names, so the
 // people a member sees — a group's members, everyone in their balances — are
 // named here. Names are a nicety, never a gate: a failed or missing lookup
-// reads as "no name", and the app shows its own label instead. One fetch per
-// batch of ids per request; answers are cached on the request's context.
+// reads as "no name", and the app shows its own label instead. The same
+// lookup gives the address Cookpool's emails go to (CP-18), and a person it
+// cannot read gets no email. One fetch per batch of ids per request; answers
+// are cached on the request's context.
 
 /** A person's name as the kitchen shows it: null when there is none to show. */
 export type DisplayName = string | null;
@@ -13,6 +15,12 @@ export type DisplayName = string | null;
 export interface People {
   /** The display name of each id asked for (null when unknown or unreadable). */
   names(subjectIds: readonly string[]): Promise<Map<string, DisplayName>>;
+  /**
+   * Each id asked for, as identity knows them — their name and email address —
+   * or null when unknown or unreadable. Only for emailing them: an address
+   * never goes into a response another member reads.
+   */
+  users(subjectIds: readonly string[]): Promise<Map<string, UserSummary | null>>;
 }
 
 /**
@@ -60,26 +68,30 @@ async function lookup(identityWorker: Fetcher, subjectIds: readonly string[], re
 
 /** A names reader for one request; a missing binding names nobody. */
 export function createPeople(identityWorker: Fetcher | undefined, requestId: string): People {
-  const cache = new Map<string, Promise<DisplayName>>();
-  return {
-    async names(subjectIds) {
-      const wanted = [...new Set(subjectIds)];
-      const missing = wanted.filter((id) => !cache.has(id));
-      for (let i = 0; i < missing.length; i += USERS_LOOKUP_MAX) {
-        const chunk = missing.slice(i, i + USERS_LOOKUP_MAX);
-        const batch = identityWorker ? lookup(identityWorker, chunk, requestId) : Promise.resolve([]);
-        for (const id of chunk) {
-          cache.set(
-            id,
-            batch.then((users) => {
-              const user = users.find((u) => u.subjectId === id);
-              return user ? displayNameOf(user) : null;
-            }),
-          );
-        }
+  const cache = new Map<string, Promise<UserSummary | null>>();
+  async function users(subjectIds: readonly string[]): Promise<Map<string, UserSummary | null>> {
+    const wanted = [...new Set(subjectIds)];
+    const missing = wanted.filter((id) => !cache.has(id));
+    for (let i = 0; i < missing.length; i += USERS_LOOKUP_MAX) {
+      const chunk = missing.slice(i, i + USERS_LOOKUP_MAX);
+      const batch = identityWorker ? lookup(identityWorker, chunk, requestId) : Promise.resolve([]);
+      for (const id of chunk) {
+        cache.set(
+          id,
+          batch.then((found) => found.find((u) => u.subjectId === id) ?? null),
+        );
       }
+    }
+    const out = new Map<string, UserSummary | null>();
+    for (const id of wanted) out.set(id, await cache.get(id)!);
+    return out;
+  }
+  return {
+    users,
+    async names(subjectIds) {
+      const found = await users(subjectIds);
       const out = new Map<string, DisplayName>();
-      for (const id of wanted) out.set(id, await cache.get(id)!);
+      for (const [id, user] of found) out.set(id, user ? displayNameOf(user) : null);
       return out;
     },
   };

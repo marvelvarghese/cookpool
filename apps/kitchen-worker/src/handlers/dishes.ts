@@ -11,6 +11,7 @@ import { formatMinor } from "@saas/kitchen-engine/money";
 import { requireGroupAction, requireOrgAction } from "../authz.js";
 import type { OrgContext, RequestContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
+import { emailDishPosted } from "../emails.js";
 import {
   DEFAULT_DISHES_LIMIT,
   MAX_DISHES_LIMIT,
@@ -94,10 +95,15 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
   const itemIds = dish.ingredients.map((i) => i.itemId);
 
   return withKitchenRepo(ctx, async (repo) => {
-    // This very request again: answer with the dish it made.
+    // This very request again: answer with the dish it made (its emails are
+    // asked for again, and notifications-worker sends none twice).
     const prior = await ctx.timings.measure("db", () => repo.getDishByIdemKey(cook, idem.key));
     if (!prior.ok) return unavailable(ctx.requestId);
-    if (prior.value) return dishResponse(ctx, prior.value, 201);
+    if (prior.value) {
+      const dish = prior.value;
+      await ctx.defer(() => emailDishPosted(ctx, dish));
+      return dishResponse(ctx, dish, 201);
+    }
 
     let sharedWith: { orgId: Uuid; currency: string } | null = null;
     if (shared) {
@@ -126,7 +132,12 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
       const plan = planDish(ctx, dish, { cook, dishId, idemKey: idem.key, now: ctx.now(), shared: sharedWith, items });
       if (plan instanceof Response) return plan;
       const result = await ctx.timings.measure("db", () => repo.cookDish(plan));
-      if (result.ok) return dishResponse(ctx, result.value.dish, 201);
+      if (result.ok) {
+        // Committed: a dish posted for claims tells the group (CP-18).
+        const cooked = result.value.dish;
+        await ctx.defer(() => emailDishPosted(ctx, cooked));
+        return dishResponse(ctx, cooked, 201);
+      }
       if (result.error.kind === "stale" && attempt === 0) continue;
       return dishErrorResponse(ctx.requestId, result.error);
     }

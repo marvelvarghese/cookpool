@@ -8,6 +8,7 @@ import { asUuid } from "@saas/db/ids";
 import { requireGroupAction } from "../authz.js";
 import type { OrgContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
+import { emailLoggedForYou } from "../emails.js";
 import { LedgerError, buildExpense, type ExpenseInput, type Split } from "@saas/kitchen-engine/ledger";
 import { MoneyError, formatMinor } from "@saas/kitchen-engine/money";
 import { readJsonObject, unavailable, unprocessable, validationError } from "../http.js";
@@ -193,6 +194,12 @@ export async function handleCreateExpense(ctx: OrgContext, request: Request): Pr
         }),
       }),
     );
-    return postedTxnResponse(ctx, result, (txn) => txn.kind === "expense" && txn.createdBy === actor);
+    const response = postedTxnResponse(ctx, result, (txn) => txn.kind === "expense" && txn.createdBy === actor);
+    // Committed (or this very request again): tell everyone it names (CP-18).
+    if (result.ok && response.status === 201) {
+      const txn = result.value.txn;
+      await ctx.defer(() => emailLoggedForYou(ctx, { kind: "expense", txn }));
+    }
+    return response;
   });
 }

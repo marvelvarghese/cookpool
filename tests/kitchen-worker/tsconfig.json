@@ -16,7 +16,9 @@
       "@saas/db/*": ["../../packages/db/src/*/index.ts"],
       "@saas/kitchen-engine": ["../../packages/kitchen-engine/src/index.ts"],
       "@saas/kitchen-engine/*": ["../../packages/kitchen-engine/src/*.ts"],
-      "@kitchen-worker/*": ["../../apps/kitchen-worker/src/*.ts"]
+      "@saas/notifications-client": ["../../packages/notifications-client/src/index.ts"],
+      "@kitchen-worker/*": ["../../apps/kitchen-worker/src/*.ts"],
+      "@notifications-worker/*": ["../../apps/notifications-worker/src/*.ts"]
     }
   },
   "include": ["src/**/*.ts", "../../apps/kitchen-worker/src/**/*.ts", "../../packages/kitchen-engine/src/**/*.ts"],

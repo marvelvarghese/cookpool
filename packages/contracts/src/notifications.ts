@@ -66,7 +66,10 @@ export type NotificationSubjectKind = "user" | "organization";
  * For V1 the only supported channel is email, so `address` is the canonical
  * lower-cased email address. `subjectKind` + `subjectId` are optional and
  * let the worker join back to the preference / suppression rows; when
- * omitted, preferences are not consulted (system-level notifications).
+ * omitted, preferences are not consulted (system-level notifications). When
+ * present, a preference row for that subject in the request's org that sets
+ * the request's category to `false` records the notification as
+ * `suppressed` instead of sending it.
  */
 export interface NotificationRecipient {
   channel: NotificationChannel;
@@ -295,6 +298,9 @@ export const NOTIFICATIONS_INTERNAL_ACTOR_VALUES = [
   "config-worker",
   "metering-worker",
   "notifications-worker",
+  // Cookpool's emails (CP-18): the use-soon digest, a dish posted for claims,
+  // and a use or expense someone else logged for you.
+  "kitchen-worker",
   // The public edge forwards end-user preference reads/updates over the
   // service binding with the subject pinned to the resolved session actor.
   "api-edge",

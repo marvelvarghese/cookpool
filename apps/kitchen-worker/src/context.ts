@@ -15,6 +15,13 @@ export interface ActorContext {
 export interface KitchenDeps {
   /** The clock every write stamps (`updated_at`, `occurred_at`, …). */
   now?: () => Date;
+  /**
+   * Keeps the invocation alive for work that runs after the response: the
+   * runtime's `ExecutionContext.waitUntil` (index.ts passes it). Without one
+   * (tests, a caller with no context), deferred work runs before the
+   * response instead — never dropped.
+   */
+  waitUntil?: (work: Promise<unknown>) => void;
 }
 
 /** One authenticated request, as every handler sees it. */
@@ -31,6 +38,13 @@ export interface RequestContext {
   groups: Groups;
   /** What people are called: fetched from identity-worker once per person per request (CP-9). */
   people: People;
+  /**
+   * Run `work` after the response, best-effort (CP-18's emails, enqueued once
+   * a write has committed): it must never fail the request or hold it up.
+   * Anything it throws is swallowed. Resolves when the work is handed off —
+   * at once with a `waitUntil`, after the work without one.
+   */
+  defer(work: () => Promise<unknown>): Promise<void>;
 }
 
 /** A request under `/v1/organizations/{org}/kitchen/…`: one group. */

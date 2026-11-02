@@ -246,5 +246,14 @@ export const manifest: MigrationManifest = {
       description:
         "Splitting dishes: kitchen_dish_shares (one eater's half portions or exact amount, claimed by them or assigned by the cook; unique per dish and eater; exactly one of portions or amount) and kitchen_dishes.version (bumped by every claim and assignment; finalize and correct apply only at the version they read) (Cookpool CP-16)",
     },
+    {
+      id: "270_kitchen_sweeps",
+      context: "kitchen",
+      path: "270_kitchen_sweeps/up.sql",
+      checksum:
+        "0d94d3ffe77dbb20455c4dcda4ed6cdfa0c88580f489dcd6bb5f8ca97540bf97",
+      description:
+        "The daily use-soon sweep's record: kitchen_sweeps, one row per UTC day swept (when it last ran, items in the window, people with something to use, digests sent and failed); /health reports the latest (Cookpool CP-18)",
+    },
   ],
 };

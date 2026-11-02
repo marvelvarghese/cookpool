@@ -1670,3 +1670,111 @@ describe("kitchen dishes, against a real SQLite engine", () => {
     expect(() => db.prepare("UPDATE kitchen_dishes SET version = 0 WHERE id = ?").run(dishId)).toThrow(/CHECK constraint failed/);
   });
 });
+
+describe("the daily sweep, against a real SQLite engine (270_kitchen_sweeps)", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  const orgId = asUuid("b2b2b2b2-b2b2-42b2-82b2-b2b2b2b2b2b2");
+  const now = new Date("2026-11-02T02:30:00.000Z");
+  let seq = 0;
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    executor = createSqlExecutor(d1Over(db));
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  function newItem(name: string, expiresOn: string | null, overrides: Partial<NewKitchenItem> = {}): NewKitchenItem {
+    seq += 1;
+    return {
+      id: asUuid(randomUUID()),
+      owner: { kind: "user", subjectId: "usr_rahul" },
+      name,
+      category: "Veg",
+      dimension: "mass",
+      displayUnit: "kg",
+      qtyMilli: 1_000_000,
+      priceMinor: 4000,
+      currency: "INR",
+      paidBy: "usr_rahul",
+      boughtOn: "2026-10-30",
+      expiresOn,
+      wastePolicy: null,
+      createdBy: "usr_rahul",
+      idemKey: `sweep-${seq}`,
+      now,
+      ...overrides,
+    };
+  }
+
+  it("reads every pantry's active items in the window in one query, soonest first, then by name", async () => {
+    const repo = createKitchenRepository(executor);
+    const group = { kind: "group", orgId } as const;
+    for (const item of [
+      newItem("spinach", "2026-11-03"),
+      newItem("Milk", "2026-11-02"),
+      newItem("Bread", "2026-11-05"), // after the window
+      newItem("Yogurt", "2026-11-01"), // before it
+      newItem("Oats", null),
+      newItem("Apples", "2026-11-03", { owner: group }),
+      newItem("Paneer", "2026-11-04", { owner: group }),
+    ]) {
+      expect((await repo.createItem({ item })).ok).toBe(true);
+    }
+    const gone = newItem("Curd", "2026-11-02", { owner: group });
+    await repo.createItem({ item: gone });
+    expect((await repo.removeItem(group, gone.id, now)).ok).toBe(true);
+    // Used up: nothing left, so nothing to use.
+    db.prepare("UPDATE kitchen_items SET state = 'used_up', qty_left_milli = 0 WHERE name = 'Paneer'").run();
+
+    const found = await repo.listUseSoonItems({ from: "2026-11-02", through: "2026-11-04", limit: 100 });
+    expect(found.ok && found.value.map((i) => [i.name, i.expiresOn, i.ownerKind])).toEqual([
+      ["Milk", "2026-11-02", "user"],
+      ["Apples", "2026-11-03", "group"],
+      ["spinach", "2026-11-03", "user"],
+    ]);
+    const capped = await repo.listUseSoonItems({ from: "2026-11-02", through: "2026-11-04", limit: 2 });
+    expect(capped.ok && capped.value.map((i) => i.name)).toEqual(["Milk", "Apples"]);
+
+    // The partial index the sweep was built for (230_kitchen_pantry) is the one SQLite uses.
+    const plan = db
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT id FROM kitchen_items WHERE state = 'active' AND qty_left_milli > 0
+         AND expires_on IS NOT NULL AND expires_on BETWEEN '2026-11-02' AND '2026-11-04'`,
+      )
+      .all() as Array<{ detail: string }>;
+    expect(plan.map((p) => p.detail).join(" ")).toContain("kitchen_items_expires_idx");
+  });
+
+  it("records one row per day swept: a re-run of the day replaces its counts and counts the run", async () => {
+    const repo = createKitchenRepository(executor);
+    expect(await repo.lastSweep()).toEqual({ ok: true, value: null });
+
+    const first = await repo.recordSweep({
+      date: "2026-11-02", startedAt: now, finishedAt: new Date(now.getTime() + 1500), items: 5, people: 4, sent: 3, failed: 1,
+    });
+    expect(first.ok && first.value).toEqual({
+      date: "2026-11-02", startedAt: now, finishedAt: new Date(now.getTime() + 1500), items: 5, people: 4, sent: 3, failed: 1, runs: 1,
+    });
+    const later = new Date(now.getTime() + 3_600_000);
+    await repo.recordSweep({ date: "2026-11-02", startedAt: later, finishedAt: later, items: 5, people: 4, sent: 4, failed: 0 });
+    await repo.recordSweep({ date: "2026-11-01", startedAt: now, finishedAt: now, items: 1, people: 1, sent: 1, failed: 0 });
+
+    const last = await repo.lastSweep();
+    expect(last.ok && last.value).toMatchObject({ date: "2026-11-02", finishedAt: later, sent: 4, failed: 0, runs: 2 });
+    expect((db.prepare("SELECT COUNT(*) AS n FROM kitchen_sweeps").get() as { n: number }).n).toBe(2);
+  });
+
+  it("checks the day's shape and the counts in the table itself", () => {
+    const insert = (date: string, items: number) => () =>
+      db
+        .prepare("INSERT INTO kitchen_sweeps (sweep_date, started_at, finished_at, items) VALUES (?, ?, ?, ?)")
+        .run(date, now.toISOString(), now.toISOString(), items);
+    expect(insert("2026-11-02", 0)).not.toThrow();
+    expect(insert("Nov 2", 0)).toThrow(/CHECK/);
+    expect(insert("2026-11-03", -1)).toThrow(/CHECK/);
+  });
+});

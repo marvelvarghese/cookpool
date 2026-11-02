@@ -138,7 +138,7 @@ describe("kitchen migrations", () => {
 
   it("adds dish shares as 260_kitchen_dish_shares, right after the dishes", () => {
     const ids = manifest.migrations.map((m) => m.id);
-    expect(kitchen.map((m) => m.id)).toEqual([
+    expect(kitchen.map((m) => m.id).slice(0, 6)).toEqual([
       "210_kitchen_settings",
       "220_kitchen_ledger",
       "230_kitchen_pantry",
@@ -158,5 +158,23 @@ describe("kitchen migrations", () => {
     expect(sql).toMatch(/ALTER TABLE kitchen_dishes ADD COLUMN version INTEGER NOT NULL DEFAULT 1 CHECK \(version >= 1\)/);
     expect(sql.match(/\bALTER\b/gi)).toHaveLength(1);
     expect(sql).not.toMatch(/\b(DROP|UPDATE|DELETE)\b/i);
+  });
+
+  it("adds the daily sweep's record as 270_kitchen_sweeps, right after the dish shares", () => {
+    const ids = manifest.migrations.map((m) => m.id);
+    expect(kitchen.map((m) => m.id).slice(-2)).toEqual(["260_kitchen_dish_shares", "270_kitchen_sweeps"]);
+    expect(ids.indexOf("270_kitchen_sweeps")).toBe(ids.indexOf("260_kitchen_dish_shares") + 1);
+
+    const sql = readFileSync(resolve(MIGRATIONS_ROOT, "270_kitchen_sweeps/up.sql"), "utf8").replace(/--.*$/gm, "");
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS kitchen_sweeps \(/);
+    // One row per UTC day swept.
+    expect(sql).toMatch(/sweep_date\s+TEXT PRIMARY KEY/);
+    for (const column of ["started_at", "finished_at"]) expect(sql).toMatch(new RegExp(`${column}\\s+TEXT NOT NULL`));
+    for (const column of ["items", "people", "sent", "failed"]) {
+      expect(sql).toMatch(new RegExp(`${column}\\s+INTEGER NOT NULL DEFAULT 0 CHECK \\(${column} >= 0\\)`));
+    }
+    // Additive only, and nothing about anyone: counts, not names or addresses.
+    expect(sql).not.toMatch(/\b(ALTER|DROP|UPDATE|DELETE)\b/i);
+    expect(sql).not.toMatch(/subject|email|address/i);
   });
 });

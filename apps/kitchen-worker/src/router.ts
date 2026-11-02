@@ -291,6 +291,21 @@ const ME_ROUTES: readonly MeRoute[] = [
   },
 ];
 
+/** Work after the response: handed to `waitUntil` when there is one, else run before the response. Never throws. */
+export function deferrer(deps: Pick<KitchenDeps, "waitUntil">): RequestContext["defer"] {
+  return async (work) => {
+    const run = (async () => {
+      try {
+        await work();
+      } catch {
+        // Best-effort by contract: what runs after a committed write never fails it.
+      }
+    })();
+    if (deps.waitUntil) deps.waitUntil(run);
+    else await run;
+  };
+}
+
 function requestContext(env: Env, requestId: string, actor: RequestContext["actor"], deps: KitchenDeps): RequestContext {
   return {
     env,
@@ -301,6 +316,7 @@ function requestContext(env: Env, requestId: string, actor: RequestContext["acto
     roster: createRoster(env.MEMBERSHIP_WORKER, requestId),
     groups: createGroups(env.MEMBERSHIP_WORKER, requestId),
     people: createPeople(env.IDENTITY_WORKER, requestId),
+    defer: deferrer(deps),
   };
 }
 
@@ -319,7 +335,7 @@ export async function route(request: Request, env: Env, deps: KitchenDeps = {}):
 
   try {
     if (url.pathname === "/health") {
-      return request.method === "GET" ? handleHealth(env, requestId) : methodNotAllowed(requestId);
+      return request.method === "GET" ? await handleHealth(env, requestId) : methodNotAllowed(requestId);
     }
 
     for (const r of ORG_ROUTES) {
