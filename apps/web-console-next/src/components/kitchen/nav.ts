@@ -69,6 +69,22 @@ export function isKitchenTabActive(id: KitchenTabId, pathname: string | null | u
   return id !== "add" && activeKitchenTab(pathname) === id;
 }
 
+// ── Page width (CP-23) ────────────────────────────────────────────
+
+/**
+ * Pages laid out in three columns from 1280px (design §7's web pages): Home
+ * (balance · needs you · recent) and Groups (groups · activity · balances).
+ * They take the room beside the sidebar; every other page keeps the
+ * one-to-two-column width.
+ */
+const WIDE_PAGES: readonly string[] = ["/home", "/groups"];
+
+export function isWideKitchenPage(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return WIDE_PAGES.includes(path);
+}
+
 // ── The "+ Add" sheet ─────────────────────────────────────────────
 
 export interface AddAction {

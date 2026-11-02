@@ -4,6 +4,7 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { groupInitials, roleLabel, type GroupRole } from "./groups";
+import { dayText } from "./when";
 
 /**
  * Cookpool's small visual kit (CP-5), on top of the shared UI kit: rounded
@@ -163,9 +164,10 @@ export const CLOSE_44 =
 export const K_BUTTON = "h-11 rounded-xl px-5 text-[15px] font-semibold";
 export const K_INPUT = "h-11 rounded-xl text-base sm:h-11 sm:text-[15px]";
 
-/** A short date: "12 Oct 2026". */
-export function shortDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+/**
+ * A short date in the app's one style (`dayText`, CP-23): "today",
+ * "yesterday", "12 Oct", "12 Oct 2025" — not the browser's locale.
+ */
+export function shortDate(iso: string, now: Date = new Date()): string {
+  return dayText(iso, now);
 }

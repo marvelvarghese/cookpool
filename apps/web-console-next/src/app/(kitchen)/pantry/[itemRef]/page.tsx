@@ -71,6 +71,7 @@ import {
 } from "@/components/kitchen/item-use";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookHref } from "@/components/kitchen/dish-maker";
+import { undoneToast } from "@/components/kitchen/undo";
 
 /**
  * One item (CP-12): how much is left of what was bought, what it cost and is
@@ -628,8 +629,7 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite }: ItemCtx) {
     const r = await undoStockMove(client, itemRef, move);
     setPending(null);
     refreshPantry(qc, itemRef.kind === "group" ? itemRef.orgId : null);
-    if (r.ok) toast({ kind: "success", title: "Undone", description: "It's back in the pantry." });
-    else toast(undoRefusal(r.error));
+    toast(undoneToast(r.ok ? { ok: true, description: "It's back in the pantry." } : undoRefusal(r.error)));
   };
 
   return (

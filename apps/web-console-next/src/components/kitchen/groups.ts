@@ -10,6 +10,7 @@
  */
 
 import type { WastePolicy } from "@saas/contracts/kitchen";
+import { formatMinor } from "./money";
 
 export interface GroupLike {
   id: string;
@@ -148,6 +149,48 @@ export function roleLabel(role: GroupRole): string {
 /** Owners and admins manage the join link and the group's rules. */
 export function canManageGroup(role: GroupRole | null): boolean {
   return role === "owner" || role === "admin";
+}
+
+// ── Leaving with a balance (CP-23) ─────────────────────────────────
+
+export interface LeaveBalance {
+  /** "You owe ₹45.75 in Flat 4B", "Flat 4B owes you ₹86.50", "Your balance in Flat 4B isn't zero". */
+  title: string;
+  /** What to do about it, in one sentence. */
+  body: string;
+  /** Settle up, on this group. */
+  settleHref: string;
+}
+
+/**
+ * Leaving is refused while your balance in the group isn't zero (CP-19's 409
+ * `balance_not_settled`, with `balanceMinor` — positive: you are owed — and
+ * `currency`). Says how much and which way, from the refusal's details (or,
+ * before trying, from the balance the page has); without an amount, just
+ * that it isn't zero.
+ */
+export function leaveBalance(
+  group: { name: string; slug: string },
+  balance: { balanceMinor?: unknown; currency?: unknown } | null | undefined,
+): LeaveBalance {
+  const settleHref = `/settle?group=${encodeURIComponent(group.slug)}`;
+  const minor = typeof balance?.balanceMinor === "number" && Number.isInteger(balance.balanceMinor) ? balance.balanceMinor : null;
+  const currency = typeof balance?.currency === "string" && balance.currency ? balance.currency : "INR";
+  if (minor === null || minor === 0) {
+    return {
+      title: `Your balance in ${group.name} isn't zero`,
+      body: "Settle up first: you can leave once nobody owes anybody between you and the group.",
+      settleHref,
+    };
+  }
+  const amount = formatMinor(Math.abs(minor), currency);
+  return minor < 0
+    ? { title: `You owe ${amount} in ${group.name}`, body: "Settle up first: once it's paid and recorded, you can leave.", settleHref }
+    : {
+        title: `${group.name} owes you ${amount}`,
+        body: "Settle up first: once you're paid back (or undo what you logged), you can leave.",
+        settleHref,
+      };
 }
 
 // ── New group ──────────────────────────────────────────────────────

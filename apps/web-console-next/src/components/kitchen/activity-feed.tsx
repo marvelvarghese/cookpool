@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Flag, MoreVertical, Plus, Receipt, Undo2 } from "lucide-react";
 import type { ActivityPage, KitchenTxn } from "@saas/contracts/kitchen";
@@ -37,7 +38,9 @@ import { useMemberNames } from "./people-data";
  * A group's Activity tab (CP-8): every entry newest first, a page at a time.
  * Each row shows the kind, title, who logged it and when, and what it did to
  * *your* balance (blue +, orange −, neutral). Undone entries are struck
- * through. The row menu offers Undo (its creator, or an owner or admin) and
+ * through. `?txn=txn_…` (Home's flag cards and Recent activity, CP-23) brings
+ * that entry into view and marks it, reading a few more pages to find it.
+ * The row menu offers Undo (its creator, or an owner or admin) and
  * Flag (someone it names); a viewer gets neither, and no Add expense.
  */
 export function ActivityFeed({
@@ -69,6 +72,20 @@ export function ActivityFeed({
   }, []);
 
   const txns = React.useMemo(() => flattenActivity(feed.data?.pages ?? []), [feed.data]);
+
+  // The entry a link points at (`?txn=`): into view once listed, else a few more pages.
+  const focusTxn = useSearchParams()?.get("txn") ?? null;
+  const focusListed = focusTxn !== null && txns.some((t) => t.id === focusTxn);
+  const pagesRead = feed.data?.pages.length ?? 0;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = feed;
+  React.useEffect(() => {
+    if (!focusTxn) return;
+    if (focusListed) {
+      document.getElementById(`txn-${focusTxn}`)?.scrollIntoView({ block: "center" });
+      return;
+    }
+    if (pagesRead > 0 && pagesRead < FOCUS_MAX_PAGES && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [focusTxn, focusListed, pagesRead, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   /**
    * Undo: strike the row through at once, then post the reversal; if that
@@ -121,7 +138,7 @@ export function ActivityFeed({
         <IconBubble icon={Receipt} tone="blue" className="h-14 w-14" />
         <h3 className="mt-4 text-lg font-bold tracking-tight">Nothing logged yet</h3>
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-          Bills, payments and, soon, what people use and cook show up here, newest first.
+          Bills, payments, and what people use and cook show up here, newest first.
         </p>
         {canWrite ? (
           <Button asChild className={cn(K_BUTTON, "mt-5")}>
@@ -144,6 +161,7 @@ export function ActivityFeed({
             <ActivityItem
               key={txn.id}
               row={row}
+              focused={txn.id === focusTxn}
               onUndo={() => void undo(txn)}
               onFlag={() => setFlagging(txn)}
             />
@@ -169,7 +187,10 @@ export function ActivityFeed({
   );
 }
 
-function ActivityItem({ row, onUndo, onFlag }: { row: ActivityRow; onUndo: () => void; onFlag: () => void }) {
+/** How many pages the feed reads looking for a linked entry. */
+const FOCUS_MAX_PAGES = 4;
+
+function ActivityItem({ row, focused, onUndo, onFlag }: { row: ActivityRow; focused: boolean; onUndo: () => void; onFlag: () => void }) {
   const hasMenu = row.canUndo || row.canFlag;
   const amountClass =
     row.reversed || row.tone === "neutral"
@@ -178,7 +199,11 @@ function ActivityItem({ row, onUndo, onFlag }: { row: ActivityRow; onUndo: () =>
         ? "text-cp-owed"
         : "text-cp-owe";
   return (
-    <li className="flex min-h-[68px] items-center gap-3 px-4 py-3">
+    <li
+      id={`txn-${row.id}`}
+      aria-current={focused ? "true" : undefined}
+      className={cn("flex min-h-[68px] scroll-mt-24 items-center gap-3 px-4 py-3", focused && "bg-cp-soon-tint/60")}
+    >
       <KindBubble glyph={row.glyph} label={row.kindLabel} tone={row.reversed ? "neutral" : row.kindTone} />
       <div className="min-w-0 flex-1">
         <p className={cn("line-clamp-2 break-words text-[15px] font-semibold leading-snug", row.reversed && "text-muted-foreground line-through")}>

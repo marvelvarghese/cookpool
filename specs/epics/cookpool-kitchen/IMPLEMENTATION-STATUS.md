@@ -11,7 +11,7 @@ the code departed from `design.md`.
 | CP3 — pantries and using things | ✅ shipped 2026-11-02 | #11 (CP-10), #14 (CP-11), #18 (CP-12), #20 (CP-13) |
 | CP4 — the dish maker | ✅ shipped 2026-11-02 | #16 (CP-14), #23 (CP-15) |
 | CP5 — splitting dishes | ✅ shipped 2026-11-02 | #17 (CP-16), #22 (CP-17) |
-| CP6 — use it before it goes | in progress | #19 (CP-18), #21 (CP-19) |
+| CP6 — use it before it goes | ✅ shipped 2026-11-02 (emails are delivered once `mail.cookpool.app` is set up — see CP-18) | #19 (CP-18), #21 (CP-19), #24 (CP-23) |
 
 ## Departures from the design
 
@@ -1010,3 +1010,136 @@ The backend half of the original CP-19 (the screens are CP-23).
   with the dish maker (CP-17 lists them); cooking from a group page with that
   group chosen (`/cook` takes no `?group=`); a use-by date for what was just
   bought.
+
+### CP6 — the Home inbox and the finishing pass (CP-23)
+
+The UI half of the original CP-19 (its API is CP-19's `kitchen.inbox()`),
+and the pass over the whole app. Console only: no route, SDK or contract
+change.
+
+- **Home is an inbox.** "Needs you · N to do" (N is the cards shown, not
+  `counts.total`, so a kind this app doesn't know never inflates it), one
+  card per item in the server's order, each done in place
+  (`components/kitchen/inbox.ts` the view-model, `inbox-ui.tsx` the cards,
+  `inbox-data.ts` the reads):
+  - **claim_dish** — CP-17's `DishClaimStepper` over the dish read
+    (`useDish`, so an open dish on Home polls every 20 seconds like the dish
+    page); Undo sets the claim back. The card says who made it, what is left
+    and "₹31.20 a portion" (the API's `perPortionMinor`).
+  - **finalize_dish** — an open dish, or one just for you, finalizes on the
+    card after a preview of who will owe you (the dish's own `amounts`, at
+    most three lines, plus CP-17's leftovers note), through CP-17's
+    `useDishActions`; its toast says what posted and offers **Correct it**
+    (finalizing has no undo). An assigned dish in a group still needs its
+    cook to say who had how much, so its card is "Split your …" with **Set
+    portions**, which opens the dish page.
+  - **use_soon** — "I had a glass": CP-13's presets (`amountPresets`) with
+    the card's `usual` first when it fits what is left, else the first
+    kitchen measure; logged for just you with `useLogUse` (request, refusal
+    in words, CP-12's Undo toast, a fresh idempotency key per tap). The item
+    is read by its ref for the cost on the button ("I had a glass · ₹17.00").
+    Volume and mass say "I had …" ("a glass", "a cup"); counts and packs
+    "I used 2 pcs". **Cook with it** opens `/cook?item=…`.
+  - **payment_due** — **I paid**, then UPI · Cash · Bank: Settle up's record
+    (now `useRecordPayment` and `PaymentMethodChips`, extracted from
+    `settle-card.tsx`, which uses them too) with its Undo. A viewer
+    (`canRecord: false`) is told who records it instead.
+  - **flag** — who flagged which entry and what they said, with **See the
+    entry**: a dish's charge opens the dish (it is corrected there),
+    anything else `/groups/{slug}?txn=…`. The group's Activity now brings a
+    `?txn=` entry into view and marks it, reading up to four pages to find it.
+  - **All clear** — "Nothing needs you right now." when the inbox is empty.
+- **The inbox refreshes after every action.** It is cached under
+  `qk.kitchenInbox()` = `["kitchenMe", "inbox"]`, so every ledger write
+  (`refreshLedger`) refreshes it; `refreshPantry` (every stock write, personal
+  ones included) and the dish cache's `putDish` (claims, shares, finalize,
+  corrections, cancel) refresh it by name too. Like every read it is fresh
+  for 30 seconds (the app's `staleTime`, no refetch on focus); nothing polls
+  the inbox itself — what someone else posts shows the next time Home mounts
+  after that.
+- **Home's other columns.** The balance card is CP-9's; **By group** (new) is
+  your balance in each group from the same cross-group read, money open
+  first, each opening the group, with CP-5's "start or join a group" card
+  when you have none (it replaces the "Your groups" tiles). **Use soon**
+  leaves out what the inbox already lists (it reads 16 soon and 8 expired to
+  still fill four tiles; "Everything due soon is in Needs you." when nothing
+  is left). **Recent activity across groups** has no cross-group read: Home
+  reads the newest 5 entries of the 8 groups you opened most recently
+  (`qk.kitchenRecentActivity(orgId)`, under the group's ledger key) and
+  shows the newest 6, each naming its group and opening its dish or entry.
+- **One timestamp helper** (`components/kitchen/when.ts`): "today",
+  "yesterday", "tomorrow", then "28 Oct" ("28 Oct 2025" in another year);
+  "Just now", "5 min ago", "3 h ago" to start a line; "today, 8:10 pm";
+  calendar dates as UTC days. `relativeWhen`, `dishDay`/`dishWhen`,
+  `dayMonth` and `shortDate` now call it; `shortDate` was the one outlier
+  (the browser's locale, always with the year: "Joined 1 Oct 2026" is now
+  "Joined 1 Oct").
+- **Undo, audited.** One helper, `useUndoToast` (`undo-toast.ts`; the pure
+  `UNDO_MS`, `UndoResult`, `undoneToast`, `undoFailed` in `undo.ts`): the
+  action's toast with a ten-second Undo, pressed once, ending in "Undone"
+  with what is back or the refusal. CP-8's `useOfferUndo` (expense, payment,
+  an undone entry, the person view's Record), CP-12's `useOfferStockUndo`
+  (use, waste, quick use, Do it again, Home's one-tap use), CP-12's added
+  item, CP-15's cooking (Undo cancels the dish) and CP-17's claims and
+  shares now all go through it; what each undoes is unchanged. **Gap
+  closed:** a dish correction had no undo — its Undo now corrects back to
+  the shares it had (another reversal and transaction, note "Undid a
+  correction"). **Deliberately left:** finalizing offers "Correct it", not
+  Undo (there is no un-finalize); confirms remain only for Leave group,
+  Rotate link, Move to a group, Cancel a dish and Make owner/admin (none can
+  be undone in the app), and Mark wasted keeps its preview.
+- **Copy.** Empty states are one sentence and invent nothing ("Balances
+  appear once your groups start logging.", "Nothing logged in your groups
+  yet."). Two stale lines fixed: a group's empty Activity no longer says
+  uses and cooking come "soon", and Add expense's "Cooked something?" card
+  links to the dish maker instead of a disabled "Cook a dish · Soon".
+  Remind (person view, dish page) stays "Soon": there is no reminder API.
+- **Desktop pass (design §7's web pages).** Below 900px: one column and the
+  bottom tabs, as before. **Home** from 900px: two columns (balance, by
+  group, recent · needs you, use soon); from 1280px three (balance and by
+  group · needs you and use soon · recent), with "What did you use?" beside
+  the greeting. On phones the order is balance, needs you, use soon, recent,
+  by group (one DOM order: the columns are `display: contents` below 900px).
+  **Groups** from 900px: the list beside the chosen group's activity (with
+  Undo and Flag, as on its page), then its balances and fewest payments —
+  stacked under the activity up to 1280px, a third column from there. A row
+  then chooses the group (`?group=` keeps it; `useMinWidth` decides, so
+  phones never read the panes) and "Open group" opens its page; the
+  balances panel moved out of the group page into
+  `components/kitchen/group-balances.tsx` so both use it. Home and the Groups
+  list take the width beside the sidebar from 1280px (`isWideKitchenPage`,
+  up to 90rem); every other page keeps `max-w-5xl`. **Pantry** (CP-12's
+  table from 900px) and the **dish maker** (two panels from 900px, its table
+  from 1200px) already matched and are unchanged.
+- **Installable.** `src/lib/manifest.ts` builds what `/manifest.webmanifest`
+  serves (still a route, not design §7's static `public/manifest.webmanifest`,
+  CP-5): `id` and `start_url` `/home`, `display: standalone`, herb-green
+  theme, warm-neutral background, and icons — `icon-192.png`, `icon-512.png`
+  (`purpose: any`, a rounded green square), `icon-maskable-512.png`
+  (full-bleed, the pot inside the safe zone) and `icon.svg` — plus a 180px
+  `apple-touch-icon.png` and the SVG as the tab icon, both linked from the
+  root layout's metadata. The icons are lucide's CookingPot (the sidebar's
+  wordmark) in white on #1F7A4D, drawn by `scripts/gen-icons.mjs` with no
+  dependency (a distance-field rasteriser and node's zlib for the PNGs) and
+  committed under `public/icons/`.
+- **Leaving with a balance.** CP-19's 409 `balance_not_settled` now shows on
+  the group's Leave card as "You owe ₹45.75 in Flat 4B" / "Flat 4B owes you
+  ₹86.50" with a sentence on what to do and **Settle up in Flat 4B**
+  (`/settle?group=…`); the group's balances are read again. Before trying,
+  the Leave dialog already says so when the balance the page has isn't zero
+  (still letting the server decide).
+- **Email links resolve.** CP-18 links `/home`, `/dishes/{dsh}` (CP-17's
+  page takes the plain id) and `/groups/{slug}` (or `/groups`); all exist,
+  and a signed-out reader comes back to them after signing in. No redirects
+  were needed.
+- **Tests** (tests/web-console-next): `kitchen-inbox.test.ts` (each card kind
+  and its action, order, duplicates, unknown kinds, All clear, the button and
+  use-by words, the finalize preview, recent activity, by group, the leave
+  explanation, the undo toast words, page width), `kitchen-when.test.ts`
+  (the helper, and that the older helpers say the same), and
+  `kitchen-manifest.test.ts` (the members an install needs, 192/512/maskable,
+  every icon in `public/` decoding to its stated size, the route's answer;
+  `node-shim.d.ts` types the two `node:` imports, since the package has no
+  `@types/node`).
+- **Not in this task:** a cross-group activity read (Home reads 8 groups);
+  inbox polling; Remind (no API).

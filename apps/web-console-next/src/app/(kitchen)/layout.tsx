@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { useRequireAuth } from "@/lib/use-async";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,12 +9,14 @@ import { KitchenSidebar } from "@/components/kitchen/sidebar";
 import { KitchenTabBar } from "@/components/kitchen/tab-bar";
 import { AddSheet } from "@/components/kitchen/add-sheet";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
+import { isWideKitchenPage } from "@/components/kitchen/nav";
 
 /**
  * Cookpool, the consumer app (epic cookpool-kitchen, CP-5), beside the admin
  * console's `(app)` shell. Mobile first: below 900px one column with a fixed
  * bottom tab bar (Home · Pantry · + Add · Groups · People); from 900px a left
- * sidebar with the same destinations.
+ * sidebar with the same destinations. Home and Groups lay out in three
+ * columns from 1280px, so they take the room beside the sidebar (CP-23).
  *
  * Every page needs a session: without one the person goes to sign-in and comes
  * back here afterwards (`returnHere`), which is what lets a join link survive
@@ -25,6 +28,7 @@ import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
  */
 export default function KitchenLayout({ children }: { children: React.ReactNode }) {
   const ready = useRequireAuth({ returnHere: true });
+  const wide = isWideKitchenPage(usePathname());
   const [addOpen, setAddOpen] = React.useState(false);
   const openAdd = React.useCallback(() => setAddOpen(true), []);
 
@@ -55,6 +59,7 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
           "mx-auto w-full min-w-0 max-w-2xl px-4",
           "pb-[calc(env(safe-area-inset-bottom)+6.5rem)] pt-[calc(env(safe-area-inset-top)+1.25rem)]",
           "min-[900px]:max-w-5xl min-[900px]:flex-1 min-[900px]:px-10 min-[900px]:pb-14 min-[900px]:pt-10",
+          wide && "min-[1280px]:max-w-[90rem]",
         )}
       >
         {ready ? children : <KitchenSkeleton />}

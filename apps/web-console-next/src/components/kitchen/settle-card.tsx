@@ -210,6 +210,97 @@ function DebtsBehind({ orgId, meId, currency }: { orgId: string; meId: string | 
 
 const METHOD_LABEL: Record<SettlementMethod, string> = { upi: "UPI", cash: "cash", bank: "bank transfer", other: "other" };
 
+/**
+ * Record one payment of a group's plan (CP-8), shared by Settle up's rows
+ * and Home's "I paid" (CP-23): post the settlement, refresh the ledger (and
+ * with it the cross-group reads and the inbox), put a refusal in words, and
+ * end in the one Undo toast, which reverses it. Resolves true once recorded.
+ */
+export function useRecordPayment() {
+  const { client } = useSession();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const offerUndo = useOfferUndo();
+  return React.useCallback(
+    async (input: { orgId: string; payment: SettlePayment; currency: string; method: SettlementMethod; sentence: string }): Promise<boolean> => {
+      const { orgId, payment, currency, method } = input;
+      const r = await wrap(() =>
+        client.kitchen.createSettlement(orgId, settlementRequest(payment, method), {
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      );
+      refreshLedger(qc, orgId);
+      if (!r.ok) {
+        const description =
+          r.error.reason === "not_a_party"
+            ? "Only the two people in a payment, or an owner or admin, can record it."
+            : r.error.reason === "not_in_group"
+              ? "One of them has left the group. An owner or admin can undo their entries instead."
+              : r.error.message;
+        toast({ kind: "error", title: "Couldn't record the payment", description });
+        return false;
+      }
+      offerUndo(
+        orgId,
+        r.data.txn,
+        "Payment recorded",
+        `${input.sentence} ${formatMinor(payment.amountMinor, currency)} by ${METHOD_LABEL[method]}.`,
+      );
+      return true;
+    },
+    [client, qc, toast, offerUndo],
+  );
+}
+
+/**
+ * "How was it paid?" UPI · Cash · Bank, each recording the payment in one
+ * tap, and × to close. The chip being recorded pulses; the rest wait.
+ */
+export function PaymentMethodChips({
+  id,
+  busy,
+  onPick,
+  onCancel,
+  className,
+}: {
+  id: string;
+  busy: SettlementMethod | null;
+  onPick: (method: SettlementMethod) => void;
+  onCancel: () => void;
+  className?: string;
+}) {
+  return (
+    <div id={id} className={cn("flex flex-wrap items-center gap-2", className)}>
+      <span className="w-full text-xs font-medium text-muted-foreground" id={`${id}-label`}>
+        How was it paid? Cookpool records it; the money moves in your UPI, bank or cash.
+      </span>
+      <div role="group" aria-labelledby={`${id}-label`} className="flex flex-wrap gap-2">
+        {SETTLE_METHODS.map((m) => (
+          <Chip
+            key={m.id}
+            disabled={busy !== null}
+            selected={busy === m.id}
+            aria-busy={busy === m.id || undefined}
+            className={cn(busy === m.id && "animate-pulse disabled:opacity-100")}
+            onClick={() => onPick(m.id)}
+          >
+            {m.label}
+          </Chip>
+        ))}
+      </div>
+      <button
+        type="button"
+        aria-label="Cancel recording"
+        disabled={busy !== null}
+        onClick={onCancel}
+        className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+      >
+        <X className="h-5 w-5" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 export function PaymentRow({
   orgId,
   payment,
@@ -228,10 +319,7 @@ export function PaymentRow({
   groupName?: string;
   groupHref?: string;
 }) {
-  const { client } = useSession();
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const offerUndo = useOfferUndo();
+  const recordPayment = useRecordPayment();
   const [choosing, setChoosing] = React.useState(false);
   const [busy, setBusy] = React.useState<SettlementMethod | null>(null);
   const chipsId = React.useId();
@@ -244,31 +332,9 @@ export function PaymentRow({
   const record = async (method: SettlementMethod) => {
     if (busy) return;
     setBusy(method);
-    const r = await wrap(() =>
-      client.kitchen.createSettlement(orgId, settlementRequest(payment, method), {
-        idempotencyKey: crypto.randomUUID(),
-      }),
-    );
+    const recorded = await recordPayment({ orgId, payment, currency, method, sentence });
     setBusy(null);
-    if (!r.ok) {
-      const description =
-        r.error.reason === "not_a_party"
-          ? "Only the two people in a payment, or an owner or admin, can record it."
-          : r.error.reason === "not_in_group"
-            ? "One of them has left the group. An owner or admin can undo their entries instead."
-            : r.error.message;
-      toast({ kind: "error", title: "Couldn't record the payment", description });
-      refreshLedger(qc, orgId);
-      return;
-    }
-    setChoosing(false);
-    refreshLedger(qc, orgId);
-    offerUndo(
-      orgId,
-      r.data.txn,
-      "Payment recorded",
-      `${sentence} ${formatMinor(payment.amountMinor, currency)} by ${METHOD_LABEL[method]}.`,
-    );
+    if (recorded) setChoosing(false);
   };
 
   return (
@@ -321,34 +387,13 @@ export function PaymentRow({
         ) : null}
       </div>
       {choosing ? (
-        <div id={chipsId} className="mt-3 flex flex-wrap items-center gap-2 pl-12">
-          <span className="w-full text-xs font-medium text-muted-foreground" id={`${chipsId}-label`}>
-            How was it paid? Cookpool records it; the money moves in your UPI, bank or cash.
-          </span>
-          <div role="group" aria-labelledby={`${chipsId}-label`} className="flex flex-wrap gap-2">
-            {SETTLE_METHODS.map((m) => (
-              <Chip
-                key={m.id}
-                disabled={busy !== null}
-                selected={busy === m.id}
-                aria-busy={busy === m.id || undefined}
-                className={cn(busy === m.id && "animate-pulse disabled:opacity-100")}
-                onClick={() => void record(m.id)}
-              >
-                {m.label}
-              </Chip>
-            ))}
-          </div>
-          <button
-            type="button"
-            aria-label="Cancel recording"
-            disabled={busy !== null}
-            onClick={() => setChoosing(false)}
-            className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-          >
-            <X className="h-5 w-5" aria-hidden />
-          </button>
-        </div>
+        <PaymentMethodChips
+          id={chipsId}
+          busy={busy}
+          onPick={(m) => void record(m)}
+          onCancel={() => setChoosing(false)}
+          className="mt-3 pl-12"
+        />
       ) : null}
     </li>
   );

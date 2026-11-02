@@ -25,6 +25,7 @@ import { formatMinor, splitByWeights } from "@saas/kitchen-engine/money";
 import { dimensionOf, formatQuantity, isUnit } from "@saas/kitchen-engine/units";
 import { memberLabel, memberLabelInline, type MemberNames } from "./members";
 import { capitalize, countWords, joinNames } from "./pantry";
+import { dayAndTimeText, dayText } from "./when";
 
 // ── The address ───────────────────────────────────────────────────
 
@@ -113,29 +114,14 @@ export function isSplitOpen(dish: Pick<KitchenDish, "state">): boolean {
   return dish.state === "open" || dish.state === "draft";
 }
 
-function startOfDay(d: Date, offsetDays = 0): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + offsetDays).getTime();
-}
-
-/** "today", "yesterday", "28 Oct", "28 Oct 2025" — in the viewer's calendar. */
+/** "today", "yesterday", "28 Oct", "28 Oct 2025" — in the viewer's calendar (the app's `dayText`, CP-23). */
 export function dishDay(iso: string, now: Date): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "";
-  const t = at.getTime();
-  if (t >= startOfDay(now) && t < startOfDay(now, 1)) return "today";
-  if (t >= startOfDay(now, -1) && t < startOfDay(now)) return "yesterday";
-  return at.toLocaleDateString(
-    "en-GB",
-    at.getFullYear() === now.getFullYear() ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" },
-  );
+  return dayText(iso, now);
 }
 
-/** "today, 8:10 pm", "yesterday, 1:05 pm", "28 Oct, 7:30 pm". */
+/** "today, 8:10 pm", "yesterday, 1:05 pm", "28 Oct, 7:30 pm" (`dayAndTimeText`). */
 export function dishWhen(iso: string, now: Date): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "";
-  const time = at.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true });
-  return `${dishDay(iso, now)}, ${time}`;
+  return dayAndTimeText(iso, now);
 }
 
 export interface DishPeople {

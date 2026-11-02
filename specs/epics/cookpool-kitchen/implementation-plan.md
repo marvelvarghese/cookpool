@@ -80,7 +80,7 @@ The product becomes useful on its own.
 - the spec's worked example reproduces to the paisa on stage
 - a correction posts a reversal and a new transaction, and balances follow
 
-## CP6 — use it before it goes
+## CP6 — use it before it goes ✅
 
 - **CP-18 the daily sweep**: `scheduled()` with cron triggers for stage and prod, `kitchen.use_soon` digest, `kitchen.dish_posted` and `kitchen.logged_for_you` emails, preferences.
 - **CP-19 the Home inbox and polish**: the inbox read model, "Do it again", undo toasts everywhere, installable app, empty states, the closing pass on the desktop layouts.

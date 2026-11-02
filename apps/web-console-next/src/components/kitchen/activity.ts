@@ -8,6 +8,7 @@
 import type { ActivityPage, KitchenTxn, KitchenTxnKind } from "@saas/contracts/kitchen";
 import { formatMinor, formatSignedMinor } from "./money";
 import { memberLabel, memberLabelInline, type MemberNames } from "./members";
+import { agoText } from "./when";
 
 export type RowTone = "owed" | "owe" | "neutral";
 export type KindTone = "green" | "tomato" | "blue" | "neutral";
@@ -38,29 +39,13 @@ export function yourPartMinor(txn: Pick<KitchenTxn, "splits">, meId: string | nu
   return named ? net : null;
 }
 
-const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
-
 /**
  * When, briefly: "Just now", "5 min ago", "3 h ago", "Yesterday", then a date
- * ("12 Oct", with the year when it isn't this year's). Days are counted in the
- * viewer's local calendar.
+ * ("12 Oct", with the year when it isn't this year's) — the app's one
+ * timestamp helper (`agoText`, CP-23), in the viewer's local calendar.
  */
 export function relativeWhen(iso: string, now: Date): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "";
-  const ms = now.getTime() - at.getTime();
-  if (ms < MINUTE) return "Just now";
-  if (ms < HOUR) return `${Math.floor(ms / MINUTE)} min ago`;
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  if (at.getTime() >= startOfToday) return `${Math.floor(ms / HOUR)} h ago`;
-  if (at.getTime() >= startOfToday - DAY) return "Yesterday";
-  const opts: Intl.DateTimeFormatOptions =
-    at.getFullYear() === now.getFullYear()
-      ? { day: "numeric", month: "short" }
-      : { day: "numeric", month: "short", year: "numeric" };
-  return at.toLocaleDateString("en-GB", opts);
+  return agoText(iso, now);
 }
 
 export interface ActivityRow {

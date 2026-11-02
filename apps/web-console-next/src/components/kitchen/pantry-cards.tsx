@@ -12,7 +12,7 @@ import { useMemberNames } from "./people-data";
 import { usePantries, usePantryItems, useUseSoonItems } from "./pantry-data";
 import { UseByPill } from "./pantry-ui";
 import { memberLabelInline } from "./members";
-import { expiryChip, itemHref, leftText, pantryLabel, soonStrip, totalsOf } from "./pantry";
+import { HOME_USE_SOON, expiryChip, itemHref, leftText, pantryLabel, soonStrip, totalsOf } from "./pantry";
 
 /**
  * The pantry outside /pantry (CP-12): Home's "Use soon" strip — the soonest
@@ -21,14 +21,16 @@ import { expiryChip, itemHref, leftText, pantryLabel, soonStrip, totalsOf } from
  * whole pantry.
  */
 
-export function HomeUseSoon() {
+export function HomeUseSoon({ exclude, className }: { exclude?: ReadonlySet<string>; className?: string } = {}) {
   const strip = useUseSoonItems();
   const pantries = usePantries();
-  const items = strip.data ? soonStrip(strip.data.soon, strip.data.expired) : null;
+  const items = strip.data ? soonStrip(strip.data.soon, strip.data.expired, HOME_USE_SOON, exclude) : null;
   const total = pantries.data ? totalsOf(pantries.data).itemCount : null;
+  // Everything due soon is already a card in Needs you.
+  const allInInbox = items !== null && items.length === 0 && (exclude?.size ?? 0) > 0;
 
   return (
-    <section aria-labelledby="home-soon" className="space-y-3">
+    <section aria-labelledby="home-soon" className={cn("space-y-3", className)}>
       <div className="flex items-center justify-between">
         <h2 id="home-soon" className="text-lg font-bold tracking-tight">
           Use soon
@@ -55,6 +57,11 @@ export function HomeUseSoon() {
             Try again
           </Button>
         </KCard>
+      ) : allInInbox ? (
+        <KCard className="flex gap-4 p-5">
+          <IconBubble icon={Clock} tone="neutral" />
+          <p className="min-w-0 self-center text-sm text-muted-foreground">Everything due soon is in Needs you.</p>
+        </KCard>
       ) : items.length === 0 ? (
         <KCard className="flex gap-4 p-5">
           <IconBubble icon={total === 0 ? Refrigerator : Clock} tone={total === 0 ? "green" : "neutral"} />
@@ -78,7 +85,7 @@ export function HomeUseSoon() {
           </div>
         </KCard>
       ) : (
-        <ul className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 min-[900px]:mx-0 min-[900px]:grid min-[900px]:grid-cols-4 min-[900px]:overflow-visible min-[900px]:px-0 min-[900px]:pb-0">
+        <ul className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 min-[900px]:mx-0 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:overflow-visible min-[900px]:px-0 min-[900px]:pb-0">
           {items.map((item) => {
             const chip = expiryChip(item);
             const expired = chip?.tone === "expired";

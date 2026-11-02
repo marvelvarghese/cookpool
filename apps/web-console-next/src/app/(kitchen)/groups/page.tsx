@@ -9,11 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SkeletonRow } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
-import { useGroups } from "@/components/kitchen/data";
+import type { PublicOrganization } from "@saas/contracts/membership";
+import { useGroups, useProfile } from "@/components/kitchen/data";
 import { GROUP_SORTS, filterGroups, roleFromKitchen, roleLabel, sortGroups, type GroupSort } from "@/components/kitchen/groups";
 import { GroupAvatar, IconBubble, KCard, K_BUTTON, K_INPUT, PageHeader, shortDate } from "@/components/kitchen/kit";
 import { Money } from "@/components/kitchen/ledger-ui";
-import { useMyBalances } from "@/components/kitchen/people-data";
+import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data";
+import { useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
+import { ActivityFeed } from "@/components/kitchen/activity-feed";
+import { GroupBalancesPanel } from "@/components/kitchen/group-balances";
+import { useMinWidth } from "@/components/kitchen/use-min-width";
 import { NewGroupDialog } from "@/components/kitchen/new-group-dialog";
 import { JoinGroupDialog } from "@/components/kitchen/join-group-dialog";
 
@@ -24,11 +29,18 @@ import { JoinGroupDialog } from "@/components/kitchen/join-group-dialog";
  * are in it and your balance there (from the cross-group read, CP-9). New
  * group and Join open dialogs; `?new=1` / `?join=1` open them from elsewhere
  * (Home's empty state).
+ *
+ * From 900px (CP-23, design §7's web page) the list sits beside the chosen
+ * group's activity, then its balances and fewest payments — below the
+ * activity up to 1280px, a third column from there. A row then chooses the
+ * group (`?group=` keeps it); "Open group" opens its page. Phones keep the
+ * list, each row opening the group.
  */
 export default function GroupsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const desktop = useMinWidth(900);
   const groups = useGroups();
   const balances = useMyBalances();
   const kitchen = React.useMemo(
@@ -59,6 +71,14 @@ export default function GroupsPage() {
     () => sortGroups(filterGroups(all, query), sort, recentSlugs),
     [all, query, sort, recentSlugs],
   );
+  // The group beside the list: `?group=`, else the first one listed.
+  const chosenSlug = searchParams?.get("group") ?? null;
+  const chosen = desktop ? (all.find((g) => g.slug === chosenSlug) ?? shown[0] ?? null) : null;
+  const choose = (slug: string) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set("group", slug);
+    router.replace(`${pathname ?? "/groups"}?${params.toString()}`, { scroll: false });
+  };
 
   return (
     <div className="space-y-5">
@@ -81,8 +101,16 @@ export default function GroupsPage() {
         }
       />
 
+      <div
+        className={cn(
+          "space-y-5",
+          chosen &&
+            "min-[900px]:grid min-[900px]:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] min-[900px]:items-start min-[900px]:gap-6 min-[900px]:space-y-0 min-[1280px]:grid-cols-[minmax(0,20rem)_minmax(0,1fr)_minmax(0,23rem)]",
+        )}
+      >
+      <div className="min-w-0 space-y-5">
       {all.length > 0 ? (
-        <div className="flex flex-col gap-3 min-[560px]:flex-row">
+        <div className={cn("flex flex-col gap-3", !chosen && "min-[560px]:flex-row")}>
           <div className="relative flex-1">
             <label htmlFor="group-search" className="sr-only">
               Search groups
@@ -165,11 +193,22 @@ export default function GroupsPage() {
               {shown.map((g) => {
                 const k = kitchen.get(g.id);
                 const role = roleFromKitchen(k?.role);
+                const selected = chosen?.id === g.id;
                 return (
                   <li key={g.id}>
                     <Link
-                      href={`/groups/${g.slug}`}
-                      className="flex min-h-[68px] items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      href={chosen ? `/groups?group=${encodeURIComponent(g.slug)}` : `/groups/${g.slug}`}
+                      onClick={(e) => {
+                        // From 900px a row chooses the group beside the list.
+                        if (!chosen) return;
+                        e.preventDefault();
+                        choose(g.slug);
+                      }}
+                      aria-current={selected ? "true" : undefined}
+                      className={cn(
+                        "flex min-h-[68px] items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        selected && "bg-accent",
+                      )}
                     >
                       <GroupAvatar name={g.name} />
                       <span className="min-w-0 flex-1">
@@ -200,6 +239,9 @@ export default function GroupsPage() {
           )}
         </>
       )}
+      </div>
+      {chosen ? <ChosenGroup group={chosen} /> : null}
+      </div>
 
       <NewGroupDialog
         open={newOpen}
@@ -215,6 +257,48 @@ export default function GroupsPage() {
           if (!open) dropParams();
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * The chosen group beside the list (from 900px): its activity — with Undo
+ * and Flag as on its page — then everyone's balance and the fewest payments
+ * with Record. From 1280px the two are separate columns.
+ */
+function ChosenGroup({ group }: { group: PublicOrganization }) {
+  const profile = useProfile();
+  const myId = profile.data?.id ?? null;
+  const { members, manager, canWrite } = useGroupRole(group.id, myId);
+  const names = useMemberNames(members.data);
+  const balances = useBalances(group.id);
+  const ref = React.useMemo(() => ({ id: group.id, name: group.name, slug: group.slug }), [group.id, group.name, group.slug]);
+  return (
+    <div className="min-w-0 space-y-5 min-[1280px]:contents">
+      <section aria-labelledby="chosen-group-name" className="min-w-0 space-y-3">
+        <div className="flex items-center gap-3">
+          <GroupAvatar name={group.name} />
+          <div className="min-w-0 flex-1">
+            <h2 id="chosen-group-name" className="truncate text-lg font-bold tracking-tight">
+              {group.name}
+            </h2>
+            <p className="text-xs text-muted-foreground">Activity, newest first</p>
+          </div>
+          <Button asChild variant="outline" className={cn(K_BUTTON, "shrink-0 px-4")}>
+            <Link href={`/groups/${group.slug}`}>
+              Open group
+              <ChevronRight aria-hidden />
+            </Link>
+          </Button>
+        </div>
+        <ActivityFeed key={group.id} orgId={group.id} slug={group.slug} meId={myId} canReverseAny={manager} canWrite={canWrite} />
+      </section>
+      <section aria-labelledby="chosen-group-money" className="min-w-0 space-y-3">
+        <h2 id="chosen-group-money" className="text-lg font-bold tracking-tight">
+          Balances and fewest payments
+        </h2>
+        <GroupBalancesPanel key={group.id} group={ref} myId={myId} balances={balances} manager={manager} canWrite={canWrite} names={names} />
+      </section>
     </div>
   );
 }

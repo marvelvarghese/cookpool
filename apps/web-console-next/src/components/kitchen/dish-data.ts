@@ -8,7 +8,9 @@ import { wrap, type ApiErrorBody, type ApiResult } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { qk, type AsyncState } from "@/lib/query";
 import { useToast } from "@/components/ui/toast";
-import { refreshLedger, UNDO_MS } from "./ledger-data";
+import { refreshLedger } from "./ledger-data";
+import { UNDO_MS, type UndoResult } from "./undo";
+import { useUndoToast } from "./undo-toast";
 import {
   claimRefusal,
   claimedToast,
@@ -84,13 +86,14 @@ export function useGroupDishes(orgId: string) {
   });
 }
 
-/** Put a write's answer in the dish's cache entry and refresh every other dish read. */
+/** Put a write's answer in the dish's cache entry and refresh every other dish read, and Home's inbox (CP-23). */
 function putDish(qc: QueryClient, dish: KitchenDish): void {
   qc.setQueryData(qk.kitchenDish(dish.id), dish);
   void qc.invalidateQueries({
     queryKey: qk.kitchenDishes(),
     predicate: (q) => !(q.queryKey[1] === "dish" && q.queryKey[2] === dish.id),
   });
+  void qc.invalidateQueries({ queryKey: qk.kitchenInbox() });
 }
 
 /** After a write that moved money: the ledgers it touched, the cross-group reads, every pantry. */
@@ -169,7 +172,7 @@ export function useDishWrites() {
  */
 export function useClaimer(dish: KitchenDish, meId: string | null, names: MemberNames) {
   const writes = useDishWrites();
-  const { toast } = useToast();
+  const offerUndo = useUndoToast();
   const [pending, setPending] = React.useState<number | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -184,17 +187,15 @@ export function useClaimer(dish: KitchenDish, meId: string | null, names: Member
     latest.current = { dish, meId, names };
   }, [dish, meId, names]);
 
+  /** Undo sets the claim back to what it was (claims are PUTs: no reversal to post). */
   const undo = React.useCallback(
-    async (answer: KitchenDish, back: number) => {
+    async (answer: KitchenDish, back: number): Promise<UndoResult> => {
       const { meId: me, names: known } = latest.current;
       const r = await writes.claim(answer, back);
-      if (r.ok) {
-        toast({ kind: "success", title: "Undone", description: back === 0 ? "Your claim is taken back." : `You're back to ${portionsText(back)}.` });
-      } else {
-        toast({ kind: "error", title: "Couldn't undo it", description: claimRefusal(r.error, { dish: answer, meId: me, names: known }) });
-      }
+      if (r.ok) return { ok: true, description: back === 0 ? "Your claim is taken back." : `You're back to ${portionsText(back)}.` };
+      return { ok: false, title: "Couldn't undo it", description: claimRefusal(r.error, { dish: answer, meId: me, names: known }) };
     },
-    [writes, toast],
+    [writes],
   );
 
   const send = React.useCallback(
@@ -224,15 +225,9 @@ export function useClaimer(dish: KitchenDish, meId: string | null, names: Member
       }
       base.current = half;
       const text = claimedToast({ dish: r.dish, meId: me, names: known, half });
-      toast({
-        kind: "success",
-        title: text.title,
-        description: text.description,
-        duration: UNDO_MS,
-        action: { label: "Undo", onClick: () => void undo(r.dish, before) },
-      });
+      offerUndo({ title: text.title, description: text.description, undo: () => undo(r.dish, before) });
     },
-    [writes, toast, undo],
+    [writes, offerUndo, undo],
   );
 
   const set = React.useCallback(
@@ -292,6 +287,7 @@ export function useDishActions(input: {
   const { dish, meId, names, groupName, onCorrect } = input;
   const writes = useDishWrites();
   const { toast } = useToast();
+  const offerUndo = useUndoToast();
   const router = useRouter();
   const keys = React.useRef({ finalize: crypto.randomUUID(), correct: crypto.randomUUID(), cancel: crypto.randomUUID() });
   const [busy, setBusy] = React.useState<DishBusy>(null);
@@ -300,12 +296,26 @@ export function useDishActions(input: {
   const refusal = (r: Extract<DishWrite, { ok: false }>) => splitRefusal(r.error, { dish, meId, names });
 
   const undoShares = React.useCallback(
-    async (answer: KitchenDish, back: readonly ShareDraft[]) => {
+    async (answer: KitchenDish, back: readonly ShareDraft[]): Promise<UndoResult> => {
       const r = await writes.setShares(answer, back);
-      if (r.ok) toast({ kind: "success", title: "Undone", description: "Everyone's share is back as it was." });
-      else toast({ kind: "error", title: "Couldn't undo it", description: splitRefusal(r.error, { dish: answer, meId, names }) });
+      if (r.ok) return { ok: true, description: "Everyone's share is back as it was." };
+      return { ok: false, title: "Couldn't undo it", description: splitRefusal(r.error, { dish: answer, meId, names }) };
     },
-    [writes, toast, meId, names],
+    [writes, meId, names],
+  );
+
+  /**
+   * Undo a correction (CP-23): correct it back to the shares it had — the
+   * same write, so it reverses the correction's transaction and posts the
+   * earlier split again. Nothing is overwritten.
+   */
+  const undoCorrection = React.useCallback(
+    async (answer: KitchenDish, back: readonly ShareDraft[]): Promise<UndoResult> => {
+      const r = await writes.correct(answer, back, "Undid a correction", crypto.randomUUID());
+      if (r.ok) return { ok: true, description: "The split is back as it was. The correction stays in the history, reversed." };
+      return { ok: false, title: "Couldn't undo it", description: splitRefusal(r.error, { dish: answer, meId, names }) };
+    },
+    [writes, meId, names],
   );
 
   /** Save the shares on screen; false when refused (the message is in `error`). */
@@ -320,12 +330,10 @@ export function useDishActions(input: {
       return null;
     }
     if (opts.toast ?? true) {
-      toast({
-        kind: "success",
+      offerUndo({
         title: "Saved who had what",
         description: r.dish.state === "open" ? "Members can still change their own claims until you finalize." : "Finalize when it's right.",
-        duration: UNDO_MS,
-        action: { label: "Undo", onClick: () => void undoShares(r.dish, before) },
+        undo: () => undoShares(r.dish, before),
       });
     }
     return r.dish;
@@ -365,6 +373,7 @@ export function useDishActions(input: {
   const correct = async (shares: readonly ShareDraft[], note: string): Promise<boolean> => {
     setBusy("correct");
     setError(null);
+    const before = sharesOf(dish);
     const r = await writes.correct(dish, shares, note, keys.current.correct);
     setBusy(null);
     if (!r.ok) {
@@ -373,10 +382,10 @@ export function useDishActions(input: {
       return false;
     }
     keys.current.correct = crypto.randomUUID();
-    toast({
-      kind: "success",
+    offerUndo({
       title: `Corrected ${r.dish.name}`,
       description: "The old split was reversed and the new one posted. Nothing was overwritten.",
+      undo: () => undoCorrection(r.dish, before),
     });
     return true;
   };
