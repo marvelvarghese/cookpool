@@ -24,10 +24,83 @@ export interface LoginStartResponse {
   challengeId: string;
   expiresAt: string;
   delivery: {
+    /**
+     * `local_debug`: the code is in `code` and nothing was emailed — only for
+     * an address whose domain is in identity-worker's DEBUG_DELIVERY_DOMAINS
+     * (`*` locally and on dev, `cookpool.test` on stage, none on prod).
+     * `email`: the code was sent to the address and is not in the response.
+     */
     mode: "local_debug" | "email";
     emailHint: string;
     code?: string;
   };
+}
+
+// ── Limits on sign-in codes (Cookpool SI-2) ─────────────────────────
+
+/** Tries a code allows: the 5th wrong one spends it, and the right code is refused after that. */
+export const LOGIN_CODE_MAX_ATTEMPTS = 5;
+/** Codes one address can ask for (POST /v1/auth/login/start) within LOGIN_CODE_WINDOW_SECONDS. */
+export const LOGIN_CODES_PER_WINDOW = 5;
+/** The window the per-address count looks back over: 15 minutes. */
+export const LOGIN_CODE_WINDOW_SECONDS = 15 * 60;
+
+/**
+ * ERROR_CODES are pinned; sign-in outcomes ride on an existing code with
+ * `details.reason` set to one of these.
+ *
+ * POST /v1/auth/login/complete:
+ * - a wrong code while tries are left: 404 `not_found` (as before) with
+ *   `details.attemptsLeft` (4, 3, 2, 1) and no reason — {@link LoginCompleteWrongCodeDetails};
+ * - 422 `precondition_failed` with a reason — {@link LoginCompleteRefusedDetails}.
+ *   An unknown challenge stays a bare 404 `not_found`.
+ *
+ * POST /v1/auth/login/start:
+ * - 429 `rate_limited` with `details.reason: "too_many_codes"` and
+ *   `details.retryAfterSeconds`, plus a `Retry-After` header — {@link LoginStartRateLimitedDetails}.
+ *   api-edge's own per-IP limit also answers 429 `rate_limited`, but with
+ *   `details.scope` and no reason.
+ */
+export const AUTH_ERROR_REASONS = {
+  /**
+   * 422 `precondition_failed` on login/complete: the code has had
+   * LOGIN_CODE_MAX_ATTEMPTS wrong tries (this one may have been the last), so
+   * it is spent and even the right code is refused. `details.attemptsLeft: 0`.
+   * Ask for a new code.
+   */
+  TOO_MANY_ATTEMPTS: "too_many_attempts",
+  /** 422 `precondition_failed` on login/complete: the code's 10 minutes are up. Ask for a new code. */
+  CODE_EXPIRED: "code_expired",
+  /** 422 `precondition_failed` on login/complete: the code has already signed someone in. */
+  CODE_USED: "code_used",
+  /**
+   * 429 `rate_limited` on login/start: this address has asked for
+   * LOGIN_CODES_PER_WINDOW codes in the last LOGIN_CODE_WINDOW_SECONDS.
+   * `details.retryAfterSeconds` is when the oldest of them leaves the window.
+   */
+  TOO_MANY_CODES: "too_many_codes",
+} as const;
+
+export type AuthErrorReason = (typeof AUTH_ERROR_REASONS)[keyof typeof AUTH_ERROR_REASONS];
+
+/** `error.details` of a 404 `not_found` from login/complete when the code was wrong but tries are left. */
+export interface LoginCompleteWrongCodeDetails {
+  /** Tries this code has left: 4, 3, 2 or 1. */
+  attemptsLeft: number;
+}
+
+/** `error.details` of a 422 `precondition_failed` from login/complete. */
+export interface LoginCompleteRefusedDetails {
+  reason: "too_many_attempts" | "code_expired" | "code_used";
+  /** Present (always 0) with `too_many_attempts`. */
+  attemptsLeft?: 0;
+}
+
+/** `error.details` of a 429 `rate_limited` from login/start. */
+export interface LoginStartRateLimitedDetails {
+  reason: "too_many_codes";
+  /** Whole seconds (at least 1) until this address may ask for a code again. */
+  retryAfterSeconds: number;
 }
 
 export interface LoginCompleteResponse {

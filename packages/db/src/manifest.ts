@@ -255,5 +255,14 @@ export const manifest: MigrationManifest = {
       description:
         "The daily use-soon sweep's record: kitchen_sweeps, one row per UTC day swept (when it last ran, items in the window, people with something to use, digests sent and failed); /health reports the latest (Cookpool CP-18)",
     },
+    {
+      id: "280_identity_login_attempts",
+      context: "identity",
+      path: "280_identity_login_attempts/up.sql",
+      checksum:
+        "69b984e98fb2aef1c881e843ddda5053062eab822d3ab6067c0cd8daf242b88b",
+      description:
+        "Limits on sign-in codes: identity_login_challenges.attempts (wrong codes taken; login/complete counts them in the guarded UPDATE that checks the code, and a challenge at the limit is spent) and a (user_id, created_at) index for login/start's per-address count of codes in the last 15 minutes (Cookpool SI-2)",
+    },
   ],
 };

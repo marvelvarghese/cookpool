@@ -101,6 +101,42 @@ describe("Identity Migration Verification", () => {
     });
   });
 
+  // Cookpool SI-2: the attempt count behind "a code allows 5 tries", and the
+  // index behind "5 codes per address in 15 minutes".
+  describe("280_identity_login_attempts", () => {
+    it("is registered under identity, right after 270_kitchen_sweeps", () => {
+      const ids = manifest.migrations.map((m) => m.id);
+      expect(identityMigrations.map((m) => m.id).slice(-1)).toEqual(["280_identity_login_attempts"]);
+      expect(ids.indexOf("280_identity_login_attempts")).toBe(ids.indexOf("270_kitchen_sweeps") + 1);
+      expect(ids[ids.length - 1]).toBe("280_identity_login_attempts");
+    });
+
+    // Statements only: the header comments may name what they describe.
+    const sql = readFileSync(
+      resolve(MIGRATIONS_ROOT, "280_identity_login_attempts/up.sql"),
+      "utf-8",
+    ).replace(/--.*$/gm, "");
+
+    it("adds attempts to the login challenges with a constant default (every challenge reads 0 tries)", () => {
+      expect(sql).toMatch(
+        /ALTER TABLE identity_login_challenges ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0 CHECK \(attempts >= 0\)/,
+      );
+      expect(sql.match(/\bALTER\b/gi)).toHaveLength(1);
+    });
+
+    it("indexes a person's challenges by when they were created, guarded with IF NOT EXISTS", () => {
+      expect(sql).toMatch(
+        /CREATE INDEX IF NOT EXISTS login_challenges_user_created_idx\s+ON identity_login_challenges \(user_id, created_at\)/,
+      );
+    });
+
+    it("is additive, and keeps the code a hash", () => {
+      expect(sql).not.toMatch(/\b(DROP|UPDATE|DELETE)\b/i);
+      expect(sql).not.toMatch(/\bcode\b\s+TEXT/);
+      expect(sql).not.toContain("CREATE TABLE");
+    });
+  });
+
   describe("project-scoped invariant still applies only to projects context", () => {
     it("identity migrations are not subject to project-scoped org_id/project_id check", () => {
       expect(identityMigrations.every((m) => m.context === "identity")).toBe(true);

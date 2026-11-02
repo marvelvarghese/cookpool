@@ -6,6 +6,18 @@ export type IdentityRepositoryError =
   | { kind: "conflict"; entity: string }
   | { kind: "expired" }
   | { kind: "already_consumed" }
+  /** A login challenge took a wrong code and has `attemptsLeft` (1 or more) tries left (SI-2). */
+  | { kind: "wrong_code"; attemptsLeft: number }
+  /**
+   * A login challenge is spent: it has taken LOGIN_CHALLENGE_MAX_ATTEMPTS wrong
+   * codes (the last of them may be this one), so even the right code is refused.
+   */
+  | { kind: "too_many_attempts" }
+  /**
+   * A new login challenge was refused: the person already has the most a
+   * window allows. `retryAt` is when the oldest one that counts leaves it.
+   */
+  | { kind: "rate_limited"; retryAt: Date }
   | { kind: "internal"; message: string };
 
 export type IdentityResult<T> =
@@ -41,6 +53,8 @@ export interface LoginChallenge {
   expiresAt: Date;
   consumedAt: Date | null;
   createdAt: Date;
+  /** Wrong codes taken so far (migration 280); at LOGIN_CHALLENGE_MAX_ATTEMPTS the challenge is spent. */
+  attempts: number;
 }
 
 export interface Session {
@@ -76,6 +90,13 @@ export interface CreateLoginChallengeInput {
   codeHash: string;
   expiresAt: Date;
   createdAt: Date;
+  /**
+   * Refuse the challenge when the user already has `max` challenges created in
+   * the `windowMs` before `createdAt` (SI-2: 5 codes per address per 15
+   * minutes). The count and the insert are one statement, so requests racing
+   * each other cannot get past it. Refused → `rate_limited` with `retryAt`.
+   */
+  limit?: { max: number; windowMs: number };
 }
 
 export interface CreateSessionInput {
@@ -224,6 +245,14 @@ export interface IdentityRepository {
 
   createLoginChallenge(input: CreateLoginChallengeInput): Promise<IdentityResult<LoginChallenge>>;
   getLoginChallengeById(id: string): Promise<IdentityResult<LoginChallenge>>;
+  /**
+   * Try a code against a challenge, in ONE guarded statement (SI-2): the right
+   * code consumes it; a wrong one adds a try. Only an unconsumed, unexpired
+   * challenge with tries left is touched, so parallel guesses each count and
+   * none gets past LOGIN_CHALLENGE_MAX_ATTEMPTS. Refusals: `wrong_code`
+   * (`attemptsLeft` ≥ 1), `too_many_attempts` (this was the last try, or none
+   * were left), `expired`, `already_consumed`, `not_found`.
+   */
   consumeLoginChallenge(id: string, codeHash: string, consumedAt: Date): Promise<IdentityResult<LoginChallenge>>;
 
   createSession(input: CreateSessionInput): Promise<IdentityResult<Session>>;

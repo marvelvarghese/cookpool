@@ -1,4 +1,5 @@
 import type { Env } from "../env.js";
+import type { IdentityRepository } from "@saas/db/identity";
 import { createSqlExecutor } from "@saas/db/d1";
 import { createIdentityRepository } from "@saas/db/identity";
 import { createAuthService } from "../services/auth.js";
@@ -8,7 +9,19 @@ import { ensurePersonalOrg } from "../solo-mode.js";
 
 const CODE_RE = /^\d{6}$/;
 
-export async function handleLoginComplete(request: Request, env: Env, requestId: string): Promise<Response> {
+export interface HandleLoginCompleteDeps {
+  /** Injectable repository for tests; the D1-backed one otherwise. */
+  repo?: IdentityRepository;
+  /** Injectable clock for tests. */
+  now?: () => Date;
+}
+
+export async function handleLoginComplete(
+  request: Request,
+  env: Env,
+  requestId: string,
+  deps?: HandleLoginCompleteDeps,
+): Promise<Response> {
   let body: unknown;
   try {
     body = await request.json();
@@ -34,15 +47,15 @@ export async function handleLoginComplete(request: Request, env: Env, requestId:
     return validationError(requestId, errors);
   }
 
-  if (!env.PLATFORM_DB) {
+  if (!deps?.repo && !env.PLATFORM_DB) {
     return errorResponse("internal_error", "Database not configured", 503, requestId);
   }
 
-  const executor = createSqlExecutor(env.PLATFORM_DB);
+  const executor = deps?.repo ? null : createSqlExecutor(env.PLATFORM_DB!);
   try {
-    const repo = createIdentityRepository(executor);
+    const repo = deps?.repo ?? createIdentityRepository(executor!);
     const ctx = extractRequestContext(request, requestId);
-    const auth = createAuthService({ repo, now: () => new Date(), ctx });
+    const auth = createAuthService({ repo, now: deps?.now ?? (() => new Date()), ctx });
     const result = await auth.completeLogin(challengeId as string, code as string);
 
     if ("error" in result) {
@@ -51,7 +64,9 @@ export async function handleLoginComplete(request: Request, env: Env, requestId:
         precondition_failed: 422,
         internal_error: 500,
       };
-      return errorResponse(result.error, result.message, statusMap[result.error] ?? 500, requestId);
+      // SI-2: a wrong code carries details.attemptsLeft; a refusal carries
+      // details.reason (too_many_attempts, code_expired, code_used).
+      return errorResponse(result.error, result.message, statusMap[result.error] ?? 500, requestId, result.details);
     }
 
     // M0 / Solo profile: ensure the user's one invisible personal workspace
@@ -71,6 +86,6 @@ export async function handleLoginComplete(request: Request, env: Env, requestId:
   } catch {
     return errorResponse("internal_error", "An unexpected error occurred", 500, requestId);
   } finally {
-    await executor.dispose();
+    if (executor) await executor.dispose();
   }
 }

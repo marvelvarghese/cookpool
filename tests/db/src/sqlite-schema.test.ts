@@ -1859,3 +1859,196 @@ describe("the daily sweep, against a real SQLite engine (270_kitchen_sweeps)", (
     expect(insert("2026-11-03", -1)).toThrow(/CHECK/);
   });
 });
+
+// Cookpool SI-2: a code allows 5 tries, and an address can ask for 5 codes in
+// 15 minutes. Both limits are one guarded statement each, so they are checked
+// here against the engine itself, with requests racing: a read-then-write
+// would let a call in between its read and its write (each repository call
+// yields between statements), and these tests would see it.
+describe("sign-in code limits, against a real SQLite engine (280_identity_login_attempts)", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  const T0 = new Date("2026-11-02T09:00:00.000Z");
+  const MINUTE = 60_000;
+  const USER = "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1";
+  const OTHER = "b1b1b1b1-b1b1-41b1-81b1-b1b1b1b1b1b1";
+  const LIMIT = { max: 5, windowMs: 15 * MINUTE };
+
+  beforeEach(async () => {
+    db = migratedDatabase();
+    executor = createSqlExecutor(d1Over(db));
+    const repo = createIdentityRepository(executor);
+    for (const [id, email] of [[USER, "anu@example.com"], [OTHER, "ravi@example.com"]] as const) {
+      expect((await repo.createUser({ id, email, emailLower: email, createdAt: T0 })).ok).toBe(true);
+    }
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  async function newChallenge(id = randomUUID(), createdAt = T0) {
+    const repo = createIdentityRepository(executor);
+    const created = await repo.createLoginChallenge({
+      id, userId: USER, method: "email_code", codeHash: "right-hash",
+      expiresAt: new Date(createdAt.getTime() + 10 * MINUTE), createdAt,
+    });
+    expect(created.ok && created.value.attempts).toBe(0);
+    return id;
+  }
+
+  function row(id: string) {
+    return db.prepare("SELECT attempts, consumed_at FROM identity_login_challenges WHERE id = ?").get(id) as {
+      attempts: number;
+      consumed_at: string | null;
+    };
+  }
+
+  const AT = new Date(T0.getTime() + MINUTE);
+
+  it("counts wrong codes down, spends the challenge on the 5th, and refuses the right code after", async () => {
+    const repo = createIdentityRepository(executor);
+    const id = await newChallenge();
+
+    const kinds = [];
+    for (let i = 0; i < 5; i++) {
+      const tried = await repo.consumeLoginChallenge(id, "wrong-hash", AT);
+      kinds.push(tried.ok ? "ok" : tried.error);
+    }
+    expect(kinds).toEqual([
+      { kind: "wrong_code", attemptsLeft: 4 },
+      { kind: "wrong_code", attemptsLeft: 3 },
+      { kind: "wrong_code", attemptsLeft: 2 },
+      { kind: "wrong_code", attemptsLeft: 1 },
+      { kind: "too_many_attempts" },
+    ]);
+    expect(await repo.consumeLoginChallenge(id, "right-hash", AT)).toEqual({ ok: false, error: { kind: "too_many_attempts" } });
+    expect(row(id)).toEqual({ attempts: 5, consumed_at: null });
+  });
+
+  it("takes the right code within the limit, once", async () => {
+    const repo = createIdentityRepository(executor);
+    const id = await newChallenge();
+    for (let i = 0; i < 4; i++) await repo.consumeLoginChallenge(id, "wrong-hash", AT);
+
+    const right = await repo.consumeLoginChallenge(id, "right-hash", AT);
+    expect(right.ok && right.value).toMatchObject({ id, userId: USER, attempts: 4, consumedAt: AT });
+    expect(await repo.consumeLoginChallenge(id, "right-hash", AT)).toEqual({ ok: false, error: { kind: "already_consumed" } });
+    expect(await repo.consumeLoginChallenge(id, "wrong-hash", AT)).toEqual({ ok: false, error: { kind: "already_consumed" } });
+    expect(row(id)).toEqual({ attempts: 4, consumed_at: AT.toISOString() });
+  });
+
+  it("counts two wrong codes sent at once twice", async () => {
+    const repo = createIdentityRepository(executor);
+    const id = await newChallenge();
+
+    const results = await Promise.all([
+      repo.consumeLoginChallenge(id, "wrong-hash", AT),
+      repo.consumeLoginChallenge(id, "wrong-hash", AT),
+    ]);
+    expect(results.map((r) => (r.ok ? null : r.error))).toEqual([
+      { kind: "wrong_code", attemptsLeft: 4 },
+      { kind: "wrong_code", attemptsLeft: 3 },
+    ]);
+    expect(row(id).attempts).toBe(2);
+  });
+
+  it("lets exactly five of ten wrong codes sent at once count, and no 6th try through", async () => {
+    const repo = createIdentityRepository(executor);
+    const id = await newChallenge();
+
+    const results = await Promise.all(Array.from({ length: 10 }, () => repo.consumeLoginChallenge(id, "wrong-hash", AT)));
+    const kinds = results.map((r) => (r.ok ? "ok" : r.error.kind));
+    expect(kinds.filter((k) => k === "wrong_code")).toHaveLength(4);
+    expect(kinds.filter((k) => k === "too_many_attempts")).toHaveLength(6);
+    expect(row(id).attempts).toBe(5);
+
+    // The right code among a burst of wrong ones after the limit: refused too.
+    const burst = await Promise.all([
+      repo.consumeLoginChallenge(id, "wrong-hash", AT),
+      repo.consumeLoginChallenge(id, "right-hash", AT),
+    ]);
+    expect(burst.every((r) => !r.ok && r.error.kind === "too_many_attempts")).toBe(true);
+    expect(row(id)).toEqual({ attempts: 5, consumed_at: null });
+  });
+
+  it("signs in once when the right code is sent twice at once", async () => {
+    const repo = createIdentityRepository(executor);
+    const id = await newChallenge();
+    const results = await Promise.all([
+      repo.consumeLoginChallenge(id, "right-hash", AT),
+      repo.consumeLoginChallenge(id, "right-hash", AT),
+    ]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok && r.error.kind === "already_consumed")).toHaveLength(1);
+  });
+
+  it("refuses an expired challenge, right code or wrong, and counts no try", async () => {
+    const repo = createIdentityRepository(executor);
+    const id = await newChallenge();
+    const late = new Date(T0.getTime() + 10 * MINUTE); // expires_at itself: no longer valid
+    expect(await repo.consumeLoginChallenge(id, "right-hash", late)).toEqual({ ok: false, error: { kind: "expired" } });
+    expect(await repo.consumeLoginChallenge(id, "wrong-hash", late)).toEqual({ ok: false, error: { kind: "expired" } });
+    expect(row(id)).toEqual({ attempts: 0, consumed_at: null });
+    expect(await repo.consumeLoginChallenge(randomUUID(), "right-hash", AT)).toEqual({ ok: false, error: { kind: "not_found" } });
+  });
+
+  it("gives challenges made before the migration 0 tries, and keeps the count non-negative in the table", () => {
+    db.prepare(
+      "INSERT INTO identity_login_challenges (id, user_id, method, code_hash, expires_at) VALUES ('legacy', ?, 'email_code', 'h', ?)",
+    ).run(USER, T0.toISOString());
+    expect(row("legacy").attempts).toBe(0);
+    expect(() => db.prepare("UPDATE identity_login_challenges SET attempts = -1 WHERE id = 'legacy'").run()).toThrow(/CHECK/);
+  });
+
+  it("takes 5 codes in 15 minutes, refuses the 6th until the oldest leaves the window, per person", async () => {
+    const repo = createIdentityRepository(executor);
+    const ask = (at: Date, userId = USER) =>
+      repo.createLoginChallenge({
+        id: randomUUID(), userId, method: "email_code", codeHash: "h",
+        expiresAt: new Date(at.getTime() + 10 * MINUTE), createdAt: at, limit: LIMIT,
+      });
+
+    for (let i = 0; i < 5; i++) expect((await ask(new Date(T0.getTime() + i * MINUTE))).ok).toBe(true);
+    expect(await ask(new Date(T0.getTime() + 5 * MINUTE))).toEqual({
+      ok: false,
+      error: { kind: "rate_limited", retryAt: new Date(T0.getTime() + 15 * MINUTE) },
+    });
+    expect((await ask(new Date(T0.getTime() + 5 * MINUTE), OTHER)).ok).toBe(true);
+    // The oldest leaves the window at exactly T0 + 15 minutes.
+    expect((await ask(new Date(T0.getTime() + 15 * MINUTE - 1))).ok).toBe(false);
+    expect((await ask(new Date(T0.getTime() + 15 * MINUTE))).ok).toBe(true);
+    // Full again: the next to leave is the one made at T0 + 1 minute.
+    expect(await ask(new Date(T0.getTime() + 15 * MINUTE))).toEqual({
+      ok: false,
+      error: { kind: "rate_limited", retryAt: new Date(T0.getTime() + 16 * MINUTE) },
+    });
+    const count = db.prepare("SELECT COUNT(*) AS n FROM identity_login_challenges WHERE user_id = ?").get(USER) as { n: number };
+    expect(count.n).toBe(6);
+  });
+
+  it("lets exactly five of eight code requests sent at once in", async () => {
+    const repo = createIdentityRepository(executor);
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        repo.createLoginChallenge({
+          id: randomUUID(), userId: USER, method: "email_code", codeHash: "h",
+          expiresAt: new Date(T0.getTime() + 10 * MINUTE), createdAt: T0, limit: LIMIT,
+        }),
+      ),
+    );
+    expect(results.filter((r) => r.ok)).toHaveLength(5);
+    expect(results.filter((r) => !r.ok && r.error.kind === "rate_limited")).toHaveLength(3);
+    const count = db.prepare("SELECT COUNT(*) AS n FROM identity_login_challenges WHERE user_id = ?").get(USER) as { n: number };
+    expect(count.n).toBe(5);
+  });
+
+  it("counts through the (user_id, created_at) index", () => {
+    const plan = db
+      .prepare(
+        "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM identity_login_challenges WHERE user_id = ? AND created_at > ?",
+      )
+      .all(USER, T0.toISOString()) as Array<{ detail: string }>;
+    expect(plan.map((p) => p.detail).join(" ")).toContain("login_challenges_user_created_idx");
+  });
+});

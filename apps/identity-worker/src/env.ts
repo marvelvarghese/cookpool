@@ -4,7 +4,13 @@ export interface Env {
   POLICY_WORKER?: Fetcher;
   NOTIFICATIONS_WORKER?: Fetcher;
   ENVIRONMENT: string;
-  DEBUG_DELIVERY: string;
+  /**
+   * Email domains whose sign-in codes login/start returns in the response
+   * instead of emailing them: comma-separated, `*` for every domain (SI-2,
+   * ./debug-delivery.ts). Local and dev `*`, stage `cookpool.test`, prod
+   * empty. Absent or empty: every code is emailed.
+   */
+  DEBUG_DELIVERY_DOMAINS?: string;
   // M0 / Solo profile switch. "true" auto-provisions one invisible personal
   // organization per user on first session (see ./solo-mode.ts); absent or any
   // other value keeps the baseline (no auto-org). Deploy-time var, not a secret.

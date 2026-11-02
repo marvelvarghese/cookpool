@@ -145,13 +145,13 @@ describe("handleLoginStart — idempotencyKey (Task 0090)", () => {
     expect(k1).not.toBe(k2);
   });
 
-  it("skips enqueue entirely in DEBUG_DELIVERY mode (no idempotencyKey path)", async () => {
+  it("skips enqueue entirely when the code is delivered inline (DEBUG_DELIVERY_DOMAINS, no idempotencyKey path)", async () => {
     const repo = createFakeRepository();
     const recorder = makeRecorder();
 
     const response = await handleLoginStart(
       makeRequest("dave@example.com"),
-      makeEnv({ DEBUG_DELIVERY: "true" }),
+      makeEnv({ DEBUG_DELIVERY_DOMAINS: "*" }),
       "req_login_4",
       { repo, enqueueNotification: recorder.fn },
     );
