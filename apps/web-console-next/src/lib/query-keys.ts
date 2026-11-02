@@ -65,4 +65,11 @@ export const qk = {
   kitchenUsuals: () => ["kitchenPantry", "usuals"] as const,
   kitchenSearch: (q: string) => ["kitchenPantry", "search", q] as const,
   kitchenUsable: () => ["kitchenPantry", "usable"] as const,
+  // Cookpool's dishes (CP-17): one dish (its page) and a group's dishes (the
+  // group's Dishes tab). Both start with `kitchenDishes()`, so one
+  // invalidation after a claim, an assignment, a finalize, a correction or a
+  // cancel refreshes every dish read.
+  kitchenDishes: () => ["kitchenDishes"] as const,
+  kitchenDish: (dishId: string) => ["kitchenDishes", "dish", dishId] as const,
+  kitchenGroupDishes: (orgId: string) => ["kitchenDishes", "group", orgId] as const,
 };

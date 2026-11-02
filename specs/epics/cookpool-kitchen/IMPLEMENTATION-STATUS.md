@@ -10,7 +10,7 @@ the code departed from `design.md`.
 | CP2 — the ledger | ✅ shipped 2026-11-02 | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22), #15 (CP-9) |
 | CP3 — pantries and using things | ✅ shipped 2026-11-02 | #11 (CP-10), #14 (CP-11), #18 (CP-12), #20 (CP-13) |
 | CP4 — the dish maker | in progress | #16 (CP-14) |
-| CP5 — splitting dishes | in progress | #17 (CP-16) |
+| CP5 — splitting dishes | ✅ shipped 2026-11-02 | #17 (CP-16), #22 (CP-17) |
 | CP6 — use it before it goes | in progress | #19 (CP-18), #21 (CP-19) |
 
 ## Departures from the design
@@ -847,3 +847,83 @@ The backend half of the original CP-19 (the screens are CP-23).
   tests/membership-worker: refused owing and owed, allowed at zero, 503 for
   an unbound, throwing, 503, 404 or malformed kitchen-worker, nothing asked
   for a stranger or a refused last owner, the only member held too.
+
+### CP5 — the dish page (CP-17)
+
+- **`/dishes/[dishRef]` takes the plain `dsh_…` id**, as the dish-posted
+  email (CP-18) links it; anything else, or a dish the API answers 404 for,
+  is "This dish isn't here". `dishHref(dishId)` (in `dish.ts`) is the link
+  for the dish maker's post-cook navigation, which belongs to CP-15's files
+  (`/cook`) and is not wired here. An open dish, or one being split, is read
+  again every 20 seconds while the tab is visible (design §7).
+- **Money is the API's; a preview is the engine's.** The page renders a
+  dish's `amounts` and `netting`. While the shares on screen differ from the
+  dish's own — your claim on its way, the cook's unsaved edit, a correction
+  — `previewSplit` calls the engine the way kitchen-worker's `split.ts` does
+  (the cook's share first, then as listed; `buildDish`, `splitByWeights` for
+  what the unclaimed portions are worth, `buildIngredientTake` + `pairLines`
+  for the netting), so the preview is what the write posts; the tests pin it
+  to design §3's worked example to the paisa. **"Each"** on the cost card is
+  the total over the portions, to the paisa, marked "≈" when it does not
+  divide evenly (₹100.00 for 3 portions is "≈ ₹33.33"): a rate, never an
+  amount anyone is charged. The cook's row shows their own part; what the
+  unclaimed portions are worth is in the leftovers note ("½ portion
+  unclaimed. When you finalize, it stays with you as Leftovers in your
+  pantry: ₹26.38, at ₹52.75 a portion"), which links the Leftovers item once
+  finalized. A dish just for its cook has no leftovers note (finalizing it
+  makes none).
+- **Who had some** lists the cook, then everyone with a share, then the
+  group's other members with nothing yet — not viewers, who don't claim,
+  unless the cook is setting portions (they can be counted in). Once
+  finalized only those who had some are listed, unless it is being
+  corrected. Each row says who set it ("Claimed it", "You set this", "Rahul
+  set this") and what it costs; nobody is shown by raw id, and a group the
+  viewer is not in reads "another group".
+- **Claims.** A member claims in one tap — "How much did you have?" None ·
+  ½ · 1 · 1½ · 2, choices beyond what is left turned off — or with the
+  stepper on their own row, sent once the taps settle (700 ms). Both share
+  one claimer, which steps from the latest tap, not the last render. Undo
+  (ten seconds) sets the previous claim back; claims are PUTs, so they send
+  no idempotency key. Refusals are in words (`claims_exceed_portions` with
+  `availableHalf`: "Only 1 portion is left for you now."). More portions
+  claimed than were cooked cannot come from the API (it refuses them); the
+  red "over" alert appears only in the cook's own edit, where Save and
+  Finalize wait until it fits.
+- **The cook's edit.** An assigned dish (a draft) is always being set; on an
+  open dish "Set everyone's portions yourself" replaces the claims
+  (`setDishShares`, Undo puts the earlier shares back — as the cook's, since
+  the API has no way to restore `source: self`). **Finalize split** has no
+  dialog: an unsaved edit is saved first, then the dish is finalized, and the
+  toast says what it posted ("Anu, Dev and Meera owe you ₹131.87. ½ portion
+  went to your pantry as Leftovers.") with **Correct it**, which opens the
+  correction (from another screen, `/dishes/{dsh}?correct=1`). A correction
+  edits every share, can count in someone who had none, takes an optional
+  note (it goes on the reversal) and posts `correctDish`. Exact-amount shares
+  are shown and kept as they are; the page sets half portions only.
+- **Cancel is confirmed, not undone** — a departure from "undo instead of
+  confirm": there is no way to un-cancel a dish, so (as CP-12's Move to a
+  group) "Cancel this dish" opens a card saying what happens and "Cancel the
+  dish". Only its cook, while draft or open (the API's rule).
+- **Owners and admins** (`kitchen.dish.finalize_any`) are not given the
+  cook's sticky bar on someone else's dish: a quieter card offers "Set
+  portions" and "Finalize for Meera" if it's stuck, or "Correct it" once
+  finalized. Members keep their claim as the main action.
+- **Remind group** stays "Soon" (no reminder API). For the cook of a claims
+  dish the page says "Flat 4B was emailed when you cooked" — true of what
+  kitchen-worker asks for (CP-18), but nothing is delivered until the
+  sending domain exists (CP-18's open item).
+- **A group's Dishes tab** lists its dishes newest first (20 a page, "Show
+  older dishes"), each saying who cooked it and where its split stands, with
+  what it needs: Finalize (your dish), Claim (nothing claimed yet), Open,
+  Being split, Split, Canceled (struck through).
+- **For Home (CP-23):** `DishClaimStepper` (in `dish-ui.tsx`) is the claim
+  buttons with their own claimer; `DishClaimChoices` takes a claimer the
+  screen already holds. Dish reads cache under `qk.kitchenDishes()`
+  (`kitchenDish(id)`, `kitchenGroupDishes(orgId)`); a write puts its answer
+  in the dish's entry and refreshes the rest, and finalize, correct and
+  cancel also refresh the ledgers they touched (cancel: every source group),
+  `kitchenMe()` and every pantry. No SDK or contract change.
+- **Not in this task:** the dish maker's navigation to the dish page and the
+  + Add sheet's "I cooked" (CP-15), Home's inbox (CP-23), reminders (no
+  API). The group's Activity does not link a dish transaction to its dish
+  page yet (`sourceKind: dish`, `sourceId` are there) — a follow-up.
