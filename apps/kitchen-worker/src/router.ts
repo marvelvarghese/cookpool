@@ -54,6 +54,8 @@ import { generateRequestId, parseOrgPublicId } from "./ids.js";
 import { createRoster } from "./roster-client.js";
 import { createPeople } from "./identity-client.js";
 import { handleGroupMembers, handleMyBalances, handlePerson } from "./handlers/people.js";
+import { handleInbox } from "./handlers/inbox.js";
+import { handleSubjectBalance, isInternalCaller } from "./handlers/internal.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -289,7 +291,19 @@ const ME_ROUTES: readonly MeRoute[] = [
     pattern: /^\/v1\/kitchen\/me\/dishes\/([^/]+)\/finalize$/,
     methods: { POST: handleFinalizeMyDish },
   },
+  // Home's inbox (CP-19).
+  {
+    name: "kitchen.me.inbox",
+    pattern: /^\/v1\/kitchen\/me\/inbox$/,
+    methods: { GET: handleInbox },
+  },
 ];
+
+// Service-internal: a person's balance in a group, for membership-worker's
+// leave (CP-19). Only a caller naming itself in x-internal-actor gets past
+// the plain 404 — before the method is even looked at — so nothing about
+// the route shows to anyone else (see handlers/internal.ts).
+const INTERNAL_BALANCE_RE = /^\/v1\/internal\/kitchen\/organizations\/([^/]+)\/subjects\/([^/]+)\/balance$/;
 
 /** Work after the response: handed to `waitUntil` when there is one, else run before the response. Never throws. */
 export function deferrer(deps: Pick<KitchenDeps, "waitUntil">): RequestContext["defer"] {
@@ -336,6 +350,17 @@ export async function route(request: Request, env: Env, deps: KitchenDeps = {}):
   try {
     if (url.pathname === "/health") {
       return request.method === "GET" ? await handleHealth(env, requestId) : methodNotAllowed(requestId);
+    }
+
+    const internal = url.pathname.match(INTERNAL_BALANCE_RE);
+    if (internal) {
+      if (!isInternalCaller(request)) return routeNotFound(requestId, url.pathname);
+      if (request.method !== "GET") return methodNotAllowed(requestId);
+      const timings = createTimings();
+      const endTotal = timings.start("total");
+      const response = await handleSubjectBalance({ env, requestId, timings }, internal.slice(1));
+      endTotal();
+      return withTimings(response, requestId, "kitchen.internal.balance.get", timings);
     }
 
     for (const r of ORG_ROUTES) {

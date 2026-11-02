@@ -1,0 +1,26 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-19
+  title: "The inbox API and leaving with a balance"
+spec:
+  goal: One call returns everything that needs the person — dishes to claim or finalize, items to use soon, payments they owe and flags on their entries — sorted by urgency, and nobody can leave a group while they still owe or are owed money in it.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/config-worker-tests
+    - default/cookpool/api-edge-tests
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-19.TaskContract.yaml
+  doneWhen:
+    - GET /v1/kitchen/me/inbox returns claim_dish, finalize_dish, use_soon, payment_due and flag items with counts, sorted by urgency, from a bounded number of reads
+    - leaving a group with a non-zero balance is refused with 409 balance_not_settled, and fails closed when the kitchen worker cannot answer
+    - the internal balance route is reachable only over the service binding
+  gates: []

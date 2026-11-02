@@ -157,7 +157,12 @@ export interface JoinResponse {
 /**
  * POST /v1/organizations/:orgId/leave — the caller leaves. The last owner
  * cannot leave while anyone else is still in the group: 409 `conflict` with
- * `details.reason: "last_owner"`.
+ * `details.reason: "last_owner"`. Nobody can leave while they owe or are owed
+ * money in the group (Cookpool CP-19): 409 `conflict` with
+ * `details.reason: "balance_not_settled"`, `details.balanceMinor` (positive:
+ * they are owed) and `details.currency`. membership-worker asks kitchen-worker
+ * for the balance; when it cannot answer, leaving fails closed with 503
+ * `internal_error` — nobody leaves owing because of an outage.
  */
 export interface LeaveResponse {
   orgId: string;
