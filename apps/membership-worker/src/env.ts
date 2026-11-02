@@ -9,6 +9,13 @@ export interface Env {
    * subjects/{usr}/balance). Unbound or unreachable, leaving fails closed.
    */
   KITCHEN_WORKER?: Fetcher;
+  /**
+   * identity-worker (Cookpool SI-4): the signed-out join preview names the
+   * group's first owner through its service-internal lookup
+   * (POST /v1/internal/identity/users/lookup). Unbound or unreachable, the
+   * preview answers without a name.
+   */
+  IDENTITY_WORKER?: Fetcher;
   ENVIRONMENT: string;
   DEBUG_DELIVERY?: string;
   /** M0 / Solo profile switch — see ./solo-mode.ts. */

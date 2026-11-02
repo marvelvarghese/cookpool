@@ -59,6 +59,12 @@
         {
           "binding": "KITCHEN_WORKER",
           "service": "cookpool-kitchen-worker-stage"
+        },
+        // The signed-out join preview names the group's first owner (SI-4):
+        // identity-worker's internal people lookup.
+        {
+          "binding": "IDENTITY_WORKER",
+          "service": "cookpool-identity-worker-stage"
         }
       ]
     },
@@ -94,6 +100,12 @@
         {
           "binding": "KITCHEN_WORKER",
           "service": "cookpool-kitchen-worker-prod"
+        },
+        // The signed-out join preview names the group's first owner (SI-4):
+        // identity-worker's internal people lookup.
+        {
+          "binding": "IDENTITY_WORKER",
+          "service": "cookpool-identity-worker-prod"
         }
       ]
     }

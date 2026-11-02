@@ -135,6 +135,33 @@ export interface JoinPreview {
   alreadyMember: boolean;
 }
 
+/**
+ * GET /v1/join/:code/preview — the join link's group for someone not signed
+ * in yet (Cookpool SI-4): what the sign-in page says ("Sign in to join Flat 4B
+ * · Anu invited you · 5 people are in"). No session: api-edge routes it behind
+ * its signed-out per-IP rate limit, with `Cache-Control: no-store`.
+ *
+ * These three fields and nothing else: no ids, no slug, no other names, no
+ * email. An unknown, malformed or rotated code, or a group that is not
+ * active, answers the same 404 `not_found`.
+ */
+export interface JoinPreviewPublic {
+  /** The group's name. */
+  groupName: string;
+  /**
+   * The first word of the inviter's display name. The inviter is the group's
+   * first owner (the earliest-joined member holding the owner role): a join
+   * code does not record who minted or rotated it. Null when they have set no
+   * name or it cannot be read; never their email or any part of it.
+   */
+  inviterFirstName: string | null;
+  /** Active members holding a group role (owner, admin, member or viewer). */
+  memberCount: number;
+}
+
+/** Every key {@link JoinPreviewPublic} has; anything else on the wire would be a leak. */
+export const JOIN_PREVIEW_PUBLIC_KEYS = ["groupName", "inviterFirstName", "memberCount"] as const;
+
 /** POST /v1/join — the code is case-insensitive; spaces and dashes are ignored. */
 export interface JoinRequest {
   code: string;

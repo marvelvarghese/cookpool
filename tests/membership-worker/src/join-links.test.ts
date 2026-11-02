@@ -391,19 +391,19 @@ describe("handleGetJoinCode", () => {
 describe("handleRotateJoinCode", () => {
   it("replaces the code, the old link stops resolving, and the rotation is audited without the code", async () => {
     const repo = createRepo();
-    seed(repo, ORG, "flat-4b", [["usr_owner", "owner"], ["usr_admin", "admin"]], "OLDC2345");
+    seed(repo, ORG, "flat-4b", [["usr_owner", "owner"], ["usr_admin", "admin"]], "PREV2345");
     const { appended, eventsRepo } = recordingEvents();
     const seen: string[] = [];
 
     const res = await handleRotateJoinCode(env({ POLICY_WORKER: policyByRole(seen) }), "req_rot", actor("usr_admin"), ORG_PUB, {
-      repo, eventsRepo, now: () => NOW, generateId: () => "evt_id", generateCode: codes("OLDC2345", "NEWC2345"),
+      repo, eventsRepo, now: () => NOW, generateId: () => "evt_id", generateCode: codes("PREV2345", "NEWC2345"),
     });
     expect(res.status).toBe(200);
     expect((await json<JoinCodeResponse>(res)).data.code).toBe("NEWC2345");
     expect(seen).toEqual(["organization.join_code.rotate"]);
     expect(repo.orgs.get(ORG)!.joinCode).toBe("NEWC2345");
 
-    const old = await handlePreviewJoin(env(), "req", actor("usr_x"), "OLDC2345", { repo });
+    const old = await handlePreviewJoin(env(), "req", actor("usr_x"), "PREV2345", { repo });
     expect(old.status).toBe(404);
 
     expect(appended).toHaveLength(1);
@@ -412,17 +412,17 @@ describe("handleRotateJoinCode", () => {
     expect(appended[0]!.audit.category).toBe("membership");
     const logged = JSON.stringify(appended[0]);
     expect(logged).not.toContain("NEWC2345");
-    expect(logged).not.toContain("OLDC2345");
+    expect(logged).not.toContain("PREV2345");
   });
 
   it("is an opaque 404 for a member, and leaves the code alone", async () => {
     const repo = createRepo();
-    seed(repo, ORG, "flat-4b", [["usr_owner", "owner"], ["usr_member", "builder"]], "OLDC2345");
+    seed(repo, ORG, "flat-4b", [["usr_owner", "owner"], ["usr_member", "builder"]], "PREV2345");
     const res = await handleRotateJoinCode(env(), "req", actor("usr_member"), ORG_PUB, {
       repo, generateCode: codes("NEWC2345"),
     });
     expect(res.status).toBe(404);
-    expect(repo.orgs.get(ORG)!.joinCode).toBe("OLDC2345");
+    expect(repo.orgs.get(ORG)!.joinCode).toBe("PREV2345");
   });
 });
 
@@ -451,7 +451,7 @@ describe("handlePreviewJoin", () => {
     const repo = createRepo();
     seed(repo, ORG, "flat-4b", [["usr_owner", "owner"]], "KTCH2345");
     repo.orgs.set(OTHER_ORG, makeOrg(OTHER_ORG, "frozen", "FRZN2345", "suspended"));
-    for (const code of ["NOPE2345", "short", "%E0%A4%A", "FRZN2345"]) {
+    for (const code of ["UNKN2345", "short", "%E0%A4%A", "FRZN2345"]) {
       const res = await handlePreviewJoin(env(), "req", actor("usr_x"), code, { repo });
       expect(res.status).toBe(404);
       expect((await json(res)).error.code).toBe("not_found");
@@ -615,7 +615,7 @@ describe("handleJoin", () => {
     expect(missing.status).toBe(422);
     expect((await json(missing)).error.details.fields).toHaveProperty("code");
     expect((await handleJoin(joinRequest({ code: 12345678 }), env(), "req", actor("usr_x"), deps)).status).toBe(422);
-    expect((await handleJoin(joinRequest({ code: "NOPE2345" }), env(), "req", actor("usr_x"), deps)).status).toBe(404);
+    expect((await handleJoin(joinRequest({ code: "UNKN2345" }), env(), "req", actor("usr_x"), deps)).status).toBe(404);
     expect((await handleJoin(joinRequest({ code: "x" }), env(), "req", actor("usr_x"), deps)).status).toBe(404);
     expect(repo.joinCalls).toHaveLength(0);
   });

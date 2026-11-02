@@ -20,6 +20,7 @@ import {
   handleIntegrationsIngressRoute,
 } from "./integrations-facade";
 import { isKitchenRoute, handleKitchenRoute } from "./kitchen-facade";
+import { isJoinPreviewRoute, handleJoinPreviewRoute } from "./join-preview-facade";
 import { isSoloMode, isSoloSuppressed } from "./solo-mode";
 
 // Durable Object class backing the PERF5 Stage B rate-limit counters. Must be
@@ -69,6 +70,12 @@ export default {
       response = await handleMeteringRoute(request, env, requestId, url.pathname);
     } else if (isBillingRoute(url.pathname)) {
       response = await handleBillingRoute(request, env, requestId, url.pathname);
+    } else if (isJoinPreviewRoute(url.pathname)) {
+      // The signed-out join preview (Cookpool SI-4): GET /v1/join/{code}/preview
+      // and only that exact shape, WITHOUT a session, behind the per-IP
+      // `join_preview` rate limit. Every other /v1/join… route is the org
+      // facade's below and still resolves a session (./join-preview-facade.ts).
+      response = await handleJoinPreviewRoute(request, env, requestId, url.pathname);
     } else if (isKitchenRoute(url.pathname)) {
       // Cookpool's kitchen (CP-4): matched before the project and org facades,
       // which own other sub-resources of /v1/organizations/{org}.

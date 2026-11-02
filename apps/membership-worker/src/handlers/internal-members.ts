@@ -46,7 +46,8 @@ function parseOrgId(param: string): Uuid | null {
   return parseOrgPublicId(param);
 }
 
-async function rolesBySubject(
+/** Each subject's live role assignments in the organization; null when a read fails. */
+export async function rolesBySubject(
   repo: RosterRepo,
   orgId: Uuid,
   subjectIds: readonly string[],
