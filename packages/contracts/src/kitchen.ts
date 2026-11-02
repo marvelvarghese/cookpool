@@ -77,8 +77,19 @@ export const KITCHEN_ERROR_REASONS = {
    * a dish posted (cancel the dish instead: `details.dishId`).
    */
   NOT_REVERSIBLE: "not_reversible",
-  /** 409 `conflict`: the dish is finalized (`details.state`), so it can no longer be canceled. */
+  /**
+   * 409 `conflict`: the dish's state (`details.state`) does not allow this —
+   * cancelling, claiming or assigning a finalized or canceled dish, claiming
+   * a draft (an assigned dish takes no claims), finalizing a canceled one,
+   * correcting one that is not finalized.
+   */
   DISH_NOT_OPEN: "dish_not_open",
+  /**
+   * 409 `conflict`: more half portions would be claimed than were cooked
+   * (`details.portionsHalf`); `details.availableHalf` is the most this
+   * request could have had. Nothing was written.
+   */
+  CLAIMS_EXCEED_PORTIONS: "claims_exceed_portions",
 } as const;
 
 export type KitchenErrorReason = (typeof KITCHEN_ERROR_REASONS)[keyof typeof KITCHEN_ERROR_REASONS];
@@ -867,7 +878,7 @@ export interface UsualsResponse {
 // Ingredients the cook paid for themselves (their own pantry, their own
 // purchases in a group) move no money. Every ingredient — and the shared
 // group, if any — must count in one currency. Sharing the dish out among its
-// eaters (claims, shares, finalize) arrives with CP-16.
+// eaters (claims, shares, finalize, corrections) is CP-16, below.
 
 /**
  * draft: assign mode, the cook alone decides the shares; open: claims mode,
@@ -995,6 +1006,72 @@ export interface KitchenDish {
   fromMineMinor: number;
   /** What the cook owes, per group and buyer, in the order the ingredients name them. fromMineMinor + Σ owes = ingredientsMinor. */
   owes: DishOwed[];
+  // ── Splitting it (CP-16) ──
+  /** Every eater's share, the cook's first, then in the order they were listed or claimed in. Empty for just the cook. */
+  shares: KitchenDishShare[];
+  /** The half portions the caller has claimed (or been assigned); 0 when none, or when theirs is an exact amount. */
+  myClaimHalf: number;
+  /** Σ the shares' half portions. */
+  claimedHalf: number;
+  /** portionsHalf − claimedHalf: what falls to the cook, and becomes leftovers when finalized. */
+  unclaimedHalf: number;
+  /** What the unclaimed portions are worth: the part of the cook's share they make up, and the leftovers' price. */
+  unclaimedMinor: number;
+  /**
+   * What each person owes for the dish, the cook's first: the dish
+   * transaction's owed side (a preview from the shares until it is
+   * finalized; empty once canceled). Σ owedMinor = totalMinor.
+   */
+  amounts: DishAmount[];
+  /**
+   * In the group it is shared with: for everyone the dish moves money with
+   * (its eaters, and the buyers of what the cook took from that group's
+   * pantry), what they owe the cook for the dish minus what the cook owes
+   * them for those ingredients. Empty for just the cook, and once canceled.
+   */
+  netting: DishNet[];
+}
+
+/** Who set a share: the eater, claiming it; or the cook, assigning it. */
+export const DISH_SHARE_SOURCES = ["cook", "self"] as const;
+export type DishShareSource = (typeof DISH_SHARE_SOURCES)[number];
+
+/** One eater's share: half portions or an exact amount, never both. */
+export interface KitchenDishShare {
+  /** `dsr_…` */
+  id: string;
+  /** `usr_…` */
+  subjectId: string;
+  /** Half portions (1 = ½); null for an exact amount. */
+  portionsHalf: number | null;
+  /** A fixed amount in minor units, taken off the top of the total; null for portions. */
+  exactMinor: number | null;
+  source: DishShareSource;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One person's line in a dish's split. */
+export interface DishAmount {
+  /** `usr_…` */
+  subjectId: string;
+  /** Their half portions (the cook's own claim, without the unclaimed ones); null for an exact amount. */
+  portionsHalf: number | null;
+  exactMinor: number | null;
+  /** What they owe for the dish. The cook's includes the unclaimed portions (`unclaimedMinor`). */
+  owedMinor: number;
+}
+
+/** One person, netted with the cook inside the dish's group. */
+export interface DishNet {
+  /** `usr_…`, never the cook. */
+  subjectId: string;
+  /** What they owe the cook for the dish. */
+  owesCookMinor: number;
+  /** What the cook owes them for their ingredients from the group's pantry. */
+  cookOwesMinor: number;
+  /** owesCookMinor − cookOwesMinor: positive, they owe the cook; negative, the cook owes them. */
+  netMinor: number;
 }
 
 /** 201 from POST /v1/kitchen/me/dishes; 200 from GET …/dishes/{dsh} and POST …/dishes/{dsh}/cancel. */
@@ -1030,3 +1107,87 @@ export interface DishesPage {
  *   ingredient's quantity and cost come back, in one write; the dish reads
  *   `canceled`. Cancelling a canceled dish answers it as it is.
  */
+
+// ── Splitting dishes (CP-16) ────────────────────────────────
+//
+// A dish shared with a group is split among the people who ate it: members
+// claim half portions while it is open (claims mode), or the cook assigns
+// each eater portions or an exact amount. Finalizing posts ONE `dish`
+// transaction in the group: the cook paid the total; each eater owes their
+// share — exact amounts off the top, the rest by portions with largest
+// remainder rounding, ties going to the cook's own share first and then in
+// the order shares were listed or claimed — and the portions nobody had fall
+// to the cook (after the eaters, when the cook claimed none), becoming a
+// "Leftovers: {dish}" item in the cook's own pantry priced at what they are
+// worth. A correction never edits that transaction: it posts its reversal
+// and a new dish transaction, in one write, and adjusts the leftovers while
+// the cook has not touched them.
+
+/** The most eaters one dish is split between (a group's member cap). */
+export const MAX_DISH_SHARES = 50;
+
+/** What leftovers are filed under in the cook's pantry. */
+export const LEFTOVERS_CATEGORY = "Leftovers";
+
+/**
+ * PUT /v1/organizations/{org}/kitchen/dishes/{dsh}/claims/me
+ * (`kitchen.dish.claim`: members, owners and admins — the opaque 404 for a
+ * viewer, or a dish not shared with the group). Only while the dish is
+ * `open` (409 `dish_not_open`, `details.state`); the claims may not exceed
+ * its portions (409 `claims_exceed_portions`). 0 takes the claim back.
+ * Answers 200 `{ dish }`.
+ */
+export interface ClaimDishRequest {
+  /** Half portions, 0 … the dish's portionsHalf. */
+  portionsHalf: number;
+}
+
+/** One eater, for the cook's assignment or a correction: half portions or an exact amount. */
+export type DishShareRequest =
+  | { subjectId: string; portionsHalf: number; exactMinor?: undefined }
+  | { subjectId: string; exactMinor: number; portionsHalf?: undefined };
+
+/**
+ * PUT /v1/organizations/{org}/kitchen/dishes/{dsh}/shares — the cook (or
+ * `kitchen.dish.finalize_any`: an owner or admin; 403 `not_creator` for
+ * another member). Replaces every share, claims included, while the dish is
+ * a draft or open (409 `dish_not_open`); the dish's state does not change.
+ * Everyone named must be in the group (422 `not_in_group`), once each; the
+ * portions must fit (409 `claims_exceed_portions`), the exact amounts the
+ * total (422). Answers 200 `{ dish }`.
+ */
+export interface SetDishSharesRequest {
+  shares: DishShareRequest[];
+}
+
+/**
+ * POST /v1/organizations/{org}/kitchen/dishes/{dsh}/finalize — the cook
+ * (`kitchen.dish.finalize`), or `kitchen.dish.finalize_any` for a stuck dish
+ * (403 `not_creator` for another member). A draft or open dish, in one write:
+ * the dish transaction, the leftovers item when portions went unclaimed, the
+ * dish `finalized`. Finalizing a finalized dish answers it as it is; a
+ * canceled one is 409 `dish_not_open`. Answers 200 `{ dish }`.
+ *
+ * POST /v1/kitchen/me/dishes/{dsh}/finalize — the same, on the cook's own
+ * route (403 `not_creator` for anyone else who can read the dish): a dish
+ * just for its cook is only marked finalized — no transaction, no leftovers;
+ * a shared one is finalized as above (`kitchen.dish.finalize` in its group).
+ */
+export type FinalizeDishResponse = DishResponse;
+
+/**
+ * POST /v1/organizations/{org}/kitchen/dishes/{dsh}/correct — the cook or
+ * `kitchen.dish.finalize_any`, on a finalized dish (409 `dish_not_open`
+ * otherwise). Replaces the shares as `…/shares` does and, in one write,
+ * reverses the dish transaction and posts a new one; the leftovers follow
+ * while the cook has not touched them. Answers 200 `{ dish }`.
+ */
+export interface CorrectDishRequest {
+  shares: DishShareRequest[];
+  /** Why, for the reversal's note. */
+  note?: string | null;
+}
+
+export type ClaimDishResponse = DishResponse;
+export type SetDishSharesResponse = DishResponse;
+export type CorrectDishResponse = DishResponse;

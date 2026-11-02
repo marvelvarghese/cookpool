@@ -29,6 +29,9 @@ import type {
   DishResponse,
   DishesPage,
   KitchenDish,
+  ClaimDishRequest,
+  CorrectDishRequest,
+  SetDishSharesRequest,
 } from "@saas/contracts/kitchen";
 import type { SubjectOrganizationsResponse } from "@saas/contracts/membership";
 import {
@@ -51,6 +54,9 @@ import {
   DISH_STATES,
   DISH_SPLIT_MODES,
   MAX_DISH_INGREDIENTS,
+  DISH_SHARE_SOURCES,
+  LEFTOVERS_CATEGORY,
+  MAX_DISH_SHARES,
 } from "@saas/contracts/kitchen";
 import { ERROR_CODES } from "@saas/contracts/errors";
 
@@ -119,6 +125,7 @@ describe("contracts: the kitchen ledger (Cookpool CP-7)", () => {
       HAS_TRANSACTION: "has_transaction",
       NOT_REVERSIBLE: "not_reversible",
       DISH_NOT_OPEN: "dish_not_open",
+      CLAIMS_EXCEED_PORTIONS: "claims_exceed_portions",
     });
     for (const reason of Object.values(KITCHEN_ERROR_REASONS)) {
       expect(Object.values(ERROR_CODES)).not.toContain(reason);
@@ -273,6 +280,13 @@ describe("contracts: dishes (Cookpool CP-14)", () => {
       ],
       fromMineMinor: 3000,
       owes: [{ orgId: "org_1", buyerId: "usr_anu", amountMinor: 1200 }],
+      shares: [],
+      myClaimHalf: 0,
+      claimedHalf: 0,
+      unclaimedHalf: 8,
+      unclaimedMinor: 5700,
+      amounts: [{ subjectId: "usr_rahul", portionsHalf: 0, exactMinor: null, owedMinor: 5700 }],
+      netting: [{ subjectId: "usr_anu", owesCookMinor: 0, cookOwesMinor: 1200, netMinor: -1200 }],
     };
     const response: DishResponse = { dish };
     const page: DishesPage = { dishes: [dish], nextCursor: null };
@@ -280,5 +294,39 @@ describe("contracts: dishes (Cookpool CP-14)", () => {
     expect(response.dish.totalMinor).toBe(response.dish.ingredientsMinor + response.dish.extrasMinor);
     expect(dish.fromMineMinor + dish.owes.reduce((a, o) => a + o.amountMinor, 0)).toBe(dish.ingredientsMinor);
     expect(page.dishes[0]!.portions * 2).toBe(page.dishes[0]!.portionsHalf);
+  });
+});
+
+describe("contracts: splitting dishes (Cookpool CP-16)", () => {
+  it("names who sets a share, caps the eaters, and files leftovers under their own category", () => {
+    expect(DISH_SHARE_SOURCES).toEqual(["cook", "self"]);
+    expect(MAX_DISH_SHARES).toBe(50);
+    expect(LEFTOVERS_CATEGORY).toBe("Leftovers");
+  });
+
+  it("types the requests and the split a dish reads with", () => {
+    const claim: ClaimDishRequest = { portionsHalf: 3 };
+    const shares: SetDishSharesRequest = {
+      shares: [{ subjectId: "usr_anu", portionsHalf: 2 }, { subjectId: "usr_dev", exactMinor: 5000 }],
+    };
+    const correction: CorrectDishRequest = { shares: shares.shares, note: "Dev paid for his own" };
+    const split: Pick<KitchenDish, "shares" | "myClaimHalf" | "claimedHalf" | "unclaimedHalf" | "unclaimedMinor" | "amounts" | "netting"> = {
+      shares: [
+        {
+          id: "dsr_1", subjectId: "usr_rahul", portionsHalf: 3, exactMinor: null, source: "self",
+          createdAt: "2026-11-02T12:00:00.000Z", updatedAt: "2026-11-02T12:00:00.000Z",
+        },
+      ],
+      myClaimHalf: 3,
+      claimedHalf: 3,
+      unclaimedHalf: 5,
+      unclaimedMinor: 13188,
+      amounts: [{ subjectId: "usr_rahul", portionsHalf: 3, exactMinor: null, owedMinor: 21100 }],
+      netting: [],
+    };
+    expect(claim.portionsHalf).toBe(3);
+    expect(correction.shares).toHaveLength(2);
+    expect(split.claimedHalf + split.unclaimedHalf).toBe(8);
+    expect(split.amounts.reduce((a, x) => a + x.owedMinor, 0)).toBe(21100);
   });
 });

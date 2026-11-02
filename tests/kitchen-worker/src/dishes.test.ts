@@ -17,6 +17,7 @@ import type {
 } from "@saas/contracts/kitchen";
 import type { DatabaseSync } from "node:sqlite";
 import { createHarness, envelope, newGroup, type Envelope, type Group, type Harness } from "./harness.js";
+import { paneerButterMasalaBody, stockWorkedExample, type WorkedExamplePantries } from "./worked-example-fixtures.js";
 
 const NOW = new Date("2026-11-02T12:00:00.000Z");
 
@@ -122,43 +123,16 @@ function written(): Record<string, number> {
 
 // ── design.md §3's worked example ─────────────────────────────
 
-interface Pantries {
-  paneer: KitchenItem;
-  butter: KitchenItem;
-  tomatoes: KitchenItem;
-  onions: KitchenItem;
-  flour: KitchenItem;
-}
+type Pantries = WorkedExamplePantries;
 
 /** Rahul's paneer and butter; Anu's tomatoes and Dev's onions in Flat 4B; Kiran's chapati flour in the Lunch club. */
-async function stock(): Promise<Pantries> {
-  return {
-    paneer: await myItem(RAHUL, { name: "Paneer", quantity: "200", unit: "g", priceMinor: 9500 }),
-    butter: await myItem(RAHUL, { name: "Butter", quantity: "500", unit: "g", priceMinor: 14000 }),
-    tomatoes: await groupItem(ANU, flat, { name: "Tomatoes", quantity: "1", unit: "kg", priceMinor: 4000 }),
-    onions: await groupItem(DEV, flat, { name: "Onions", quantity: "1", unit: "kg", priceMinor: 3500 }),
-    flour: await groupItem(KIRAN, lunch, { name: "Chapati flour", category: "Grains", quantity: "5", unit: "kg", priceMinor: 24000 }),
-  };
+function stock(): Promise<Pantries> {
+  return stockWorkedExample({ myItem, groupItem }, { flat, lunch }, { rahul: RAHUL, anu: ANU, dev: DEV, kiran: KIRAN });
 }
 
 /** Paneer butter masala with rotis, shared with Flat 4B for claims; the cream is bought on the way. */
 function paneerButterMasala(p: Pantries, overrides: Record<string, unknown> = {}) {
-  return {
-    name: "Paneer butter masala with rotis",
-    orgId: flat.publicId,
-    portionsHalf: 8,
-    extrasMinor: 1500,
-    splitMode: "claims",
-    ingredients: [
-      { itemId: p.paneer.id, quantity: "200", unit: "g" }, // all of it: ₹95.00
-      { itemId: p.butter.id, quantity: "100", unit: "g" }, // a fifth: ₹28.00
-      { itemId: p.tomatoes.id, quantity: "300", unit: "g" }, // Anu's: ₹12.00
-      { itemId: p.onions.id, quantity: "0.2", unit: "kg" }, // Dev's: ₹7.00
-      { itemId: p.flour.id, quantity: "0.5" }, // Kiran's, in its own kg: ₹24.00
-    ],
-    newItems: [{ name: "Cream", quantity: "200", unit: "ml", priceMinor: 3000 }], // all of it: ₹30.00
-    ...overrides,
-  };
+  return paneerButterMasalaBody(p, flat, overrides);
 }
 
 describe("the worked example (design.md §3), cooked through the routes", () => {

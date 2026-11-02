@@ -10,7 +10,7 @@ the code departed from `design.md`.
 | CP2 — the ledger | ✅ shipped 2026-11-02 | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22), #15 (CP-9) |
 | CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11) |
 | CP4 — the dish maker | in progress | #16 (CP-14) |
-| CP5 — splitting dishes | | |
+| CP5 — splitting dishes | in progress | #17 (CP-16) |
 | CP6 — use it before it goes | | |
 
 ## Departures from the design
@@ -349,3 +349,102 @@ All three are closed by CP-9 (below).
   none (the event log is per organization).
 - **New reason:** `dish_not_open`.
 
+### CP5 — splitting dishes (CP-16)
+
+- **Routes as built.** In the dish's group:
+  `PUT …/dishes/{dsh}/claims/me` `{ portionsHalf }` (`kitchen.dish.claim`; 0
+  takes the claim back), `PUT …/dishes/{dsh}/shares` `{ shares: [{ subjectId,
+  portionsHalf } | { subjectId, exactMinor }] }`, `POST …/dishes/{dsh}/finalize`
+  and `POST …/dishes/{dsh}/correct` `{ shares, note? }` — each answers 200
+  `{ dish }`. The design's snake_case bodies (`portions_half`, `usr`,
+  `exact_minor`) are camelCase like every other kitchen body. Added: `POST
+  /v1/kitchen/me/dishes/{dsh}/finalize`, the cook's own route, because a dish
+  just for its cook is in no group: it is only marked finalized (no
+  transaction, no leftovers); a shared dish finalizes there as on the group
+  route. SDK: `claimDish`, `setDishShares`, `finalizeDish`, `finalizeMyDish`,
+  `correctDish`.
+- **Who.** A dish not shared with the path's group, and a role without the
+  route's grant (a viewer claiming; anyone without `kitchen.dish.finalize`
+  assigning, finalizing or correcting), is the opaque 404. Assigning,
+  finalizing and correcting are the cook's — or, beyond the design's "the
+  cook" for assigning and correcting, an owner's or admin's
+  (`kitchen.dish.finalize_any`), so a stuck dish can be split, not only
+  finalized; another member gets 403 `not_creator`. Everyone a set of shares
+  names must be on the roster (422 `not_in_group`; viewers count, they eat).
+- **States.** Claims only on an `open` dish (claims mode). An assigned dish
+  stays a `draft` while the cook sets its shares — `…/shares` never changes
+  the state — and is finalized from there; `…/shares` also works on an open
+  dish, replacing the claims (each row then says `source: cook`; members may
+  claim again after). Finalize takes a draft or an open dish; corrections
+  only a finalized one. A state that does not allow the write is 409
+  `dish_not_open` with `details.state`, now for claiming, assigning,
+  finalizing and correcting as well as cancelling.
+- **Columns the design did not list** (`260_kitchen_dish_shares`):
+  `kitchen_dish_shares.position` (the order eaters were listed or claimed in,
+  which the split's ties follow) and `created_at`/`updated_at`;
+  `kitchen_dishes.version` (an `ALTER … ADD COLUMN` with default 1), bumped
+  by every claim, assignment, finalize and correction in the same batch.
+- **One batch per write, guarded by the dish row.** A claim is the dish
+  update and the upsert of the claimer's row: the update sets the state NULL
+  — failing the batch on the NOT NULL constraint — unless the dish is open
+  and the claim plus everyone else's portions fit (409
+  `claims_exceed_portions`, `details.portionsHalf` and `availableHalf`, a new
+  reason). Finalize is the dish transaction (pin, transaction, splits), the
+  leftovers item, then the dish update — guarded by the state and the version
+  the split was planned from, so a claim that lands in between fails the
+  batch and finalize is planned once more from a fresh read (409 `stale` on a
+  second loss) — then the audit event: about 7 statements plus one per
+  eater, a correction about 8 plus three per eater; at most
+  `MAX_DISH_SHARES` (50) eaters, whatever the ingredients.
+- **The split is the engine's.** `buildDish` over the shares listed with the
+  cook's own share first and then by `position`: exact amounts off the top,
+  the rest by half portions, largest remainder, unclaimed portions to the
+  cook. Ties go to the order listed, so the worked example's odd paisa —
+  a tie between Rahul's 1½ and Meera's ½ portions, not a larger remainder as
+  design.md §3 puts it — is Rahul's however the claims arrived. When the cook
+  claimed nothing the engine lists the unclaimed portions after the eaters,
+  so a tie there goes to an eater. What the unclaimed portions are worth is
+  their part of the cook's share (`splitByWeights` of the cook's portion
+  amount between their own claim and the unclaimed halves).
+- **A dish transaction for every group dish that cost anything**, even when
+  nobody but the cook had any (the cook paid and owes the total: no money
+  moves, but the group's activity shows the dish, and a correction always has
+  a transaction to reverse). None for a dish that cost nothing, none for a
+  dish just for its cook. Its `source_kind` is `dish`, so the ledger's
+  reverse route refuses it (and a correction's reversal) like cooking's
+  charges.
+- **Leftovers** are a personal item: "Leftovers: {dish}" (cut to 120
+  characters), category `Leftovers`, counted in `pcs` — a portion is one
+  piece, so 1½ portions left is 1.5 pcs — priced at what the unclaimed
+  portions are worth, paid by the cook, `source_dish_id` the dish (the insert
+  now writes that column), no use-by date, created by whoever finalized.
+  Being personal, they move no money and write no event.
+- **Corrections** reverse the dish transaction and post a new one (with the
+  shares replaced, `source: cook`) in one batch, guarded like finalize;
+  `finalized_at` keeps the first finalize. The leftovers follow only while
+  untouched — active, still the cook's, nothing taken: updated in place, or
+  removed (the dish then points at none) when nothing is left over; new ones
+  are created when there were none. Leftovers the cook has eaten from,
+  wasted, moved or removed stay as they are.
+- **Idempotency.** Finalize uses fixed keys per dish (`dish_<hex>_finalize`
+  for the transaction, `dish_<hex>_leftovers`), and a finalized dish answers
+  as it is (200). A correction's transactions take keys made from the
+  request's `Idempotency-Key`; a retry finds its transaction posted and
+  writes nothing. Claims and assignments are PUTs: the same body sets the
+  same rows.
+- **Reads.** Every dish read (`GET /v1/kitchen/me/dishes[/{dsh}]`, the group
+  list, and every write's answer) adds `shares` (cook first), `myClaimHalf`
+  (the caller's), `claimedHalf`, `unclaimedHalf`, `unclaimedMinor`,
+  `amounts` (what each person owes for the dish, cook first: `buildDish` over
+  the stored shares — a preview until finalized, the transaction's numbers
+  after; empty once canceled) and `netting` (in the shared group, per eater
+  and per buyer of what the cook took from that group's pantry: what they owe
+  the cook for the dish, what the cook owes them, and the net — the engine's
+  `pairLines` over the dish's split and that group's ingredient take). Names
+  are not included: the app has the group's member list.
+- **Audit:** `kitchen.dish.finalized` in the dish's group, and
+  `kitchen.dish.corrected` (an event the design did not list). Claims and
+  assignments move no money and write no event.
+- **Not yet:** leftovers get no use-by date (the daily sweep, CP-18, may
+  want one); finalize does not re-check that every eater is still in the
+  group (they ate; assigning and correcting do check).
