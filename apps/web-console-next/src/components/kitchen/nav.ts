@@ -95,6 +95,8 @@ export function groupActionHref(action: Pick<AddAction, "href">, slug: string): 
 /**
  * "What happened?" — the four big tiles. "I paid a bill" is live since the
  * ledger screens (CP-8): it asks which group, then opens Add expense there.
+ * "I bought food" is live since the pantry screens (CP-12): Add an item picks
+ * the pantry itself.
  */
 export const ADD_TILES: readonly AddAction[] = [
   {
@@ -119,7 +121,7 @@ export const ADD_TILES: readonly AddAction[] = [
     hint: "Add it to a pantry",
     href: "/pantry/new",
     icon: "ShoppingBasket",
-    live: false,
+    live: true,
   },
   {
     id: "bill",

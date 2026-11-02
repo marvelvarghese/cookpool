@@ -13,7 +13,6 @@ import {
   HandCoins,
   MoreVertical,
   Plus,
-  Refrigerator,
   RefreshCw,
   ShieldCheck,
   UsersRound,
@@ -67,11 +66,13 @@ import { SettleCard, SettleNote } from "@/components/kitchen/settle-card";
 import { BalanceWords, Money, PersonAvatar } from "@/components/kitchen/ledger-ui";
 import { memberLabel, type MemberNames } from "@/components/kitchen/members";
 import { useMemberNames } from "@/components/kitchen/people-data";
+import { GroupPantryPanel } from "@/components/kitchen/pantry-cards";
 
 /**
  * One group (CP-5, the ledger since CP-8): your balance in it with Add expense
- * and Settle up, then the tabs Activity · Balances · Pantry · Dishes (pantry
- * and dishes are honest empty states until CP3/CP4); beside them who is in it
+ * and Settle up, then the tabs Activity · Balances · Pantry · Dishes (the
+ * pantry lists what the group holds since CP-12; dishes are an honest empty
+ * state until CP4); beside them who is in it
  * and your role, the join link (owners and admins copy and rotate it), the
  * group's rules (owners and admins edit) and leaving. `?tab=` keeps the open
  * tab in the address. Since CP-9 every member sees everyone by name and role
@@ -203,13 +204,7 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
               <BalancesPanel group={group} myId={myId} balances={balances} manager={manager} canWrite={canWrite} names={names} />
             </TabsContent>
             <TabsContent value="pantry">
-              <ComingSoonCard
-                headingLevel={3}
-                icon={Refrigerator}
-                tone="neutral"
-                title="Nothing in the group pantry yet"
-                body="What the group buys, and what to use first, arrives with pantries."
-              />
+              <GroupPantryPanel orgId={group.id} name={group.name} canWrite={canWrite} />
             </TabsContent>
             <TabsContent value="dishes">
               <ComingSoonCard
