@@ -66,8 +66,13 @@ export const qk = {
   kitchenSearch: (q: string) => ["kitchenPantry", "search", q] as const,
   kitchenUsable: () => ["kitchenPantry", "usable"] as const,
   // The dish maker (CP-15): the items the cook may cook with, under
-  // `kitchenPantry()` so any stock write refreshes them. Every dish read lives
-  // under `kitchenDishes()`, so cooking (or cancelling) refreshes them all.
+  // `kitchenPantry()` so any stock write refreshes them.
   kitchenCookable: () => ["kitchenPantry", "cookable"] as const,
+  // Cookpool's dishes (CP-17): one dish (its page) and a group's dishes (the
+  // group's Dishes tab). Both start with `kitchenDishes()`, so one
+  // invalidation after cooking, a claim, an assignment, a finalize, a
+  // correction or a cancel refreshes every dish read.
   kitchenDishes: () => ["kitchenDishes"] as const,
+  kitchenDish: (dishId: string) => ["kitchenDishes", "dish", dishId] as const,
+  kitchenGroupDishes: (orgId: string) => ["kitchenDishes", "group", orgId] as const,
 };

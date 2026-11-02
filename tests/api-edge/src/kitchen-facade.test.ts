@@ -210,3 +210,59 @@ describe("kitchen routes through the edge", () => {
     expect(__rateLimitConfigForTest.kitchen.org.limit).toBeGreaterThan(0);
   });
 });
+
+// ── kitchen-worker's internal routes are not public (CP-19) ─────
+//
+// GET /v1/internal/kitchen/organizations/{org}/subjects/{usr}/balance is for
+// membership-worker over its service binding only. The edge must never hand
+// it to kitchen-worker: no facade matches /v1/internal/…, dot segments are
+// resolved before matching, an encoded slash stays inside a /v1/kitchen/…
+// path (which kitchen-worker matches literally), and the header the internal
+// route trusts is never forwarded.
+
+describe("kitchen-worker's internal routes through the edge", () => {
+  const BALANCE = `/v1/internal/kitchen/organizations/${ORG}/subjects/usr_anu/balance`;
+
+  it.each([
+    BALANCE,
+    `/v1/internal/kitchen/organizations/${ORG}/subjects/usr_anu`,
+    "/v1/internal/kitchen",
+    `/v1/kitchen/../internal/kitchen/organizations/${ORG}/subjects/usr_anu/balance`,
+    `/v1/kitchen/%2e%2e/internal/kitchen/organizations/${ORG}/subjects/usr_anu/balance`,
+    `/v1/organizations/${ORG}/kitchen/../../../internal/kitchen/organizations/${ORG}/subjects/usr_anu/balance`,
+  ])("404s %s without calling kitchen-worker", async (path) => {
+    for (const method of ["GET", "POST"]) {
+      const k = kitchen();
+      const res = await worker.fetch(
+        req(path, method, { headers: { "x-internal-actor": "membership-worker" } }),
+        env(k.fetcher) as never,
+      );
+      expect(res.status).toBe(404);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe("not_found");
+      expect(k.calls).toHaveLength(0);
+    }
+  });
+
+  it("matches no facade", () => {
+    expect(isKitchenRoute(BALANCE)).toBe(false);
+    expect(isOrgRoute(BALANCE)).toBe(false);
+    expect(isProjectRoute(BALANCE)).toBe(false);
+  });
+
+  it("keeps an encoded slash inside the /v1/kitchen/… path it forwards", async () => {
+    const k = kitchen();
+    await worker.fetch(
+      req(`/v1/kitchen/me%2F..%2F..%2Finternal%2Fkitchen%2Forganizations%2F${ORG}%2Fsubjects%2Fusr_anu%2Fbalance`, "GET"),
+      env(k.fetcher) as never,
+    );
+    expect(k.calls).toHaveLength(1);
+    expect(new URL(k.calls[0]!.url).pathname.startsWith("/v1/kitchen/me%2F")).toBe(true);
+  });
+
+  it("never forwards x-internal-actor, the header kitchen-worker's internal routes trust", async () => {
+    const k = kitchen();
+    await worker.fetch(req("/v1/kitchen/me/inbox", "GET", { headers: { "x-internal-actor": "membership-worker" } }), env(k.fetcher) as never);
+    expect(k.calls).toHaveLength(1);
+    expect(new Headers(k.calls[0]!.init.headers as HeadersInit).get("x-internal-actor")).toBeNull();
+  });
+});

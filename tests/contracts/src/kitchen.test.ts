@@ -126,6 +126,8 @@ describe("contracts: the kitchen ledger (Cookpool CP-7)", () => {
       NOT_REVERSIBLE: "not_reversible",
       DISH_NOT_OPEN: "dish_not_open",
       CLAIMS_EXCEED_PORTIONS: "claims_exceed_portions",
+      // Leaving a group with a balance (CP-19): on membership-worker's leave.
+      BALANCE_NOT_SETTLED: "balance_not_settled",
     });
     for (const reason of Object.values(KITCHEN_ERROR_REASONS)) {
       expect(Object.values(ERROR_CODES)).not.toContain(reason);

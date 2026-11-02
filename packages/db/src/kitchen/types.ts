@@ -214,6 +214,32 @@ export interface CreatedFlag {
   replayed: boolean;
 }
 
+/** An open flag on one of someone's transactions, with what an inbox card shows of the transaction (CP-19). */
+export interface KitchenOpenFlagRecord {
+  flagId: string;
+  txnId: string;
+  orgId: string;
+  /** Who flagged it (`usr_…`). */
+  flaggedBy: string;
+  reason: string;
+  flaggedAt: Date;
+  title: string;
+  txnKind: KitchenTxnKind;
+  totalMinor: number;
+  currency: string;
+  sourceKind: string | null;
+  sourceId: string | null;
+}
+
+/** Whose transactions, in which groups (see `listOpenFlagsOnTxnsBy`). */
+export interface KitchenOpenFlagsQuery {
+  /** Whose transactions (`usr_…`): flags they raised themselves are left out. */
+  createdBy: string;
+  /** Group UUIDs: they bind as one JSON parameter, however many there are. */
+  orgIds: readonly string[];
+  limit: number;
+}
+
 // ── Pantries (CP-10) ────────────────────────────────────────
 
 export type KitchenItemState = "active" | "used_up" | "wasted" | "removed";
@@ -563,6 +589,14 @@ export interface KitchenRepository {
   createFlag(input: CreateFlagInput): Promise<KitchenResult<CreatedFlag>>;
   /** The flags on one of the group's transactions, oldest first. */
   listFlags(orgId: Uuid, txnId: Uuid): Promise<KitchenResult<KitchenFlagRecord[]>>;
+  /**
+   * Open flags someone else raised on transactions `createdBy` logged in
+   * these groups, while the transaction is not reversed (a correction is a
+   * reversal: once there is one, the flag has its answer), oldest first, at
+   * most `limit` — in ONE read, however many groups or transactions (CP-19's
+   * inbox).
+   */
+  listOpenFlagsOnTxnsBy(query: KitchenOpenFlagsQuery): Promise<KitchenResult<KitchenOpenFlagRecord[]>>;
 
   // ── Pantries (CP-10) ──
 

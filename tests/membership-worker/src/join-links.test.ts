@@ -230,8 +230,43 @@ function recordingEvents() {
   };
 }
 
+/** kitchen-worker's internal balance route (CP-19), as leaving asks it: every request recorded. */
+interface KitchenCall {
+  url: string;
+  headers: Headers;
+  method: string;
+}
+
+/**
+ * A kitchen-worker that answers each balance from `balances` (by subject id;
+ * 0 for anyone else) in INR — or answers `status`, or throws.
+ */
+function kitchenWorker(
+  opts: { balances?: Record<string, number>; status?: number; body?: unknown; throws?: boolean; calls?: KitchenCall[] } = {},
+): Fetcher {
+  return {
+    fetch: async (url: string, init: RequestInit = {}) => {
+      opts.calls?.push({ url, headers: new Headers(init.headers), method: init.method ?? "GET" });
+      if (opts.throws) throw new Error("kitchen-worker is down");
+      if (opts.status) return Response.json(opts.body ?? { error: { code: "internal_error" } }, { status: opts.status });
+      if (opts.body !== undefined) return Response.json(opts.body);
+      const subject = decodeURIComponent(new URL(url).pathname.split("/")[7] ?? "");
+      return Response.json({
+        data: { balanceMinor: opts.balances?.[subject] ?? 0, currency: "INR" },
+        meta: { requestId: "req_kitchen", cursor: null },
+      });
+    },
+  } as unknown as Fetcher;
+}
+
 function env(overrides: Partial<Env> = {}): Env {
-  return { POLICY_WORKER: policyByRole(), PLATFORM_DB: {} as D1Database, ENVIRONMENT: "test", ...overrides };
+  return {
+    POLICY_WORKER: policyByRole(),
+    KITCHEN_WORKER: kitchenWorker(),
+    PLATFORM_DB: {} as D1Database,
+    ENVIRONMENT: "test",
+    ...overrides,
+  };
 }
 
 function codes(...list: string[]): () => string {
@@ -660,6 +695,107 @@ describe("handleLeaveOrganization", () => {
     seed(repo, ORG, "flat-4b", [["usr_owner", "owner"]]);
     expect((await handleLeaveOrganization(env(), "req", actor("usr_stranger"), ORG_PUB, { repo })).status).toBe(404);
     expect((await handleLeaveOrganization(env(), "req", actor("usr_owner"), "org_bad", { repo })).status).toBe(404);
+  });
+});
+
+// ── Leaving with a balance (Cookpool CP-19, risks CP-L) ─────────────────
+
+describe("handleLeaveOrganization: money in the group", () => {
+  function group(): FakeRepo {
+    const repo = createRepo();
+    seed(repo, ORG, "flat-4b", [["usr_owner", "owner"], ["usr_anu", "builder"]]);
+    return repo;
+  }
+
+  it("asks kitchen-worker for the caller's balance, over the internal route, naming itself", async () => {
+    const repo = group();
+    const calls: KitchenCall[] = [];
+    const res = await handleLeaveOrganization(env({ KITCHEN_WORKER: kitchenWorker({ calls }) }), "req_leave", actor("usr_anu"), ORG_PUB, {
+      repo, now: () => NOW,
+    });
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]!.url).pathname).toBe(`/v1/internal/kitchen/organizations/${ORG_PUB}/subjects/usr_anu/balance`);
+    expect(calls[0]!.method).toBe("GET");
+    expect(calls[0]!.headers.get("x-internal-actor")).toBe("membership-worker");
+    expect(calls[0]!.headers.get("x-request-id")).toBe("req_leave");
+  });
+
+  it.each([
+    ["owes", -1250, "You still owe money in this group. Settle up before you leave."],
+    ["is owed", 800, "You are still owed money in this group. Settle up before you leave."],
+  ])("refuses someone who %s money there (409 balance_not_settled), and leaves them in the group", async (_how, balance, message) => {
+    const repo = group();
+    const { appended, eventsRepo } = recordingEvents();
+    const res = await handleLeaveOrganization(
+      env({ KITCHEN_WORKER: kitchenWorker({ balances: { usr_anu: balance } }) }),
+      "req",
+      actor("usr_anu"),
+      ORG_PUB,
+      { repo, eventsRepo, now: () => NOW },
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string; message: string; details: Record<string, unknown> } };
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.message).toBe(message);
+    expect(body.error.details).toEqual({ reason: "balance_not_settled", balanceMinor: balance, currency: "INR" });
+    expect((await repo.getActiveMemberBySubject(ORG, "usr_anu")).ok).toBe(true);
+    expect(appended).toHaveLength(0);
+  });
+
+  it("lets someone at zero leave", async () => {
+    const repo = group();
+    const res = await handleLeaveOrganization(
+      env({ KITCHEN_WORKER: kitchenWorker({ balances: { usr_owner: 500 } }) }),
+      "req",
+      actor("usr_anu"),
+      ORG_PUB,
+      { repo, now: () => NOW },
+    );
+    expect(res.status).toBe(200);
+    expect((await repo.getActiveMemberBySubject(ORG, "usr_anu")).ok).toBe(false);
+  });
+
+  it.each([
+    ["kitchen-worker is not bound", { KITCHEN_WORKER: undefined }],
+    ["the call throws (kitchen-worker unreachable)", { KITCHEN_WORKER: kitchenWorker({ throws: true }) }],
+    ["kitchen-worker answers 503", { KITCHEN_WORKER: kitchenWorker({ status: 503 }) }],
+    ["kitchen-worker does not know the route (404)", { KITCHEN_WORKER: kitchenWorker({ status: 404 }) }],
+    ["the answer has no balance", { KITCHEN_WORKER: kitchenWorker({ body: { data: { currency: "INR" } } }) }],
+    ["the balance is not a whole number", { KITCHEN_WORKER: kitchenWorker({ body: { data: { balanceMinor: 1.5, currency: "INR" } } }) }],
+    ["the answer is not JSON", {
+      KITCHEN_WORKER: { fetch: async () => new Response("<html>", { status: 200 }) } as unknown as Fetcher,
+    }],
+  ])("fails closed with 503 when %s: nobody leaves owing because of an outage", async (_case, overrides) => {
+    const repo = group();
+    const res = await handleLeaveOrganization(env(overrides as Partial<Env>), "req", actor("usr_anu"), ORG_PUB, { repo, now: () => NOW });
+    expect(res.status).toBe(503);
+    expect((await json(res)).error.code).toBe("internal_error");
+    expect((await repo.getActiveMemberBySubject(ORG, "usr_anu")).ok).toBe(true);
+  });
+
+  it("asks nothing for someone not in the group, nor for a last owner who cannot leave anyway", async () => {
+    const repo = group();
+    const calls: KitchenCall[] = [];
+    const kitchen = env({ KITCHEN_WORKER: kitchenWorker({ calls, balances: { usr_owner: -300 } }) });
+    expect((await handleLeaveOrganization(kitchen, "req", actor("usr_stranger"), ORG_PUB, { repo })).status).toBe(404);
+    const owner = await handleLeaveOrganization(kitchen, "req", actor("usr_owner"), ORG_PUB, { repo, now: () => NOW });
+    expect((await json(owner)).error.details.reason).toBe("last_owner");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("holds a group's only member to the same rule", async () => {
+    const repo = createRepo();
+    seed(repo, ORG, "flat-4b", [["usr_owner", "owner"]]);
+    const res = await handleLeaveOrganization(
+      env({ KITCHEN_WORKER: kitchenWorker({ balances: { usr_owner: -300 } }) }),
+      "req",
+      actor("usr_owner"),
+      ORG_PUB,
+      { repo, now: () => NOW },
+    );
+    expect(res.status).toBe(409);
+    expect((await json(res)).error.details.reason).toBe("balance_not_settled");
   });
 });
 

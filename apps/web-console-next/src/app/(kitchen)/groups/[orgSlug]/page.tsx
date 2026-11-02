@@ -7,7 +7,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ChevronRight,
-  CookingPot,
   Crown,
   DoorOpen,
   HandCoins,
@@ -53,7 +52,6 @@ import {
 } from "@/components/kitchen/groups";
 import { formatJoinCode, joinUrl } from "@/components/kitchen/join-code";
 import {
-  ComingSoonCard,
   GroupAvatar,
   KCard,
   K_BUTTON,
@@ -67,12 +65,13 @@ import { BalanceWords, Money, PersonAvatar } from "@/components/kitchen/ledger-u
 import { memberLabel, type MemberNames } from "@/components/kitchen/members";
 import { useMemberNames } from "@/components/kitchen/people-data";
 import { GroupPantryPanel } from "@/components/kitchen/pantry-cards";
+import { GroupDishesPanel } from "@/components/kitchen/dish-ui";
 
 /**
  * One group (CP-5, the ledger since CP-8): your balance in it with Add expense
  * and Settle up, then the tabs Activity · Balances · Pantry · Dishes (the
- * pantry lists what the group holds since CP-12; dishes are an honest empty
- * state until CP4); beside them who is in it
+ * pantry lists what the group holds since CP-12; the dishes shared with the
+ * group, each opening its page, since CP-17); beside them who is in it
  * and your role, the join link (owners and admins copy and rotate it), the
  * group's rules (owners and admins edit) and leaving. `?tab=` keeps the open
  * tab in the address. Since CP-9 every member sees everyone by name and role
@@ -207,13 +206,7 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
               <GroupPantryPanel orgId={group.id} name={group.name} canWrite={canWrite} />
             </TabsContent>
             <TabsContent value="dishes">
-              <ComingSoonCard
-                headingLevel={3}
-                icon={CookingPot}
-                tone="tomato"
-                title="No dishes shared yet"
-                body="Dishes shared with the group, and who had how much, arrive with the dish maker."
-              />
+              <GroupDishesPanel orgId={group.id} groupName={group.name} meId={myId} names={names} />
             </TabsContent>
           </Tabs>
         </div>

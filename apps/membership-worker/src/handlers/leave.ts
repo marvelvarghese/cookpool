@@ -9,6 +9,17 @@
 // member row 'removed' and every role of theirs in the org revoked — here in
 // one atomic batch (`leaveOrganization`), which also re-checks the last-owner
 // rule so two owners leaving at once cannot strand a group without one.
+//
+// Nobody leaves owing or owed (Cookpool CP-19, risks CP-L): before the batch,
+// kitchen-worker is asked for the caller's balance in the group over the
+// KITCHEN_WORKER service binding, and a balance that is not zero is a 409
+// (`details.reason: "balance_not_settled"`, with `balanceMinor` and
+// `currency`). When kitchen-worker cannot answer — unbound, down, an error —
+// leaving fails CLOSED with 503: an outage must not let someone walk away
+// from a debt. The check is not atomic with the leave: an expense naming the
+// caller that lands between the two still posts (kitchen-worker checked its
+// roster first), and leaves a balance under their name, as an admin removal
+// does. A group's only member is held to the same rule.
 
 import type { Env } from "../env.js";
 import type { ActorContext } from "../router.js";
@@ -18,8 +29,10 @@ import type { LeaveResponse } from "@saas/contracts/membership";
 import { createSqlExecutor } from "@saas/db/d1";
 import { createMembershipRepository } from "@saas/db/membership";
 import { createEventsRepository } from "@saas/db/events";
+import { KITCHEN_ERROR_REASONS } from "@saas/contracts/kitchen";
 import { successResponse, errorResponse } from "../http.js";
 import { parseOrgPublicId, orgPublicId, memberPublicId } from "../ids.js";
+import { fetchKitchenBalance } from "../kitchen-client.js";
 
 export interface LeaveOrganizationDeps {
   repo: Pick<
@@ -92,6 +105,28 @@ export async function handleLeaveOrganization(
         if (!members.ok) return errorResponse("internal_error", "Service unavailable", 503, requestId);
         if (members.value > 1) return lastOwner(requestId);
       }
+    }
+
+    // Money in the group (CP-19): settled up, or not leaving.
+    const balance = await fetchKitchenBalance(env.KITCHEN_WORKER, orgUuid, actor.subjectId, requestId);
+    if (!balance.ok) {
+      return errorResponse(
+        "internal_error",
+        "Your balance in this group cannot be checked right now. Try again in a moment.",
+        503,
+        requestId,
+      );
+    }
+    if (balance.balanceMinor !== 0) {
+      return errorResponse(
+        "conflict",
+        balance.balanceMinor < 0
+          ? "You still owe money in this group. Settle up before you leave."
+          : "You are still owed money in this group. Settle up before you leave.",
+        409,
+        requestId,
+        { reason: KITCHEN_ERROR_REASONS.BALANCE_NOT_SETTLED, balanceMinor: balance.balanceMinor, currency: balance.currency },
+      );
     }
 
     const now = deps?.now ? deps.now() : new Date();

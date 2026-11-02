@@ -17,6 +17,7 @@ import type {
   KitchenFlagRecord,
   KitchenFlagState,
   KitchenLedgerTxn,
+  KitchenOpenFlagRecord,
   KitchenRepository,
   KitchenResult,
   KitchenSettlementMethod,
@@ -88,6 +89,23 @@ function mapFlag(row: Row): KitchenFlagRecord {
   };
 }
 
+function mapOpenFlag(row: Row): KitchenOpenFlagRecord {
+  return {
+    flagId: row.flag_id as string,
+    txnId: row.txn_id as string,
+    orgId: row.org_id as string,
+    flaggedBy: row.subject_id as string,
+    reason: row.reason as string,
+    flaggedAt: new Date(row.created_at as string),
+    title: row.title as string,
+    txnKind: row.kind as KitchenTxnKind,
+    totalMinor: Number(row.total_minor),
+    currency: row.currency as string,
+    sourceKind: nullableString(row.source_kind),
+    sourceId: nullableString(row.source_id),
+  };
+}
+
 function internal(err: unknown): KitchenResult<never> {
   return { ok: false, error: { kind: "internal", message: err instanceof Error ? err.message : String(err) } };
 }
@@ -125,7 +143,14 @@ export function splitsProblem(totalMinor: number, splits: readonly KitchenSplit[
 /** The ledger part of the kitchen repository (the rest is group settings and pantries). */
 export type LedgerRepository = Pick<
   KitchenRepository,
-  "postTxn" | "reverseTxn" | "getTxn" | "listActivity" | "listSplitsForGroup" | "createFlag" | "listFlags"
+  | "postTxn"
+  | "reverseTxn"
+  | "getTxn"
+  | "listActivity"
+  | "listSplitsForGroup"
+  | "createFlag"
+  | "listFlags"
+  | "listOpenFlagsOnTxnsBy"
 >;
 
 /**
@@ -468,6 +493,32 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
           [orgId, txnId],
         );
         return { ok: true, value: result.rows.map(mapFlag) };
+      } catch (err) {
+        return internal(err);
+      }
+    },
+
+    async listOpenFlagsOnTxnsBy(query) {
+      if (query.orgIds.length === 0) return { ok: true, value: [] };
+      try {
+        // Driven from kitchen_flags (few rows; `org_id` leads its unique
+        // index), each joined to its transaction by primary key, and the
+        // reversal check through `kitchen_txns_reverses_uq`.
+        const result = await executor.execute(
+          `SELECT f.id AS flag_id, f.txn_id, f.org_id, f.subject_id, f.reason, f.created_at,
+                  t.title, t.kind, t.total_minor, t.currency, t.source_kind, t.source_id
+           FROM kitchen_flags f
+           JOIN kitchen_txns t ON t.id = f.txn_id AND t.org_id = f.org_id
+           WHERE f.org_id IN (SELECT value FROM json_each($1))
+             AND f.state = 'open'
+             AND t.created_by = $2
+             AND f.subject_id <> $2
+             AND NOT EXISTS (SELECT 1 FROM kitchen_txns r WHERE r.reverses = t.id)
+           ORDER BY f.created_at, f.id
+           LIMIT $3`,
+          [JSON.stringify(query.orgIds), query.createdBy, query.limit],
+        );
+        return { ok: true, value: result.rows.map(mapOpenFlag) };
       } catch (err) {
         return internal(err);
       }

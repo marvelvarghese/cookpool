@@ -9,9 +9,9 @@ the code departed from `design.md`.
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
 | CP2 — the ledger | ✅ shipped 2026-11-02 | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22), #15 (CP-9) |
 | CP3 — pantries and using things | ✅ shipped 2026-11-02 | #11 (CP-10), #14 (CP-11), #18 (CP-12), #20 (CP-13) |
-| CP4 — the dish maker | in progress | #16 (CP-14) |
-| CP5 — splitting dishes | in progress | #17 (CP-16) |
-| CP6 — use it before it goes | in progress | #19 (CP-18) |
+| CP4 — the dish maker | ✅ shipped 2026-11-02 | #16 (CP-14), #23 (CP-15) |
+| CP5 — splitting dishes | ✅ shipped 2026-11-02 | #17 (CP-16), #22 (CP-17) |
+| CP6 — use it before it goes | in progress | #19 (CP-18), #21 (CP-19) |
 
 ## Departures from the design
 
@@ -709,6 +709,224 @@ All three are closed by CP-9 (below).
   field. New query keys `kitchenUsuals`, `kitchenSearch(q)` and
   `kitchenUsable` sit under `kitchenPantry()`, so any stock write refreshes
   them. No SDK or contract change.
+
+
+### CP6 — the inbox API and leaving with a balance (CP-19)
+
+The backend half of the original CP-19 (the screens are CP-23).
+
+- **The route as built.** `GET /v1/kitchen/me/inbox` → `{ items, counts }`
+  (`InboxResponse` in `@saas/contracts/kitchen`; SDK `kitchen.inbox()`),
+  with `counts` `{ total, claim_dish, finalize_dish, use_soon, payment_due,
+  flag }`. Each card carries what its one-tap action needs. Beyond the
+  brief's shapes: every group card has `groupSlug`; both dish kinds share one
+  `InboxDish` (`state`, `splitMode`, `claimedHalf`, `unclaimedHalf`,
+  `perPortionMinor`, `totalMinor` on each); an item has `daysToUseBy` and its
+  `pantry` (a `PantryRef`) beside `orgId`, and `usual` is
+  `{ quantity, unit, qtyMilli }` or **null** (never absent), `qtyMilli` so
+  the app can tell whether the usual still fits; a payment says `canRecord`
+  (`kitchen.settlement.create` — viewers owe but cannot record); a flag has
+  `flagId`, `txnKind`, `totalMinor`, `currency` and `dishId` (a dish's charge
+  is undone by cancelling or correcting the dish, not by a reversal). The
+  brief's `note?` is **`reason`**: CP-7 stores every flag with a required
+  `reason`, and `KitchenFlag` calls it that.
+- **Who sees what.** Only the groups membership says the caller is in are
+  read, and the role it gives decides what is offered (as the other
+  cross-group reads; every action still asks policy). `claim_dish`: open
+  dishes in groups whose role holds `kitchen.dish.claim` (`CLAIM_ROLES`),
+  cooked by someone else, where the caller has **no share at all** (a claim,
+  or an amount the cook assigned them) and **portions are still free** (a
+  fully claimed dish would only answer `claims_exceed_portions`).
+  `finalize_dish`: the caller's own open or draft dishes, just for them or in
+  a group where their role holds `kitchen.dish.finalize` — a cook made a
+  viewer, or gone from the group, is not asked. A dish **just for its cook**
+  is included: it stays a draft until finalized (CP-16), so CP-23 may want
+  the cook flow to finalize solo dishes at once. `use_soon`: the caller's own
+  pantry and groups whose role holds `kitchen.item.use`. `payment_due`: every
+  group, viewers included. `flag`: transactions the caller logged in their
+  current groups. `FINALIZE_ROLES` and `SETTLE_ROLES` are pinned against the
+  policy engine like `USE_ROLES` and `CLAIM_ROLES`.
+- **Flags.** "Still open" is `state = 'open'`, raised by **someone else** (a
+  flag you raised on your own entry is left out), on a transaction **not
+  reversed** — a correction is a reversal, and nothing else resolves a flag
+  (there is no resolve route, so `state` never leaves `open`). One card per
+  flag.
+- **Payments due** are the group's settle plan's payments from the caller,
+  so they match Settle up — including one to someone who has since left
+  (removed by an admin, or left before this task), which `…/settlements`
+  refuses (`not_in_group`); `canRecord` does not know that (it would cost a
+  roster read per group).
+- **The use-soon window** is two days back to two days ahead
+  (`INBOX_EXPIRED_DAYS`, `INBOX_USE_SOON_DAYS` = the digest's
+  `USE_SOON_EMAIL_DAYS`); the app's own "use soon" filter looks three ahead.
+  At most `INBOX_USE_SOON_MAX` (10), soonest first. `usual` is the caller's
+  last logged amount from their usuals (CP-11; the top 100 read).
+- **A portion's price** is the engine's `splitByWeights(total, [2,
+  portionsHalf − 2])[0]` (₹211.00 for 4 portions is ₹52.75); a dish of half
+  a portion is priced at twice its total per portion.
+- **Order**: food at or past its use-by date, then dishes to claim (oldest
+  cooked first), the caller's dishes to finalize (oldest first), food due in
+  the next two days, payments (largest first), flags (oldest first).
+  `counts` count the cards listed; each kind is capped by its read — 10
+  items, 50 open and 50 draft dishes (newest first, so a person with more
+  than 50 open dishes in reach misses the oldest), 50 flags.
+- **Bounded reads** (risks CP-S, CP-T): one membership hop (the caller's
+  groups; no rosters); on D1, two dish lists (three queries each), the
+  use-soon items, the usuals, the groups' settings, one whole-ledger read per
+  group (`listSplitsForGroup`, as balances) and the flags — **10 + one per
+  group**, all side by side — and one identity lookup per 100 names.
+  Server-Timing phases `groups`, `dishes`, `items`, `ledger`, `flags`,
+  `identity`. A test counts the statements and shows the number does not move
+  with more items, dishes or flags. Any failed read is a 503 (an inbox that
+  silently left something out would be wrong); names are best-effort.
+- **A new ledger read.** `listFlags` is per transaction, which would be a
+  query per transaction, so the kitchen repository gained
+  `listOpenFlagsOnTxnsBy({ createdBy, orgIds, limit })`
+  (`KitchenOpenFlagRecord`: the flag with the transaction's title, kind,
+  total, currency and source) — one statement driven from `kitchen_flags`
+  (whose unique index leads with `org_id`), the transaction by primary key,
+  the reversal check through `kitchen_txns_reverses_uq`. tests/db proves it
+  on SQLite: reversed transactions, resolved flags, flags raised on your own
+  entry and other people's transactions left out; groups bound as one JSON
+  parameter; oldest first; the cap.
+- **Leaving with a balance (risks CP-L).** membership-worker's
+  `POST /v1/organizations/{org}/leave` now asks kitchen-worker, after the
+  member and last-owner checks and before the leave batch, over a new
+  `KITCHEN_WORKER` binding (stage and prod), via a new service-internal
+  `GET /v1/internal/kitchen/organizations/{org}/subjects/{usr}/balance` →
+  `{ balanceMinor, currency }` (the engine's whole-ledger balance, as
+  `…/balances` reads it; 0 with no money in the group; `{org}` is the `org_…`
+  id or the UUID). Not zero is **409 `conflict`, `details.reason:
+  "balance_not_settled"`**, with `balanceMinor` (positive: owed) and
+  `currency`, and a message that says which way; the reason joins
+  `KITCHEN_ERROR_REASONS`, where design.md §5 lists it. The console's group
+  page already shows the message in its "Couldn't leave" toast; linking it to
+  Settle up is CP-23's.
+- **It fails closed.** Kitchen-worker unbound, unreachable, answering
+  anything but a 2xx with a whole-number balance — leaving is a **503**
+  `internal_error` and nobody leaves: an outage must not let someone walk
+  away from a debt. A group's only member is held to the same rule (their
+  balance can be non-zero only when someone left before this task, or was
+  removed by an admin, with money still open; reversing entries is the way
+  out — deleting a group is out of scope). The check is not atomic with the leave: an expense naming the
+  caller that kitchen-worker accepted against the roster just before the
+  leave committed still posts, as after an admin removal. An admin's
+  removal is not checked (CP-L: the balance stays under their name).
+- **Reachable only over the binding.** kitchen-worker has no workers.dev URL
+  (stage and prod, unchanged); api-edge's kitchen facade matches
+  `/v1/kitchen/…` and `/v1/organizations/{org}/kitchen/…` only, so **no edge
+  change** was needed — tests/api-edge pins that the internal path (and its
+  `..` and `%2e%2e` spellings) 404s without calling kitchen-worker, that an
+  encoded slash stays inside the `/v1/kitchen/…` path it forwards (which
+  kitchen-worker matches literally), and that `x-internal-actor` is never
+  forwarded. tests/config-worker pins that only api-edge and
+  membership-worker are bound to kitchen-worker. As a second lock, the
+  internal route answers only a caller naming itself `membership-worker` in
+  `x-internal-actor` (`KITCHEN_INTERNAL_ACTORS`); anyone else — a signed-in
+  member's request included — gets the plain "Route not found", before the
+  method is even looked at.
+- **The binding is an acknowledged cycle.** kitchen-worker depends on
+  membership-worker, so membership-worker's `KITCHEN_WORKER` is not a
+  `dependsOn` edge: tests/config-worker's `ACKNOWLEDGED_BINDING_CYCLES` lists
+  `membership-worker -> kitchen-worker`, and its component.yaml says why. On
+  a fresh account `tooling/deploy/fleet-stubs.mjs` places kitchen-worker
+  before the binding holder deploys.
+- **Deploy order.** Both workers change here and their stage/prod lanes are
+  advisory. Until kitchen-worker with the internal route is live, its old
+  router answers 404 and leaving fails closed (503) — minutes, no money at
+  risk. No redeploy markers: the contracts change is read at runtime only by
+  kitchen-worker and membership-worker, which both change; the SDK's
+  `inbox()` is unused until CP-23 changes the console.
+- **Tests.** tests/kitchen-worker `inbox.test.ts` (43): each kind appears and
+  goes (claimed, fully claimed, finalized, canceled, settled, reversed, used
+  up, demoted, left), viewers and other groups never see claims or items,
+  order, counts, the read count, the internal route and its gate, and
+  membership-worker's own client against kitchen-worker's router (the
+  `@membership-worker/*` mapping is new in tests/kitchen-worker); tests/db
+  for the open-flags read.
+  tests/membership-worker: refused owing and owed, allowed at zero, 503 for
+  an unbound, throwing, 503, 404 or malformed kitchen-worker, nothing asked
+  for a stranger or a refused last owner, the only member held too.
+
+### CP5 — the dish page (CP-17)
+
+- **`/dishes/[dishRef]` takes the plain `dsh_…` id**, as the dish-posted
+  email (CP-18) links it; anything else, or a dish the API answers 404 for,
+  is "This dish isn't here". `dishHref(dishId)` (in `dish.ts`) is the link
+  for the dish maker's post-cook navigation, which belongs to CP-15's files
+  (`/cook`) and is not wired here. An open dish, or one being split, is read
+  again every 20 seconds while the tab is visible (design §7).
+- **Money is the API's; a preview is the engine's.** The page renders a
+  dish's `amounts` and `netting`. While the shares on screen differ from the
+  dish's own — your claim on its way, the cook's unsaved edit, a correction
+  — `previewSplit` calls the engine the way kitchen-worker's `split.ts` does
+  (the cook's share first, then as listed; `buildDish`, `splitByWeights` for
+  what the unclaimed portions are worth, `buildIngredientTake` + `pairLines`
+  for the netting), so the preview is what the write posts; the tests pin it
+  to design §3's worked example to the paisa. **"Each"** on the cost card is
+  the total over the portions, to the paisa, marked "≈" when it does not
+  divide evenly (₹100.00 for 3 portions is "≈ ₹33.33"): a rate, never an
+  amount anyone is charged. The cook's row shows their own part; what the
+  unclaimed portions are worth is in the leftovers note ("½ portion
+  unclaimed. When you finalize, it stays with you as Leftovers in your
+  pantry: ₹26.38, at ₹52.75 a portion"), which links the Leftovers item once
+  finalized. A dish just for its cook has no leftovers note (finalizing it
+  makes none).
+- **Who had some** lists the cook, then everyone with a share, then the
+  group's other members with nothing yet — not viewers, who don't claim,
+  unless the cook is setting portions (they can be counted in). Once
+  finalized only those who had some are listed, unless it is being
+  corrected. Each row says who set it ("Claimed it", "You set this", "Rahul
+  set this") and what it costs; nobody is shown by raw id, and a group the
+  viewer is not in reads "another group".
+- **Claims.** A member claims in one tap — "How much did you have?" None ·
+  ½ · 1 · 1½ · 2, choices beyond what is left turned off — or with the
+  stepper on their own row, sent once the taps settle (700 ms). Both share
+  one claimer, which steps from the latest tap, not the last render. Undo
+  (ten seconds) sets the previous claim back; claims are PUTs, so they send
+  no idempotency key. Refusals are in words (`claims_exceed_portions` with
+  `availableHalf`: "Only 1 portion is left for you now."). More portions
+  claimed than were cooked cannot come from the API (it refuses them); the
+  red "over" alert appears only in the cook's own edit, where Save and
+  Finalize wait until it fits.
+- **The cook's edit.** An assigned dish (a draft) is always being set; on an
+  open dish "Set everyone's portions yourself" replaces the claims
+  (`setDishShares`, Undo puts the earlier shares back — as the cook's, since
+  the API has no way to restore `source: self`). **Finalize split** has no
+  dialog: an unsaved edit is saved first, then the dish is finalized, and the
+  toast says what it posted ("Anu, Dev and Meera owe you ₹131.87. ½ portion
+  went to your pantry as Leftovers.") with **Correct it**, which opens the
+  correction (from another screen, `/dishes/{dsh}?correct=1`). A correction
+  edits every share, can count in someone who had none, takes an optional
+  note (it goes on the reversal) and posts `correctDish`. Exact-amount shares
+  are shown and kept as they are; the page sets half portions only.
+- **Cancel is confirmed, not undone** — a departure from "undo instead of
+  confirm": there is no way to un-cancel a dish, so (as CP-12's Move to a
+  group) "Cancel this dish" opens a card saying what happens and "Cancel the
+  dish". Only its cook, while draft or open (the API's rule).
+- **Owners and admins** (`kitchen.dish.finalize_any`) are not given the
+  cook's sticky bar on someone else's dish: a quieter card offers "Set
+  portions" and "Finalize for Meera" if it's stuck, or "Correct it" once
+  finalized. Members keep their claim as the main action.
+- **Remind group** stays "Soon" (no reminder API). For the cook of a claims
+  dish the page says "Flat 4B was emailed when you cooked" — true of what
+  kitchen-worker asks for (CP-18), but nothing is delivered until the
+  sending domain exists (CP-18's open item).
+- **A group's Dishes tab** lists its dishes newest first (20 a page, "Show
+  older dishes"), each saying who cooked it and where its split stands, with
+  what it needs: Finalize (your dish), Claim (nothing claimed yet), Open,
+  Being split, Split, Canceled (struck through).
+- **For Home (CP-23):** `DishClaimStepper` (in `dish-ui.tsx`) is the claim
+  buttons with their own claimer; `DishClaimChoices` takes a claimer the
+  screen already holds. Dish reads cache under `qk.kitchenDishes()`
+  (`kitchenDish(id)`, `kitchenGroupDishes(orgId)`); a write puts its answer
+  in the dish's entry and refreshes the rest, and finalize, correct and
+  cancel also refresh the ledgers they touched (cancel: every source group),
+  `kitchenMe()` and every pantry. No SDK or contract change.
+- **Not in this task:** the dish maker's navigation to the dish page and the
+  + Add sheet's "I cooked" (CP-15), Home's inbox (CP-23), reminders (no
+  API). The group's Activity does not link a dish transaction to its dish
+  page yet (`sourceKind: dish`, `sourceId` are there) — a follow-up.
 
 ### CP4 — the dish maker (CP-15)
 

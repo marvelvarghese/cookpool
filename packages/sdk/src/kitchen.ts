@@ -49,6 +49,7 @@ import type {
   DishesPage,
   DishesQuery,
   GroupMembersResponse,
+  InboxResponse,
   MyBalancesResponse,
   PersonViewResponse,
 } from "@saas/contracts/kitchen";
@@ -686,5 +687,21 @@ export class KitchenClient {
   /** GET /v1/organizations/:orgId/kitchen/members — who is in the group, by name and role (any member). */
   groupMembers(orgId: string, opts: RequestOptions = {}): Promise<GroupMembersResponse> {
     return this.transport.request<GroupMembersResponse>({ method: "GET", path: this.groupPath(orgId, "members") }, opts);
+  }
+
+  // -------------------------------------------------------------------------
+  // Home's inbox (CP-19)
+  // -------------------------------------------------------------------------
+
+  /**
+   * GET /v1/kitchen/me/inbox
+   *
+   * Everything that needs the caller, most urgent first: dishes to claim or
+   * finalize, items to use soon (with their usual amount), payments they owe
+   * and open flags on their entries — each with what its one-tap action
+   * needs — and how many of each.
+   */
+  inbox(opts: RequestOptions = {}): Promise<InboxResponse> {
+    return this.transport.request<InboxResponse>({ method: "GET", path: this.mePath("inbox") }, opts);
   }
 }

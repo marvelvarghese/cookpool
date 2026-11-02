@@ -8,7 +8,7 @@ import { unavailable } from "./http.js";
  * binding or anything `fn` throws is a 503; the executor is always disposed.
  */
 export async function withKitchenRepo(
-  ctx: RequestContext,
+  ctx: Pick<RequestContext, "env" | "requestId">,
   fn: (repo: KitchenRepository) => Promise<Response>,
 ): Promise<Response> {
   if (!ctx.env.PLATFORM_DB) return unavailable(ctx.requestId);

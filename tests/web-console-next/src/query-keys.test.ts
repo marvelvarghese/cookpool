@@ -101,4 +101,15 @@ describe("query cache keys (qk)", () => {
     expect(qk.kitchenMembers("org_1")).toEqual(["kitchenMembers", "org_1"]);
     expect(qk.kitchenMembers("org_1")).not.toEqual(qk.members("org_1"));
   });
+
+  it("Cookpool dish keys share the kitchenDishes prefix, so one invalidation after a dish write refreshes them all (CP-17)", () => {
+    const prefix = qk.kitchenDishes();
+    const keys = [qk.kitchenDish("dsh_1"), qk.kitchenGroupDishes("org_1")];
+    for (const k of keys) expect(k.slice(0, prefix.length)).toEqual([...prefix]);
+    expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
+    expect(qk.kitchenDish("dsh_1")).not.toEqual(qk.kitchenDish("dsh_2"));
+    expect(qk.kitchenGroupDishes("org_1")).not.toEqual(qk.kitchenGroupDishes("org_2"));
+    expect(qk.kitchenDishes()).not.toEqual(qk.kitchenPantry());
+    expect(qk.kitchenDishes()).not.toEqual(qk.kitchenLedger("org_1"));
+  });
 });
