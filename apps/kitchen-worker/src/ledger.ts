@@ -90,13 +90,13 @@ function eventId(): string {
  * write itself: `kitchen.expense.added`, `kitchen.settlement.recorded`,
  * `kitchen.txn.reversed`, `kitchen.txn.flagged`, `kitchen.item.added`,
  * `kitchen.item.used`, `kitchen.item.wasted`, `kitchen.item.transferred`,
- * `kitchen.move.undone`.
+ * `kitchen.move.undone`, `kitchen.dish.cooked`, `kitchen.dish.canceled`.
  */
 export function ledgerAudit(
   ctx: OrgContext,
   input: {
     type: string;
-    subjectKind: "kitchen_txn" | "kitchen_flag" | "kitchen_item";
+    subjectKind: "kitchen_txn" | "kitchen_flag" | "kitchen_item" | "kitchen_dish";
     subjectId: string;
     idemKey: string;
     description: string;

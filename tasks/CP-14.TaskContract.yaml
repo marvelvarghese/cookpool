@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-14
+  title: "Cooking: dishes from any mix of pantries (backend)"
+spec:
+  goal: A cook makes one dish from their own pantry and any group pantries they can use, adding just-bought items inline; cooking takes stock out of every source pantry and charges the cook each buyer's exact share, in one atomic write.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-14.TaskContract.yaml
+  doneWhen:
+    - migration 250_kitchen_dishes creates kitchen_dishes and kitchen_dish_ingredients
+    - the design's worked example cooks to ₹211.00 for 4 portions and charges the cook ₹12.00 (Anu) and ₹7.00 (Dev) in Flat 4B and ₹24.00 (Kiran) in the Lunch club
+    - stock goes down in every source pantry; an over-draw, a mixed currency or an ingredient the cook may not use is refused and nothing is written
+    - cancelling an unfinalized dish reverses the ingredient charges and restores every quantity
+  gates: []

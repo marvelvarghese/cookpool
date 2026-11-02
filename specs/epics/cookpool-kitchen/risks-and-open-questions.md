@@ -164,3 +164,15 @@ settlement: a payment is a line too, so the sum still explains the amount;
 trimming to "since you last squared up" can come with the inbox (CP-19).
 The names lookup could become one `IN (json_each(…))` read
 (`getUsersByIds`) when `packages/db` is next in scope.
+
+## CP-T — a big dish is one large D1 batch (ACCEPTED)
+
+Cooking writes the dish, its ingredients, every stock move, every item
+update, one charge per source group with its splits, and the audit events in
+one D1 batch, so nothing is half-written. The worked example is 34
+statements; a dish at the 30-ingredient limit is about 274. D1 counts
+statements toward a per-invocation query limit: 1,000 on Workers Paid (what
+the factory's prerequisites require for this Cloudflare account), 50 on
+Free. On Workers Paid every allowed dish fits. If the account ever runs on
+Free, a dish with more than a handful of ingredients fails as a whole
+(nothing written) and the limit on ingredients per dish must come down.

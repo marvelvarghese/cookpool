@@ -1311,3 +1311,204 @@ describe("kitchen pantries, against a real SQLite engine", () => {
     expect(() => insert({ reverses: randomUUID(), kind: "reversal" })).toThrow(/FOREIGN KEY constraint failed/);
   });
 });
+
+// Dishes (Cookpool CP-14, migration 250): a dish and its ingredients, written
+// in ONE batch with the stock it takes and the cook's charge in each source
+// group; cancelled in one batch that reverses both.
+describe("kitchen dishes, against a real SQLite engine", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  const orgId = asUuid("c1c1c1c1-c1c1-41c1-81c1-c1c1c1c1c1c1");
+  const now = new Date("2026-11-02T12:00:00.000Z");
+  const me = { kind: "user", subjectId: "usr_rahul" } as const;
+  const group = { kind: "group", orgId } as const;
+  let seq = 0;
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    executor = createSqlExecutor(d1Over(db));
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  const count = (table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
+
+  function newItem(overrides: Partial<NewKitchenItem> = {}): NewKitchenItem {
+    seq += 1;
+    return {
+      id: asUuid(randomUUID()),
+      owner: me,
+      name: `Item ${seq}`,
+      category: "Veg",
+      dimension: "mass",
+      displayUnit: "g",
+      qtyMilli: 1_000_000,
+      priceMinor: 4000,
+      currency: "INR",
+      paidBy: "usr_rahul",
+      boughtOn: "2026-11-01",
+      expiresOn: null,
+      wastePolicy: null,
+      createdBy: "usr_rahul",
+      idemKey: `add-${seq}`,
+      now,
+      ...overrides,
+    };
+  }
+
+  /** Paneer from Rahul's pantry (all 200 g, ₹95.00) and 300 g of Anu's tomatoes from the group (₹12.00). */
+  async function cook(idemKey = "cook-1") {
+    const repo = createKitchenRepository(executor);
+    const paneer = newItem({ qtyMilli: 200_000, priceMinor: 9500 });
+    const tomatoes = newItem({ owner: group, paidBy: "usr_anu" });
+    for (const item of [paneer, tomatoes]) expect((await repo.createItem({ item })).ok).toBe(true);
+    const dishId = asUuid(randomUUID());
+    const txnId = asUuid(randomUUID());
+    const txn: NewKitchenTxn = {
+      id: txnId, orgId, kind: "use", title: "Paneer: Tomatoes (300 g)", totalMinor: 1200, currency: "INR",
+      occurredAt: now, createdBy: "usr_rahul", sourceKind: "dish", sourceId: dishId, idemKey: `dish_${dishId}`, now,
+    };
+    const input = {
+      dish: {
+        id: dishId, cook: "usr_rahul", orgId, name: "Paneer", portionsHalf: 8, extrasMinor: 1500, currency: "INR",
+        splitMode: "claims" as const, state: "open" as const, idemKey, now,
+      },
+      newItems: [],
+      ingredients: [
+        {
+          owner: me, itemId: paneer.id, expectedVersion: 1, qtyMilli: 200_000, unit: "g", costMinor: 9500,
+          paidBy: "usr_rahul", useTxnId: null, moveId: asUuid(randomUUID()),
+        },
+        {
+          owner: group, itemId: tomatoes.id, expectedVersion: 1, qtyMilli: 300_000, unit: "g", costMinor: 1200,
+          paidBy: "usr_anu", useTxnId: txnId, moveId: asUuid(randomUUID()),
+        },
+      ],
+      txns: [{
+        txn,
+        splits: [
+          { subjectId: "usr_anu", paidMinor: 1200, owedMinor: 0 },
+          { subjectId: "usr_rahul", paidMinor: 0, owedMinor: 1200 },
+        ],
+      }],
+      audits: [],
+    };
+    return { repo, paneer, tomatoes, dishId, txnId, input };
+  }
+
+  const itemRow = (id: string) =>
+    db.prepare("SELECT qty_left_milli, cost_taken_minor, state, version FROM kitchen_items WHERE id = ?").get(id) as {
+      qty_left_milli: number; cost_taken_minor: number; state: string; version: number;
+    };
+
+  it("cooks in one batch: the dish, its ingredients, the stock it takes and the cook's charge; a retry writes nothing", async () => {
+    const { repo, paneer, tomatoes, dishId, txnId, input } = await cook();
+    const cooked = await repo.cookDish(input);
+    expect(cooked.ok && cooked.value.replayed).toBe(false);
+    expect(cooked.ok && cooked.value.dish).toMatchObject({
+      id: dishId, cook: "usr_rahul", orgId, portionsHalf: 8, extrasMinor: 1500, ingredientsMinor: 10700,
+      totalMinor: 12200, currency: "INR", splitMode: "claims", state: "open", txnId: null, finalizedAt: null, canceledAt: null,
+    });
+    expect(cooked.ok && cooked.value.dish.ingredients.map((i) => [i.name, i.position, i.costMinor, i.orgId, i.useTxnId])).toEqual([
+      [paneer.name, 0, 9500, null, null],
+      [tomatoes.name, 1, 1200, orgId, txnId],
+    ]);
+    expect(itemRow(paneer.id)).toMatchObject({ qty_left_milli: 0, cost_taken_minor: 9500, state: "used_up", version: 2 });
+    expect(itemRow(tomatoes.id)).toMatchObject({ qty_left_milli: 700_000, cost_taken_minor: 1200, state: "active", version: 2 });
+    expect(db.prepare("SELECT kind, dish_id, txn_id, idem_key FROM kitchen_stock_moves ORDER BY rowid").all()).toEqual([
+      { kind: "dish", dish_id: dishId, txn_id: null, idem_key: null },
+      { kind: "dish", dish_id: dishId, txn_id: txnId, idem_key: null },
+    ]);
+    // The shared group's currency is pinned by the batch.
+    expect((await repo.getGroupSettings(orgId)).ok).toBe(true);
+    expect([count("kitchen_dishes"), count("kitchen_dish_ingredients"), count("kitchen_txns"), count("kitchen_txn_splits")]).toEqual([1, 2, 1, 2]);
+
+    const again = await repo.cookDish({ ...input, dish: { ...input.dish, id: asUuid(randomUUID()) } });
+    expect(again.ok && again.value).toMatchObject({ replayed: true, dish: { id: dishId } });
+    expect([count("kitchen_dishes"), count("kitchen_stock_moves"), count("kitchen_txns")]).toEqual([1, 2, 1]);
+  });
+
+  it("writes nothing when an ingredient moved on, has not that much left, or the group counts in another currency", async () => {
+    const { repo, tomatoes, input } = await cook();
+    db.prepare("UPDATE kitchen_items SET version = version + 1 WHERE id = ?").run(tomatoes.id);
+    expect(await repo.cookDish(input)).toEqual({ ok: false, error: { kind: "stale" } });
+
+    db.prepare("UPDATE kitchen_items SET version = 1, qty_left_milli = 100000 WHERE id = ?").run(tomatoes.id);
+    expect(await repo.cookDish(input)).toEqual({
+      ok: false, error: { kind: "ingredient_short", itemId: tomatoes.id, qtyLeftMilli: 100_000 },
+    });
+
+    db.prepare("UPDATE kitchen_items SET qty_left_milli = qty_bought_milli WHERE id = ?").run(tomatoes.id);
+    db.prepare("UPDATE kitchen_group_settings SET currency = 'USD' WHERE org_id = ?").run(orgId);
+    expect(await repo.cookDish(input)).toEqual({ ok: false, error: { kind: "currency_mismatch", currency: "USD" } });
+
+    expect([count("kitchen_dishes"), count("kitchen_dish_ingredients"), count("kitchen_stock_moves"), count("kitchen_txns")]).toEqual([0, 0, 0, 0]);
+  });
+
+  it("cancels in one batch: the charge reversed and every ingredient back, once", async () => {
+    const { repo, paneer, tomatoes, dishId, txnId, input } = await cook();
+    const cooked = await repo.cookDish(input);
+    if (!cooked.ok) throw new Error("not cooked");
+    const later = new Date("2026-11-02T13:00:00.000Z");
+    const canceled = await repo.cancelDish({ dish: cooked.value.dish, actor: "usr_rahul", now: later, audits: [] });
+    expect(canceled.ok && canceled.value).toMatchObject({ state: "canceled", canceledAt: later });
+    expect(itemRow(paneer.id)).toMatchObject({ qty_left_milli: 200_000, cost_taken_minor: 0, state: "active" });
+    expect(itemRow(tomatoes.id)).toMatchObject({ qty_left_milli: 1_000_000, cost_taken_minor: 0, state: "active" });
+    const reversal = db.prepare("SELECT kind, reverses, source_kind, source_id, total_minor FROM kitchen_txns WHERE reverses IS NOT NULL").get();
+    expect(reversal).toEqual({ kind: "reversal", reverses: txnId, source_kind: "dish", source_id: dishId, total_minor: 1200 });
+    expect(db.prepare("SELECT kind, reverses IS NOT NULL AS back, txn_id IS NOT NULL AS charged FROM kitchen_stock_moves ORDER BY rowid").all()).toEqual([
+      { kind: "dish", back: 0, charged: 0 },
+      { kind: "dish", back: 0, charged: 1 },
+      { kind: "reversal", back: 1, charged: 1 },
+      { kind: "reversal", back: 1, charged: 0 },
+    ]);
+
+    // From the dish as first read: the guard refuses, and nothing more is written.
+    expect(await repo.cancelDish({ dish: cooked.value.dish, actor: "usr_rahul", now: later, audits: [] })).toEqual({
+      ok: false, error: { kind: "dish_not_open", state: "canceled" },
+    });
+    expect([count("kitchen_txns"), count("kitchen_stock_moves")]).toEqual([2, 4]);
+  });
+
+  it("keeps a dish's total, split mode, state and ingredients honest (250_kitchen_dishes)", async () => {
+    const repo = createKitchenRepository(executor);
+    const item = newItem();
+    await repo.createItem({ item });
+    const dish = (values: Record<string, unknown> = {}) => () => {
+      const v = {
+        id: randomUUID(), org: orgId as string | null, portions: 4, ingredients: 100, total: 150, mode: "assign",
+        state: "draft", canceledAt: null as string | null, idem: randomUUID(), ...values,
+      };
+      db.prepare(
+        `INSERT INTO kitchen_dishes (id, cook, org_id, name, portions_half, extras_minor, ingredients_minor, total_minor,
+                                     currency, split_mode, state, cooked_at, canceled_at, idem_key)
+         VALUES (?, 'usr_rahul', ?, 'Dal', ?, 50, ?, ?, 'INR', ?, ?, '2026-11-02T12:00:00.000Z', ?, ?)`,
+      ).run(v.id, v.org, v.portions, v.ingredients, v.total, v.mode, v.state, v.canceledAt, v.idem);
+      return v.id;
+    };
+    const dishId = dish({ idem: "dal-1" })();
+    expect(dish({ mode: "claims", org: null })).toThrow(/CHECK constraint failed/);
+    expect(dish({ mode: "claims" })).not.toThrow();
+    expect(dish({ total: 151 })).toThrow(/CHECK constraint failed/);
+    expect(dish({ portions: 0 })).toThrow(/CHECK constraint failed/);
+    expect(dish({ state: "canceled" })).toThrow(/CHECK constraint failed/);
+    expect(dish({ state: "canceled", canceledAt: "2026-11-02T13:00:00.000Z" })).not.toThrow();
+    expect(dish({ state: "eaten" })).toThrow(/CHECK constraint failed/);
+    expect(dish({ idem: "dal-1" })).toThrow(/UNIQUE constraint failed/);
+
+    const ingredient = (values: Record<string, unknown> = {}) => () => {
+      const v = { dish: dishId, item: item.id as string, qty: 100, org: null as string | null, txn: null as string | null, ...values };
+      db.prepare(
+        `INSERT INTO kitchen_dish_ingredients (dish_id, item_id, position, qty_milli, unit, cost_minor, org_id, paid_by, use_txn_id)
+         VALUES (?, ?, 0, ?, 'g', 10, ?, 'usr_rahul', ?)`,
+      ).run(v.dish, v.item, v.qty, v.org, v.txn);
+    };
+    expect(ingredient()).not.toThrow();
+    expect(ingredient()).toThrow(/UNIQUE constraint failed/);
+    expect(ingredient({ dish: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
+    expect(ingredient({ item: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
+    expect(ingredient({ qty: 0, item: newItem().id })).toThrow(/CHECK constraint failed/);
+  });
+});

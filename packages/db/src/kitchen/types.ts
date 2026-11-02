@@ -613,4 +613,190 @@ export interface KitchenRepository {
   listMoves(owner: KitchenPantryOwner, itemId: Uuid, limit: number): Promise<KitchenResult<KitchenStockMoveRecord[]>>;
   /** What someone often uses (see `KitchenUsualsQuery`). */
   usuals(query: KitchenUsualsQuery): Promise<KitchenResult<KitchenUsualRecord[]>>;
+
+  // ── Dishes (CP-14) ──
+
+  /** These items, wherever they are in the scope's pantries (removed ones excluded), in any order. */
+  findItems(scope: KitchenPantryScope, itemIds: readonly string[]): Promise<KitchenResult<KitchenItemRecord[]>>;
+  /** Cook a dish: every write it makes, in ONE batch (see `CookDishInput`). */
+  cookDish(input: CookDishInput): Promise<KitchenDishResult<CookedDish>>;
+  /** One dish the scope can see, with its ingredients; `not_found` otherwise. */
+  getDish(dishId: Uuid, scope: KitchenDishScope): Promise<KitchenResult<KitchenDishRecord>>;
+  /** The dish a cook's request with this idempotency key made, if any. */
+  getDishByIdemKey(cook: string, idemKey: string): Promise<KitchenResult<KitchenDishRecord | null>>;
+  /** The dishes the scope can see, newest first (see `KitchenDishesQuery`). */
+  listDishes(query: KitchenDishesQuery): Promise<KitchenResult<KitchenDishesPage>>;
+  /** Cancel a dish that is not finalized, in ONE batch (see `CancelDishInput`). */
+  cancelDish(input: CancelDishInput): Promise<KitchenDishResult<KitchenDishRecord>>;
+}
+
+// ── Dishes (CP-14) ──────────────────────────────────────────
+
+/**
+ * draft: assign mode, the cook alone decides the shares; open: claims mode,
+ * the group's members claim portions; finalized: the dish transaction posted
+ * (CP-16); canceled: every ingredient put back and its charges reversed.
+ */
+export type KitchenDishState = "draft" | "open" | "finalized" | "canceled";
+export type KitchenDishSplitMode = "assign" | "claims";
+
+/** A dish write refused: the kitchen's refusals, and two of a dish's own. */
+export type KitchenDishError =
+  | KitchenRepositoryError
+  /** An ingredient (`itemId`) has not that much left (`qtyLeftMilli`). Nothing was written. */
+  | { kind: "ingredient_short"; itemId: string; qtyLeftMilli: number }
+  /** The dish is finalized or canceled (`state`): it cannot be canceled. Nothing was written. */
+  | { kind: "dish_not_open"; state: KitchenDishState };
+
+export type KitchenDishResult<T> = { ok: true; value: T } | { ok: false; error: KitchenDishError };
+
+/** One item taken for a dish, as stored, with the item's name as it is now. */
+export interface KitchenDishIngredientRecord {
+  itemId: string;
+  name: string;
+  /** The order the cook listed it in. */
+  position: number;
+  qtyMilli: number;
+  /** The unit it was entered in. */
+  unit: string;
+  costMinor: number;
+  /** The group pantry it came from; null for the cook's own. */
+  orgId: string | null;
+  /** Who bought the item (`usr_…`). */
+  paidBy: string;
+  /** The `use` transaction that charged the cook for it; null when nobody else paid for it. */
+  useTxnId: string | null;
+}
+
+/** A dish as stored, with its ingredients in the cook's order. */
+export interface KitchenDishRecord {
+  id: string;
+  /** Who cooked it (`usr_…`). */
+  cook: string;
+  /** The group it is shared with; null for just the cook. */
+  orgId: string | null;
+  name: string;
+  /** Portions × 2. */
+  portionsHalf: number;
+  extrasMinor: number;
+  ingredientsMinor: number;
+  /** ingredientsMinor + extrasMinor. */
+  totalMinor: number;
+  currency: string;
+  splitMode: KitchenDishSplitMode;
+  state: KitchenDishState;
+  /** The dish transaction once finalized (CP-16). */
+  txnId: string | null;
+  leftoverItemId: string | null;
+  cookedAt: Date;
+  finalizedAt: Date | null;
+  canceledAt: Date | null;
+  idemKey: string;
+  createdAt: Date;
+  updatedAt: Date;
+  ingredients: KitchenDishIngredientRecord[];
+}
+
+/** One item to take for a dish, as the cook read it: how much, and what it costs. */
+export interface CookIngredient {
+  /** Its pantry: the cook's own, or a group's. */
+  owner: KitchenPantryOwner;
+  itemId: Uuid;
+  /** The version its cost was computed from: the take applies only at it (`stale` otherwise). */
+  expectedVersion: number;
+  qtyMilli: number;
+  /** The unit it was entered in. */
+  unit: string;
+  costMinor: number;
+  /** Who bought it (`usr_…`). */
+  paidBy: string;
+  /** The transaction (one of `CookDishInput.txns`) that charges the cook for it; null when none does. */
+  useTxnId: Uuid | null;
+  /** The id of the `dish` stock move that takes it. */
+  moveId: Uuid;
+}
+
+/**
+ * Cook a dish in ONE batch: pin the shared group's currency (when it has no
+ * settings row), one `use` transaction per source group with its splits, the
+ * dish (in the shared group's currency only), the "just bought it" items, then
+ * for every ingredient its `dish` stock move (guarded at `expectedVersion`),
+ * the item's update and the ingredient row, then the audit events. The dish's
+ * `ingredientsMinor` is Σ the ingredients' costs and its total that plus the
+ * extras. Refusals write nothing: an ingredient that moved on is `stale` (plan
+ * again), one without that much left `ingredient_short`, a group counting in
+ * another currency `currency_mismatch`. A repeated idempotency key for the
+ * cook writes nothing and answers the dish it made (`replayed: true`).
+ */
+export interface CookDishInput {
+  dish: {
+    id: Uuid;
+    cook: string;
+    orgId: Uuid | null;
+    name: string;
+    portionsHalf: number;
+    extrasMinor: number;
+    currency: string;
+    splitMode: KitchenDishSplitMode;
+    state: Extract<KitchenDishState, "draft" | "open">;
+    /** The request's Idempotency-Key (or one minted for it); unique per cook. */
+    idemKey: string;
+    /** Written as cooked_at, created_at and updated_at, and on every move. */
+    now: Date;
+  };
+  /** Bought just now: added to the cook's own pantry before any of it is taken (each is also an ingredient, at version 1). */
+  newItems: readonly NewKitchenItem[];
+  /** Every ingredient, in the cook's order. */
+  ingredients: readonly CookIngredient[];
+  /** One `use` transaction per source group whose buyers are owed something. */
+  txns: readonly { txn: NewKitchenTxn; splits: readonly KitchenSplit[] }[];
+  /** The audit events, one per group the dish touches. */
+  audits: readonly AppendEventWithAuditInput[];
+}
+
+export interface CookedDish {
+  dish: KitchenDishRecord;
+  /** True when the cook's idempotency key had already made this dish: nothing was written. */
+  replayed: boolean;
+}
+
+/** Which dishes a read covers: those `cook` cooked (when set), and those shared with these groups. */
+export interface KitchenDishScope {
+  cook: string | null;
+  /** Group UUIDs. Any number: they bind as one JSON parameter. */
+  orgIds: readonly string[];
+}
+
+/** Keyset position in a list of dishes (newest first). */
+export interface KitchenDishesCursor {
+  cookedAt: string;
+  id: string;
+}
+
+export interface KitchenDishesQuery extends KitchenDishScope {
+  state: KitchenDishState | null;
+  cursor: KitchenDishesCursor | null;
+  limit: number;
+}
+
+export interface KitchenDishesPage {
+  dishes: KitchenDishRecord[];
+  nextCursor: KitchenDishesCursor | null;
+}
+
+/**
+ * Cancel a dish that is not finalized, in ONE batch: the dish becomes
+ * `canceled` (a dish finalized or canceled in the meantime is
+ * `dish_not_open`, and nothing is written); each `use` transaction that
+ * charged the cook gets its reversal, and every ingredient its quantity and
+ * cost back (a `reversal` stock move each, carrying the reversal's id when it
+ * had a transaction); then the audit events.
+ */
+export interface CancelDishInput {
+  /** The dish as the caller read it. */
+  dish: KitchenDishRecord;
+  /** Who cancels it (`usr_…`): its cook. */
+  actor: string;
+  now: Date;
+  audits: readonly AppendEventWithAuditInput[];
 }

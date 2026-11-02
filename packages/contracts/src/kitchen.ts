@@ -73,9 +73,12 @@ export const KITCHEN_ERROR_REASONS = {
   HAS_TRANSACTION: "has_transaction",
   /**
    * 409 `conflict`: this cannot be undone — a transfer, an undo, or the
-   * reversal of a use or waste (log the use again instead).
+   * reversal of a use or waste (log the use again instead), or a transaction
+   * a dish posted (cancel the dish instead: `details.dishId`).
    */
   NOT_REVERSIBLE: "not_reversible",
+  /** 409 `conflict`: the dish is finalized (`details.state`), so it can no longer be canceled. */
+  DISH_NOT_OPEN: "dish_not_open",
 } as const;
 
 export type KitchenErrorReason = (typeof KITCHEN_ERROR_REASONS)[keyof typeof KITCHEN_ERROR_REASONS];
@@ -853,3 +856,177 @@ export interface UsualsQuery {
 export interface UsualsResponse {
   usuals: KitchenUsual[];
 }
+
+// ── Dishes (CP-14) ──────────────────────────────────────────
+//
+// A cook makes one dish from their own pantry and any group pantry where they
+// hold `kitchen.item.use`, adding what they just bought inline. Cooking takes
+// every ingredient's quantity out of its pantry (a `dish` stock move) and, in
+// each source group, posts one `use` transaction in which every buyer is paid
+// back what their items cost and the cook owes it all — all in one write.
+// Ingredients the cook paid for themselves (their own pantry, their own
+// purchases in a group) move no money. Every ingredient — and the shared
+// group, if any — must count in one currency. Sharing the dish out among its
+// eaters (claims, shares, finalize) arrives with CP-16.
+
+/**
+ * draft: assign mode, the cook alone decides the shares; open: claims mode,
+ * the group's members claim portions; finalized: the dish transaction posted;
+ * canceled: every ingredient put back and its charges reversed.
+ */
+export const DISH_STATES = ["draft", "open", "finalized", "canceled"] as const;
+export type KitchenDishState = (typeof DISH_STATES)[number];
+
+/** assign: the cook sets each eater's share; claims: the group's members claim portions (needs a group). */
+export const DISH_SPLIT_MODES = ["assign", "claims"] as const;
+export type DishSplitMode = (typeof DISH_SPLIT_MODES)[number];
+
+/** The most ingredients one dish takes (existing items and just-bought ones together): one write holds them all. */
+export const MAX_DISH_INGREDIENTS = 30;
+
+/** An item from a pantry the cook can use: `quantity` in `unit` (default: the item's own), which must measure what it does. */
+export interface CookIngredientRequest {
+  /** `itm_…` */
+  itemId: string;
+  quantity: string | number;
+  unit?: string;
+}
+
+/**
+ * Just bought it: added to the cook's own pantry, paid by them, in the dish's
+ * currency, and `useQuantity` of it (in `useUnit`, default `unit`; default all
+ * of it) goes into the dish — in the same write.
+ */
+export interface CookNewItemRequest {
+  name: string;
+  /** Default "Other". */
+  category?: string;
+  quantity: string | number;
+  unit: string;
+  priceMinor: number;
+  expiresOn?: string | null;
+  useQuantity?: string | number;
+  useUnit?: string;
+}
+
+/**
+ * POST /v1/kitchen/me/dishes — cook. `orgId` (the group it is shared with;
+ * null or absent for just the cook) needs `kitchen.dish.cook` there (the
+ * opaque 404 otherwise); `claims` needs a group. Every ingredient must be in
+ * the cook's own pantry or a group where they hold `kitchen.item.use` (404
+ * otherwise), with that much left (409 `insufficient_stock`, `details.itemId`
+ * and `qtyLeftMilli`), all in one currency — the shared group's, when there
+ * is one (422 `currency_mismatch`, `details.currency` and `itemIds`). At least
+ * one ingredient or new item, at most MAX_DISH_INGREDIENTS together. A refusal
+ * writes nothing.
+ */
+export interface CookDishRequest {
+  name: string;
+  /** `org_…`, or null for just the cook. */
+  orgId?: string | null;
+  /** Portions × 2 (half portions are allowed); above zero. */
+  portionsHalf: number;
+  /** Gas, spices and the like, paid by the cook. Default 0. */
+  extrasMinor?: number;
+  splitMode: DishSplitMode;
+  ingredients?: CookIngredientRequest[];
+  newItems?: CookNewItemRequest[];
+}
+
+export interface KitchenDishIngredient {
+  /** `itm_…` */
+  itemId: string;
+  /** The item's name now. */
+  name: string;
+  /** The group pantry it came from (`org_…`); null for the cook's own pantry. */
+  orgId: string | null;
+  /** Who bought it (`usr_…`). */
+  paidBy: string;
+  qtyMilli: number;
+  /** The same quantity in `unit`, the unit it was entered in. */
+  quantity: number;
+  unit: string;
+  /** What it cost: proportional to its price, the last of an item taking what is left of the price. */
+  costMinor: number;
+  /** The `use` transaction (`txn_…`) that charged the cook for it; null when nobody else paid for it. */
+  useTxnId: string | null;
+}
+
+/** What the cook owes one buyer in one group for the ingredients they took. */
+export interface DishOwed {
+  /** `org_…` */
+  orgId: string;
+  /** `usr_…` */
+  buyerId: string;
+  amountMinor: number;
+}
+
+export interface KitchenDish {
+  /** `dsh_…` */
+  id: string;
+  /** `usr_…` */
+  cook: string;
+  /** The group it is shared with (`org_…`); null for just the cook. */
+  orgId: string | null;
+  name: string;
+  portionsHalf: number;
+  /** portionsHalf / 2. */
+  portions: number;
+  extrasMinor: number;
+  /** Σ the ingredients' costs. */
+  ingredientsMinor: number;
+  /** ingredientsMinor + extrasMinor. */
+  totalMinor: number;
+  currency: string;
+  splitMode: DishSplitMode;
+  state: KitchenDishState;
+  /** The dish transaction once finalized (`txn_…`). */
+  txnId: string | null;
+  /** The leftovers, as an item (`itm_…`). */
+  leftoverItemId: string | null;
+  cookedAt: string;
+  finalizedAt: string | null;
+  canceledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** In the order the cook listed them (existing items, then the ones just bought). */
+  ingredients: KitchenDishIngredient[];
+  /** What the cook paid for themselves: their own pantry, and their own purchases in a group. */
+  fromMineMinor: number;
+  /** What the cook owes, per group and buyer, in the order the ingredients name them. fromMineMinor + Σ owes = ingredientsMinor. */
+  owes: DishOwed[];
+}
+
+/** 201 from POST /v1/kitchen/me/dishes; 200 from GET …/dishes/{dsh} and POST …/dishes/{dsh}/cancel. */
+export interface DishResponse {
+  dish: KitchenDish;
+}
+
+export type CookDishResponse = DishResponse;
+export type CancelDishResponse = DishResponse;
+
+/**
+ * GET /v1/kitchen/me/dishes (dishes the caller cooked, or shared with a group
+ * they are in) and GET /v1/organizations/{org}/kitchen/dishes
+ * (`kitchen.pantry.read`: the dishes shared with the group). Newest first.
+ */
+export interface DishesQuery {
+  state?: KitchenDishState;
+  cursor?: string;
+  /** 1–100, default 25. */
+  limit?: number;
+}
+
+export interface DishesPage {
+  dishes: KitchenDish[];
+  /** Pass back as `cursor` for the next page; null on the last one. */
+  nextCursor: string | null;
+}
+
+/*
+ * GET  /v1/kitchen/me/dishes/{dsh}          its cook, or a member of its group (the opaque 404 otherwise)
+ * POST /v1/kitchen/me/dishes/{dsh}/cancel   its cook (403 `not_creator` for a member), while not finalized
+ *   (409 `dish_not_open`): every `use` transaction it posted is reversed and every
+ *   ingredient's quantity and cost come back, in one write; the dish reads
+ *   `canceled`. Cancelling a canceled dish answers it as it is.
+ */

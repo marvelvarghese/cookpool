@@ -35,6 +35,12 @@ import type {
   SettlePlan,
   UpdateKitchenSettingsRequest,
   UpdateKitchenSettingsResponse,
+  CancelDishResponse,
+  CookDishRequest,
+  CookDishResponse,
+  DishResponse,
+  DishesPage,
+  DishesQuery,
   GroupMembersResponse,
   MyBalancesResponse,
   PersonViewResponse,
@@ -485,6 +491,73 @@ export class KitchenClient {
   usuals(query: UsualsQuery = {}, opts: RequestOptions = {}): Promise<UsualsResponse> {
     return this.transport.request<UsualsResponse>(
       { method: "GET", path: this.mePath("usuals"), query: { limit: query.limit } },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Dishes (CP-14)
+  //
+  // A dish takes ingredients from the caller's own pantry and any group
+  // pantry they may use, charging them each buyer's share in that group.
+  // POSTs take `opts.idempotencyKey`: the same key twice cooks once.
+  // -------------------------------------------------------------------------
+
+  /**
+   * POST /v1/kitchen/me/dishes
+   *
+   * Cook: every ingredient's stock comes out and the cook owes each buyer in
+   * their group, in one write. An ingredient the caller may not use is a
+   * `NotFoundError`; not that much left a `ConflictError` with `reason:
+   * "insufficient_stock"`; another currency a `ValidationError` with
+   * `reason: "currency_mismatch"`. Nothing is written on any refusal.
+   */
+  cookDish(body: CookDishRequest, opts: RequestOptions = {}): Promise<CookDishResponse> {
+    return this.transport.request<CookDishResponse>({ method: "POST", path: this.mePath("dishes"), body }, opts);
+  }
+
+  /** GET /v1/kitchen/me/dishes — dishes the caller cooked or that are shared with their groups, newest first. */
+  myDishes(query: DishesQuery = {}, opts: RequestOptions = {}): Promise<DishesPage> {
+    return this.transport.request<DishesPage>(
+      {
+        method: "GET",
+        path: this.mePath("dishes"),
+        query: { state: query.state, cursor: query.cursor, limit: query.limit },
+      },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/me/dishes/:dishId — its cook, or a member of its group. */
+  getDish(dishId: string, opts: RequestOptions = {}): Promise<DishResponse> {
+    return this.transport.request<DishResponse>(
+      { method: "GET", path: this.mePath(`dishes/${encodeURIComponent(dishId)}`) },
+      opts,
+    );
+  }
+
+  /** GET /v1/organizations/:orgId/kitchen/dishes — the dishes shared with one group, newest first. */
+  groupDishes(orgId: string, query: DishesQuery = {}, opts: RequestOptions = {}): Promise<DishesPage> {
+    return this.transport.request<DishesPage>(
+      {
+        method: "GET",
+        path: this.groupPath(orgId, "dishes"),
+        query: { state: query.state, cursor: query.cursor, limit: query.limit },
+      },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/kitchen/me/dishes/:dishId/cancel
+   *
+   * Its cook, while it is not finalized (`ConflictError`, `reason:
+   * "dish_not_open"`): every ingredient goes back and its charges are
+   * reversed, in one write.
+   */
+  cancelDish(dishId: string, opts: RequestOptions = {}): Promise<CancelDishResponse> {
+    return this.transport.request<CancelDishResponse>(
+      { method: "POST", path: this.mePath(`dishes/${encodeURIComponent(dishId)}/cancel`), body: {} },
       opts,
     );
   }

@@ -391,6 +391,19 @@ export type {
   KitchenUsual,
   UsualsQuery,
   UsualsResponse,
+  KitchenDishState,
+  DishSplitMode,
+  CookIngredientRequest,
+  CookNewItemRequest,
+  CookDishRequest,
+  KitchenDishIngredient,
+  DishOwed,
+  KitchenDish,
+  DishResponse,
+  CookDishResponse,
+  CancelDishResponse,
+  DishesQuery,
+  DishesPage,
 } from "@saas/contracts/kitchen";
 
 export {
@@ -409,6 +422,9 @@ export {
   USE_SOON_DAYS,
   STOCK_MOVE_KINDS,
   USUALS_DAYS,
+  DISH_STATES,
+  DISH_SPLIT_MODES,
+  MAX_DISH_INGREDIENTS,
 } from "@saas/contracts/kitchen";
 
 // People across groups (Cookpool CP-9).
