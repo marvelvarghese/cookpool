@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-5
+  title: "The Cookpool sign-in page"
+spec:
+  goal: Signing in to Cookpool happens on its own phone-first page, with Google when it is switched on or a 6-digit code, clear messages for every refusal, a join link that shows its group and comes back joined, and no developer controls outside local and dev.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-5.TaskContract.yaml
+  doneWhen:
+    - /login is the Cookpool page on phone and desktop, with start, code, wrong, spent, expired and rate-limited states
+    - from a join link a new person signs in and lands in the group, joined
+    - a signed-out visit to a kitchen page returns to it after sign-in, with a signed-out notice
+    - no Bearer-token box or debug code on stage or prod builds, except test codes for cookpool.test on stage
+  gates: []

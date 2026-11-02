@@ -41,6 +41,12 @@ interface SessionCtx {
   availableTargets: ApiTarget[];
   isLocked: boolean;
   deployEnv: string | undefined;
+  /**
+   * Be told when the API refuses the current token with a 401 (Cookpool
+   * SI-5): the session has ended. Returns the unsubscribe. A 401 for a token
+   * that has since been replaced is not reported.
+   */
+  onUnauthorized: (listener: () => void) => () => void;
 }
 
 const Ctx = React.createContext<SessionCtx | null>(null);
@@ -63,7 +69,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   });
   const [token, setTokenState] = React.useState<string | null>(() => readStoredToken());
 
-  const client = React.useMemo(() => createClient(target, token), [target, token]);
+  // 401s are reported only while the token that drew them is still the
+  // current one, so a late answer to a replaced token cannot end a new session.
+  const tokenRef = React.useRef(token);
+  tokenRef.current = token;
+  const listeners = React.useRef(new Set<() => void>());
+  const onUnauthorized = React.useCallback((listener: () => void) => {
+    listeners.current.add(listener);
+    return () => {
+      listeners.current.delete(listener);
+    };
+  }, []);
+
+  const client = React.useMemo(
+    () =>
+      createClient(target, token, () => {
+        if (!token || tokenRef.current !== token) return;
+        for (const listener of [...listeners.current]) listener();
+      }),
+    [target, token],
+  );
 
   const setToken = React.useCallback((t: string | null) => {
     setTokenState(t);
@@ -98,8 +123,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       availableTargets: apiTargets(),
       isLocked: isLocked(),
       deployEnv: deployEnv(),
+      onUnauthorized,
     }),
-    [client, target, token, setToken, setTarget],
+    [client, target, token, setToken, setTarget, onUnauthorized],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

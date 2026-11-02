@@ -36,3 +36,56 @@ export function takeLoginNext(): string | null {
     return null;
   }
 }
+
+/*
+ * Join after sign-in (Cookpool SI-5). A join link sends a signed-out person
+ * to sign-in, which shows the group's card; once they sign in, the join page
+ * joins at once and opens the group instead of asking for one more tap.
+ *
+ * That shortcut is only for someone who saw the card, so it is not a URL
+ * flag (any link could carry one and join a signed-in person to a group
+ * without asking). The sign-in page records the code in this tab's
+ * sessionStorage when it sends the person on; the join page reads it once,
+ * for that code only, within the time below.
+ */
+
+const joinKey = (): string => `${appConfig().storagePrefix}.join-after-sign-in`;
+
+/** Long enough for an emailed code or a Google round trip; short enough not to linger. */
+export const JOIN_AFTER_SIGN_IN_TTL_MS = 30 * 60_000;
+
+export function rememberJoinAfterSignIn(code: string, now: number = Date.now()): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(joinKey(), JSON.stringify({ code, at: now }));
+  } catch {
+    /* ignore: the join page then asks for its usual tap */
+  }
+}
+
+/** Whether the sign-in page asked for `code` to be joined. A read only: clear it with `clearJoinAfterSignIn`. */
+export function joinAfterSignInPending(code: string, now: number = Date.now()): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.sessionStorage.getItem(joinKey());
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { code?: unknown; at?: unknown };
+    return (
+      parsed.code === code &&
+      typeof parsed.at === "number" &&
+      now - parsed.at >= 0 &&
+      now - parsed.at <= JOIN_AFTER_SIGN_IN_TTL_MS
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function clearJoinAfterSignIn(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(joinKey());
+  } catch {
+    /* ignore */
+  }
+}

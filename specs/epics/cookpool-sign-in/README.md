@@ -8,7 +8,7 @@ It is for everyone who opens Cookpool, on a phone first. Most will arrive from a
 
 | Field | Value |
 |-------|-------|
-| Status | In progress — SI0 shipped; SI1 next |
+| Status | In progress — SI0 and SI2 shipped; SI1 waits on Google (SI-3) |
 | Cluster | **SI** (SI0–SI3) |
 | Owner(s) | `apps/identity-worker` (codes, sessions, Google) · `apps/membership-worker` + `apps/api-edge` (the signed-out join preview) · `apps/web-console-next` (the sign-in page, first run, You) |
 | Builds on | `cookpool-kitchen` (shipped 2026-11-02) and the `cirrus` baseline's identity: email codes, Google and GitHub sign-in, 30-day sessions, the edge rate limiter |

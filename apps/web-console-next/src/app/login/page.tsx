@@ -1,270 +1,458 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { z } from "zod";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useSession } from "@/lib/session";
-import { nextParamFrom, postLoginDestination } from "@/lib/safe-next";
-import { rememberLoginNext } from "@/lib/login-return";
-import { wrap } from "@/lib/api";
-import { consoleTitle } from "@/lib/app-config";
-import { useToast } from "@/components/ui/toast";
-import { ZodForm } from "@/components/ui/zod-form";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import type { OAuthProviderInfo } from "@saas/contracts/auth";
-
-const emailSchema = z.object({
-  email: z.string().email("Enter a valid email"),
-});
-
-const PROVIDER_ICONS: Record<string, React.ReactNode> = {
-  github: (
-    <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4" fill="currentColor">
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
-    </svg>
-  ),
-  google: (
-    <svg viewBox="0 0 18 18" aria-hidden="true" className="h-4 w-4">
-      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
-      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z" />
-      <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z" />
-      <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 9 0 9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z" />
-    </svg>
-  ),
-};
+import type { JoinPreviewPublic } from "@saas/contracts/membership";
+import { cn } from "@/lib/cn";
+import { wrap } from "@/lib/api";
+import { useSession } from "@/lib/session";
+import { postLoginDestination, signedOutFrom } from "@/lib/safe-next";
+import { rememberJoinAfterSignIn, rememberLoginNext } from "@/lib/login-return";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
+import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
+import {
+  CODE_LENGTH,
+  CODE_LIFETIME_MINUTES,
+  CODE_REPLACED_NOTICE,
+  DESKTOP_SUBTITLE,
+  INITIAL_SIGN_IN,
+  INVALID_EMAIL_NOTICE,
+  SIGNED_OUT_NOTICE,
+  START_SUBTITLE,
+  TERMS_SENTENCE,
+  canVerify,
+  completeOutcome,
+  desktopTitle,
+  isCodeComplete,
+  joinCard,
+  joinCodeFromNext,
+  looksLikeEmail,
+  oauthReturnTo,
+  offersGoogle,
+  replacementRefusedNotice,
+  resendControl,
+  sanitizeCode,
+  showsDeveloperSignIn,
+  signInEnvironment,
+  signInReducer,
+  startHeadline,
+  startRefusal,
+  termsLine,
+  testCodeFor,
+  type SignInEnvironment,
+} from "@/components/kitchen/sign-in";
+import {
+  DeveloperSignIn,
+  GoogleButton,
+  JoinCardSkeleton,
+  JoinCardView,
+  NoticeBox,
+  OrDivider,
+  PitchPanel,
+  SIGN_IN_INPUT,
+  SIGN_IN_PRIMARY,
+  SIGN_IN_PRIMARY_IDLE,
+  SignInMark,
+} from "@/components/kitchen/sign-in-ui";
 
 /**
- * Where sign-in lands: the page's `?next=` when it is a same-origin path (a
- * join link sends people here and expects them back), else Cookpool's Home
- * (CP-5). Read at call time, client only.
+ * Sign-in (Cookpool SI-5, design §5): one page for Cookpool and the admin
+ * console, phone first (`SignIn`), with the green panel beside the form from
+ * 900px (`WebSignIn`). Continue with Google when the API lists it, or a
+ * 6-digit code by email — the same step whether you are new or coming back.
+ *
+ * `?next=` (a same-origin path, `safeNextPath`) is where sign-in returns; a
+ * join link (`/join/{code}`) also shows its group from the signed-out preview
+ * (SI-4) and comes back already joined. `?expired=1` says the session ended.
+ * The Bearer-token form and the API picker sit behind "Developer sign-in" on
+ * local and dev only; a code on screen appears only off prod (stage: only for
+ * `@cookpool.test`). The token is stored exactly as before: `setToken`.
  */
-function readNext(): string | null {
-  return typeof window === "undefined" ? null : nextParamFrom(window.location.search);
-}
+
+type JoinLookup =
+  | { state: "none" }
+  | { state: "loading" }
+  | { state: "found"; preview: JoinPreviewPublic }
+  | { state: "missing" };
 
 export default function LoginPage() {
+  useKitchenBodyTheme();
   const router = useRouter();
-  const { client, target, availableTargets, setTarget, setToken, isLocked } = useSession();
-  const { toast } = useToast();
-  const [stage, setStage] = React.useState<"email" | "code">("email");
-  const [challengeId, setChallengeId] = React.useState<string | null>(null);
-  const [emailHint, setEmailHint] = React.useState<string>("");
-  const [debugCode, setDebugCode] = React.useState<string | null>(null);
-  const [code, setCode] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [tokenInput, setTokenInput] = React.useState("");
-  const [oauthProviders, setOauthProviders] = React.useState<OAuthProviderInfo[]>([]);
+  const params = useSearchParams();
+  const rawNext = params.get("next");
+  const signedOut = signedOutFrom(params.toString());
+  const joinCode = React.useMemo(() => joinCodeFromNext(rawNext), [rawNext]);
+  const { client, target, availableTargets, setTarget, setToken, isLocked, deployEnv } = useSession();
 
-  // Discover configured OAuth providers so we only render buttons that work.
+  // The sign-in calls need no session; the effects below must not re-run
+  // because signing in replaced the client, so they read it through a ref.
+  const clientRef = React.useRef(client);
+  clientRef.current = client;
+
+  // Where this console runs needs the host, so it is decided after mount;
+  // until then nothing developer-only can show ("prod" fails closed).
+  const [env, setEnv] = React.useState<SignInEnvironment>("prod");
+  React.useEffect(() => {
+    setEnv(signInEnvironment(deployEnv, window.location.hostname));
+  }, [deployEnv]);
+
+  const [providers, setProviders] = React.useState<OAuthProviderInfo[]>([]);
   React.useEffect(() => {
     let cancelled = false;
-    wrap(() => client.auth.listOAuthProviders()).then((r) => {
-      if (!cancelled && r.ok) setOauthProviders(r.data.providers);
+    void wrap(() => clientRef.current.auth.listOAuthProviders()).then((r) => {
+      if (!cancelled && r.ok) setProviders(r.data.providers);
     });
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [target.url]);
 
-  const startOAuth = React.useCallback(
-    (providerId: string) => {
-      if (typeof window === "undefined") return;
-      // The OAuth round trip leaves the app; the callback picks `next` back up.
-      rememberLoginNext(readNext());
-      const returnTo = `${window.location.origin}/auth/callback`;
-      window.location.href = client.auth.oauthStartUrl(providerId, returnTo);
-    },
-    [client],
-  );
+  const [join, setJoin] = React.useState<JoinLookup>(() => (joinCode ? { state: "loading" } : { state: "none" }));
+  React.useEffect(() => {
+    if (!joinCode) {
+      setJoin({ state: "none" });
+      return;
+    }
+    let cancelled = false;
+    setJoin({ state: "loading" });
+    void wrap(() => clientRef.current.memberships.previewJoinPublic(joinCode)).then((r) => {
+      if (cancelled) return;
+      // A 404 (unknown or rotated code) — or any failure — shows nothing special.
+      setJoin(r.ok ? { state: "found", preview: r.data } : { state: "missing" });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [joinCode, target.url]);
+
+  const [state, dispatch] = React.useReducer(signInReducer, INITIAL_SIGN_IN);
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (state.step !== "code") return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [state.step]);
+
+  const emailRef = React.useRef<HTMLInputElement>(null);
+  const codeRef = React.useRef<HTMLInputElement>(null);
+  const moved = React.useRef(false);
+  React.useEffect(() => {
+    // Focus follows the step (not on first load: no keyboard until asked for).
+    if (!moved.current) {
+      moved.current = true;
+      return;
+    }
+    (state.step === "code" ? codeRef : emailRef).current?.focus();
+  }, [state.step]);
+
+  const preview = join.state === "found" ? join.preview : null;
+  const withGoogle = offersGoogle(providers);
+  const [leaving, setLeaving] = React.useState(false);
+
+  /** The join page may join at once only if this person saw the group's card. */
+  const rememberJoin = () => {
+    if (joinCode && join.state === "found") rememberJoinAfterSignIn(joinCode);
+  };
+
+  const signedIn = (token: string) => {
+    setToken(token);
+    rememberJoin();
+    router.replace(postLoginDestination(rawNext));
+  };
+
+  const sendCode = async (mode: "first" | "again" | "replace") => {
+    const email = state.email.trim();
+    if (mode === "first" && !looksLikeEmail(email)) {
+      dispatch({
+        type: "refused",
+        refused: { notice: { tone: "error", text: INVALID_EMAIL_NOTICE }, retryAfterSeconds: null },
+        at: Date.now(),
+      });
+      emailRef.current?.focus();
+      return;
+    }
+    dispatch({ type: "busy", busy: "send" });
+    const r = await wrap(() => client.auth.loginStart({ email }));
+    const at = Date.now();
+    setNow(at);
+    if (r.ok) {
+      dispatch({
+        type: "sent",
+        email,
+        challengeId: r.data.challengeId,
+        testCode: testCodeFor(env, email, r.data.delivery),
+        at,
+        resent: mode !== "first",
+        notice: mode === "replace" ? { tone: "info", text: CODE_REPLACED_NOTICE } : null,
+      });
+      return;
+    }
+    const refused = startRefusal(r.error, r.status);
+    if (mode === "replace") {
+      dispatch({ type: "refused", refused, at, challengeGone: true, notice: replacementRefusedNotice(refused) });
+    } else {
+      dispatch({ type: "refused", refused, at });
+    }
+  };
+
+  const verify = async (code: string) => {
+    const challengeId = state.challengeId;
+    if (!challengeId || !isCodeComplete(code)) return;
+    dispatch({ type: "busy", busy: "verify" });
+    const r = await wrap(() => client.auth.loginComplete({ challengeId, code }));
+    if (r.ok) {
+      signedIn(r.data.token);
+      return;
+    }
+    const outcome = completeOutcome(r.error, r.status);
+    if (outcome.kind === "wrong") {
+      dispatch({ type: "wrong", code, notice: outcome.notice });
+      // Typing the next digit replaces the refused code.
+      window.requestAnimationFrame(() => {
+        codeRef.current?.focus();
+        codeRef.current?.select();
+      });
+      return;
+    }
+    if (outcome.kind === "new_code") {
+      // Spent, expired or used: a new code goes out at once (design §5). If
+      // that is refused too (the address's 15-minute limit), the page says so.
+      await sendCode("replace");
+      return;
+    }
+    dispatch({ type: "refused", refused: outcome, at: Date.now() });
+  };
+
+  const onCodeInput = (raw: string) => {
+    const code = sanitizeCode(raw);
+    dispatch({ type: "code", value: code });
+    // A full code signs in by itself, once per code typed.
+    if (isCodeComplete(code) && code !== state.rejectedCode && state.busy === null && state.challengeId) {
+      void verify(code);
+    }
+  };
+
+  const startGoogle = () => {
+    setLeaving(true);
+    // The round trip leaves the app: `next` rides in the returnTo and, as
+    // before, in this tab's storage; the callback re-checks whichever it reads.
+    rememberLoginNext(rawNext);
+    rememberJoin();
+    window.location.href = client.auth.oauthStartUrl("google", oauthReturnTo(window.location.origin, rawNext));
+  };
+
+  const joinLoading = join.state === "loading";
+  const resend = resendControl(state, now);
+  const wrong = state.rejectedCode !== null && state.code === state.rejectedCode;
+  const ready = canVerify(state);
+  const noticeId = state.notice ? "sign-in-notice" : undefined;
 
   return (
-    <div className="min-h-screen grid place-items-center bg-gradient-to-br from-background via-background to-primary/5 px-4">
-      <div className="w-full max-w-md space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-primary/40 grid place-items-center text-primary-foreground font-bold">
-            S
-          </div>
-          <div>
-            <div className="text-base font-semibold tracking-tight">{consoleTitle()}</div>
-            <div className="text-xs text-muted-foreground">
-              {isLocked ? `locked to ${target.name}` : `target: ${target.name}`}
-            </div>
-          </div>
-        </div>
+    <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
+      <PitchPanel className="hidden min-[900px]:flex" />
 
-        <Card className="animate-fade-in">
-          <CardHeader>
-            <CardTitle>Sign in</CardTitle>
-            <CardDescription>Use email code or paste a bearer token for prod testing.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {oauthProviders.length > 0 && (
-              <div className="space-y-2 pb-4">
-                {oauthProviders.map((p) => (
-                  <Button
-                    key={p.id}
-                    variant="outline"
-                    className="w-full gap-2"
-                    onClick={() => startOAuth(p.id)}
-                  >
-                    {PROVIDER_ICONS[p.id] ?? null}
-                    Continue with {p.displayName}
-                  </Button>
-                ))}
-                <div className="relative py-1">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center">
-                    <span className="bg-card px-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                      or
-                    </span>
-                  </div>
+      <main
+        className={cn(
+          "flex justify-center px-5 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+1.25rem)]",
+          "min-[900px]:flex-[1_1_420px] min-[900px]:items-center min-[900px]:px-6 min-[900px]:py-10",
+        )}
+      >
+        <div className="flex w-full max-w-md flex-col gap-4 min-[900px]:max-w-[26rem] min-[900px]:gap-[18px]">
+          <SignInMark className="min-[900px]:hidden" />
+
+          {signedOut ? <NoticeBox notice={{ tone: "info", text: SIGNED_OUT_NOTICE }} /> : null}
+
+          {joinLoading ? <JoinCardSkeleton /> : preview ? <JoinCardView card={joinCard(preview)} /> : null}
+
+          {state.step === "start" ? (
+            <section aria-labelledby="sign-in-title" className="flex flex-col gap-4 min-[900px]:gap-[18px]">
+              {joinLoading ? (
+                <div aria-hidden className="space-y-2 px-0.5 pt-1.5">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-2/3" />
+                  <Skeleton className="mt-3 h-4 w-4/5" />
                 </div>
-              </div>
-            )}
-            <Tabs defaultValue="email" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="email">Email code</TabsTrigger>
-                <TabsTrigger value="token">Bearer token</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="email" className="space-y-3 pt-2">
-                {stage === "email" && (
-                  <ZodForm
-                    schema={emailSchema}
-                    defaultValues={{ email: "" }}
-                    fields={[
-                      {
-                        name: "email",
-                        label: "Email",
-                        type: "email",
-                        autoComplete: "email",
-                        placeholder: "you@company.com",
-                      },
-                    ]}
-                    submitLabel="Send code"
-                    onSubmit={async ({ email }) => {
-                      const r = await wrap(() => client.auth.loginStart({ email }));
-                      if (!r.ok) {
-                        toast({ kind: "error", title: "Login failed", description: r.error.message });
-                        return;
-                      }
-                      setChallengeId(r.data.challengeId);
-                      setEmailHint(r.data.delivery.emailHint);
-                      setDebugCode(r.data.delivery.code ?? null);
-                      setStage("code");
-                    }}
-                  />
-                )}
-                {stage === "code" && (
-                  <div className="space-y-3">
-                    <div className="rounded-md border bg-muted/30 p-3 text-xs">
-                      Code sent to <strong>{emailHint}</strong>.
-                      {debugCode && (
-                        <>
-                          {" "}
-                          <span className="text-muted-foreground">debug code:</span>{" "}
-                          <code className="font-mono">{debugCode}</code>
-                        </>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="code">Verification code</Label>
-                      <Input
-                        id="code"
-                        autoComplete="one-time-code"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        placeholder="123456"
-                      />
-                    </div>
-                    <div className="flex justify-between">
-                      <Button variant="ghost" onClick={() => setStage("email")}>
-                        Back
-                      </Button>
-                      <Button
-                        loading={busy}
-                        disabled={code.length < 4}
-                        onClick={async () => {
-                          if (!challengeId) return;
-                          setBusy(true);
-                          const r = await wrap(() =>
-                            client.auth.loginComplete({ challengeId, code }),
-                          );
-                          setBusy(false);
-                          if (!r.ok) {
-                            toast({ kind: "error", title: "Code rejected", description: r.error.message });
-                            return;
-                          }
-                          setToken(r.data.token);
-                          toast({ kind: "success", title: "Signed in" });
-                          router.push(postLoginDestination(readNext()));
-                        }}
-                      >
-                        Sign in
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="token" className="space-y-3 pt-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="bearer">Bearer token</Label>
-                  <Input
-                    id="bearer"
-                    type="password"
-                    placeholder="paste prod token…"
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value)}
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Stored locally only. Use this path for prod parity testing.
+              ) : (
+                <div className="flex flex-col gap-2 px-0.5 pt-1.5 min-[900px]:p-0">
+                  <h1
+                    id="sign-in-title"
+                    className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]"
+                  >
+                    <span className="min-[900px]:hidden">{startHeadline(preview)}</span>
+                    <span className="hidden min-[900px]:inline">{desktopTitle(preview)}</span>
+                  </h1>
+                  <p className="text-[15px] leading-normal text-muted-foreground">
+                    <span className="min-[900px]:hidden">{START_SUBTITLE}</span>
+                    <span className="hidden min-[900px]:inline">{DESKTOP_SUBTITLE}</span>
                   </p>
                 </div>
-                <Button
-                  className="w-full"
-                  disabled={!tokenInput}
-                  onClick={async () => {
-                    setToken(tokenInput);
-                    toast({ kind: "success", title: "Token set" });
-                    router.push(postLoginDestination(readNext()));
-                  }}
-                >
-                  Continue
-                </Button>
-              </TabsContent>
-            </Tabs>
+              )}
 
-            {!isLocked && availableTargets.length > 1 && (
-              <div className="mt-4 border-t pt-3 space-y-1.5">
-                <Label className="text-xs">API target</Label>
-                <div className="flex flex-wrap gap-2">
-                  {availableTargets.map((t) => (
-                    <Button
-                      key={t.name}
-                      size="sm"
-                      variant={t.name === target.name ? "default" : "outline"}
-                      onClick={() => setTarget(t)}
-                    >
-                      {t.name}
-                    </Button>
-                  ))}
+              {withGoogle ? (
+                <>
+                  <GoogleButton onClick={startGoogle} busy={leaving} />
+                  <OrDivider />
+                </>
+              ) : null}
+
+              <form
+                noValidate
+                className="flex flex-col gap-4 min-[900px]:gap-[18px]"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (state.busy === null) void sendCode("first");
+                }}
+              >
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="sign-in-email" className="text-sm font-bold">
+                    Email
+                  </label>
+                  <input
+                    ref={emailRef}
+                    id="sign-in-email"
+                    name="email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="you@example.com"
+                    value={state.email}
+                    onChange={(e) => dispatch({ type: "email", value: e.target.value })}
+                    aria-invalid={state.notice?.tone === "error" || undefined}
+                    aria-describedby={noticeId}
+                    className={SIGN_IN_INPUT}
+                  />
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                {state.notice ? <NoticeBox id={noticeId} notice={state.notice} /> : null}
+                <Button type="submit" loading={state.busy === "send"} className={SIGN_IN_PRIMARY}>
+                  Email me a code
+                </Button>
+              </form>
 
-        <p className="text-center text-[11px] text-muted-foreground">
-          By signing in you agree to the Acceptable Use Policy.
-        </p>
-      </div>
+              <p className="text-[13px] leading-normal text-muted-foreground">
+                <span className="min-[900px]:hidden">{termsLine(withGoogle)}</span>
+                <span className="hidden min-[900px]:inline">{TERMS_SENTENCE}</span>
+              </p>
+            </section>
+          ) : (
+            <section aria-labelledby="code-title" className="flex flex-col gap-4 min-[900px]:gap-[18px]">
+              <button
+                type="button"
+                onClick={() => dispatch({ type: "back" })}
+                className="-ml-1.5 inline-flex min-h-11 items-center gap-1.5 self-start rounded-xl pl-1.5 pr-3 text-sm font-bold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ChevronLeft className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
+                Use a different email
+              </button>
+              <div className="flex flex-col gap-2">
+                <h1
+                  id="code-title"
+                  className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]"
+                >
+                  Check your email
+                </h1>
+                <p className="text-[15px] leading-normal text-muted-foreground">
+                  We sent a {CODE_LENGTH}-digit code to{" "}
+                  <strong className="font-bold text-foreground [overflow-wrap:anywhere]">{state.email}</strong>. It works for{" "}
+                  {CODE_LIFETIME_MINUTES} minutes.
+                </p>
+              </div>
+
+              <form
+                noValidate
+                className="flex flex-col gap-4 min-[900px]:gap-[18px]"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (ready) void verify(state.code);
+                }}
+              >
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="sign-in-code" className="text-sm font-bold">
+                    {CODE_LENGTH}-digit code
+                  </label>
+                  <input
+                    ref={codeRef}
+                    id="sign-in-code"
+                    name="code"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={CODE_LENGTH}
+                    placeholder="••••••"
+                    value={state.code}
+                    disabled={state.challengeId === null}
+                    onChange={(e) => onCodeInput(e.target.value)}
+                    onPaste={(e) => {
+                      // "246 810" or "246-810" is longer than the field allows;
+                      // keep its digits rather than a truncated paste.
+                      const pasted = e.clipboardData.getData("text");
+                      if (sanitizeCode(pasted) !== pasted) {
+                        e.preventDefault();
+                        onCodeInput(pasted);
+                      }
+                    }}
+                    aria-invalid={wrong || undefined}
+                    aria-describedby={noticeId}
+                    className={cn(
+                      "h-16 w-full rounded-2xl bg-card px-3.5 text-center indent-[0.45em] text-[30px] font-bold tracking-[0.45em] tabular-nums text-foreground",
+                      "placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+                      wrong ? "border-2 border-destructive" : "border border-input",
+                    )}
+                  />
+                  {state.testCode ? (
+                    <p className="text-sm text-muted-foreground">
+                      Test code: <span className="font-bold tabular-nums text-foreground">{state.testCode}</span>
+                    </p>
+                  ) : null}
+                </div>
+                {state.notice ? <NoticeBox id={noticeId} notice={state.notice} /> : null}
+                <Button
+                  type="submit"
+                  disabled={!ready}
+                  loading={state.busy === "verify"}
+                  className={cn(SIGN_IN_PRIMARY, !ready && state.busy !== "verify" && SIGN_IN_PRIMARY_IDLE)}
+                >
+                  Sign in
+                </Button>
+              </form>
+
+              <div className="flex flex-col items-start gap-1 text-sm text-muted-foreground">
+                <span>No email? Check your spam folder.</span>
+                <button
+                  type="button"
+                  disabled={resend.disabled}
+                  onClick={() => void sendCode("again")}
+                  className="min-h-11 rounded-lg text-sm font-bold text-primary tabular-nums hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                >
+                  {resend.label}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {showsDeveloperSignIn(env) ? (
+            <DeveloperSignIn
+              targets={availableTargets}
+              target={target.name}
+              locked={isLocked}
+              onTarget={(name) => {
+                const next = availableTargets.find((t) => t.name === name);
+                if (next) setTarget(next);
+              }}
+              onToken={(token) => {
+                setToken(token);
+                router.replace(postLoginDestination(rawNext));
+              }}
+            />
+          ) : null}
+        </div>
+      </main>
     </div>
   );
 }

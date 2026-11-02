@@ -59,14 +59,24 @@ export function postLoginDestination(rawNext: string | null | undefined): string
   return safeNextPath(rawNext) ?? HOME_PATH;
 }
 
+/** The sign-in page's flag for "your session ended" (Cookpool SI-5): `?expired=1`. */
+export const SIGNED_OUT_PARAM = "expired";
+
 /**
  * The sign-in URL that returns to `path` afterwards. A path that is not safe,
- * or is the app root or Home (where sign-in lands anyway), gets plain `/login`.
+ * or is the app root or Home (where sign-in lands anyway), gets no `next`.
+ * `signedOut` (Cookpool SI-5) adds `expired=1`: the person had a session and
+ * the API stopped accepting it, so the page says they were signed out.
  */
-export function loginPathFor(path: string | null | undefined): string {
+export function loginPathFor(
+  path: string | null | undefined,
+  opts: { signedOut?: boolean } = {},
+): string {
   const next = safeNextPath(path);
-  if (!next || next === "/" || next === HOME_PATH) return "/login";
-  return `/login?next=${encodeURIComponent(next)}`;
+  const params: string[] = [];
+  if (next && next !== "/" && next !== HOME_PATH) params.push(`next=${encodeURIComponent(next)}`);
+  if (opts.signedOut) params.push(`${SIGNED_OUT_PARAM}=1`);
+  return params.length > 0 ? `/login?${params.join("&")}` : "/login";
 }
 
 /** The `next` parameter of a query string (`?next=…`), unvalidated. */
@@ -75,5 +85,14 @@ export function nextParamFrom(search: string): string | null {
     return new URLSearchParams(search).get("next");
   } catch {
     return null;
+  }
+}
+
+/** Whether a query string carries the signed-out flag (`?expired=1`). */
+export function signedOutFrom(search: string): boolean {
+  try {
+    return new URLSearchParams(search).get(SIGNED_OUT_PARAM) === "1";
+  } catch {
+    return false;
   }
 }

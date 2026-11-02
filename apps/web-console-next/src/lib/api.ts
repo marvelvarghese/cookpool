@@ -62,10 +62,33 @@ export type ApiResult<T> =
   | { ok: true; data: T; meta: { requestId: string; cursor: string | null } }
   | { ok: false; error: ApiErrorBody; status: number };
 
-export function createClient(target: ApiTarget, token: string | null): Cookpool {
+/**
+ * A `Cookpool` client for `target`, sending `token` when there is one.
+ * `onUnauthorized` (Cookpool SI-5) is told when the API answers 401 to a
+ * request that carried the token — the session has ended (expired, revoked).
+ * Requests sent without a credential (the signed-out join preview) never
+ * report.
+ */
+export function createClient(
+  target: ApiTarget,
+  token: string | null,
+  onUnauthorized?: () => void,
+): Cookpool {
   const opts: ClientOptions = { baseUrl: target.url };
-  if (token) opts.auth = { kind: "bearer", token };
+  if (token) {
+    opts.auth = { kind: "bearer", token };
+    if (onUnauthorized) opts.fetch = reportingUnauthorized(onUnauthorized);
+  }
   return new Cookpool(opts);
+}
+
+function reportingUnauthorized(onUnauthorized: () => void): typeof fetch {
+  return async (input, init) => {
+    // The platform fetch, looked up per call (not bound at construction).
+    const response = await globalThis.fetch(input, init);
+    if (response.status === 401 && new Headers(init?.headers).has("authorization")) onUnauthorized();
+    return response;
+  };
 }
 
 /**

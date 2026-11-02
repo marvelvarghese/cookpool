@@ -9,6 +9,7 @@ import { KitchenSidebar } from "@/components/kitchen/sidebar";
 import { KitchenTabBar } from "@/components/kitchen/tab-bar";
 import { AddSheet } from "@/components/kitchen/add-sheet";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
+import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import { isWideKitchenPage } from "@/components/kitchen/nav";
 
 /**
@@ -20,23 +21,22 @@ import { isWideKitchenPage } from "@/components/kitchen/nav";
  *
  * Every page needs a session: without one the person goes to sign-in and comes
  * back here afterwards (`returnHere`), which is what lets a join link survive
- * signing in. The frame paints at once; pages mount when the session is ready.
+ * signing in. When the API stops accepting the session (a 401 on any request),
+ * the token is cleared and sign-in says "You were signed out" before bringing
+ * the person back (SI-5). The frame paints at once; pages mount when the
+ * session is ready.
  *
  * The palette and font are scoped to this tree (`.cookpool`, light only); the
  * classes also go on <body> while this layout is mounted, so portalled UI —
  * the Add sheet, dialogs, toasts — matches. The admin console is untouched.
  */
 export default function KitchenLayout({ children }: { children: React.ReactNode }) {
-  const ready = useRequireAuth({ returnHere: true });
+  const ready = useRequireAuth({ returnHere: true, signOutOnUnauthorized: true });
   const wide = isWideKitchenPage(usePathname());
   const [addOpen, setAddOpen] = React.useState(false);
   const openAdd = React.useCallback(() => setAddOpen(true), []);
 
-  React.useEffect(() => {
-    const body = document.body;
-    body.classList.add(...KITCHEN_THEME_CLASSES);
-    return () => body.classList.remove(...KITCHEN_THEME_CLASSES);
-  }, []);
+  useKitchenBodyTheme();
 
   return (
     <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>

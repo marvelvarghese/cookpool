@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/cn";
 import { useSession } from "@/lib/session";
-import { postLoginDestination } from "@/lib/safe-next";
+import { loginPathFor, nextParamFrom, postLoginDestination } from "@/lib/safe-next";
 import { takeLoginNext } from "@/lib/login-return";
-import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
+import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
+import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
+import { SignInMark, SIGN_IN_PRIMARY } from "@/components/kitchen/sign-in-ui";
 
 // Human-readable copy for the `error` codes the identity-worker callback may
 // return in the URL fragment.
@@ -24,11 +27,20 @@ const ERROR_COPY: Record<string, string> = {
   server_error: "Something went wrong on our side. Please try again.",
 };
 
+/**
+ * Where Google (or any provider) returns (Cookpool SI-5: in Cookpool's look).
+ * identity-worker redirects to the `returnTo` the sign-in page gave it, with
+ * `#token=…` or `#error=…` in the fragment. `next` comes back in that
+ * returnTo's query (`?next=`), and — as before SI-5 — in this tab's storage;
+ * the query wins, and either is re-checked by `postLoginDestination`, so a
+ * tampered value can only fall back to Home.
+ */
 export default function OAuthCallbackPage() {
+  useKitchenBodyTheme();
   const router = useRouter();
   const { setToken } = useSession();
-  const { toast } = useToast();
   const [error, setError] = React.useState<string | null>(null);
+  const [next, setNext] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -39,41 +51,45 @@ export default function OAuthCallbackPage() {
     const params = new URLSearchParams(raw);
     const token = params.get("token");
     const err = params.get("error");
+    const fromReturnTo = nextParamFrom(window.location.search);
 
-    // Scrub the fragment from the address bar / history so the token does not
-    // linger in the URL.
+    // Scrub the fragment (and the query) from the address bar / history so
+    // the token does not linger in the URL.
     window.history.replaceState(null, "", window.location.pathname);
 
-    // The login page stashed its `?next=` before leaving for the provider.
-    const next = takeLoginNext();
+    // The login page stashed its `?next=` before leaving for the provider;
+    // take it either way, so it is used once.
+    const stashed = takeLoginNext();
+    const destination = fromReturnTo ?? stashed;
 
     if (token) {
       setToken(token);
-      toast({ kind: "success", title: "Signed in" });
-      router.replace(postLoginDestination(next));
+      router.replace(postLoginDestination(destination));
       return;
     }
 
+    setNext(destination);
     setError(err ?? "oauth_failed");
-  }, [router, setToken, toast]);
-
-  if (error) {
-    return (
-      <div className="min-h-screen grid place-items-center px-4">
-        <div className="w-full max-w-md space-y-4 text-center">
-          <h1 className="text-lg font-semibold tracking-tight">Sign-in failed</h1>
-          <p className="text-sm text-muted-foreground">
-            {ERROR_COPY[error] ?? ERROR_COPY.oauth_failed}
-          </p>
-          <Button onClick={() => router.replace("/login")}>Back to sign in</Button>
-        </div>
-      </div>
-    );
-  }
+  }, [router, setToken]);
 
   return (
-    <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">
-      Completing sign-in…
+    <div className={cn(...KITCHEN_THEME_CLASSES, "grid min-h-dvh place-items-center bg-background px-5 text-foreground")}>
+      {error ? (
+        <div className="flex w-full max-w-md flex-col gap-4">
+          <SignInMark />
+          <h1 className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em]">Sign-in didn&apos;t finish</h1>
+          <p role="alert" className="text-[15px] leading-normal text-muted-foreground">
+            {ERROR_COPY[error] ?? ERROR_COPY.oauth_failed}
+          </p>
+          <Button className={cn(SIGN_IN_PRIMARY, "mt-2")} onClick={() => router.replace(loginPathFor(next))}>
+            Back to sign in
+          </Button>
+        </div>
+      ) : (
+        <p role="status" className="text-sm text-muted-foreground">
+          Signing you in…
+        </p>
+      )}
     </div>
   );
 }
