@@ -225,6 +225,11 @@ export interface DishSplitView {
   netting: DishNet[];
 }
 
+/** Half portions held so far: every share by portions (an exact amount holds none). */
+export function claimedHalfOf(shares: readonly Pick<KitchenDishShareRecord, "portionsHalf">[]): number {
+  return shares.reduce((sum, s) => sum + (s.portionsHalf ?? 0), 0);
+}
+
 export function dishSplitView(dish: KitchenDishRecord, viewer: string): DishSplitView {
   const ordered = inSplitOrder(dish.cook, dish.shares);
   const shares = ordered.map((s) => ({
@@ -236,7 +241,7 @@ export function dishSplitView(dish: KitchenDishRecord, viewer: string): DishSpli
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
   }));
-  const claimedHalf = ordered.reduce((sum, s) => sum + (s.portionsHalf ?? 0), 0);
+  const claimedHalf = claimedHalfOf(ordered);
   const myClaimHalf = ordered.find((s) => s.subjectId === viewer)?.portionsHalf ?? 0;
   const base = {
     shares,

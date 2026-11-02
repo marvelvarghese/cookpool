@@ -159,6 +159,16 @@ describe("MembershipsClient", () => {
     const refused = captureFetch(errorResponse("conflict", 409));
     await expect(client(refused.fetch).memberships.leave("org_1")).rejects.toBeInstanceOf(ConflictError);
   });
+
+  it("leave surfaces balance_not_settled as ConflictError with the balance (Cookpool CP-19)", async () => {
+    const details = { reason: "balance_not_settled", balanceMinor: -1250, currency: "INR" };
+    const { fetch } = captureFetch(
+      jsonResponse({ error: { code: "conflict", message: "Settle up first", details, requestId: "req_err" } }, { status: 409 }),
+    );
+    const failure = await client(fetch).memberships.leave("org_1").catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(ConflictError);
+    expect((failure as ConflictError).details).toEqual(details);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1147,6 +1157,19 @@ describe("KitchenClient — using things (Cookpool CP-11)", () => {
         { quantity: "1", consumers: ["usr_x"] },
       ),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe("KitchenClient — Home's inbox (Cookpool CP-19)", () => {
+  it("inbox reads the caller's inbox path", async () => {
+    const inbox = {
+      items: [],
+      counts: { total: 0, claim_dish: 0, finalize_dish: 0, use_soon: 0, payment_due: 0, flag: 0 },
+    };
+    const { fetch, calls } = captureFetch(jsonResponse(envelope(inbox)));
+    expect(await client(fetch).kitchen.inbox()).toEqual(inbox);
+    expect(calls[0]!.url).toBe("https://api.test/v1/kitchen/me/inbox");
+    expect(calls[0]!.init.method).toBe("GET");
   });
 });
 

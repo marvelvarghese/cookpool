@@ -90,6 +90,13 @@ export const KITCHEN_ERROR_REASONS = {
    * request could have had. Nothing was written.
    */
   CLAIMS_EXCEED_PORTIONS: "claims_exceed_portions",
+  /**
+   * 409 `conflict` on POST /v1/organizations/{org}/leave (membership-worker,
+   * CP-19): the caller still owes or is owed money in the group — their
+   * balance there (`details.balanceMinor`, positive when they are owed, in
+   * `details.currency`) is not zero. Settle up, then leave.
+   */
+  BALANCE_NOT_SETTLED: "balance_not_settled",
 } as const;
 
 export type KitchenErrorReason = (typeof KITCHEN_ERROR_REASONS)[keyof typeof KITCHEN_ERROR_REASONS];
@@ -1332,4 +1339,201 @@ export interface LoggedForYouEmail extends KitchenEmailData {
   youPaid: string | null;
   /** The group in the app, where its activity is. */
   groupUrl: string;
+}
+
+// ── The Home inbox (CP-19) ──────────────────────────────────
+//
+// GET /v1/kitchen/me/inbox — everything that needs the caller, in one read,
+// each item carrying what the app needs to draw its card and run its one-tap
+// action without another read:
+//
+//   claim_dish     a dish open for claims in a group where the caller's role
+//                  may claim (`kitchen.dish.claim`), that they did not cook,
+//                  have no share of yet, and that still has portions free —
+//                  PUT …/dishes/{dsh}/claims/me
+//   finalize_dish  the caller's own dish, open (claims) or a draft (assigned),
+//                  in no group or in a group where their role may finalize
+//                  (`kitchen.dish.finalize`) — POST /v1/kitchen/me/dishes/{dsh}/finalize
+//   use_soon       an item the caller may use (their own pantry, or a group
+//                  whose role holds `kitchen.item.use`) with something left and
+//                  a use-by date from INBOX_EXPIRED_DAYS ago to
+//                  INBOX_USE_SOON_DAYS ahead; at most INBOX_USE_SOON_MAX,
+//                  soonest first — POST …/items/{itm}/uses with `usual`
+//   payment_due    a payment the caller owes in a group's settle plan —
+//                  POST …/settlements (when `canRecord`)
+//   flag           an open flag someone else raised on a transaction the
+//                  caller logged, while it is not reversed — POST …/txns/{txn}/reverse
+//                  (or cancel the dish, `dishId`, for a dish's charge)
+//
+// Only groups membership says the caller is in are read, so nothing from a
+// group they cannot see is ever listed.
+//
+// Order: most urgent first, then by time —
+//   1. use_soon whose use-by is today or past (soonest first, then by name)
+//   2. claim_dish (oldest cooked first: it has waited longest)
+//   3. finalize_dish (oldest cooked first)
+//   4. use_soon in the days ahead (soonest first, then by name)
+//   5. payment_due (largest first, then by group name)
+//   6. flag (oldest first)
+
+export const INBOX_KINDS = ["claim_dish", "finalize_dish", "use_soon", "payment_due", "flag"] as const;
+export type InboxKind = (typeof INBOX_KINDS)[number];
+
+/** use_soon looks this many days past today: the daily digest's window ("within two days of use-by"). */
+export const INBOX_USE_SOON_DAYS = USE_SOON_EMAIL_DAYS;
+/** …and this many days back: something just past its date is still worth a look. */
+export const INBOX_EXPIRED_DAYS = 2;
+/** At most this many use_soon items, soonest first. */
+export const INBOX_USE_SOON_MAX = 10;
+
+/** A dish as an inbox card shows it: a claim_dish or a finalize_dish. */
+export interface InboxDish {
+  /** `dsh_…` */
+  id: string;
+  /** The group it is shared with (`org_…`); null for a dish just for its cook. */
+  orgId: string | null;
+  groupName: string | null;
+  groupSlug: string | null;
+  name: string;
+  /** `usr_…` */
+  cook: string;
+  /** The cook's name; null when they have none to show. */
+  cookName: string | null;
+  /** open: claims mode; draft: assigned, waiting for its cook's shares. */
+  state: Extract<KitchenDishState, "draft" | "open">;
+  splitMode: DishSplitMode;
+  /** Portions × 2. */
+  portionsHalf: number;
+  /** Half portions claimed (or assigned) so far. */
+  claimedHalf: number;
+  /** Half portions nobody has yet. */
+  unclaimedHalf: number;
+  /** What one whole portion costs at the dish's price (the engine's largest-remainder share of the total). */
+  perPortionMinor: number;
+  totalMinor: number;
+  currency: string;
+  cookedAt: string;
+}
+
+export interface ClaimDishInboxItem {
+  kind: "claim_dish";
+  dish: InboxDish;
+}
+
+export interface FinalizeDishInboxItem {
+  kind: "finalize_dish";
+  dish: InboxDish;
+}
+
+/** An item close to its use-by date, as a use_soon card shows it. */
+export interface InboxItemSummary {
+  /** `itm_…` */
+  id: string;
+  /** The item page's ref: `me:itm_…` for the caller's own, `org:org_…:itm_…` for a group's. */
+  ref: string;
+  name: string;
+  pantry: PantryRef;
+  /** The group whose pantry it is in; null for the caller's own. */
+  orgId: string | null;
+  qtyLeftMilli: number;
+  /** What is left, in `unit` (three decimals at most). */
+  quantity: number;
+  /** The item's display unit. */
+  unit: string;
+  /** YYYY-MM-DD. */
+  expiresOn: string;
+  /** Days from today (UTC) to the use-by date: negative once it has passed. */
+  daysToUseBy: number;
+  /** Always true here: only items the caller may use are listed. */
+  canUse: boolean;
+}
+
+/** How much the caller used last time (their usuals, CP-11), for a one-tap "use the usual". */
+export interface InboxUsual {
+  /** In `unit`. */
+  quantity: number;
+  unit: string;
+  /** The same amount in thousandths of the item's base unit: compare with `qtyLeftMilli` to see if it still fits. */
+  qtyMilli: number;
+}
+
+export interface UseSoonInboxItem {
+  kind: "use_soon";
+  item: InboxItemSummary;
+  /** Null when the caller has not used it in the last USUALS_DAYS. */
+  usual: InboxUsual | null;
+}
+
+export interface PaymentDueInboxItem {
+  kind: "payment_due";
+  orgId: string;
+  groupName: string;
+  groupSlug: string;
+  /** `usr_…` the plan has the caller pay. */
+  toSubjectId: string;
+  toName: string | null;
+  amountMinor: number;
+  currency: string;
+  /** May the caller record the payment (`kitchen.settlement.create`)? Viewers may not. */
+  canRecord: boolean;
+}
+
+export interface FlagInboxItem {
+  kind: "flag";
+  /** `flg_…` */
+  flagId: string;
+  /** `txn_…`: the caller's transaction. */
+  txnId: string;
+  orgId: string;
+  groupName: string;
+  groupSlug: string;
+  /** The transaction's title. */
+  title: string;
+  txnKind: KitchenTxnKind;
+  totalMinor: number;
+  currency: string;
+  /** For a dish's charge, the dish (`dsh_…`): it is undone by cancelling or correcting the dish, not by a reversal. */
+  dishId: string | null;
+  /** `usr_…` who flagged it. */
+  flaggedBy: string;
+  flaggedByName: string | null;
+  /** What they said (the flag's reason). */
+  reason: string;
+  flaggedAt: string;
+}
+
+export type InboxItem =
+  | ClaimDishInboxItem
+  | FinalizeDishInboxItem
+  | UseSoonInboxItem
+  | PaymentDueInboxItem
+  | FlagInboxItem;
+
+/** How many of each kind `items` lists, and all of them. */
+export type InboxCounts = { total: number } & Record<InboxKind, number>;
+
+export interface InboxResponse {
+  items: InboxItem[];
+  counts: InboxCounts;
+}
+
+// ── A person's balance, service-internal (CP-19) ────────────
+//
+// GET /v1/internal/kitchen/organizations/{org}/subjects/{usr}/balance — for
+// membership-worker only, over its KITCHEN_WORKER service binding: leaving a
+// group is refused while this is not zero (`balance_not_settled`). The caller
+// names itself in KITCHEN_INTERNAL_ACTOR_HEADER; anyone else gets the plain
+// "route not found". api-edge does not route /v1/internal/…, and
+// kitchen-worker has no public URL. `{org}` is the `org_…` id (or the UUID).
+
+export const KITCHEN_INTERNAL_ACTOR_HEADER = "x-internal-actor";
+/** The workers that may call kitchen-worker's internal routes. */
+export const KITCHEN_INTERNAL_ACTORS = ["membership-worker"] as const;
+export type KitchenInternalActor = (typeof KITCHEN_INTERNAL_ACTORS)[number];
+
+export interface SubjectBalanceResponse {
+  /** Σ paid − Σ owed over the group's whole ledger: positive, they are owed; negative, they owe; 0 for no money at all. */
+  balanceMinor: number;
+  /** The group's currency (INR until its settings are first saved). */
+  currency: string;
 }

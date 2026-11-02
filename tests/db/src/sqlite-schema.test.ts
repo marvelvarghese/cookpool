@@ -1034,6 +1034,87 @@ describe("kitchen ledger, against a real SQLite engine", () => {
     expect(missing).toEqual({ ok: false, error: { kind: "not_found" } });
   });
 
+  // CP-19's inbox: every open flag on someone's transactions across their
+  // groups, in one read.
+  it("lists the open flags others raised on someone's transactions, oldest first, in one read", async () => {
+    const repo = createKitchenRepository(executor);
+    const post = async (overrides: Partial<NewKitchenTxn> = {}) => {
+      const txn = newTxn(overrides);
+      const posted = await repo.postTxn({ txn, splits: dinnerSplits });
+      if (!posted.ok) throw new Error("not posted");
+      return txn;
+    };
+    let flagSeq = 0;
+    const flag = async (txn: NewKitchenTxn, subjectId: string, reason = "Not me") => {
+      flagSeq += 1;
+      const id = asUuid(randomUUID());
+      const created = await repo.createFlag({
+        id, txnId: txn.id, orgId: txn.orgId, subjectId, reason, idemKey: `flag-${flagSeq}`,
+        now: new Date(now.getTime() + flagSeq * 1000),
+      });
+      if (!created.ok) throw new Error("not flagged");
+      return id;
+    };
+
+    const dinner = await post({ title: "Dinner" });
+    const groceries = await post({ title: "Groceries", totalMinor: 900 });
+    const own = await post({ title: "Own entry" });
+    const undone = await post({ title: "Undone" });
+    const anus = await post({ title: "Anu's", createdBy: "usr_anu" });
+    const elsewhere = await post({ title: "Elsewhere", orgId: otherOrgId });
+
+    const anuOnDinner = await flag(dinner, "usr_anu", "I wasn't there");
+    const devOnGroceries = await flag(groceries, "usr_dev");
+    const devOnDinner = await flag(dinner, "usr_dev");
+    await flag(own, "usr_rahul"); // raised on his own entry
+    await flag(undone, "usr_anu"); // the transaction is reversed below
+    await flag(anus, "usr_dev"); // someone else's transaction
+    const otherGroup = await flag(elsewhere, "usr_anu");
+    const resolved = await flag(groceries, "usr_anu");
+    db.prepare("UPDATE kitchen_flags SET state = 'resolved' WHERE id = ?").run(resolved);
+
+    const original = await repo.getTxn(orgId, undone.id);
+    if (!original.ok) throw new Error("not posted");
+    const swapped = dinnerSplits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.owedMinor, owedMinor: s.paidMinor }));
+    const reversed = await repo.reverseTxn({
+      original: original.value,
+      reversal: { id: asUuid(randomUUID()), title: "Reversal: Undone", occurredAt: now, createdBy: "usr_rahul", idemKey: "undo-flagged", now },
+      splits: swapped,
+    });
+    expect(reversed.ok).toBe(true);
+
+    const mine = await repo.listOpenFlagsOnTxnsBy({ createdBy: "usr_rahul", orgIds: [orgId], limit: 50 });
+    if (!mine.ok) throw new Error("read failed");
+    expect(mine.value.map((f) => f.flagId)).toEqual([anuOnDinner, devOnGroceries, devOnDinner]);
+    expect(mine.value[0]).toEqual({
+      flagId: anuOnDinner,
+      txnId: dinner.id,
+      orgId,
+      flaggedBy: "usr_anu",
+      reason: "I wasn't there",
+      flaggedAt: new Date(now.getTime() + 1000),
+      title: "Dinner",
+      txnKind: "expense",
+      totalMinor: 900,
+      currency: "INR",
+      sourceKind: null,
+      sourceId: null,
+    });
+
+    // Every group asked for, in one read; none asked for, nothing read.
+    const both = await repo.listOpenFlagsOnTxnsBy({ createdBy: "usr_rahul", orgIds: [orgId, otherOrgId], limit: 50 });
+    expect(both.ok && both.value.map((f) => f.flagId)).toEqual([anuOnDinner, devOnGroceries, devOnDinner, otherGroup]);
+    expect(await repo.listOpenFlagsOnTxnsBy({ createdBy: "usr_rahul", orgIds: [], limit: 50 })).toEqual({ ok: true, value: [] });
+
+    // At most `limit`, the oldest kept.
+    const capped = await repo.listOpenFlagsOnTxnsBy({ createdBy: "usr_rahul", orgIds: [orgId, otherOrgId], limit: 2 });
+    expect(capped.ok && capped.value.map((f) => f.flagId)).toEqual([anuOnDinner, devOnGroceries]);
+
+    // Anu's own transaction, flagged by Dev, is hers to see.
+    const hers = await repo.listOpenFlagsOnTxnsBy({ createdBy: "usr_anu", orgIds: [orgId, otherOrgId], limit: 50 });
+    expect(hers.ok && hers.value.map((f) => [f.title, f.flaggedBy])).toEqual([["Anu's", "usr_dev"]]);
+  });
+
   it("checks kinds, amounts, reversals and settlement methods in the tables themselves", () => {
     const insertTxn = (values: { kind?: string; total?: number; reverses?: string | null; method?: string | null }) => () =>
       db.prepare(

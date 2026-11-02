@@ -85,11 +85,32 @@ The baseline assumes every table carries `org_id`. Personal pantry rows do
 not. Mitigation: a CHECK constraint makes the owner explicit; the workspace
 purge path deletes kitchen rows by subject as well as by org; a test pins it.
 
-## CP-L — leaving a group with a balance (RESOLVED)
+## CP-L — leaving a group with a balance (RESOLVED, as built)
 
 Leaving is refused while your balance in that group is not zero
 (`balance_not_settled`). An admin can still remove a member; their balance
 stays in the ledger under their name.
+
+As built (CP-19): membership-worker's `POST /v1/organizations/{org}/leave`
+asks kitchen-worker over a new `KITCHEN_WORKER` service binding
+(`GET /v1/internal/kitchen/organizations/{org}/subjects/{usr}/balance` →
+`{ balanceMinor, currency }`, the engine's whole-ledger balance) after the
+member and last-owner checks, and answers 409 `conflict` with
+`details.reason: "balance_not_settled"`, `balanceMinor` and `currency` while
+it is not zero. It **fails closed**: when kitchen-worker is unbound,
+unreachable or answers anything but a well-formed balance, leaving is a 503
+and nobody leaves — an outage never lets someone walk away owing. The
+internal route is reachable only over the binding: kitchen-worker has no
+workers.dev URL, api-edge routes no `/v1/internal/…` path (pinned in
+tests/api-edge, dot-segment spellings included), only api-edge and
+membership-worker are bound to kitchen-worker (pinned in tests/config-worker),
+and the route answers only a caller naming itself `membership-worker` in
+`x-internal-actor`, a header api-edge never forwards. Accepted gaps: the
+check is not atomic with the leave (an expense accepted against the roster a
+moment before still posts, leaving a balance as an admin removal does), and a
+group's only member is held to the rule even when the money is with people
+who left before this shipped (reversing entries is the way out; deleting a
+group is out of scope). Admin removal is unchanged.
 
 ## CP-M — Orunbase identity and the build (RISK, mitigated)
 
@@ -175,6 +196,14 @@ settlement: a payment is a line too, so the sum still explains the amount;
 trimming to "since you last squared up" can come with the inbox (CP-19).
 The names lookup could become one `IN (json_each(…))` read
 (`getUsersByIds`) when `packages/db` is next in scope.
+
+As built (CP-19): the inbox (`GET /v1/kitchen/me/inbox`) takes the same
+whole-ledger read per group for its payments due, but no roster hop, so it
+costs one membership call, 10 + one-per-group D1 reads (side by side) and one
+identity lookup per 100 names, however many items, dishes or flags there are
+(a test counts them; Server-Timing `groups`, `dishes`, `items`, `ledger`,
+`flags`, `identity`). Trimming the person view to "since you last squared
+up" did not come with it and stays open.
 
 ## CP-T — a big dish is one large D1 batch (ACCEPTED)
 
