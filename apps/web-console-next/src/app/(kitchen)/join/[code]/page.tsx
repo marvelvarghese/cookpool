@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, Link2Off, UsersRound } from "lucide-react";
 import type { JoinPreview } from "@saas/contracts/membership";
@@ -11,6 +11,7 @@ import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
 import { recordRecentGroup } from "@/lib/recent-groups";
+import { clearJoinAfterSignIn, joinAfterSignInPending } from "@/lib/login-return";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +22,12 @@ import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/k
  * Join from a link (CP-5): `/join/<code>`. Signing in is required — the
  * kitchen layout sends a signed-out person to sign-in and back here. The page
  * previews the group (name, member count), then joins in one tap.
+ *
+ * Arriving from sign-in (SI-5), where the person already saw the group's card
+ * and signed in to join it, there is no second tap: the page joins at once and
+ * opens the group. Sign-in records that in this tab (`login-return.ts`), for
+ * this code only — a link cannot ask for it, so nobody is joined to a group
+ * they did not see.
  */
 export default function JoinPage() {
   const params = useParams<{ code: string }>();
@@ -46,13 +53,24 @@ type Outcome =
 
 function JoinFlow({ code }: { code: string }) {
   const { client } = useSession();
+  const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
   const preview = useApiQuery(qk.joinPreview(code), () => wrap(() => client.memberships.previewJoin(code)));
   const [busy, setBusy] = React.useState(false);
   const [outcome, setOutcome] = React.useState<Outcome | null>(null);
 
-  const join = async (group: JoinPreview) => {
+  // Sent here by sign-in to join this group (SI-5)? Read once, then cleared.
+  const [fromSignIn] = React.useState(() => joinAfterSignInPending(code));
+  // "Joining…" until the automatic join lands (and the group opens) or fails.
+  const [autoJoining, setAutoJoining] = React.useState(fromSignIn);
+  const autoStarted = React.useRef(false);
+  React.useEffect(() => {
+    if (fromSignIn) clearJoinAfterSignIn();
+  }, [fromSignIn]);
+
+  /** Join; true when the group was joined (or already was). */
+  const join = async (group: JoinPreview, openAfter = false): Promise<boolean> => {
     setBusy(true);
     // A fresh key per attempt: /v1/join is not under an org path, so a key
     // derived from the code could replay someone else's join (sdk docs).
@@ -62,19 +80,38 @@ function JoinFlow({ code }: { code: string }) {
       const failure = joinFailureKind(r.error, r.status);
       if (failure === "error") {
         toast({ kind: "error", title: "Couldn't join", description: r.error.message });
-        return;
+        return false;
       }
       setOutcome({ kind: "failed", failure });
-      return;
+      return false;
     }
     recordRecentGroup(r.data.slug);
     // Have the new group in the list before offering to open it.
     await qc.invalidateQueries({ queryKey: qk.orgs() });
     void qc.invalidateQueries({ queryKey: qk.joinPreview(code) });
+    if (!r.data.alreadyMember) toast({ kind: "success", title: `You joined ${group.name}` });
+    if (openAfter) {
+      // From sign-in: straight into the group, joined.
+      router.replace(`/groups/${encodeURIComponent(r.data.slug)}`);
+      return true;
+    }
     setBusy(false);
     setOutcome({ kind: "joined", slug: r.data.slug, alreadyMember: r.data.alreadyMember });
-    if (!r.data.alreadyMember) toast({ kind: "success", title: `You joined ${group.name}` });
+    return true;
   };
+
+  React.useEffect(() => {
+    if (!fromSignIn || autoStarted.current || !preview.data) return;
+    autoStarted.current = true;
+    if (preview.data.alreadyMember) {
+      router.replace(`/groups/${encodeURIComponent(preview.data.slug)}`);
+      return;
+    }
+    // Runs once (`autoStarted`); `join` reads this render's client and cache.
+    void join(preview.data, true).then((joined) => {
+      if (!joined) setAutoJoining(false);
+    });
+  }, [fromSignIn, preview.data, router]);
 
   if (preview.loading) {
     return (
@@ -102,6 +139,17 @@ function JoinFlow({ code }: { code: string }) {
 
   const group = preview.data!;
   const openHref = `/groups/${outcome?.kind === "joined" ? outcome.slug : group.slug}`;
+
+  if (autoJoining && !outcome) {
+    return (
+      <KCard className="p-6" role="status">
+        <GroupAvatar name={group.name} size="lg" />
+        <p className="mt-5 text-sm font-semibold text-primary">You&apos;re signed in</p>
+        <h1 className="mt-1 text-[28px] font-extrabold leading-tight tracking-tight">Joining {group.name}…</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Your own pantry comes with you.</p>
+      </KCard>
+    );
+  }
 
   if (outcome?.kind === "failed" && outcome.failure === "not_found") return <LinkNotFound />;
 

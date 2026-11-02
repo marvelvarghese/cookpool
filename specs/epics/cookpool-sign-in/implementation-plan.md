@@ -48,7 +48,7 @@ Make signing in possible on prod, and make the code safe to rely on.
 - a 6th wrong code is refused, and so is a 6th code request for one address within 15 minutes
 - on stage, `login/start` for a real address returns no code in the response
 
-## SI2 — the Cookpool sign-in page
+## SI2 — the Cookpool sign-in page ✅
 
 - **SI-4 — the signed-out join preview** (membership-worker, api-edge,
   contracts, sdk):

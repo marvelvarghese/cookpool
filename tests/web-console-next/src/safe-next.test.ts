@@ -1,9 +1,11 @@
 import {
   HOME_PATH,
+  SIGNED_OUT_PARAM,
   loginPathFor,
   nextParamFrom,
   postLoginDestination,
   safeNextPath,
+  signedOutFrom,
 } from "@web-console-next/lib/safe-next";
 
 describe("safeNextPath", () => {
@@ -81,5 +83,31 @@ describe("loginPathFor", () => {
     const login = loginPathFor("/join/KTCH2345?ref=wa");
     const search = login.slice(login.indexOf("?"));
     expect(postLoginDestination(nextParamFrom(search))).toBe("/join/KTCH2345?ref=wa");
+  });
+});
+
+describe("loginPathFor after a 401 (Cookpool SI-5)", () => {
+  it("adds expired=1 after a safe next", () => {
+    expect(SIGNED_OUT_PARAM).toBe("expired");
+    expect(loginPathFor("/pantry", { signedOut: true })).toBe("/login?next=%2Fpantry&expired=1");
+    expect(loginPathFor("/groups/flat-4b?tab=rules", { signedOut: true })).toBe(
+      "/login?next=%2Fgroups%2Fflat-4b%3Ftab%3Drules&expired=1",
+    );
+  });
+
+  it("is just the flag for Home, the root, or an unsafe path", () => {
+    expect(loginPathFor("/home", { signedOut: true })).toBe("/login?expired=1");
+    expect(loginPathFor("/", { signedOut: true })).toBe("/login?expired=1");
+    expect(loginPathFor("//evil.example", { signedOut: true })).toBe("/login?expired=1");
+  });
+
+  it("round-trips: the page reads both the flag and next", () => {
+    const login = loginPathFor("/join/KTCH2345", { signedOut: true });
+    const search = login.slice(login.indexOf("?"));
+    expect(signedOutFrom(search)).toBe(true);
+    expect(postLoginDestination(nextParamFrom(search))).toBe("/join/KTCH2345");
+    expect(signedOutFrom(loginPathFor("/join/KTCH2345").slice(6))).toBe(false);
+    expect(signedOutFrom("?expired=0")).toBe(false);
+    expect(signedOutFrom("")).toBe(false);
   });
 });

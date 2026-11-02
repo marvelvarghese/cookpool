@@ -62,18 +62,45 @@ export function useAsync<T>(
  * `returnHere` (Cookpool CP-5) sends the person to `/login?next=<this page>` so
  * sign-in brings them back (a join link must survive signing in). Off by
  * default, so the admin console's redirect is unchanged.
+ *
+ * `signOutOnUnauthorized` (Cookpool SI-5): when the API answers 401 to the
+ * session's token, the session has ended — clear the token and send the person
+ * to `/login?next=<this page>&expired=1`, which says "You were signed out".
+ * With no token at all they never had a session here, so the plain redirect
+ * above applies. Off by default: the admin console is unchanged.
  */
-export function useRequireAuth(opts: { returnHere?: boolean } = {}): boolean {
-  const { token } = useSession();
+export function useRequireAuth(
+  opts: { returnHere?: boolean; signOutOnUnauthorized?: boolean } = {},
+): boolean {
+  const { token, setToken, onUnauthorized } = useSession();
   const [ready, setReady] = React.useState(false);
   const returnHere = opts.returnHere ?? false;
+  const signOutOnUnauthorized = opts.signOutOnUnauthorized ?? false;
+  // Set once a 401 has sent the person to sign-in, so the no-token redirect
+  // below (which the cleared token would trigger) does not race it.
+  const leaving = React.useRef(false);
+
   React.useEffect(() => {
     setReady(true);
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || leaving.current) return;
     if (!token && !readStoredToken()) {
       const { pathname, search, hash } = window.location;
       window.location.href = returnHere ? loginPathFor(`${pathname}${search}${hash}`) : "/login";
     }
   }, [token, returnHere]);
+
+  React.useEffect(() => {
+    if (!signOutOnUnauthorized) return;
+    return onUnauthorized(() => {
+      if (leaving.current) return;
+      leaving.current = true;
+      const { pathname, search, hash } = window.location;
+      const to = loginPathFor(`${pathname}${search}${hash}`, { signedOut: true });
+      // The same clearing every sign-out in the console does.
+      setToken(null);
+      window.location.replace(to);
+    });
+  }, [signOutOnUnauthorized, onUnauthorized, setToken]);
+
   return ready && !!token;
 }
