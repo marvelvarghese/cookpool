@@ -49,18 +49,19 @@ import { Fields } from "../validate.js";
 // every ingredient back and reverses every charge, in one write too.
 
 /** The caller's groups; null when membership could not be read. */
-async function myGroups(ctx: RequestContext): Promise<MemberGroup[] | null> {
+export async function myGroups(ctx: RequestContext): Promise<MemberGroup[] | null> {
   const result = await ctx.timings.measure("groups", () => ctx.groups.of(ctx.actor.subjectId));
   return result.ok ? result.groups : null;
 }
 
 /** The dishes the caller may read: theirs, and those shared with any group they are in. */
-function readable(ctx: RequestContext, groups: readonly MemberGroup[]): KitchenDishScope {
+export function readable(ctx: RequestContext, groups: readonly MemberGroup[]): KitchenDishScope {
   return { cook: ctx.actor.subjectId, orgIds: groups.map((g) => g.orgId) };
 }
 
-function dishResponse(ctx: RequestContext, dish: KitchenDishRecord, status = 200): Response {
-  return successResponse<DishResponse>({ dish: toKitchenDish(dish) }, ctx.requestId, status);
+/** `{ dish }`, as the caller reads it. */
+export function dishResponse(ctx: RequestContext, dish: KitchenDishRecord, status = 200): Response {
+  return successResponse<DishResponse>({ dish: toKitchenDish(dish, ctx.actor.subjectId) }, ctx.requestId, status);
 }
 
 export async function handleCookDish(ctx: RequestContext, request: Request): Promise<Response> {
@@ -161,7 +162,7 @@ async function listDishes(
   if (!page.ok) return unavailable(ctx.requestId);
   const nextCursor = page.value.nextCursor ? encodeDishesCursor(page.value.nextCursor) : null;
   return successResponse<DishesPage>(
-    { dishes: page.value.dishes.map(toKitchenDish), nextCursor },
+    { dishes: page.value.dishes.map((dish) => toKitchenDish(dish, ctx.actor.subjectId)), nextCursor },
     ctx.requestId,
     200,
     nextCursor,

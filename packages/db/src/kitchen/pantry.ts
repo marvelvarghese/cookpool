@@ -140,8 +140,8 @@ export function scopeClause(params: Params, scope: KitchenPantryScope): string {
  * group item takes its currency from the group's settings row — the one its
  * batch pins first — and only if it is the currency the caller read.
  * Otherwise the value is NULL, the NOT NULL constraint fails, and D1 rolls
- * the whole batch back: nothing is written. (Adding an item, and a dish's
- * "just bought it" items, CP-14.)
+ * the whole batch back: nothing is written. (Adding an item, a dish's
+ * "just bought it" items, CP-14, and its leftovers, CP-16.)
  */
 export function insertItemStatement(item: NewKitchenItem): SqlStatement {
   const { owner } = item;
@@ -154,7 +154,8 @@ export function insertItemStatement(item: NewKitchenItem): SqlStatement {
     text: `INSERT INTO kitchen_items (
              id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
              qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by,
-             bought_on, expires_on, waste_policy, state, version, created_by, idem_key, created_at, updated_at
+             bought_on, expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key,
+             created_at, updated_at
            ) VALUES (
              ${params.add(item.id)}, ${params.add(owner.kind)},
              ${params.add(owner.kind === "user" ? owner.subjectId : null)},
@@ -163,7 +164,7 @@ export function insertItemStatement(item: NewKitchenItem): SqlStatement {
              ${params.add(item.displayUnit)}, ${params.add(item.qtyMilli)}, ${params.add(item.qtyMilli)},
              ${params.add(item.priceMinor)}, 0, ${currency}, ${params.add(item.paidBy)},
              ${params.add(item.boughtOn)}, ${params.add(item.expiresOn)}, ${params.add(item.wastePolicy)},
-             'active', 1, ${params.add(item.createdBy)}, ${params.add(item.idemKey)},
+             ${params.add(item.sourceDishId ?? null)}, 'active', 1, ${params.add(item.createdBy)}, ${params.add(item.idemKey)},
              ${params.add(item.now)}, ${params.add(item.now)}
            )
            RETURNING ${ITEM_COLUMNS}`,

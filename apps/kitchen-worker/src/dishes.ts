@@ -1,7 +1,8 @@
 // What the dish handlers share (CP-14): the request body of a dish, planning
 // the write from the items as read (what each ingredient costs, what the cook
-// owes in each group, the items just bought), the public shape of a dish, the
-// list's cursor, and how a refused dish write becomes a response.
+// owes in each group, the items just bought), the public shape of a dish (with
+// its split, CP-16: see ./split.ts), the list's cursor, and how a refused dish
+// write becomes a response.
 
 import {
   DEFAULT_KITCHEN_CURRENCY,
@@ -35,11 +36,9 @@ import { conflict, unprocessable, validationError } from "./http.js";
 import { parseOrgPublicId, parsePublicId, toPublicId } from "./ids.js";
 import { ledgerAudit } from "./ledger.js";
 import { MAX_NAME, displayQuantity, isoDay, parseNewItem } from "./pantry.js";
+import { MAX_PORTIONS_HALF, dishSplitView } from "./split.js";
 import { quantityOf, stockErrorResponse } from "./stock.js";
 import { Fields, minor, oneOf, text, type FieldErrors } from "./validate.js";
-
-/** A hundred portions is a feast; more is a typo. */
-export const MAX_PORTIONS_HALF = 200;
 
 /** What an item bought for a dish is filed under when the cook names nothing. */
 export const DEFAULT_NEW_ITEM_CATEGORY = "Other";
@@ -444,7 +443,7 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
 export function dishAudits(
   ctx: RequestContext,
   input: {
-    type: "kitchen.dish.cooked" | "kitchen.dish.canceled";
+    type: "kitchen.dish.cooked" | "kitchen.dish.canceled" | "kitchen.dish.finalized" | "kitchen.dish.corrected";
     dishId: string;
     idemKey: string;
     sharedWith: string | null;
@@ -464,7 +463,8 @@ export function dishAudits(
 
 // ── Public shapes ──────────────────────────────────────────
 
-export function toKitchenDish(record: KitchenDishRecord): KitchenDish {
+/** A dish as `viewer` reads it (`myClaimHalf` is theirs). */
+export function toKitchenDish(record: KitchenDishRecord, viewer: string): KitchenDish {
   // What the cook owes, per group and buyer, in the order the ingredients
   // name them: exactly the ingredients a use transaction charged.
   const owes = new Map<string, DishOwed>();
@@ -509,6 +509,7 @@ export function toKitchenDish(record: KitchenDishRecord): KitchenDish {
     })),
     fromMineMinor: record.ingredientsMinor - owed,
     owes: [...owes.values()],
+    ...dishSplitView(record, viewer),
   };
 }
 
@@ -546,8 +547,12 @@ export function cursorParam(fields: Fields, url: URL): KitchenDishesCursor | nul
 
 // ── Outcomes ───────────────────────────────────────────────
 
-/** The response to a refused dish write. Nothing was written. */
-export function dishErrorResponse(requestId: string, error: KitchenDishError): Response {
+/**
+ * The response to a refused dish write. Nothing was written. `refused` says
+ * what a dish in the wrong state cannot have done to it ("canceled",
+ * "claimed" …).
+ */
+export function dishErrorResponse(requestId: string, error: KitchenDishError, refused = "canceled"): Response {
   switch (error.kind) {
     case "ingredient_short":
       return conflict(requestId, "Not that much of an ingredient is left", KITCHEN_ERROR_REASONS.INSUFFICIENT_STOCK, {
@@ -555,9 +560,16 @@ export function dishErrorResponse(requestId: string, error: KitchenDishError): R
         qtyLeftMilli: error.qtyLeftMilli,
       });
     case "dish_not_open":
-      return conflict(requestId, `This dish is ${error.state}: it can no longer be canceled`, KITCHEN_ERROR_REASONS.DISH_NOT_OPEN, {
+      return conflict(requestId, `This dish is ${error.state}: it cannot be ${refused}`, KITCHEN_ERROR_REASONS.DISH_NOT_OPEN, {
         state: error.state,
       });
+    case "claims_exceed_portions":
+      return conflict(
+        requestId,
+        `Only ${error.portionsHalf / 2} portions were cooked, and ${error.availableHalf / 2} are free`,
+        KITCHEN_ERROR_REASONS.CLAIMS_EXCEED_PORTIONS,
+        { portionsHalf: error.portionsHalf, availableHalf: error.availableHalf },
+      );
     default:
       return stockErrorResponse(requestId, error);
   }

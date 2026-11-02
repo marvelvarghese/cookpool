@@ -1511,4 +1511,162 @@ describe("kitchen dishes, against a real SQLite engine", () => {
     expect(ingredient({ item: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
     expect(ingredient({ qty: 0, item: newItem().id })).toThrow(/CHECK constraint failed/);
   });
+
+  // Splitting a dish (CP-16, migration 260): claims, the cook's assignment,
+  // finalize and corrections, each ONE batch guarded by the dish row.
+
+  const mine = { cook: "usr_rahul", orgIds: [] as string[] };
+
+  /** The dish transaction Anu 6 and Dev 2 of 8 half portions make of ₹122.00. */
+  function dishTxn(dishId: string, idemKey: string, splits = [
+    { subjectId: "usr_rahul", paidMinor: 12200, owedMinor: 0 },
+    { subjectId: "usr_anu", paidMinor: 0, owedMinor: 9150 },
+    { subjectId: "usr_dev", paidMinor: 0, owedMinor: 3050 },
+  ]) {
+    const txn: NewKitchenTxn = {
+      id: asUuid(randomUUID()), orgId, kind: "dish", title: "Paneer", totalMinor: 12200, currency: "INR",
+      occurredAt: now, createdBy: "usr_rahul", sourceKind: "dish", sourceId: dishId, idemKey, now,
+    };
+    return { txn, splits };
+  }
+
+  const dishRow = (id: string) =>
+    db.prepare("SELECT state, version, txn_id, leftover_item_id FROM kitchen_dishes WHERE id = ?").get(id) as {
+      state: string; version: number; txn_id: string | null; leftover_item_id: string | null;
+    };
+
+  it("claims within the portions only, in one guarded batch, and finalizes only at the version it read (260_kitchen_dish_shares)", async () => {
+    const { repo, dishId, input } = await cook();
+    expect((await repo.cookDish(input)).ok).toBe(true);
+    const claim = (subjectId: string, portionsHalf: number) =>
+      repo.claimDish({ dishId, subjectId, portionsHalf, shareId: asUuid(randomUUID()), now });
+
+    const anu = await claim("usr_anu", 6);
+    expect(anu.ok && anu.value.shares.map((s) => [s.subjectId, s.portionsHalf, s.source, s.position])).toEqual([["usr_anu", 6, "self", 0]]);
+    expect(dishRow(dishId).version).toBe(2);
+    expect(await claim("usr_dev", 3)).toEqual({ ok: false, error: { kind: "claims_exceed_portions", portionsHalf: 8, availableHalf: 2 } });
+    expect([count("kitchen_dish_shares"), dishRow(dishId).version]).toEqual([1, 2]);
+    const dev = await claim("usr_dev", 2);
+    if (!dev.ok) throw new Error("not claimed");
+    // A claim again keeps its place; 0 takes it back.
+    expect((await claim("usr_anu", 5)).ok).toBe(true);
+    expect((await claim("usr_anu", 6)).ok).toBe(true);
+    expect((await claim("usr_meera", 0)).ok).toBe(true);
+
+    // Planned from a read before the last claims: the guard refuses, and nothing is written.
+    const stale = await repo.finalizeDish({ dish: dev.value, txn: dishTxn(dishId, "fin"), leftover: null, now, audits: [] });
+    expect(stale).toEqual({ ok: false, error: { kind: "stale" } });
+    expect([count("kitchen_txns"), dishRow(dishId).state]).toEqual([1, "open"]);
+
+    const current = await repo.getDish(dishId, mine);
+    if (!current.ok) throw new Error("not read");
+    expect(current.value.shares.map((s) => [s.subjectId, s.portionsHalf, s.position])).toEqual([["usr_anu", 6, 0], ["usr_dev", 2, 1]]);
+    const txn = dishTxn(dishId, "fin");
+    const leftover = newItem({ name: "Leftovers: Paneer", category: "Leftovers", dimension: "count", displayUnit: "pcs", qtyMilli: 500, priceMinor: 0, sourceDishId: dishId });
+    const finalized = await repo.finalizeDish({ dish: current.value, txn, leftover, now, audits: [] });
+    expect(finalized.ok && finalized.value.replayed).toBe(false);
+    expect(dishRow(dishId)).toEqual({ state: "finalized", version: current.value.version + 1, txn_id: txn.txn.id, leftover_item_id: leftover.id });
+    expect(db.prepare("SELECT source_dish_id FROM kitchen_items WHERE id = ?").get(leftover.id)).toEqual({ source_dish_id: dishId });
+    expect(db.prepare("SELECT subject_id, paid_minor, owed_minor FROM kitchen_txn_splits WHERE txn_id = ? ORDER BY position").all(txn.txn.id)).toEqual([
+      { subject_id: "usr_rahul", paid_minor: 12200, owed_minor: 0 },
+      { subject_id: "usr_anu", paid_minor: 0, owed_minor: 9150 },
+      { subject_id: "usr_dev", paid_minor: 0, owed_minor: 3050 },
+    ]);
+
+    // Once finalized: finalizing again writes nothing and answers the dish; claims and assignments are refused.
+    const before = [count("kitchen_txns"), count("kitchen_items"), dishRow(dishId).version];
+    const again = await repo.finalizeDish({ dish: current.value, txn: dishTxn(dishId, "fin-2"), leftover: null, now, audits: [] });
+    expect(again.ok && again.value).toMatchObject({ replayed: true, dish: { state: "finalized", txnId: txn.txn.id } });
+    expect(await claim("usr_meera", 1)).toEqual({ ok: false, error: { kind: "dish_not_open", state: "finalized" } });
+    expect(await repo.setDishShares({ dish: current.value, shares: [], now })).toEqual({
+      ok: false, error: { kind: "dish_not_open", state: "finalized" },
+    });
+    expect([count("kitchen_txns"), count("kitchen_items"), dishRow(dishId).version]).toEqual(before);
+  });
+
+  it("corrects in one batch — the reversal, the new transaction, the leftovers and the shares — and a retry writes nothing", async () => {
+    const { repo, dishId, input } = await cook();
+    expect((await repo.cookDish(input)).ok).toBe(true);
+    const assigned = await repo.setDishShares({
+      dish: (await repo.getDish(dishId, mine) as { ok: true; value: Parameters<typeof repo.setDishShares>[0]["dish"] }).value,
+      shares: [
+        { id: asUuid(randomUUID()), subjectId: "usr_anu", portionsHalf: 6, exactMinor: null },
+        { id: asUuid(randomUUID()), subjectId: "usr_dev", portionsHalf: 2, exactMinor: null },
+      ],
+      now,
+    });
+    if (!assigned.ok) throw new Error("not assigned");
+    expect(assigned.value.shares.map((s) => [s.subjectId, s.source])).toEqual([["usr_anu", "cook"], ["usr_dev", "cook"]]);
+    const leftover = newItem({ name: "Leftovers: Paneer", category: "Leftovers", dimension: "count", displayUnit: "pcs", qtyMilli: 500, priceMinor: 100, sourceDishId: dishId });
+    const finalized = await repo.finalizeDish({ dish: assigned.value, txn: dishTxn(dishId, "fin"), leftover, now, audits: [] });
+    if (!finalized.ok) throw new Error("not finalized");
+    const dish = finalized.value.dish;
+    const original = await repo.getTxn(orgId, asUuid(dish.txnId!));
+    if (!original.ok) throw new Error("no txn");
+
+    const later = new Date("2026-11-02T14:00:00.000Z");
+    const correction = (from: typeof dish) => ({
+      dish: from,
+      reversal: {
+        original: original.value, id: asUuid(randomUUID()), title: "Reversal: Paneer", createdBy: "usr_rahul",
+        note: "Dev had none", idemKey: "fix_reversal",
+        splits: original.value.splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.owedMinor, owedMinor: s.paidMinor })),
+      },
+      txn: dishTxn(dishId, "fix", [
+        { subjectId: "usr_rahul", paidMinor: 12200, owedMinor: 0 },
+        { subjectId: "usr_anu", paidMinor: 0, owedMinor: 12200 },
+      ]),
+      leftover: { kind: "update" as const, itemId: leftover.id, expectedVersion: 1, qtyMilli: 1000, priceMinor: 3050 },
+      shares: [{ id: asUuid(randomUUID()), subjectId: "usr_anu", portionsHalf: 6, exactMinor: null }],
+      now: later,
+      audits: [],
+    });
+    const fixed = await repo.correctDish(correction(dish));
+    expect(fixed.ok && fixed.value.replayed).toBe(false);
+    if (!fixed.ok) throw new Error("not corrected");
+    expect(fixed.value.dish).toMatchObject({ state: "finalized", leftoverItemId: leftover.id, version: dish.version + 1 });
+    expect(fixed.value.dish.txnId).not.toBe(dish.txnId);
+    expect(fixed.value.dish.shares.map((s) => [s.subjectId, s.portionsHalf, s.source])).toEqual([["usr_anu", 6, "cook"]]);
+    expect(db.prepare("SELECT kind, reverses, source_kind, note FROM kitchen_txns WHERE reverses IS NOT NULL").all()).toEqual([
+      { kind: "reversal", reverses: dish.txnId, source_kind: "dish", note: "Dev had none" },
+    ]);
+    expect(db.prepare("SELECT qty_bought_milli, qty_left_milli, price_minor, version FROM kitchen_items WHERE id = ?").get(leftover.id)).toEqual({
+      qty_bought_milli: 1000, qty_left_milli: 1000, price_minor: 3050, version: 2,
+    });
+    const after = [count("kitchen_txns"), count("kitchen_txn_splits"), count("kitchen_dish_shares"), dishRow(dishId).version];
+
+    // The same correction again, planned from the dish as it now is: its transaction is posted, so nothing is written.
+    const retry = await repo.correctDish({
+      ...correction(fixed.value.dish),
+      reversal: { ...correction(fixed.value.dish).reversal, original: (await repo.getTxn(orgId, asUuid(fixed.value.dish.txnId!)) as { ok: true; value: typeof original.value }).value },
+      leftover: { kind: "keep" },
+    });
+    expect(retry.ok && retry.value).toMatchObject({ replayed: true, dish: { txnId: fixed.value.dish.txnId } });
+    // From the dish as first read, or with leftovers that moved on: stale, and nothing is written.
+    expect(await repo.correctDish({ ...correction(dish), txn: dishTxn(dishId, "fix-2") })).toEqual({ ok: false, error: { kind: "stale" } });
+    expect([count("kitchen_txns"), count("kitchen_txn_splits"), count("kitchen_dish_shares"), dishRow(dishId).version]).toEqual(after);
+  });
+
+  it("keeps a share to portions or an amount, once per eater, on a real dish (260_kitchen_dish_shares)", async () => {
+    const { repo, dishId, input } = await cook();
+    expect((await repo.cookDish(input)).ok).toBe(true);
+    expect(dishRow(dishId).version).toBe(1);
+    const share = (values: Record<string, unknown> = {}) => () => {
+      const v = { dish: dishId as string, subject: "usr_anu", portions: 2 as number | null, exact: null as number | null, source: "self", ...values };
+      db.prepare(
+        `INSERT INTO kitchen_dish_shares (id, dish_id, subject_id, position, portions_half, exact_minor, source)
+         VALUES (?, ?, ?, 0, ?, ?, ?)`,
+      ).run(randomUUID(), v.dish, v.subject, v.portions, v.exact, v.source);
+    };
+    expect(share()).not.toThrow();
+    expect(share()).toThrow(/UNIQUE constraint failed/);
+    expect(share({ subject: "usr_dev", portions: null, exact: 0 })).not.toThrow();
+    expect(share({ subject: "usr_meera", portions: 2, exact: 100 })).toThrow(/CHECK constraint failed/);
+    expect(share({ subject: "usr_meera", portions: null, exact: null })).toThrow(/CHECK constraint failed/);
+    expect(share({ subject: "usr_meera", portions: 0 })).toThrow(/CHECK constraint failed/);
+    expect(share({ subject: "usr_meera", portions: null, exact: -1 })).toThrow(/CHECK constraint failed/);
+    expect(share({ subject: "usr_meera", source: "admin" })).toThrow(/CHECK constraint failed/);
+    expect(share({ subject: "usr_meera", dish: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
+    expect(() => db.prepare("UPDATE kitchen_dishes SET version = 0 WHERE id = ?").run(dishId)).toThrow(/CHECK constraint failed/);
+  });
 });

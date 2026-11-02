@@ -108,7 +108,7 @@ describe("kitchen migrations", () => {
 
   it("adds dishes as 250_kitchen_dishes, right after the stock moves", () => {
     const ids = manifest.migrations.map((m) => m.id);
-    expect(kitchen.map((m) => m.id)).toEqual([
+    expect(kitchen.map((m) => m.id).slice(0, 5)).toEqual([
       "210_kitchen_settings",
       "220_kitchen_ledger",
       "230_kitchen_pantry",
@@ -134,5 +134,29 @@ describe("kitchen migrations", () => {
     expect(sql).toMatch(/CREATE INDEX IF NOT EXISTS kitchen_stock_moves_dish_idx\s+ON kitchen_stock_moves \(dish_id\) WHERE dish_id IS NOT NULL/);
     // Additive only.
     expect(sql).not.toMatch(/\b(ALTER|DROP|UPDATE|DELETE)\b/i);
+  });
+
+  it("adds dish shares as 260_kitchen_dish_shares, right after the dishes", () => {
+    const ids = manifest.migrations.map((m) => m.id);
+    expect(kitchen.map((m) => m.id)).toEqual([
+      "210_kitchen_settings",
+      "220_kitchen_ledger",
+      "230_kitchen_pantry",
+      "240_kitchen_stock_moves",
+      "250_kitchen_dishes",
+      "260_kitchen_dish_shares",
+    ]);
+    expect(ids.indexOf("260_kitchen_dish_shares")).toBe(ids.indexOf("250_kitchen_dishes") + 1);
+
+    const sql = readFileSync(resolve(MIGRATIONS_ROOT, "260_kitchen_dish_shares/up.sql"), "utf8").replace(/--.*$/gm, "");
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS kitchen_dish_shares \(/);
+    expect(sql).toMatch(/dish_id\s+TEXT NOT NULL REFERENCES kitchen_dishes\(id\)/);
+    expect(sql).toMatch(/UNIQUE \(dish_id, subject_id\)/);
+    expect(sql).toMatch(/CHECK \(\(portions_half IS NULL\) <> \(exact_minor IS NULL\)\)/);
+    expect(sql).toMatch(/source\s+TEXT NOT NULL CHECK \(source IN \('cook', 'self'\)\)/);
+    // Additive: one new table, and one column with a constant default on the dishes.
+    expect(sql).toMatch(/ALTER TABLE kitchen_dishes ADD COLUMN version INTEGER NOT NULL DEFAULT 1 CHECK \(version >= 1\)/);
+    expect(sql.match(/\bALTER\b/gi)).toHaveLength(1);
+    expect(sql).not.toMatch(/\b(DROP|UPDATE|DELETE)\b/i);
   });
 });

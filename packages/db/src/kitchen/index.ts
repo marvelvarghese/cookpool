@@ -60,6 +60,15 @@ export type {
   KitchenDishesQuery,
   KitchenDishesPage,
   CancelDishInput,
+  KitchenDishShareSource,
+  KitchenDishShareRecord,
+  NewDishShare,
+  ClaimDishInput,
+  SetDishSharesInput,
+  FinalizeDishInput,
+  DishLeftoverChange,
+  CorrectDishInput,
+  SplitDish,
 } from "./types.js";
 
 export { KITCHEN_DEFAULT_CURRENCY, KITCHEN_DEFAULT_WASTE_POLICY } from "./types.js";
