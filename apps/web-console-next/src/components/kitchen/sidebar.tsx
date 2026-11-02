@@ -11,7 +11,7 @@ import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { KITCHEN_NAV_LINKS, isKitchenTabActive } from "./nav";
 import { recentGroups } from "./groups";
 import { kitchenIcon } from "./icons";
-import { GroupAvatar, SoonBadge } from "./kit";
+import { GroupAvatar } from "./kit";
 import { useGroups, useProfile } from "./data";
 
 /** The cookpool wordmark: a pot in a green rounded square. */
@@ -30,9 +30,10 @@ const ROW =
   "flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
- * Cookpool's sidebar, from 900px (CP-5): the wordmark, "Cook a dish" and
- * "Add", the same destinations as the bottom tabs, the four most recent
- * groups and a link to all of them, and the signed-in person.
+ * Cookpool's sidebar, from 900px (CP-5): the wordmark, "Cook a dish" (the
+ * dish maker, CP-15) and "Add", the same destinations as the bottom tabs,
+ * the four most recent groups and a link to all of them, and the signed-in
+ * person.
  */
 export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen: boolean }) {
   const pathname = usePathname();
@@ -55,16 +56,15 @@ export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen:
       </div>
 
       <div className="space-y-2 px-4">
-        {/* The dish maker arrives in CP4: shown, honestly not clickable yet. */}
-        <button
-          type="button"
-          aria-disabled="true"
-          className="flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-cp-tomato px-4 text-[15px] font-bold text-white"
+        {/* The dish maker (CP-15). */}
+        <Link
+          href="/cook"
+          aria-current={pathname === "/cook" ? "page" : undefined}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cp-tomato px-4 text-[15px] font-bold text-white transition-colors hover:bg-cp-tomato/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <CookingPot className="h-5 w-5" aria-hidden />
           Cook a dish
-          <SoonBadge className="bg-white/20 text-white" />
-        </button>
+        </Link>
         <button
           type="button"
           onClick={onAdd}

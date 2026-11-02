@@ -64,6 +64,8 @@ describe("query cache keys (qk)", () => {
       qk.kitchenUsuals(),
       qk.kitchenSearch("milk"),
       qk.kitchenUsable(),
+      // The dish maker (CP-15): cooking takes stock, so it refreshes what can be cooked with too.
+      qk.kitchenCookable(),
     ];
     for (const k of keys) expect(k.slice(0, prefix.length)).toEqual([...prefix]);
     expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
@@ -71,6 +73,13 @@ describe("query cache keys (qk)", () => {
     expect(qk.kitchenSearch("milk")).not.toEqual(qk.kitchenSearch("rice"));
     expect(qk.kitchenPantry()).not.toEqual(qk.kitchenMe());
     expect(qk.kitchenPantry()).not.toEqual(qk.kitchenLedger("org_1"));
+  });
+
+  it("Cookpool dish reads share their own prefix (CP-15), apart from the pantry's and the ledger's", () => {
+    expect(qk.kitchenDishes()).toEqual(["kitchenDishes"]);
+    expect(qk.kitchenDishes()[0]).not.toBe(qk.kitchenPantry()[0]);
+    expect(qk.kitchenDishes()[0]).not.toBe(qk.kitchenLedger("org_1")[0]);
+    expect(qk.kitchenDishes()[0]).not.toBe(qk.kitchenMe()[0]);
   });
 
   it("each key starts with a distinct resource tag", () => {

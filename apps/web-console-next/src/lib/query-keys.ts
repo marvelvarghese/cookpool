@@ -65,4 +65,9 @@ export const qk = {
   kitchenUsuals: () => ["kitchenPantry", "usuals"] as const,
   kitchenSearch: (q: string) => ["kitchenPantry", "search", q] as const,
   kitchenUsable: () => ["kitchenPantry", "usable"] as const,
+  // The dish maker (CP-15): the items the cook may cook with, under
+  // `kitchenPantry()` so any stock write refreshes them. Every dish read lives
+  // under `kitchenDishes()`, so cooking (or cancelling) refreshes them all.
+  kitchenCookable: () => ["kitchenPantry", "cookable"] as const,
+  kitchenDishes: () => ["kitchenDishes"] as const,
 };

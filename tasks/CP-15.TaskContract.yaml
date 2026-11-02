@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-15
+  title: "The dish maker screen"
+spec:
+  goal: A cook builds a dish from any mix of pantries and just-bought items on one screen, sees the total, each portion and exactly what they take on from each group before cooking, and posts it to a group to claim, splits it themselves, or keeps it to themselves.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-15.TaskContract.yaml
+  doneWhen:
+    - /cook adds ingredients from any usable pantry or as a just-bought item, with live line costs, extras, portions and the cost card
+    - sharing with a group offers claims or assign, assign posts the shares right after cooking, and just me needs no split
+    - the netting note is computed by the engine and omitted when there is nothing to net
+    - Cook a dish, I cooked and Cook with it are live, and cooking opens the dish page
+  gates: []

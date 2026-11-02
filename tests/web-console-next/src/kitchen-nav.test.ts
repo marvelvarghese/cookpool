@@ -90,9 +90,9 @@ describe("the + Add sheet", () => {
     ]);
   });
 
-  it("marks the dish tile Soon; I used something (CP-13), I bought food (CP-12) and I paid a bill (CP-8) are live", () => {
-    expect(ADD_TILES.filter((t) => t.live).map((t) => t.id)).toEqual(["use", "buy", "bill"]);
-    expect(ADD_TILES.filter((t) => !t.live).map((t) => t.id)).toEqual(["cook"]);
+  it("has every tile live: I used something (CP-13), I cooked (CP-15), I bought food (CP-12), I paid a bill (CP-8)", () => {
+    expect(ADD_TILES.filter((t) => t.live).map((t) => t.id)).toEqual(["use", "cook", "buy", "bill"]);
+    expect(ADD_TILES.filter((t) => !t.live)).toEqual([]);
   });
 
   it("asks for a group before Add expense, then goes to that group's", () => {
