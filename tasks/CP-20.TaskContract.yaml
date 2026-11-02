@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-20
+  title: "Close the Cookpool epic"
+spec:
+  goal: The epic's doc set says what shipped, where it runs and what is left, every task's contract is attached, and the epic is marked completed in Orunbase.
+  affects:
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-20.TaskContract.yaml
+    - tasks/CP-6.TaskContract.yaml
+  doneWhen:
+    - the README status reads Shipped and Shipped as names the live URLs, the PRs and the milestones
+    - IMPLEMENTATION-STATUS.md lists what is left after v1
+    - CP-6's contract is valid and attached, so every task in the epic reads done
+    - the epic is completed in Orunbase
+  gates: []

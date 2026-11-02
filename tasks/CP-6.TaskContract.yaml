@@ -12,6 +12,8 @@ spec:
     - tasks/CP-6.TaskContract.yaml
   doneWhen:
     - apps/kitchen-worker/src/engine/{money,units,ledger}.ts exist with no I/O
-    - property tests pass for parts summing to totals, items costing exactly their price when used up, the settle plan zeroing every balance in at most n − 1 payments, reversals restoring balances, and pairwise lines adding up to balances
+    - "property tests: parts sum to totals and a used-up item costs exactly its price"
+    - "property tests: the settle plan zeroes every balance in at most n − 1 payments"
+    - "property tests: reversals restore balances and pairwise lines add up to balances"
     - the design's worked example (paneer dish) reproduces to the paisa
   gates: []
