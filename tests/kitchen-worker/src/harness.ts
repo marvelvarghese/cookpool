@@ -16,6 +16,11 @@
 //   - IDENTITY_WORKER answers the people lookup
 //     (/v1/internal/identity/users/lookup) from profiles the test fills with
 //     `profile` (CP-9); `failIdentity` makes it fail.
+//   - NOTIFICATIONS_WORKER answers notifications-worker's enqueue route
+//     (POST /v1/notifications, CP-18) and records every request in
+//     `notifications`: the internal actor it came from, the body, and whether
+//     its idempotency key had been seen in that org before (`replayed`) — the
+//     uniqueness notifications-worker keeps. `failNotifications` makes it 500.
 //   - `beforeNextBatch` runs a write right before the worker's next D1 batch:
 //     another request landing between this one's read and its write, which
 //     is how a test races two writers deterministically.
@@ -32,6 +37,7 @@ import { authorize } from "@saas/policy-engine";
 import type { AuthorizationRequest, MembershipFact, OrganizationRole } from "@saas/contracts/policy";
 import type { RosterResponse, SubjectOrganizationsResponse } from "@saas/contracts/membership";
 import type { UsersLookupRequest, UsersLookupResponse } from "@saas/contracts/auth";
+import type { EnqueueNotificationRequest } from "@saas/contracts/notifications";
 import { manifest } from "@saas/db";
 import { asUuid, type Uuid } from "@saas/db/ids";
 import { D1ApiAdapter } from "@saas/db/runner";
@@ -163,6 +169,19 @@ export interface Harness {
   readonly identityCalls: number;
   /** While true, the identity lookup answers 500. */
   failIdentity: boolean;
+  /** Every enqueue the worker asked notifications-worker for, in order (CP-18). */
+  notifications: RecordedNotification[];
+  /** While true, the enqueue route answers 500. */
+  failNotifications: boolean;
+}
+
+/** One enqueue the worker sent to notifications-worker. */
+export interface RecordedNotification {
+  /** `x-internal-actor`: who called. */
+  internalActor: string | null;
+  request: EnqueueNotificationRequest;
+  /** The key had already been used in this org: notifications-worker would send nothing more. */
+  replayed: boolean;
 }
 
 export interface HarnessOptions {
@@ -246,12 +265,35 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     return Response.json({ data: { users } satisfies UsersLookupResponse, meta: { requestId: "req_identity", cursor: null } });
   });
 
+  // notifications-worker's enqueue route (CP-18): idempotency keys are unique per org.
+  const notifications: RecordedNotification[] = [];
+  const notificationsState = { fail: false };
+  const notificationKeys = new Map<string, string>();
+  const notificationsWorker = fetcher(async (url, init) => {
+    if (new URL(url).pathname !== "/v1/notifications" || init.method !== "POST") {
+      return Response.json({ error: { code: "not_found" } }, { status: 404 });
+    }
+    if (notificationsState.fail) return Response.json({ error: { code: "internal_error" } }, { status: 500 });
+    const headers = new Headers(init.headers);
+    const request = JSON.parse(String(init.body)) as EnqueueNotificationRequest;
+    const key = request.idempotencyKey ? `${request.orgId}|${request.idempotencyKey}` : null;
+    const prior = key ? notificationKeys.get(key) : undefined;
+    const id = prior ?? `ntf_${randomUUID().replace(/-/g, "")}`;
+    if (key && !prior) notificationKeys.set(key, id);
+    notifications.push({ internalActor: headers.get("x-internal-actor"), request, replayed: prior !== undefined });
+    return Response.json(
+      { data: { notification: { id, status: "sent" } }, meta: { requestId: "req_notifications", cursor: null } },
+      { status: prior ? 200 : 201 },
+    );
+  });
+
   const base: Record<string, unknown> = {
     ENVIRONMENT: "test",
+    APP_URL: "https://cookpool.test",
     PLATFORM_DB: d1Over(db, { beforeBatch: () => pendingWrites.shift()?.(db) }),
     MEMBERSHIP_WORKER: membershipWorker,
     POLICY_WORKER: policyWorker,
-    NOTIFICATIONS_WORKER: fetcher(async () => Response.json({ data: {} })),
+    NOTIFICATIONS_WORKER: notificationsWorker,
     IDENTITY_WORKER: identityWorker,
   };
   for (const [key, value] of Object.entries(options.env ?? {})) {
@@ -321,6 +363,13 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     },
     set failIdentity(value: boolean) {
       identityState.fail = value;
+    },
+    notifications,
+    get failNotifications() {
+      return notificationsState.fail;
+    },
+    set failNotifications(value: boolean) {
+      notificationsState.fail = value;
     },
   };
 }

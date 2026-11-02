@@ -9,18 +9,29 @@
   "main": "src/index.ts",
   "minify": false,
   "vars": {
-    "ENVIRONMENT": "local"
+    "ENVIRONMENT": "local",
+    // Where the app is: the links in Cookpool's emails (CP-18) start here.
+    "APP_URL": "http://localhost:3000"
+  },
+  // The daily use-soon sweep (CP-18): scheduled() at 02:30 UTC, 08:00 IST.
+  // Declared once, at the top level, so every environment inherits it — the
+  // rendered stage and prod configs carry it (tests/config-worker asserts so).
+  // A scheduled() without a trigger never runs, and fails silently (risks CP-N).
+  "triggers": {
+    "crons": ["30 2 * * *"]
   },
   "env": {
     "dev": {
       "vars": {
-        "ENVIRONMENT": "dev"
+        "ENVIRONMENT": "dev",
+        "APP_URL": "http://localhost:3000"
       }
     },
     "stage": {
       "workers_dev": false,
       "vars": {
-        "ENVIRONMENT": "stage"
+        "ENVIRONMENT": "stage",
+        "APP_URL": "https://cookpool-web-console-next-stage.rahulvarghesepullely.workers.dev"
       },
       "d1_databases": [
         {
@@ -51,7 +62,8 @@
     "prod": {
       "workers_dev": false,
       "vars": {
-        "ENVIRONMENT": "prod"
+        "ENVIRONMENT": "prod",
+        "APP_URL": "https://cookpool-web-console-next-prod.rahulvarghesepullely.workers.dev"
       },
       "d1_databases": [
         {

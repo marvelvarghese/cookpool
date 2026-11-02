@@ -11,6 +11,7 @@ import { formatQuantity } from "@saas/kitchen-engine/units";
 import { groupAllows, requireGroupAction } from "../authz.js";
 import type { OrgContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
+import { emailLoggedForYou } from "../emails.js";
 import type { MemberGroup } from "../groups-client.js";
 import {
   forbidden,
@@ -204,6 +205,12 @@ export async function handleUseGroupItem(ctx: OrgContext, request: Request, para
       };
     });
     if (result instanceof Response) return result;
+    // Committed: tell the people it was logged for (CP-18). A use that moved
+    // no money (everyone who had it bought it) has no transaction and no email.
+    const txn = result.txn;
+    if (txn) {
+      await ctx.defer(() => emailLoggedForYou(ctx, { kind: "use", txn, item: result.item, move: result.move }, here.group));
+    }
     return moved(ctx, here.group, settings.value, result);
   });
 }

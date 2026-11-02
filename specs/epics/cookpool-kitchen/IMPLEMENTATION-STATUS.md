@@ -11,7 +11,7 @@ the code departed from `design.md`.
 | CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11) |
 | CP4 — the dish maker | in progress | #16 (CP-14) |
 | CP5 — splitting dishes | in progress | #17 (CP-16) |
-| CP6 — use it before it goes | | |
+| CP6 — use it before it goes | in progress | #19 (CP-18) |
 
 ## Departures from the design
 
@@ -448,3 +448,114 @@ All three are closed by CP-9 (below).
 - **Not yet:** leftovers get no use-by date (the daily sweep, CP-18, may
   want one); finalize does not re-check that every eater is still in the
   group (they ate; assigning and correcting do check).
+
+### CP6 — the daily sweep and emails (CP-18)
+
+- **Delivery needs a sending domain (open).** notifications-worker sends
+  from `no-reply@mail.cookpool.app` through Cloudflare's `send_email`
+  binding on stage and prod, and `cookpool.app` is not registered yet. Until
+  it is registered and onboarded to Cloudflare Email, every email (these
+  three and the baseline's sign-in links) is enqueued, rendered and recorded
+  but not delivered to an inbox. This is a setup step for the account owner,
+  not code.
+
+- **The job as built.** kitchen-worker's entry exports `scheduled()` beside
+  `fetch()`; `"triggers": { "crons": ["30 2 * * *"] }` (08:00 IST) is
+  declared once at the top of its wrangler template and inherited by every
+  environment — wrangler resolves it for the rendered stage and prod configs
+  (tests/config-worker asserts both; no environment overrides it). The day
+  swept is the trigger's scheduled UTC day. Each run is recorded in
+  `kitchen_sweeps` (migration `270_kitchen_sweeps`: one row per day swept —
+  started, finished, items, people, sent, failed, runs; a re-run of the day
+  replaces its counts), and `GET /health` answers `lastSweepAt` (null until
+  the first run) and `lastSweep` `{ date, items, people, sent, failed, runs }`
+  beside its unchanged `checks`. The design's "refreshes the inbox" is not a
+  write: the Home inbox (CP-19) reads live.
+- **Who gets a digest, and of what.** Active items with something left whose
+  use-by date is today through two days ahead (`USE_SOON_EMAIL_DAYS` = 2, the
+  design's "within two days"; the app's own use-soon filter looks three days
+  ahead) — not used up, wasted or removed, not already past their date, and
+  not items with no date: leftovers (no use-by, CP-16) are never swept until
+  they get one (follow-up). A personal item goes to its owner; a group item to
+  the group's members whose role may use it (owner, admin, member — not a
+  viewer). One digest per person per day lists at most 10 items, soonest
+  first then by name, and counts the rest; each item says its pantry ("My
+  pantry", or the group's name).
+- **Reads, however many people** (risks CP-T, CP-U): one D1 query for every
+  pantry's items in the window (the `kitchen_items_expires_idx` partial index
+  230 made for it; at most `SWEEP_MAX_ITEMS` = 5,000) and one write for the
+  run; one roster per group with items in the window; one person's groups
+  per group still unnamed — a group's name is read through one of its
+  members, because membership-worker has no sibling route for a group by id;
+  one identity lookup per 100 people for names and addresses (CP-9's lookup,
+  reused: `People.users`); then one enqueue per person, four at a time.
+- **The real notifications path.** Every email is `POST /v1/notifications` to
+  notifications-worker over `NOTIFICATIONS_WORKER`, through the baseline's
+  `@saas/notifications-client` (`enqueueNotification`, `buildIdempotencyKey`;
+  now a kitchen-worker dependency). `kitchen-worker` joins
+  `NOTIFICATIONS_INTERNAL_ACTOR_VALUES` so the internal-actor gate lets it in.
+  Each email goes to one person, tagged `subjectKind: user` and their id,
+  under the `product` category; the digest under notifications' system
+  organization (the nil UUID, as identity's sign-in emails) because it spans
+  groups, the event emails under their group.
+- **Once each.** Keys are `kitchen.use_soon:<usr>:<day>`,
+  `kitchen.dish_posted:<dsh>:<usr>` and `kitchen.logged_for_you:<txn>:<usr>`
+  — template-scoped, as the client's convention asks (the brief's
+  `use_soon:{subject}:{date}` with the template as scope), and naming the
+  recipient, because notifications-worker keeps a key once per organization,
+  not per recipient. A second sweep the same day, a retried request (which
+  asks again, deliberately: the first ask may not have landed) and a replayed
+  dish all collapse onto the first send.
+- **Best-effort, after the commit.** Handlers ask for event emails through
+  `ctx.defer(...)` once their batch has committed; the entry now passes the
+  runtime's `ExecutionContext.waitUntil`, so the work runs after the
+  response. Without one (tests) it runs before the response — never dropped.
+  It never throws into the request: notifications-worker down, identity
+  unreadable, a person with no address — the write answers exactly as before.
+- **`kitchen.dish_posted`**: a dish cooked with a group and `splitMode:
+  claims` (open), to the group's members whose role holds
+  `kitchen.dish.claim` (owner, admin, member — `CLAIM_ROLES`, pinned against
+  the engine), not the cook and not viewers. Only at cook time: an assigned
+  dish, a dish just for its cook, finalizing and corrections send nothing.
+- **`kitchen.logged_for_you`**, once per transaction: for a group use, each
+  person who had some (its consumers) other than whoever logged it, when the
+  use posted a transaction (a use that moves no money — the buyer had it —
+  sends nothing); for an expense, everyone it names other than its creator —
+  sharers *and* payers (the brief said participants; someone said to have
+  paid deserves to hear it too) — who owes or paid something in it. Waste
+  split equally, dish charges and settlements send nothing. The email says
+  who logged what (a use as "250 ml of Milk"), the total, the recipient's
+  share and, for an expense, what it says they paid.
+- **Templates** (`apps/notifications-worker/src/templates/index.ts`, keyed
+  by `KITCHEN_EMAILS` from `@saas/contracts/kitchen`, which also defines
+  their data): "3 things to use soon" (the list, "use by today / tomorrow /
+  Wed 4 Nov", a link to `/home`); "Meera made Egg fried rice — claim yours"
+  (portions and total, a link to `/dishes/{dsh}` — the dish page arrives with
+  the dish screens); "Anu logged 250 ml of Milk for you" (share, a link to
+  `/groups/{slug}`). Subject, text and HTML; every value escaped, subjects
+  kept to one line, links only over http(s). Amounts arrive formatted;
+  links are absolute from kitchen-worker's new `APP_URL` var: the live
+  console on workers.dev
+  (`https://cookpool-web-console-next-{stage,prod}.rahulvarghesepullely.workers.dev`,
+  `http://localhost:3000` locally). `cookpool.app` is not registered yet,
+  so links to it would not open; switch `APP_URL` when the domain exists.
+- **Preferences.** notifications-worker never read preferences when it
+  enqueued; the contract said a subject-tagged recipient's preferences apply.
+  Now they do: a preference row for that subject in the request's org with
+  the request's category `false` records the notification `suppressed`
+  (no send, `notification.suppressed`), like a suppressed address. Untagged
+  sends (sign-in, invitations) are unchanged. There is no opt-out per kind:
+  categories are a fixed, CHECKed set, so all three are `product` email
+  (risks CP-V) — one opt-out per group, and the digest's under the system
+  organization, which no screen sets yet (follow-up).
+- **Verified end to end** in tests/kitchen-worker against the real
+  notifications-worker router, provider and templates over the same SQLite:
+  the digest sends once however often the sweep runs, a member who turned off
+  product email for the group is recorded suppressed, a retried use sends
+  once.
+- **Deploy order.** db-migrate (270) before kitchen-worker is enforced.
+  notifications-worker (the gate and the templates) is a peer edge: emails
+  kitchen-worker asks for before it is deployed are refused and dropped
+  (the next day's digest goes; a dish or use logged in that gap emails no
+  one).
+

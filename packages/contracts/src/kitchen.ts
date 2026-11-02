@@ -1191,3 +1191,145 @@ export interface CorrectDishRequest {
 export type ClaimDishResponse = DishResponse;
 export type SetDishSharesResponse = DishResponse;
 export type CorrectDishResponse = DishResponse;
+
+// ── Emails (CP-18) ──────────────────────────────────────────
+//
+// kitchen-worker asks notifications-worker to send Cookpool's three emails
+// (POST /v1/notifications over its NOTIFICATIONS_WORKER binding, through
+// `@saas/notifications-client`), always after the write that causes them has
+// committed and never failing the request; notifications-worker's template
+// registry renders them. Each is sent to one person, tagged with their
+// subject id, under the `product` category: opting out of product email for
+// a group stops that group's dish and logged-for-you emails, and opting out
+// under the system organization stops the daily digest. Every enqueue
+// carries an idempotency key that names what it is about (the day, the dish,
+// the transaction) and the recipient, so a re-run or a retried request
+// sends nothing twice.
+//
+// templateData is a flat map of strings, numbers and null: amounts arrive
+// already formatted ("₹240.00"), links absolute, and the digest's items as
+// numbered keys (`item1Name`, `item1Pantry`, `item1UseBy`, …).
+
+export const KITCHEN_EMAILS = {
+  /** The daily digest: what you can use that is close to its use-by date. */
+  USE_SOON: "kitchen.use_soon",
+  /** A dish shared with your group for claims. */
+  DISH_POSTED: "kitchen.dish_posted",
+  /** Someone else logged a use or an expense that names you. */
+  LOGGED_FOR_YOU: "kitchen.logged_for_you",
+} as const;
+
+export type KitchenEmail = (typeof KITCHEN_EMAILS)[keyof typeof KITCHEN_EMAILS];
+
+/** The notifications category every kitchen email is sent under. */
+export const KITCHEN_EMAIL_CATEGORY = "product";
+
+/**
+ * The digest lists the items whose use-by date is today through this many
+ * days ahead (design.md §8: "within two days of use-by"). The app's own
+ * "use soon" filter looks USE_SOON_DAYS ahead.
+ */
+export const USE_SOON_EMAIL_DAYS = 2;
+
+/** At most this many items are listed in one digest, soonest first; the rest are counted. */
+export const USE_SOON_EMAIL_MAX_ITEMS = 10;
+
+export type KitchenEmailData = Record<string, string | number | boolean | null>;
+
+/** One item in the digest. */
+export interface UseSoonEmailItem {
+  name: string;
+  /** "My pantry", or the group's name. */
+  pantry: string;
+  /** The use-by date (YYYY-MM-DD). */
+  useBy: string;
+}
+
+/** `kitchen.use_soon`: one person's digest for one day. */
+export interface UseSoonEmail {
+  /** The person's name; null when they have none to show. */
+  recipientName: string | null;
+  /** The UTC day the digest is for (YYYY-MM-DD): "today" in the email. */
+  date: string;
+  /** How many items are in the window, listed or not. */
+  count: number;
+  /** At most USE_SOON_EMAIL_MAX_ITEMS of them, soonest first. */
+  items: UseSoonEmailItem[];
+  /** The app's Home, where they can use them. */
+  homeUrl: string;
+}
+
+/** The digest as templateData: the items become numbered keys, 1-based. */
+export function useSoonEmailData(email: UseSoonEmail): KitchenEmailData {
+  const data: KitchenEmailData = {
+    recipientName: email.recipientName,
+    date: email.date,
+    count: email.count,
+    listed: Math.min(email.items.length, USE_SOON_EMAIL_MAX_ITEMS),
+    homeUrl: email.homeUrl,
+  };
+  email.items.slice(0, USE_SOON_EMAIL_MAX_ITEMS).forEach((item, i) => {
+    data[`item${i + 1}Name`] = item.name;
+    data[`item${i + 1}Pantry`] = item.pantry;
+    data[`item${i + 1}UseBy`] = item.useBy;
+  });
+  return data;
+}
+
+/** The digest back from templateData; missing or malformed fields read as empty. */
+export function readUseSoonEmail(data: KitchenEmailData): UseSoonEmail {
+  const text = (key: string): string => {
+    const v = data[key];
+    return v === null || v === undefined ? "" : String(v);
+  };
+  const whole = (key: string): number => {
+    const n = Number(data[key]);
+    return Number.isInteger(n) && n > 0 ? n : 0;
+  };
+  const listed = Math.min(whole("listed"), USE_SOON_EMAIL_MAX_ITEMS);
+  const items: UseSoonEmailItem[] = [];
+  for (let i = 1; i <= listed; i++) {
+    const name = text(`item${i}Name`);
+    if (name) items.push({ name, pantry: text(`item${i}Pantry`), useBy: text(`item${i}UseBy`) });
+  }
+  const name = text("recipientName").trim();
+  return {
+    recipientName: name || null,
+    date: text("date"),
+    count: Math.max(whole("count"), items.length),
+    items,
+    homeUrl: text("homeUrl"),
+  };
+}
+
+/** `kitchen.dish_posted`: a dish someone in your group cooked, open for claims. */
+export interface DishPostedEmail extends KitchenEmailData {
+  /** The cook's name; null when they have none to show. */
+  cookName: string | null;
+  dishName: string;
+  groupName: string;
+  /** Portions, half portions as "½" ("4", "2½"). */
+  portions: string;
+  /** What the dish cost in all, formatted ("₹240.00"). */
+  total: string;
+  /** The dish in the app, where they claim. */
+  dishUrl: string;
+}
+
+/** `kitchen.logged_for_you`: a use or an expense someone else logged that names you. */
+export interface LoggedForYouEmail extends KitchenEmailData {
+  kind: "use" | "expense";
+  /** Who logged it; null when they have none to show. */
+  actorName: string | null;
+  /** "250 ml of Milk" for a use; the expense's title. */
+  what: string;
+  groupName: string;
+  /** The transaction's total, formatted. */
+  total: string;
+  /** What the recipient owes in it, formatted; null when nothing. */
+  yourShare: string | null;
+  /** What it says the recipient paid, formatted; null when nothing. */
+  youPaid: string | null;
+  /** The group in the app, where its activity is. */
+  groupUrl: string;
+}

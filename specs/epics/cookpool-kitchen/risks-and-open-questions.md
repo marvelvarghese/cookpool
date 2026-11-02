@@ -107,6 +107,17 @@ silently. Mitigation: triggers declared per environment, a test asserting
 they are present in the rendered wrangler config, and `/health` reporting the
 last sweep time.
 
+As built (CP-18): `"triggers": { "crons": ["30 2 * * *"] }` is declared once
+at the top of kitchen-worker's wrangler template, and wrangler's inheritance
+gives it to every environment (no environment declares its own). Three
+checks: tests/config-worker asserts the rendered stage and prod configs
+resolve to that cron and that `src/index.ts` exports `scheduled()`;
+tests/kitchen-worker runs the exported `scheduled()`; and kitchen-worker's
+`/health` answers `lastSweepAt` (and `lastSweep`, the day's counts) from
+`kitchen_sweeps`, so a sweep that stopped running shows as a stale date. A
+sweep that cannot read the items throws, so the invocation reads as failed in
+the worker's cron events.
+
 ## CP-O — balances read the whole ledger (ACCEPTED)
 
 `…/balances` and `…/settle-plan` load every transaction and split of the group
@@ -176,3 +187,32 @@ the factory's prerequisites require for this Cloudflare account), 50 on
 Free. On Workers Paid every allowed dish fits. If the account ever runs on
 Free, a dish with more than a handful of ingredients fails as a whole
 (nothing written) and the limit on ingredients per dish must come down.
+
+## CP-U — the sweep's calls grow with the people it emails (ACCEPTED)
+
+The daily sweep (CP-18) reads every pantry's items in one D1 query and
+records the run in one more, but it makes a service-binding call per group
+with items in the window (its roster), per group still unnamed (a member's
+groups), per 100 people (identity) and per person (the enqueue). Workers
+count those as subrequests: 1,000 per invocation on Workers Paid, so one run
+emails at most about 900 people, and the run reads at most 5,000 items
+(`SWEEP_MAX_ITEMS`). Far above a v1 deployment's few dozen people. Accepted;
+when it nears the cap, the sweep fans out — one queue message (Cloudflare
+Queues) per hundred people, each its own invocation — with the same
+idempotency keys, so nothing is sent twice. A run cut short is safe today:
+the digests it did send are not sent again by a re-run the same day.
+
+## CP-V — kitchen emails share one opt-out per group (ACCEPTED)
+
+design.md §8 gives each kitchen email its own opt-out. The baseline's
+preferences are per category, and the category is a fixed set the
+`notifications_notifications` table CHECKs (`invitation`, `billing`,
+`security`, `support`, `product`), so a category per kind would mean
+rebuilding that table. All three are `product` email (CP-18): turning off
+product email for a group (the console's notification settings) stops that
+group's dish and logged-for-you emails; the daily digest, which is about
+every pantry a person has, is sent under the system organization, and the
+person's `product` preference there stops it — settable through
+`PUT /v1/notifications/preferences` with that org id, but no screen offers it
+yet (a follow-up for the app's settings). An opt-out per kind can come later
+as per-template keys in the same preferences map, which has no CHECK.
