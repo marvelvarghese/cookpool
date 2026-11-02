@@ -3,17 +3,20 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { useToast } from "@/components/ui/toast";
 import { ADD_SECONDARY, ADD_TILES, groupActionHref, type AddAction } from "./nav";
 import { kitchenIcon } from "./icons";
 import { CLOSE_44, K_BUTTON, SoonBadge } from "./kit";
-import { useGroups } from "./data";
+import { useGroups, useProfile } from "./data";
 import { GroupPickerList } from "./group-picker";
-import { useMyRoles } from "./people-data";
+import { useMemberNames, useMyRoles } from "./people-data";
+import { useItemsByRef, useLogUse, useUsuals } from "./pantry-data";
+import { DO_IT_AGAIN_ROWS, doItAgainRows, usualRef, usualsThatFit, type DoItAgainRow } from "./quick-use";
 
 const TILE_TONES: Record<string, string> = {
   use: "bg-cp-herb-tint text-primary",
@@ -23,13 +26,15 @@ const TILE_TONES: Record<string, string> = {
 };
 
 /**
- * "+ Add" (CP-5): what happened? Four big tiles and two secondary actions.
- * A tile whose feature has not shipped shows "Soon" and does nothing
- * (aria-disabled, still focusable so it can be discovered); a live one is a
- * link that closes the sheet. A tile that needs a group first ("I paid a
- * bill", CP-8) turns the sheet into a searchable group picker, then goes to
- * that group — leaving out groups the person only views (CP-9). A bottom
- * sheet on phones, a floating panel from 900px.
+ * "+ Add" (CP-5): what happened? Four big tiles, "Do it again" (CP-13) and
+ * two secondary actions. A tile whose feature has not shipped shows "Soon"
+ * and does nothing (aria-disabled, still focusable so it can be discovered);
+ * a live one is a link that closes the sheet. A tile that needs a group first
+ * ("I paid a bill", CP-8) turns the sheet into a searchable group picker, then
+ * goes to that group — leaving out groups the person only views (CP-9). "Do
+ * it again" logs one of your usuals in one tap — the same amount for the same
+ * people — and closes on the Undo toast. A bottom sheet on phones, a floating
+ * panel from 900px.
  */
 export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
@@ -101,7 +106,7 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
           <>
             <SheetTitle className="pr-12 text-xl font-extrabold">What happened?</SheetTitle>
             <SheetDescription className="mt-1 text-sm">
-              Pick what you did. Anything marked Soon arrives with quick use and dishes.
+              Pick what you did, or log one of your usuals again in one tap. Cooking arrives with the dish maker.
             </SheetDescription>
 
             <ul className="mt-4 grid grid-cols-2 gap-3">
@@ -111,6 +116,8 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 </li>
               ))}
             </ul>
+
+            <DoItAgain onLogged={close} />
 
             <ul className="mb-4 mt-3 divide-y rounded-[18px] border">
               {ADD_SECONDARY.map((action) => (
@@ -202,5 +209,102 @@ function SecondaryAction({ action, onNavigate }: { action: AddAction; onNavigate
     <Link href={action.href} onClick={onNavigate} className={cn(rowClass, "hover:bg-accent")}>
       {body}
     </Link>
+  );
+}
+
+/** Usuals whose items are read for "Do it again": a couple beyond the rows shown, so a usual that no longer fits is replaced. */
+const DO_IT_AGAIN_READS = DO_IT_AGAIN_ROWS + 2;
+
+/**
+ * "Do it again" (CP-13): your top usuals as one-tap rows — "Milk · 1 glass",
+ * "Flat 4B · you and Anu", what it costs now — each logging that again at
+ * once, with the ten-second Undo toast. A usual whose amount no longer fits
+ * what is left is left out. Nothing shows until you have usuals.
+ */
+function DoItAgain({ onLogged }: { onLogged: () => void }) {
+  const profile = useProfile();
+  const meId = profile.data?.id ?? null;
+  const usuals = useUsuals();
+  const names = useMemberNames();
+  const { toast } = useToast();
+  const logUse = useLogUse();
+  const fit = React.useMemo(() => usualsThatFit(usuals.data ?? []).slice(0, DO_IT_AGAIN_READS), [usuals.data]);
+  const refs = React.useMemo(() => fit.map(usualRef), [fit]);
+  const items = useItemsByRef(refs);
+  const rows = doItAgainRows(fit, items, { meId, names });
+  const [pending, setPending] = React.useState<string | null>(null);
+
+  if (usuals.loading || profile.loading) {
+    return (
+      <div className="mt-4 space-y-2" aria-hidden>
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-14 w-full rounded-[18px]" />
+      </div>
+    );
+  }
+  if (usuals.error || rows.length === 0) return null;
+
+  const again = async (row: DoItAgainRow) => {
+    if (!row.item || pending) return;
+    setPending(row.key);
+    const r = await logUse({
+      ref: row.ref,
+      item: row.item,
+      qtyMilli: row.qtyMilli,
+      consumers: row.consumers,
+      idempotencyKey: crypto.randomUUID(),
+      what: row.words,
+      inPantry: true,
+      meId,
+      names,
+    });
+    setPending(null);
+    if (r.ok) onLogged();
+    else toast({ kind: "error", title: `Couldn't log ${row.title}`, description: r.message });
+  };
+
+  return (
+    <section aria-labelledby="add-sheet-again" className="mt-4">
+      <h3 id="add-sheet-again" className="mb-2 px-1 text-sm font-bold text-muted-foreground">
+        Do it again
+      </h3>
+      <ul className="divide-y rounded-[18px] border">
+        {rows.map((row) => {
+          const busy = pending === row.key;
+          return (
+            <li key={row.key}>
+              <button
+                type="button"
+                aria-label={row.label}
+                aria-disabled={!row.item || (pending !== null && !busy) ? true : undefined}
+                aria-busy={busy || undefined}
+                onClick={() => void again(row)}
+                className={cn(
+                  "flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left transition-colors first:rounded-t-[18px] last:rounded-b-[18px]",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  row.item ? "hover:bg-accent" : "cursor-wait",
+                )}
+              >
+                <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cp-herb-tint text-primary">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" strokeWidth={2.2} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold">{row.title}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{row.meta}</span>
+                </span>
+                <span className="shrink-0 text-right">
+                  {row.cost ? (
+                    <span className="block text-sm font-bold tabular-nums">{row.cost}</span>
+                  ) : (
+                    <Skeleton className="h-4 w-12" />
+                  )}
+                  <span className="block text-xs font-bold text-primary">Log</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

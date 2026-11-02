@@ -79,6 +79,12 @@ export function itemHref(item: Pick<KitchenItem, "id" | "pantry"> | ItemRef): st
   return `/pantry/${itemRefParam(ref)}`;
 }
 
+/** Quick use with the item already chosen (CP-13): `/use?item=me:itm_…`. */
+export function quickUseHref(item: Pick<KitchenItem, "id" | "pantry"> | ItemRef): string {
+  const ref = "pantry" in item ? itemRefOf(item) : item;
+  return `/use?item=${itemRefParam(ref)}`;
+}
+
 /**
  * The item a `/pantry/[itemRef]` segment names, or null when it names none.
  * Tolerates a percent-encoded segment (`org%3Aorg_…`), as a router may pass it.
@@ -429,7 +435,7 @@ export function categoryLabel(category: string): string {
 export interface ItemRowView {
   id: string;
   href: string;
-  /** Use some of it: the item page's Use section (quick use arrives with /use, CP-13). */
+  /** Use some of it: quick use with this item chosen (`/use?item=…`, CP-13). */
   useHref: string;
   name: string;
   /** Past its use-by date: the name is struck through. */
@@ -468,7 +474,7 @@ export function itemRowView(
   return {
     id: item.id,
     href,
-    useHref: `${href}#use`,
+    useHref: quickUseHref(item),
     name: item.name,
     struck: isExpired(item.daysToUseBy),
     leftOfBought: lob,

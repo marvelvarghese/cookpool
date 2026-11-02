@@ -59,4 +59,10 @@ export const qk = {
   kitchenUseSoon: () => ["kitchenPantry", "useSoon"] as const,
   kitchenItem: (ref: string) => ["kitchenPantry", "item", ref] as const,
   kitchenItemMoves: (ref: string) => ["kitchenPantry", "moves", ref] as const,
+  // Quick use (CP-13): what the caller often uses, a search across every
+  // pantry they may use from, and their usable items (the strip before they
+  // have usuals). Under `kitchenPantry()` too, so a use refreshes them.
+  kitchenUsuals: () => ["kitchenPantry", "usuals"] as const,
+  kitchenSearch: (q: string) => ["kitchenPantry", "search", q] as const,
+  kitchenUsable: () => ["kitchenPantry", "usable"] as const,
 };

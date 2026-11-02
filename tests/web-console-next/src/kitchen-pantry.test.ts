@@ -265,7 +265,7 @@ describe("an item row", () => {
     expect(row.percent).toBe(60);
     expect(row.bar).toBe("soon");
     expect(row.chip).toEqual({ label: "3 days", tone: "soon" });
-    expect(row.useHref).toBe(`${row.href}#use`);
+    expect(row.useHref).toBe(row.href.replace("/pantry/", "/use?item="));
     expect(row.canUse).toBe(true);
   });
 

@@ -60,10 +60,15 @@ describe("query cache keys (qk)", () => {
       qk.kitchenUseSoon(),
       qk.kitchenItem("me:itm_1"),
       qk.kitchenItemMoves("me:itm_1"),
+      // Quick use (CP-13): a use refreshes the usuals, a search and the usable items too.
+      qk.kitchenUsuals(),
+      qk.kitchenSearch("milk"),
+      qk.kitchenUsable(),
     ];
     for (const k of keys) expect(k.slice(0, prefix.length)).toEqual([...prefix]);
     expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
     expect(qk.kitchenItem("me:itm_1")).not.toEqual(qk.kitchenItem("org:org_1:itm_1"));
+    expect(qk.kitchenSearch("milk")).not.toEqual(qk.kitchenSearch("rice"));
     expect(qk.kitchenPantry()).not.toEqual(qk.kitchenMe());
     expect(qk.kitchenPantry()).not.toEqual(qk.kitchenLedger("org_1"));
   });

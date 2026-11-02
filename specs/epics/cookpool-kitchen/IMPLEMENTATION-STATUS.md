@@ -8,7 +8,7 @@ the code departed from `design.md`.
 | CP0 — the spec | ✅ shipped 2026-11-01 | #3 (CP-1) |
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
 | CP2 — the ledger | ✅ shipped 2026-11-02 | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22), #15 (CP-9) |
-| CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11), #18 (CP-12) |
+| CP3 — pantries and using things | ✅ shipped 2026-11-02 | #11 (CP-10), #14 (CP-11), #18 (CP-12), #20 (CP-13) |
 | CP4 — the dish maker | in progress | #16 (CP-14) |
 | CP5 — splitting dishes | in progress | #17 (CP-16) |
 | CP6 — use it before it goes | in progress | #19 (CP-18) |
@@ -643,3 +643,69 @@ All three are closed by CP-9 (below).
   (the next day's digest goes; a dish or use logged in that gap emails no
   one).
 
+### CP3 — quick use and the Add sheet (CP-13)
+
+- **Two taps is + Add → Do it again.** The sheet's "Do it again" logs one of
+  your top usuals in one tap — the same amount for the same people. From Home,
+  "What did you use?" opens `/use`, where the usual amount and people are
+  already chosen, so it is the item and then Log. Home itself shows no usual
+  chips.
+- **`/use?item=me:itm_…` / `?item=org:org_…:itm_…`** opens quick use with that
+  item chosen. **Use** on every pantry row and in the desktop table now goes
+  there (`quickUseHref`). The item page keeps its `#use` section for direct
+  links. Logging from a linked item goes back to plain `/use`.
+- **Presets are kitchen measures per dimension, not per item.** For
+  volume: 1 glass (250 ml), ½ glass, a splash (50 ml), a spoon (15 ml).
+  The canvas's "in tea" became "a splash", because the presets come from the
+  unit and "in tea" reads wrong for oil. For mass: 1 cup (200 g), ½ cup,
+  a spoon (20 g), a teaspoon (5 g). Counts are 1, 2 and 3; packs are 1, ½ and 2.
+  The row always ends with "The rest" ("All" for counts and packs). A
+  measure is offered only while it is less than what is left, so smaller
+  ones step in. Your usual amount goes first, marked "Your usual" and
+  chosen; a usual of more than is left is not offered. Each tile shows its
+  amount and cost ("250 ml · ₹17.00"). A cup is named by the measure for
+  any mass item ("Tomatoes · 1 cup" is 200 g). "Another amount" takes any
+  amount in the base unit, up to what is left.
+- **Who had it** starts as the people of your last use who are still in
+  the group, else just you. A personal item says nobody owes anyone, and
+  what it cost you.
+- **The request is the item page's** (`logRequest`: base unit, you first,
+  then the group's member order), so a usual's `lastUnit` becomes the base
+  unit after a quick use (250 ml, never 0.25 L). Costs and shares come from
+  the engine through `item-use.ts`.
+- **Usuals carry no price, so their items are read.** The strip
+  (8 usuals) and Do it again (up to 6 usuals that still fit) read each item
+  by its ref, in the item page's cache entry, so a tap opens the card at once.
+  A Do it again row shows its cost and logs only once its item is read; a
+  usual whose amount no longer fits what is left, or whose item is used up
+  or can't be read, is left out and the next takes its place. Before you
+  have usuals, the strip shows "In your pantries": 8 usable items,
+  soonest use-by first (`items?usable=1`). Search is debounced (200 ms),
+  asks `search?usable=1&limit=20`, and shows "N matches across your
+  pantries" in the same strip (a grid from 900px). Quick use offers nothing
+  from a group you only view, including through a link.
+- **The toast is the app's toast, not a dark one**: the shared toast has no
+  dark variant, and adding one would restyle every toast. It reads "Logged
+  1 glass of Milk for you and Anu in Flat 4B." with the item's name as
+  typed, and has the same ten-second Undo as the item page. After a log the
+  screen starts fresh but the search is not focused again: on a phone the
+  keyboard would cover the Undo. In the sheet a logged row closes the sheet;
+  a refused one shows an error toast and the sheet stays open. The sheet
+  does not check the group's roster, so a usual naming someone who left
+  gets the server's `not_in_group` in words.
+- **Shared, not copied.** The item page's Use some and quick use share
+  `useLogUse` (request, refresh, refusal in words, Undo toast),
+  `logRefusal` and `loggedText` (in `item-use.ts`), and `WhoHadIt` and
+  `ShareList` (in `pantry-ui.tsx`). The item page's own wording is unchanged.
+- **Retrying after a refusal uses a new idempotency key** (item page too:
+  use, mark wasted and move to a group). The edge stores every answer below
+  500 under its key, so retrying a refused write with the same key would
+  replay the refusal. The key is kept
+  only when no answer came (a network error or a 5xx), so that retry is
+  still safe.
+- **Also changed:** the + Add sheet's "I used something" is live ("I cooked"
+  stays Soon until CP-15; "I bought food" and "I paid a bill" were already
+  live), and Home's "What did you use?" is a link to `/use` styled as the
+  field. New query keys `kitchenUsuals`, `kitchenSearch(q)` and
+  `kitchenUsable` sit under `kitchenPantry()`, so any stock write refreshes
+  them. No SDK or contract change.
