@@ -15,24 +15,24 @@ import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, SoonBadge } from "@/components/kitchen/kit";
-import { Chip, Money } from "@/components/kitchen/ledger-ui";
+import { Money } from "@/components/kitchen/ledger-ui";
 import { useGroupRole } from "@/components/kitchen/ledger-data";
-import { memberInitials, memberLabel, memberLabelInline, type MemberNames } from "@/components/kitchen/members";
+import { memberLabel, memberLabelInline, type MemberNames } from "@/components/kitchen/members";
 import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
 import { GroupPickerList } from "@/components/kitchen/group-picker";
 import { wasteRuleLabel, type GroupRole } from "@/components/kitchen/groups";
 import { formatMinor } from "@/components/kitchen/money";
-import { chipWindow } from "@/components/kitchen/item-form";
 import {
   refreshPantry,
   undoRefusal,
   undoStockMove,
   useItemMoves,
   useKitchenItem,
+  useLogUse,
   useOfferStockUndo,
   usePantries,
 } from "@/components/kitchen/pantry-data";
-import { StockBar, UseByPill } from "@/components/kitchen/pantry-ui";
+import { ShareList, StockBar, UseByPill, WhoHadIt } from "@/components/kitchen/pantry-ui";
 import {
   barTone,
   boughtText,
@@ -52,7 +52,6 @@ import {
 } from "@/components/kitchen/pantry";
 import {
   canUndoMove,
-  consumersText,
   costPerText,
   historyRows,
   initialAmount,
@@ -67,10 +66,8 @@ import {
   logButtonLabel,
   amountCost,
   amountText,
-  logRequest,
   amountStep,
   wastePreview,
-  type ShareLine,
 } from "@/components/kitchen/item-use";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 
@@ -157,7 +154,7 @@ function ItemView(ctx: ItemCtx) {
   const stateLabel = STATE_LABEL[item.state];
   const cardRef = React.useRef<HTMLElement>(null);
 
-  // Use on a pantry row lands here with #use: bring the Use card into view.
+  // A link to the Use section (#use) lands here: bring the Use card into view.
   const canUseHere = live && roleKnown && canWrite;
   React.useEffect(() => {
     if (canUseHere && window.location.hash === "#use") cardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -253,15 +250,12 @@ function Fact({ term, children }: { term: string; children: React.ReactNode }) {
 // ── Use some ───────────────────────────────────────────────────────
 
 function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { cardRef: React.RefObject<HTMLElement | null> }) {
-  const { client } = useSession();
-  const qc = useQueryClient();
-  const offerUndo = useOfferStockUndo();
+  const logUse = useLogUse();
   const personal = item.pantry.kind === "personal";
   const step = amountStep(item);
   const [qtyMilli, setQtyMilli] = React.useState(() => initialAmount(item));
   const [typed, setTyped] = React.useState<string | null>(null);
   const [chosen, setChosen] = React.useState<ReadonlySet<string>>(() => new Set(meId ? [meId] : []));
-  const [expanded, setExpanded] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const idemKey = React.useRef(crypto.randomUUID());
@@ -277,7 +271,6 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
   const breakdown = amount !== null && !personal ? shareBreakdown({ item, qtyMilli: amount, consumers, meId, names }) : null;
   const cost = amount !== null ? amountCost(item, amount) : null;
   const label = logButtonLabel({ qtyMilli: amount ?? qtyMilli, item, consumers: personal ? null : consumers, meId, names });
-  const people = chipWindow(roster ?? (meId ? [meId] : []), { meId, names, chosen, expanded, max: 6 });
   const stepText = amountText(step.stepMilli, item);
   const ready = amount !== null && (personal || consumers.length > 0);
 
@@ -300,46 +293,18 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
     if (amount === null || !ready) return;
     setBusy(true);
     setError(null);
-    const body = logRequest(item, amount, consumers);
-    const opts = { idempotencyKey: idemKey.current };
-    const r = await wrap(() =>
-      itemRef.kind === "group"
-        ? client.kitchen.useGroupItem(itemRef.orgId, itemRef.itemId, body, opts)
-        : client.kitchen.usePersonalItem(itemRef.itemId, body, opts),
-    );
+    const r = await logUse({ ref: itemRef, item, qtyMilli: amount, consumers, idempotencyKey: idemKey.current, meId, names });
     setBusy(false);
-    const orgId = itemRef.kind === "group" ? itemRef.orgId : null;
     if (!r.ok) {
-      const details = r.error.details ?? {};
-      refreshPantry(qc, null);
-      if (r.error.reason === "insufficient_stock") {
-        const left = typeof details["qtyLeftMilli"] === "number" ? (details["qtyLeftMilli"] as number) : item.qtyLeftMilli;
-        setError(left > 0 ? `Only ${amountText(left, item)} left now — someone used some meanwhile.` : "None left now — someone used the last of it.");
-      } else if (r.error.reason === "stale") {
-        setError("It changed while you were logging. Check the amount and try again.");
-      } else if (r.error.reason === "not_in_group") {
-        const gone = Array.isArray(details["subjectIds"]) ? (details["subjectIds"] as unknown[]).filter((x): x is string => typeof x === "string") : [];
-        setChosen((cur) => new Set([...cur].filter((id) => !gone.includes(id))));
-        setError(`${gone.map((id) => memberLabel(id, meId, names)).join(", ") || "Someone"} left the group, so they're off this use. Check and log again.`);
-      } else {
-        setError(r.error.message);
-      }
+      // A refusal is stored against its key at the edge: the next try needs a new one.
+      if (r.answered) idemKey.current = crypto.randomUUID();
+      if (r.gone.length > 0) setChosen((cur) => new Set([...cur].filter((id) => !r.gone.includes(id))));
+      setError(r.message);
       return;
     }
     idemKey.current = crypto.randomUUID();
-    refreshPantry(qc, orgId);
-    const what = amountText(amount, item);
-    const title = personal
-      ? `Logged ${what} of ${item.name}`
-      : `Logged ${what} of ${item.name} for ${consumersText(consumers, meId, names)}`;
-    const description = r.data.txn
-      ? `${formatMinor(r.data.txn.totalMinor, item.currency)} in ${pantryLabel(item.pantry)}. It nets with everything else at settle-up.`
-      : personal
-        ? "From your own pantry: nobody owes anyone."
-        : `${formatMinor(r.data.move.costMinor, item.currency)} — ${memberLabel(item.paidBy, meId, names)} paid for it, so nobody owes anyone.`;
-    offerUndo(itemRef, r.data, title, description);
     setTyped(null);
-    setQtyMilli(initialAmount(r.data.item));
+    setQtyMilli(initialAmount(r.response.item));
   };
 
   const btn =
@@ -422,40 +387,7 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
         </p>
       ) : (
         <>
-          <fieldset>
-            <legend className="mb-2 text-sm font-bold">Who had it?</legend>
-            {roster === null ? (
-              <div className="flex gap-2" aria-hidden>
-                <Skeleton className="h-11 w-20 rounded-full" />
-                <Skeleton className="h-11 w-24 rounded-full" />
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {people.shown.map((id) => {
-                  const on = chosen.has(id);
-                  return (
-                    <Chip key={id} aria-pressed={on} selected={on} onClick={() => toggle(id)} className="pl-1.5">
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "grid h-7 w-7 place-items-center rounded-full text-[10px] font-bold",
-                          on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {memberInitials(id, meId, names)}
-                      </span>
-                      {memberLabel(id, meId, names)}
-                    </Chip>
-                  );
-                })}
-                {people.more > 0 ? (
-                  <Chip onClick={() => setExpanded(true)} className="text-muted-foreground">
-                    {people.more} more
-                  </Chip>
-                ) : null}
-              </div>
-            )}
-          </fieldset>
+          <WhoHadIt roster={roster} chosen={chosen} onToggle={toggle} meId={meId} names={names} />
           <ShareList
             lines={breakdown?.lines ?? []}
             currency={item.currency}
@@ -473,31 +405,6 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
         {label}
       </Button>
     </section>
-  );
-}
-
-function ShareList({ lines, currency, empty }: { lines: readonly ShareLine[]; currency: string; empty?: string | null }) {
-  if (empty || lines.length === 0) {
-    return empty ? <p className="rounded-[14px] bg-background px-3.5 py-3 text-sm text-muted-foreground">{empty}</p> : null;
-  }
-  return (
-    <ul aria-label="Who owes what" className="space-y-1.5 rounded-[14px] bg-background px-3.5 py-3 text-sm">
-      {lines.map((l) => (
-        <li key={l.subjectId} className="flex items-baseline justify-between gap-3">
-          <span className={cn("min-w-0", l.tone === "own" && "text-muted-foreground")}>{l.text}</span>
-          <Money
-            minor={l.amountMinor}
-            currency={currency}
-            className={cn(
-              "shrink-0 font-bold",
-              l.tone === "owe" && "font-extrabold text-cp-owe",
-              l.tone === "owed" && "font-extrabold text-cp-owed",
-              l.tone === "own" && "text-muted-foreground",
-            )}
-          />
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -525,6 +432,8 @@ function ActionsCard({ itemRef, item, meId, names, roster }: ItemCtx) {
     );
     setBusy(false);
     if (!r.ok) {
+      // A refusal is stored against its key at the edge: the next try needs a new one.
+      if (r.status > 0 && r.status < 500) idemKey.current = crypto.randomUUID();
       refreshPantry(qc, null);
       setError(r.error.reason === "insufficient_stock" ? "There's nothing left to waste now." : r.error.message);
       return;
@@ -634,6 +543,8 @@ function MoveCard({ itemRef, item }: ItemCtx) {
     );
     setBusy(false);
     if (!r.ok) {
+      // A refusal is stored against its key at the edge: the next try needs a new one.
+      if (r.status > 0 && r.status < 500) idemKey.current = crypto.randomUUID();
       refreshPantry(qc, null);
       if (r.error.reason === "item_used") setError("Some of it has been used now, so it stays in your pantry.");
       else if (r.error.reason === "currency_mismatch")

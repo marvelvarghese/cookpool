@@ -457,3 +457,88 @@ export function transferNote(item: Pick<KitchenItem, "name" | "qtyLeftMilli" | "
 export function peopleCount(n: number): string {
   return countWords(n, "person", "people");
 }
+
+// ── Logging a use: what it says (CP-13) ───────────────────────────
+
+/**
+ * The toast after a use. On the item's own page: "Logged 100 g of Tomatoes
+ * for you and Dev"; from quick use or the + Add sheet, which are not on the
+ * item's page, it also names the pantry: "Logged 1 glass of Milk for you and
+ * Anu in Flat 4B." The description says what it did to money.
+ */
+export function loggedText(input: {
+  item: Pick<KitchenItem, "name" | "pantry" | "paidBy" | "currency">;
+  /** The amount in words: "100 g", "1 glass". */
+  what: string;
+  consumers: readonly string[];
+  meId: string | null;
+  names?: MemberNames | null;
+  /** The total of the transaction it posted, or null when no money moved. */
+  txnTotalMinor: number | null;
+  /** What the use cost (the move's cost). */
+  costMinor: number;
+  /** Name the pantry in the title (quick use, the + Add sheet). */
+  inPantry?: boolean;
+}): { title: string; description: string } {
+  const { item, what, consumers, meId, names } = input;
+  const inPantry = input.inPantry ?? false;
+  if (item.pantry.kind === "personal") {
+    return {
+      title: inPantry ? `Logged ${what} of ${item.name} from your pantry.` : `Logged ${what} of ${item.name}`,
+      description: "From your own pantry: nobody owes anyone.",
+    };
+  }
+  const group = item.pantry.name;
+  const who = consumersText(consumers, meId, names);
+  const title = inPantry ? `Logged ${what} of ${item.name} for ${who} in ${group}.` : `Logged ${what} of ${item.name} for ${who}`;
+  if (input.txnTotalMinor !== null) {
+    const total = formatMinor(input.txnTotalMinor, item.currency);
+    return {
+      title,
+      description: inPantry
+        ? `${total} — it nets with everything else at settle-up.`
+        : `${total} in ${group}. It nets with everything else at settle-up.`,
+    };
+  }
+  return {
+    title,
+    description: `${formatMinor(input.costMinor, item.currency)} — ${memberLabel(item.paidBy, meId, names)} paid for it, so nobody owes anyone.`,
+  };
+}
+
+/**
+ * What to say when a use is refused, and who to take off it: not that much
+ * left any more ("Only 50 g left now — someone used some meanwhile."), the
+ * item changed under the write (`stale`), someone named has left the group
+ * (`not_in_group`: they come off the use), the item is gone, or the server's
+ * own message.
+ */
+export function logRefusal(
+  error: { reason?: string | undefined; message: string; details?: Record<string, unknown> | undefined },
+  ctx: { item: Pick<KitchenItem, "dimension" | "qtyLeftMilli">; meId: string | null; names?: MemberNames | null },
+): { message: string; gone: string[] } {
+  const details = error.details ?? {};
+  switch (error.reason) {
+    case "insufficient_stock": {
+      const left = typeof details["qtyLeftMilli"] === "number" ? (details["qtyLeftMilli"] as number) : ctx.item.qtyLeftMilli;
+      return {
+        message:
+          left > 0
+            ? `Only ${amountText(left, ctx.item)} left now — someone used some meanwhile.`
+            : "None left now — someone used the last of it.",
+        gone: [],
+      };
+    }
+    case "stale":
+      return { message: "It changed while you were logging. Check the amount and try again.", gone: [] };
+    case "not_in_group": {
+      const gone = Array.isArray(details["subjectIds"])
+        ? (details["subjectIds"] as unknown[]).filter((x): x is string => typeof x === "string")
+        : [];
+      const who = gone.map((id) => memberLabel(id, ctx.meId, ctx.names)).join(", ") || "Someone";
+      return { message: `${who} left the group, so they're off this use. Check and log again.`, gone };
+    }
+    default:
+      return { message: error.message, gone: [] };
+  }
+}

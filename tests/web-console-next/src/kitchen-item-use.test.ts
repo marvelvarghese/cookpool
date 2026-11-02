@@ -11,7 +11,9 @@ import {
   initialAmount,
   isUnused,
   logButtonLabel,
+  logRefusal,
   logRequest,
+  loggedText,
   milliToDecimal,
   orderConsumers,
   parseAmount,
@@ -337,5 +339,49 @@ describe("the shares never show a raw id", () => {
     const w = wastePreview({ item: makeItem({ paidBy: stranger, priceMinor: 4000, worthMinor: 1600 }), members: [stranger, ME], meId: ME, names: NAMES });
     expect(w.explain).not.toMatch(/usr_/);
     expect(FLAT.name).toBe("Flat 4B");
+  });
+});
+
+describe("what a logged use says, and a refused one (shared with quick use, CP-13)", () => {
+  const milk = () => makeItem({ name: "Milk", unit: "L", bought: "1", left: "1", priceMinor: 6800, paidBy: MEERA });
+
+  it("names the pantry from quick use: 'Logged 1 glass of Milk for you and Anu in Flat 4B.'", () => {
+    const t = loggedText({ item: milk(), what: "1 glass", consumers: [ME, ANU], meId: ME, names: NAMES, txnTotalMinor: 1700, costMinor: 1700, inPantry: true });
+    expect(t.title).toBe("Logged 1 glass of Milk for you and Anu in Flat 4B.");
+    expect(t.description).toBe(`${formatMinor(1700)} — it nets with everything else at settle-up.`);
+  });
+
+  it("keeps the item page's words there", () => {
+    const t = loggedText({ item: milk(), what: "100 ml", consumers: [ME, DEV], meId: ME, names: NAMES, txnTotalMinor: 680, costMinor: 680 });
+    expect(t.title).toBe("Logged 100 ml of Milk for you and Dev");
+    expect(t.description).toBe(`${formatMinor(680)} in Flat 4B. It nets with everything else at settle-up.`);
+  });
+
+  it("says nobody owes anyone when the buyer had it, or for your own pantry", () => {
+    const own = loggedText({ item: milk(), what: "1 glass", consumers: [MEERA], meId: ME, names: NAMES, txnTotalMinor: null, costMinor: 1700, inPantry: true });
+    expect(own.title).toBe("Logged 1 glass of Milk for Meera in Flat 4B.");
+    expect(own.description).toBe(`${formatMinor(1700)} — Meera paid for it, so nobody owes anyone.`);
+    const eggs = makeItem({ name: "Eggs", pantry: PERSONAL_REF, unit: "pcs", bought: "12", left: "7", priceMinor: 8400, paidBy: ME });
+    const personal = loggedText({ item: eggs, what: "2 pcs", consumers: [], meId: ME, txnTotalMinor: null, costMinor: 1400, inPantry: true });
+    expect(personal).toEqual({ title: "Logged 2 pcs of Eggs from your pantry.", description: "From your own pantry: nobody owes anyone." });
+    expect(loggedText({ item: eggs, what: "2 pcs", consumers: [], meId: ME, txnTotalMinor: null, costMinor: 1400 }).title).toBe("Logged 2 pcs of Eggs");
+  });
+
+  it("explains a refusal in words, and who comes off the use", () => {
+    const item = tomatoes();
+    const ctx = { item, meId: ME, names: NAMES };
+    expect(logRefusal({ reason: "insufficient_stock", message: "x", details: { qtyLeftMilli: 50_000 } }, ctx)).toEqual({
+      message: "Only 50 g left now — someone used some meanwhile.",
+      gone: [],
+    });
+    expect(logRefusal({ reason: "insufficient_stock", message: "x", details: { qtyLeftMilli: 0 } }, ctx).message).toBe(
+      "None left now — someone used the last of it.",
+    );
+    expect(logRefusal({ reason: "stale", message: "x" }, ctx).message).toMatch(/changed while you were logging/);
+    expect(logRefusal({ reason: "not_in_group", message: "x", details: { subjectIds: [DEV, 7] } }, ctx)).toEqual({
+      message: "Dev left the group, so they're off this use. Check and log again.",
+      gone: [DEV],
+    });
+    expect(logRefusal({ message: "Network unreachable" }, ctx)).toEqual({ message: "Network unreachable", gone: [] });
   });
 });

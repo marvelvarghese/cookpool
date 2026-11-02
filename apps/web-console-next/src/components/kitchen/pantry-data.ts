@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type {
   KitchenItem,
   KitchenMember,
   KitchenStockMove,
+  KitchenUsual,
   Pantry,
   ReachableItem,
   StockMoveResponse,
@@ -16,6 +17,8 @@ import { useApiQuery, qk } from "@/lib/query";
 import { useToast } from "@/components/ui/toast";
 import { refreshLedger, UNDO_MS } from "./ledger-data";
 import { itemRefParam, type ItemRef } from "./pantry";
+import { amountText, logRefusal, logRequest, loggedText } from "./item-use";
+import type { MemberNames } from "./members";
 
 /**
  * Cookpool's pantry reads and stock writes (CP-12), through the CP-10/CP-11
@@ -204,5 +207,140 @@ export function useOfferStockUndo() {
       });
     },
     [client, qc, toast],
+  );
+}
+
+// ── Quick use (CP-13) ─────────────────────────────────────────────
+
+/** How many usuals the app reads: quick use's strip, and the + Add sheet's Do it again (one cache entry). */
+export const USUALS_LIMIT = 10;
+
+/** What the caller often uses (CP-11's usuals), most used first: usable items with something left. */
+export function useUsuals(enabled = true) {
+  const { client } = useSession();
+  return useApiQuery<KitchenUsual[]>(
+    qk.kitchenUsuals(),
+    () => wrap(async () => (await client.kitchen.usuals({ limit: USUALS_LIMIT })).usuals),
+    { enabled },
+  );
+}
+
+/** Quick use's search: items with something left across every pantry the caller may use from (`usable=1`), best match first. */
+export function useItemSearch(q: string) {
+  const { client } = useSession();
+  const term = q.trim();
+  return useApiQuery<ReachableItem[]>(
+    qk.kitchenSearch(term),
+    () => wrap(async () => (await client.kitchen.searchItems(term, { usable: true, limit: 20 })).items),
+    { enabled: term !== "" },
+  );
+}
+
+/** The caller's usable items, soonest use-by first (quick use's strip before there are usuals). */
+export function useUsableItems(enabled: boolean) {
+  const { client } = useSession();
+  return useApiQuery<ReachableItem[]>(
+    qk.kitchenUsable(),
+    () => wrap(async () => (await client.kitchen.items({ usable: true, limit: 8 })).items),
+    { enabled },
+  );
+}
+
+/**
+ * Several items by their refs, each in the item page's cache entry: by
+ * `itm_…`, the item once read, null when it cannot be (removed, moved, or no
+ * longer yours to read); missing while it loads.
+ */
+export function useItemsByRef(refs: readonly ItemRef[]): ReadonlyMap<string, KitchenItem | null> {
+  const { client } = useSession();
+  const results = useQueries({
+    queries: refs.map((ref) => ({
+      queryKey: qk.kitchenItem(itemRefParam(ref)),
+      queryFn: async (): Promise<KitchenItem> => {
+        const r = await wrap(() =>
+          ref.kind === "personal" ? client.kitchen.getPersonalItem(ref.itemId) : client.kitchen.getGroupItem(ref.orgId, ref.itemId),
+        );
+        if (!r.ok) throw r.error;
+        return r.data.item;
+      },
+    })),
+  });
+  const out = new Map<string, KitchenItem | null>();
+  refs.forEach((ref, i) => {
+    const q = results[i];
+    if (q?.data) out.set(ref.itemId, q.data);
+    else if (q?.isError) out.set(ref.itemId, null);
+  });
+  return out;
+}
+
+export interface LogUseInput {
+  ref: ItemRef;
+  item: KitchenItem;
+  qtyMilli: number;
+  /** Who had it, in the order sent (ignored for your own pantry's item). */
+  consumers: readonly string[];
+  idempotencyKey: string;
+  /** The amount in words for the toast ("1 glass"); the amount itself by default. */
+  what?: string;
+  /** Name the pantry in the toast (quick use and the + Add sheet). */
+  inPantry?: boolean;
+  meId: string | null;
+  names?: MemberNames | null;
+}
+
+export type LogUseResult =
+  | { ok: true; response: StockMoveResponse }
+  | {
+      ok: false;
+      message: string;
+      /** People who left the group: take them off and try again. */
+      gone: string[];
+      /** The server answered (a refusal is stored against the key): send the next try with a new key. */
+      answered: boolean;
+    };
+
+/**
+ * Log a use — the item page's Use some, quick use and Do it again share it:
+ * the request (`logRequest`), the refresh of every pantry read (and the
+ * group's ledger), the refusal in words (`logRefusal`), and on success the
+ * ten-second Undo toast (`useOfferStockUndo`) saying what was logged
+ * (`loggedText`).
+ */
+export function useLogUse() {
+  const { client } = useSession();
+  const qc = useQueryClient();
+  const offerUndo = useOfferStockUndo();
+  return React.useCallback(
+    async (input: LogUseInput): Promise<LogUseResult> => {
+      const { ref, item, qtyMilli, meId, names } = input;
+      const consumers = item.pantry.kind === "personal" ? [] : [...input.consumers];
+      const body = logRequest(item, qtyMilli, consumers);
+      const opts = { idempotencyKey: input.idempotencyKey };
+      const r = await wrap(() =>
+        ref.kind === "group"
+          ? client.kitchen.useGroupItem(ref.orgId, ref.itemId, body, opts)
+          : client.kitchen.usePersonalItem(ref.itemId, body, opts),
+      );
+      if (!r.ok) {
+        refreshPantry(qc, null);
+        const refusal = logRefusal(r.error, { item, meId, names: names ?? null });
+        return { ok: false, ...refusal, answered: r.status > 0 && r.status < 500 };
+      }
+      refreshPantry(qc, ref.kind === "group" ? ref.orgId : null);
+      const text = loggedText({
+        item,
+        what: input.what ?? amountText(qtyMilli, item),
+        consumers,
+        meId,
+        names: names ?? null,
+        txnTotalMinor: r.data.txn ? r.data.txn.totalMinor : null,
+        costMinor: r.data.move.costMinor,
+        inPantry: input.inPantry ?? false,
+      });
+      offerUndo(ref, r.data, text.title, text.description);
+      return { ok: true, response: r.data };
+    },
+    [client, qc, offerUndo],
   );
 }
