@@ -50,6 +50,24 @@ describe("query cache keys (qk)", () => {
     expect(qk.kitchenLedger("org_1")).not.toEqual(qk.kitchenSettings("org_1"));
   });
 
+  it("Cookpool pantry keys share one prefix, so one invalidation after a stock write refreshes them all (CP-12)", () => {
+    const prefix = qk.kitchenPantry();
+    const keys = [
+      qk.kitchenPantries(),
+      qk.kitchenPantryItems("all"),
+      qk.kitchenPantryItems("personal"),
+      qk.kitchenPantryItems("org_1"),
+      qk.kitchenUseSoon(),
+      qk.kitchenItem("me:itm_1"),
+      qk.kitchenItemMoves("me:itm_1"),
+    ];
+    for (const k of keys) expect(k.slice(0, prefix.length)).toEqual([...prefix]);
+    expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(keys.length);
+    expect(qk.kitchenItem("me:itm_1")).not.toEqual(qk.kitchenItem("org:org_1:itm_1"));
+    expect(qk.kitchenPantry()).not.toEqual(qk.kitchenMe());
+    expect(qk.kitchenPantry()).not.toEqual(qk.kitchenLedger("org_1"));
+  });
+
   it("each key starts with a distinct resource tag", () => {
     expect(qk.orgs()[0]).toBe("orgs");
     expect(qk.projects("o")[0]).toBe("projects");

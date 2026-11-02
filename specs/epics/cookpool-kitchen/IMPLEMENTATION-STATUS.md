@@ -8,7 +8,7 @@ the code departed from `design.md`.
 | CP0 — the spec | ✅ shipped 2026-11-01 | #3 (CP-1) |
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
 | CP2 — the ledger | ✅ shipped 2026-11-02 | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22), #15 (CP-9) |
-| CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11) |
+| CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11), #18 (CP-12) |
 | CP4 — the dish maker | in progress | #16 (CP-14) |
 | CP5 — splitting dishes | in progress | #17 (CP-16) |
 | CP6 — use it before it goes | | |
@@ -448,3 +448,87 @@ All three are closed by CP-9 (below).
 - **Not yet:** leftovers get no use-by date (the daily sweep, CP-18, may
   want one); finalize does not re-check that every eater is still in the
   group (they ate; assigning and correcting do check).
+
+### CP3 — pantry screens (CP-12)
+
+- **One item route.** `/pantry/[itemRef]` names the item and its pantry:
+  `me:itm_…` for your own, `org:org_…:itm_…` for a group's (`parseItemRef`
+  also reads the percent-encoded form). **Use** on a row opens the item
+  page's Use section (`#use`) until quick use (`/use`, CP-13) ships.
+- **Two layouts for /pantry.** Phones get the folding section per pantry
+  (Personal, then groups recent first; the first three open, and any further
+  one with something to use or expired); from 900px it is one table, soonest
+  use-by first, with an item search and "Show all N items" after twelve, as
+  the canvas's web artboard draws it. `?pantry=` and `?filter=` keep the
+  choice. The items of the chosen pantry are read 100 a page, at most 1,000
+  (then a note says so).
+- **Filters say what the server counts.** "Use soon · N" is today to three
+  days ahead and "Expired · N" (shown only when something has expired) is
+  separate, matching the pantry totals; the phone canvas counted expired
+  items under use soon. The caller's own pantry reads "Personal" (badge "Me"),
+  not the API's "My pantry".
+- **Prices read per kg and per L.** An item bought in grams is priced per kg,
+  in millilitres or spoons per L (the engine's `pricePerUnit`), counts per
+  piece, packs per pack — "₹560.00/kg", not "₹0.56/g", which rounds away most
+  of the price. For the same reason the add form's live line is "₹X per kg ·
+  ₹Y per 100 g" (and per L · per 100 ml), not "per g"; the item page's "Costs"
+  is per 100 g / 100 ml / piece / pack.
+- **Use some.** The stepper counts 50 g, 50 ml, one piece or one pack (a typed
+  amount is accepted, never more than is left, and "All that's left" takes the
+  rest); the request is sent in that base unit. The cost is the engine's
+  `costOfUse` from what the item has cost so far (price − worth), so the last
+  of an item costs exactly what is left. Who had it: you first, then the
+  group's member order — the order sent, so the preview's odd paisa lands
+  where the server's does (`buildUse`). Viewers can be named as having had
+  some (they are on the roster); they cannot log.
+- **Mark wasted** throws away everything left (no partial amount in v1) after
+  a preview of who pays under the rule in force: split equally by the
+  engine's `buildWaste` over the group's member list (`…/kitchen/members`,
+  oldest first), buyer absorbs, or — your own item — nothing to split. The
+  preview's member order is the members route's; if membership's internal
+  roster ever orders differently, the odd paisa could fall on another person
+  in the ledger than in the preview (the total is the same).
+- **Undo.** A use or waste ends in the 10-second Undo toast (CP-8's pattern):
+  it reverses the transaction when one posted (that puts the stock back), else
+  undoes the move (personal, or a buyer's own use / absorbed waste). The
+  item's History also offers Undo — on a use or waste with a transaction for
+  its logger or an owner/admin, and on one without only while it is the
+  latest move still in effect — with the CP-11 refusals in words
+  (`not_latest`, `already_reversed`, `not_reversible`, `not_creator`).
+  Adding an item ends in an Undo toast that removes it, offered when you paid
+  for it or are an owner/admin (`not_buyer` otherwise).
+- **Move to a group is confirmed, not undone**: transfer is not reversible in
+  v1, so picking a group shows what will happen ("…becomes Flat 4B's, paid by
+  you. This can't be undone.") and a "Move to Flat 4B" button. Groups you
+  only view are left out; a group counting in another currency is named as
+  unable to take it. Once any of the item is used, the card explains why it
+  stays.
+- **History** lists the item's stock moves (undone ones struck through and
+  marked "Undone", undos as "You undid a use: 100 g back") and ends with the
+  purchase, made from the item itself ("Anu added 1 kg · ₹40.00"; "· Anu
+  paid" when someone else bought it), since adding writes no stock move.
+- **Viewers** see a group's pantry, items and history with no Use, Mark
+  wasted, Move or Undo (rows show no Use: `canUse`); the add form's picker
+  leaves out groups you only view (roles from `myBalances`), and a
+  `/pantry/new?pantry=` naming one falls back to your own pantry with a note.
+- **Add an item**: categories are stored as ids (`veg`, `fruit`, `dairy`,
+  `grains`, `protein`, `spices`, `other`) and shown by their chip label; the
+  quantity is checked with the engine's `toMilli` and sent as typed (".5" is
+  sent as "0.5"); a group item omits `currency` (the group's applies) and
+  sends `wastePolicy` only when it overrides the group's rule; a personal item
+  is sent in the personal pantry's currency. "Bought on" cannot be after
+  today (a check in the form only — the API accepts any date). After adding,
+  the app opens that pantry.
+- **Home's "Use soon"** reads two small lists (`filter=soon` and
+  `filter=expired`, four each) and shows the soonest four, still-usable
+  first; with nothing to show it says so, or — with no items anywhere —
+  invites you to add what you buy.
+- **Also changed:** a group's Pantry tab lists its first six items with links
+  to the pantry and to Add (not a "coming soon" card); "I bought food" in the
+  + Add sheet is live (CP-13 still owns "I used something"); Home's quick-use
+  note now points to Use on pantry rows. Pantry reads cache under
+  `qk.kitchenPantry()`, invalidated with the group's ledger after every stock
+  write. No SDK change was needed.
+- **Not in this task:** editing or removing an item from its page (the
+  canvas's pencil), quick use and "Do it again" (CP-13), Cook with it (shown
+  as "Soon" until CP-15).

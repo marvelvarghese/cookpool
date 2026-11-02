@@ -101,7 +101,7 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
           <>
             <SheetTitle className="pr-12 text-xl font-extrabold">What happened?</SheetTitle>
             <SheetDescription className="mt-1 text-sm">
-              Pick what you did. Anything marked Soon arrives with pantries and dishes.
+              Pick what you did. Anything marked Soon arrives with quick use and dishes.
             </SheetDescription>
 
             <ul className="mt-4 grid grid-cols-2 gap-3">

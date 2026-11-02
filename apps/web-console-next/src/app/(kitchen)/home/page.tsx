@@ -15,11 +15,13 @@ import { GroupAvatar, IconBubble, KCard, K_BUTTON, SoonBadge } from "@/component
 import { Money } from "@/components/kitchen/ledger-ui";
 import { useMyBalances } from "@/components/kitchen/people-data";
 import { homeBalance, netWords } from "@/components/kitchen/people";
+import { HomeUseSoon } from "@/components/kitchen/pantry-cards";
 
 /**
- * Home (CP-5; balances since CP-8, across groups since CP-9). The inbox and
- * quick use arrive with later milestones; Home greets the person, shows the
- * quick-use field as "Soon", the balance card, and their groups.
+ * Home (CP-5; balances since CP-8, across groups since CP-9, use soon since
+ * CP-12). The inbox and quick use arrive with later milestones; Home greets
+ * the person, shows the quick-use field as "Soon", the balance card, the
+ * items to use soon, and their groups.
  */
 export default function HomePage() {
   const profile = useProfile();
@@ -51,6 +53,7 @@ export default function HomePage() {
 
       <QuickUse />
       <BalanceCard />
+      <HomeUseSoon />
       <YourGroups />
     </div>
   );
@@ -75,7 +78,7 @@ function QuickUse() {
         <SoonBadge className="absolute right-4 top-1/2 -translate-y-1/2" />
       </div>
       <p id="quick-use-note" className="mt-2 px-1 text-sm text-muted-foreground">
-        Logging what you used, in two taps, arrives with pantries.
+        Two-tap logging arrives next. For now, tap Use on any item in your pantry.
       </p>
     </section>
   );

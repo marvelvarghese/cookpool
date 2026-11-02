@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-12
+  title: "Pantry screens: every pantry, add an item, the item page"
+spec:
+  goal: People see every pantry they can reach on one screen, add items to their own pantry or a group's, and use, waste, move and undo from an item's page, with names and costs shown before anything is logged.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-12.TaskContract.yaml
+  doneWhen:
+    - /pantry shows all pantries as collapsible sections with a searchable pantry picker, a use-soon filter, worth, use-by chips and remaining bars
+    - /pantry/new adds an item to the personal pantry or a group, with units, a live price per unit, who paid and the waste rule
+    - the item page logs a use for several people with a live cost and breakdown, offers undo, marks waste with a preview, moves a personal item to a group, and lists the history
+    - Home's use-soon strip shows the soonest items
+    - viewers see no write actions; names are shown, never raw ids
+  gates: []

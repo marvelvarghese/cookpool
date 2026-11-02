@@ -1,0 +1,341 @@
+import { costOfUse, formatMinor } from "@saas/kitchen-engine/money";
+import { buildUse } from "@saas/kitchen-engine/ledger";
+import { toMilli } from "@saas/kitchen-engine/units";
+import {
+  AMOUNT_STEPS,
+  amountCost,
+  amountStep,
+  canUndoMove,
+  costPerText,
+  historyRows,
+  initialAmount,
+  isUnused,
+  logButtonLabel,
+  logRequest,
+  milliToDecimal,
+  orderConsumers,
+  parseAmount,
+  shareBreakdown,
+  stepAmount,
+  transferTargets,
+  wastePreview,
+} from "@web-console-next/components/kitchen/item-use";
+import {
+  ANU,
+  DEV,
+  FLAT,
+  LUNCH,
+  ME,
+  MEERA,
+  NAMES,
+  PERSONAL_REF,
+  TRIP,
+  groupPantry,
+  groupRef,
+  makeItem,
+  makeMove,
+  personalPantry,
+} from "./kitchen-pantry-fixtures";
+
+// Tomatoes in Flat 4B: 1 kg for ₹40.00, Anu paid; 400 g left, worth ₹16.00.
+const tomatoes = () => makeItem({ unit: "kg", bought: "1", left: "0.4", priceMinor: 4000, worthMinor: 1600, paidBy: ANU });
+
+describe("how much: the stepper", () => {
+  it("steps 50 g, 50 ml, one piece, one pack", () => {
+    expect(AMOUNT_STEPS).toEqual({
+      mass: { unit: "g", stepMilli: 50_000 },
+      volume: { unit: "ml", stepMilli: 50_000 },
+      count: { unit: "pcs", stepMilli: 1_000 },
+      pack: { unit: "pack", stepMilli: 1_000 },
+    });
+    expect(amountStep(makeItem({ unit: "L" })).unit).toBe("ml");
+    expect(amountStep(makeItem({ unit: "dozen" })).unit).toBe("pcs");
+  });
+
+  it("starts at one step, or all that is left when that is less", () => {
+    expect(initialAmount(tomatoes())).toBe(50_000);
+    expect(initialAmount(makeItem({ unit: "g", bought: "500", left: "30" }))).toBe(30_000);
+  });
+
+  it("moves along the step grid and stays between the smallest step and what is left", () => {
+    const item = makeItem({ unit: "g", bought: "500", left: "430" });
+    expect(stepAmount(430_000, -1, item)).toBe(400_000);
+    expect(stepAmount(400_000, 1, item)).toBe(430_000);
+    expect(stepAmount(430_000, 1, item)).toBe(430_000);
+    expect(stepAmount(100_000, -1, item)).toBe(50_000);
+    expect(stepAmount(50_000, -1, item)).toBe(50_000);
+    expect(stepAmount(120_000, 1, item)).toBe(150_000);
+    const crumbs = makeItem({ unit: "g", bought: "500", left: "30" });
+    expect(stepAmount(30_000, -1, crumbs)).toBe(30_000);
+    expect(stepAmount(30_000, 1, crumbs)).toBe(30_000);
+  });
+
+  it("writes an amount as a plain decimal the engine reads back exactly", () => {
+    expect(milliToDecimal(100_000)).toBe("100");
+    expect(milliToDecimal(433_333)).toBe("433.333");
+    expect(milliToDecimal(1_500)).toBe("1.5");
+    expect(milliToDecimal(50)).toBe("0.05");
+    for (const m of [1, 50, 999, 1_000, 433_333, 1_500_000, 12_345_678]) expect(toMilli(milliToDecimal(m), "g")).toBe(m);
+  });
+
+  it("reads a typed amount in the stepper's unit, never more than is left", () => {
+    const item = tomatoes();
+    expect(parseAmount("100", item)).toEqual({ ok: true, milli: 100_000 });
+    expect(parseAmount("12.5", item)).toEqual({ ok: true, milli: 12_500 });
+    expect(parseAmount("500", item)).toEqual({ ok: false, message: "Only 400 g left" });
+    expect(parseAmount("0", item)).toEqual({ ok: false, message: "Enter more than zero" });
+    expect(parseAmount("lots", item)).toEqual({ ok: false, message: "Enter a number like 100 or 1.5" });
+    expect(parseAmount("", item)).toEqual({ ok: false, message: "Enter how much" });
+  });
+});
+
+describe("what it costs", () => {
+  it("is the engine's cost of use, from what the item has cost so far", () => {
+    const item = tomatoes();
+    const engine = (q: number) =>
+      costOfUse({ priceMinor: 4000, qtyBoughtMilli: 1_000_000, qtyLeftMilli: 400_000, costTakenMinor: 4000 - 1600 }, q);
+    expect(amountCost(item, 100_000)).toBe(engine(100_000));
+    expect(amountCost(item, 100_000)).toBe(400);
+    expect(amountCost(item, 50_000)).toBe(200);
+  });
+
+  it("charges the last of an item exactly what is left of its price", () => {
+    const odd = makeItem({ unit: "g", bought: "300", left: "100", priceMinor: 1000, worthMinor: 334 });
+    expect(amountCost(odd, 100_000)).toBe(334);
+    expect(amountCost(tomatoes(), 400_000)).toBe(1600);
+  });
+
+  it("says what 100 g, 100 ml or one piece costs", () => {
+    expect(costPerText(tomatoes())).toBe("₹4.00 per 100 g");
+    expect(costPerText(makeItem({ unit: "L", bought: "1", priceMinor: 6800 }))).toBe("₹6.80 per 100 ml");
+    expect(costPerText(makeItem({ unit: "dozen", bought: "1", priceMinor: 8400 }))).toBe("₹7.00 per piece");
+    expect(costPerText(makeItem({ unit: "pack", bought: "6", priceMinor: 18000 }))).toBe("₹30.00 per pack");
+  });
+});
+
+describe("who had it, and who owes whom", () => {
+  it("names you first, then the group's order — the order the server splits in", () => {
+    const roster = [ANU, DEV, ME, MEERA];
+    expect(orderConsumers(new Set([MEERA, ME, DEV]), roster, ME)).toEqual([ME, DEV, MEERA]);
+    expect(orderConsumers(new Set([MEERA, ANU]), roster, ME)).toEqual([ANU, MEERA]);
+  });
+
+  it("says who owes the buyer, and the buyer's own share", () => {
+    const b = shareBreakdown({ item: tomatoes(), qtyMilli: 100_000, consumers: [ME, DEV], meId: ME, names: NAMES });
+    expect(b.costMinor).toBe(400);
+    expect(b.lines.map((l) => [l.text, formatMinor(l.amountMinor), l.tone])).toEqual([
+      ["You owe Anu", "₹2.00", "owe"],
+      ["Dev owes Anu", "₹2.00", "other"],
+    ]);
+    expect(b.posts).toBe(true);
+  });
+
+  it("from the buyer's side: others owe you, your own share nets to zero", () => {
+    const mine = makeItem({ unit: "kg", bought: "1", left: "0.4", priceMinor: 4000, worthMinor: 1600, paidBy: ME });
+    const b = shareBreakdown({ item: mine, qtyMilli: 100_000, consumers: [ME, ANU], meId: ME, names: NAMES });
+    expect(b.lines.map((l) => [l.text, l.amountMinor, l.tone])).toEqual([
+      ["Your own share", 200, "own"],
+      ["Anu owes you", 200, "owed"],
+    ]);
+    const alone = shareBreakdown({ item: mine, qtyMilli: 100_000, consumers: [ME], meId: ME, names: NAMES });
+    expect(alone.posts).toBe(false);
+    expect(alone.lines).toEqual([{ subjectId: ME, text: "Your own share", amountMinor: 400, tone: "own" }]);
+  });
+
+  it("gives the odd paisa to the first person named, as the engine (and the server) do", () => {
+    // ₹1.00 between three: 34 + 33 + 33.
+    const item = makeItem({ unit: "g", bought: "100", priceMinor: 100, paidBy: ANU });
+    const consumers = orderConsumers(new Set([DEV, MEERA, ME]), [ANU, DEV, ME, MEERA], ME);
+    const b = shareBreakdown({ item, qtyMilli: 100_000, consumers, meId: ME, names: NAMES });
+    expect(b.lines.map((l) => [l.text, l.amountMinor])).toEqual([
+      ["You owe Anu", 34],
+      ["Dev owes Anu", 33],
+      ["Meera owes Anu", 33],
+    ]);
+    expect(b.lines.reduce((s, l) => s + l.amountMinor, 0)).toBe(b.costMinor);
+    const server = buildUse({ costMinor: 100, buyerId: ANU, consumers });
+    for (const l of b.lines) expect(server.find((s) => s.subjectId === l.subjectId)!.owedMinor).toBe(l.amountMinor);
+  });
+
+  it("labels the button with the amount and the people", () => {
+    const item = tomatoes();
+    expect(logButtonLabel({ qtyMilli: 100_000, item, consumers: [ME, DEV], meId: ME, names: NAMES })).toBe("Log 100 g for you and Dev");
+    expect(logButtonLabel({ qtyMilli: 100_000, item, consumers: [ME, ANU, DEV, MEERA], meId: ME, names: NAMES })).toBe(
+      "Log 100 g for you, Anu and 2 others",
+    );
+    expect(logButtonLabel({ qtyMilli: 2_000, item: makeItem({ unit: "pcs", bought: "12" }), consumers: null, meId: ME })).toBe("Log 2 pcs");
+    expect(logButtonLabel({ qtyMilli: 100_000, item, consumers: [], meId: ME })).toBe("Pick who had it");
+  });
+
+  it("posts the amount in the stepper's unit, and who had it for a group item", () => {
+    expect(logRequest(tomatoes(), 100_000, [ME, DEV])).toEqual({ quantity: "100", unit: "g", consumers: [ME, DEV] });
+    const own = logRequest(makeItem({ pantry: PERSONAL_REF, unit: "L", bought: "1" }), 250_000, [ME]);
+    expect(own).toEqual({ quantity: "250", unit: "ml" });
+    const req = logRequest(tomatoes(), 433_333, [ME]);
+    expect(toMilli(req.quantity, req.unit!)).toBe(433_333);
+  });
+});
+
+describe("Mark wasted: the preview", () => {
+  const roster = [ANU, ME, DEV, MEERA];
+
+  it("splits equally across every member under the group's rule", () => {
+    const p = wastePreview({ item: tomatoes(), members: roster, meId: ME, names: NAMES });
+    expect(p.question).toBe("Throw away the 400 g left (₹16.00)?");
+    expect(p.explain).toBe("Flat 4B splits waste equally. Anu paid, so you, Dev and Meera each owe Anu ₹4.00.");
+    expect(p.lines.map((l) => [l.text, l.amountMinor])).toEqual([
+      ["Anu's own share", 400],
+      ["You owe Anu", 400],
+      ["Dev owes Anu", 400],
+      ["Meera owes Anu", 400],
+    ]);
+    expect(p.posts).toBe(true);
+  });
+
+  it("lists the shares when they are a paisa apart, and they add up", () => {
+    // ₹16.02 between four: 401 + 401 + 400 + 400, the odd paise to the first in the group's order.
+    const item = makeItem({ unit: "kg", bought: "1", left: "0.4", priceMinor: 4000, worthMinor: 1602, paidBy: ANU });
+    const p = wastePreview({ item, members: roster, meId: ME, names: NAMES });
+    expect(p.explain).toBe("Flat 4B splits waste equally. Anu paid, so you, Dev and Meera share it, a paisa apart.");
+    expect(p.lines.map((l) => l.amountMinor)).toEqual([401, 401, 400, 400]);
+    expect(p.lines.reduce((s, l) => s + l.amountMinor, 0)).toBe(1602);
+  });
+
+  it("says the buyer absorbs it under that rule — the item's own or the group's", () => {
+    const own = makeItem({ wastePolicy: "buyer_absorbs", wastePolicyOverride: "buyer_absorbs", paidBy: ANU });
+    expect(wastePreview({ item: own, members: roster, meId: ME, names: NAMES }).explain).toBe(
+      "This item's rule: the buyer absorbs waste. Anu paid and absorbs it; nobody else is charged.",
+    );
+    const lunch = makeItem({ pantry: groupRef(LUNCH), wastePolicy: "buyer_absorbs", paidBy: ME });
+    const p = wastePreview({ item: lunch, members: roster, meId: ME, names: NAMES });
+    expect(p.explain).toBe("Lunch club's rule: the buyer absorbs waste. You paid, so you absorb it; nobody else is charged.");
+    expect(p.posts).toBe(false);
+  });
+
+  it("splits nothing for your own item, or for something that cost nothing", () => {
+    expect(wastePreview({ item: makeItem({ pantry: PERSONAL_REF, paidBy: ME }), members: [], meId: ME }).lines).toEqual([]);
+    const free = makeItem({ priceMinor: 0, worthMinor: 0 });
+    expect(wastePreview({ item: free, members: roster, meId: ME }).explain).toBe("What's left cost nothing, so nobody is charged.");
+  });
+
+  it("names one other member directly, and counts a big group", () => {
+    const two = wastePreview({ item: tomatoes(), members: [ANU, ME], meId: ME, names: NAMES });
+    expect(two.explain).toBe("Flat 4B splits waste equally. Anu paid, so you owe Anu ₹8.00.");
+    const many = Array.from({ length: 8 }, (_, i) => `usr_${String(i).padStart(32, "0")}`);
+    const big = wastePreview({ item: makeItem({ priceMinor: 4000, worthMinor: 1600, paidBy: many[0]! }), members: many, meId: ME });
+    expect(big.explain).toMatch(/so the other 7 members share it, a paisa apart\.$|so the other 7 members each owe/);
+  });
+});
+
+describe("history", () => {
+  const item = makeItem({ unit: "kg", bought: "1", priceMinor: 4000, paidBy: ANU, createdBy: ANU, boughtOn: "2026-10-28" });
+  const now = new Date("2026-11-02T10:00:00.000Z");
+
+  it("says who had what, newest first, and ends with the purchase", () => {
+    const moves = [
+      makeMove({ kind: "use", consumers: [ME, DEV], actor: ME, costMinor: 400, at: "2026-11-02T08:00:00.000Z", txnId: "txn_1" }),
+      makeMove({ kind: "use", consumers: [DEV], actor: ANU, qtyMilli: 200_000, costMinor: 800, at: "2026-10-30T08:00:00.000Z" }),
+      makeMove({ kind: "waste", actor: MEERA, qtyMilli: 50_000, costMinor: 200, at: "2026-10-29T08:00:00.000Z" }),
+    ];
+    const rows = historyRows(moves, { item, meId: ME, names: NAMES, now });
+    expect(rows.map((r) => [r.what, r.amount])).toEqual([
+      ["You and Dev used 100 g", "₹4.00"],
+      ["Dev used 200 g · logged by Anu", "₹8.00"],
+      ["Meera marked 50 g wasted", "₹2.00"],
+      ["Anu added 1 kg", "₹40.00"],
+    ]);
+    expect(rows[0]!.when).toBe("2 h ago");
+    expect(rows[3]!.when).toBe("28 Oct");
+  });
+
+  it("marks what was undone, says what an undo put back, and names a different payer", () => {
+    const use = makeMove({ kind: "use", consumers: [ME], actor: ME, undone: true });
+    const back = makeMove({ kind: "reversal", actor: ME, reverses: use.id, consumers: null, costMinor: 0 });
+    const bought = makeItem({ unit: "kg", bought: "1", paidBy: ANU, createdBy: ME });
+    const rows = historyRows([back, use], { item: bought, meId: ME, names: NAMES, now });
+    expect(rows.map((r) => [r.what, r.undone, r.amount])).toEqual([
+      ["You undid a use: 100 g back", false, null],
+      ["You used 100 g", true, "₹4.00"],
+      ["You added 1 kg · Anu paid", false, "₹40.00"],
+    ]);
+  });
+
+  it("tells a move from your pantry, and never shows a raw id", () => {
+    const moved = makeMove({ kind: "transfer", actor: "usr_00000000000000000000000000009e9e", costMinor: 0 });
+    const rows = historyRows([moved], { item, meId: ME, names: NAMES, now });
+    expect(rows[0]!.what).toBe("Member · 9e9e moved it here from their pantry");
+    for (const r of rows) expect(r.what).not.toMatch(/usr_/);
+  });
+});
+
+describe("undo from the history", () => {
+  const ctx = { meId: ME, personal: false, role: "member" as const, canWrite: true };
+
+  it("lets the logger (or an owner or admin) reverse a use that posted a transaction, at any point", () => {
+    const latest = makeMove({ kind: "use", actor: DEV });
+    const mineWithTxn = makeMove({ kind: "use", actor: ME, txnId: "txn_1" });
+    const moves = [latest, mineWithTxn];
+    expect(canUndoMove(mineWithTxn, moves, ctx)).toBe(true);
+    const theirs = makeMove({ kind: "use", actor: DEV, txnId: "txn_2" });
+    expect(canUndoMove(theirs, [theirs], ctx)).toBe(false);
+    expect(canUndoMove(theirs, [theirs], { ...ctx, role: "admin" })).toBe(true);
+  });
+
+  it("puts back a move without money only while it is the latest still in effect", () => {
+    const older = makeMove({ kind: "use", actor: ME });
+    const newer = makeMove({ kind: "waste", actor: ME });
+    expect(canUndoMove(newer, [newer, older], ctx)).toBe(true);
+    expect(canUndoMove(older, [newer, older], ctx)).toBe(false);
+    const undoneNewer = { ...newer, undone: true };
+    const reversal = makeMove({ kind: "reversal", actor: ME, reverses: newer.id });
+    expect(canUndoMove(older, [reversal, undoneNewer, older], ctx)).toBe(true);
+  });
+
+  it("never offers it to a viewer, for an undone move, a reversal or a transfer", () => {
+    const use = makeMove({ kind: "use", actor: ME });
+    expect(canUndoMove(use, [use], { ...ctx, role: "viewer", canWrite: false })).toBe(false);
+    expect(canUndoMove({ ...use, undone: true }, [use], ctx)).toBe(false);
+    const transfer = makeMove({ kind: "transfer", actor: ME });
+    expect(canUndoMove(transfer, [transfer], ctx)).toBe(false);
+    const reversal = makeMove({ kind: "reversal", actor: ME });
+    expect(canUndoMove(reversal, [reversal], ctx)).toBe(false);
+  });
+
+  it("always lets you put back the latest change to your own item", () => {
+    const use = makeMove({ kind: "use", actor: ME });
+    expect(canUndoMove(use, [use], { meId: ME, personal: true, role: null, canWrite: true })).toBe(true);
+  });
+});
+
+describe("moving your own item to a group", () => {
+  it("is only for an item none of which is used", () => {
+    expect(isUnused(makeItem({ pantry: PERSONAL_REF }))).toBe(true);
+    expect(isUnused(makeItem({ pantry: PERSONAL_REF, left: "0.9" }))).toBe(false);
+    expect(isUnused(makeItem({ pantry: PERSONAL_REF, priceMinor: 4000, worthMinor: 3999 }))).toBe(false);
+    expect(isUnused(makeItem({ pantry: PERSONAL_REF, state: "wasted" }))).toBe(false);
+  });
+
+  it("offers the groups you add to, and shows one counting in another currency as unable to take it", () => {
+    const pantries = [personalPantry(), groupPantry(FLAT), groupPantry(LUNCH), groupPantry(TRIP, { currency: "USD" })];
+    const roles = new Map([
+      [FLAT.orgId, "member" as const],
+      [LUNCH.orgId, "viewer" as const],
+      [TRIP.orgId, "owner" as const],
+    ]);
+    expect(transferTargets(pantries, { currency: "INR" }, roles)).toEqual([
+      { orgId: FLAT.orgId, slug: FLAT.slug, name: "Flat 4B", disabledReason: null },
+      { orgId: TRIP.orgId, slug: TRIP.slug, name: "Goa trip", disabledReason: "Counts in USD" },
+    ]);
+  });
+});
+
+describe("the shares never show a raw id", () => {
+  it("labels an unnamed member by their tag", () => {
+    const stranger = "usr_00000000000000000000000000009e9e";
+    const b = shareBreakdown({ item: tomatoes(), qtyMilli: 100_000, consumers: [stranger], meId: ME, names: NAMES });
+    expect(b.lines[0]!.text).toBe("Member · 9e9e owes Anu");
+    const w = wastePreview({ item: makeItem({ paidBy: stranger, priceMinor: 4000, worthMinor: 1600 }), members: [stranger, ME], meId: ME, names: NAMES });
+    expect(w.explain).not.toMatch(/usr_/);
+    expect(FLAT.name).toBe("Flat 4B");
+  });
+});
