@@ -53,6 +53,17 @@ export function recordRecentGroup(slug: string): void {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
+/** Forget every group (signing out of this device, SI-6). */
+export function clearRecentGroups(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(recentKey());
+  } catch {
+    return;
+  }
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
 /** Forget a group (after leaving it). */
 export function forgetRecentGroup(slug: string): void {
   if (typeof window === "undefined") return;

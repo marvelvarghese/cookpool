@@ -2,11 +2,14 @@ import {
   ADD_SECONDARY,
   ADD_TILES,
   KITCHEN_NAV_LINKS,
+  KITCHEN_SIDEBAR_LINKS,
   KITCHEN_TABS,
   activeKitchenTab,
   groupActionHref,
   isKitchenTabActive,
+  isSidebarLinkActive,
 } from "@web-console-next/components/kitchen/nav";
+import { KITCHEN_ICONS } from "@web-console-next/components/kitchen/icons";
 
 describe("Cookpool tabs (CP-5)", () => {
   it("are Home · Pantry · + Add · Groups · People, with Add in the centre as an action", () => {
@@ -111,5 +114,34 @@ describe("the + Add sheet", () => {
     expect(invite.label).toBe("Invite to a group");
     expect(invite.live).toBe(true);
     expect(invite.href).toBe("/groups");
+  });
+});
+
+describe("the sidebar's Me (Cookpool SI-6)", () => {
+  it("lists the tabs' links, then Me, which opens You", () => {
+    expect(KITCHEN_SIDEBAR_LINKS.map((l) => [l.label, l.href])).toEqual([
+      ["Home", "/home"],
+      ["Pantry", "/pantry"],
+      ["Groups", "/groups"],
+      ["People", "/people"],
+      ["Me", "/you"],
+    ]);
+    for (const l of KITCHEN_SIDEBAR_LINKS) expect(KITCHEN_ICONS[l.icon]).toBeDefined();
+  });
+
+  it("leaves the phone tab bar as it was", () => {
+    expect(KITCHEN_TABS.map((t) => t.label)).toEqual(["Home", "Pantry", "Add", "Groups", "People"]);
+    expect(activeKitchenTab("/you")).toBeNull();
+  });
+
+  it("marks Me on /you only, and the rest as their tabs", () => {
+    expect(isSidebarLinkActive("you", "/you")).toBe(true);
+    expect(isSidebarLinkActive("you", "/you/")).toBe(true);
+    expect(isSidebarLinkActive("you", "/young")).toBe(false);
+    expect(isSidebarLinkActive("you", "/home")).toBe(false);
+    expect(isSidebarLinkActive("you", null)).toBe(false);
+    expect(isSidebarLinkActive("home", "/home")).toBe(true);
+    expect(isSidebarLinkActive("groups", "/join/KTCH2345")).toBe(true);
+    expect(isSidebarLinkActive("home", "/you")).toBe(false);
   });
 });

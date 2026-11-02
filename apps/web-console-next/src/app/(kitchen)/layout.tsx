@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { useRequireAuth } from "@/lib/use-async";
+import { markNameAsked, nameAskedFor } from "@/lib/first-run";
+import { signingOut } from "@/lib/sign-out";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KitchenSidebar } from "@/components/kitchen/sidebar";
 import { KitchenTabBar } from "@/components/kitchen/tab-bar";
@@ -11,6 +13,8 @@ import { AddSheet } from "@/components/kitchen/add-sheet";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import { isWideKitchenPage } from "@/components/kitchen/nav";
+import { useProfile } from "@/components/kitchen/data";
+import { firstRunRedirect } from "@/components/kitchen/sign-in";
 
 /**
  * Cookpool, the consumer app (epic cookpool-kitchen, CP-5), beside the admin
@@ -26,6 +30,10 @@ import { isWideKitchenPage } from "@/components/kitchen/nav";
  * the person back (SI-5). The frame paints at once; pages mount when the
  * session is ready.
  *
+ * Someone who signed in before the Name step existed (SI-6) and still has no
+ * name is sent to it once, from whatever kitchen page they open, and comes
+ * back there; see `useAskForNameOnce`.
+ *
  * The palette and font are scoped to this tree (`.cookpool`, light only); the
  * classes also go on <body> while this layout is mounted, so portalled UI —
  * the Add sheet, dialogs, toasts — matches. The admin console is untouched.
@@ -33,6 +41,7 @@ import { isWideKitchenPage } from "@/components/kitchen/nav";
 export default function KitchenLayout({ children }: { children: React.ReactNode }) {
   const ready = useRequireAuth({ returnHere: true, signOutOnUnauthorized: true });
   const wide = isWideKitchenPage(usePathname());
+  useAskForNameOnce(ready);
   const [addOpen, setAddOpen] = React.useState(false);
   const openAdd = React.useCallback(() => setAddOpen(true), []);
 
@@ -69,6 +78,28 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
       {ready ? <AddSheet open={addOpen} onOpenChange={setAddOpen} /> : null}
     </div>
   );
+}
+
+/**
+ * The once-only ask (SI-6): a profile that was read and has no name, on a
+ * device that has not asked this person yet, goes to the Name step
+ * (`/login?step=name&next=<this page>`). The device remembers the ask before
+ * leaving, so the step's own checks — a failed read sends the person straight
+ * back — can never loop; a failed read here asks nothing.
+ */
+function useAskForNameOnce(ready: boolean): void {
+  const router = useRouter();
+  const profile = useProfile({ enabled: ready });
+  React.useEffect(() => {
+    if (!ready || signingOut()) return;
+    const user = profile.data;
+    const read = profile.error ? { ok: false as const, status: 0 } : user ? { ok: true as const, user } : null;
+    const { pathname, search, hash } = window.location;
+    const to = firstRunRedirect(read, nameAskedFor(), `${pathname}${search}${hash}`);
+    if (!to || !user) return;
+    markNameAsked(user.id);
+    router.replace(to);
+  }, [ready, profile.data, profile.error, router]);
 }
 
 function KitchenSkeleton() {

@@ -6,12 +6,24 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GroupAvatar } from "./kit";
-import type { JoinCard, SignInNotice } from "./sign-in";
+import {
+  NAME_EYEBROW,
+  NAME_FOOTNOTE,
+  NAME_LABEL,
+  NAME_LATER,
+  NAME_MAX,
+  NAME_TITLE,
+  liveInitials,
+  nameExample,
+  type JoinCard,
+  type SignInNotice,
+} from "./sign-in";
 
 /**
  * The sign-in page's pieces (Cookpool SI-5), after the canvas artboards
  * `SignIn` (phone) and `WebSignIn` (desktop), in the kitchen's tokens. They
- * only make sense inside the `.cookpool` theme.
+ * only make sense inside the `.cookpool` theme. The Name step (SI-6) is the
+ * `SignIn` artboard's fourth step; You (`Account`) reuses its avatar.
  */
 
 /** 54px rounded buttons and 52px fields: the sign-in page's touch sizes. */
@@ -156,9 +168,9 @@ export function NoticeBox({
   );
 }
 
-function GoogleMark() {
+export function GoogleMark({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 18 18" aria-hidden className="h-5 w-5 shrink-0">
+    <svg viewBox="0 0 18 18" aria-hidden className={cn("shrink-0", className)}>
       <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
       <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z" />
       <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z" />
@@ -278,5 +290,114 @@ export function DeveloperSignIn({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** A person's initials in a green circle: the Name step (56px) and You (60px). */
+export function PersonAvatar({ initials, className }: { initials: string; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid h-14 w-14 shrink-0 place-items-center rounded-full bg-primary text-xl font-extrabold text-primary-foreground",
+        className,
+      )}
+    >
+      {initials}
+    </span>
+  );
+}
+
+/**
+ * The Name step (SI-6, design §7): "What should your groups call you?", the
+ * field prefilled from the email with the initials beside it, live, and
+ * "Continue" — or "Join Flat 4B" from a join link. "Do this later" appears
+ * only once a save has failed, so the step can never trap anyone.
+ */
+export function NameStep({
+  name,
+  onName,
+  onSubmit,
+  onLater,
+  action,
+  canSave,
+  saving,
+  saveFailed,
+  notice,
+  inputRef,
+}: {
+  name: string;
+  onName: (value: string) => void;
+  onSubmit: () => void;
+  onLater: () => void;
+  action: string;
+  canSave: boolean;
+  saving: boolean;
+  saveFailed: boolean;
+  notice: SignInNotice | null;
+  inputRef: React.Ref<HTMLInputElement>;
+}) {
+  const noticeId = notice ? "name-notice" : undefined;
+  return (
+    <section aria-labelledby="name-title" className="flex flex-col gap-[18px]">
+      <div className="flex flex-col gap-2 pt-1.5 min-[900px]:p-0">
+        <p className="text-[13px] font-bold uppercase tracking-[0.06em] text-primary">{NAME_EYEBROW}</p>
+        <h1 id="name-title" className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]">
+          {NAME_TITLE}
+        </h1>
+        <p className="text-[15px] leading-normal text-muted-foreground">{nameExample(name)}</p>
+      </div>
+      <form
+        noValidate
+        className="flex flex-col gap-[18px]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canSave) onSubmit();
+        }}
+      >
+        <div className="flex items-center gap-3.5">
+          <PersonAvatar initials={liveInitials(name)} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <label htmlFor="name-field" className="text-sm font-bold">
+              {NAME_LABEL}
+            </label>
+            <input
+              ref={inputRef}
+              id="name-field"
+              name="name"
+              type="text"
+              autoComplete="name"
+              autoCapitalize="words"
+              maxLength={NAME_MAX}
+              value={name}
+              onChange={(e) => onName(e.target.value)}
+              aria-invalid={notice?.tone === "error" || undefined}
+              aria-describedby={noticeId}
+              className={SIGN_IN_INPUT}
+            />
+          </div>
+        </div>
+        {notice ? <NoticeBox id={noticeId} notice={notice} /> : null}
+        <Button
+          type="submit"
+          disabled={!canSave}
+          loading={saving}
+          className={cn(SIGN_IN_PRIMARY, !canSave && !saving && SIGN_IN_PRIMARY_IDLE)}
+        >
+          {action}
+        </Button>
+      </form>
+      {saveFailed ? (
+        <button
+          type="button"
+          onClick={onLater}
+          disabled={saving}
+          className="min-h-11 self-start rounded-lg text-sm font-bold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground"
+        >
+          {NAME_LATER}
+        </button>
+      ) : null}
+      <p className="text-[13px] text-muted-foreground">{NAME_FOOTNOTE}</p>
+    </section>
   );
 }

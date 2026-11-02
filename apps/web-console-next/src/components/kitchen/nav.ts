@@ -69,6 +69,34 @@ export function isKitchenTabActive(id: KitchenTabId, pathname: string | null | u
   return id !== "add" && activeKitchenTab(pathname) === id;
 }
 
+// ── The sidebar's "Me" (SI-6) ─────────────────────────────────────
+
+/** A sidebar link: the tabs' links, and "Me". */
+export interface KitchenSidebarLink {
+  id: KitchenNavLink["id"] | "you";
+  href: string;
+  label: string;
+  icon: string;
+}
+
+/**
+ * The sidebar's links (from 900px): Home · Pantry · Groups · People, then
+ * "Me", which opens You (design §7, the web artboards' "Me"). The phone tab
+ * bar is unchanged: there, Home's avatar opens You.
+ */
+export const KITCHEN_SIDEBAR_LINKS: readonly KitchenSidebarLink[] = [
+  ...KITCHEN_NAV_LINKS,
+  { id: "you", href: "/you", label: "Me", icon: "CircleUserRound" },
+];
+
+/** Whether a sidebar link is the current page's: "Me" on /you, the rest as their tabs. */
+export function isSidebarLinkActive(id: KitchenSidebarLink["id"], pathname: string | null | undefined): boolean {
+  if (id !== "you") return isKitchenTabActive(id, pathname);
+  if (!pathname) return false;
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return underPrefix("/you", path);
+}
+
 // ── Page width (CP-23) ────────────────────────────────────────────
 
 /**

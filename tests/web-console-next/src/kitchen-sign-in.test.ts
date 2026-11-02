@@ -8,26 +8,40 @@ import {
   INITIAL_SIGN_IN,
   INVALID_CODE_NOTICE,
   INVALID_EMAIL_NOTICE,
+  NAME_INVALID_NOTICE,
+  NAME_MAX,
+  NAME_SAVE_FAILED_NOTICE,
   NETWORK_NOTICE,
   RESEND_COOLDOWN_SECONDS,
   SIGNED_OUT_NOTICE,
   TERMS_SENTENCE,
+  afterOAuthPath,
+  canSaveName,
   canVerify,
+  cleanDisplayName,
   completeOutcome,
   countdownText,
   desktopTitle,
   isCodeComplete,
   isLocalHostname,
+  firstRunRedirect,
   joinCard,
   joinCodeFromNext,
+  liveInitials,
   looksLikeEmail,
   minutesToWait,
+  nameCheck,
+  nameExample,
+  namePrefill,
+  nameStepAction,
+  needsName,
   oauthReturnTo,
   offersGoogle,
   rateLimitedMessage,
   replacementRefusedNotice,
   resendControl,
   sanitizeCode,
+  saveNameOutcome,
   showsDeveloperSignIn,
   signInEnvironment,
   signInReducer,
@@ -421,5 +435,210 @@ describe("the join card (SI-4's signed-out preview)", () => {
   it("titles the desktop form 'Sign in', or the join headline", () => {
     expect(desktopTitle(null)).toBe(DESKTOP_TITLE);
     expect(desktopTitle(flat)).toBe("Sign in to join Anu and the others");
+  });
+});
+
+// ── Cookpool SI-6: the Name step and the first-run checks ─────────────
+
+describe("the Name step's prefill and initials", () => {
+  it("prefills from the part of the email before the @, tidied", () => {
+    expect(namePrefill("rahul@gmail.com")).toBe("Rahul");
+    expect(namePrefill("rahul.varghese@gmail.com")).toBe("Rahul Varghese");
+    expect(namePrefill("anu_k+food@example.com")).toBe("Anu K");
+    expect(namePrefill("  Meera@Example.com ")).toBe("Meera");
+    expect(namePrefill("dev-patel@example.com")).toBe("Dev-patel");
+    expect(namePrefill("rv1987@example.com")).toBe("Rv1987");
+  });
+
+  it("prefills nothing when there is nothing to go on", () => {
+    expect(namePrefill("")).toBe("");
+    expect(namePrefill(null)).toBe("");
+    expect(namePrefill("@example.com")).toBe("");
+    expect(namePrefill("+tag@example.com")).toBe("");
+    expect(namePrefill("...@example.com")).toBe("");
+  });
+
+  it("never prefills more than a name can hold", () => {
+    expect(namePrefill(`${"a".repeat(200)}@example.com`)).toHaveLength(NAME_MAX);
+  });
+
+  it("shows initials live, as the groups' avatars will", () => {
+    expect(liveInitials("Rahul Varghese")).toBe("RV");
+    expect(liveInitials("Rahul")).toBe("R");
+    expect(liveInitials("  anu   k  ")).toBe("AK");
+    expect(liveInitials("")).toBe("?");
+    expect(liveInitials("   ")).toBe("?");
+  });
+
+  it("shows the name the way the app will use it", () => {
+    expect(nameExample("Rahul Varghese")).toBe('It shows next to what you buy, use and cook, like "Rahul paid ₹60.00".');
+    expect(nameExample("  ")).toBe('It shows next to what you buy, use and cook, like "You paid ₹60.00".');
+  });
+
+  it("cleans a name the way it is saved", () => {
+    expect(cleanDisplayName("  Rahul   Varghese ")).toBe("Rahul Varghese");
+    expect(cleanDisplayName("Rahul\tV")).toBe("Rahul V");
+    expect(cleanDisplayName(null)).toBe("");
+    expect(cleanDisplayName("x".repeat(NAME_MAX + 5))).toHaveLength(NAME_MAX);
+  });
+
+  it("says Join Flat 4B from a join link, else Continue", () => {
+    expect(nameStepAction(null)).toBe("Continue");
+    expect(nameStepAction({ groupName: "Flat 4B", inviterFirstName: "Anu", memberCount: 5 })).toBe("Join Flat 4B");
+  });
+
+  it("titles the join card for someone on their way in", () => {
+    const flat: JoinPreviewPublic = { groupName: "Flat 4B", inviterFirstName: "Anu", memberCount: 5 };
+    expect(joinCard(flat, { joining: true })).toEqual({
+      groupName: "Flat 4B",
+      title: "You're joining Flat 4B",
+      subtitle: "Anu invited you · 5 people are in",
+    });
+    expect(joinCard(flat, { joining: false }).title).toBe("Sign in to join Flat 4B");
+  });
+});
+
+describe("the Name step in the step machine", () => {
+  const T0 = 1_800_000_000_000;
+  const onCode = signInReducer(INITIAL_SIGN_IN, {
+    type: "sent",
+    email: "rahul.varghese@example.com",
+    challengeId: "lch_1",
+    testCode: "246810",
+    at: T0,
+    resent: false,
+  });
+
+  it("follows a code sign-in with no name, prefilled, and keeps nothing of the code", () => {
+    const typed = signInReducer(onCode, { type: "code", value: "246810" });
+    const s = signInReducer(typed, { type: "ask_name", email: "rahul.varghese@example.com" });
+    expect(s.step).toBe("name");
+    expect(s.name).toBe("Rahul Varghese");
+    expect(s.email).toBe("rahul.varghese@example.com");
+    expect(s.code).toBe("");
+    expect(s.challengeId).toBeNull();
+    expect(s.testCode).toBeNull();
+    expect(s.notice).toBeNull();
+    expect(canSaveName(s)).toBe(true);
+    expect(canVerify(s)).toBe(false);
+  });
+
+  it("takes a given name over the email's", () => {
+    const s = signInReducer(INITIAL_SIGN_IN, { type: "ask_name", email: "rv@example.com", name: "  Rahul  V " });
+    expect(s.name).toBe("Rahul V");
+  });
+
+  it("saves only a name, once at a time", () => {
+    let s = signInReducer(INITIAL_SIGN_IN, { type: "ask_name", email: "anu@example.com" });
+    s = signInReducer(s, { type: "name", value: "   " });
+    expect(canSaveName(s)).toBe(false);
+    s = signInReducer(s, { type: "name", value: "Anu K" });
+    expect(canSaveName(s)).toBe(true);
+    s = signInReducer(s, { type: "busy", busy: "save" });
+    expect(canSaveName(s)).toBe(false);
+    // Not on another step.
+    expect(canSaveName(signInReducer(INITIAL_SIGN_IN, { type: "name", value: "Anu" }))).toBe(false);
+  });
+
+  it("keeps the field to the longest name", () => {
+    const s = signInReducer(INITIAL_SIGN_IN, { type: "ask_name", email: "anu@example.com" });
+    expect(signInReducer(s, { type: "name", value: "y".repeat(NAME_MAX + 20) }).name).toHaveLength(NAME_MAX);
+  });
+
+  it("after a failed save, says why and offers to do it later; typing clears the message", () => {
+    let s = signInReducer(INITIAL_SIGN_IN, { type: "ask_name", email: "anu@example.com" });
+    expect(s.nameSaveFailed).toBe(false);
+    s = signInReducer(s, { type: "busy", busy: "save" });
+    s = signInReducer(s, { type: "name_refused", notice: { tone: "error", text: NAME_SAVE_FAILED_NOTICE } });
+    expect(s.busy).toBeNull();
+    expect(s.nameSaveFailed).toBe(true);
+    expect(s.notice?.text).toBe(NAME_SAVE_FAILED_NOTICE);
+    expect(canSaveName(s)).toBe(true); // try again
+    s = signInReducer(s, { type: "name", value: "Anu K" });
+    expect(s.notice).toBeNull();
+    expect(s.nameSaveFailed).toBe(true);
+    // Saving again clears the old message.
+    s = signInReducer(signInReducer(s, { type: "name_refused", notice: { tone: "error", text: "x" } }), { type: "busy", busy: "save" });
+    expect(s.notice).toBeNull();
+  });
+});
+
+describe("saving the name: the API's answers", () => {
+  it("a 401 means the session ended", () => {
+    expect(saveNameOutcome({ code: "unauthenticated" }, 401)).toEqual({ kind: "signed_out" });
+  });
+
+  it("says why anything else failed", () => {
+    expect(saveNameOutcome({ code: "validation_failed" }, 400)).toEqual({
+      kind: "refused",
+      notice: { tone: "error", text: NAME_INVALID_NOTICE },
+    });
+    expect(NAME_INVALID_NOTICE).toBe(`That name can't be used. Keep it under ${NAME_MAX} characters.`);
+    expect(saveNameOutcome({ code: "network_error" }, 0)).toEqual({ kind: "refused", notice: { tone: "error", text: NETWORK_NOTICE } });
+    expect(saveNameOutcome({ code: "internal_error" }, 500)).toEqual({
+      kind: "refused",
+      notice: { tone: "error", text: NAME_SAVE_FAILED_NOTICE },
+    });
+  });
+});
+
+describe("first run: who is asked for a name, and never in a loop", () => {
+  const nameless = { id: "usr_1", email: "rahul@example.com", displayName: null };
+  const named = { ...nameless, displayName: "Rahul Varghese" };
+
+  it("a profile needs a name when it has none, or only spaces", () => {
+    expect(needsName(nameless)).toBe(true);
+    expect(needsName({ displayName: "   " })).toBe(true);
+    expect(needsName({})).toBe(true);
+    expect(needsName(named)).toBe(false);
+    // No profile (not read yet) is not a reason to ask.
+    expect(needsName(null)).toBe(false);
+    expect(needsName(undefined)).toBe(false);
+  });
+
+  it("Google: the Name step only for a profile read with no name; anything else goes on", () => {
+    expect(afterOAuthPath({ ok: true, user: nameless }, "/join/KTCH2345")).toBe("/login?step=name&next=%2Fjoin%2FKTCH2345");
+    expect(afterOAuthPath({ ok: true, user: nameless }, null)).toBe("/login?step=name");
+    // Google brought a name: straight on.
+    expect(afterOAuthPath({ ok: true, user: named }, "/join/KTCH2345")).toBe("/join/KTCH2345");
+    // A read that fails never traps anyone on the Name step.
+    expect(afterOAuthPath({ ok: false, status: 503 }, "/join/KTCH2345")).toBe("/join/KTCH2345");
+    expect(afterOAuthPath({ ok: false, status: 0 }, null)).toBe("/home");
+    expect(afterOAuthPath({ ok: true, user: nameless }, "https://evil.example")).toBe("/login?step=name");
+  });
+
+  it("?step=name: asks only when the read says there is no name", () => {
+    expect(nameCheck({ ok: true, user: nameless })).toEqual({ kind: "ask", userId: "usr_1", email: "rahul@example.com" });
+    expect(nameCheck({ ok: true, user: named })).toEqual({ kind: "go" });
+    expect(nameCheck({ ok: false, status: 500 })).toEqual({ kind: "go" });
+    expect(nameCheck({ ok: false, status: 0 })).toEqual({ kind: "go" });
+    expect(nameCheck({ ok: false, status: 401 })).toEqual({ kind: "signed_out" });
+  });
+
+  it("the kitchen asks once per person per device, and only after a successful read", () => {
+    expect(firstRunRedirect({ ok: true, user: nameless }, null, "/home")).toBe("/login?step=name");
+    expect(firstRunRedirect({ ok: true, user: nameless }, "usr_someone_else", "/join/KTCH2345")).toBe(
+      "/login?step=name&next=%2Fjoin%2FKTCH2345",
+    );
+    // Asked already on this device: never again.
+    expect(firstRunRedirect({ ok: true, user: nameless }, "usr_1", "/home")).toBeNull();
+    // Not read yet, or the read failed: nothing.
+    expect(firstRunRedirect(null, null, "/home")).toBeNull();
+    expect(firstRunRedirect({ ok: false, status: 503 }, null, "/home")).toBeNull();
+    // Named: nothing.
+    expect(firstRunRedirect({ ok: true, user: named }, null, "/home")).toBeNull();
+  });
+
+  it("cannot loop: kitchen → Name step whose read fails → back → not asked again", () => {
+    let asked: string | null = null;
+    // 1. The kitchen reads the profile, remembers the ask, and redirects.
+    const to = firstRunRedirect({ ok: true, user: nameless }, asked, "/pantry");
+    expect(to).toBe("/login?step=name&next=%2Fpantry");
+    asked = nameless.id;
+    // 2. The Name step cannot read the profile: it goes straight back.
+    const check = nameCheck({ ok: false, status: 503 });
+    expect(check.kind).toBe("go");
+    // 3. Back in the kitchen, the (cached) profile still has no name, but it was asked.
+    expect(firstRunRedirect({ ok: true, user: nameless }, asked, "/pantry")).toBeNull();
   });
 });

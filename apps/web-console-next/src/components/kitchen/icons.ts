@@ -1,4 +1,5 @@
 import {
+  CircleUserRound,
   CookingPot,
   HandCoins,
   House,
@@ -15,6 +16,7 @@ import {
 
 /** The lucide icons the kitchen nav model names (nav.ts), resolved for rendering. */
 export const KITCHEN_ICONS: Record<string, LucideIcon> = {
+  CircleUserRound,
   CookingPot,
   HandCoins,
   House,

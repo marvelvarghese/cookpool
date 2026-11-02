@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-6
+  title: "First run and You"
+spec:
+  goal: New people choose the name their groups see when they first sign in, and everyone has a You screen to change it and sign out.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-6.TaskContract.yaml
+  doneWhen:
+    - a person with no name is asked for one after signing in, prefilled from their email, and their groups show it
+    - /you changes the name and signs out of this device
+    - Home's avatar and the desktop Me item open /you
+  gates: []

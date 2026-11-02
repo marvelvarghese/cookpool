@@ -8,7 +8,8 @@ the code departed from `design.md`.
 | SI0 — the spec | ✅ shipped 2026-11-02 | #26 (SI-1) |
 | SI1 — sign-in that holds up | in progress | #28 (SI-2) |
 | SI2 — the Cookpool sign-in page | ✅ shipped 2026-11-02 (checked against a mocked API; not yet walked through on stage) | #27 (SI-4), #29 (SI-5) |
-| SI3 — first run and You | | |
+| SI3 — first run and You | ✅ shipped 2026-11-02 (checked against a mocked API) | #30 (SI-6) |
+| SI4 — on cookpool.store | | |
 
 ## Departures from the design
 
@@ -198,3 +199,107 @@ in the kitchen theme (`useKitchenBodyTheme`, shared with the kitchen layout).
 - **Left for later:** `/terms` and `/privacy` pages; SI-6's name step must run
   between sign-in and the automatic join (the record lasts 30 minutes, so
   sign-in → name → `/join/{code}` keeps working).
+
+### SI3 — first run and You (SI-6)
+
+The Name step is a third step of the sign-in page (`app/login/page.tsx`, the
+`name` step of `signInReducer` in `components/kitchen/sign-in.ts`, drawn by
+`NameStep` in `sign-in-ui.tsx`), not a `/welcome` route. You is `/you` in the
+`(kitchen)` app (`app/(kitchen)/you/page.tsx`, model in
+`components/kitchen/you.ts`). Sign out is `lib/sign-out.ts`; what a device
+remembers between sign-ins is `lib/first-run.ts`. Console only: no backend
+package changed.
+
+- **Three ways into the Name step, one check.** After a code sign-in,
+  `login/complete`'s `user` is read directly: no `displayName` (or only
+  spaces) shows the step on the same page, without a navigation, the join
+  card above it reading "You're joining Flat 4B". Google's callback reads the
+  profile with the new token before going on and sends a nameless one to
+  `/login?step=name&next=…` (`afterOAuthPath`): Google names a *new* account,
+  but a Google sign-in linked to an account first made by code keeps that
+  account's name, which may be none. The kitchen layout sends someone who
+  signed in before SI-6 and has no name to the same URL, once
+  (`firstRunRedirect`). `/login?step=name` reads the profile itself and asks,
+  goes on to `next` when there is a name, or starts over with "You were
+  signed out" on a 401; without a token it is the plain sign-in page.
+- **It cannot loop or trap.** The kitchen asks only after a successful
+  profile read, and only once per person per device: it records the
+  person's id (`…name-asked` in localStorage) *before* redirecting, and the
+  step records it too whenever it shows. A profile read that fails — in the
+  kitchen or on the step — asks nothing and goes on to `next`. A failed save
+  says why and adds **"Do this later"** (not in the artboard), which goes on
+  to `next`; the kitchen does not ask again. The marker is cleared at sign
+  out. A later sign-in by code or Google still asks a nameless person, since
+  those check the profile, not the marker.
+- **Sign-in → name → joined, no second tap.** SI-5's join record is written
+  at sign-in as before, and again when the step's button is pressed: from a
+  join link it reads "Join Flat 4B", and pressing it is the yes, so the
+  kitchen's once-only ask from `/join/{code}` also joins without another tap.
+  The step then `router.replace`s to `next`, and the join page reads the
+  record as SI-5 built it.
+- **The prefill is tidied, not raw.** The design says "the part of the email
+  before the @"; the artboard shows `rahul@gmail.com` → "Rahul". The step
+  drops a `+tag`, reads `.` and `_` as spaces and capitalises each word
+  (`rahul.varghese+food@…` → "Rahul Varghese"); nothing is saved until the
+  person presses Continue. Names are cleaned the same way everywhere (trimmed,
+  runs of spaces made one, at most 80 characters — the console's existing
+  limit; identity-worker allows 120). The live initials are CP-9's avatar
+  initials (`nameInitials`), so the step shows what the groups' avatars will.
+- **No keyboard on arrival.** The step takes focus straight after the code
+  step; arriving from Google or the kitchen it opens without focusing the
+  field, as SI-5's first load does.
+- **A rename reaches every name read.** After a save (the step or You) the
+  saved profile is written into the cache in place and `kitchenMe` (balances,
+  people, the person view, the inbox) and every group's member list
+  (`qk.kitchenMembersAll()`, new) are invalidated (`applyNewName`). The
+  `/login?step=name` read also writes the profile into the cache, so `next`
+  paints the fresh name.
+- **"How you sign in" shows what this device knows.** identity-worker's
+  profile and session say nothing about linked providers (`AuthUser` is id,
+  email, name, last org; `identity_auth_identities` has no read route), and
+  backend packages were out of scope. So You always lists "A code to
+  {email}" (a code to the address always signs that person in), and lists
+  **Google only when this device's last sign-in was Google**, marked "Last
+  used" (the code row is marked when a code was). The sign-in page stashes
+  the provider beside `next` before leaving for Google (`…login-provider`,
+  this tab), the callback records it (`…sign-in-method`, localStorage), a
+  code sign-in records `code`, the developer form clears it. A person with a
+  Google link who signed in here by code sees only the code row. A follow-up
+  could expose linked providers on `GET /v1/auth/profile`.
+- **You.** Initials, the name your groups see (your chosen name, else the
+  part of your email before the @, CP-9's fallback), email; "Change your
+  name" edits in place (Save · Cancel, Enter saves, Escape cancels, focus
+  returns to the button), starting from the Name step's prefill when there
+  is no name, sending nothing when unchanged, and a toast "Name saved". The
+  button reads "Sign out of this phone" below 900px and "Sign out of this
+  device" from 900px. Sign out is offered even when the profile cannot be
+  read. The artboard's "You're signed out · Sign in again" state is not
+  built: sign out goes straight to `/login`, as the design says.
+- **Sign out of this device** (`signOutOfThisDevice`): marks the page as
+  signing out (so `useRequireAuth` neither shows "You were signed out" for a
+  401 nor redirects on the missing token), calls `POST /v1/auth/logout` best
+  effort (offline or already expired, the device still forgets the token),
+  clears the token (`setToken(null)`), the React Query cache
+  (`queryClient.clear()`), SI-5's join record and `next` stash, the provider
+  stash, the Name step marker, the sign-in method, the recent groups and the
+  admin console's last org, then `location.replace("/login")` — a full load,
+  so nothing in memory and no Cookpool class on `<body>` outlives it. The API
+  target (the developer picker's choice) is the device's and stays. The
+  admin console's own sign-outs (`/account`, its sidebar menu) are unchanged
+  and still clear only the token.
+- **Navigation.** Home's avatar opens `/you` (was the admin console's
+  `/account`), with CP-9-style initials. The sidebar gains "Me" after People
+  (`KITCHEN_SIDEBAR_LINKS`; the phone tab bar, `KITCHEN_TABS`, is unchanged,
+  and no tab is current on `/you`); the person at the sidebar's foot opens
+  `/you` too, and the gear beside it, which still opens `/account`, is now
+  labelled "Admin console" (it was "Account settings", which You now is).
+- **The callback handles its fragment once** (a ref), so React's development
+  double effects no longer report a failure after a successful sign-in.
+- **Checked** against a mocked API (SI-5's harness plus profile GET/PATCH and
+  logout, never reaching stage) at 390 and 1440: a code newcomer gets the
+  step prefilled and lands on Home; a join-link newcomer goes sign-in → name
+  → in Flat 4B; Google with a name skips it, Google onto a nameless account
+  gets it and joins; a pre-SI-6 nameless session is asked once, a failed read
+  never traps, a failed save offers "Do this later"; You renames (Home, the
+  sidebar and the member list follow) and signs out to a bare `/login` with
+  nothing of the person left in storage.
