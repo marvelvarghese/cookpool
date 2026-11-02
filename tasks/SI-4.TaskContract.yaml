@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-4
+  title: "The signed-out join preview"
+spec:
+  goal: Someone holding a join link can see which group it is for, who invited them and how many people are in, before they have an account, and nothing more.
+  affects:
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-4.TaskContract.yaml
+  doneWhen:
+    - GET /v1/join/{code}/preview answers groupName, inviterFirstName and memberCount without a session, and nothing else
+    - unknown, malformed and rotated codes answer 404
+    - every other join route still needs a session
+  gates: []

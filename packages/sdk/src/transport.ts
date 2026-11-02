@@ -60,6 +60,13 @@ interface PerformInput {
   path: string;
   query?: Record<string, string | number | undefined> | undefined;
   body?: unknown;
+  /**
+   * Send no credential: the client's `auth` and any `authorization` or
+   * `cookie` default header are left off. For the routes that need no session
+   * (the signed-out join preview), so a signed-in client does not hand its
+   * token to a route that has no use for it.
+   */
+  anonymous?: boolean;
 }
 
 /**
@@ -122,7 +129,12 @@ export class Transport {
 
     const headers = new Headers();
     for (const [k, v] of Object.entries(this.defaultHeaders)) headers.set(k, v);
-    if (this.auth) applyAuth(headers, this.auth);
+    if (input.anonymous) {
+      headers.delete("authorization");
+      headers.delete("cookie");
+    } else if (this.auth) {
+      applyAuth(headers, this.auth);
+    }
 
     let body: BodyInit | undefined;
     if (input.body !== undefined) {

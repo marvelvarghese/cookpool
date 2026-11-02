@@ -58,7 +58,8 @@ export type RouteFamily =
   | "audit"
   | "notifications"
   | "integrations"
-  | "kitchen";
+  | "kitchen"
+  | "join_preview";
 
 interface BucketLimits {
   /** Bucket capacity (max tokens). */
@@ -127,7 +128,26 @@ const LIMITS: Record<RouteFamily, FamilyConfig> = {
     identity: { limit: 60, windowSec: 60 },
     org: { limit: 300, windowSec: 60 },
   },
+  // The signed-out join preview (Cookpool SI-4): GET /v1/join/{code}/preview,
+  // the one read that answers group data without a session. Always keyed by
+  // IP (`anon:join_preview:<ip>`, see SIGNED_OUT_FAMILIES), in a bucket of its
+  // own so neither it nor sign-in (auth, 10/min) eats the other's budget.
+  // Tighter than signed-in reads: someone opens a link a few times, not 60. A
+  // join code is one of 31^8 (~8.5e11), so 30 guesses a minute per IP is no
+  // way in. Its path has no org segment, so the org bucket never applies.
+  join_preview: {
+    identity: { limit: 30, windowSec: 60 },
+    org: { limit: 30, windowSec: 60 },
+  },
 };
+
+/**
+ * Families whose routes take no session, so a bearer token proves nothing and
+ * must not pick the bucket: a caller could otherwise send a fresh random token
+ * with each request and get a fresh bucket each time. Their identity bucket is
+ * always `anon:<family>:<CF-Connecting-IP>`, token or not.
+ */
+const SIGNED_OUT_FAMILIES: ReadonlySet<RouteFamily> = new Set<RouteFamily>(["join_preview"]);
 
 const KV_PREFIX = "rl:v1";
 const KV_TTL_SECONDS = 600;
@@ -563,7 +583,7 @@ async function deriveIdentityKey(
   request: Request,
   routeFamily: RouteFamily,
 ): Promise<string> {
-  const auth = request.headers.get("authorization");
+  const auth = SIGNED_OUT_FAMILIES.has(routeFamily) ? null : request.headers.get("authorization");
   if (auth && auth.startsWith("Bearer ")) {
     const token = auth.slice("Bearer ".length).trim();
     if (token.length > 0) {

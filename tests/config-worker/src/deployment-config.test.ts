@@ -360,6 +360,11 @@ const ACKNOWLEDGED_BINDING_CYCLES = new Set([
   // kitchen-worker to ask a leaving member's balance. Deploy order stays
   // advisory (both lanes run dependencyMode: advisory on stage and prod).
   "membership-worker -> kitchen-worker",
+  // Mutual pair (Cookpool SI-4): identity-worker depends on membership-worker,
+  // and membership-worker binds identity-worker so the signed-out join preview
+  // can name the group's first owner (its internal people lookup). Advisory
+  // on both sides, like the pair above.
+  "membership-worker -> identity-worker",
 ]);
 
 describe("every wrangler service binding is a declared dependsOn edge", () => {
@@ -431,6 +436,38 @@ function parseJsoncStrings(raw: string): Record<string, unknown> {
   }
   return JSON.parse(out);
 }
+
+// ── membership-worker binds identity-worker (Cookpool SI-4) ────
+//
+// The signed-out join preview names the group's first owner through
+// identity-worker's internal people lookup. membership-worker is private
+// (no workers.dev URL), so the binding adds no public way to that lookup.
+
+describe("membership-worker's identity binding", () => {
+  type Rendered = {
+    env: Record<string, { workers_dev?: boolean; services?: Array<{ binding: string; service: string }> }>;
+  };
+  const template = readJsonc("apps/membership-worker/wrangler.template.jsonc") as unknown as Rendered;
+  const rendered = renderFromFixture("apps/membership-worker") as unknown as Rendered;
+
+  for (const envName of ["stage", "prod"]) {
+    test(`${envName} binds IDENTITY_WORKER to cookpool-identity-worker-${envName}, and is private`, () => {
+      const svc = (rendered.env[envName]?.services ?? []).find((s) => s.binding === "IDENTITY_WORKER");
+      expect(svc?.service).toBe(`cookpool-identity-worker-${envName}`);
+      expect(rendered.env[envName]?.workers_dev).toBe(false);
+    });
+  }
+
+  test("dev carries no bindings (verify-only)", () => {
+    expect(template.env.dev?.services).toBeUndefined();
+  });
+
+  test("the binding is acknowledged as a cycle, not declared as a dependsOn edge", () => {
+    expect(readYaml("apps/identity-worker/component.yaml")).toContain("component: membership-worker");
+    expect(readYaml("apps/membership-worker/component.yaml")).not.toMatch(/component: identity-worker/);
+    expect(ACKNOWLEDGED_BINDING_CYCLES.has("membership-worker -> identity-worker")).toBe(true);
+  });
+});
 
 describe("identity-worker deployment config", () => {
   const outFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "wire-render-")), "wrangler.jsonc");
