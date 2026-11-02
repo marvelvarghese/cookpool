@@ -48,7 +48,7 @@ Splitwise inside each group, with every number explainable.
 - settling up the suggested payments brings every balance to zero
 - property tests pass: Σpaid = Σowed, rounded parts sum to the total, simplification keeps every net, a reversal restores balances exactly
 
-## CP3 — pantries and using things
+## CP3 — pantries and using things ✅
 
 The product becomes useful on its own.
 

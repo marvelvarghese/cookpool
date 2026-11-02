@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-13
+  title: "Quick use and the + Add sheet"
+spec:
+  goal: Logging "I used something" takes two taps from Home — search every pantry or pick a usual, choose a preset amount and who had it, see the cost, log, and undo from the toast — and the + Add sheet's actions and Do it again rows all work.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-13.TaskContract.yaml
+  doneWhen:
+    - /use searches every usable item, shows recent and usual items, offers unit-aware presets with the usual marked, who had it, and the cost, then logs with an undo toast
+    - the + Add sheet's "I used something", "I bought food" and "I paid a bill" are live, and Do it again logs a usual in one tap with undo
+    - Home's "What did you use?" opens /use, and pantry rows' Use opens /use for that item
+  gates: []

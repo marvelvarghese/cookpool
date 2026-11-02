@@ -11,7 +11,7 @@ import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { friendlyName, greetingFor } from "@/components/kitchen/home";
 import { sortGroups } from "@/components/kitchen/groups";
-import { GroupAvatar, IconBubble, KCard, K_BUTTON, SoonBadge } from "@/components/kitchen/kit";
+import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { Money } from "@/components/kitchen/ledger-ui";
 import { useMyBalances } from "@/components/kitchen/people-data";
 import { homeBalance, netWords } from "@/components/kitchen/people";
@@ -19,9 +19,9 @@ import { HomeUseSoon } from "@/components/kitchen/pantry-cards";
 
 /**
  * Home (CP-5; balances since CP-8, across groups since CP-9, use soon since
- * CP-12). The inbox and quick use arrive with later milestones; Home greets
- * the person, shows the quick-use field as "Soon", the balance card, the
- * items to use soon, and their groups.
+ * CP-12, quick use since CP-13). The inbox arrives with a later milestone;
+ * Home greets the person, opens quick use from "What did you use?", shows the
+ * balance card, the items to use soon, and their groups.
  */
 export default function HomePage() {
   const profile = useProfile();
@@ -59,26 +59,23 @@ export default function HomePage() {
   );
 }
 
+/**
+ * "What did you use?" (CP-13): looks like the search it opens — quick use
+ * (/use), which searches every pantry you use from and shows your usuals.
+ */
 function QuickUse() {
   return (
     <section aria-label="Quick use">
-      <label htmlFor="quick-use" className="sr-only">
-        What did you use?
-      </label>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <input
-          id="quick-use"
-          type="search"
-          disabled
-          placeholder="What did you use?"
-          aria-describedby="quick-use-note"
-          className="h-14 w-full cursor-not-allowed rounded-2xl border border-input bg-card pl-12 pr-20 text-base placeholder:text-muted-foreground"
-        />
-        <SoonBadge className="absolute right-4 top-1/2 -translate-y-1/2" />
-      </div>
+      <Link
+        href="/use"
+        aria-describedby="quick-use-note"
+        className="flex h-14 w-full items-center gap-3 rounded-2xl border border-input bg-card px-4 text-base text-muted-foreground shadow-[0_1px_2px_rgba(23,32,27,0.04)] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Search className="h-5 w-5 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">What did you use?</span>
+      </Link>
       <p id="quick-use-note" className="mt-2 px-1 text-sm text-muted-foreground">
-        Two-tap logging arrives next. For now, tap Use on any item in your pantry.
+        Search every pantry, or tap + Add to log one of your usuals again.
       </p>
     </section>
   );
