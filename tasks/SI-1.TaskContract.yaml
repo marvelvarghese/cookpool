@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-1
+  title: "The Cookpool sign-in spec"
+spec:
+  goal: The cookpool-sign-in doc set is on main, the design behind the epic and its four milestones in Orunbase, with the sign-in screens on the Claude Design canvas.
+  affects:
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-1.TaskContract.yaml
+  doneWhen:
+    - README.md, design.md, implementation-plan.md, risks-and-open-questions.md and IMPLEMENTATION-STATUS.md are on main under specs/epics/cookpool-sign-in
+    - orun task epic show cookpool-sign-in lists milestones SI0 to SI3
+    - orun task show SI-1 reads done
+  gates: []
