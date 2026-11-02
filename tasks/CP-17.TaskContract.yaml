@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-17
+  title: "The dish page"
+spec:
+  goal: Everyone in the group sees a dish's cost, who had how much and how it moves money; members claim their portions, and the cook finalizes, corrects or cancels it, with leftovers and netting explained.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-17.TaskContract.yaml
+  doneWhen:
+    - /dishes/{dsh} shows the cost card, ingredients by pantry, who had some, leftovers and the netting view
+    - members claim half portions with undo, the cook assigns, finalizes, corrects and cancels
+    - the group page's Dishes tab lists the group's dishes
+    - a reusable claim stepper is exported for Home
+  gates: []
