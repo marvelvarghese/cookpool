@@ -138,3 +138,15 @@ days. That is a few thousand rows for a flat that cooks every day, fine for
 v1. Revisit when the read shows in Server-Timing: a
 `kitchen_stock_move_consumers (move_id, subject_id)` table indexed by subject,
 written in the same batch as the move.
+
+## CP-T — a big dish is one large D1 batch (ACCEPTED)
+
+Cooking writes the dish, its ingredients, every stock move, every item
+update, one charge per source group with its splits, and the audit events in
+one D1 batch, so nothing is half-written. The worked example is 34
+statements; a dish at the 30-ingredient limit is about 274. D1 counts
+statements toward a per-invocation query limit: 1,000 on Workers Paid (what
+the factory's prerequisites require for this Cloudflare account), 50 on
+Free. On Workers Paid every allowed dish fits. If the account ever runs on
+Free, a dish with more than a handful of ingredients fails as a whole
+(nothing written) and the limit on ingredients per dish must come down.

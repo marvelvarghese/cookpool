@@ -4,7 +4,7 @@ import { groupAllows, requireGroupAction } from "../authz.js";
 import type { OrgContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
 import { reverseSplits } from "@saas/kitchen-engine/ledger";
-import { forbidden, notFound, readJsonObject, successResponse, unavailable, validationError } from "../http.js";
+import { conflict, forbidden, notFound, readJsonObject, successResponse, unavailable, validationError } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";
 import { idempotencyKeyReused, ledgerAudit, postedTxnResponse, toKitchenFlag } from "../ledger.js";
@@ -56,6 +56,13 @@ export async function handleReverseTxn(ctx: OrgContext, request: Request, params
         "Only whoever logged a transaction, or an owner or admin, can reverse it",
         KITCHEN_ERROR_REASONS.NOT_CREATOR,
       );
+    }
+    // A dish's charges come and go with the dish (CP-14): cancelling it
+    // reverses them and puts its stock back, together.
+    if (original.sourceKind === "dish") {
+      return conflict(ctx.requestId, "This came from a dish: cancel the dish instead", KITCHEN_ERROR_REASONS.NOT_REVERSIBLE, {
+        dishId: original.sourceId ? toPublicId("dsh", original.sourceId) : null,
+      });
     }
 
     const id = asUuid(crypto.randomUUID());

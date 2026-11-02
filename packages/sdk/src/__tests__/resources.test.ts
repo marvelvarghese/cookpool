@@ -1149,3 +1149,74 @@ describe("KitchenClient — using things (Cookpool CP-11)", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
+
+describe("KitchenClient — dishes (Cookpool CP-14)", () => {
+  const dish = { id: "dsh_1", name: "Paneer butter masala", state: "open", totalMinor: 21100 };
+
+  function sent(call: CapturedCall): { method: string | undefined; body: unknown; key: string | null } {
+    return {
+      method: call.init.method,
+      body: call.init.body === undefined ? undefined : JSON.parse(String(call.init.body)),
+      key: new Headers(call.init.headers as HeadersInit).get("idempotency-key"),
+    };
+  }
+
+  it("cooks with an idempotency key, reads one dish and cancels it", async () => {
+    const body = {
+      name: "Paneer butter masala",
+      orgId: "org_1",
+      portionsHalf: 8,
+      extrasMinor: 1500,
+      splitMode: "claims" as const,
+      ingredients: [{ itemId: "itm_1", quantity: "300", unit: "g" }],
+      newItems: [{ name: "Cream", quantity: "200", unit: "ml", priceMinor: 3000 }],
+    };
+    const cooked = captureFetch(jsonResponse(envelope({ dish }), { status: 201 }));
+    expect(await client(cooked.fetch).kitchen.cookDish(body, { idempotencyKey: "cook-1" })).toEqual({ dish });
+    expect(cooked.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes");
+    expect(sent(cooked.calls[0]!)).toEqual({ method: "POST", body, key: "cook-1" });
+
+    const read = captureFetch(jsonResponse(envelope({ dish })));
+    expect(await client(read.fetch).kitchen.getDish("dsh_1")).toEqual({ dish });
+    expect(read.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes/dsh_1");
+    expect(read.calls[0]!.init.method).toBe("GET");
+
+    const canceled = captureFetch(jsonResponse(envelope({ dish: { ...dish, state: "canceled" } })));
+    await client(canceled.fetch).kitchen.cancelDish("dsh_1", { idempotencyKey: "cancel-1" });
+    expect(canceled.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes/dsh_1/cancel");
+    expect(sent(canceled.calls[0]!)).toEqual({ method: "POST", body: {}, key: "cancel-1" });
+  });
+
+  it("lists the caller's dishes and a group's, with state, cursor and limit", async () => {
+    const page = { dishes: [dish], nextCursor: null };
+    const mine = captureFetch(jsonResponse(envelope(page)));
+    expect(await client(mine.fetch).kitchen.myDishes()).toEqual(page);
+    expect(mine.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes");
+    const some = captureFetch(jsonResponse(envelope(page)));
+    await client(some.fetch).kitchen.myDishes({ state: "open", cursor: "abc", limit: 10 });
+    expect(some.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes?state=open&cursor=abc&limit=10");
+    const shared = captureFetch(jsonResponse(envelope(page)));
+    expect(await client(shared.fetch).kitchen.groupDishes("org_1", { state: "draft" })).toEqual(page);
+    expect(shared.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/dishes?state=draft");
+  });
+
+  it("surfaces a refused dish as NotFoundError, ConflictError and ValidationError", async () => {
+    const reason = (code: string, status: number, details: Record<string, unknown>) =>
+      jsonResponse({ error: { code, message: code, details, requestId: "req_err" } }, { status });
+    const body = { name: "Dal", portionsHalf: 2, splitMode: "assign" as const, ingredients: [{ itemId: "itm_1", quantity: "1" }] };
+    await expect(
+      client(captureFetch(reason("not_found", 404, {})).fetch).kitchen.cookDish(body),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    const short = await client(captureFetch(reason("conflict", 409, { reason: "insufficient_stock", itemId: "itm_1", qtyLeftMilli: 0 })).fetch)
+      .kitchen.cookDish(body)
+      .catch((e: unknown) => e);
+    expect(short).toBeInstanceOf(ConflictError);
+    expect((short as ConflictError).details).toEqual({ reason: "insufficient_stock", itemId: "itm_1", qtyLeftMilli: 0 });
+    await expect(
+      client(captureFetch(reason("validation_failed", 422, { reason: "currency_mismatch", currency: "INR" })).fetch).kitchen.cookDish(body),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      client(captureFetch(reason("conflict", 409, { reason: "dish_not_open", state: "finalized" })).fetch).kitchen.cancelDish("dsh_1"),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+});

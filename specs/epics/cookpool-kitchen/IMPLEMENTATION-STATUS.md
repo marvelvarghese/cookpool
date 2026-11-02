@@ -9,7 +9,7 @@ the code departed from `design.md`.
 | CP1 — groups you can join | ✅ shipped 2026-11-01 | #4 (CP-2), #5 (CP-3), #6 (CP-4), #8 (CP-5) |
 | CP2 — the ledger | in progress | #7 (CP-6), #9 (CP-7), #10 (CP-21), #12 (CP-8), #13 (CP-22) |
 | CP3 — pantries and using things | in progress | #11 (CP-10), #14 (CP-11) |
-| CP4 — the dish maker | | |
+| CP4 — the dish maker | in progress | (CP-14) |
 | CP5 — splitting dishes | | |
 | CP6 — use it before it goes | | |
 
@@ -210,3 +210,68 @@ Instead of hiding billing, the console now opens as Cookpool at `/home`
   (`qtyLeftMilli`, so "Do it again" can tell whether it still fits).
 - **New reasons:** `insufficient_stock`, `stale`, `not_latest`,
   `has_transaction`, `not_reversible`.
+
+### CP4 — cooking (CP-14)
+
+- **Routes as built.** `POST /v1/kitchen/me/dishes` `{ name, orgId?, portionsHalf,
+  extrasMinor?, splitMode, ingredients?: [{ itemId, quantity, unit? }],
+  newItems?: [{ name, category?, quantity, unit, priceMinor, expiresOn?,
+  useQuantity?, useUnit? }] }` → 201 `{ dish }`; `GET /v1/kitchen/me/dishes?state=&cursor=&limit=`
+  (`{ dishes, nextCursor }`, newest first), `GET /v1/kitchen/me/dishes/{dsh}`,
+  `POST /v1/kitchen/me/dishes/{dsh}/cancel` → 200 `{ dish }`, and
+  `GET /v1/organizations/{org}/kitchen/dishes` (`kitchen.pantry.read`). The
+  design's `GET …/dishes/{dsh}` inside a group is the `me` read: its cook, or
+  any member of its group. The breakdown is on the dish itself:
+  `fromMineMinor` (what the cook paid for: their own pantry and their own
+  purchases in a group) and `owes: [{ orgId, buyerId, amountMinor }]`, with
+  `fromMineMinor + Σ owes = ingredientsMinor`.
+- **State at cook time.** Claims open the dish to the group at once
+  (`open`); an assigned dish is a `draft` until its cook's shares are posted
+  and finalized (CP-16). Claims need a group (422 on `splitMode`, and a table
+  CHECK); a dish just for the cook is assigned.
+- **Who may cook what.** Sharing with a group needs `kitchen.dish.cook`
+  there; every source group `kitchen.item.use`, confirmed with policy once
+  per group. Items are looked up only in the cook's own pantry and the groups
+  whose role holds `kitchen.item.use`, so an item anywhere else — another
+  group, a group they may only read, nowhere — is the opaque 404.
+- **One batch, as CP-11 writes a use.** The shared group's currency pin, one
+  `use` transaction per source group (with `source_kind 'dish'`, `source_id`
+  the dish; lines whose buyer is the cook are left out, and a group with none
+  left posts none), the dish, the "just bought" items, then per ingredient
+  the guarded `dish` move and item update (`takeStockStatements`, now shared
+  with uses and waste) and its row, then the audit events. Costed from the
+  items as read; an item that moved on fails the batch and the dish is planned
+  once more from a fresh read (409 `stale` on a second loss). The shared
+  group's currency is pinned by the same batch, and the dish goes in only in
+  it, as a group's first item or transaction would. A dish has at most
+  `MAX_DISH_INGREDIENTS` (30) ingredients and new items together, which keeps
+  the batch under 300 statements at worst (34 for the worked example);
+  each statement may count toward the Worker's per-invocation D1 query
+  limit (1,000 on Workers Paid).
+- **Columns the design did not list** (`250_kitchen_dishes`):
+  `kitchen_dishes.canceled_at` (each closing state carries its timestamp, by
+  CHECK), `idem_key` (unique per cook: a retry answers the dish it made),
+  `created_at`/`updated_at`; `kitchen_dish_ingredients.position`, `unit`,
+  `org_id` (the source pantry; null for the cook's own) and `paid_by`.
+  `kitchen_stock_moves.dish_id` stays a plain column with an index: SQLite
+  cannot add a foreign key to an existing column without rebuilding the
+  table. Dish moves carry no `idem_key` (the dish's covers them).
+- **Cancel** is the cook's (403 `not_creator` for a member, the opaque 404
+  for anyone else), only while `draft` or `open` (409 `dish_not_open`), and
+  idempotent (a canceled dish answers as it is). One batch: the dish's state
+  is the guard (anything but draft/open becomes NULL and fails the batch),
+  each use transaction gets a reversal (`source_kind 'dish'`, note "The dish
+  was canceled") that puts its moves' stock back, and the cook's own
+  ingredients come back with plain `reversal` moves.
+- **A dish's charges are reversed only by cancelling it.**
+  `POST …/txns/{txn}/reverse` refuses a transaction whose source is a dish
+  (409 `not_reversible`, `details.dishId`): reversing it alone would put the
+  stock back under a dish that still lists it. A dish move cannot be undone
+  on its own either (`not_reversible`, as before).
+- **Audit:** `kitchen.dish.cooked` and `kitchen.dish.canceled` (an event the
+  design did not list), one per group the dish touches — its shared group and
+  each source group — each with that group's part; only the shared group's
+  carries the dish's totals. A dish of the cook's own pantry alone writes
+  none (the event log is per organization).
+- **New reason:** `dish_not_open`.
+

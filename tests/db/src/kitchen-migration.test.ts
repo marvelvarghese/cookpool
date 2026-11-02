@@ -55,7 +55,7 @@ describe("kitchen migrations", () => {
 
   it("adds what stock moves record as 240_kitchen_stock_moves, right after the pantries", () => {
     const ids = manifest.migrations.map((m) => m.id);
-    expect(kitchen.map((m) => m.id)).toEqual([
+    expect(kitchen.map((m) => m.id).slice(0, 4)).toEqual([
       "210_kitchen_settings",
       "220_kitchen_ledger",
       "230_kitchen_pantry",
@@ -103,6 +103,36 @@ describe("kitchen migrations", () => {
     expect(sql).toMatch(/PRIMARY KEY \(txn_id, subject_id\)/);
     expect(sql).toMatch(/kitchen_txns \(org_id, occurred_at DESC, id DESC\)/);
     // Append-only: the ledger migration never alters or drops anything.
+    expect(sql).not.toMatch(/\b(ALTER|DROP|UPDATE|DELETE)\b/i);
+  });
+
+  it("adds dishes as 250_kitchen_dishes, right after the stock moves", () => {
+    const ids = manifest.migrations.map((m) => m.id);
+    expect(kitchen.map((m) => m.id)).toEqual([
+      "210_kitchen_settings",
+      "220_kitchen_ledger",
+      "230_kitchen_pantry",
+      "240_kitchen_stock_moves",
+      "250_kitchen_dishes",
+    ]);
+    expect(ids.indexOf("250_kitchen_dishes")).toBe(ids.indexOf("240_kitchen_stock_moves") + 1);
+
+    const sql = readFileSync(resolve(MIGRATIONS_ROOT, "250_kitchen_dishes/up.sql"), "utf8").replace(/--.*$/gm, "");
+    for (const table of ["kitchen_dishes", "kitchen_dish_ingredients"]) {
+      expect(sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`));
+    }
+    expect(sql).toMatch(/portions_half\s+INTEGER NOT NULL CHECK \(portions_half > 0\)/);
+    expect(sql).toMatch(/CHECK \(total_minor = ingredients_minor \+ extras_minor\)/);
+    expect(sql).toMatch(/split_mode IN \('assign', 'claims'\)/);
+    expect(sql).toMatch(/state IN \('draft', 'open', 'finalized', 'canceled'\)/);
+    expect(sql).toMatch(/UNIQUE \(cook, idem_key\)/);
+    expect(sql).toMatch(/txn_id\s+TEXT REFERENCES kitchen_txns\(id\)/);
+    expect(sql).toMatch(/PRIMARY KEY \(dish_id, item_id\)/);
+    expect(sql).toMatch(/use_txn_id\s+TEXT REFERENCES kitchen_txns\(id\)/);
+    // kitchen_stock_moves.dish_id gets an index, not a foreign key: SQLite
+    // cannot add one to an existing column without rebuilding the table.
+    expect(sql).toMatch(/CREATE INDEX IF NOT EXISTS kitchen_stock_moves_dish_idx\s+ON kitchen_stock_moves \(dish_id\) WHERE dish_id IS NOT NULL/);
+    // Additive only.
     expect(sql).not.toMatch(/\b(ALTER|DROP|UPDATE|DELETE)\b/i);
   });
 });

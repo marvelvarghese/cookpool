@@ -55,6 +55,52 @@ function isUnused(item: KitchenItemRecord): boolean {
   return item.state === "active" && item.qtyLeftMilli === item.qtyBoughtMilli && item.costTakenMinor === 0;
 }
 
+/**
+ * Take `move` out of its item, as two statements of a batch: the move —
+ * its item_id read from the item only while it is at `expectedVersion`,
+ * active and in `owner`'s pantry, else NULL, which the NOT NULL constraint
+ * refuses (failing the batch) — then the item's update, which subtracts the
+ * quantity and adds the cost (an over-draw fails the stock CHECK) and marks an
+ * emptied item wasted (waste) or used up (a use, a dish). The update returns
+ * the item's columns. Used by a use or waste and by every ingredient of a dish
+ * (CP-14).
+ */
+export function takeStockStatements(
+  owner: KitchenPantryOwner,
+  expectedVersion: number,
+  move: KitchenStockMoveRecord,
+): SqlStatement[] {
+  const m = new Params();
+  const insert: SqlStatement = {
+    text: `INSERT INTO kitchen_stock_moves (
+             id, item_id, kind, qty_milli, cost_minor, actor, txn_id, dish_id, consumers, unit, idem_key, created_at
+           ) VALUES (
+             ${m.add(move.id)},
+             (SELECT id FROM kitchen_items
+              WHERE id = ${m.add(move.itemId)} AND version = ${m.add(expectedVersion)} AND state = 'active'
+                AND ${ownerClause(m, owner)}),
+             ${m.add(move.kind)}, ${m.add(move.qtyMilli)}, ${m.add(move.costMinor)}, ${m.add(move.actor)},
+             ${m.add(move.txnId)}, ${m.add(move.dishId)}, ${m.add(move.consumers ? JSON.stringify(move.consumers) : null)},
+             ${m.add(move.unit)}, ${m.add(move.idemKey)}, ${m.add(move.createdAt)}
+           )`,
+    params: m.values,
+  };
+  const u = new Params();
+  const qty = u.add(move.qtyMilli);
+  const update: SqlStatement = {
+    text: `UPDATE kitchen_items SET
+             qty_left_milli = qty_left_milli - ${qty},
+             cost_taken_minor = cost_taken_minor + ${u.add(move.costMinor)},
+             state = CASE WHEN qty_left_milli = ${qty} THEN ${u.add(move.kind === "waste" ? "wasted" : "used_up")} ELSE state END,
+             version = version + 1,
+             updated_at = ${u.add(move.createdAt)}
+           WHERE id = ${u.add(move.itemId)} AND version = ${u.add(expectedVersion)}
+           RETURNING ${ITEM_COLUMNS}`,
+    params: u.values,
+  };
+  return [insert, update];
+}
+
 export function createStockRepository(executor: SqlExecutor): StockRepository {
   const pantry = createPantryRepository(executor);
   const ledger = createLedgerRepository(executor);
@@ -139,35 +185,8 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
 
       // The transaction and its splits first: the move's txn_id references it.
       const statements: SqlStatement[] = txnRecord ? txnStatements({ record: txnRecord, audit: undefined }) : [];
-      const m = new Params();
-      statements.push({
-        text: `INSERT INTO kitchen_stock_moves (
-                 id, item_id, kind, qty_milli, cost_minor, actor, txn_id, consumers, unit, idem_key, created_at
-               ) VALUES (
-                 ${m.add(record.id)},
-                 (SELECT id FROM kitchen_items
-                  WHERE id = ${m.add(itemId)} AND version = ${m.add(expectedVersion)} AND state = 'active'
-                    AND ${ownerClause(m, owner)}),
-                 ${m.add(record.kind)}, ${m.add(record.qtyMilli)}, ${m.add(record.costMinor)}, ${m.add(record.actor)},
-                 ${m.add(record.txnId)}, ${m.add(record.consumers ? JSON.stringify(record.consumers) : null)},
-                 ${m.add(record.unit)}, ${m.add(record.idemKey)}, ${m.add(record.createdAt)}
-               )`,
-        params: m.values,
-      });
-      const updateAt = statements.length;
-      const u = new Params();
-      const qty = u.add(record.qtyMilli);
-      statements.push({
-        text: `UPDATE kitchen_items SET
-                 qty_left_milli = qty_left_milli - ${qty},
-                 cost_taken_minor = cost_taken_minor + ${u.add(record.costMinor)},
-                 state = CASE WHEN qty_left_milli = ${qty} THEN ${u.add(move.kind === "use" ? "used_up" : "wasted")} ELSE state END,
-                 version = version + 1,
-                 updated_at = ${u.add(record.createdAt)}
-               WHERE id = ${u.add(itemId)} AND version = ${u.add(expectedVersion)}
-               RETURNING ${ITEM_COLUMNS}`,
-        params: u.values,
-      });
+      const updateAt = statements.length + 1;
+      statements.push(...takeStockStatements(owner, expectedVersion, record));
       if (audit) statements.push(...eventWithAuditStatements(audit));
 
       try {

@@ -46,6 +46,20 @@ export type {
   KitchenMoveRead,
   KitchenUsualRecord,
   KitchenUsualsQuery,
+  KitchenDishState,
+  KitchenDishSplitMode,
+  KitchenDishError,
+  KitchenDishResult,
+  KitchenDishIngredientRecord,
+  KitchenDishRecord,
+  CookIngredient,
+  CookDishInput,
+  CookedDish,
+  KitchenDishScope,
+  KitchenDishesCursor,
+  KitchenDishesQuery,
+  KitchenDishesPage,
+  CancelDishInput,
 } from "./types.js";
 
 export { KITCHEN_DEFAULT_CURRENCY, KITCHEN_DEFAULT_WASTE_POLICY } from "./types.js";
