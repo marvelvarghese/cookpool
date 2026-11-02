@@ -13,6 +13,7 @@ import { kitchenIcon } from "./icons";
 import { CLOSE_44, K_BUTTON, SoonBadge } from "./kit";
 import { useGroups } from "./data";
 import { GroupPickerList } from "./group-picker";
+import { useMyRoles } from "./people-data";
 
 const TILE_TONES: Record<string, string> = {
   use: "bg-cp-herb-tint text-primary",
@@ -27,11 +28,18 @@ const TILE_TONES: Record<string, string> = {
  * (aria-disabled, still focusable so it can be discovered); a live one is a
  * link that closes the sheet. A tile that needs a group first ("I paid a
  * bill", CP-8) turns the sheet into a searchable group picker, then goes to
- * that group. A bottom sheet on phones, a floating panel from 900px.
+ * that group — leaving out groups the person only views (CP-9). A bottom
+ * sheet on phones, a floating panel from 900px.
  */
 export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
-  const groups = useGroups();
+  const allGroups = useGroups();
+  const { roles } = useMyRoles();
+  // A viewer adds nothing to a group; until roles load, every group is offered.
+  const groups = React.useMemo(
+    () => ({ ...allGroups, data: allGroups.data?.filter((g) => roles.get(g.id) !== "viewer") ?? null }),
+    [allGroups, roles],
+  );
   const [picking, setPicking] = React.useState<AddAction | null>(null);
   const close = React.useCallback(() => onOpenChange(false), [onOpenChange]);
 

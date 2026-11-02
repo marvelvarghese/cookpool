@@ -5,7 +5,7 @@ from `apps/kitchen-worker`, deployed per environment by its CI lane.
 
 ## Bindings and wiring
 
-- **Service bindings** → `membership-worker`, `policy-worker`, `notifications-worker` —
+- **Service bindings** → `membership-worker`, `policy-worker`, `notifications-worker`, `identity-worker` —
   in-process RPC to sibling Workers; no public hops between contexts.
 - **Wired configuration** (resolved at deploy time from job-output
   secrets published by the infrastructure terraform; names only):

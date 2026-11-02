@@ -19,7 +19,8 @@ import { useGroups, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, K_INPUT, PageHeader, SoonBadge } from "@/components/kitchen/kit";
 import { refreshLedger, useBalances, useGroupRole, useOfferUndo } from "@/components/kitchen/ledger-data";
 import { Chip, Money, PersonAvatar, Segmented } from "@/components/kitchen/ledger-ui";
-import { memberLabel, memberLabelInline, sortMembers } from "@/components/kitchen/members";
+import { memberLabel, memberLabelInline, sortMembers, type MemberNames } from "@/components/kitchen/members";
+import { useMemberNames } from "@/components/kitchen/people-data";
 import { currencyPrefix, formatMinor } from "@/components/kitchen/money";
 import {
   EXPENSE_TITLE_MAX,
@@ -81,14 +82,16 @@ export default function AddExpensePage() {
 
 /**
  * Who can be on the expense: the group's balances list every member (and
- * anyone who left still owing or owed); for owners and admins, the member
- * list narrows that to the people still in the group.
+ * anyone who left still owing or owed); the member list (every member may
+ * read it since CP-9) narrows that to the people still in the group. A viewer
+ * adds nothing.
  */
 function ExpenseLoader({ group }: { group: PublicOrganization }) {
   const profile = useProfile();
   const myId = profile.data?.id ?? null;
   const balances = useBalances(group.id);
-  const { members } = useGroupRole(group.id, myId);
+  const { members, roleKnown, canWrite } = useGroupRole(group.id, myId);
+  const names = useMemberNames(members.data);
 
   const roster = React.useMemo(() => {
     if (!balances.data) return null;
@@ -97,10 +100,23 @@ function ExpenseLoader({ group }: { group: PublicOrganization }) {
       const active = new Set(members.data.map((m) => m.subjectId));
       ids = [...ids.filter((id) => active.has(id)), ...[...active].filter((id) => !ids.includes(id))];
     }
-    return sortMembers(ids, myId);
-  }, [balances.data, members.data, myId]);
+    return sortMembers(ids, myId, names);
+  }, [balances.data, members.data, myId, names]);
 
-  if (profile.loading || balances.loading) return <ExpenseSkeleton />;
+  if (profile.loading || balances.loading || !roleKnown) return <ExpenseSkeleton />;
+  if (!canWrite) {
+    return (
+      <KCard className="flex flex-col items-center px-6 py-12 text-center">
+        <h1 className="text-lg font-bold tracking-tight">You view {group.name}</h1>
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+          Viewers see the group&apos;s money but don&apos;t add to it. Ask an owner to make you a member.
+        </p>
+        <Button asChild className={cn(K_BUTTON, "mt-5")}>
+          <Link href={`/groups/${group.slug}`}>Back to {group.name}</Link>
+        </Button>
+      </KCard>
+    );
+  }
   if (balances.error || !roster || !balances.data) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
@@ -113,7 +129,7 @@ function ExpenseLoader({ group }: { group: PublicOrganization }) {
       </KCard>
     );
   }
-  return <ExpenseFormView group={group} roster={roster} myId={myId} currency={balances.data.currency} />;
+  return <ExpenseFormView group={group} roster={roster} myId={myId} currency={balances.data.currency} names={names} />;
 }
 
 const MODE_HINT: Record<ExpenseForm["mode"], string> = {
@@ -128,11 +144,13 @@ function ExpenseFormView({
   roster,
   myId,
   currency,
+  names,
 }: {
   group: PublicOrganization;
   roster: string[];
   myId: string | null;
   currency: string;
+  names: MemberNames;
 }) {
   const { client } = useSession();
   const qc = useQueryClient();
@@ -175,7 +193,7 @@ function ExpenseFormView({
         setGone((g) => [...new Set([...g, ...ids])]);
         setServerError(
           ids.length > 0
-            ? `${ids.map((id) => memberLabel(id, myId)).join(", ")} ${ids.length === 1 ? "has" : "have"} left ${group.name}, so ${ids.length === 1 ? "they're" : "they're all"} off this expense now. Check the split and save again.`
+            ? `${ids.map((id) => memberLabel(id, myId, names)).join(", ")} ${ids.length === 1 ? "has" : "have"} left ${group.name}, so ${ids.length === 1 ? "they're" : "they're all"} off this expense now. Check the split and save again.`
             : "Someone on this expense has left the group. Check the split and save again.",
         );
         return;
@@ -276,7 +294,7 @@ function ExpenseFormView({
                     selected={form.payerId === id}
                     onClick={() => update({ payerId: id })}
                   >
-                    {memberLabel(id, myId)}
+                    {memberLabel(id, myId, names)}
                   </Chip>
                 ))}
               </div>
@@ -285,9 +303,9 @@ function ExpenseFormView({
                 {people.map((id) => (
                   <li key={id} className="py-2">
                     <div className="flex items-center gap-3">
-                      <PersonAvatar subjectId={id} meId={myId} />
+                      <PersonAvatar subjectId={id} meId={myId} names={names} />
                       <label htmlFor={`payer-${id}`} className="min-w-0 flex-1 truncate text-[15px] font-semibold">
-                        {memberLabel(id, myId)}
+                        {memberLabel(id, myId, names)}
                       </label>
                       <MoneyInput
                         id={`payer-${id}`}
@@ -296,7 +314,7 @@ function ExpenseFormView({
                         invalid={!!preview.payerErrors[id]}
                         describedBy={preview.payerErrors[id] ? `payer-${id}-error` : undefined}
                         onChange={(v) => updatePerson("payerAmounts", id, v)}
-                        label={`What ${memberLabelInline(id, myId)} paid`}
+                        label={`What ${memberLabelInline(id, myId, names)} paid`}
                       />
                     </div>
                     {preview.payerErrors[id] ? (
@@ -353,7 +371,7 @@ function ExpenseFormView({
 
             <ul aria-labelledby="split-heading" className={cn("divide-y", form.mode === "equal" ? "mt-0" : "mt-2")}>
               {preview.people.map((p) => {
-                const name = memberLabel(p.subjectId, myId);
+                const name = memberLabel(p.subjectId, myId, names);
                 const owed =
                   p.owedMinor === null ? (
                     <span className="text-muted-foreground">—</span>
@@ -374,12 +392,12 @@ function ExpenseFormView({
                             }}
                             className="h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
                           />
-                          <PersonAvatar subjectId={p.subjectId} meId={myId} />
+                          <PersonAvatar subjectId={p.subjectId} meId={myId} names={names} />
                           <span className="truncate text-[15px] font-semibold">{name}</span>
                         </label>
                       ) : (
                         <>
-                          <PersonAvatar subjectId={p.subjectId} meId={myId} />
+                          <PersonAvatar subjectId={p.subjectId} meId={myId} names={names} />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[15px] font-semibold">{name}</span>
                             {form.mode === "percent" || form.mode === "shares" ? (
@@ -400,7 +418,7 @@ function ExpenseFormView({
                           invalid={!!p.error}
                           describedBy={p.error ? `split-${p.subjectId}-error` : undefined}
                           onChange={(v) => updatePerson("exact", p.subjectId, v)}
-                          label={`What ${memberLabelInline(p.subjectId, myId)} ${p.subjectId === myId ? "owe" : "owes"}`}
+                          label={`What ${memberLabelInline(p.subjectId, myId, names)} ${p.subjectId === myId ? "owe" : "owes"}`}
                         />
                       ) : form.mode === "percent" ? (
                         <div className="relative w-24 shrink-0">

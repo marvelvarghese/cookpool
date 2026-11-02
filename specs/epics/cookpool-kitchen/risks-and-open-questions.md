@@ -139,6 +139,32 @@ v1. Revisit when the read shows in Server-Timing: a
 `kitchen_stock_move_consumers (move_id, subject_id)` table indexed by subject,
 written in the same batch as the move.
 
+## CP-R — members see each other's name or email prefix (ACCEPTED)
+
+A group's members (viewers included) see each other's display name, else
+the part of their email before the @, through the members list, People and
+every screen that names someone. They never see a whole email address.
+Anyone with a group's join link can join and see these names, which is the
+point of a shared kitchen. A person who does not want their email prefix
+shown sets a display name in Account.
+
+## CP-S — the people reads read every group's whole ledger (ACCEPTED)
+
+`GET /v1/kitchen/me/balances` and `GET /v1/kitchen/me/people/{usr}` load,
+for every group the caller is in, its roster (one membership hop each), its
+whole ledger (`listSplitsForGroup`, one query each) and its settle plan, and
+then ask identity for every co-member's name (one primary-key read per
+person). That is fine for a person in a few groups of a few people — the
+target — and the reads run side by side; Home, People and every name in the
+app share the one cached call. Revisit with CP-O's running pairwise totals,
+or a per-group plan cache invalidated by each write, if the reads show in
+Server-Timing (`groups`, `roster`, `db`, `identity` phases). The person view
+lists every line since the group began, not only those since your last
+settlement: a payment is a line too, so the sum still explains the amount;
+trimming to "since you last squared up" can come with the inbox (CP-19).
+The names lookup could become one `IN (json_each(…))` read
+(`getUsersByIds`) when `packages/db` is next in scope.
+
 ## CP-T — a big dish is one large D1 batch (ACCEPTED)
 
 Cooking writes the dish, its ingredients, every stock move, every item

@@ -4,9 +4,28 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CookingPot, DoorOpen, HandCoins, Plus, Refrigerator, RefreshCw, UsersRound } from "lucide-react";
-import type { PublicMember, PublicOrganization } from "@saas/contracts/membership";
-import type { BalancesResponse, KitchenSettings, UpdateKitchenSettingsRequest, WastePolicy } from "@saas/contracts/kitchen";
+import {
+  ArrowLeft,
+  ChevronRight,
+  CookingPot,
+  Crown,
+  DoorOpen,
+  HandCoins,
+  MoreVertical,
+  Plus,
+  Refrigerator,
+  RefreshCw,
+  ShieldCheck,
+  UsersRound,
+} from "lucide-react";
+import type { PublicOrganization } from "@saas/contracts/membership";
+import type {
+  BalancesResponse,
+  KitchenMember,
+  KitchenSettings,
+  UpdateKitchenSettingsRequest,
+  WastePolicy,
+} from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -19,12 +38,19 @@ import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import {
   GROUP_CURRENCIES,
   WASTE_RULES,
-  roleFromAssignments,
+  roleFromKitchen,
   wasteRuleLabel,
+  type GroupRole,
 } from "@/components/kitchen/groups";
 import { formatJoinCode, joinUrl } from "@/components/kitchen/join-code";
 import {
@@ -39,7 +65,8 @@ import { useBalances, useGroupRole, useSettlePlan } from "@/components/kitchen/l
 import { ActivityFeed } from "@/components/kitchen/activity-feed";
 import { SettleCard, SettleNote } from "@/components/kitchen/settle-card";
 import { BalanceWords, Money, PersonAvatar } from "@/components/kitchen/ledger-ui";
-import { memberLabel } from "@/components/kitchen/members";
+import { memberLabel, type MemberNames } from "@/components/kitchen/members";
+import { useMemberNames } from "@/components/kitchen/people-data";
 
 /**
  * One group (CP-5, the ledger since CP-8): your balance in it with Add expense
@@ -47,7 +74,9 @@ import { memberLabel } from "@/components/kitchen/members";
  * and dishes are honest empty states until CP3/CP4); beside them who is in it
  * and your role, the join link (owners and admins copy and rotate it), the
  * group's rules (owners and admins edit) and leaving. `?tab=` keeps the open
- * tab in the address.
+ * tab in the address. Since CP-9 every member sees everyone by name and role
+ * (owners can make someone an owner or admin), each balance opens that
+ * person, and a viewer sees no write actions.
  */
 export default function GroupPage() {
   const params = useParams<{ orgSlug: string }>();
@@ -97,7 +126,8 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
   const searchParams = useSearchParams();
   const profile = useProfile();
   const myId = profile.data?.id ?? null;
-  const { members, membersHidden, role, roleKnown, manager } = useGroupRole(group.id, myId);
+  const { members, role, roleKnown, manager, canWrite } = useGroupRole(group.id, myId);
+  const names = useMemberNames(members.data);
   const balances = useBalances(group.id);
 
   // The open tab switches at once and is mirrored into the address with the
@@ -152,7 +182,7 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
 
       <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,340px)] min-[900px]:items-start">
         <div className="min-w-0 space-y-5">
-          <YourBalanceCard group={group} myId={myId} balances={balances} />
+          <YourBalanceCard group={group} myId={myId} balances={balances} canWrite={canWrite} roleKnown={roleKnown} />
 
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="grid h-auto w-full grid-cols-4 rounded-xl border border-input bg-card p-0.5">
@@ -167,10 +197,10 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
               ))}
             </TabsList>
             <TabsContent value="activity">
-              <ActivityFeed orgId={group.id} slug={group.slug} meId={myId} canReverseAny={manager} />
+              <ActivityFeed orgId={group.id} slug={group.slug} meId={myId} canReverseAny={manager} canWrite={canWrite} />
             </TabsContent>
             <TabsContent value="balances">
-              <BalancesPanel group={group} myId={myId} balances={balances} manager={manager} />
+              <BalancesPanel group={group} myId={myId} balances={balances} manager={manager} canWrite={canWrite} names={names} />
             </TabsContent>
             <TabsContent value="pantry">
               <ComingSoonCard
@@ -197,13 +227,16 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
           {manager ? <InviteCard group={group} /> : null}
           <RulesCard group={group} manager={manager} roleKnown={roleKnown} />
           <MembersCard
+            group={group}
             members={members.data}
             loading={members.loading}
-            hidden={membersHidden}
-            error={membersHidden ? null : members.error}
+            error={members.error}
+            reload={members.reload}
             myId={myId}
+            myRole={role}
+            names={names}
           />
-          <LeaveCard group={group} onLeft={onLeft} />
+          <LeaveCard group={group} onLeft={onLeft} owner={role === "owner"} />
         </div>
       </div>
     </div>
@@ -218,10 +251,14 @@ function YourBalanceCard({
   group,
   myId,
   balances,
+  canWrite,
+  roleKnown,
 }: {
   group: PublicOrganization;
   myId: string | null;
   balances: BalancesState;
+  canWrite: boolean;
+  roleKnown: boolean;
 }) {
   const mine = myId ? balances.data?.balances.find((b) => b.subjectId === myId) : undefined;
   const minor = mine?.balanceMinor ?? 0;
@@ -246,13 +283,18 @@ function YourBalanceCard({
           <Money minor={Math.abs(minor)} currency={currency} />
         </p>
       )}
-      <div className="mt-4 grid grid-cols-2 gap-2 min-[560px]:flex">
-        <Button asChild className={K_BUTTON}>
-          <Link href={`/groups/${group.slug}/expense`}>
-            <Plus aria-hidden />
-            Add expense
-          </Link>
-        </Button>
+      <div className={cn("mt-4 grid gap-2 min-[560px]:flex", canWrite || !roleKnown ? "grid-cols-2" : "grid-cols-1")}>
+        {/* A viewer reads the group but adds nothing to it. */}
+        {canWrite ? (
+          <Button asChild className={K_BUTTON}>
+            <Link href={`/groups/${group.slug}/expense`}>
+              <Plus aria-hidden />
+              Add expense
+            </Link>
+          </Button>
+        ) : !roleKnown ? (
+          <Skeleton className="h-11 rounded-xl" />
+        ) : null}
         <Button asChild variant="outline" className={K_BUTTON}>
           <Link href={`/settle?group=${encodeURIComponent(group.slug)}`}>
             <HandCoins aria-hidden />
@@ -260,6 +302,9 @@ function YourBalanceCard({
           </Link>
         </Button>
       </div>
+      {roleKnown && !canWrite ? (
+        <p className="mt-3 text-xs text-muted-foreground">You view {group.name}: you see its money, but don&apos;t add to it.</p>
+      ) : null}
     </KCard>
   );
 }
@@ -271,11 +316,15 @@ function BalancesPanel({
   myId,
   balances,
   manager,
+  canWrite,
+  names,
 }: {
   group: PublicOrganization;
   myId: string | null;
   balances: BalancesState;
   manager: boolean;
+  canWrite: boolean;
+  names: MemberNames;
 }) {
   const plan = useSettlePlan(group.id);
   return (
@@ -295,7 +344,7 @@ function BalancesPanel({
             </Button>
           </div>
         ) : (
-          <BalanceList data={balances.data} myId={myId} />
+          <BalanceList data={balances.data} myId={myId} names={names} />
         )}
       </KCard>
       <SettleCard
@@ -306,25 +355,48 @@ function BalancesPanel({
         reload={plan.reload}
         meId={myId}
         canRecordAny={manager}
+        canWrite={canWrite}
       />
       <SettleNote className="px-1" />
     </div>
   );
 }
 
-function BalanceList({ data, myId }: { data: BalancesResponse; myId: string | null }) {
+/** Everyone's balance; each other person opens their view (everything between you two). */
+function BalanceList({ data, myId, names }: { data: BalancesResponse; myId: string | null; names: MemberNames }) {
   if (data.balances.length === 0) {
     return <p className="mt-2 text-sm text-muted-foreground">No one has a balance yet.</p>;
   }
   return (
     <ul className="mt-2 divide-y">
-      {data.balances.map((b) => (
-        <li key={b.subjectId} className="flex min-h-14 items-center gap-3 py-2">
-          <PersonAvatar subjectId={b.subjectId} meId={myId} />
-          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{memberLabel(b.subjectId, myId)}</span>
-          <BalanceWords minor={b.balanceMinor} currency={data.currency} className="shrink-0 text-right" />
-        </li>
-      ))}
+      {data.balances.map((b) => {
+        const row = (
+          <>
+            <PersonAvatar subjectId={b.subjectId} meId={myId} names={names} />
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{memberLabel(b.subjectId, myId, names)}</span>
+            <BalanceWords minor={b.balanceMinor} currency={data.currency} className="shrink-0 text-right" />
+          </>
+        );
+        return (
+          <li key={b.subjectId}>
+            {b.subjectId === myId ? (
+              <div className="flex min-h-14 items-center gap-3 py-2">
+                {row}
+                {/* Lines up with the chevron on everyone else's row. */}
+                <span aria-hidden className="w-4 shrink-0" />
+              </div>
+            ) : (
+              <Link
+                href={`/people/${encodeURIComponent(b.subjectId)}`}
+                className="-mx-2 flex min-h-14 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {row}
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              </Link>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -579,67 +651,190 @@ function RulesForm({
 // ── Members ────────────────────────────────────────────────────────
 
 function MembersCard({
+  group,
   members,
   loading,
-  hidden,
   error,
+  reload,
   myId,
+  myRole,
+  names,
 }: {
-  members: PublicMember[] | null;
+  group: PublicOrganization;
+  members: KitchenMember[] | null;
   loading: boolean;
-  hidden: boolean;
   error: { message: string } | null;
+  reload: () => void;
   myId: string | null;
+  myRole: GroupRole | null;
+  names: MemberNames;
 }) {
+  const [promoting, setPromoting] = React.useState<{ member: KitchenMember; role: "owner" | "admin" } | null>(null);
   const sorted = React.useMemo(() => {
     if (!members) return [];
-    // You first, then by join date.
-    return [...members].sort((a, b) =>
-      a.subjectId === myId ? -1 : b.subjectId === myId ? 1 : a.joinedAt.localeCompare(b.joinedAt),
-    );
+    // You first, then in the order people joined (the API's order).
+    return [...members].sort((a, b) => (a.subjectId === myId ? -1 : b.subjectId === myId ? 1 : 0));
   }, [members, myId]);
 
   return (
-    <KCard className="p-5">
+    <KCard className="scroll-mt-6 p-5" id="group-members">
       <h2 className="flex items-center gap-2 text-base font-bold tracking-tight">
         <UsersRound className="h-5 w-5 text-muted-foreground" aria-hidden />
         Members
+        {members ? <span className="font-normal text-muted-foreground">· {members.length}</span> : null}
       </h2>
       {loading ? (
         <div aria-hidden>
           <SkeletonRow />
           <SkeletonRow />
         </div>
-      ) : hidden ? (
-        <p className="mt-2 text-sm text-muted-foreground">
-          Owners and admins see who&apos;s in the group. Ask one of them for the join link to invite someone.
-        </p>
-      ) : error ? (
-        <p className="mt-2 text-sm text-muted-foreground">Couldn&apos;t load the members. {error.message}</p>
+      ) : error || !members ? (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load the members. {error?.message ?? ""}</p>
+          <Button variant="outline" className={K_BUTTON} onClick={reload}>
+            Try again
+          </Button>
+        </div>
       ) : (
         <ul className="mt-2 divide-y">
           {sorted.map((m) => {
-            const role = roleFromAssignments(m.roles);
-            return (
-              <li key={m.id} className="flex min-h-14 items-center gap-3 py-2">
-                <PersonAvatar subjectId={m.subjectId} meId={myId} />
+            const role = roleFromKitchen(m.role);
+            const label = memberLabel(m.subjectId, myId, names);
+            const you = m.subjectId === myId;
+            // Owners hand over ownership (or make an admin); never of themselves.
+            const canPromote = myRole === "owner" && !you && m.memberId !== null && role !== "owner";
+            const who = (
+              <>
+                <PersonAvatar subjectId={m.subjectId} meId={myId} names={names} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{memberLabel(m.subjectId, myId)}</span>
-                  <span className="block text-xs text-muted-foreground">Joined {shortDate(m.joinedAt)}</span>
+                  <span className="block truncate text-sm font-semibold">{label}</span>
+                  {m.joinedAt ? (
+                    <span className="block text-xs text-muted-foreground">Joined {shortDate(m.joinedAt)}</span>
+                  ) : null}
                 </span>
+              </>
+            );
+            return (
+              <li key={m.subjectId} className="flex min-h-14 items-center gap-2 py-2">
+                {you ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-3">{who}</div>
+                ) : (
+                  <Link
+                    href={`/people/${encodeURIComponent(m.subjectId)}`}
+                    className="-ml-2 flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {who}
+                  </Link>
+                )}
                 {role ? <RoleBadge role={role} /> : null}
+                {canPromote ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      aria-label={`Change ${label}'s role`}
+                      className="-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <MoreVertical className="h-5 w-5" aria-hidden />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-48 rounded-xl p-1.5">
+                      <DropdownMenuItem
+                        onSelect={() => setPromoting({ member: m, role: "owner" })}
+                        className="min-h-11 rounded-lg px-3 text-[15px]"
+                      >
+                        <Crown className="h-4 w-4" aria-hidden />
+                        Make owner
+                      </DropdownMenuItem>
+                      {role !== "admin" ? (
+                        <DropdownMenuItem
+                          onSelect={() => setPromoting({ member: m, role: "admin" })}
+                          className="min-h-11 rounded-lg px-3 text-[15px]"
+                        >
+                          <ShieldCheck className="h-4 w-4" aria-hidden />
+                          Make admin
+                        </DropdownMenuItem>
+                      ) : null}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : myRole === "owner" ? (
+                  // Keeps the role badges in one column beside rows that have a menu.
+                  <span aria-hidden className="-mr-2 w-11 shrink-0" />
+                ) : null}
               </li>
             );
           })}
         </ul>
       )}
+      <PromoteDialog
+        group={group}
+        target={promoting}
+        name={promoting ? memberLabel(promoting.member.subjectId, myId, names) : ""}
+        onClose={() => setPromoting(null)}
+      />
     </KCard>
+  );
+}
+
+const PROMOTE_COPY: Record<"owner" | "admin", { title: (name: string) => string; body: (group: string) => string; done: string }> = {
+  owner: {
+    title: (name) => `Make ${name} an owner?`,
+    body: (group) =>
+      `They'll be able to do everything you can in ${group}: change anyone's role, the rules and the join link. You stay an owner.`,
+    done: "an owner",
+  },
+  admin: {
+    title: (name) => `Make ${name} an admin?`,
+    body: (group) => `They'll manage ${group}'s join link and rules, and can record or undo anyone's entries.`,
+    done: "an admin",
+  },
+};
+
+/** Confirms a role change, then posts it through the membership API. */
+function PromoteDialog({
+  group,
+  target,
+  name,
+  onClose,
+}: {
+  group: PublicOrganization;
+  target: { member: KitchenMember; role: "owner" | "admin" } | null;
+  name: string;
+  onClose: () => void;
+}) {
+  const { client } = useSession();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const copy = PROMOTE_COPY[target?.role ?? "owner"];
+
+  const promote = async () => {
+    if (!target?.member.memberId) return;
+    const r = await wrap(() =>
+      client.memberships.updateMemberRole(group.id, target.member.memberId!, { role: target.role }),
+    );
+    for (const key of [qk.kitchenMembers(group.id), qk.members(group.id), qk.kitchenMe()]) {
+      void qc.invalidateQueries({ queryKey: key });
+    }
+    if (!r.ok) {
+      toast({ kind: "error", title: "Couldn't change the role", description: r.error.message });
+      return;
+    }
+    toast({ kind: "success", title: `${name} is now ${copy.done}` });
+  };
+
+  return (
+    <ConfirmDialog
+      open={target !== null}
+      onOpenChange={(open) => (open ? null : onClose())}
+      title={copy.title(name)}
+      description={copy.body(group.name)}
+      confirmLabel={target?.role === "admin" ? "Make admin" : "Make owner"}
+      destructive={false}
+      onConfirm={promote}
+    />
   );
 }
 
 // ── Leave ──────────────────────────────────────────────────────────
 
-function LeaveCard({ group, onLeft }: { group: PublicOrganization; onLeft: () => void }) {
+function LeaveCard({ group, onLeft, owner }: { group: PublicOrganization; onLeft: () => void; owner: boolean }) {
   const { client } = useSession();
   const qc = useQueryClient();
   const router = useRouter();
@@ -665,6 +860,7 @@ function LeaveCard({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
     qc.setQueryData<PublicOrganization[]>(qk.orgs(), (old) => old?.filter((g) => g.id !== group.id));
     for (const key of [
       qk.members(group.id),
+      qk.kitchenMembers(group.id),
       qk.joinCode(group.id),
       qk.kitchenSettings(group.id),
       qk.kitchenLedger(group.id),
@@ -672,6 +868,7 @@ function LeaveCard({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
       qc.removeQueries({ queryKey: key });
     }
     void qc.invalidateQueries({ queryKey: qk.orgs() });
+    void qc.invalidateQueries({ queryKey: qk.kitchenMe() });
   };
 
   return (
@@ -687,6 +884,15 @@ function LeaveCard({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
             A group needs an owner while anyone is still in it. Make someone else an owner first, then
             you can leave.
           </p>
+          {owner ? (
+            <a
+              href="#group-members"
+              className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-lg font-bold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Choose a new owner in Members
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </a>
+          ) : null}
         </div>
       ) : null}
       <Button

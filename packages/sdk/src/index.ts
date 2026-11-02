@@ -426,3 +426,21 @@ export {
   DISH_SPLIT_MODES,
   MAX_DISH_INGREDIENTS,
 } from "@saas/contracts/kitchen";
+
+// People across groups (Cookpool CP-9).
+export type {
+  KitchenGroupRole,
+  MyGroupBalance,
+  PersonGroupNet,
+  PersonBalance,
+  CurrencyTotal,
+  MyBalancesResponse,
+  PersonLine,
+  ShortcutVia,
+  PersonGroupView,
+  PersonViewResponse,
+  KitchenMember,
+  GroupMembersResponse,
+} from "@saas/contracts/kitchen";
+
+export { KITCHEN_GROUP_ROLES } from "@saas/contracts/kitchen";

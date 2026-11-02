@@ -14,3 +14,4 @@ Part of the cookpool runtime: a Cloudflare Worker deployed per environment (`sta
 ## Depended on by
 
 - **api-edge** — Cloudflare Worker for the API edge Runtime
+- **kitchen-worker** — Cloudflare Worker for the kitchen bounded context — group settings, pantries, the group ledger and dishes (Cookpool)

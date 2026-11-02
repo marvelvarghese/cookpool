@@ -11,6 +11,7 @@ import { handleOAuthProviders } from "./handlers/oauth-providers.js";
 import { handleOAuthStart } from "./handlers/oauth-start.js";
 import { handleOAuthCallback } from "./handlers/oauth-callback.js";
 import { handleCreateApiKey, handleListApiKeys, handleRevokeApiKey } from "./handlers/api-key-admin.js";
+import { handleInternalUsersLookup } from "./handlers/internal-users-lookup.js";
 import { errorResponse, notFound, methodNotAllowed } from "./http.js";
 
 const ORG_API_KEYS_RE = /^\/v1\/organizations\/[^/]+\/api-keys$/;
@@ -97,6 +98,13 @@ export async function route(request: Request, env: Env): Promise<Response> {
     if (ORG_API_KEY_ID_RE.test(url.pathname)) {
       if (request.method === "DELETE") return handleRevokeApiKey(request, env, requestId);
       return methodNotAllowed(requestId);
+    }
+
+    // Internal: people by id (Cookpool CP-9) — kitchen-worker names a group's
+    // members. Service-binding only: api-edge does not route /v1/internal/.
+    if (url.pathname === "/v1/internal/identity/users/lookup") {
+      if (request.method !== "POST") return methodNotAllowed(requestId);
+      return handleInternalUsersLookup(request, env, requestId);
     }
 
     return notFound(requestId, url.pathname);

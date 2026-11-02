@@ -180,6 +180,14 @@ export interface RosterMember {
   subjectType: string;
   /** owner > admin > builder > viewer > billing_admin; null when they hold no organization-scoped role. */
   role: string | null;
+  /**
+   * Their membership's public id (`mem_…`), which the member routes take
+   * (`PATCH /v1/organizations/{org}/members/{memberId}` changes a role).
+   * Since Cookpool CP-9.
+   */
+  memberId: string;
+  /** When they joined (ISO 8601). Since Cookpool CP-9. */
+  joinedAt: string;
 }
 
 export interface RosterResponse {

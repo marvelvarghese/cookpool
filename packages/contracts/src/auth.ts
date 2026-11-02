@@ -122,3 +122,30 @@ export interface ApiErrorEnvelope {
     requestId: string;
   };
 }
+
+// ── People by id (service-internal, Cookpool CP-9) ──────────────────
+// POST /v1/internal/identity/users/lookup — for sibling workers over a service
+// binding only (api-edge routes nothing under /v1/internal/). kitchen-worker
+// names the people a group's members see. Ids that are malformed or unknown
+// are left out of the answer; the caller decides what to show instead.
+
+/** At most this many ids per lookup. */
+export const USERS_LOOKUP_MAX = 100;
+
+export interface UsersLookupRequest {
+  /** Public user ids (`usr_…`), 1–USERS_LOOKUP_MAX; duplicates are read once. */
+  subjectIds: string[];
+}
+
+export interface UserSummary {
+  /** The id as it was asked for (`usr_…`). */
+  subjectId: string;
+  /** The name they set on their profile; null when they have not set one. */
+  displayName: string | null;
+  email: string;
+}
+
+export interface UsersLookupResponse {
+  /** One per known id, in the order asked. */
+  users: UserSummary[];
+}
