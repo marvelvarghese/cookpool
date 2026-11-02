@@ -35,6 +35,19 @@ import type {
   SettlePlan,
   UpdateKitchenSettingsRequest,
   UpdateKitchenSettingsResponse,
+  CancelDishResponse,
+  ClaimDishRequest,
+  ClaimDishResponse,
+  CorrectDishRequest,
+  CorrectDishResponse,
+  FinalizeDishResponse,
+  SetDishSharesRequest,
+  SetDishSharesResponse,
+  CookDishRequest,
+  CookDishResponse,
+  DishResponse,
+  DishesPage,
+  DishesQuery,
   GroupMembersResponse,
   MyBalancesResponse,
   PersonViewResponse,
@@ -485,6 +498,158 @@ export class KitchenClient {
   usuals(query: UsualsQuery = {}, opts: RequestOptions = {}): Promise<UsualsResponse> {
     return this.transport.request<UsualsResponse>(
       { method: "GET", path: this.mePath("usuals"), query: { limit: query.limit } },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Dishes (CP-14)
+  //
+  // A dish takes ingredients from the caller's own pantry and any group
+  // pantry they may use, charging them each buyer's share in that group.
+  // POSTs take `opts.idempotencyKey`: the same key twice cooks once.
+  // -------------------------------------------------------------------------
+
+  /**
+   * POST /v1/kitchen/me/dishes
+   *
+   * Cook: every ingredient's stock comes out and the cook owes each buyer in
+   * their group, in one write. An ingredient the caller may not use is a
+   * `NotFoundError`; not that much left a `ConflictError` with `reason:
+   * "insufficient_stock"`; another currency a `ValidationError` with
+   * `reason: "currency_mismatch"`. Nothing is written on any refusal.
+   */
+  cookDish(body: CookDishRequest, opts: RequestOptions = {}): Promise<CookDishResponse> {
+    return this.transport.request<CookDishResponse>({ method: "POST", path: this.mePath("dishes"), body }, opts);
+  }
+
+  /** GET /v1/kitchen/me/dishes — dishes the caller cooked or that are shared with their groups, newest first. */
+  myDishes(query: DishesQuery = {}, opts: RequestOptions = {}): Promise<DishesPage> {
+    return this.transport.request<DishesPage>(
+      {
+        method: "GET",
+        path: this.mePath("dishes"),
+        query: { state: query.state, cursor: query.cursor, limit: query.limit },
+      },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/me/dishes/:dishId — its cook, or a member of its group. */
+  getDish(dishId: string, opts: RequestOptions = {}): Promise<DishResponse> {
+    return this.transport.request<DishResponse>(
+      { method: "GET", path: this.mePath(`dishes/${encodeURIComponent(dishId)}`) },
+      opts,
+    );
+  }
+
+  /** GET /v1/organizations/:orgId/kitchen/dishes — the dishes shared with one group, newest first. */
+  groupDishes(orgId: string, query: DishesQuery = {}, opts: RequestOptions = {}): Promise<DishesPage> {
+    return this.transport.request<DishesPage>(
+      {
+        method: "GET",
+        path: this.groupPath(orgId, "dishes"),
+        query: { state: query.state, cursor: query.cursor, limit: query.limit },
+      },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/kitchen/me/dishes/:dishId/cancel
+   *
+   * Its cook, while it is not finalized (`ConflictError`, `reason:
+   * "dish_not_open"`): every ingredient goes back and its charges are
+   * reversed, in one write.
+   */
+  cancelDish(dishId: string, opts: RequestOptions = {}): Promise<CancelDishResponse> {
+    return this.transport.request<CancelDishResponse>(
+      { method: "POST", path: this.mePath(`dishes/${encodeURIComponent(dishId)}/cancel`), body: {} },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Splitting dishes (CP-16)
+  //
+  // A dish shared with a group is split among the people who ate it: members
+  // claim half portions of an open dish, or its cook assigns portions or exact
+  // amounts. Finalizing posts one `dish` transaction (eaters owe the cook) and
+  // files unclaimed portions as leftovers in the cook's pantry; a correction
+  // reverses it and posts a new one. Every route answers `{ dish }`.
+  // -------------------------------------------------------------------------
+
+  /**
+   * PUT /v1/organizations/:orgId/kitchen/dishes/:dishId/claims/me
+   *
+   * Claim `portionsHalf` half portions of an open dish for the caller (0
+   * takes the claim back). More than is free is a `ConflictError` with
+   * `reason: "claims_exceed_portions"` (`details.availableHalf`); a dish that
+   * is not open, `reason: "dish_not_open"`. A viewer gets a `NotFoundError`.
+   */
+  claimDish(orgId: string, dishId: string, body: ClaimDishRequest, opts: RequestOptions = {}): Promise<ClaimDishResponse> {
+    return this.transport.request<ClaimDishResponse>(
+      { method: "PUT", path: this.groupPath(orgId, `dishes/${encodeURIComponent(dishId)}/claims/me`), body },
+      opts,
+    );
+  }
+
+  /**
+   * PUT /v1/organizations/:orgId/kitchen/dishes/:dishId/shares
+   *
+   * The cook (or an owner or admin) replaces every share of a draft or open
+   * dish: half portions or an exact amount each. Someone outside the group is
+   * a `ValidationError` with `reason: "not_in_group"`; portions over what was
+   * cooked a `ConflictError` with `reason: "claims_exceed_portions"`.
+   */
+  setDishShares(orgId: string, dishId: string, body: SetDishSharesRequest, opts: RequestOptions = {}): Promise<SetDishSharesResponse> {
+    return this.transport.request<SetDishSharesResponse>(
+      { method: "PUT", path: this.groupPath(orgId, `dishes/${encodeURIComponent(dishId)}/shares`), body },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/dishes/:dishId/finalize
+   *
+   * The cook (or an owner or admin, for a stuck dish) finalizes a draft or
+   * open dish: one `dish` transaction, and leftovers for what nobody had.
+   * Finalizing a finalized dish answers it as it is. Pass
+   * `opts.idempotencyKey`.
+   */
+  finalizeDish(orgId: string, dishId: string, opts: RequestOptions = {}): Promise<FinalizeDishResponse> {
+    return this.transport.request<FinalizeDishResponse>(
+      { method: "POST", path: this.groupPath(orgId, `dishes/${encodeURIComponent(dishId)}/finalize`), body: {} },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/kitchen/me/dishes/:dishId/finalize
+   *
+   * The cook finalizes their own dish: one just for them is only marked
+   * finalized (nothing to split); a shared one is finalized as
+   * `finalizeDish` does.
+   */
+  finalizeMyDish(dishId: string, opts: RequestOptions = {}): Promise<FinalizeDishResponse> {
+    return this.transport.request<FinalizeDishResponse>(
+      { method: "POST", path: this.mePath(`dishes/${encodeURIComponent(dishId)}/finalize`), body: {} },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/dishes/:dishId/correct
+   *
+   * The cook (or an owner or admin) corrects a finalized dish's shares: its
+   * dish transaction is reversed and a new one posted, in one write, and its
+   * untouched leftovers follow. A dish that is not finalized is a
+   * `ConflictError` with `reason: "dish_not_open"`. Pass
+   * `opts.idempotencyKey`: the same key twice corrects once.
+   */
+  correctDish(orgId: string, dishId: string, body: CorrectDishRequest, opts: RequestOptions = {}): Promise<CorrectDishResponse> {
+    return this.transport.request<CorrectDishResponse>(
+      { method: "POST", path: this.groupPath(orgId, `dishes/${encodeURIComponent(dishId)}/correct`), body },
       opts,
     );
   }

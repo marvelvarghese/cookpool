@@ -28,6 +28,20 @@ import { handleGetSettings, handleUpdateSettings } from "./handlers/settings.js"
 import { handleFlagTxn, handleReverseTxn } from "./handlers/txns.js";
 import { handleGroupItemMoves, handleUndoGroupMove, handleUseGroupItem, handleWasteGroupItem } from "./handlers/uses.js";
 import {
+  handleCancelDish,
+  handleCookDish,
+  handleGetMyDish,
+  handleGroupDishes,
+  handleMyDishes,
+} from "./handlers/dishes.js";
+import {
+  handleClaimDish,
+  handleCorrectDish,
+  handleFinalizeDish,
+  handleFinalizeMyDish,
+  handleSetDishShares,
+} from "./handlers/dish-split.js";
+import {
   errorResponse,
   methodNotAllowed,
   notFound,
@@ -156,6 +170,33 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/moves\/([^/]+)\/undo$/,
     methods: { POST: handleUndoGroupMove },
   },
+  // Dishes (CP-14).
+  {
+    name: "kitchen.dishes",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes$/,
+    methods: { GET: handleGroupDishes },
+  },
+  // Splitting a dish (CP-16).
+  {
+    name: "kitchen.dish.claim",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/claims\/me$/,
+    methods: { PUT: handleClaimDish },
+  },
+  {
+    name: "kitchen.dish.shares",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/shares$/,
+    methods: { PUT: handleSetDishShares },
+  },
+  {
+    name: "kitchen.dish.finalize",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/finalize$/,
+    methods: { POST: handleFinalizeDish },
+  },
+  {
+    name: "kitchen.dish.correct",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/correct$/,
+    methods: { POST: handleCorrectDish },
+  },
 ];
 
 // The caller's own routes, /v1/kitchen/me/…: their personal pantry, and every
@@ -225,6 +266,28 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.usuals",
     pattern: /^\/v1\/kitchen\/me\/usuals$/,
     methods: { GET: handleUsuals },
+  },
+  // Dishes (CP-14).
+  {
+    name: "kitchen.me.dishes",
+    pattern: /^\/v1\/kitchen\/me\/dishes$/,
+    methods: { GET: handleMyDishes, POST: handleCookDish },
+  },
+  {
+    name: "kitchen.me.dish",
+    pattern: /^\/v1\/kitchen\/me\/dishes\/([^/]+)$/,
+    methods: { GET: handleGetMyDish },
+  },
+  {
+    name: "kitchen.me.dish.cancel",
+    pattern: /^\/v1\/kitchen\/me\/dishes\/([^/]+)\/cancel$/,
+    methods: { POST: handleCancelDish },
+  },
+  // Finalizing one's own dish, shared or just for them (CP-16).
+  {
+    name: "kitchen.me.dish.finalize",
+    pattern: /^\/v1\/kitchen\/me\/dishes\/([^/]+)\/finalize$/,
+    methods: { POST: handleFinalizeMyDish },
   },
 ];
 

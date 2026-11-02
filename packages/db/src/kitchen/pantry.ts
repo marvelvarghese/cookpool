@@ -27,6 +27,7 @@ import type {
   KitchenRepository,
   KitchenResult,
   KitchenWastePolicy,
+  NewKitchenItem,
 } from "./types.js";
 
 /** The pantry part of the kitchen repository. */
@@ -134,6 +135,43 @@ export function scopeClause(params: Params, scope: KitchenPantryScope): string {
   return `(owner_subject_id = ${params.add(scope.ownerSubjectId)} OR ${groups})`;
 }
 
+/**
+ * The insert of a new item, with all of it left, returning its columns. A
+ * group item takes its currency from the group's settings row — the one its
+ * batch pins first — and only if it is the currency the caller read.
+ * Otherwise the value is NULL, the NOT NULL constraint fails, and D1 rolls
+ * the whole batch back: nothing is written. (Adding an item, a dish's
+ * "just bought it" items, CP-14, and its leftovers, CP-16.)
+ */
+export function insertItemStatement(item: NewKitchenItem): SqlStatement {
+  const { owner } = item;
+  const params = new Params();
+  const currency =
+    owner.kind === "group"
+      ? `(SELECT currency FROM kitchen_group_settings WHERE org_id = ${params.add(owner.orgId)} AND currency = ${params.add(item.currency)})`
+      : params.add(item.currency);
+  return {
+    text: `INSERT INTO kitchen_items (
+             id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
+             qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by,
+             bought_on, expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key,
+             created_at, updated_at
+           ) VALUES (
+             ${params.add(item.id)}, ${params.add(owner.kind)},
+             ${params.add(owner.kind === "user" ? owner.subjectId : null)},
+             ${params.add(owner.kind === "group" ? owner.orgId : null)},
+             ${params.add(item.name)}, ${params.add(item.category)}, ${params.add(item.dimension)},
+             ${params.add(item.displayUnit)}, ${params.add(item.qtyMilli)}, ${params.add(item.qtyMilli)},
+             ${params.add(item.priceMinor)}, 0, ${currency}, ${params.add(item.paidBy)},
+             ${params.add(item.boughtOn)}, ${params.add(item.expiresOn)}, ${params.add(item.wastePolicy)},
+             ${params.add(item.sourceDishId ?? null)}, 'active', 1, ${params.add(item.createdBy)}, ${params.add(item.idemKey)},
+             ${params.add(item.now)}, ${params.add(item.now)}
+           )
+           RETURNING ${ITEM_COLUMNS}`,
+    params: params.values,
+  };
+}
+
 // ── Repository functions ───────────────────────────────────
 
 export function createPantryRepository(executor: SqlExecutor): PantryRepository {
@@ -176,34 +214,7 @@ export function createPantryRepository(executor: SqlExecutor): PantryRepository 
   return {
     async createItem({ item, audit }) {
       const { owner } = item;
-      const params = new Params();
-      // A group item takes its currency from the group's settings row — the
-      // one the batch has just pinned — and only if it is the currency the
-      // caller read. Otherwise the value is NULL, the NOT NULL constraint
-      // fails, and D1 rolls the whole batch back: nothing is written.
-      const currency =
-        owner.kind === "group"
-          ? `(SELECT currency FROM kitchen_group_settings WHERE org_id = ${params.add(owner.orgId)} AND currency = ${params.add(item.currency)})`
-          : params.add(item.currency);
-      const insert: SqlStatement = {
-        text: `INSERT INTO kitchen_items (
-                 id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
-                 qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by,
-                 bought_on, expires_on, waste_policy, state, version, created_by, idem_key, created_at, updated_at
-               ) VALUES (
-                 ${params.add(item.id)}, ${params.add(owner.kind)},
-                 ${params.add(owner.kind === "user" ? owner.subjectId : null)},
-                 ${params.add(owner.kind === "group" ? owner.orgId : null)},
-                 ${params.add(item.name)}, ${params.add(item.category)}, ${params.add(item.dimension)},
-                 ${params.add(item.displayUnit)}, ${params.add(item.qtyMilli)}, ${params.add(item.qtyMilli)},
-                 ${params.add(item.priceMinor)}, 0, ${currency}, ${params.add(item.paidBy)},
-                 ${params.add(item.boughtOn)}, ${params.add(item.expiresOn)}, ${params.add(item.wastePolicy)},
-                 'active', 1, ${params.add(item.createdBy)}, ${params.add(item.idemKey)},
-                 ${params.add(item.now)}, ${params.add(item.now)}
-               )
-               RETURNING ${ITEM_COLUMNS}`,
-        params: params.values,
-      };
+      const insert = insertItemStatement(item);
       const statements: SqlStatement[] = [];
       if (owner.kind === "group") statements.push(pinGroupCurrencyStatement(owner.orgId, item.currency, item.now));
       const insertAt = statements.length;

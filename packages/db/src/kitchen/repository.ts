@@ -12,6 +12,7 @@ import { isCheckViolation } from "../d1/errors.js";
 import { createLedgerRepository } from "./ledger.js";
 import { createPantryRepository } from "./pantry.js";
 import { createStockRepository } from "./stock.js";
+import { createDishesRepository } from "./dishes.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -112,5 +113,6 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     ...createLedgerRepository(executor),
     ...createPantryRepository(executor),
     ...createStockRepository(executor),
+    ...createDishesRepository(executor),
   };
 }
