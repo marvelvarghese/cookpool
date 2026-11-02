@@ -72,7 +72,7 @@ Make signing in possible on prod, and make the code safe to rely on.
 - a signed-out visit to any kitchen page comes back to that page after sign-in
 - the page shows no Bearer-token box and no debug code outside local and dev
 
-## SI3 — first run and You
+## SI3 — first run and You ✅
 
 - **SI-6 — first run and You** (web-console-next):
   - the name step for a profile with no `displayName`, prefilled from the
@@ -80,12 +80,26 @@ Make signing in possible on prod, and make the code safe to rely on.
   - `/you` with name change, the ways you sign in, and sign out;
   - the Home avatar and the desktop "Me" item open it;
   - tests and a browser check.
-- **SI-7 — close the epic**: the README's Shipped record, the status file,
-  and the epic marked completed in Orunbase.
 
 **Done when**
 - a new person picks a name on first sign-in and their group shows it
 - sign out from You ends the session on that device and opens the sign-in page
+
+## SI4 — on cookpool.store
+
+Added 2026-11-02, after the owner bought `cookpool.store`.
+
+- **SI-8 — Cookpool on cookpool.store**:
+  - `https://cookpool.store` (prod) and `https://stage.cookpool.store` (stage) as Workers Custom Domains, through the baseline's dormant `cloudflare-domain` component;
+  - email sent from `no-reply@mail.cookpool.store`;
+  - every `cookpool.app` placeholder replaced.
+
+  Owner steps: put the zone on the Cloudflare account, switch the nameservers at GoDaddy, and accept Cloudflare Email's terms if asked.
+- **SI-7 — close the epic** (after SI-3 and SI-8): the README's Shipped record, the status file, and the epic marked completed in Orunbase.
+
+**Done when**
+- `https://cookpool.store` and `https://stage.cookpool.store` open the app
+- a sign-in code requested on prod arrives from `no-reply@mail.cookpool.store`
 - the epic reads completed in Orunbase
 
 ## Sequencing note

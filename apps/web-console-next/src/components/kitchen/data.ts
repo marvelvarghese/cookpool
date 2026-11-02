@@ -1,11 +1,12 @@
 "use client";
 
-import { useIsFetching } from "@tanstack/react-query";
+import { useIsFetching, type QueryClient } from "@tanstack/react-query";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import type { AuthUser } from "@saas/contracts/auth";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk, type AsyncState } from "@/lib/query";
+import { NAME_READS } from "./you";
 
 /**
  * Cookpool's shared reads (CP-5). Both use the admin console's cache keys and
@@ -22,8 +23,18 @@ export function useGroups(): AsyncState<PublicOrganization[]> & { fetching: bool
   return { ...state, fetching };
 }
 
-/** The signed-in person. */
-export function useProfile(): AsyncState<AuthUser> {
+/** The signed-in person. `enabled: false` holds the read (the kitchen layout, until the session is ready). */
+export function useProfile(opts?: { enabled?: boolean }): AsyncState<AuthUser> {
   const { client } = useSession();
-  return useApiQuery(qk.profile(), () => wrap(async () => (await client.auth.getProfile()).user));
+  return useApiQuery(qk.profile(), () => wrap(async () => (await client.auth.getProfile()).user), opts);
+}
+
+/**
+ * After the person renames themselves (SI-6): write the saved profile in
+ * place, and refresh every read that carries names (CP-9), so Home, People
+ * and a group's members show the new name.
+ */
+export function applyNewName(qc: QueryClient, user: AuthUser): void {
+  qc.setQueryData(qk.profile(), user);
+  for (const queryKey of NAME_READS) void qc.invalidateQueries({ queryKey });
 }

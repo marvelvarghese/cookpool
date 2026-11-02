@@ -5,14 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CookingPot, Plus, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { initials } from "@/components/account/profile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
-import { KITCHEN_NAV_LINKS, isKitchenTabActive } from "./nav";
+import { KITCHEN_SIDEBAR_LINKS, isSidebarLinkActive } from "./nav";
 import { recentGroups } from "./groups";
 import { kitchenIcon } from "./icons";
 import { GroupAvatar } from "./kit";
 import { useGroups, useProfile } from "./data";
+import { personInitials, shownName } from "./you";
 
 /** The cookpool wordmark: a pot in a green rounded square. */
 export function Wordmark({ className }: { className?: string }) {
@@ -33,7 +33,8 @@ const ROW =
  * Cookpool's sidebar, from 900px (CP-5): the wordmark, "Cook a dish" (the
  * dish maker, CP-15) and "Add", the same destinations as the bottom tabs,
  * the four most recent groups and a link to all of them, and the signed-in
- * person.
+ * person. "Me" and the person at the foot open You (SI-6); the gear beside
+ * the person opens the admin console's account page, as before.
  */
 export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen: boolean }) {
   const pathname = usePathname();
@@ -79,8 +80,8 @@ export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen:
 
       <nav aria-label="Main" className="mt-5 px-3">
         <ul className="space-y-0.5">
-          {KITCHEN_NAV_LINKS.map((link) => {
-            const active = isKitchenTabActive(link.id, pathname);
+          {KITCHEN_SIDEBAR_LINKS.map((link) => {
+            const active = isSidebarLinkActive(link.id, pathname);
             const Icon = kitchenIcon(link.icon);
             return (
               <li key={link.id}>
@@ -147,26 +148,32 @@ export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen:
 function SidebarPerson() {
   const profile = useProfile();
   const user = profile.data;
-  const name = user?.displayName || user?.email?.split("@")[0] || "";
+  const name = user ? shownName(user) : "";
   return (
-    <div className="flex items-center gap-3 border-t p-3">
-      {user ? (
-        <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cp-herb-tint text-xs font-bold text-primary">
-          {initials(user.displayName ?? null, user.email)}
+    <div className="flex items-center gap-1 border-t p-3">
+      <Link
+        href="/you"
+        aria-label={name ? `You: ${name}` : "You"}
+        className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {user ? (
+          <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cp-herb-tint text-xs font-bold text-primary">
+            {personInitials(user)}
+          </span>
+        ) : (
+          <Skeleton className="h-9 w-9 rounded-full" />
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold">{name || " "}</span>
+          {user?.email && user.email !== name ? (
+            <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
+          ) : null}
         </span>
-      ) : (
-        <Skeleton className="h-9 w-9 rounded-full" />
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{name || " "}</p>
-        {user?.email && user.email !== name ? (
-          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-        ) : null}
-      </div>
+      </Link>
       <Link
         href="/account"
-        aria-label="Account settings"
-        title="Account settings"
+        aria-label="Admin console"
+        title="Admin console"
         className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Settings className="h-5 w-5" aria-hidden />

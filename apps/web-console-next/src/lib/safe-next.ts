@@ -79,6 +79,30 @@ export function loginPathFor(
   return params.length > 0 ? `/login?${params.join("&")}` : "/login";
 }
 
+/** The sign-in page's Name step for someone already signed in (Cookpool SI-6): `?step=name`. */
+export const STEP_PARAM = "step";
+
+/**
+ * The Name step's URL, returning to `path` afterwards (`/login?step=name&next=…`):
+ * where Google's callback and the kitchen's once-only ask send someone whose
+ * profile has no name. `next` follows the same rules as `loginPathFor`.
+ */
+export function nameStepPath(path: string | null | undefined): string {
+  const next = safeNextPath(path);
+  const params = [`${STEP_PARAM}=name`];
+  if (next && next !== "/" && next !== HOME_PATH) params.push(`next=${encodeURIComponent(next)}`);
+  return `/login?${params.join("&")}`;
+}
+
+/** Whether a query string asks for the Name step (`?step=name`). */
+export function nameStepFrom(search: string): boolean {
+  try {
+    return new URLSearchParams(search).get(STEP_PARAM) === "name";
+  } catch {
+    return false;
+  }
+}
+
 /** The `next` parameter of a query string (`?next=…`), unvalidated. */
 export function nextParamFrom(search: string): string | null {
   try {

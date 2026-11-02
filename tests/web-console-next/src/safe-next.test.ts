@@ -1,7 +1,10 @@
 import {
   HOME_PATH,
   SIGNED_OUT_PARAM,
+  STEP_PARAM,
   loginPathFor,
+  nameStepFrom,
+  nameStepPath,
   nextParamFrom,
   postLoginDestination,
   safeNextPath,
@@ -109,5 +112,36 @@ describe("loginPathFor after a 401 (Cookpool SI-5)", () => {
     expect(signedOutFrom(loginPathFor("/join/KTCH2345").slice(6))).toBe(false);
     expect(signedOutFrom("?expired=0")).toBe(false);
     expect(signedOutFrom("")).toBe(false);
+  });
+});
+
+describe("the Name step's URL (Cookpool SI-6)", () => {
+  it("asks for the Name step and returns to a safe next", () => {
+    expect(STEP_PARAM).toBe("step");
+    expect(nameStepPath("/join/KTCH2345")).toBe("/login?step=name&next=%2Fjoin%2FKTCH2345");
+    expect(nameStepPath("/pantry?filter=soon")).toBe("/login?step=name&next=%2Fpantry%3Ffilter%3Dsoon");
+  });
+
+  it("carries no next for Home, the root, nothing, or an unsafe path", () => {
+    expect(nameStepPath("/home")).toBe("/login?step=name");
+    expect(nameStepPath("/")).toBe("/login?step=name");
+    expect(nameStepPath(null)).toBe("/login?step=name");
+    expect(nameStepPath("//evil.example")).toBe("/login?step=name");
+    expect(nameStepPath("https://evil.example/home")).toBe("/login?step=name");
+  });
+
+  it("never names the sign-in page itself as next (no loop back to the step)", () => {
+    expect(nameStepPath("/login?step=name&next=%2Fhome")).toBe("/login?step=name");
+    expect(nameStepPath("/auth/callback")).toBe("/login?step=name");
+  });
+
+  it("round-trips: the page reads the step and next", () => {
+    const path = nameStepPath("/join/KTCH2345");
+    const search = path.slice(path.indexOf("?"));
+    expect(nameStepFrom(search)).toBe(true);
+    expect(postLoginDestination(nextParamFrom(search))).toBe("/join/KTCH2345");
+    expect(nameStepFrom("?step=code")).toBe(false);
+    expect(nameStepFrom(loginPathFor("/join/KTCH2345").slice(6))).toBe(false);
+    expect(nameStepFrom("")).toBe(false);
   });
 });

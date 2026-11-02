@@ -8,8 +8,8 @@ It is for everyone who opens Cookpool, on a phone first. Most will arrive from a
 
 | Field | Value |
 |-------|-------|
-| Status | In progress — SI0 and SI2 shipped; SI1 waits on Google (SI-3) |
-| Cluster | **SI** (SI0–SI3) |
+| Status | In progress — SI0, SI2 and SI3 shipped; SI1 waits on Google (SI-3); SI4 (cookpool.store) waits on the domain |
+| Cluster | **SI** (SI0–SI4) |
 | Owner(s) | `apps/identity-worker` (codes, sessions, Google) · `apps/membership-worker` + `apps/api-edge` (the signed-out join preview) · `apps/web-console-next` (the sign-in page, first run, You) |
 | Builds on | `cookpool-kitchen` (shipped 2026-11-02) and the `cirrus` baseline's identity: email codes, Google and GitHub sign-in, 30-day sessions, the edge rate limiter |
 | Changes | The Cookpool app gets its own sign-in page, a first-run name step and a You screen. identity-worker limits code guesses and code requests, and stage stops showing codes on screen to anyone who asks. Google sign-in is switched on for stage and prod. A join link can be previewed before signing in. |
@@ -33,3 +33,4 @@ It is for everyone who opens Cookpool, on a phone first. Most will arrive from a
 | SI1 — sign-in that holds up | code attempt limit, code request limit, stage codes only for test addresses, Google switched on for stage and prod | someone signs in with Google on prod; a 6th wrong code and a 6th code request in 15 minutes are refused |
 | SI2 — the Cookpool sign-in page | the phone and web sign-in pages, the signed-out join preview, sign-in that returns you where you were | from a join link on a phone, a new person signs in and lands in the group, joined |
 | SI3 — first run and You | the name step on first sign-in, the You screen, sign out, "you were signed out" | a new person picks a name, sees it in their group, and signs out from You |
+| SI4 — on cookpool.store | the app on cookpool.store and stage.cookpool.store, email from mail.cookpool.store | the domain opens the app and a code on prod arrives by email |

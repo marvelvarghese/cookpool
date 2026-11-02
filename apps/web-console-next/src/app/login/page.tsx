@@ -2,14 +2,18 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
-import type { OAuthProviderInfo } from "@saas/contracts/auth";
+import type { AuthUser, OAuthProviderInfo } from "@saas/contracts/auth";
 import type { JoinPreviewPublic } from "@saas/contracts/membership";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
-import { useSession } from "@/lib/session";
-import { postLoginDestination, signedOutFrom } from "@/lib/safe-next";
-import { rememberJoinAfterSignIn, rememberLoginNext } from "@/lib/login-return";
+import { qk } from "@/lib/query-keys";
+import { readStoredToken, useSession } from "@/lib/session";
+import { nameStepFrom, postLoginDestination, signedOutFrom } from "@/lib/safe-next";
+import { rememberJoinAfterSignIn, rememberLoginNext, rememberOAuthProvider } from "@/lib/login-return";
+import { markNameAsked, rememberSignInMethod } from "@/lib/first-run";
+import { applyNewName } from "@/components/kitchen/data";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
@@ -24,18 +28,24 @@ import {
   SIGNED_OUT_NOTICE,
   START_SUBTITLE,
   TERMS_SENTENCE,
+  canSaveName,
   canVerify,
+  cleanDisplayName,
   completeOutcome,
   desktopTitle,
   isCodeComplete,
   joinCard,
   joinCodeFromNext,
   looksLikeEmail,
+  nameCheck,
+  nameStepAction,
+  needsName,
   oauthReturnTo,
   offersGoogle,
   replacementRefusedNotice,
   resendControl,
   sanitizeCode,
+  saveNameOutcome,
   showsDeveloperSignIn,
   signInEnvironment,
   signInReducer,
@@ -50,6 +60,7 @@ import {
   GoogleButton,
   JoinCardSkeleton,
   JoinCardView,
+  NameStep,
   NoticeBox,
   OrDivider,
   PitchPanel,
@@ -71,6 +82,14 @@ import {
  * The Bearer-token form and the API picker sit behind "Developer sign-in" on
  * local and dev only; a code on screen appears only off prod (stage: only for
  * `@cookpool.test`). The token is stored exactly as before: `setToken`.
+ *
+ * The Name step (SI-6, design §7): after a code sign-in whose profile has no
+ * name, the page asks "What should your groups call you?" before going on to
+ * `next` — so from a join link it is sign-in → name → joined, the join page
+ * reading SI-5's record as before. Google's callback and the kitchen's
+ * once-only ask come back here as `?step=name`: the page reads the profile
+ * and asks, or goes straight on when there is a name, when the read fails
+ * (never a trap), or to the start when the token is no longer accepted.
  */
 
 type JoinLookup =
@@ -85,8 +104,11 @@ export default function LoginPage() {
   const params = useSearchParams();
   const rawNext = params.get("next");
   const signedOut = signedOutFrom(params.toString());
+  const askedForName = nameStepFrom(params.toString());
   const joinCode = React.useMemo(() => joinCodeFromNext(rawNext), [rawNext]);
+  const destination = postLoginDestination(rawNext);
   const { client, target, availableTargets, setTarget, setToken, isLocked, deployEnv } = useSession();
+  const qc = useQueryClient();
 
   // The sign-in calls need no session; the effects below must not re-run
   // because signing in replaced the client, so they read it through a ref.
@@ -131,6 +153,43 @@ export default function LoginPage() {
 
   const [state, dispatch] = React.useReducer(signInReducer, INITIAL_SIGN_IN);
   const [now, setNow] = React.useState(() => Date.now());
+
+  // `?step=name` (SI-6): someone already signed in whose profile may have no
+  // name. Read it once; until then the form waits. No token here means no
+  // session: the page is the plain sign-in page.
+  const [checkingName, setCheckingName] = React.useState(askedForName);
+  // The session ended while on the page (a 401 on the Name step).
+  const [sessionEnded, setSessionEnded] = React.useState(false);
+  React.useEffect(() => {
+    if (!askedForName) return;
+    if (!readStoredToken()) {
+      setCheckingName(false);
+      return;
+    }
+    let cancelled = false;
+    void wrap(() => clientRef.current.auth.getProfile()).then((r) => {
+      if (cancelled) return;
+      // What was read is the freshest copy: the page `next` opens paints from it.
+      if (r.ok) qc.setQueryData(qk.profile(), r.data.user);
+      const check = nameCheck(r.ok ? { ok: true, user: r.data.user } : { ok: false, status: r.status });
+      if (check.kind === "go") {
+        router.replace(destination);
+        return;
+      }
+      if (check.kind === "ask") {
+        markNameAsked(check.userId);
+        dispatch({ type: "ask_name", email: check.email });
+      } else {
+        setToken(null);
+        setSessionEnded(true);
+      }
+      setCheckingName(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Once per visit (router, setToken, qc and the destination are stable for it).
+  }, [askedForName]);
   React.useEffect(() => {
     if (state.step !== "code") return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -139,14 +198,18 @@ export default function LoginPage() {
 
   const emailRef = React.useRef<HTMLInputElement>(null);
   const codeRef = React.useRef<HTMLInputElement>(null);
-  const moved = React.useRef(false);
+  const nameRef = React.useRef<HTMLInputElement>(null);
+  const lastStep = React.useRef(state.step);
   React.useEffect(() => {
-    // Focus follows the step (not on first load: no keyboard until asked for).
-    if (!moved.current) {
-      moved.current = true;
-      return;
-    }
-    (state.step === "code" ? codeRef : emailRef).current?.focus();
+    // Focus follows the step (not on first load: no keyboard until asked
+    // for). The Name step takes focus only straight after the code step;
+    // arriving at it (Google, the kitchen's ask) the page opens quietly.
+    const from = lastStep.current;
+    lastStep.current = state.step;
+    if (from === state.step) return;
+    if (state.step === "code") codeRef.current?.focus();
+    else if (state.step === "start") emailRef.current?.focus();
+    else if (from === "code") nameRef.current?.focus();
   }, [state.step]);
 
   const preview = join.state === "found" ? join.preview : null;
@@ -158,10 +221,40 @@ export default function LoginPage() {
     if (joinCode && join.state === "found") rememberJoinAfterSignIn(joinCode);
   };
 
-  const signedIn = (token: string) => {
+  const signedIn = (token: string, user: AuthUser) => {
     setToken(token);
+    rememberSignInMethod("code");
     rememberJoin();
-    router.replace(postLoginDestination(rawNext));
+    if (needsName(user)) {
+      // New here (or never named): the Name step, then `next` (SI-6).
+      markNameAsked(user.id);
+      dispatch({ type: "ask_name", email: user.email });
+      return;
+    }
+    router.replace(destination);
+  };
+
+  const saveName = async () => {
+    const displayName = cleanDisplayName(state.name);
+    if (!canSaveName(state)) return;
+    dispatch({ type: "busy", busy: "save" });
+    const r = await wrap(() => client.auth.updateProfile({ displayName }));
+    if (r.ok) {
+      // Home, People and the group's members show it at once.
+      applyNewName(qc, r.data.user);
+      // "Join Flat 4B" is a yes to joining: the join page joins without asking again.
+      rememberJoin();
+      router.replace(destination);
+      return;
+    }
+    const outcome = saveNameOutcome(r.error, r.status);
+    if (outcome.kind === "signed_out") {
+      setToken(null);
+      setSessionEnded(true);
+      dispatch({ type: "back" });
+      return;
+    }
+    dispatch({ type: "name_refused", notice: outcome.notice });
   };
 
   const sendCode = async (mode: "first" | "again" | "replace") => {
@@ -205,7 +298,7 @@ export default function LoginPage() {
     dispatch({ type: "busy", busy: "verify" });
     const r = await wrap(() => client.auth.loginComplete({ challengeId, code }));
     if (r.ok) {
-      signedIn(r.data.token);
+      signedIn(r.data.token, r.data.user);
       return;
     }
     const outcome = completeOutcome(r.error, r.status);
@@ -241,6 +334,7 @@ export default function LoginPage() {
     // The round trip leaves the app: `next` rides in the returnTo and, as
     // before, in this tab's storage; the callback re-checks whichever it reads.
     rememberLoginNext(rawNext);
+    rememberOAuthProvider("google");
     rememberJoin();
     window.location.href = client.auth.oauthStartUrl("google", oauthReturnTo(window.location.origin, rawNext));
   };
@@ -250,6 +344,7 @@ export default function LoginPage() {
   const wrong = state.rejectedCode !== null && state.code === state.rejectedCode;
   const ready = canVerify(state);
   const noticeId = state.notice ? "sign-in-notice" : undefined;
+  const naming = state.step === "name";
 
   return (
     <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
@@ -264,11 +359,38 @@ export default function LoginPage() {
         <div className="flex w-full max-w-md flex-col gap-4 min-[900px]:max-w-[26rem] min-[900px]:gap-[18px]">
           <SignInMark className="min-[900px]:hidden" />
 
-          {signedOut ? <NoticeBox notice={{ tone: "info", text: SIGNED_OUT_NOTICE }} /> : null}
+          {(signedOut || sessionEnded) && !naming && !checkingName ? (
+            <NoticeBox notice={{ tone: "info", text: SIGNED_OUT_NOTICE }} />
+          ) : null}
 
-          {joinLoading ? <JoinCardSkeleton /> : preview ? <JoinCardView card={joinCard(preview)} /> : null}
+          {joinLoading ? (
+            <JoinCardSkeleton />
+          ) : preview ? (
+            <JoinCardView card={joinCard(preview, { joining: naming || checkingName })} />
+          ) : null}
 
-          {state.step === "start" ? (
+          {checkingName ? (
+            <div role="status" className="space-y-3 px-0.5 pt-1.5">
+              <span className="sr-only">Checking your account…</span>
+              <Skeleton aria-hidden className="h-4 w-40" />
+              <Skeleton aria-hidden className="h-8 w-full" />
+              <Skeleton aria-hidden className="h-8 w-2/3" />
+              <Skeleton aria-hidden className="mt-4 h-[52px] w-full rounded-[14px]" />
+            </div>
+          ) : naming ? (
+            <NameStep
+              name={state.name}
+              onName={(value) => dispatch({ type: "name", value })}
+              onSubmit={() => void saveName()}
+              onLater={() => router.replace(destination)}
+              action={nameStepAction(preview)}
+              canSave={canSaveName(state)}
+              saving={state.busy === "save"}
+              saveFailed={state.nameSaveFailed}
+              notice={state.notice}
+              inputRef={nameRef}
+            />
+          ) : state.step === "start" ? (
             <section aria-labelledby="sign-in-title" className="flex flex-col gap-4 min-[900px]:gap-[18px]">
               {joinLoading ? (
                 <div aria-hidden className="space-y-2 px-0.5 pt-1.5">
@@ -436,7 +558,7 @@ export default function LoginPage() {
             </section>
           )}
 
-          {showsDeveloperSignIn(env) ? (
+          {showsDeveloperSignIn(env) && !naming && !checkingName ? (
             <DeveloperSignIn
               targets={availableTargets}
               target={target.name}
@@ -447,7 +569,9 @@ export default function LoginPage() {
               }}
               onToken={(token) => {
                 setToken(token);
-                router.replace(postLoginDestination(rawNext));
+                // A pasted token says nothing about how its person signs in.
+                rememberSignInMethod(null);
+                router.replace(destination);
               }}
             />
           ) : null}

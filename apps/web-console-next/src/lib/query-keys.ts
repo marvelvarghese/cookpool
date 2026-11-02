@@ -48,6 +48,8 @@ export const qk = {
   kitchenMyBalances: () => ["kitchenMe", "balances"] as const,
   kitchenPerson: (subjectId: string) => ["kitchenMe", "person", subjectId] as const,
   kitchenMembers: (orgId: string) => ["kitchenMembers", orgId] as const,
+  // Every group's member list at once (SI-6: a rename refreshes them all).
+  kitchenMembersAll: () => ["kitchenMembers"] as const,
   // Cookpool's pantries (CP-12): every pantry with its totals, the items of
   // one pantry ("all", "personal" or a group's org id), Home's use-soon strip,
   // one item (by its page ref, `me:itm_…` / `org:org_…:itm_…`) and its

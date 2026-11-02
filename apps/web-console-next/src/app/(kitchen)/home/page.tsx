@@ -6,9 +6,9 @@ import { ChevronRight, HandCoins, Plus, Scale, Search, Ticket, UsersRound } from
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { initials } from "@/components/account/profile";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useGroups, useProfile } from "@/components/kitchen/data";
+import { personInitials } from "@/components/kitchen/you";
 import { byGroupRows, friendlyName, greetingFor, recentAcrossGroups, recentGroupsToRead } from "@/components/kitchen/home";
 import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { Money } from "@/components/kitchen/ledger-ui";
@@ -56,12 +56,13 @@ export default function HomePage() {
             )}
             <p className="mt-1 text-sm text-muted-foreground">Your kitchen, across every group.</p>
           </div>
+          {/* Your avatar opens You (SI-6); from 900px the sidebar's "Me" does. */}
           <Link
-            href="/account"
-            aria-label="Account settings"
+            href="/you"
+            aria-label="You"
             className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-cp-herb-tint text-sm font-bold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-[900px]:hidden"
           >
-            {user ? initials(user.displayName ?? null, user.email) : ""}
+            {user ? personInitials(user) : ""}
           </Link>
         </div>
         <QuickUse className="min-[1280px]:w-[26rem] min-[1280px]:shrink-0" />

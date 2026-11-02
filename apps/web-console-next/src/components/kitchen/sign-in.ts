@@ -5,6 +5,10 @@
  * and which developer aids an environment may show. Pure (types and constants
  * only) so it is unit-testable; `app/login/page.tsx` wires it to the API.
  *
+ * SI-6 adds the Name step after sign-in, for a profile with no name, and the
+ * first-run checks that lead to it (after a code, after Google, and the
+ * kitchen's once-only ask for people who signed in before it existed).
+ *
  * The API answers are SI-2's, as built (`@saas/contracts/auth`):
  * - login/complete, wrong code with tries left: 404 `not_found` with
  *   `details.attemptsLeft` 4…1;
@@ -18,8 +22,10 @@
 
 import { AUTH_ERROR_REASONS, type LoginStartResponse } from "@saas/contracts/auth";
 import type { JoinPreviewPublic } from "@saas/contracts/membership";
-import { safeNextPath } from "@/lib/safe-next";
+import { nameStepPath, postLoginDestination, safeNextPath } from "@/lib/safe-next";
+import { DISPLAY_NAME_MAX } from "@/components/account/profile";
 import { normalizeJoinCode } from "./join-code";
+import { nameInitials } from "./members";
 
 // ── Copy ───────────────────────────────────────────────────────────
 
@@ -201,10 +207,122 @@ export function replacementRefusedNotice(refused: Refused): SignInNotice {
   return { tone: "error", text: `That code has expired. ${refused.notice.text}` };
 }
 
+// ── The Name step (SI-6, design §7) ────────────────────────────────
+
+export const NAME_EYEBROW = "Welcome to Cookpool";
+export const NAME_TITLE = "What should your groups call you?";
+export const NAME_LABEL = "Your name";
+export const NAME_FOOTNOTE = "You can change it any time under You.";
+/** "Do this later": offered once saving has failed, so the step can never trap anyone. */
+export const NAME_LATER = "Do this later";
+export const NAME_SAVE_FAILED_NOTICE = "Couldn't save your name. Try again, or do this later under You.";
+/** The longest name the app asks for (the admin console's limit; identity-worker allows 120). */
+export const NAME_MAX = DISPLAY_NAME_MAX;
+export const NAME_INVALID_NOTICE = `That name can't be used. Keep it under ${NAME_MAX} characters.`;
+
+/** A name as it will be saved: trimmed, runs of spaces made one, at most NAME_MAX characters. */
+export function cleanDisplayName(raw: string | null | undefined): string {
+  return [...(raw ?? "").replace(/\s+/g, " ").trim()].slice(0, NAME_MAX).join("").trim();
+}
+
+/**
+ * The Name step's first guess, from the part of the email before the @
+ * (design §7): a `+tag` dropped, dots and underscores read as spaces, each
+ * word capitalised — "rahul.varghese+food@gmail.com" → "Rahul Varghese",
+ * "anu@example.com" → "Anu". Nothing is saved until the person presses
+ * Continue.
+ */
+export function namePrefill(email: string | null | undefined): string {
+  const local = (email ?? "").trim().split("@")[0] ?? "";
+  const base = local.split("+")[0] ?? "";
+  const words = base
+    .split(/[._\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toLocaleUpperCase() + w.slice(1));
+  return cleanDisplayName(words.join(" "));
+}
+
+/** The avatar beside the field, live as the person types: "Rahul Varghese" → "RV", "" → "?". */
+export function liveInitials(draft: string): string {
+  return nameInitials(cleanDisplayName(draft));
+}
+
+/** `It shows next to what you buy, use and cook, like "Rahul paid ₹60.00".` */
+export function nameExample(draft: string): string {
+  const first = cleanDisplayName(draft).split(" ")[0] || "You";
+  return `It shows next to what you buy, use and cook, like "${first} paid ₹60.00".`;
+}
+
+/** "Continue", or "Join Flat 4B" when sign-in came from a join link whose group was found. */
+export function nameStepAction(preview: JoinPreviewPublic | null): string {
+  return preview ? `Join ${preview.groupName}` : "Continue";
+}
+
+/** Whether a profile still needs a name: no `displayName`, or only spaces. */
+export function needsName(user: { displayName?: string | null } | null | undefined): boolean {
+  return !!user && cleanDisplayName(user.displayName) === "";
+}
+
+/** A profile read (`GET /v1/auth/profile`) as the first-run checks see it. */
+export type ProfileRead =
+  | { ok: true; user: { id: string; email: string; displayName: string | null } }
+  | { ok: false; status: number };
+
+/**
+ * After Google's callback has the token: the Name step when the profile has
+ * no name, else `next`. Google normally brings a name, but a Google sign-in
+ * linked to an account first made by code keeps that account's (empty) name,
+ * so it is read, not assumed. A read that fails goes on to `next`: never a
+ * trap.
+ */
+export function afterOAuthPath(read: ProfileRead, rawNext: string | null | undefined): string {
+  return read.ok && needsName(read.user) ? nameStepPath(rawNext) : postLoginDestination(rawNext);
+}
+
+/** What `/login?step=name` does once it has read the profile. */
+export type NameCheck =
+  | { kind: "ask"; userId: string; email: string }
+  /** Named already, or the read failed: go on to `next` — the step never traps. */
+  | { kind: "go" }
+  /** The token is no longer accepted: sign in again. */
+  | { kind: "signed_out" };
+
+export function nameCheck(read: ProfileRead): NameCheck {
+  if (read.ok) return needsName(read.user) ? { kind: "ask", userId: read.user.id, email: read.user.email } : { kind: "go" };
+  return read.status === 401 ? { kind: "signed_out" } : { kind: "go" };
+}
+
+/**
+ * The kitchen's once-only ask, for someone who signed in before the Name step
+ * existed: where to send them, or null. Only a profile that was read and has
+ * no name, and only if this device has not asked this person yet
+ * (`askedFor`, which the caller sets before redirecting) — so a failed read,
+ * a skip, or a Name step that cannot read the profile never brings them
+ * back here.
+ */
+export function firstRunRedirect(read: ProfileRead | null, askedFor: string | null, here: string): string | null {
+  if (!read || !read.ok || !needsName(read.user)) return null;
+  if (askedFor === read.user.id) return null;
+  return nameStepPath(here);
+}
+
+/** Why `PATCH /v1/auth/profile` did not save, in the page's words. */
+export type SaveNameOutcome = { kind: "signed_out" } | { kind: "refused"; notice: SignInNotice };
+
+export function saveNameOutcome(refusal: ApiRefusal, status: number): SaveNameOutcome {
+  if (status === 401 || refusal.code === "unauthenticated") return { kind: "signed_out" };
+  if (status === 400 || refusal.code === "validation_failed") {
+    return { kind: "refused", notice: { tone: "error", text: NAME_INVALID_NOTICE } };
+  }
+  if (status === 0 || refusal.code === "network_error") return { kind: "refused", notice: { tone: "error", text: NETWORK_NOTICE } };
+  return { kind: "refused", notice: { tone: "error", text: NAME_SAVE_FAILED_NOTICE } };
+}
+
 // ── The step machine ───────────────────────────────────────────────
 
 export interface SignInState {
-  step: "start" | "code";
+  /** `name` (SI-6): signed in, choosing the name their groups see. */
+  step: "start" | "code" | "name";
   /** The address typed; on the code step, where the code went. */
   email: string;
   /** The challenge the code answers. Null once it can never be answered. */
@@ -220,7 +338,11 @@ export interface SignInState {
   resendAt: number;
   /** A new code was sent from the code step, so the countdown says so. */
   resent: boolean;
-  busy: "send" | "verify" | null;
+  /** The Name step's field (SI-6). */
+  name: string;
+  /** Saving the name failed at least once, so "Do this later" is offered. */
+  nameSaveFailed: boolean;
+  busy: "send" | "verify" | "save" | null;
 }
 
 export const INITIAL_SIGN_IN: SignInState = {
@@ -233,13 +355,24 @@ export const INITIAL_SIGN_IN: SignInState = {
   notice: null,
   resendAt: 0,
   resent: false,
+  name: "",
+  nameSaveFailed: false,
   busy: null,
 };
 
 export type SignInEvent =
   | { type: "email"; value: string }
   | { type: "code"; value: string }
-  | { type: "busy"; busy: "send" | "verify" }
+  | { type: "busy"; busy: "send" | "verify" | "save" }
+  /**
+   * Signed in, and the profile has no name (SI-6): the Name step, prefilled
+   * from `email` unless a `name` is given. Nothing of the code is kept.
+   */
+  | { type: "ask_name"; email: string; name?: string }
+  /** The Name step's field. */
+  | { type: "name"; value: string }
+  /** The name was not saved; say why and offer "Do this later". */
+  | { type: "name_refused"; notice: SignInNotice }
   /** A code went out: the first one, a requested one, or the automatic replacement. */
   | {
       type: "sent";
@@ -267,7 +400,11 @@ export function signInReducer(state: SignInState, event: SignInEvent): SignInSta
       return { ...state, code, notice: null };
     }
     case "busy":
-      return { ...state, busy: event.busy, notice: event.busy === "send" && state.step === "start" ? null : state.notice };
+      return {
+        ...state,
+        busy: event.busy,
+        notice: (event.busy === "send" && state.step === "start") || event.busy === "save" ? null : state.notice,
+      };
     case "sent":
       return {
         ...state,
@@ -298,7 +435,23 @@ export function signInReducer(state: SignInState, event: SignInEvent): SignInSta
       return { ...state, rejectedCode: event.code, notice: event.notice, busy: null };
     case "back":
       return { ...INITIAL_SIGN_IN, email: state.email };
+    case "ask_name":
+      return {
+        ...INITIAL_SIGN_IN,
+        step: "name",
+        email: event.email,
+        name: event.name !== undefined ? cleanDisplayName(event.name) : namePrefill(event.email),
+      };
+    case "name":
+      return { ...state, name: [...event.value].slice(0, NAME_MAX).join(""), notice: null };
+    case "name_refused":
+      return { ...state, notice: event.notice, nameSaveFailed: true, busy: null };
   }
+}
+
+/** Whether Continue (or "Join Flat 4B") can save now: a name to save, and nothing in flight. */
+export function canSaveName(state: SignInState): boolean {
+  return state.step === "name" && state.busy === null && cleanDisplayName(state.name) !== "";
 }
 
 /** Whether "Sign in" works now (and whether a full code may submit itself). */
@@ -442,14 +595,18 @@ export function offersGoogle(providers: readonly { id: string }[] | null | undef
 
 export interface JoinCard {
   groupName: string;
-  /** "Sign in to join Flat 4B" */
+  /** "Sign in to join Flat 4B"; on the Name step (SI-6) "You're joining Flat 4B". */
   title: string;
   /** "Anu invited you · 5 people are in", or null when there is nothing to say. */
   subtitle: string | null;
 }
 
-/** The group card a join link shows above the form, from SI-4's signed-out preview. */
-export function joinCard(preview: JoinPreviewPublic): JoinCard {
+/**
+ * The group card a join link shows above the form, from SI-4's signed-out
+ * preview. `joining` (SI-6): the person has signed in and is on the Name
+ * step, on their way into the group.
+ */
+export function joinCard(preview: JoinPreviewPublic, opts: { joining?: boolean } = {}): JoinCard {
   const parts: string[] = [];
   const inviter = preview.inviterFirstName?.trim();
   if (inviter) parts.push(`${inviter} invited you`);
@@ -458,7 +615,7 @@ export function joinCard(preview: JoinPreviewPublic): JoinCard {
   else if (n > 1) parts.push(`${n} people are in`);
   return {
     groupName: preview.groupName,
-    title: `Sign in to join ${preview.groupName}`,
+    title: opts.joining ? `You're joining ${preview.groupName}` : `Sign in to join ${preview.groupName}`,
     subtitle: parts.length > 0 ? parts.join(" · ") : null,
   };
 }

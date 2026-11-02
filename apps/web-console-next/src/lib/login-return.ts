@@ -38,6 +38,35 @@ export function takeLoginNext(): string | null {
 }
 
 /*
+ * Which provider the round trip went to (Cookpool SI-6), stashed beside
+ * `next` the same way, so the callback can record how this device signed in
+ * (You's "How you sign in"). The callback's URL does not name the provider.
+ */
+
+const providerKey = (): string => `${appConfig().storagePrefix}.login-provider`;
+
+export function rememberOAuthProvider(providerId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(providerKey(), providerId);
+  } catch {
+    /* ignore: You then cannot say this device used Google */
+  }
+}
+
+/** Read and clear the stashed provider id (one use). */
+export function takeOAuthProvider(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.sessionStorage.getItem(providerKey());
+    window.sessionStorage.removeItem(providerKey());
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+/*
  * Join after sign-in (Cookpool SI-5). A join link sends a signed-out person
  * to sign-in, which shows the group's card; once they sign in, the join page
  * joins at once and opens the group instead of asking for one more tap.

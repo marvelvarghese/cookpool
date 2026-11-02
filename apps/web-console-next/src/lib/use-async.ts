@@ -4,6 +4,7 @@ import * as React from "react";
 import type { ApiResult } from "@/lib/api";
 import { useSession, readStoredToken } from "@/lib/session";
 import { loginPathFor } from "@/lib/safe-next";
+import { signingOut } from "@/lib/sign-out";
 
 export interface AsyncState<T> {
   data: T | null;
@@ -68,6 +69,9 @@ export function useAsync<T>(
  * to `/login?next=<this page>&expired=1`, which says "You were signed out".
  * With no token at all they never had a session here, so the plain redirect
  * above applies. Off by default: the admin console is unchanged.
+ *
+ * Signing out on purpose (Cookpool SI-6, `lib/sign-out.ts`) is neither: the
+ * page is on its way to `/login`, so neither redirect fires while it does.
  */
 export function useRequireAuth(
   opts: { returnHere?: boolean; signOutOnUnauthorized?: boolean } = {},
@@ -82,7 +86,7 @@ export function useRequireAuth(
 
   React.useEffect(() => {
     setReady(true);
-    if (typeof window === "undefined" || leaving.current) return;
+    if (typeof window === "undefined" || leaving.current || signingOut()) return;
     if (!token && !readStoredToken()) {
       const { pathname, search, hash } = window.location;
       window.location.href = returnHere ? loginPathFor(`${pathname}${search}${hash}`) : "/login";
@@ -92,7 +96,7 @@ export function useRequireAuth(
   React.useEffect(() => {
     if (!signOutOnUnauthorized) return;
     return onUnauthorized(() => {
-      if (leaving.current) return;
+      if (leaving.current || signingOut()) return;
       leaving.current = true;
       const { pathname, search, hash } = window.location;
       const to = loginPathFor(`${pathname}${search}${hash}`, { signedOut: true });
