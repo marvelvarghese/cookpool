@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useGroups, useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON, K_INPUT, PageHeader, SoonBadge } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_INPUT, PageHeader } from "@/components/kitchen/kit";
 import { refreshLedger, useBalances, useGroupRole, useOfferUndo } from "@/components/kitchen/ledger-data";
 import { Chip, Money, PersonAvatar, Segmented } from "@/components/kitchen/ledger-ui";
 import { memberLabel, memberLabelInline, sortMembers, type MemberNames } from "@/components/kitchen/members";
@@ -499,14 +499,9 @@ function ExpenseFormView({
             <p className="mt-0.5 text-sm text-muted-foreground">
               Cook a dish takes the ingredients from your pantries and splits it by portions.
             </p>
-            <button
-              type="button"
-              aria-disabled="true"
-              className="mt-3 inline-flex min-h-11 cursor-not-allowed items-center gap-2 rounded-xl border border-input bg-card px-4 text-sm font-semibold text-muted-foreground"
-            >
-              Cook a dish
-              <SoonBadge />
-            </button>
+            <Button asChild variant="outline" className={cn(K_BUTTON, "mt-3 bg-card px-4")}>
+              <Link href="/cook">Cook a dish</Link>
+            </Button>
           </div>
         </KCard>
       </form>

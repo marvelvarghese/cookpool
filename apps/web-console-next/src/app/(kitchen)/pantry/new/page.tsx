@@ -17,7 +17,8 @@ import { useToast } from "@/components/ui/toast";
 import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
 import { Chip } from "@/components/kitchen/ledger-ui";
-import { UNDO_MS } from "@/components/kitchen/ledger-data";
+import { undoFailed, type UndoResult } from "@/components/kitchen/undo";
+import { useUndoToast } from "@/components/kitchen/undo-toast";
 import { memberLabel } from "@/components/kitchen/members";
 import { currencyPrefix } from "@/components/kitchen/money";
 import { canManageGroup, roleFromKitchen } from "@/components/kitchen/groups";
@@ -98,6 +99,7 @@ function AddItemForm({
   const qc = useQueryClient();
   const router = useRouter();
   const { toast } = useToast();
+  const offerUndoToast = useUndoToast();
   const balances = useMyBalances();
   const today = React.useMemo(() => localIsoDay(new Date()), []);
   const [form, setForm] = React.useState<ItemForm>(() => initialItemForm({ today, pantry: start, meId }));
@@ -139,32 +141,25 @@ function AddItemForm({
   const payerChips = chipWindow(roster, { meId, names, chosen: form.paidBy ? [form.paidBy] : [], expanded: morePayers, max: 5 });
   const myRole = roleFromKitchen(members.data?.find((m) => m.subjectId === meId)?.role);
 
+  // Undo removes what was just added — offered to whoever paid for it, or an owner or admin (the API's rule).
   const offerUndo = (item: KitchenItem, where: string, canRemove: boolean) => {
     const orgId = item.pantry.kind === "group" ? item.pantry.orgId : null;
-    toast({
-      kind: "success",
-      title: `Added ${item.name} to ${where}`,
-      description: `${leftText(item)} · nobody is charged until someone uses it.`,
-      duration: UNDO_MS,
-      ...(canRemove
-        ? {
-            action: {
-              label: "Undo",
-              onClick: () => {
-                void (async () => {
-                  const r = await wrap(() =>
-                    orgId ? client.kitchen.removeGroupItem(orgId, item.id) : client.kitchen.removePersonalItem(item.id),
-                  );
-                  refreshPantry(qc, null);
-                  if (r.ok) toast({ kind: "success", title: "Undone", description: `${item.name} is off the list.` });
-                  else if (r.error.reason === "item_used")
-                    toast({ kind: "warning", title: "Someone already used some", description: "Mark it wasted on its page instead." });
-                  else toast({ kind: "error", title: "Couldn't undo it", description: r.error.message });
-                })();
-              },
-            },
-          }
-        : {}),
+    const title = `Added ${item.name} to ${where}`;
+    const description = `${leftText(item)} · nobody is charged until someone uses it.`;
+    if (!canRemove) {
+      toast({ kind: "success", title, description });
+      return;
+    }
+    offerUndoToast({
+      title,
+      description,
+      undo: async (): Promise<UndoResult> => {
+        const r = await wrap(() => (orgId ? client.kitchen.removeGroupItem(orgId, item.id) : client.kitchen.removePersonalItem(item.id)));
+        refreshPantry(qc, null);
+        if (r.ok) return { ok: true, description: `${item.name} is off the list.` };
+        if (r.error.reason === "item_used") return { ok: false, kind: "warning", title: "Someone already used some", description: "Mark it wasted on its page instead." };
+        return undoFailed(r.error);
+      },
     });
   };
 

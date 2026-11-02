@@ -7,7 +7,9 @@ import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
 import { useToast } from "@/components/ui/toast";
-import { UNDO_MS, refreshLedger } from "./ledger-data";
+import { refreshLedger } from "./ledger-data";
+import { undoFailed, type UndoResult } from "./undo";
+import { useUndoToast } from "./undo-toast";
 import { refreshPantry } from "./pantry-data";
 import { cookRefusal, sharesRefusal, type CookRefusal, type DishLine } from "./dish-maker";
 
@@ -72,6 +74,7 @@ export function useCookDish() {
   const { client } = useSession();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const offerUndo = useUndoToast();
   return React.useCallback(
     async (input: CookInput): Promise<CookResult> => {
       const r = await wrap(() => client.kitchen.cookDish(input.request, { idempotencyKey: input.idempotencyKey }));
@@ -91,27 +94,21 @@ export function useCookDish() {
       refreshAfterDish(qc, dish);
       const text = input.text(dish);
       const cooked = dish;
-      toast({
-        kind: "success",
+      // Undo cancels the dish: every ingredient goes back and its charges are reversed.
+      offerUndo({
         title: text.title,
         description: text.description,
-        duration: UNDO_MS,
-        action: {
-          label: "Undo",
-          onClick: () => {
-            void (async () => {
-              const c = await wrap(() => client.kitchen.cancelDish(cooked.id, { idempotencyKey: crypto.randomUUID() }));
-              refreshAfterDish(qc, cooked);
-              if (c.ok) toast({ kind: "success", title: "Undone", description: `${cooked.name} is canceled: everything is back in its pantry.` });
-              else if (c.error.reason === "dish_not_open") toast({ kind: "warning", title: "It's finalized now", description: "Correct it on the dish page instead." });
-              else toast({ kind: "error", title: "Couldn't undo it", description: c.error.message });
-            })();
-          },
+        undo: async (): Promise<UndoResult> => {
+          const c = await wrap(() => client.kitchen.cancelDish(cooked.id, { idempotencyKey: crypto.randomUUID() }));
+          refreshAfterDish(qc, cooked);
+          if (c.ok) return { ok: true, description: `${cooked.name} is canceled: everything is back in its pantry.` };
+          if (c.error.reason === "dish_not_open") return { ok: false, kind: "warning", title: "It's finalized now", description: "Correct it on the dish page instead." };
+          return undoFailed(c.error);
         },
       });
       if (sharesError) toast({ kind: "warning", title: "The split wasn't saved", description: sharesError });
       return { ok: true, dish };
     },
-    [client, qc, toast],
+    [client, qc, toast, offerUndo],
   );
 }

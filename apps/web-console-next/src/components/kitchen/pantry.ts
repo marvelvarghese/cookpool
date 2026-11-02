@@ -24,6 +24,7 @@ import { UNITS, formatQuantity, isUnit, pricePerUnit, type Dimension, type UnitK
 import { formatMinor } from "./money";
 import { foldForSearch, groupInitials, sortGroups } from "./groups";
 import { memberLabel, memberLabelInline, type MemberNames } from "./members";
+import { dayMonthText } from "./when";
 
 // ── Which pantry ──────────────────────────────────────────────────
 
@@ -321,11 +322,9 @@ export interface ExpiryChip {
   tone: ExpiryTone;
 }
 
-/** "4 Nov" for an ISO date (a calendar day: no time-zone shift). */
+/** "4 Nov" for an ISO date (a calendar day: no time-zone shift) — the app's `dayMonthText` (CP-23). */
 export function dayMonth(isoDate: string): string {
-  const d = new Date(`${isoDate.slice(0, 10)}T00:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  return dayMonthText(isoDate);
 }
 
 /**
@@ -673,10 +672,16 @@ export const HOME_USE_SOON = 4;
 
 /**
  * Home's "Use soon" strip: the soonest items still to use (today first),
- * then those already past their date — at most `limit`, each once.
+ * then those already past their date — at most `limit`, each once, leaving
+ * out `exclude` (what Home's inbox already lists, CP-23).
  */
-export function soonStrip<T extends KitchenItem>(soon: readonly T[], expired: readonly T[], limit = HOME_USE_SOON): T[] {
-  const seen = new Set<string>();
+export function soonStrip<T extends KitchenItem>(
+  soon: readonly T[],
+  expired: readonly T[],
+  limit = HOME_USE_SOON,
+  exclude: ReadonlySet<string> = new Set(),
+): T[] {
+  const seen = new Set<string>(exclude);
   const out: T[] = [];
   const ordered = [...soon]
     .filter((i) => isUseSoon(i.daysToUseBy))

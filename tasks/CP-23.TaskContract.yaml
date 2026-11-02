@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CP-23
+  title: "The Home inbox and the finishing pass"
+spec:
+  goal: Home is an inbox where each thing that needs you can be done in place, every money or stock action can be undone, the desktop layouts match the design, and the app installs to a phone.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-kitchen/**
+    - tasks/CP-23.TaskContract.yaml
+  doneWhen:
+    - Home shows Needs you from the inbox API with inline claim, finalize, quick use, I paid and flag actions, and All clear when empty
+    - every money or stock action offers the same undo toast, and confirms remain only where undo is impossible
+    - desktop layouts follow the design's breakpoints for Home, Groups, Pantry and the dish maker
+    - the manifest validates with icons at 192 and 512 and a maskable icon, and the app installs
+    - leaving with a balance explains the refusal with a Settle up link
+  gates: []

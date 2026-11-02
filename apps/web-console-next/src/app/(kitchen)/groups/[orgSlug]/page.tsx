@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import type {
-  BalancesResponse,
   KitchenMember,
   KitchenSettings,
   UpdateKitchenSettingsRequest,
@@ -46,9 +45,11 @@ import { useGroups, useProfile } from "@/components/kitchen/data";
 import {
   GROUP_CURRENCIES,
   WASTE_RULES,
+  leaveBalance,
   roleFromKitchen,
   wasteRuleLabel,
   type GroupRole,
+  type LeaveBalance,
 } from "@/components/kitchen/groups";
 import { formatJoinCode, joinUrl } from "@/components/kitchen/join-code";
 import {
@@ -58,10 +59,10 @@ import {
   RoleBadge,
   shortDate,
 } from "@/components/kitchen/kit";
-import { useBalances, useGroupRole, useSettlePlan } from "@/components/kitchen/ledger-data";
+import { refreshLedger, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { ActivityFeed } from "@/components/kitchen/activity-feed";
-import { SettleCard, SettleNote } from "@/components/kitchen/settle-card";
-import { BalanceWords, Money, PersonAvatar } from "@/components/kitchen/ledger-ui";
+import { GroupBalancesPanel } from "@/components/kitchen/group-balances";
+import { Money, PersonAvatar } from "@/components/kitchen/ledger-ui";
 import { memberLabel, type MemberNames } from "@/components/kitchen/members";
 import { useMemberNames } from "@/components/kitchen/people-data";
 import { GroupPantryPanel } from "@/components/kitchen/pantry-cards";
@@ -200,7 +201,7 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
               <ActivityFeed orgId={group.id} slug={group.slug} meId={myId} canReverseAny={manager} canWrite={canWrite} />
             </TabsContent>
             <TabsContent value="balances">
-              <BalancesPanel group={group} myId={myId} balances={balances} manager={manager} canWrite={canWrite} names={names} />
+              <GroupBalancesPanel group={group} myId={myId} balances={balances} manager={manager} canWrite={canWrite} names={names} />
             </TabsContent>
             <TabsContent value="pantry">
               <GroupPantryPanel orgId={group.id} name={group.name} canWrite={canWrite} />
@@ -224,7 +225,16 @@ function GroupView({ group, onLeft }: { group: PublicOrganization; onLeft: () =>
             myRole={role}
             names={names}
           />
-          <LeaveCard group={group} onLeft={onLeft} owner={role === "owner"} />
+          <LeaveCard
+            group={group}
+            onLeft={onLeft}
+            owner={role === "owner"}
+            myBalance={
+              myId && balances.data
+                ? { balanceMinor: balances.data.balances.find((b) => b.subjectId === myId)?.balanceMinor ?? 0, currency: balances.data.currency }
+                : null
+            }
+          />
         </div>
       </div>
     </div>
@@ -294,98 +304,6 @@ function YourBalanceCard({
         <p className="mt-3 text-xs text-muted-foreground">You view {group.name}: you see its money, but don&apos;t add to it.</p>
       ) : null}
     </KCard>
-  );
-}
-
-// ── Balances ───────────────────────────────────────────────────────
-
-function BalancesPanel({
-  group,
-  myId,
-  balances,
-  manager,
-  canWrite,
-  names,
-}: {
-  group: PublicOrganization;
-  myId: string | null;
-  balances: BalancesState;
-  manager: boolean;
-  canWrite: boolean;
-  names: MemberNames;
-}) {
-  const plan = useSettlePlan(group.id);
-  return (
-    <div className="space-y-5">
-      <KCard className="p-5">
-        <h3 className="text-base font-bold tracking-tight">Everyone&apos;s balance</h3>
-        {balances.loading ? (
-          <div aria-hidden>
-            <SkeletonRow />
-            <SkeletonRow />
-          </div>
-        ) : balances.error || !balances.data ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">Couldn&apos;t load the balances. {balances.error?.message ?? ""}</p>
-            <Button variant="outline" className={K_BUTTON} onClick={balances.reload}>
-              Try again
-            </Button>
-          </div>
-        ) : (
-          <BalanceList data={balances.data} myId={myId} names={names} />
-        )}
-      </KCard>
-      <SettleCard
-        group={group}
-        plan={plan.data}
-        loading={plan.loading}
-        error={plan.error}
-        reload={plan.reload}
-        meId={myId}
-        canRecordAny={manager}
-        canWrite={canWrite}
-      />
-      <SettleNote className="px-1" />
-    </div>
-  );
-}
-
-/** Everyone's balance; each other person opens their view (everything between you two). */
-function BalanceList({ data, myId, names }: { data: BalancesResponse; myId: string | null; names: MemberNames }) {
-  if (data.balances.length === 0) {
-    return <p className="mt-2 text-sm text-muted-foreground">No one has a balance yet.</p>;
-  }
-  return (
-    <ul className="mt-2 divide-y">
-      {data.balances.map((b) => {
-        const row = (
-          <>
-            <PersonAvatar subjectId={b.subjectId} meId={myId} names={names} />
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{memberLabel(b.subjectId, myId, names)}</span>
-            <BalanceWords minor={b.balanceMinor} currency={data.currency} className="shrink-0 text-right" />
-          </>
-        );
-        return (
-          <li key={b.subjectId}>
-            {b.subjectId === myId ? (
-              <div className="flex min-h-14 items-center gap-3 py-2">
-                {row}
-                {/* Lines up with the chevron on everyone else's row. */}
-                <span aria-hidden className="w-4 shrink-0" />
-              </div>
-            ) : (
-              <Link
-                href={`/people/${encodeURIComponent(b.subjectId)}`}
-                className="-mx-2 flex min-h-14 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {row}
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-              </Link>
-            )}
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -822,20 +740,47 @@ function PromoteDialog({
 
 // ── Leave ──────────────────────────────────────────────────────────
 
-function LeaveCard({ group, onLeft, owner }: { group: PublicOrganization; onLeft: () => void; owner: boolean }) {
+/**
+ * Leaving is the one place a confirm stays (it can't be undone). It is
+ * refused while you are the last owner (CP-3) or while your balance in the
+ * group isn't zero (CP-19's `balance_not_settled`): the card then says how
+ * much and which way, with Settle up — and the dialog warns before you try,
+ * when the balance the page has isn't zero (CP-23).
+ */
+function LeaveCard({
+  group,
+  onLeft,
+  owner,
+  myBalance,
+}: {
+  group: PublicOrganization;
+  onLeft: () => void;
+  owner: boolean;
+  /** Your balance in the group as this page read it; null while unknown. */
+  myBalance: { balanceMinor: number; currency: string } | null;
+}) {
   const { client } = useSession();
   const qc = useQueryClient();
   const router = useRouter();
   const { toast } = useToast();
   const [confirm, setConfirm] = React.useState(false);
   const [lastOwner, setLastOwner] = React.useState(false);
+  const [unsettled, setUnsettled] = React.useState<LeaveBalance | null>(null);
+  const owing = myBalance && myBalance.balanceMinor !== 0 ? leaveBalance(group, myBalance) : null;
 
   const leave = async () => {
     setLastOwner(false);
+    setUnsettled(null);
     const r = await wrap(() => client.memberships.leave(group.id, { idempotencyKey: crypto.randomUUID() }));
     if (!r.ok) {
       if (r.error.reason === "last_owner") {
         setLastOwner(true);
+        return;
+      }
+      if (r.error.reason === "balance_not_settled") {
+        setUnsettled(leaveBalance(group, r.error.details));
+        // The page's balances may be behind: read them again.
+        refreshLedger(qc, group.id);
         return;
       }
       toast({ kind: "error", title: "Couldn't leave the group", description: r.error.message });
@@ -883,6 +828,19 @@ function LeaveCard({ group, onLeft, owner }: { group: PublicOrganization; onLeft
           ) : null}
         </div>
       ) : null}
+      {unsettled ? (
+        <div role="alert" className="mt-3 rounded-xl bg-cp-soon-tint p-3 text-sm text-cp-soon">
+          <p className="font-bold">{unsettled.title}</p>
+          <p className="mt-0.5">{unsettled.body}</p>
+          <Link
+            href={unsettled.settleHref}
+            className="mt-2 inline-flex min-h-11 items-center gap-1 rounded-lg font-bold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Settle up in {group.name}
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Link>
+        </div>
+      ) : null}
       <Button
         variant="outline"
         className={cn(K_BUTTON, "mt-4 w-full border-destructive/40 text-destructive hover:bg-cp-expired-tint hover:text-destructive")}
@@ -895,7 +853,21 @@ function LeaveCard({ group, onLeft, owner }: { group: PublicOrganization; onLeft
         open={confirm}
         onOpenChange={setConfirm}
         title={`Leave ${group.name}?`}
-        description="You'll stop seeing this group. To come back, someone in it will need to send you the join link."
+        description={
+          owing ? (
+            <>
+              <span className="block font-semibold text-foreground">{owing.title}.</span>
+              <span className="block">
+                Leaving is refused until your balance here is zero.{" "}
+                <Link href={owing.settleHref} className="font-semibold text-primary underline underline-offset-2">
+                  Settle up in {group.name}
+                </Link>
+              </span>
+            </>
+          ) : (
+            "You'll stop seeing this group. To come back, someone in it will need to send you the join link."
+          )
+        }
         confirmLabel="Leave group"
         onConfirm={leave}
       />

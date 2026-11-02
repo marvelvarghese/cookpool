@@ -3,6 +3,7 @@ import "../styles/globals.css";
 import { Providers } from "./providers";
 import { headers } from "next/headers";
 import { consoleTitle, rememberRequestHost, resolveAppConfig, type AppConfig } from "@/lib/app-config";
+import { APPLE_TOUCH_ICON } from "@/lib/manifest";
 
 // The product's identity for this request, from the Worker's `vars` (OpenNext
 // copies them into process.env per request), falling back to the compiled-in
@@ -21,6 +22,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: consoleTitle(config),
     description: config.productDescription,
     manifest: "/manifest.webmanifest",
+    // The pot mark (CP-23): the tab's icon, and the home-screen icon iOS uses.
+    icons: { icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }], apple: APPLE_TOUCH_ICON },
     appleWebApp: {
       capable: true,
       title: config.productName,

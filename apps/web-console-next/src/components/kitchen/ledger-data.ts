@@ -6,7 +6,8 @@ import type { ActivityPage, KitchenTxn } from "@saas/contracts/kitchen";
 import { wrap, type ApiErrorBody } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
-import { useToast } from "@/components/ui/toast";
+import { undoFailed, type UndoResult } from "./undo";
+import { useUndoToast } from "./undo-toast";
 import { canManageGroup, canWriteInGroup, roleFromKitchen, type GroupRole } from "./groups";
 import { useGroupMembers } from "./people-data";
 
@@ -110,41 +111,29 @@ export function useGroupRole(orgId: string, myId: string | null) {
   return { members, role, roleKnown, manager: canManageGroup(role), canWrite };
 }
 
-/** How long an Undo stays on screen. */
-export const UNDO_MS = 10_000;
+export { UNDO_MS } from "./undo";
 
 /**
  * Money actions confirm by undo, not by a dialog (design §7): after a write,
- * a toast offers Undo for ten seconds, which posts a reversal of what was
- * just written.
+ * the one Undo toast (`useUndoToast`, CP-23) offers Undo for ten seconds,
+ * which posts a reversal of what was just written.
  */
 export function useOfferUndo() {
   const { client } = useSession();
   const qc = useQueryClient();
-  const { toast } = useToast();
+  const offer = useUndoToast();
   return React.useCallback(
     (orgId: string, txn: KitchenTxn, title: string, description?: string) => {
-      toast({
-        kind: "success",
+      offer({
         title,
         description,
-        duration: UNDO_MS,
-        action: {
-          label: "Undo",
-          onClick: () => {
-            void (async () => {
-              const r = await wrap(() =>
-                client.kitchen.reverseTxn(orgId, txn.id, {}, { idempotencyKey: crypto.randomUUID() }),
-              );
-              refreshLedger(qc, orgId);
-              if (r.ok) toast({ kind: "success", title: "Undone", description: `“${txn.title}” is reversed.` });
-              else if (r.error.reason === "already_reversed") toast({ kind: "warning", title: "Already undone" });
-              else toast({ kind: "error", title: "Couldn't undo it", description: r.error.message });
-            })();
-          },
+        undo: async (): Promise<UndoResult> => {
+          const r = await wrap(() => client.kitchen.reverseTxn(orgId, txn.id, {}, { idempotencyKey: crypto.randomUUID() }));
+          refreshLedger(qc, orgId);
+          return r.ok ? { ok: true, description: `“${txn.title}” is reversed.` } : undoFailed(r.error);
         },
       });
     },
-    [client, qc, toast],
+    [client, qc, offer],
   );
 }

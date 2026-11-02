@@ -14,8 +14,9 @@ import type {
 import { wrap, type ApiErrorBody, type ApiResult } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
-import { useToast } from "@/components/ui/toast";
-import { refreshLedger, UNDO_MS } from "./ledger-data";
+import { refreshLedger } from "./ledger-data";
+import type { UndoResult } from "./undo";
+import { useUndoToast } from "./undo-toast";
 import { itemRefParam, type ItemRef } from "./pantry";
 import { amountText, logRefusal, logRequest, loggedText } from "./item-use";
 import type { MemberNames } from "./members";
@@ -65,14 +66,18 @@ export function usePantryItems(pantry: string, enabled = true) {
   );
 }
 
-/** Home's strip: items to use within a few days, and the first few already past their date. */
+/**
+ * Home's strip: items to use within a few days, and the first few already
+ * past their date — enough of each that the strip still fills once what the
+ * inbox lists is left out (CP-23).
+ */
 export function useUseSoonItems() {
   const { client } = useSession();
   return useApiQuery<{ soon: ReachableItem[]; expired: ReachableItem[] }>(qk.kitchenUseSoon(), () =>
     wrap(async () => {
       const [soon, expired] = await Promise.all([
-        client.kitchen.items({ filter: "soon", limit: 4 }),
-        client.kitchen.items({ filter: "expired", limit: 4 }),
+        client.kitchen.items({ filter: "soon", limit: 16 }),
+        client.kitchen.items({ filter: "expired", limit: 8 }),
       ]);
       return { soon: soon.items, expired: expired.items };
     }),
@@ -133,9 +138,14 @@ export function useMembersOf(orgId: string | null) {
   );
 }
 
-/** Refresh every pantry read after a stock write — and a group's ledger when the write was in one. */
+/**
+ * Refresh every pantry read after a stock write — and Home's inbox (CP-23),
+ * whose use-soon cards it changes — and a group's ledger when the write was
+ * in one.
+ */
 export function refreshPantry(qc: QueryClient, orgId: string | null): void {
   void qc.invalidateQueries({ queryKey: qk.kitchenPantry() });
+  void qc.invalidateQueries({ queryKey: qk.kitchenInbox() });
   if (orgId) refreshLedger(qc, orgId);
 }
 
@@ -158,7 +168,11 @@ export function undoStockMove(
 }
 
 /** What to say when an undo is refused. */
-export function undoRefusal(error: ApiErrorBody): { kind: "warning" | "error"; title: string; description?: string } {
+export function undoRefusal(error: ApiErrorBody): { ok: false; kind: "warning" | "error"; title: string; description?: string } {
+  return { ok: false, ...undoRefusalText(error) };
+}
+
+function undoRefusalText(error: ApiErrorBody): { kind: "warning" | "error"; title: string; description?: string } {
   switch (error.reason) {
     case "already_reversed":
       return { kind: "warning", title: "Already undone" };
@@ -179,34 +193,27 @@ export function undoRefusal(error: ApiErrorBody): { kind: "warning" | "error"; t
 
 /**
  * Stock actions confirm by undo, not by a dialog (design §7): after a use or
- * waste, a toast offers Undo for ten seconds.
+ * waste, the one Undo toast (`useUndoToast`, CP-23) offers Undo for ten
+ * seconds.
  */
 export function useOfferStockUndo() {
   const { client } = useSession();
   const qc = useQueryClient();
-  const { toast } = useToast();
+  const offer = useUndoToast();
   return React.useCallback(
     (ref: ItemRef, response: StockMoveResponse, title: string, description?: string) => {
       const orgId = ref.kind === "group" ? ref.orgId : null;
-      toast({
-        kind: "success",
+      offer({
         title,
         description,
-        duration: UNDO_MS,
-        action: {
-          label: "Undo",
-          onClick: () => {
-            void (async () => {
-              const r = await undoStockMove(client, ref, { id: response.move.id, txnId: response.txn?.id ?? response.move.txnId });
-              refreshPantry(qc, orgId);
-              if (r.ok) toast({ kind: "success", title: "Undone", description: `${response.item.name} is back as it was.` });
-              else toast(undoRefusal(r.error));
-            })();
-          },
+        undo: async (): Promise<UndoResult> => {
+          const r = await undoStockMove(client, ref, { id: response.move.id, txnId: response.txn?.id ?? response.move.txnId });
+          refreshPantry(qc, orgId);
+          return r.ok ? { ok: true, description: `${response.item.name} is back as it was.` } : undoRefusal(r.error);
         },
       });
     },
-    [client, qc, toast],
+    [client, qc, offer],
   );
 }
 
