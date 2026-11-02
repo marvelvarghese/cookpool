@@ -33,12 +33,14 @@ spec:
           when:
             triggerRef: github-pull-request
     - component: billing-worker
-    # Also bound, and deliberately NOT declared here: notifications-worker and
-    # kitchen-worker (CP-19: leaving asks it for the caller's balance). Both
-    # already depend on this worker (kitchen-worker directly, notifications
-    # through events-worker), so declaring them would make a cycle;
-    # tests/config-worker acknowledges both bindings (ACKNOWLEDGED_BINDING_CYCLES),
-    # and fleet-stubs places every binding target before a fresh deploy.
+    # Also bound, and deliberately NOT declared here: notifications-worker,
+    # kitchen-worker (CP-19: leaving asks it for the caller's balance) and
+    # identity-worker (SI-4: the signed-out join preview names the group's
+    # first owner). All three already depend on this worker (kitchen-worker
+    # and identity-worker directly, notifications through events-worker), so
+    # declaring them would make a cycle; tests/config-worker acknowledges each
+    # binding (ACKNOWLEDGED_BINDING_CYCLES), and fleet-stubs places every
+    # binding target before a fresh deploy.
     - component: cloudflare-d1
       mode: enforced
       modeRules:

@@ -12,6 +12,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  RateLimitError,
   ValidationError,
 } from "../errors.js";
 
@@ -133,6 +134,52 @@ describe("MembershipsClient", () => {
     expect(await client(fetch).memberships.previewJoin("KTCH 2345")).toEqual(preview);
     expect(calls[0]!.url).toBe("https://api.test/v1/join/KTCH%202345");
     expect(calls[0]!.init.method).toBe("GET");
+  });
+
+  // The signed-out join preview (Cookpool SI-4)
+
+  it("previewJoinPublic reads /v1/join/:code/preview with no token", async () => {
+    const preview = { groupName: "Flat 4B", inviterFirstName: "Anu", memberCount: 5 };
+    const { fetch, calls } = captureFetch(jsonResponse(envelope(preview)));
+    expect(await client(fetch).memberships.previewJoinPublic("KTCH2345")).toEqual(preview);
+    expect(calls[0]!.url).toBe("https://api.test/v1/join/KTCH2345/preview");
+    expect(calls[0]!.init.method).toBe("GET");
+    const headers = new Headers(calls[0]!.init.headers as HeadersInit);
+    expect(headers.get("authorization")).toBeNull();
+    expect(headers.has("x-request-id")).toBe(true);
+  });
+
+  it("previewJoinPublic sends no credential even from a signed-in client, and other calls still do", async () => {
+    const preview = { groupName: "Flat 4B", inviterFirstName: null, memberCount: 1 };
+    const { fetch, calls } = captureFetch(jsonResponse(envelope(preview)));
+    const signedIn = new Cookpool({
+      baseUrl: "https://api.test",
+      fetch,
+      auth: { kind: "bearer", token: "sps_ses_abc.secret" },
+      defaultHeaders: { cookie: "session=abc", authorization: "Bearer default", "x-client": "console" },
+    });
+    await signedIn.memberships.previewJoinPublic("KTCH2345");
+    await signedIn.memberships.previewJoin("KTCH2345");
+
+    const anonymous = new Headers(calls[0]!.init.headers as HeadersInit);
+    expect(anonymous.get("authorization")).toBeNull();
+    expect(anonymous.get("cookie")).toBeNull();
+    expect(anonymous.get("x-client")).toBe("console");
+    const authed = new Headers(calls[1]!.init.headers as HeadersInit);
+    expect(authed.get("authorization")).toBe("Bearer sps_ses_abc.secret");
+  });
+
+  it("previewJoinPublic encodes the code into one path segment", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ groupName: "x", inviterFirstName: null, memberCount: 0 })));
+    await client(fetch).memberships.previewJoinPublic("KTCH/23 45");
+    expect(calls[0]!.url).toBe("https://api.test/v1/join/KTCH%2F23%2045/preview");
+  });
+
+  it("previewJoinPublic surfaces an unknown code as NotFoundError and a flood as RateLimitError", async () => {
+    const missing = captureFetch(errorResponse("not_found", 404));
+    await expect(client(missing.fetch).memberships.previewJoinPublic("ZZZZ2345")).rejects.toBeInstanceOf(NotFoundError);
+    const limited = captureFetch(errorResponse("rate_limited", 429));
+    await expect(client(limited.fetch).memberships.previewJoinPublic("ZZZZ2345")).rejects.toBeInstanceOf(RateLimitError);
   });
 
   it("join posts the code with the caller's idempotency key", async () => {

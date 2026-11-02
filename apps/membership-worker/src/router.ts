@@ -15,6 +15,7 @@ import { handleSyncAccountChildren } from "./handlers/sync-account-children.js";
 import { handleResolveBillingParent } from "./handlers/resolve-billing-parent.js";
 import { handleCreateServicePrincipalBinding, handleListServicePrincipalBindings, handleRevokeServicePrincipalBinding } from "./handlers/service-principal-bindings.js";
 import { handleGetJoinCode, handleRotateJoinCode, handlePreviewJoin, handleJoin } from "./handlers/join.js";
+import { handlePublicJoinPreview } from "./handlers/join-preview-public.js";
 import { handleLeaveOrganization } from "./handlers/leave.js";
 import { handleInternalMembers } from "./handlers/internal-members.js";
 import { handleInternalSubjectOrganizations } from "./handlers/internal-subject-organizations.js";
@@ -50,6 +51,9 @@ const ORG_INVITATION_ID_RE = /^\/v1\/organizations\/([^/]+)\/invitations\/([^/]+
 // Join links (Cookpool CP-3) — see ./handlers/join.ts and ./handlers/leave.ts.
 const JOIN_PATH = "/v1/join";
 const JOIN_CODE_PREVIEW_RE = /^\/v1\/join\/([^/]+)$/;
+// The signed-out preview (Cookpool SI-4): exactly one code segment, then
+// `/preview`; no actor — see ./handlers/join-preview-public.ts.
+const JOIN_CODE_PUBLIC_PREVIEW_RE = /^\/v1\/join\/([^/]+)\/preview$/;
 const ORG_JOIN_CODE_RE = /^\/v1\/organizations\/([^/]+)\/join-code$/;
 const ORG_JOIN_CODE_ROTATE_RE = /^\/v1\/organizations\/([^/]+)\/join-code\/rotate$/;
 const ORG_LEAVE_RE = /^\/v1\/organizations\/([^/]+)\/leave$/;
@@ -170,6 +174,16 @@ export async function route(request: Request, env: Env): Promise<Response> {
           return errorResponse("unauthenticated", "Authentication required", 401, requestId);
         }
         return handlePreviewJoin(env, requestId, actor, joinPreviewMatch[1]!);
+      }
+      return methodNotAllowed(requestId);
+    }
+
+    // No actor is read here, on purpose: this answers people with no account,
+    // and any x-actor-* header sent with it is ignored.
+    const joinPublicPreviewMatch = url.pathname.match(JOIN_CODE_PUBLIC_PREVIEW_RE);
+    if (joinPublicPreviewMatch) {
+      if (request.method === "GET") {
+        return handlePublicJoinPreview(env, requestId, joinPublicPreviewMatch[1]!);
       }
       return methodNotAllowed(requestId);
     }

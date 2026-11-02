@@ -11,6 +11,9 @@
 //   GET  /v1/join/:code                            anyone signed in → the group preview
 //   POST /v1/join  { code }                        anyone signed in → join
 //
+// The signed-out preview, GET /v1/join/:code/preview (Cookpool SI-4), is in
+// ./join-preview-public.ts; it shares this file's code parsing and its 404.
+//
 // Denials keep the worker's opaque-404 rule: a non-manager asking for a code,
 // and an unknown code, both read as "not found".
 
@@ -266,7 +269,8 @@ export async function handleRotateJoinCode(
   });
 }
 
-function decodePathCode(param: string): string | null {
+/** The code in a path segment, normalized; null when it cannot be a join code. */
+export function decodePathCode(param: string): string | null {
   try {
     return normalizeJoinCode(decodeURIComponent(param));
   } catch {
@@ -274,16 +278,21 @@ function decodePathCode(param: string): string | null {
   }
 }
 
-function unknownCode(requestId: string): Response {
+/**
+ * The one answer for a code that names no joinable group: unknown, malformed,
+ * rotated away, or a group that is not active. Both previews and joining use
+ * it, so none of those cases can be told apart by the body.
+ */
+export function unknownCode(requestId: string): Response {
   return errorResponse("not_found", "No group found for that join link", 404, requestId);
 }
 
-type ResolvedGroup =
+export type ResolvedGroup =
   | { ok: true; org: Organization }
   | { ok: false; response: Response };
 
 /** The active organization a code names, or the response to answer with. */
-async function resolveGroup(
+export async function resolveGroup(
   repo: Pick<MembershipRepository, "getOrganizationByJoinCode">,
   code: string,
   requestId: string,

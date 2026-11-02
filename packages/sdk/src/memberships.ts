@@ -5,6 +5,7 @@ import type {
   CreateInvitationResponse,
   JoinCodeResponse,
   JoinPreview,
+  JoinPreviewPublic,
   JoinRequest,
   JoinResponse,
   LeaveResponse,
@@ -191,6 +192,24 @@ export class MembershipsClient {
       {
         method: "GET",
         path: `/v1/join/${encodeURIComponent(code)}`,
+      },
+      opts,
+    );
+  }
+
+  /**
+   * GET /v1/join/:code/preview — the join link's group for someone not signed
+   * in yet: `{ groupName, inviterFirstName, memberCount }` and nothing else.
+   * Needs no session, and sends none: the request carries no credential even
+   * from a signed-in client. An unknown, malformed or rotated code is a
+   * `NotFoundError`; too many from one network is a `RateLimitError`.
+   */
+  previewJoinPublic(code: string, opts: RequestOptions = {}): Promise<JoinPreviewPublic> {
+    return this.transport.request<JoinPreviewPublic>(
+      {
+        method: "GET",
+        path: `/v1/join/${encodeURIComponent(code)}/preview`,
+        anonymous: true,
       },
       opts,
     );
