@@ -8,7 +8,7 @@ It is for groups of two to twenty: flatmates, a hostel batch, an office lunch cl
 
 | Field | Value |
 |-------|-------|
-| Status | In progress — CP0 to CP6 shipped; closing the epic |
+| Status | ✅ Shipped 2026-11-02 — CP0 to CP6 |
 | Cluster | **CP** (CP0–CP6) |
 | Owner(s) | `apps/kitchen-worker` (pantries, uses, dishes, the ledger) · `apps/membership-worker` (groups, join links) · `apps/api-edge` (the kitchen facade) · `packages/db` + `packages/contracts` + `packages/sdk` (tables and the wire) · `apps/web-console-next` (the `(kitchen)` app) |
 | Builds on | `cirrus` baseline: identity, membership, policy, audit/events, notifications and the console shell are reused. A group is a cirrus organization. |
@@ -16,7 +16,7 @@ It is for groups of two to twenty: flatmates, a hostel batch, an office lunch cl
 | Decisions locked | (1) **Pay for what you use**: buying records who paid; only using moves money. (2) **A group is a cirrus organization**; the personal pantry belongs to the person, not to any group. (3) **A dish can take items from any pantry the cook can reach**; the cook owes the buyers of what they took, and the eaters owe the cook by portion. (4) **Anyone can use any item directly**, and one use can be split across several people. (5) **Money is integer paise**, split with largest-remainder rounding so parts always add up; the last use of an item takes whatever is left of its price. (6) **History is append-only**: a correction is a reversal plus a new entry. (7) **Every money write is one D1 batch**, guarded by constraints, behind an idempotency key. (8) **Waste follows the group's rule** (split equally, or the buyer absorbs it), and each item can override it. (9) **No group tabs anywhere**: groups and pantries are chosen with searchable pickers. |
 | Design | Claude Design canvas: https://claude.ai/artifact/TwmkN2cAmebQPkL2QEQZVv (14 phone screens, 4 desktop pages) |
 | Gate | CP1 is the first thing a user can touch (groups and join links). CP3 is the first day the product is useful on its own (pantries and using things). CP5 completes the core loop. |
-| Shipped as | |
+| Shipped as | The Cookpool app on Cloudflare, in workspace `ws_QX130J0D` (openproduct): app https://cookpool-web-console-next-prod.rahulvarghesepullely.workers.dev (stage: `…-stage…`), API https://cookpool-api-edge-prod.rahulvarghesepullely.workers.dev (stage: `…-stage…`). Repository `marvelvarghese/cookpool`, PRs #3–#25: CP0 #3 · CP1 #4 #5 #6 #8 · CP2 #7 #9 #10 #12 #13 #15 · CP3 #11 #14 #18 #20 · CP4 #16 #23 · CP5 #17 #22 · CP6 #19 #21 #24 #25. What departed from the design, and what is left after v1, is in `IMPLEMENTATION-STATUS.md`. |
 
 ## Read order
 

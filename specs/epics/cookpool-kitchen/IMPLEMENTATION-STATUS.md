@@ -11,7 +11,7 @@ the code departed from `design.md`.
 | CP3 — pantries and using things | ✅ shipped 2026-11-02 | #11 (CP-10), #14 (CP-11), #18 (CP-12), #20 (CP-13) |
 | CP4 — the dish maker | ✅ shipped 2026-11-02 | #16 (CP-14), #23 (CP-15) |
 | CP5 — splitting dishes | ✅ shipped 2026-11-02 | #17 (CP-16), #22 (CP-17) |
-| CP6 — use it before it goes | ✅ shipped 2026-11-02 (emails are delivered once `mail.cookpool.app` is set up — see CP-18) | #19 (CP-18), #21 (CP-19), #24 (CP-23) |
+| CP6 — use it before it goes | ✅ shipped 2026-11-02 (emails are delivered once `mail.cookpool.app` is set up — see CP-18) | #19 (CP-18), #21 (CP-19), #24 (CP-23), #25 (CP-20) |
 
 ## Departures from the design
 
@@ -1143,3 +1143,45 @@ change.
   `@types/node`).
 - **Not in this task:** a cross-group activity read (Home reads 8 groups);
   inbox polling; Remind (no API).
+
+### CP6 — closing the epic (CP-20)
+
+- CP-6's contract had a done-when line over the platform's 200-character
+  limit, so it was never attached and the task stayed `in_review` after its
+  merge. The line is split into three; the contract is attached and CP-6
+  reads done like every other task.
+- The epic is marked `completed` in Orunbase.
+
+## After v1 — what is left
+
+Things the build found and did not do, most important first.
+
+1. **Email delivery needs a sending domain.** notifications-worker sends
+   from `no-reply@mail.cookpool.app`; `cookpool.app` is not registered, so
+   Cookpool's emails (the use-soon digest, dish posted, logged for you) and
+   the baseline's sign-in links are rendered and recorded but reach no
+   inbox. Register the domain, onboard it to Cloudflare Email, then point
+   `APP_URL` (kitchen-worker), the console origins (identity-worker) and
+   `POLAR_SUCCESS_URL` (billing-worker) at it. CP6's "an expiring item
+   emails" is met up to the send for this reason.
+2. **The first sweep has not been watched.** The cron (`30 2 * * *`) is in
+   the deployed stage and prod configs, but nobody has looked at a run yet:
+   check the cron events in the Cloudflare dashboard or the `kitchen_sweeps`
+   table.
+3. **CI does not run the jest suites.** The baseline's test lanes build and
+   type-check but do not run `tests/*`; every PR here ran its affected
+   suites locally (listed in each PR). Wire jest into the test lanes.
+4. **The repository is private.** Creating it public was refused at the
+   start; `gh repo edit marvelvarghese/cookpool --visibility public` flips
+   it if wanted.
+5. **Workers Paid is assumed** (risk CP-T): on the Free plan a dish with
+   more than a few ingredients is refused as a whole.
+6. **Smaller gaps:** no screen for the digest opt-out and no per-kind
+   opt-out (CP-V); leftovers have no use-by date, so the sweep skips them;
+   the person view reads every line since a group began (CP-S); the inbox
+   does not poll and there is no cross-group activity read (Home reads the
+   newest entries of up to 8 groups); Remind group has no API; the item page
+   cannot edit or remove an item yet; a payment to someone who has left is
+   refused (`not_in_group`) though the inbox still offers it; a batch
+   `getUsersByIds` in `packages/db` would replace one read per person.
+
