@@ -291,6 +291,31 @@ describe("kitchen-worker deployment config", () => {
     expect(template.env.dev?.services).toBeUndefined();
   });
 
+  // Its internal routes (CP-19: a person's balance, for leaving a group) are
+  // reachable only over a service binding: kitchen-worker has no public URL
+  // (above), api-edge never routes /v1/internal/… (tests/api-edge), and the
+  // only workers bound to it are api-edge and membership-worker.
+  const membership = renderFromFixture("apps/membership-worker") as unknown as Rendered;
+  for (const envName of ["stage", "prod"]) {
+    test(`membership-worker ${envName} binds KITCHEN_WORKER to cookpool-kitchen-worker-${envName}, and is private`, () => {
+      const svc = (membership.env[envName]?.services ?? []).find((s) => s.binding === "KITCHEN_WORKER");
+      expect(svc?.service).toBe(`cookpool-kitchen-worker-${envName}`);
+      expect(membership.env[envName]?.workers_dev).toBe(false);
+    });
+  }
+
+  test("only api-edge and membership-worker are bound to kitchen-worker", () => {
+    const appsDir = path.join(ROOT, "apps");
+    const holders = fs
+      .readdirSync(appsDir)
+      .filter((app) => {
+        const file = path.join(appsDir, app, "wrangler.template.jsonc");
+        return fs.existsSync(file) && /"service":\s*"cookpool-kitchen-worker-(?:dev|stage|prod)"/.test(fs.readFileSync(file, "utf-8"));
+      })
+      .sort();
+    expect(holders).toEqual(HAS_API_EDGE ? ["api-edge", "membership-worker"] : ["membership-worker"]);
+  });
+
   test("the sweep's trigger is declared once, at the top level, and no environment overrides it", () => {
     expect(template.triggers?.crons).toEqual([SWEEP_CRON]);
     for (const envName of Object.keys(template.env)) expect(template.env[envName]?.triggers).toBeUndefined();
@@ -330,6 +355,11 @@ describe("kitchen-worker deployment config", () => {
 const ACKNOWLEDGED_BINDING_CYCLES = new Set([
   "billing-worker -> membership-worker", // mutual pair: billing <-> membership
   "membership-worker -> notifications-worker", // cycle: membership -> notifications -> events -> membership
+  // Mutual pair (Cookpool CP-19): kitchen-worker depends on membership-worker
+  // (rosters, groups, authorization), and membership-worker binds
+  // kitchen-worker to ask a leaving member's balance. Deploy order stays
+  // advisory (both lanes run dependencyMode: advisory on stage and prod).
+  "membership-worker -> kitchen-worker",
 ]);
 
 describe("every wrangler service binding is a declared dependsOn edge", () => {

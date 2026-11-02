@@ -20,6 +20,8 @@ export type {
   KitchenFlagRecord,
   CreateFlagInput,
   CreatedFlag,
+  KitchenOpenFlagRecord,
+  KitchenOpenFlagsQuery,
   KitchenItemState,
   KitchenDimension,
   KitchenPantryOwner,

@@ -221,7 +221,10 @@ export class MembershipsClient {
   /**
    * POST /v1/organizations/:orgId/leave — the caller leaves the group. The
    * last owner cannot leave while others remain (`ConflictError`,
-   * `details.reason: "last_owner"`).
+   * `details.reason: "last_owner"`), and nobody can while they owe or are
+   * owed money in it (`ConflictError`, `details.reason: "balance_not_settled"`
+   * with `balanceMinor` and `currency`). When the balance cannot be checked,
+   * leaving is refused with a 503 (`InternalError`): try again.
    */
   leave(orgId: string, opts: RequestOptions = {}): Promise<LeaveResponse> {
     return this.transport.request<LeaveResponse>(

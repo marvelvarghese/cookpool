@@ -54,6 +54,11 @@
         {
           "binding": "NOTIFICATIONS_WORKER",
           "service": "cookpool-notifications-worker-stage"
+        },
+        // Leaving a group asks the kitchen for the caller's balance (CP-19).
+        {
+          "binding": "KITCHEN_WORKER",
+          "service": "cookpool-kitchen-worker-stage"
         }
       ]
     },
@@ -84,6 +89,11 @@
         {
           "binding": "NOTIFICATIONS_WORKER",
           "service": "cookpool-notifications-worker-prod"
+        },
+        // Leaving a group asks the kitchen for the caller's balance (CP-19).
+        {
+          "binding": "KITCHEN_WORKER",
+          "service": "cookpool-kitchen-worker-prod"
         }
       ]
     }

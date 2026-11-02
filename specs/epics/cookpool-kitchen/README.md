@@ -8,7 +8,7 @@ It is for groups of two to twenty: flatmates, a hostel batch, an office lunch cl
 
 | Field | Value |
 |-------|-------|
-| Status | In progress — CP0, CP1, CP2 and CP3 shipped |
+| Status | In progress — CP0, CP1, CP2, CP3 and CP5 shipped |
 | Cluster | **CP** (CP0–CP6) |
 | Owner(s) | `apps/kitchen-worker` (pantries, uses, dishes, the ledger) · `apps/membership-worker` (groups, join links) · `apps/api-edge` (the kitchen facade) · `packages/db` + `packages/contracts` + `packages/sdk` (tables and the wire) · `apps/web-console-next` (the `(kitchen)` app) |
 | Builds on | `cirrus` baseline: identity, membership, policy, audit/events, notifications and the console shell are reused. A group is a cirrus organization. |

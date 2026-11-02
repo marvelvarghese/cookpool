@@ -71,7 +71,7 @@ The product becomes useful on its own.
 - a dish with ingredients from a personal pantry and two groups decrements all three and charges the cook each buyer's exact share
 - the dish total equals its ingredient costs plus extras
 
-## CP5 — splitting dishes
+## CP5 — splitting dishes ✅
 
 - **CP-16 shares and finalize**: `kitchen_dish_shares`; claims, cook assignment, finalize (dish transaction, eaters owe the cook), leftovers item, correction by reversal.
 - **CP-17 dish screens and claims on Home**: the dish page (claims, how the money moves, netting), inline claims and finalize in the Home inbox.
