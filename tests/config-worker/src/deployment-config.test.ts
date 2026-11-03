@@ -505,3 +505,30 @@ describe("identity-worker deployment config", () => {
     }
   });
 });
+
+// ── the app's workers.dev subdomain (Cookpool SI-11) ───────────
+//
+// The console reads CONSOLE_WORKERS_DEV_SUBDOMAIN from its committed
+// wrangler.jsonc to find api-edge. SI-10 moved accounts and missed this file,
+// so the new app called the old account's API. Keep it, the console
+// component's `workersDevSubdomain` and every rendered api-edge URL in step.
+
+describe("web-console-next workers.dev subdomain", () => {
+  const consoleVars = (parseJsoncStrings(fs.readFileSync(path.join(ROOT, "apps/web-console-next/wrangler.jsonc"), "utf-8")) as {
+    vars?: Record<string, string>;
+  }).vars ?? {};
+  const component = fs.readFileSync(path.join(ROOT, "apps/web-console-next/component.yaml"), "utf-8");
+  const declared = (component.match(/^\s*workersDevSubdomain:\s*([a-z0-9-]+)\s*$/m) ?? [])[1];
+
+  test("the console's wrangler.jsonc names the same subdomain as its component", () => {
+    expect(declared).toBeDefined();
+    expect(consoleVars["CONSOLE_WORKERS_DEV_SUBDOMAIN"]).toBe(declared);
+  });
+
+  test("identity's console origins use that subdomain", () => {
+    const identity = fs.readFileSync(path.join(ROOT, "apps/identity-worker/wrangler.template.jsonc"), "utf-8");
+    for (const env of ["stage", "prod"]) {
+      expect(identity).toContain(`https://cookpool-web-console-next-${env}.${declared}.workers.dev`);
+    }
+  });
+});

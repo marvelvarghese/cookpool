@@ -13,7 +13,7 @@
   // product this file belongs to. The rebrand rewrites these with the rest.
   "vars": {
     "CONSOLE_PRODUCT_NAME": "cookpool",
-    "CONSOLE_WORKERS_DEV_SUBDOMAIN": "rahulvarghesepullely",
+    "CONSOLE_WORKERS_DEV_SUBDOMAIN": "cookpool",
     "CONSOLE_API_WORKER_PREFIX": "cookpool-api-edge",
     "CONSOLE_STORAGE_PREFIX": "cookpool.next",
     "CONSOLE_SALES_EMAIL": "sales@sourceplane.ai"

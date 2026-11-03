@@ -1,0 +1,16 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-11
+  title: "The app calls the API on the new account"
+spec:
+  goal: The Cookpool app on the new Cloudflare account calls the API on the same account, and a test keeps the app's workers.dev subdomain in step with the rest of the configuration.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-11.TaskContract.yaml
+  doneWhen:
+    - the stage and prod apps call cookpool-api-edge-<env>.cookpool.workers.dev
+    - a config test fails when the app's subdomain differs from the console component's
+  gates: []
