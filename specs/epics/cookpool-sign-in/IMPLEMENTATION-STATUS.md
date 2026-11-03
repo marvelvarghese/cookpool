@@ -9,7 +9,7 @@ the code departed from `design.md`.
 | SI1 — sign-in that holds up | in progress | #28 (SI-2) |
 | SI2 — the Cookpool sign-in page | ✅ shipped 2026-11-02 (checked against a mocked API; not yet walked through on stage) | #27 (SI-4), #29 (SI-5) |
 | SI3 — first run and You | ✅ shipped 2026-11-02 (checked against a mocked API) | #30 (SI-6) |
-| SI4 — on cookpool.store | in progress | #32 (SI-10) |
+| SI4 — on cookpool.store | in progress | #32 (SI-10), #33 (SI-11) |
 
 ## Departures from the design
 
@@ -332,4 +332,10 @@ package changed.
   unmanaged; data did not move, so both environments start empty.
 - `ai/context/deployment.md` records the steps for a future move.
 - The Google callback URLs change with the subdomain (design §4).
+- **Missed in SI-10, fixed in SI-11:** the console's committed
+  `apps/web-console-next/wrangler.jsonc` (not a rendered template) still set
+  `CONSOLE_WORKERS_DEV_SUBDOMAIN` to the old subdomain, so the new app called
+  the old account's API and the browser refused it (CORS). It now says
+  `cookpool`, and a config test keeps it equal to the console component's
+  `workersDevSubdomain` and to identity's console origins.
 
