@@ -4,6 +4,7 @@ import {
   apiEdgeWorkersDevUrl,
   consoleTitle,
   environmentFromHost,
+  parseCustomDomains,
   resolveAppConfig,
   type AppConfig,
 } from "@web-console-next/lib/app-config";
@@ -95,5 +96,36 @@ describe("environmentFromHost", () => {
     expect(resolveAppConfig({}, { ...unbuilt, deployEnv: "stage" }, host).deployEnv).toBe("stage");
     expect(isLocked(resolveAppConfig({}, unbuilt, host))).toBe(true);
     expect(isLocked(resolveAppConfig({}, unbuilt, "console.acme.dev"))).toBe(false);
+  });
+
+  // SI-12: a custom domain carries no -<env>, so CONSOLE_CUSTOM_DOMAINS names it.
+  const domains = "stage=stage.cookpool.store,prod=cookpool.store";
+
+  it("maps listed custom domains to their environment, exactly", () => {
+    expect(environmentFromHost("cookpool.store", domains)).toBe("prod");
+    expect(environmentFromHost("COOKPOOL.STORE:443", domains)).toBe("prod");
+    expect(environmentFromHost("stage.cookpool.store", domains)).toBe("stage");
+    // Not listed, so not guessed: no subdomain or look-alike borrows an environment.
+    expect(environmentFromHost("www.cookpool.store", domains)).toBeUndefined();
+    expect(environmentFromHost("cookpool.store.evil.example", domains)).toBeUndefined();
+    // workers.dev hosts still work beside the map.
+    expect(environmentFromHost("cookpool-web-console-next-stage.cookpool.workers.dev", domains)).toBe("stage");
+  });
+
+  it("drops unknown environments and malformed entries", () => {
+    expect([...parseCustomDomains("dev=dev.x.y, prod = Cookpool.Store ,=a.b,stage=,junk")]).toEqual([["cookpool.store", "prod"]]);
+    expect(parseCustomDomains(undefined).size).toBe(0);
+  });
+
+  it("locks the prod app on cookpool.store to the prod API, the var still winning", () => {
+    const unbuilt = { ...DEFAULT_APP_CONFIG, deployEnv: undefined };
+    expect(resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: domains }, unbuilt, "cookpool.store").deployEnv).toBe("prod");
+    expect(resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: domains }, unbuilt, "stage.cookpool.store").deployEnv).toBe("stage");
+    expect(isLocked(resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: domains }, unbuilt, "cookpool.store"))).toBe(true);
+    expect(
+      resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: domains, CONSOLE_DEPLOY_ENV: "stage" }, unbuilt, "cookpool.store").deployEnv,
+    ).toBe("stage");
+    // Without the var, a custom domain is unlocked (both targets), as before.
+    expect(resolveAppConfig({}, unbuilt, "cookpool.store").deployEnv).toBeUndefined();
   });
 });

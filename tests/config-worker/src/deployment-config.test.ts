@@ -525,6 +525,23 @@ describe("web-console-next workers.dev subdomain", () => {
     expect(consoleVars["CONSOLE_WORKERS_DEV_SUBDOMAIN"]).toBe(declared);
   });
 
+  test("the console maps the same custom domains as api-edge, per environment (SI-12)", () => {
+    const map = new Map(
+      (consoleVars["CONSOLE_CUSTOM_DOMAINS"] ?? "")
+        .split(",")
+        .map((e) => e.split("=").map((x) => x.trim()) as [string, string])
+        .filter(([e, h]) => e && h),
+    );
+    const edge = parseJsoncStrings(fs.readFileSync(path.join(ROOT, "apps/api-edge/wrangler.template.jsonc"), "utf-8")) as {
+      env: Record<string, { vars?: Record<string, string> }>;
+    };
+    for (const env of ["stage", "prod"]) {
+      const host = edge.env[env]?.vars?.["CONSOLE_CUSTOM_DOMAIN"];
+      expect(host).toBeTruthy();
+      expect(map.get(env)).toBe(host);
+    }
+  });
+
   test("identity's console origins use that subdomain", () => {
     const identity = fs.readFileSync(path.join(ROOT, "apps/identity-worker/wrangler.template.jsonc"), "utf-8");
     for (const env of ["stage", "prod"]) {

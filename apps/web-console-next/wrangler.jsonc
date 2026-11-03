@@ -14,6 +14,9 @@
   "vars": {
     "CONSOLE_PRODUCT_NAME": "cookpool",
     "CONSOLE_WORKERS_DEV_SUBDOMAIN": "cookpool",
+    // Custom domains and the environment each serves (SI-12): a custom domain
+    // has no `-<env>` in its host, so the console reads it from here.
+    "CONSOLE_CUSTOM_DOMAINS": "stage=stage.cookpool.store,prod=cookpool.store",
     "CONSOLE_API_WORKER_PREFIX": "cookpool-api-edge",
     "CONSOLE_STORAGE_PREFIX": "cookpool.next",
     "CONSOLE_SALES_EMAIL": "sales@sourceplane.ai"
