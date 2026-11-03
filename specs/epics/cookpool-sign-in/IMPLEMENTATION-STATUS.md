@@ -9,7 +9,7 @@ the code departed from `design.md`.
 | SI1 — sign-in that holds up | in progress | #28 (SI-2) |
 | SI2 — the Cookpool sign-in page | ✅ shipped 2026-11-02 (checked against a mocked API; not yet walked through on stage) | #27 (SI-4), #29 (SI-5) |
 | SI3 — first run and You | ✅ shipped 2026-11-02 (checked against a mocked API) | #30 (SI-6) |
-| SI4 — on cookpool.store | in progress | #32 (SI-10), #33 (SI-11), #34 (SI-8) |
+| SI4 — on cookpool.store | in progress | #32 (SI-10), #33 (SI-11), #34 (SI-8), #35 (SI-12) |
 
 ## Departures from the design
 
@@ -361,4 +361,12 @@ package changed.
   The two Workers Custom Domains were therefore added in the Cloudflare
   dashboard; the component stays parked with a note on how to bring them
   under Terraform.
+- **Found after SI-8 went live, fixed in SI-12:** the console learns its
+  environment from a `-<env>` in its workers.dev host, and a custom domain has
+  none, so the prod app on `cookpool.store` fell back to offering both API
+  targets and called stage's API (refused by CORS). The console now reads
+  `CONSOLE_CUSTOM_DOMAINS` (`stage=stage.cookpool.store,prod=cookpool.store`,
+  in its wrangler.jsonc) and maps an exactly matching host to its
+  environment; `CONSOLE_DEPLOY_ENV` still wins. A config test keeps the map
+  equal to api-edge's `CONSOLE_CUSTOM_DOMAIN` per environment.
 

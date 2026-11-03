@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-12
+  title: "The app on cookpool.store knows its environment"
+spec:
+  goal: The app served on cookpool.store calls the prod API and on stage.cookpool.store the stage API, because the console maps its custom domains to their environments at runtime.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-12.TaskContract.yaml
+  doneWhen:
+    - cookpool.store resolves to prod and stage.cookpool.store to stage, and both call their own API
+    - a config test keeps the console's custom domains equal to api-edge's per environment
+  gates: []

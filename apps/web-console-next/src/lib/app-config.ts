@@ -62,14 +62,40 @@ export const RUNTIME_KEYS: Record<keyof AppConfig, string> = {
 /** The environments a console deploy can be locked to: the API targets. */
 export const DEPLOY_ENVIRONMENTS = ["stage", "prod"] as const;
 
+/** The Worker var mapping custom domains to environments (Cookpool SI-12). */
+export const CUSTOM_DOMAINS_KEY = "CONSOLE_CUSTOM_DOMAINS";
+
 /**
- * The environment a request's host names, by the Worker naming every console
- * deploy follows (`<worker>-<env>.<subdomain>.workers.dev`): the first label's
- * last `-` segment, when that is a known environment. A custom domain names
- * none, and its deploy sets CONSOLE_DEPLOY_ENV instead.
+ * `CONSOLE_CUSTOM_DOMAINS` parsed: `stage=stage.cookpool.store,prod=cookpool.store`
+ * → host → environment. Unknown environments and malformed entries are
+ * dropped; hosts are lower-cased.
  */
-export function environmentFromHost(host: string | null | undefined): string | undefined {
-  const label = (host ?? "").toLowerCase().split(":")[0]!.split(".")[0]!;
+export function parseCustomDomains(raw: string | null | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const entry of (raw ?? "").split(",")) {
+    const [env, host] = entry.split("=").map((s) => s.trim().toLowerCase());
+    if (!env || !host || !(DEPLOY_ENVIRONMENTS as readonly string[]).includes(env)) continue;
+    map.set(host, env);
+  }
+  return map;
+}
+
+/**
+ * The environment a request's host names. A custom domain listed in
+ * `CONSOLE_CUSTOM_DOMAINS` names its environment exactly (SI-12: one console
+ * Worker per environment also answers on `cookpool.store` or
+ * `stage.cookpool.store`, which carry no `-<env>`). Otherwise the Worker naming
+ * every console deploy follows (`<worker>-<env>.<subdomain>.workers.dev`): the
+ * first label's last `-` segment, when that is a known environment.
+ */
+export function environmentFromHost(
+  host: string | null | undefined,
+  customDomains?: string | null,
+): string | undefined {
+  const hostname = (host ?? "").toLowerCase().split(":")[0]!;
+  const mapped = parseCustomDomains(customDomains).get(hostname);
+  if (mapped) return mapped;
+  const label = hostname.split(".")[0]!;
   const suffix = label.slice(label.lastIndexOf("-") + 1);
   return label.includes("-") && (DEPLOY_ENVIRONMENTS as readonly string[]).includes(suffix) ? suffix : undefined;
 }
@@ -97,7 +123,7 @@ export function resolveAppConfig(
     apiWorkerPrefix: pick("apiWorkerPrefix") ?? defaults.apiWorkerPrefix,
     storagePrefix: pick("storagePrefix") ?? defaults.storagePrefix,
     salesEmail: pick("salesEmail") ?? defaults.salesEmail,
-    deployEnv: pick("deployEnv") ?? defaults.deployEnv ?? environmentFromHost(host),
+    deployEnv: pick("deployEnv") ?? defaults.deployEnv ?? environmentFromHost(host, env[CUSTOM_DOMAINS_KEY]),
   };
 }
 
