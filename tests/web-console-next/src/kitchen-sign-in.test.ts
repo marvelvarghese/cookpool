@@ -328,13 +328,13 @@ describe("environments: developer sign-in and test codes", () => {
       expect(isLocalHostname(host)).toBe(true);
       expect(signInEnvironment(undefined, host)).toBe("local");
     }
-    expect(signInEnvironment(undefined, "cookpool-web-console-next-dev.rahulvarghesepullely.workers.dev")).toBe("dev");
+    expect(signInEnvironment(undefined, "cookpool-web-console-next-dev.cookpool.workers.dev")).toBe("dev");
   });
 
   it("fails closed: an unknown host or value is prod", () => {
     expect(signInEnvironment(undefined, "app.cookpool.example")).toBe("prod");
     expect(signInEnvironment(undefined, "localhost.evil.example")).toBe("prod");
-    expect(signInEnvironment("", "cookpool-web-console-next.rahulvarghesepullely.workers.dev")).toBe("prod");
+    expect(signInEnvironment("", "cookpool-web-console-next.cookpool.workers.dev")).toBe("prod");
     expect(signInEnvironment("staging-ish", "localhost")).toBe("prod");
   });
 

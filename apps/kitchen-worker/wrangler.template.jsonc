@@ -31,7 +31,7 @@
       "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "stage",
-        "APP_URL": "https://cookpool-web-console-next-stage.rahulvarghesepullely.workers.dev"
+        "APP_URL": "https://cookpool-web-console-next-stage.cookpool.workers.dev"
       },
       "d1_databases": [
         {
@@ -63,7 +63,7 @@
       "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "prod",
-        "APP_URL": "https://cookpool-web-console-next-prod.rahulvarghesepullely.workers.dev"
+        "APP_URL": "https://cookpool-web-console-next-prod.cookpool.workers.dev"
       },
       "d1_databases": [
         {

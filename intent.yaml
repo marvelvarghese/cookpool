@@ -129,10 +129,10 @@ environments:
 
   stage:
     description: The fleet, the API edge and the console, deployed on every merge to main before prod.
-    url: https://cookpool-web-console-next-stage.rahulvarghesepullely.workers.dev
+    url: https://cookpool-web-console-next-stage.cookpool.workers.dev
     links:
-      - { title: API, url: https://cookpool-api-edge-stage.rahulvarghesepullely.workers.dev }
-      - { title: Health, url: https://cookpool-api-edge-stage.rahulvarghesepullely.workers.dev/health }
+      - { title: API, url: https://cookpool-api-edge-stage.cookpool.workers.dev }
+      - { title: Health, url: https://cookpool-api-edge-stage.cookpool.workers.dev/health }
     activation:
       triggerRefs:
         - github-pull-request
@@ -152,10 +152,10 @@ environments:
 
   prod:
     description: Where customers are. Deploys after stage converges on the same commit.
-    url: https://cookpool-web-console-next-prod.rahulvarghesepullely.workers.dev
+    url: https://cookpool-web-console-next-prod.cookpool.workers.dev
     links:
-      - { title: API, url: https://cookpool-api-edge-prod.rahulvarghesepullely.workers.dev }
-      - { title: Health, url: https://cookpool-api-edge-prod.rahulvarghesepullely.workers.dev/health }
+      - { title: API, url: https://cookpool-api-edge-prod.cookpool.workers.dev }
+      - { title: Health, url: https://cookpool-api-edge-prod.cookpool.workers.dev/health }
     activation:
       triggerRefs:
         - github-pull-request

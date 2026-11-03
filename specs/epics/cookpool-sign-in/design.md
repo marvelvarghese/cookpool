@@ -92,7 +92,7 @@ New and returning people take the same step; there is no separate sign-up.
 - The owner of the Google Cloud project creates (or reuses) an OAuth
   client for the id in `wrangler.template.jsonc`. They register both
   callbacks:
-  `https://cookpool-api-edge-stage.rahulvarghesepullely.workers.dev/v1/auth/oauth/google/callback`
+  `https://cookpool-api-edge-stage.cookpool.workers.dev/v1/auth/oauth/google/callback`
   and the `-prod` one.
 - The client secret and a fresh random `OAUTH_STATE_SECRET` are stored as
   orun secrets for each environment

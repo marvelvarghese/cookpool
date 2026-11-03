@@ -79,7 +79,7 @@ spec:
 
     # The account's workers.dev subdomain; exposed to the smoke step as
     # ${WORKERS_DEV_SUBDOMAIN} and used to build ${DEPLOYED_URL}.
-    workersDevSubdomain: rahulvarghesepullely
+    workersDevSubdomain: cookpool
 
     # No environmentBuildVar (saas-console-artifact CA2): the console learns its
     # environment at runtime — CONSOLE_DEPLOY_ENV if set, else the `-<env>` its
@@ -109,4 +109,4 @@ spec:
     surface: web-console-next
     runtime: cloudflare
 # ci: re-trigger web-console after api-edge is live (20260622T142123Z)
-# orun: redeploy 01-product 20261101T204055Z
+# orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z
