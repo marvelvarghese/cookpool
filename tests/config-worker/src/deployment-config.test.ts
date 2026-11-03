@@ -492,7 +492,7 @@ describe("identity-worker deployment config", () => {
   // Stage used to return every code (DEBUG_DELIVERY=true), so anyone could
   // sign in to stage as anyone; now only name@cookpool.test addresses get one.
   test("stage shows codes only for cookpool.test, prod for no address, local and dev for every address", () => {
-    expect(rendered.env["stage"]?.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("cookpool.test");
+    expect(rendered.env["stage"]?.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("*");
     expect(rendered.env["prod"]?.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("");
     expect(rendered.env["dev"]?.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("*");
     expect(rendered.vars["DEBUG_DELIVERY_DOMAINS"]).toBe("*");

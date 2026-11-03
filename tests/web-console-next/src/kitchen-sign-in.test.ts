@@ -343,24 +343,20 @@ describe("environments: developer sign-in and test codes", () => {
     expect(shown).toEqual(["local", "dev"]);
   });
 
-  it("shows a returned code locally and on dev, on stage only for cookpool.test, never on prod", () => {
+  it("shows a returned code locally, on dev and on stage, never on prod", () => {
     const debug = { mode: "local_debug" as const, code: "246810" };
-    expect(testCodeFor("local", "anu@example.com", debug)).toBe("246810");
-    expect(testCodeFor("dev", "anu@example.com", debug)).toBe("246810");
-    expect(testCodeFor("stage", "anu@cookpool.test", debug)).toBe("246810");
-    expect(testCodeFor("stage", "Anu@COOKPOOL.TEST", debug)).toBe("246810");
-    // Stage shows a code only for the test domain, even if its server were set wider.
-    expect(testCodeFor("stage", "anu@example.com", debug)).toBeNull();
-    expect(testCodeFor("stage", "anu@sub.cookpool.test", debug)).toBeNull();
-    expect(testCodeFor("stage", "anu@cookpool.test.evil.example", debug)).toBeNull();
-    expect(testCodeFor("prod", "anu@cookpool.test", debug)).toBeNull();
-    expect(testCodeFor("prod", "anu@example.com", debug)).toBeNull();
+    expect(testCodeFor("local", debug)).toBe("246810");
+    expect(testCodeFor("dev", debug)).toBe("246810");
+    // Stage shows any code identity-worker returns: every address since SI-9.
+    expect(testCodeFor("stage", debug)).toBe("246810");
+    // Prod never shows one, even if a server ever sent it.
+    expect(testCodeFor("prod", debug)).toBeNull();
   });
 
   it("shows nothing when the code was emailed", () => {
-    expect(testCodeFor("local", "anu@example.com", { mode: "email" })).toBeNull();
-    expect(testCodeFor("stage", "anu@cookpool.test", { mode: "email", code: "246810" })).toBeNull();
-    expect(testCodeFor("local", "anu@example.com", { mode: "local_debug", code: "" })).toBeNull();
+    expect(testCodeFor("local", { mode: "email" })).toBeNull();
+    expect(testCodeFor("stage", { mode: "email", code: "246810" })).toBeNull();
+    expect(testCodeFor("local", { mode: "local_debug", code: "" })).toBeNull();
   });
 });
 

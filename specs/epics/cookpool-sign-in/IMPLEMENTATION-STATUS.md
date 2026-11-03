@@ -303,3 +303,14 @@ package changed.
   never traps, a failed save offers "Do this later"; You renames (Home, the
   sidebar and the member list follow) and signs out to a bare `/login` with
   nothing of the person left in storage.
+
+### SI1 — stage shows the sign-in code on screen (SI-9)
+
+- At the owner's request (2026-11-03): stage's `DEBUG_DELIVERY_DOMAINS` is
+  `*`, so login/start returns the code for every address there, and the
+  sign-in page shows it as "Test code" for any address. `testCodeFor` no
+  longer second-guesses the server by domain on stage; it shows whatever
+  identity-worker returns, and still never anything on prod. Risk SI-C
+  records the trade (anyone can sign in to stage as anyone while this
+  holds).
+

@@ -80,8 +80,9 @@ import {
  * join link (`/join/{code}`) also shows its group from the signed-out preview
  * (SI-4) and comes back already joined. `?expired=1` says the session ended.
  * The Bearer-token form and the API picker sit behind "Developer sign-in" on
- * local and dev only; a code on screen appears only off prod (stage: only for
- * `@cookpool.test`). The token is stored exactly as before: `setToken`.
+ * local and dev only; a code on screen appears only off prod (on stage for any
+ * address identity-worker returns one for: every address, SI-9). The token is
+ * stored exactly as before: `setToken`.
  *
  * The Name step (SI-6, design §7): after a code sign-in whose profile has no
  * name, the page asks "What should your groups call you?" before going on to
@@ -277,7 +278,7 @@ export default function LoginPage() {
         type: "sent",
         email,
         challengeId: r.data.challengeId,
-        testCode: testCodeFor(env, email, r.data.delivery),
+        testCode: testCodeFor(env, r.data.delivery),
         at,
         resent: mode !== "first",
         notice: mode === "replace" ? { tone: "info", text: CODE_REPLACED_NOTICE } : null,

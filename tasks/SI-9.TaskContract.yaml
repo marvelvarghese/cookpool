@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-9
+  title: "Stage shows the sign-in code on screen"
+spec:
+  goal: On stage, where email is not delivered yet, the sign-in page shows the 6-digit code for any address, so anyone testing can sign in; prod never shows a code.
+  affects:
+    - default/cookpool/identity-worker
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-9.TaskContract.yaml
+  doneWhen:
+    - stage's identity-worker returns the code for every address, and prod for none
+    - the stage sign-in page shows the code for any address, and prod never shows one
+  gates: []
