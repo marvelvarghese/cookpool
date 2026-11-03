@@ -75,7 +75,7 @@ describe("derivations follow the runtime config", () => {
 // console Worker learns it from CONSOLE_DEPLOY_ENV or from its own host.
 describe("environmentFromHost", () => {
   it("reads the -<env> suffix of a console Worker's workers.dev host", () => {
-    expect(environmentFromHost("cookpool-web-console-next-stage.rahulvarghesepullely.workers.dev")).toBe("stage");
+    expect(environmentFromHost("cookpool-web-console-next-stage.cookpool.workers.dev")).toBe("stage");
     expect(environmentFromHost("acme-cloud-web-console-next-prod.acme-inc.workers.dev:443")).toBe("prod");
   });
 

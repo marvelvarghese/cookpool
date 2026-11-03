@@ -9,7 +9,7 @@ the code departed from `design.md`.
 | SI1 — sign-in that holds up | in progress | #28 (SI-2) |
 | SI2 — the Cookpool sign-in page | ✅ shipped 2026-11-02 (checked against a mocked API; not yet walked through on stage) | #27 (SI-4), #29 (SI-5) |
 | SI3 — first run and You | ✅ shipped 2026-11-02 (checked against a mocked API) | #30 (SI-6) |
-| SI4 — on cookpool.store | | |
+| SI4 — on cookpool.store | in progress | #32 (SI-10) |
 
 ## Departures from the design
 
@@ -313,4 +313,23 @@ package changed.
   identity-worker returns, and still never anything on prod. Risk SI-C
   records the trade (anyone can sign in to stage as anyone while this
   holds).
+
+### SI4 — Cookpool on the new Cloudflare account (SI-10)
+
+- At the owner's request (2026-11-03) Cookpool moved from
+  Rahulvarghesepullely@gmail.com's Account to Marvelvarghese18@gmail.com's
+  Account (connection `int_f78dd4cd874640ab8c8a5741ffb3ff83`). Every address
+  moved from `*.rahulvarghesepullely.workers.dev` to `*.cookpool.workers.dev`.
+- The deploy tokens (`CLOUDFLARE_API_TOKEN` workers-deploy,
+  `CLOUDFLARE_D1_TOKEN` d1-edit, `CLOUDFLARE_ACCOUNT_ID`) are brokered from
+  the new connection at the `cookpool` project rung, shadowing the
+  workspace-shared ones from the old connection, which are left in place.
+- The `cloudflare-d1` and `cloudflare-kv` Terraform states (stage, prod) were
+  backed up and deleted before the move, so the apply created a fresh
+  database and namespace in the new account. Changing the account in place
+  would have planned a replacement whose destroy step cannot reach the old
+  account. The old account's Workers, database and namespace keep running,
+  unmanaged; data did not move, so both environments start empty.
+- `ai/context/deployment.md` records the steps for a future move.
+- The Google callback URLs change with the subdomain (design §4).
 

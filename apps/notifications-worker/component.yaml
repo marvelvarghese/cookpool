@@ -109,4 +109,4 @@ spec:
 # ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
 # ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
 # ci: re-trigger deploy (verify orun-secrets brokered CLOUDFLARE_API_TOKEN resolve in worker deploy lane, 20260727T153639Z)
-# orun: redeploy 01-product 20261101T204055Z
+# orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z

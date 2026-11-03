@@ -276,7 +276,7 @@ describe("kitchen-worker deployment config", () => {
       // The live console on workers.dev: cookpool.app is not registered yet,
       // so links to it would not open. Change both when the domain exists.
       expect(rendered.env[envName]?.vars?.APP_URL).toBe(
-        `https://cookpool-web-console-next-${envName}.rahulvarghesepullely.workers.dev`,
+        `https://cookpool-web-console-next-${envName}.cookpool.workers.dev`,
       );
     });
 

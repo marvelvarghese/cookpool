@@ -59,4 +59,4 @@ spec:
             when:
               triggerRef: github-push-main
 # ci: re-trigger kv apply with brand-namespaced title (baseline collision fix)
-# orun: redeploy 01-product 20261101T204055Z
+# orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z

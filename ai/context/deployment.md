@@ -18,10 +18,10 @@
 
 | surface | URL | status |
 |---|---|---|
-| edge API (stage) | https://cookpool-api-edge-stage.rahulvarghesepullely.workers.dev/health | LIVE (200) |
-| edge API (prod) | https://cookpool-api-edge-prod.rahulvarghesepullely.workers.dev/health | LIVE (200) |
-| console (stage) | https://cookpool-web-console-next-stage.rahulvarghesepullely.workers.dev | LIVE (200) |
-| console (prod) | https://cookpool-web-console-next-prod.rahulvarghesepullely.workers.dev | LIVE (200) |
+| edge API (stage) | https://cookpool-api-edge-stage.cookpool.workers.dev/health | LIVE (200) |
+| edge API (prod) | https://cookpool-api-edge-prod.cookpool.workers.dev/health | LIVE (200) |
+| console (stage) | https://cookpool-web-console-next-stage.cookpool.workers.dev | LIVE (200) |
+| console (prod) | https://cookpool-web-console-next-prod.cookpool.workers.dev | LIVE (200) |
 | edge (custom domain) | https://api.cookpool.app/health | pending (zone not wired yet, or DNS propagating) |
 | console (custom domain) | https://app.cookpool.app | pending (zone not wired yet, or DNS propagating) |
 
@@ -39,9 +39,9 @@ deployed URLs.
 
 | secret | where | what it is |
 |---|---|---|
-| `CLOUDFLARE_API_TOKEN` | the workspace | BROKERED from its Cloudflare connection (`workers-deploy`): deploys the Workers and applies the KV namespace |
-| `CLOUDFLARE_D1_TOKEN` | the workspace | BROKERED (`d1-edit`): applies the D1 database and runs its migrations — the deploy token cannot touch D1 |
-| `CLOUDFLARE_ACCOUNT_ID` | the workspace | the connection's account id — a fact, not a credential |
+| `CLOUDFLARE_API_TOKEN` | the `cookpool` project (shadows the workspace one) | BROKERED from the Cloudflare connection `int_f78dd4cd874640ab8c8a5741ffb3ff83` (Marvelvarghese18@gmail.com's Account, since SI-10) with `workers-deploy`: deploys the Workers and applies the KV namespace |
+| `CLOUDFLARE_D1_TOKEN` | the `cookpool` project (shadows the workspace one) | BROKERED from the same connection (`d1-edit`): applies the D1 database and runs its migrations — the deploy token cannot touch D1 |
+| `CLOUDFLARE_ACCOUNT_ID` | the `cookpool` project (shadows the workspace one) | the new connection's account id (`account-id`) — a fact, not a credential |
 | `WIRING_CLOUDFLARE_D1` | `cookpool` on stage and on prod | written by the D1 root's apply: the database's id and name, read by the migrations and by every Worker that binds it — not a credential |
 | `WIRING_CLOUDFLARE_KV` | `cookpool` on stage and on prod | written by the KV root's apply: the edge's idempotency namespace, read by api-edge — not a credential |
 | `GITHUB_APP_CLIENT_SECRET` | `cookpool` per environment, once an owner seeds it | a runtime secret of integrations-worker, optional until then |
@@ -66,3 +66,26 @@ Merges to `main` converge automatically: CI plans changed components and
 runs each lane via `orun run --remote-state` against the workspace above.
 See [operations.md](operations.md) for the full operating contract
 (convergence, resumes, secrets, verification, troubleshooting).
+
+## Moving to another Cloudflare account (SI-10, 2026-11-03)
+
+Cookpool moved from Rahulvarghesepullely@gmail.com's Account (workers.dev
+subdomain `rahulvarghesepullely`) to Marvelvarghese18@gmail.com's Account
+(subdomain `cookpool`). What that took, for the next time:
+
+1. Project-rung brokered secrets from the new connection
+   (`orun integrations cloudflare secret create … --project`), so every
+   deploy resolves them before the workspace-shared ones. Revoking them
+   falls back to the old account.
+2. The Terraform states of `cloudflare-d1` and `cloudflare-kv` (stage, prod)
+   backed up and deleted, so the next apply creates the database and the
+   namespace in the new account instead of trying to replace the old
+   account's resources with a token that cannot reach them.
+3. The workers.dev subdomain replaced everywhere, and a redeploy marker on
+   every component so CI rebuilds the whole fleet; workers wait on the D1
+   apply (enforced edges), so they bind the new database.
+
+The old account's Workers, D1 database and KV namespace were left running and
+unmanaged; delete them from that account's dashboard when no longer needed.
+Data did not move: stage and prod started with empty databases.
+
