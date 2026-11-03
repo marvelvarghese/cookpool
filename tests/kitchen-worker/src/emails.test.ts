@@ -481,8 +481,8 @@ describe("logged for you", () => {
 
 describe("links", () => {
   it("start at APP_URL, and are left out when it is not an http(s) origin", () => {
-    expect(appLink({ APP_URL: "https://stage.cookpool.app" }, "/home")).toBe("https://stage.cookpool.app/home");
-    expect(appLink({ APP_URL: "https://stage.cookpool.app/" }, "/dishes/dsh_1")).toBe("https://stage.cookpool.app/dishes/dsh_1");
+    expect(appLink({ APP_URL: "https://stage.cookpool.store" }, "/home")).toBe("https://stage.cookpool.store/home");
+    expect(appLink({ APP_URL: "https://stage.cookpool.store/" }, "/dishes/dsh_1")).toBe("https://stage.cookpool.store/dishes/dsh_1");
     expect(appLink({}, "/home")).toBe("");
     expect(appLink({ APP_URL: "javascript:alert(1)" }, "/home")).toBe("");
     expect(appLink({ APP_URL: "not a url" }, "/home")).toBe("");

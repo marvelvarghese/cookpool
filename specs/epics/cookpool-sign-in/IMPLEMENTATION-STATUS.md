@@ -9,7 +9,7 @@ the code departed from `design.md`.
 | SI1 — sign-in that holds up | in progress | #28 (SI-2) |
 | SI2 — the Cookpool sign-in page | ✅ shipped 2026-11-02 (checked against a mocked API; not yet walked through on stage) | #27 (SI-4), #29 (SI-5) |
 | SI3 — first run and You | ✅ shipped 2026-11-02 (checked against a mocked API) | #30 (SI-6) |
-| SI4 — on cookpool.store | in progress | #32 (SI-10), #33 (SI-11) |
+| SI4 — on cookpool.store | in progress | #32 (SI-10), #33 (SI-11), #34 (SI-8) |
 
 ## Departures from the design
 
@@ -338,4 +338,27 @@ package changed.
   the old account's API and the browser refused it (CORS). It now says
   `cookpool`, and a config test keeps it equal to the console component's
   `workersDevSubdomain` and to identity's console origins.
+
+### SI4 — Cookpool on cookpool.store (SI-8)
+
+- The owner bought `cookpool.store` (GoDaddy, 2026-11-02) and moved its
+  nameservers to the new Cloudflare account (`carmelo` and
+  `magdalena.ns.cloudflare.com`, 2026-11-03).
+- Names: the prod app is the bare `cookpool.store`, stage is
+  `stage.cookpool.store`, email is sent from `no-reply@mail.cookpool.store`.
+  The API stays on `cookpool-api-edge-<env>.cookpool.workers.dev`, so the
+  Google callback URLs do not move again.
+- Every `cookpool.app` placeholder outside the docs' history became
+  `cookpool.store`: api-edge's `CONSOLE_CUSTOM_DOMAIN` (CORS), identity's
+  console origins (the workers.dev origins stay), kitchen's `APP_URL`,
+  billing's `POLAR_SUCCESS_URL`, notifications' sender, `intent.yaml`, the
+  rebrand values, the SDK/CLI defaults (now the prod workers.dev API) and
+  their tests.
+- **Custom domains attached in the dashboard, not by Terraform.** The
+  baseline's `cloudflare-domain` stack only looks the zone up: the
+  custom-domain resource was dropped in Phase 1 of its v4→v5 migration and
+  never re-added, and the brokered deploy token has no zone or DNS rights.
+  The two Workers Custom Domains were therefore added in the Cloudflare
+  dashboard; the component stays parked with a note on how to bring them
+  under Terraform.
 

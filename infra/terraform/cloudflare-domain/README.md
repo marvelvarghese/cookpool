@@ -17,8 +17,8 @@ declarations:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `BASE_DOMAIN` | Root domain for the zone | `cookpool.app` |
-| `CONSOLE_CUSTOM_DOMAIN` | Custom domain for the console Worker | `stage.cookpool.app` |
+| `BASE_DOMAIN` | Root domain for the zone | `cookpool.store` |
+| `CONSOLE_CUSTOM_DOMAIN` | Custom domain for the console Worker | `stage.cookpool.store` |
 
 These are exported as `TF_VAR_*` by the Orun job template and consumed by
 Terraform. The same variables are available to Workers (via `wrangler.jsonc`
@@ -45,7 +45,7 @@ vars) for runtime CORS decisions.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `baseDomain` | yes | Root domain (e.g. `cookpool.app`) |
+| `baseDomain` | yes | Root domain (e.g. `cookpool.store`) |
 | `zoneMode` | yes | `existing` or `managed` |
 | `workerNamePrefix` | yes | Worker name prefix (e.g. `cookpool-web-console-next`); fully-qualified service name is `{workerNamePrefix}-{environment}` |
 | `stackName` | yes | Terraform stack identifier |
@@ -84,8 +84,8 @@ After merge to main, verify:
 1. `terraform apply` succeeds in CI (`github-push-main` trigger).
 2. Workers custom domains show `active` status in Cloudflare (Workers → the
    `cookpool-web-console-next-{env}` Worker → Triggers → Custom Domains).
-3. `https://stage.cookpool.app/` serves the stage console (web-console-next).
-4. `https://prod.cookpool.app/` serves the prod console (web-console-next).
+3. `https://stage.cookpool.store/` serves the stage console (web-console-next).
+4. `https://cookpool.store/` serves the prod console (web-console-next).
 5. SSL certificates are provisioned (automatic via Cloudflare).
 
 ## Outputs

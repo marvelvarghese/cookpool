@@ -10,6 +10,6 @@ export interface Env {
   // POST /v1/internal/identity/users/lookup.
   IDENTITY_WORKER?: Fetcher;
   ENVIRONMENT: string;
-  /** The app's origin (the console's workers.dev URL on stage and prod): links in emails start here. */
+  /** The app's origin (https://cookpool.store, https://stage.cookpool.store): links in emails start here. */
   APP_URL?: string;
 }

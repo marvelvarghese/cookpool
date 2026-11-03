@@ -37,7 +37,7 @@ beforeEach(() => {
     ENVIRONMENT: "test",
     PLATFORM_DB: h.env.PLATFORM_DB!,
     NOTIFICATIONS_PROVIDER: "cloudflare-email",
-    EMAIL_FROM_ADDRESS: "no-reply@mail.cookpool.app",
+    EMAIL_FROM_ADDRESS: "no-reply@mail.cookpool.store",
     EMAIL_FROM_NAME: "cookpool",
     EMAIL: {
       async send(message) {
@@ -88,7 +88,7 @@ describe("kitchen emails through notifications-worker", () => {
     expect(outbox).toHaveLength(1);
     const [mail] = outbox;
     expect(mail!.to).toBe("rahul@example.com");
-    expect(mail!.from).toBe("cookpool <no-reply@mail.cookpool.app>");
+    expect(mail!.from).toBe("cookpool <no-reply@mail.cookpool.store>");
     expect(mail!.subject).toBe("1 thing to use soon");
     expect(mail!.text).toContain("Milk — My pantry — use by tomorrow");
     expect(mail!.text).toContain("https://cookpool.test/home");

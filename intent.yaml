@@ -125,7 +125,7 @@ environments:
     policies:
       requireApproval: "false"
     env:
-      BASE_DOMAIN: cookpool.app
+      BASE_DOMAIN: cookpool.store
 
   stage:
     description: The fleet, the API edge and the console, deployed on every merge to main before prod.
@@ -144,11 +144,11 @@ environments:
         namespacePrefix: stg-
         owner: sourceplane
         repo: cookpool
-        CONSOLE_CUSTOM_DOMAIN: stage.cookpool.app
+        CONSOLE_CUSTOM_DOMAIN: stage.cookpool.store
     policies:
       requireApproval: "false"
     env:
-      BASE_DOMAIN: cookpool.app
+      BASE_DOMAIN: cookpool.store
 
   prod:
     description: Where customers are. Deploys after stage converges on the same commit.
@@ -170,11 +170,11 @@ environments:
         namespacePrefix: prod-
         owner: sourceplane
         repo: cookpool
-        CONSOLE_CUSTOM_DOMAIN: prod.cookpool.app
+        CONSOLE_CUSTOM_DOMAIN: cookpool.store
     policies:
       requireApproval: "false"
     env:
-      BASE_DOMAIN: cookpool.app
+      BASE_DOMAIN: cookpool.store
 
 # Repo-level catalog entity: front page + role-tagged docs (rendered in
 # the workspace Docs library, pinned to the commit by `orun plan`).

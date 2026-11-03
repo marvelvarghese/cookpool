@@ -22,8 +22,8 @@
 | edge API (prod) | https://cookpool-api-edge-prod.cookpool.workers.dev/health | LIVE (200) |
 | console (stage) | https://cookpool-web-console-next-stage.cookpool.workers.dev | LIVE (200) |
 | console (prod) | https://cookpool-web-console-next-prod.cookpool.workers.dev | LIVE (200) |
-| edge (custom domain) | https://api.cookpool.app/health | pending (zone not wired yet, or DNS propagating) |
-| console (custom domain) | https://app.cookpool.app | pending (zone not wired yet, or DNS propagating) |
+| edge (custom domain) | none: the API stays on workers.dev (SI-8) | — |
+| console (custom domain) | https://cookpool.store (prod), https://stage.cookpool.store (stage) | Workers Custom Domains, attached in the Cloudflare dashboard (SI-8) |
 
 A 401/403 on `/health` still counts as deployed (alive but unauthorized);
 000/5xx does not. The `dev` environment is verify-only by design — no

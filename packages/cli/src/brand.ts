@@ -13,7 +13,7 @@ export const CLI_BIN = "cookpool";
 export const PRODUCT_NAME = "Cookpool";
 
 /** Default API base URL when `--api-url` is not supplied. */
-export const DEFAULT_API_URL = "https://api.cookpool.app";
+export const DEFAULT_API_URL = "https://cookpool-api-edge-prod.cookpool.workers.dev";
 
 /** OS keychain service name for stored credentials. */
 export const KEYCHAIN_SERVICE = `${CLI_BIN}-cli`;

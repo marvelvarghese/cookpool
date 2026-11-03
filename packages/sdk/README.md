@@ -25,7 +25,7 @@ Then `pnpm install` from the repo root.
 import { Cookpool } from "@saas/sdk";
 
 const client = new Cookpool({
-  baseUrl: "https://api.cookpool.app",
+  baseUrl: "https://cookpool-api-edge-prod.cookpool.workers.dev",
   auth: { kind: "bearer", token: process.env["COOKPOOL_TOKEN"]! },
 });
 
