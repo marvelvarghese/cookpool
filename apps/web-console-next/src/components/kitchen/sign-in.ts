@@ -529,29 +529,19 @@ export function showsDeveloperSignIn(env: SignInEnvironment): boolean {
   return env === "local" || env === "dev";
 }
 
-/** The one domain stage shows codes for (identity-worker's DEBUG_DELIVERY_DOMAINS there, SI-2). */
-export const TEST_EMAIL_DOMAIN = "cookpool.test";
-
-function emailDomain(email: string): string {
-  const at = email.lastIndexOf("@");
-  return at < 0 ? "" : email.slice(at + 1).trim().toLowerCase();
-}
-
 /**
- * The "Test code: 123456" line, or null. Only when the server put a code in
- * the answer (`delivery.mode: "local_debug"`), and then: any address locally
- * and on dev; on stage only an `@cookpool.test` address (whole domain, as
- * SI-2 matches it), even if stage's server is ever configured wider; never
- * on prod.
+ * The "Test code: 123456" line, or null. Only when identity-worker put a
+ * code in the answer (`delivery.mode: "local_debug"`): locally, on dev and on
+ * stage, where its DEBUG_DELIVERY_DOMAINS decides which addresses get one
+ * (every address since SI-9, because stage sends no email); never on prod,
+ * whatever the server says.
  */
 export function testCodeFor(
   env: SignInEnvironment,
-  email: string,
   delivery: Pick<LoginStartResponse["delivery"], "mode" | "code">,
 ): string | null {
   if (env === "prod") return null;
   if (delivery.mode !== "local_debug" || typeof delivery.code !== "string" || delivery.code === "") return null;
-  if (env === "stage" && emailDomain(email) !== TEST_EMAIL_DOMAIN) return null;
   return delivery.code;
 }
 

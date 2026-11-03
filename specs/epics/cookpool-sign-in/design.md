@@ -77,11 +77,12 @@ New and returning people take the same step; there is no separate sign-up.
   with `details.retryAfterSeconds` beyond that. It counts per address, not
   per IP, so it holds against requests spread over many IPs; the edge's
   per-IP bucket stays as it is.
-- **Codes on screen only for test addresses.** `DEBUG_DELIVERY` becomes
+- **Codes on screen only off prod.** `DEBUG_DELIVERY` becomes
   `DEBUG_DELIVERY_DOMAINS`: a list of email domains whose codes are
-  returned in the response, `cookpool.test` on stage. Every other address
-  gets an email, so stage can no longer be signed into as someone else.
-  Local and dev keep `*`.
+  returned in the response. SI-2 set stage to `cookpool.test`; SI-9 (the
+  owner's call, 2026-11-03) sets stage to `*`, because stage sends no email
+  and testers need to see their code. Local and dev keep `*`; prod is empty
+  and the app never shows a code there.
 - Storage: a migration adds `attempts INTEGER NOT NULL DEFAULT 0` to the
   login challenges table, plus an index on `(email, created_at)` if the
   count needs one. Both are additive.

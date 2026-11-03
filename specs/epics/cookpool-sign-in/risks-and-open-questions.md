@@ -17,12 +17,15 @@ Cloudflare Email, a code requested on prod never arrives. The fix is an
 owner's setup step, outside this epic (`cookpool-kitchen` → "After v1",
 item 1). Google is the way in until then.
 
-## SI-C — stage stops showing codes to everyone (ACCEPTED)
+## SI-C — stage shows every code on screen (ACCEPTED, owner's call)
 
-Today stage returns every code in the response, so anyone can sign in to
-stage as anyone. After SI-2, only `@cookpool.test` addresses get the code on
-screen. Real addresses need email (SI-B) or Google (SI-A). Testers use
-`name@cookpool.test`.
+SI-2 limited stage's on-screen codes to `@cookpool.test`. Stage sends no
+email yet, so real addresses could not sign in there, and SI-9 (2026-11-03,
+at the owner's request) shows the code for every address again. Anyone who
+types someone's email on stage can sign in as them there. Stage is a test
+environment with no real people's data; keep it that way while this holds,
+and set stage back to `cookpool.test` (or empty) once email is delivered.
+Prod never returns or shows a code.
 
 ## SI-D — the address limit can be used to annoy (ACCEPTED)
 
