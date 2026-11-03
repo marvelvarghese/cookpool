@@ -30,7 +30,7 @@ const digest = useSoonEmailData({
     { name: "Tomatoes", pantry: "Flat 4B", useBy: "2026-11-03" },
     { name: "Paneer", pantry: "Flat 4B", useBy: "2026-11-04" },
   ],
-  homeUrl: "https://stage.cookpool.app/home",
+  homeUrl: "https://stage.cookpool.store/home",
 });
 
 const dish: DishPostedEmail = {
@@ -39,7 +39,7 @@ const dish: DishPostedEmail = {
   groupName: "Flat 4B",
   portions: "4½",
   total: "₹240.00",
-  dishUrl: "https://stage.cookpool.app/dishes/dsh_0123",
+  dishUrl: "https://stage.cookpool.store/dishes/dsh_0123",
 };
 
 const logged: LoggedForYouEmail = {
@@ -50,7 +50,7 @@ const logged: LoggedForYouEmail = {
   total: "₹15.00",
   yourShare: "₹7.50",
   youPaid: null,
-  groupUrl: "https://stage.cookpool.app/groups/flat-4b",
+  groupUrl: "https://stage.cookpool.store/groups/flat-4b",
 };
 
 describe("kitchen.use_soon", () => {
@@ -67,13 +67,13 @@ describe("kitchen.use_soon", () => {
         "• Tomatoes — Flat 4B — use by tomorrow",
         "• Paneer — Flat 4B — use by Wed 4 Nov",
         "",
-        "Use them before they go: https://stage.cookpool.app/home",
+        "Use them before they go: https://stage.cookpool.store/home",
         "",
         "You get this once a day when something you can use is close to its use-by date.",
       ].join("\n"),
     );
     expect(email.html).toContain("<li style=\"margin:0 0 6px;\">Milk — My pantry — use by today</li>");
-    expect(email.html).toContain('href="https://stage.cookpool.app/home"');
+    expect(email.html).toContain('href="https://stage.cookpool.store/home"');
     expect(email.html).toContain("Sent by cookpool.");
   });
 
@@ -89,7 +89,7 @@ describe("kitchen.use_soon", () => {
     const items = Array.from({ length: 14 }, (_, i) => ({ name: `Item ${i + 1}`, pantry: "My pantry", useBy: "2026-11-04" }));
     const many = renderEmailTemplate(
       KITCHEN_EMAILS.USE_SOON,
-      useSoonEmailData({ recipientName: "Rahul", date: "2026-11-02", count: 14, items, homeUrl: "https://stage.cookpool.app/home" }),
+      useSoonEmailData({ recipientName: "Rahul", date: "2026-11-02", count: 14, items, homeUrl: "https://stage.cookpool.store/home" }),
     )!;
     expect(many.subject).toBe("14 things to use soon");
     expect(many.text.match(/^• /gm)).toHaveLength(USE_SOON_EMAIL_MAX_ITEMS);
@@ -109,8 +109,8 @@ describe("kitchen.dish_posted", () => {
     const email = renderEmailTemplate(KITCHEN_EMAILS.DISH_POSTED, dish)!;
     expect(email.subject).toBe("Meera made egg fried rice — claim yours");
     expect(email.text).toContain("Meera made egg fried rice for Flat 4B: 4½ portions, ₹240.00 in all.");
-    expect(email.text).toContain("Claim yours: https://stage.cookpool.app/dishes/dsh_0123");
-    expect(email.html).toContain('href="https://stage.cookpool.app/dishes/dsh_0123"');
+    expect(email.text).toContain("Claim yours: https://stage.cookpool.store/dishes/dsh_0123");
+    expect(email.html).toContain('href="https://stage.cookpool.store/dishes/dsh_0123"');
     expect(renderEmailTemplate(KITCHEN_EMAILS.DISH_POSTED, { ...dish, portions: "1" })!.text).toContain(": 1 portion, ");
   });
 
@@ -127,7 +127,7 @@ describe("kitchen.logged_for_you", () => {
     expect(email.text).toContain("In Flat 4B: 250 ml of milk, ₹15.00 in all.");
     expect(email.text).toContain("Your share: ₹7.50.");
     expect(email.text).not.toContain("You paid");
-    expect(email.html).toContain('href="https://stage.cookpool.app/groups/flat-4b"');
+    expect(email.html).toContain('href="https://stage.cookpool.store/groups/flat-4b"');
   });
 
   it("says what the recipient paid, for an expense", () => {

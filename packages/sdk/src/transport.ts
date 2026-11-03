@@ -18,7 +18,7 @@ export type AuthOption =
 export interface ClientOptions {
   /**
    * Base URL of the Cookpool api-edge worker, e.g.
-   * `https://api.cookpool.app`. Trailing slash is stripped.
+   * `https://cookpool-api-edge-prod.cookpool.workers.dev`. Trailing slash is stripped.
    */
   baseUrl: string;
   /** Optional auth credential; sent on every request when present. */

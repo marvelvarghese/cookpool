@@ -32,7 +32,7 @@
         "ENVIRONMENT": "stage",
         "NOTIFICATIONS_PROVIDER": "cloudflare-email",
         "DEBUG_DELIVERY": "true",
-        "EMAIL_FROM_ADDRESS": "no-reply@mail.cookpool.app",
+        "EMAIL_FROM_ADDRESS": "no-reply@mail.cookpool.store",
         "EMAIL_FROM_NAME": "cookpool"
       },
       "send_email": [
@@ -60,7 +60,7 @@
         "ENVIRONMENT": "prod",
         "NOTIFICATIONS_PROVIDER": "cloudflare-email",
         "DEBUG_DELIVERY": "false",
-        "EMAIL_FROM_ADDRESS": "no-reply@mail.cookpool.app",
+        "EMAIL_FROM_ADDRESS": "no-reply@mail.cookpool.store",
         "EMAIL_FROM_NAME": "cookpool"
       },
       "send_email": [

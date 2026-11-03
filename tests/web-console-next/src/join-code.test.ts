@@ -39,8 +39,8 @@ describe("extractJoinCode", () => {
     expect(extractJoinCode("https://cookpool-web-console-next-prod.example.workers.dev/join/KTCH2345")).toBe(
       "KTCH2345",
     );
-    expect(extractJoinCode("https://cookpool.app/join/ktch-2345?ref=whatsapp#top")).toBe("KTCH2345");
-    expect(extractJoinCode("cookpool.app/join/KTCH2345/")).toBe("KTCH2345");
+    expect(extractJoinCode("https://cookpool.store/join/ktch-2345?ref=whatsapp#top")).toBe("KTCH2345");
+    expect(extractJoinCode("cookpool.store/join/KTCH2345/")).toBe("KTCH2345");
     expect(extractJoinCode("/join/KTCH%202345")).toBe("KTCH2345");
     expect(extractJoinCode("join/ktch2345")).toBe("KTCH2345");
     expect(extractJoinCode("HTTPS://COOKPOOL.APP/JOIN/KTCH2345")).toBe("KTCH2345");
@@ -54,8 +54,8 @@ describe("extractJoinCode", () => {
     expect(extractJoinCode("")).toBeNull();
     expect(extractJoinCode("   ")).toBeNull();
     expect(extractJoinCode(null)).toBeNull();
-    expect(extractJoinCode("https://cookpool.app/join/")).toBeNull();
-    expect(extractJoinCode("https://cookpool.app/groups/flat-4b")).toBeNull();
+    expect(extractJoinCode("https://cookpool.store/join/")).toBeNull();
+    expect(extractJoinCode("https://cookpool.store/groups/flat-4b")).toBeNull();
     expect(extractJoinCode("/join/%E0%A4%A")).toBeNull(); // malformed escape, not a code
     expect(extractJoinCode("hello there")).toBeNull();
   });
@@ -69,12 +69,12 @@ describe("join links", () => {
 
   it("builds the in-app path and the shareable URL", () => {
     expect(joinPath("KTCH2345")).toBe("/join/KTCH2345");
-    expect(joinUrl("https://cookpool.app", "KTCH2345")).toBe("https://cookpool.app/join/KTCH2345");
-    expect(joinUrl("https://cookpool.app/", "KTCH2345")).toBe("https://cookpool.app/join/KTCH2345");
+    expect(joinUrl("https://cookpool.store", "KTCH2345")).toBe("https://cookpool.store/join/KTCH2345");
+    expect(joinUrl("https://cookpool.store/", "KTCH2345")).toBe("https://cookpool.store/join/KTCH2345");
   });
 
   it("round-trips: a shared URL extracts back to its code", () => {
-    expect(extractJoinCode(joinUrl("https://cookpool.app", "KTCH2345"))).toBe("KTCH2345");
+    expect(extractJoinCode(joinUrl("https://cookpool.store", "KTCH2345"))).toBe("KTCH2345");
   });
 });
 

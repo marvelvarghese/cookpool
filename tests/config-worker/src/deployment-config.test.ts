@@ -273,10 +273,10 @@ describe("kitchen-worker deployment config", () => {
     });
 
     test(`${envName} links emails to the ${envName} app over https`, () => {
-      // The live console on workers.dev: cookpool.app is not registered yet,
-      // so links to it would not open. Change both when the domain exists.
+      // The app's own domain (SI-8): stage.cookpool.store, and the bare
+      // cookpool.store for prod.
       expect(rendered.env[envName]?.vars?.APP_URL).toBe(
-        `https://cookpool-web-console-next-${envName}.cookpool.workers.dev`,
+        envName === "prod" ? "https://cookpool.store" : `https://${envName}.cookpool.store`,
       );
     });
 

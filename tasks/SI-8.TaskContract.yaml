@@ -1,0 +1,35 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-8
+  title: "Cookpool on cookpool.store"
+spec:
+  goal: Cookpool runs on the domain the owner bought, cookpool.store, for the app and for email, so links in emails open the app and sign-in codes reach people's inboxes.
+  affects:
+    - default/cookpool/cloudflare-domain
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - default/cookpool/billing-worker
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - default/cookpool/config-worker-tests
+    - default/cookpool/contracts-tests
+    - intent.yaml
+    - .rebrand/values.json
+    - ai/context/**
+    - default/cookpool/cli
+    - specs/epics/cookpool-sign-in/**
+    - specs/epics/cookpool-kitchen/**
+    - tasks/SI-8.TaskContract.yaml
+  doneWhen:
+    - https://cookpool.store and https://stage.cookpool.store open the app, and the workers.dev URLs still work
+    - a sign-in code requested on prod arrives from no-reply@mail.cookpool.store
+    - no cookpool.app remains outside the docs' history
+  gates: []

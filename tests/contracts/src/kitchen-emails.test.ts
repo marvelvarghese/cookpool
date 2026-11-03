@@ -42,7 +42,7 @@ describe("kitchen emails", () => {
         { name: "Milk", pantry: "My pantry", useBy: "2026-11-02" },
         { name: "Paneer", pantry: "Flat 4B", useBy: "2026-11-04" },
       ],
-      homeUrl: "https://stage.cookpool.app/home",
+      homeUrl: "https://stage.cookpool.store/home",
     };
     const data = useSoonEmailData(digest);
     expect(data).toEqual({
@@ -50,7 +50,7 @@ describe("kitchen emails", () => {
       date: "2026-11-02",
       count: 2,
       listed: 2,
-      homeUrl: "https://stage.cookpool.app/home",
+      homeUrl: "https://stage.cookpool.store/home",
       item1Name: "Milk",
       item1Pantry: "My pantry",
       item1UseBy: "2026-11-02",
@@ -82,7 +82,7 @@ describe("kitchen emails", () => {
       groupName: "Flat 4B",
       portions: "4½",
       total: "₹240.00",
-      dishUrl: "https://stage.cookpool.app/dishes/dsh_1",
+      dishUrl: "https://stage.cookpool.store/dishes/dsh_1",
     };
     const logged: LoggedForYouEmail = {
       kind: "expense",
@@ -92,7 +92,7 @@ describe("kitchen emails", () => {
       total: "₹600.00",
       yourShare: "₹200.00",
       youPaid: null,
-      groupUrl: "https://stage.cookpool.app/groups/flat-4b",
+      groupUrl: "https://stage.cookpool.store/groups/flat-4b",
     };
     expect(Object.keys(dish)).toHaveLength(6);
     expect(Object.keys(logged)).toHaveLength(8);

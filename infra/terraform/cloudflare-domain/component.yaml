@@ -28,14 +28,14 @@ spec:
     stackName: cloudflare-domain
     terraformDir: terraform
     terraformVersion: "1.15.3"
-    baseDomain: cookpool.app
+    baseDomain: cookpool.store
     zoneMode: existing
     workerNamePrefix: cookpool-web-console-next
     # NOTE: `CONSOLE_CUSTOM_DOMAIN` is intentionally NOT declared here.
     # It is supplied per-environment via
     # `environments.{dev,stage,prod}.parameterDefaults.terraform.CONSOLE_CUSTOM_DOMAIN`
-    # in `intent.yaml` (dev: "", stage: stage.cookpool.app,
-    # prod: prod.cookpool.app) and surfaced to Terraform as
+    # in `intent.yaml` (dev: "", stage: stage.cookpool.store,
+    # prod: cookpool.store) and surfaced to Terraform as
     # `TF_VAR_CONSOLE_CUSTOM_DOMAIN` by the generic `.parameters` →
     # `TF_VAR_<key>` loop in the cloudflare-domain-validate job template.
     # Declaring a default here would shadow the parameterDefault override
@@ -48,6 +48,16 @@ spec:
   dependsOn:
     - component: web-console-next
 
+  # STILL PARKED after SI-8 (2026-11-03). The zone cookpool.store now exists
+  # in the connected account, but this stack's Terraform no longer attaches
+  # anything: Phase 1 of the v4→v5 migration dropped the custom-domain
+  # resource and Phase 2 (0085b) never re-added it, and the brokered deploy
+  # token has no zone or DNS rights. The two Workers Custom Domains
+  # (cookpool.store → cookpool-web-console-next-prod, stage.cookpool.store →
+  # …-stage) were attached in the Cloudflare dashboard instead. Bring them
+  # under Terraform here (cloudflare_workers_custom_domain, a token from a
+  # template with zone rights) before restoring the subscribe block.
+  #
   # PARKED — no environment subscriptions, so no jobs are planned. The zone
   # this stack manages (`baseDomain`) must exist in the connected Cloudflare
   # account, or `data.cloudflare_zone.existing` fails every plan with "no

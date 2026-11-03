@@ -42,7 +42,7 @@
     "stage": {
       "vars": {
         "ENVIRONMENT": "stage",
-        "CONSOLE_CUSTOM_DOMAIN": "stage.cookpool.app",
+        "CONSOLE_CUSTOM_DOMAIN": "stage.cookpool.store",
         "SOLO_MODE": "false"
       },
       "d1_databases": [
@@ -116,7 +116,7 @@
     "prod": {
       "vars": {
         "ENVIRONMENT": "prod",
-        "CONSOLE_CUSTOM_DOMAIN": "prod.cookpool.app",
+        "CONSOLE_CUSTOM_DOMAIN": "cookpool.store",
         "SOLO_MODE": "false"
       },
       "d1_databases": [

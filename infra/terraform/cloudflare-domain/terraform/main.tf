@@ -88,7 +88,7 @@ variable "terraformVersion" {
 
 variable "baseDomain" {
   type        = string
-  default     = "cookpool.app"
+  default     = "cookpool.store"
   description = "Root domain to manage (from BASE_DOMAIN env or component parameter)"
 }
 
