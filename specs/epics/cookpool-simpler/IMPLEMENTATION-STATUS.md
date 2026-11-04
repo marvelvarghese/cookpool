@@ -6,8 +6,8 @@ the code departed from `design.md`.
 | Milestone | State | PR |
 |---|---|---|
 | SM0 — the spec | ✅ shipped 2026-11-04 | #36 (SM-1) |
-| SM1 — fast | in progress | #37 (SM-3), SM-2 |
-| SM2 — for anyone | | |
+| SM1 — fast | in progress | #37 (SM-3), #38 (SM-2) |
+| SM2 — for anyone | in progress | SM-6 |
 | SM3 — from before | | |
 | SM4 — simpler screens | | |
 | SM5 — the rest | | |
