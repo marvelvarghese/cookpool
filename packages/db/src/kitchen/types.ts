@@ -688,6 +688,13 @@ export interface KitchenRepository {
   recordSweep(input: RecordSweepInput): Promise<KitchenResult<KitchenSweepRecord>>;
   /** The latest day swept, or null when the sweep has never run. */
   lastSweep(): Promise<KitchenResult<KitchenSweepRecord | null>>;
+
+  // ── From before (SM-8) ──
+
+  /** Names bought before in the scope's pantries, each with its newest record (see `KitchenItemHistoryQuery`). ONE read. */
+  itemHistory(query: KitchenItemHistoryQuery): Promise<KitchenResult<KitchenItemHistoryRecord[]>>;
+  /** Dish names cooked before, each with its newest dish's ingredients matched to usable items (see `KitchenRecipesQuery`). ONE read. */
+  recipes(query: KitchenRecipesQuery): Promise<KitchenResult<KitchenRecipeRecord[]>>;
 }
 
 // ── Dishes (CP-14) ──────────────────────────────────────────
@@ -1037,4 +1044,91 @@ export interface RecordSweepInput {
 export interface KitchenSweepRecord extends RecordSweepInput {
   /** How many times this day was swept. */
   runs: number;
+}
+
+// ── From before (SM-8) ──────────────────────────────────────
+
+/**
+ * Past items in the scope's pantries, one row per name (case-insensitively,
+ * SQLite's ASCII `lower()`): every record that was bought — active, used up
+ * or wasted; not one removed as a mistake, nor a dish's leftovers — counts.
+ * Names starting with `q` come first, then names with a word starting with
+ * it, then names containing it; newest first within each (the newest
+ * record's bought_on, then created_at). Empty `q` matches every name.
+ */
+export interface KitchenItemHistoryQuery extends KitchenPantryScope {
+  q: string;
+  limit: number;
+}
+
+/** One name bought before: its newest record, and how many records share the name. */
+export interface KitchenItemHistoryRecord {
+  /** The newest record (latest bought_on, then created_at, then id): what fills the form. */
+  item: KitchenItemRecord;
+  times: number;
+}
+
+/**
+ * Past dishes, one row per name (case-insensitively), with the ingredients
+ * of the newest one, each matched to an item the caller may use now — in ONE
+ * read. Dishes are the caller's own and those shared with `orgIds`, except
+ * canceled ones; names match `q` as on `KitchenItemHistoryQuery`, newest
+ * first within each tier (cooked_at, then id).
+ */
+export interface KitchenRecipesQuery {
+  /** The caller (`usr_…`): the dishes they cooked, and their own pantry for matches. */
+  subjectId: string;
+  /** Groups whose shared dishes are read (every group the caller is in). */
+  orgIds: readonly string[];
+  /** Groups whose items may be matched (the caller's role holds kitchen.item.use there). */
+  usableOrgIds: readonly string[];
+  q: string;
+  limit: number;
+}
+
+/**
+ * The item an ingredient would come from now: active, something left, the same
+ * name (case-insensitively) and dimension, in the caller's own pantry or a
+ * usable group — the one in the pantry it came from last time first (the
+ * same group; the caller's own pantry for their own dish's own items), then
+ * the one with most left, then the soonest use-by, then by id.
+ */
+export interface KitchenRecipeMatchRecord {
+  itemId: string;
+  /** Its group; null for the caller's own pantry. */
+  orgId: string | null;
+  qtyLeftMilli: number;
+}
+
+/** One ingredient of the newest dish of a name, in the cook's order. */
+export interface KitchenRecipeIngredientRecord {
+  /** The item it was taken from. */
+  itemId: string;
+  /** That item's name now. */
+  name: string;
+  dimension: KitchenDimension;
+  position: number;
+  qtyMilli: number;
+  /** The unit it was entered in. */
+  unit: string;
+  /** The group pantry it came from; null for the cook's own. */
+  orgId: string | null;
+  match: KitchenRecipeMatchRecord | null;
+}
+
+/** One dish name cooked before: its newest dish, and how many dishes share the name. */
+export interface KitchenRecipeRecord {
+  /** The newest dish of the name. */
+  dishId: string;
+  cook: string;
+  /** The group the newest dish was shared with; null for just its cook. */
+  orgId: string | null;
+  name: string;
+  portionsHalf: number;
+  extrasMinor: number;
+  totalMinor: number;
+  currency: string;
+  cookedAt: Date;
+  times: number;
+  ingredients: KitchenRecipeIngredientRecord[];
 }

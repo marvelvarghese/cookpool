@@ -55,6 +55,8 @@ import type {
 } from "@saas/contracts/kitchen";
 
 import type { RequestOptions, Transport } from "./transport.js";
+// "From before" (SM-8).
+import type { ItemHistoryQuery, ItemHistoryResponse, RecipesQuery, RecipesResponse } from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -499,6 +501,44 @@ export class KitchenClient {
   usuals(query: UsualsQuery = {}, opts: RequestOptions = {}): Promise<UsualsResponse> {
     return this.transport.request<UsualsResponse>(
       { method: "GET", path: this.mePath("usuals"), query: { limit: query.limit } },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // From before (SM-8)
+  //
+  // The type-ahead on Bought and Cook: what the caller (or their groups)
+  // bought and cooked before, grouped by name, best match and newest first —
+  // one database read each, so they can run as someone types.
+  // -------------------------------------------------------------------------
+
+  /**
+   * GET /v1/kitchen/me/items/history
+   *
+   * Names bought before across the caller's own pantry and their groups —
+   * used up and wasted ones too — each with last time's quantity, unit,
+   * price, pantry, buyer, waste rule and use-by offset, and how often it was
+   * bought. An empty `q` lists the most recent (`limit` 1–20, default 8).
+   */
+  itemHistory(q = "", query: Omit<ItemHistoryQuery, "q"> = {}, opts: RequestOptions = {}): Promise<ItemHistoryResponse> {
+    return this.transport.request<ItemHistoryResponse>(
+      { method: "GET", path: this.mePath("items/history"), query: { q: q || undefined, limit: query.limit } },
+      opts,
+    );
+  }
+
+  /**
+   * GET /v1/kitchen/me/dishes/recipes
+   *
+   * Dishes cooked before — the caller's and those shared with their groups —
+   * each with last time's portions and extras and its ingredients, every one
+   * matched to an item the caller may use now (`match`, null when there is
+   * none). An empty `q` lists the most recent (`limit` 1–20, default 8).
+   */
+  recipes(q = "", query: Omit<RecipesQuery, "q"> = {}, opts: RequestOptions = {}): Promise<RecipesResponse> {
+    return this.transport.request<RecipesResponse>(
+      { method: "GET", path: this.mePath("dishes/recipes"), query: { q: q || undefined, limit: query.limit } },
       opts,
     );
   }

@@ -1860,6 +1860,204 @@ describe("the daily sweep, against a real SQLite engine (270_kitchen_sweeps)", (
   });
 });
 
+// Cookpool SM-8: "from before" — the item history and the recipes reads. Each
+// is ONE statement the app runs as someone types, so they are checked here
+// against the engine itself, plans included: the pantries and dishes in scope
+// are found through the owner and group indexes (no scan of every pantry's
+// items or every dish's ingredients), with no new index.
+describe("from before, against a real SQLite engine (SM-8)", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  /** Every statement the repository sent, with what it bound. */
+  let sent: Array<{ query: string; values: unknown[] }>;
+  const flat = asUuid("d1d1d1d1-d1d1-41d1-81d1-d1d1d1d1d1d1");
+  const lunch = asUuid("e1e1e1e1-e1e1-41e1-81e1-e1e1e1e1e1e1");
+  const elsewhere = asUuid("f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f1f1");
+  const me = { kind: "user", subjectId: "usr_rahul" } as const;
+  let seq = 0;
+  let clock = new Date("2026-11-04T08:00:00.000Z");
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    sent = [];
+    const binding = d1Over(db);
+    executor = createSqlExecutor({
+      ...binding,
+      prepare(query: string) {
+        const statement = binding.prepare(query);
+        const record = { query, values: [] as unknown[] };
+        sent.push(record);
+        return {
+          ...statement,
+          bind(...values: unknown[]) {
+            record.values = values;
+            statement.bind(...values);
+            return this;
+          },
+          all: () => statement.all(),
+        };
+      },
+      batch: (statements: unknown[]) => binding.batch!(statements as never),
+    } as unknown as D1Binding);
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  /** What SQLite would do with the last statement sent, as one line per step. */
+  function lastPlan(): string[] {
+    const last = sent[sent.length - 1]!;
+    return (db.prepare(`EXPLAIN QUERY PLAN ${last.query}`).all(...(last.values as never[])) as Array<{ detail: string }>).map((p) => p.detail);
+  }
+
+  function newItem(overrides: Partial<NewKitchenItem> = {}): NewKitchenItem {
+    seq += 1;
+    clock = new Date(clock.getTime() + 60_000);
+    return {
+      id: asUuid(randomUUID()),
+      owner: me,
+      name: `Item ${seq}`,
+      category: "Veg",
+      dimension: "mass",
+      displayUnit: "g",
+      qtyMilli: 1_000_000,
+      priceMinor: 4000,
+      currency: "INR",
+      paidBy: "usr_rahul",
+      boughtOn: "2026-11-01",
+      expiresOn: null,
+      wastePolicy: null,
+      createdBy: "usr_rahul",
+      idemKey: `add-${seq}`,
+      now: clock,
+      ...overrides,
+    };
+  }
+
+  async function add(overrides: Partial<NewKitchenItem>): Promise<NewKitchenItem> {
+    const item = newItem(overrides);
+    expect((await createKitchenRepository(executor).createItem({ item })).ok).toBe(true);
+    return item;
+  }
+
+  const version = (itemId: string) =>
+    (db.prepare("SELECT version FROM kitchen_items WHERE id = ?").get(itemId) as { version: number }).version;
+
+  /** A dish taking `qtyMilli` of each item (charged to nobody: these reads never look at money). */
+  async function cook(
+    name: string,
+    items: Array<{ item: NewKitchenItem; qtyMilli: number; unit?: string }>,
+    dish: { cook?: string; orgId?: string | null; state?: "draft" | "open" } = {},
+  ): Promise<string> {
+    clock = new Date(clock.getTime() + 60_000);
+    const id = asUuid(randomUUID());
+    const result = await createKitchenRepository(executor).cookDish({
+      dish: {
+        id, cook: dish.cook ?? "usr_rahul", orgId: (dish.orgId ?? null) as typeof flat | null, name, portionsHalf: 4,
+        extrasMinor: 500, currency: "INR", splitMode: "assign", state: dish.state ?? "draft", idemKey: `cook-${id}`, now: clock,
+      },
+      newItems: [],
+      ingredients: items.map(({ item, qtyMilli, unit }) => ({
+        owner: item.owner, itemId: item.id, expectedVersion: version(item.id), qtyMilli, unit: unit ?? item.displayUnit, costMinor: 0,
+        paidBy: item.paidBy, useTxnId: null, moveId: asUuid(randomUUID()),
+      })),
+      txns: [],
+      audits: [],
+    });
+    expect(result.ok || result.error).toBe(true);
+    return id;
+  }
+
+  it("reads past items by name in one statement: the newest record of each, how many there were, best match first", async () => {
+    await add({ name: "Milk", boughtOn: "2026-10-01", dimension: "volume", displayUnit: "L" });
+    const used = await add({ name: "MILK", boughtOn: "2026-10-20", dimension: "volume", displayUnit: "L" });
+    db.prepare("UPDATE kitchen_items SET qty_left_milli = 0, state = 'used_up' WHERE id = ?").run(used.id);
+    const newest = await add({ owner: { kind: "group", orgId: flat }, name: "milk", boughtOn: "2026-11-02", paidBy: "usr_anu", dimension: "volume", displayUnit: "ml" });
+    const removed = await add({ name: "Milk", boughtOn: "2026-11-04" });
+    db.prepare("UPDATE kitchen_items SET state = 'removed' WHERE id = ?").run(removed.id);
+    const leftovers = await add({ name: "Milk", boughtOn: "2026-11-04" });
+    db.prepare("UPDATE kitchen_items SET source_dish_id = ? WHERE id = ?").run(randomUUID(), leftovers.id);
+    await add({ owner: { kind: "group", orgId: elsewhere }, name: "Milk", boughtOn: "2026-11-04", paidBy: "usr_x" });
+    await add({ name: "Almond milk", boughtOn: "2026-11-03" });
+    await add({ name: "Jasmine rice", boughtOn: "2026-11-03" });
+
+    const repo = createKitchenRepository(executor);
+    const scope = { ownerSubjectId: "usr_rahul", orgIds: [flat, lunch] };
+    const before = sent.length;
+    const found = await repo.itemHistory({ ...scope, q: "mil", limit: 8 });
+    expect(found.ok && found.value.map((r) => [r.item.id, r.item.name, r.times])).toEqual([
+      [newest.id, "milk", 3],
+      [expect.any(String), "Almond milk", 1],
+    ]);
+    expect(sent.length - before).toBe(1);
+    const plan = lastPlan();
+    // The two pantries through their own indexes (a person's and a group's), never a scan of the table.
+    expect(plan.join(" | ")).toMatch(/MULTI-INDEX OR/);
+    expect(plan.filter((p) => /kitchen_items/.test(p))).toEqual([
+      expect.stringMatching(/^SEARCH kitchen_items USING INDEX \w+ \(owner_subject_id=\?\)$/),
+      expect.stringMatching(/^SEARCH kitchen_items USING INDEX \w+ \(org_id=\?\)$/),
+    ]);
+
+    const recent = await repo.itemHistory({ ...scope, q: "", limit: 2 });
+    expect(recent.ok && recent.value.map((r) => r.item.name)).toEqual(["Jasmine rice", "Almond milk"]); // the same day: the one added last first
+    const none = await repo.itemHistory({ ownerSubjectId: "usr_nobody", orgIds: [], q: "", limit: 8 });
+    expect(none).toEqual({ ok: true, value: [] });
+  });
+
+  it("reads past dishes with their newest ingredients matched to usable items, in one statement that never scans every pantry or dish", async () => {
+    const eggs = await add({ name: "Eggs", dimension: "count", displayUnit: "pcs", qtyMilli: 12_000 });
+    const rice = await add({ owner: { kind: "group", orgId: flat }, name: "Rice", paidBy: "usr_anu" });
+    const ghee = await add({ owner: { kind: "group", orgId: elsewhere }, name: "Ghee", paidBy: "usr_x", dimension: "volume", displayUnit: "ml" });
+    await cook("Egg fried rice", [{ item: eggs, qtyMilli: 2_000 }, { item: rice, qtyMilli: 200_000 }], { orgId: flat });
+    const newestDish = await cook("egg fried rice", [{ item: rice, qtyMilli: 250_000 }, { item: eggs, qtyMilli: 4_000 }], { orgId: flat });
+    // Someone else's dish shared with a group Rahul is not in: not his to read.
+    await cook("Egg curry", [{ item: ghee, qtyMilli: 10_000, unit: "ml" }], { cook: "usr_x", orgId: elsewhere });
+    // Rice usable in the Lunch club with more left; the flat's still wins (last time's pantry).
+    await add({ owner: { kind: "group", orgId: lunch }, name: "rice", paidBy: "usr_kiran", qtyMilli: 5_000_000 });
+    // Eggs only by weight elsewhere: not the same dimension.
+    await add({ name: "eggs", dimension: "mass" });
+
+    const repo = createKitchenRepository(executor);
+    const query = { subjectId: "usr_rahul", orgIds: [flat, lunch], usableOrgIds: [flat, lunch], limit: 8 };
+    const before = sent.length;
+    const found = await repo.recipes({ ...query, q: "egg" });
+    expect(sent.length - before).toBe(1);
+    expect(found.ok && found.value).toEqual([
+      {
+        dishId: newestDish, cook: "usr_rahul", orgId: flat, name: "egg fried rice", portionsHalf: 4, extrasMinor: 500,
+        totalMinor: 500, currency: "INR", cookedAt: expect.any(Date), times: 2,
+        ingredients: [
+          { itemId: rice.id, name: "Rice", dimension: "mass", position: 0, qtyMilli: 250_000, unit: "g", orgId: flat,
+            match: { itemId: rice.id, orgId: flat, qtyLeftMilli: 550_000 } },
+          { itemId: eggs.id, name: "Eggs", dimension: "count", position: 1, qtyMilli: 4_000, unit: "pcs", orgId: null,
+            match: { itemId: eggs.id, orgId: null, qtyLeftMilli: 6_000 } },
+        ],
+      },
+    ]);
+
+    const plan = lastPlan();
+    // Dishes by cook and by group; ingredients and their items by key; candidate items by owner and by group.
+    expect(plan).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^SEARCH d USING INDEX \w+ \(cook=\?\)$/),
+      expect.stringMatching(/^SEARCH d USING INDEX kitchen_dishes_org_idx \(org_id=\?\)$/),
+      expect.stringMatching(/^SEARCH di USING INDEX \w+ \(dish_id=\?\)$/),
+      expect.stringMatching(/^SEARCH i USING INDEX \w+ \(id=\?\)$/),
+      "SEARCH c USING INDEX kitchen_items_owner_state_idx (owner_subject_id=? AND state=?)",
+      "SEARCH c USING INDEX kitchen_items_org_state_idx (org_id=? AND state=?)",
+    ]));
+    // No step scans a table: only the small sets the statement built itself.
+    expect(plan.filter((p) => /^SCAN (d|di|i|c|kitchen_\w+)\b/.test(p))).toEqual([]);
+
+    // A canceled dish neither shows nor counts; no text lists the most recent.
+    db.prepare("UPDATE kitchen_dishes SET state = 'canceled', canceled_at = ? WHERE id = ?").run(clock.toISOString(), newestDish);
+    const after = await repo.recipes({ ...query, q: "" });
+    expect(after.ok && after.value.map((r) => [r.name, r.times, r.ingredients.map((i) => i.qtyMilli)])).toEqual([
+      ["Egg fried rice", 1, [2_000, 200_000]],
+    ]);
+  });
+});
+
 // Cookpool SI-2: a code allows 5 tries, and an address can ask for 5 codes in
 // 15 minutes. Both limits are one guarded statement each, so they are checked
 // here against the engine itself, with requests racing: a read-then-write

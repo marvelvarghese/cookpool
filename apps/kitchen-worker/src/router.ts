@@ -13,6 +13,7 @@ import {
   handleUpdateGroupItem,
 } from "./handlers/group-items.js";
 import { handleHealth } from "./handlers/health.js";
+import { handleItemHistory, handleRecipes } from "./handlers/from-before.js";
 import { handleCreateMyItem, handleGetMyItem, handleRemoveMyItem, handleUpdateMyItem } from "./handlers/my-items.js";
 import {
   handleMyItemMoves,
@@ -211,6 +212,18 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.pantries",
     pattern: /^\/v1\/kitchen\/me\/pantries$/,
     methods: { GET: handleMyPantries },
+  },
+  // From before (SM-8). Listed ahead of the item and dish routes: their
+  // `{itm}` / `{dsh}` capture would otherwise take "history" and "recipes".
+  {
+    name: "kitchen.me.items.history",
+    pattern: /^\/v1\/kitchen\/me\/items\/history$/,
+    methods: { GET: handleItemHistory },
+  },
+  {
+    name: "kitchen.me.dishes.recipes",
+    pattern: /^\/v1\/kitchen\/me\/dishes\/recipes$/,
+    methods: { GET: handleRecipes },
   },
   {
     name: "kitchen.me.items",
