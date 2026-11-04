@@ -6,9 +6,9 @@ the code departed from `design.md`.
 | Milestone | State | PR |
 |---|---|---|
 | SM0 — the spec | ✅ shipped 2026-11-04 | #36 (SM-1) |
-| SM1 — fast | in progress | #37 (SM-3), #38 (SM-2) |
+| SM1 — fast | in progress | #37 (SM-3), #38 (SM-2), #41 (SM-4) |
 | SM2 — for anyone | in progress | #39 (SM-6) |
-| SM3 — from before | in progress | SM-8 |
+| SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), SM-9 |
 | SM4 — simpler screens | | |
 | SM5 — the rest | | |
 
@@ -232,6 +232,112 @@ the code departed from `design.md`.
   database), node:sqlite runs a history read in 23 ms ("mi") and 80 ms (empty
   text). A recipes read over 2,000 visible dishes (22,000 in all) takes
   14 ms.
+
+### SM1 — the API on the app's address (SM-4)
+
+- **A service binding from the console Worker, not a Workers Route.** Design
+  §1.2 item 2 had `cookpool.store/api/*` routed to api-edge on the zone, an
+  owner step in the dashboard (the deploy token has no zone rights), and
+  workers.dev hosts left on the workers.dev API. Instead the console Worker
+  answers `/api/*` itself and forwards it to api-edge over `API_EDGE` (prefix
+  stripped; method, headers, body and query as they came; `redirect:
+  "manual"`; api-edge's answer returned as it is). It works on every host the
+  console serves, workers.dev included, and deploys with the console: no
+  dashboard step. design.md and risk SM-B now say so. `assets.run_worker_first:
+  ["/api/*"]` keeps the API out of the static assets and SM-2's `_redirects`.
+- **Its own entry, with OpenNext imported lazily.** `wrangler.jsonc` `main` is
+  `src/worker/index.mjs`; it handles `/api` and imports `.open-next/worker.js`
+  with a dynamic `import()` on the first other request, and re-exports
+  OpenNext's two Durable Object classes (`DOQueueHandler`,
+  `DOShardedTagCache`) so the deploy exports what it did. Verified: the
+  bundle wrangler builds (esbuild, no `no_bundle`, no code splitting) wraps
+  all of OpenNext in a deferred initializer that only the page path calls;
+  under `wrangler dev` a log line at the top of OpenNext's module did not
+  appear across `/api` requests (first one 19 ms, then 2 ms) and appeared
+  on the first page the Worker rendered (`/orgs`, 268 ms, then 12 ms). Not
+  avoided: it is still one 16.6 MB script (2.5 MB gzipped), so a cold isolate
+  still loads and compiles it before an `/api` request; compiling it without
+  running it took ~90 ms in Node on a laptop. Risk SM-B says what to do if
+  that shows in the timing check.
+- **Per-environment bindings through `CLOUDFLARE_ENV`.** The composition
+  (`cloudflare-workers-assets-turbo`) deploys with `--name
+  cookpool-web-console-next-<env>` and no `--env`, and the committed
+  `wrangler.jsonc` had no environments. It now has `dev`, `stage` and `prod`
+  sections (only stage and prod bind `API_EDGE` → `cookpool-api-edge-<env>`),
+  and the component sets `env: CLOUDFLARE_ENV: "{{ .environment }}"`, which
+  wrangler reads like `--env` (`--name` still names the Worker; checked in
+  `orun plan`, which renders `CLOUDFLARE_ENV: stage` / `prod` / `dev` on each
+  job). `vars` do not carry into environments, so each section repeats them;
+  tests/config-worker keeps all four the same. Without `CLOUDFLARE_ENV`
+  (local `wrangler dev`) the top level applies and `/api` answers 503
+  `internal_error` (`details.reason: "api_edge_unbound"`).
+- **The client address: trusted from the console only over its binding.**
+  api-edge keys signed-out rate limits on `CF-Connecting-IP`, which a
+  service-binding request does not carry. The console strips every address
+  header a client sent (`CF-Connecting-IP`, `X-Forwarded-For`, `X-Real-IP`,
+  `True-Client-IP`, `Forwarded`, `x-console-client-ip`, …) and sends the
+  `CF-Connecting-IP` Cloudflare gave it as `x-console-client-ip`. The rule
+  in api-edge (`src/client-ip.ts`), applied once at the entry: when
+  `ctx.props.caller === "web-console-next"` (the binding's `props`, set in
+  the console's wrangler config, which only a deploy can set; a request from
+  the internet has none), the address is `x-console-client-ip` if it is a
+  bare IPv4/IPv6 address, else none; otherwise it is `CF-Connecting-IP` as
+  Cloudflare set it, and `x-console-client-ip` is dropped unread. The
+  request then goes on with exactly that one `CF-Connecting-IP` (or none)
+  and no forwarded header, so rate-limit.ts is unchanged. A named
+  entrypoint would have been the other way to tell the binding apart, and
+  was rejected: Cloudflare documents that Smart Placement "only affects the
+  execution of fetch event handlers. It does not affect RPC methods or named
+  entrypoints", and api-edge's placement near the database is SM-3's point.
+  Locally (workerd) the props reached the default `fetch` over the binding,
+  and a public `/health` with a forged header still said `cloudflare`.
+- **`/health` says which address it used** (`checks.clientIp.source`:
+  `cloudflare`, `console` or `none`), and the console's deploy smoke now also
+  requires `"source":"console"` from `${DEPLOYED_URL}/api/health`: proof
+  that the binding and its props work in that environment. A stage that
+  fails it holds prod back.
+- **The console deploys after api-edge again on main** (`dependsOn:
+  api-edge`, enforced on main, advisory on pull requests). A binding target
+  must exist at deploy (Cloudflare 10143), and the console's forwarded
+  header means something only to the api-edge of this change. It has
+  deployed beside api-edge since stack-tectonic 0.18.2; this puts api-edge's
+  deploy back on the console's path on main. api-edge depends on nothing
+  that leads back (no cycle).
+- **OAuth starts on api-edge's workers.dev host.** Its start sets a state
+  cookie on its own host that Google's callback (registered on the
+  workers.dev API, `OAUTH_REDIRECT_BASE_URL`) must carry back, so a start on
+  `cookpool.store/api` would fail. The SDK gains `ClientOptions.oauthBaseUrl`
+  (default `baseUrl`) for `auth.oauthStartUrl`; each API target carries
+  `directUrl`, the workers.dev API, and the console passes it. Checked in the
+  browser: the start navigates to
+  `https://cookpool-api-edge-stage.cookpool.workers.dev/v1/auth/oauth/google/start?return_to=<page origin>/auth/callback`.
+- **Which hosts call `/api`.** A target is the page's own `${origin}/api`
+  only when the page's host itself names the target's environment (its
+  custom domain or its `-<env>` workers.dev host), so a build locked to one
+  environment opened on another's host keeps its workers.dev API; localhost,
+  dev servers and the dev workers.dev host stay unlocked with both workers.dev
+  targets (the developer's picker).
+- **Smart Placement and the binding.** Cloudflare: "By default, both Workers
+  run on the same thread of the same Cloudflare server. With Smart
+  Placement, each Worker is placed in a location chosen to optimize overall
+  performance", and its full-stack advice is a front Worker near the user
+  calling a placed back end over a service binding. So api-edge (placed,
+  SM-3) can run near the database while the console runs near the caller.
+  The console gets no Smart Placement: it binds no database and makes one
+  call per request.
+- **Browser check** (the real build under `wrangler dev`, console plus a
+  mock api-edge Worker answering from the UX mock, on
+  `cookpool-web-console-next-stage.localhost`): sign-in, Home and a logged
+  use made every API call to `/api/…` on the page's own origin, with no
+  preflight (the browser's network log and the mock both saw only GETs and
+  POSTs, every one with the console's props and a forwarded address and none
+  with `CF-Connecting-IP`); SM-2's RSC shim kept sending navigations to the
+  payload files.
+- **Measuring is after the deploy.** `tooling/perf/check.mjs` now also times
+  `/api/health` and `/api/v1/auth/oauth/providers` on each app host (both
+  custom domains and both console workers.dev hosts) beside api-edge's own
+  host. `ai/context/operations.md` still describes the reads as api-edge's
+  only (outside this task's contract).
 
 ### SM3 — from before, in the app (SM-9)
 

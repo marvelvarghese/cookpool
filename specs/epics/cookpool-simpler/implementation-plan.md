@@ -22,11 +22,10 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 - **SM-3 — the database near its people** (cloudflare-d1, every worker bound
   to `PLATFORM_DB`): D1 recreated with location hint `apac`; Smart Placement;
   the migrations re-applied; wiring refreshed.
-- **SM-4 — the API on the app's address** (api-edge, web-console-next): the
-  `/api` prefix; the app calls its own origin on a custom domain. Owner step:
-  add the Workers Routes `cookpool.store/api/*` and
-  `stage.cookpool.store/api/*` in the dashboard (the deploy token has no zone
-  rights).
+- **SM-4 — the API on the app's address** (api-edge, web-console-next, sdk):
+  the console Worker forwards `/api/*` to api-edge over a service binding;
+  the app calls its own origin on every host; api-edge trusts a forwarded
+  client IP only over that binding. No owner step (risk SM-B).
 - **SM-5 — writes show at once** (web-console-next): optimistic updates with
   Undo and rollback for every write named in design §1.2 item 4; keep last
   data while refreshing; prefetch from Home.
@@ -45,7 +44,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 **Done when**
 - Anu sets Dev's portion; Dev's row reads "by Anu", Dev is emailed once, and Dev can change it
 
-## SM3 — from before
+## SM3 — from before ✅
 
 - **SM-8** (kitchen-worker, db, contracts, sdk): the history and recipes
   reads.
@@ -75,7 +74,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 
 ## Sequencing note
 
-SM-2 and SM-3 run side by side (console vs infra). SM-4 needs the owner's
-routes and can follow either. SM-5 follows SM-2. SM2 and SM3 can run side by
+SM-2 and SM-3 run side by side (console vs infra). SM-4 follows SM-2 (its
+entry wraps the console Worker SM-2 left serving only what is not a file). SM-5 follows SM-2. SM2 and SM3 can run side by
 side (different routes). SM4 starts after SM-5 so the screens are built on
 the instant writes.

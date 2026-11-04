@@ -7,12 +7,24 @@ hold only test data from the move to the new account (SI-10), and the owner
 approved the plan that said so. After this, moving the database again would
 need an export and import.
 
-## SM-B — the API route needs a dashboard step (RISK)
+## SM-B — every API call now passes through the console Worker (RISK)
 
-The brokered deploy token has no zone rights, so the Workers Routes
-`cookpool.store/api/*` and `stage.cookpool.store/api/*` are added by the
-owner in the Cloudflare dashboard. Until they exist, the app keeps calling
-the workers.dev API and the preflight cost stays.
+The API on the app's address is a service binding from the console Worker to
+api-edge (design §1.2 item 2), so it needs no zone rights and no dashboard
+step (the Workers Route it replaced would have, and the brokered deploy token
+has none). The price is that each API call runs the console Worker first, and
+a cold console isolate was the slow part of SM-2's measurements (a 16 MB
+script). Its entry answers `/api` before OpenNext is imported, so such an
+isolate never evaluates the Next code; but wrangler still uploads one script,
+which a cold isolate still loads. If the timing check shows `/api` reads over
+budget where api-edge's workers.dev host is within it, the ways out are a
+Workers Route on the zone for `/api/*` (the dashboard step) or a separate
+small Worker in front of the console.
+
+Two more things this rests on, both checked on every deploy: api-edge tells
+the console's binding from the internet by the binding's `props` (the stage
+smoke requires `/api/health` to report the console's forwarded address, or
+prod does not deploy); and the console deploys after api-edge on main.
 
 ## SM-C — static pages and the environment (RISK)
 
