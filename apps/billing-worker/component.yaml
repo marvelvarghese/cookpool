@@ -38,6 +38,16 @@ spec:
         - mode: advisory
           when:
             triggerRef: github-pull-request
+    # The tables this worker reads exist before it serves: on main the
+    # migrations apply first. SM-3: the database it binds starts empty, and
+    # the migrations create its tables, so a deploy before db-migrate would
+    # serve from a database with no tables.
+    - component: db-migrate
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
   # Runtime secrets, wire-now-seed-later: best-effort references —
   # an unseeded key is skipped at resolve (and by secrets-live), so
   # this block is inert until the value is stored in orun secrets.
@@ -113,4 +123,4 @@ spec:
     surface: billing
     runtime: cloudflare
 # ci: re-trigger deploy (batch A — runner-starvation recovery 20260622T115650Z)
-# orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z
+# orun: redeploy SM-3 bind the Asia-Pacific database, Smart Placement 2026-11-04T07:56:11Z

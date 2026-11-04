@@ -126,4 +126,4 @@ spec:
     surface: identity
     runtime: cloudflare
 # ci: re-trigger deploy (batch B — membership-dependents, 20260622T140838Z)
-# orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z
+# orun: redeploy SM-3 bind the Asia-Pacific database, Smart Placement 2026-11-04T07:56:11Z

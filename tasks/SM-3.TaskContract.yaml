@@ -1,0 +1,32 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-3
+  title: "The database near its people"
+spec:
+  goal: The D1 database lives in Asia–Pacific and the workers that query it run next to it, so a read from India takes a fraction of what it takes today.
+  affects:
+    - default/cookpool/cloudflare-d1
+    - default/cookpool/db-migrate
+    - default/cookpool/admin-worker
+    - default/cookpool/api-edge
+    - default/cookpool/billing-worker
+    - default/cookpool/config-worker
+    - default/cookpool/events-worker
+    - default/cookpool/identity-worker
+    - default/cookpool/integrations-worker
+    - default/cookpool/kitchen-worker
+    - default/cookpool/membership-worker
+    - default/cookpool/metering-worker
+    - default/cookpool/notifications-worker
+    - default/cookpool/projects-worker
+    - default/cookpool/webhooks-worker
+    - default/cookpool/config-worker-tests
+    - ai/context/deployment.md
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-3.TaskContract.yaml
+  doneWhen:
+    - the D1 database for stage and prod is created with the apac location hint and every migration is applied to it
+    - every worker bound to PLATFORM_DB runs with Smart Placement on stage and prod, pinned by a config test
+    - the workers are redeployed against the new database's wiring
+  gates: []

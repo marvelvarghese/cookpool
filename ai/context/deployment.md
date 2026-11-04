@@ -33,6 +33,9 @@ deployed URLs.
 
 - `stage` and `prod` are fully provisioned (D1 database, idempotency KV,
   migrations applied) and serve the URLs above.
+- The D1 databases are `cookpool-stage-apac` and `cookpool-prod-apac`, in
+  Asia–Pacific, and every Worker bound to them runs with Smart Placement
+  (SM-3, below).
 - `dev` is verify-only: plan/verify lanes run, nothing is deployed.
 
 ## Secrets (names only)
@@ -89,3 +92,53 @@ The old account's Workers, D1 database and KV namespace were left running and
 unmanaged; delete them from that account's dashboard when no longer needed.
 Data did not move: stage and prod started with empty databases.
 
+## The database near its people (SM-3, 2026-11-04)
+
+Cookpool's people are in India. The first database on this account was
+created with no location hint by the CI runner, so it most likely sits in
+North America, and every D1 query crossed the Pacific (an API read with one
+query took 0.40–0.72 s from India, against 0.2–0.55 s for a 404 that touches
+no database; cookpool-simpler design §1.1).
+
+- **The database.** `cloudflare-d1` creates `cookpool-<env>-apac` with
+  `primary_location_hint = "apac"` (resource `cloudflare_d1_database.platform_apac`).
+  The Terraform provider of that root is pinned to Cloudflare 5.28.1, because
+  v4 has no location hint; `cloudflare-kv` and `cloudflare-domain` stay on v4.
+  The hint counts only at creation (`ignore_changes`): D1 cannot move a
+  database, so moving it again means export, a new database and import (the
+  runbook in `infra/terraform/cloudflare-d1/docs/runbook.md`).
+- **The data.** The new database starts empty (risk SM-A, approved by the
+  owner: stage and prod held only test data on 2026-11-04). `db-migrate`
+  applies every migration to it; none inserts rows the app needs.
+- **The previous database** (`cookpool-stage`, `cookpool-prod`, no hint) is
+  removed from Terraform's state, not deleted, so no Worker is ever bound to
+  a database that no longer exists: each keeps serving from the old one until
+  its own deploy binds the new one. **Owner step:** once the SM-3 run is green
+  and each old database's Metrics tab shows no queries since the run, delete
+  `cookpool-stage` and `cookpool-prod` in the Cloudflare dashboard (Storage &
+  Databases → D1). Nothing binds or tracks them by then.
+- **Placement.** The thirteen Workers bound to `PLATFORM_DB` (api-edge and
+  admin, billing, config, events, identity, integrations, kitchen,
+  membership, metering, notifications, projects and webhooks) declare
+  `"placement": { "mode": "smart" }` at the top level of their wrangler
+  template, which every environment inherits. Cloudflare may then run a
+  request next to the database instead of next to the caller. Placement moves
+  fetch handlers only (requests and service-binding fetches, which is how
+  every call reaches these Workers); cron triggers and api-edge's
+  `RateLimiterDO` Durable Objects are placed as before. Smart Placement needs
+  steady traffic from several locations before it moves a Worker (up to 15
+  minutes of analysis); a Worker with too little traffic keeps running near
+  the caller. policy-worker and web-console-next bind no database and are
+  unchanged.
+- **Deploy order.** On a merge to `main` every Worker bound to `PLATFORM_DB`
+  waits on `cloudflare-d1` and on `db-migrate` (enforced edges;
+  `tests/config-worker` pins them), so it goes live on the new database only
+  after the database exists and has its tables.
+
+What the run that lands SM-3 does, in each environment: `cloudflare-d1`
+applies (creates `cookpool-<env>-apac`, forgets the old database, rewrites
+`WIRING_CLOUDFLARE_D1`); then `db-migrate` applies every migration to the new
+database; then the thirteen Workers deploy with the new wiring and Smart
+Placement. Stage goes first: each prod job also waits on the same job in
+stage. The redeploy markers (`# orun: redeploy SM-3 …`) on those fifteen
+components put all of them in the one run.

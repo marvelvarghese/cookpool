@@ -59,4 +59,4 @@ spec:
           - profile: apply
             when:
               triggerRef: github-push-main
-# orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z
+# orun: redeploy SM-3 the database in Asia-Pacific (new database, apac hint) 2026-11-04T07:56:11Z
