@@ -8,6 +8,15 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
   "minify": false,
+  // Smart Placement (SM-3): Cloudflare may run this Worker next to the
+  // Asia–Pacific database instead of next to the caller, so the D1 queries of
+  // one request stay close to it. Declared once, at the top level: wrangler
+  // inherits `placement` into every environment, and the rendered stage and
+  // prod configs carry it (tests/config-worker asserts so). It moves fetch
+  // handlers only, which is how every call reaches this Worker (requests and
+  // service-binding fetches); the RateLimiterDO Durable Objects keep
+  // their own placement.
+  "placement": { "mode": "smart" },
   "vars": {
     "ENVIRONMENT": "local",
     "CONSOLE_CUSTOM_DOMAIN": "",
@@ -48,7 +57,7 @@
       "d1_databases": [
         {
           "binding": "PLATFORM_DB",
-          "database_name": "cookpool-stage",
+          "database_name": "cookpool-stage-apac",
           "database_id": "@@wiring(cloudflare-d1/stage:d1_database_id)@@"
         }
       ],
@@ -122,7 +131,7 @@
       "d1_databases": [
         {
           "binding": "PLATFORM_DB",
-          "database_name": "cookpool-prod",
+          "database_name": "cookpool-prod-apac",
           "database_id": "@@wiring(cloudflare-d1/prod:d1_database_id)@@"
         }
       ],

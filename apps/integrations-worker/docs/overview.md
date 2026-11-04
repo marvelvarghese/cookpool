@@ -11,6 +11,7 @@ Part of the cookpool runtime: a Cloudflare Worker deployed per environment (`sta
 - **billing-worker** — Cloudflare Worker for the Billing API surface (private, service-binding only)
 - **projects-worker** — Cloudflare Worker for the Projects runtime
 - **cloudflare-d1** — Provisions the Cloudflare D1 platform database for stage and prod
+- **db-migrate** — Applies database migrations to the stage and prod Cloudflare D1 databases
 
 ## Depended on by
 

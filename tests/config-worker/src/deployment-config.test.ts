@@ -134,7 +134,8 @@ describe("config-worker D1 wiring", () => {
       const db = (rendered.env[envName]?.d1_databases ?? []).find(
         (b) => b.binding === "PLATFORM_DB",
       );
-      expect(db!.database_name).toBe(`cookpool-${envName}`);
+      // SM-3: the Asia–Pacific database (infra/terraform/cloudflare-d1).
+      expect(db!.database_name).toBe(`cookpool-${envName}-apac`);
     }
   });
 
@@ -248,9 +249,9 @@ describe("kitchen-worker deployment config", () => {
   });
 
   for (const envName of ["stage", "prod"]) {
-    test(`${envName} binds PLATFORM_DB to cookpool-${envName} through a wiring token`, () => {
+    test(`${envName} binds PLATFORM_DB to cookpool-${envName}-apac through a wiring token`, () => {
       const db = (template.env[envName]?.d1_databases ?? []).find((b) => b.binding === "PLATFORM_DB");
-      expect(db?.database_name).toBe(`cookpool-${envName}`);
+      expect(db?.database_name).toBe(`cookpool-${envName}-apac`);
       expect(db?.database_id).toMatch(WIRING_TOKEN_RE);
       const renderedDb = (rendered.env[envName]?.d1_databases ?? []).find((b) => b.binding === "PLATFORM_DB");
       expect(renderedDb?.database_id).toMatch(D1_ID_RE);
@@ -548,4 +549,108 @@ describe("web-console-next workers.dev subdomain", () => {
       expect(identity).toContain(`https://cookpool-web-console-next-${env}.${declared}.workers.dev`);
     }
   });
+});
+
+// ── the database near its people (Cookpool SM-3) ───────────────
+//
+// The D1 database lives in Asia–Pacific (infra/terraform/cloudflare-d1:
+// primary_location_hint "apac", named cookpool-<env>-apac), and every Worker
+// bound to it runs with Smart Placement, so a request's D1 queries execute
+// next to the database instead of across the Pacific. On main every one of
+// them redeploys after the database's apply and its migrations (enforced
+// edges), so none goes live on a database without its tables.
+
+describe("the database near its people (SM-3)", () => {
+  type Placement = { mode?: string };
+  type Rendered = {
+    placement?: Placement;
+    env: Record<
+      string,
+      {
+        placement?: Placement;
+        d1_databases?: Array<{ binding: string; database_name?: string; database_id: string }>;
+      }
+    >;
+  };
+  const appOf = (templatePath: string): string => templatePath.split("/")[1]!;
+  const terraform = fs.readFileSync(path.join(ROOT, "infra/terraform/cloudflare-d1/terraform/main.tf"), "utf-8");
+  const adopt = fs.readFileSync(path.join(ROOT, "infra/terraform/cloudflare-d1/terraform/adopt.tf"), "utf-8");
+
+  // The name Terraform gives the database, for this fork's defaults
+  // (namespacePrefix "", repo "cookpool"): `${var.namespacePrefix}${var.repo}-${var.environment}<suffix>`.
+  const nameSuffix = (terraform.match(
+    /^\s*database_name\s*=\s*"\$\{var\.namespacePrefix\}\$\{var\.repo\}-\$\{var\.environment\}([a-z0-9-]*)"\s*$/m,
+  ) ?? [])[1];
+
+  test("every Worker that binds PLATFORM_DB is in the list these tests cover", () => {
+    const appsDir = path.join(ROOT, "apps");
+    const bound = fs
+      .readdirSync(appsDir)
+      .filter((app) => {
+        const file = path.join(appsDir, app, "wrangler.template.jsonc");
+        return fs.existsSync(file) && /"binding":\s*"PLATFORM_DB"/.test(fs.readFileSync(file, "utf-8"));
+      })
+      .sort();
+    expect(bound).toEqual(D1_WORKER_TEMPLATES.map(appOf).sort());
+  });
+
+  test("Terraform creates the database in Asia–Pacific, once, under the -apac name", () => {
+    const resource = (terraform.match(/resource "cloudflare_d1_database" "([a-z_]+)" \{([\s\S]*?)\n\}/) ?? []) as string[];
+    expect(resource[1]).toBe("platform_apac");
+    expect(resource[2]).toMatch(/^\s*primary_location_hint\s*=\s*"apac"\s*$/m);
+    // Cloudflare never reads the hint back: without this, an adopted
+    // (imported) database would plan a replacement, which deletes its rows.
+    expect(resource[2]).toMatch(/ignore_changes\s*=\s*\[primary_location_hint\]/);
+    expect(nameSuffix).toBe("-apac");
+    // The pinned provider is a v5: v4's cloudflare_d1_database has no hint.
+    expect(terraform).toMatch(/source\s*=\s*"cloudflare\/cloudflare"\s*\n\s*version\s*=\s*"5\.\d+\.\d+"/);
+  });
+
+  test("the database before it is forgotten, never destroyed, and adoption targets the new one", () => {
+    expect(terraform).toMatch(
+      /removed \{\s*from = cloudflare_d1_database\.platform\s+lifecycle \{\s*destroy = false\s*\}\s*\}/,
+    );
+    expect(adopt).toMatch(/to\s*=\s*cloudflare_d1_database\.platform_apac\s*$/m);
+    expect(adopt).toContain('.type == "cloudflare_d1_database" and .name == "platform_apac"');
+    expect(terraform).toContain("d1_database_id   = cloudflare_d1_database.platform_apac.id");
+  });
+
+  for (const templatePath of D1_WORKER_TEMPLATES) {
+    const app = appOf(templatePath);
+    const template = parseJsoncStrings(fs.readFileSync(path.join(ROOT, templatePath), "utf-8")) as unknown as Rendered;
+    const rendered = renderFromFixture(`apps/${app}`, parseJsoncStrings) as unknown as Rendered;
+    // `placement` is inheritable in wrangler: an environment carries the top
+    // level's unless it declares its own.
+    const placementOf = (envName: string): Placement | undefined =>
+      rendered.env[envName]?.placement ?? rendered.placement;
+
+    for (const envName of ["stage", "prod"]) {
+      test(`${app} ${envName} runs with Smart Placement`, () => {
+        expect(placementOf(envName)).toEqual({ mode: "smart" });
+      });
+
+      test(`${app} ${envName} binds PLATFORM_DB to the database Terraform names, cookpool-${envName}${nameSuffix ?? ""}`, () => {
+        const db = (rendered.env[envName]?.d1_databases ?? []).find((b) => b.binding === "PLATFORM_DB");
+        expect(db?.database_name).toBe(`cookpool-${envName}${nameSuffix}`);
+        expect(db?.database_id).toMatch(D1_ID_RE);
+      });
+    }
+
+    test(`${app} declares placement once, at the top level`, () => {
+      expect(template.placement).toEqual({ mode: "smart" });
+      for (const envName of Object.keys(template.env)) expect(template.env[envName]?.placement).toBeUndefined();
+    });
+
+    test(`${app} redeploys after the database's apply and its migrations, with their wiring`, () => {
+      const yaml = readYaml(`apps/${app}/component.yaml`);
+      const enforcedOnMain = (component: string): boolean =>
+        new RegExp(
+          `- component: ${component}\\n\\s+mode: enforced\\n\\s+modeRules:\\n\\s+- mode: advisory\\n\\s+when:\\n\\s+triggerRef: github-pull-request`,
+        ).test(yaml);
+      expect(enforcedOnMain("cloudflare-d1")).toBe(true);
+      expect(enforcedOnMain("db-migrate")).toBe(true);
+      expect(yaml).toContain('WIRING_CLOUDFLARE_D1_STAGE: "secret://ws_QX130J0D/cookpool/stage/WIRING_CLOUDFLARE_D1"');
+      expect(yaml).toContain('WIRING_CLOUDFLARE_D1_PROD: "secret://ws_QX130J0D/cookpool/prod/WIRING_CLOUDFLARE_D1"');
+    });
+  }
 });

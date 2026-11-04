@@ -18,6 +18,7 @@ Terraform-managed infrastructure for cookpool, per environment (`stage`, `prod`;
 - **events-worker** — Cloudflare Worker for the Events and Audit runtime
 - **identity-worker** — Cloudflare Worker for the Identity auth runtime
 - **integrations-worker** — Cloudflare Worker for the integrations bounded context — provider connections (GitHub App first), inbound delivery inbox, repo links, and the installation-token broker
+- **kitchen-worker** — Cloudflare Worker for the kitchen bounded context — group settings, pantries, the group ledger and dishes (Cookpool)
 - **membership-worker** — Cloudflare Worker for the Membership org runtime
 - **metering-worker** — Cloudflare Worker for the Metering API surface (usage recording, quota checks)
 - **notifications-worker** — Cloudflare Worker for the Notifications bounded context

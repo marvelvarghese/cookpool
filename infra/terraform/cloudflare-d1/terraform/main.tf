@@ -6,9 +6,16 @@ terraform {
   backend "http" {}
 
   required_providers {
+    # v5, pinned exactly (SM-3): the v4 provider's cloudflare_d1_database has
+    # no location hint (account_id and name only, through 4.52.10), so the
+    # database could not be created in Asia–Pacific. 5.28.1 has
+    # primary_location_hint and upgrades the v4 state of this resource
+    # (schema 0 → 500) on its own. This root has no lock file, so the pin is
+    # what keeps a later 5.x from arriving unreviewed. Only this root moves:
+    # cloudflare-kv and cloudflare-domain keep their own v4 lock files.
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "~> 4.30"
+      version = "5.28.1"
     }
     external = {
       source  = "hashicorp/external"
@@ -106,12 +113,48 @@ locals {
   # database names are unique per account, and a fork may share an account with
   # the baseline. Workers resolve the database by ID through the wiring secret,
   # so the name is free to change.
-  database_name = "${var.namespacePrefix}${var.repo}-${var.environment}"
+  #
+  # The `-apac` suffix (SM-3): the database before this one keeps the bare
+  # name (`cookpool-stage`, `cookpool-prod`) until the owner deletes it, and
+  # names are unique per account. The Workers' wrangler templates name this
+  # one (tests/config-worker keeps the two in step).
+  database_name = "${var.namespacePrefix}${var.repo}-${var.environment}-apac"
 }
 
-resource "cloudflare_d1_database" "platform" {
-  account_id = var.cloudflare_account_id
-  name       = local.database_name
+# The database lives in Asia–Pacific (SM-3, cookpool-simpler design §1.2 item
+# 3): Cookpool's people are in India, and a database created with no hint
+# lands near whoever created it, which was the CI runner (most likely North
+# America), so every query crossed the Pacific. D1 cannot move a database, so
+# this is a new one and it starts empty (risk SM-A, approved by the owner).
+#
+# The location is chosen once, at creation. Cloudflare never reads the hint
+# back, so an imported database (adopt.tf) has none in state; without
+# ignore_changes that would plan a replacement, which deletes every row. To
+# move the database again, export it, create another one and import the data.
+resource "cloudflare_d1_database" "platform_apac" {
+  account_id            = var.cloudflare_account_id
+  name                  = local.database_name
+  primary_location_hint = "apac"
+
+  lifecycle {
+    ignore_changes = [primary_location_hint]
+  }
+}
+
+# The database before SM-3, created with no hint (near the CI runner). Terraform
+# stops managing it and does NOT delete it: every Worker stays bound to it,
+# with its data and its tables, until that Worker's own deploy in the same
+# run binds the new one (each waits on this root and on db-migrate). A delete
+# here would leave the whole fleet bound to a database that no longer exists
+# for the length of the run, or longer if a deploy failed. The owner deletes
+# `cookpool-stage` and `cookpool-prod` in the dashboard once the run is green
+# (ai/context/deployment.md). Inert on a fresh state.
+removed {
+  from = cloudflare_d1_database.platform
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 # --- Wiring manifest (BF5, via orun secrets) ---
@@ -125,8 +168,8 @@ resource "cloudflare_d1_database" "platform" {
 output "wiring" {
   description = "Wiring document for downstream deploy-time binding resolution (pushed to orun secrets)"
   value = jsonencode({
-    d1_database_id   = cloudflare_d1_database.platform.id
-    d1_database_name = cloudflare_d1_database.platform.name
+    d1_database_id   = cloudflare_d1_database.platform_apac.id
+    d1_database_name = cloudflare_d1_database.platform_apac.name
   })
 }
 
@@ -134,10 +177,10 @@ output "wiring" {
 
 output "d1_database_id" {
   description = "Cloudflare D1 database ID (the Workers binding's database_id)"
-  value       = cloudflare_d1_database.platform.id
+  value       = cloudflare_d1_database.platform_apac.id
 }
 
 output "d1_database_name" {
   description = "Cloudflare D1 database name (human-readable identifier)"
-  value       = cloudflare_d1_database.platform.name
+  value       = cloudflare_d1_database.platform_apac.name
 }
