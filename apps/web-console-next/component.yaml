@@ -21,13 +21,29 @@ spec:
   # Its own lane per environment (execution.lanes in intent.yaml): the Next.js
   # build is the longest job in the plan, and a shared lane would wait on it.
   lane: isolated
-  # The deploy smoke health-checks the api-edge worker
-  # (cookpool-api-edge-<env>/health). This used to declare
-  # `dependsOn: api-edge` so the smoke could not race api-edge's own deploy
-  # (curl exit 22); since stack-tectonic 0.18.2 the smoke runs under
-  # retry-with-backoff (~4.5 min budget), so the console deploys beside
-  # api-edge instead of after it — the serial wait was 05-edge's critical
-  # path once the console stopped building (saas-console-artifact CA5).
+  # THE API ON THE APP'S ADDRESS (Cookpool SM-4): the console Worker answers
+  # `/api/*` by calling api-edge over a service binding (wrangler.jsonc
+  # `env.<env>.services`, API_EDGE → cookpool-api-edge-<env>). A binding is a
+  # deploy-time prerequisite (Cloudflare refuses a deploy whose bound Worker
+  # does not exist, code 10143), and the console forwards the client's address
+  # in a header only the api-edge of this change believes, so on main the
+  # console deploys after api-edge again. (It deployed beside it since
+  # stack-tectonic 0.18.2, when the only reason to wait was the smoke's
+  # health check, now under retry; saas-console-artifact CA5.) api-edge
+  # depends on nothing here, so there is no cycle; on a fresh account its own
+  # wait on policy-worker places the placeholders (tooling/deploy/fleet-stubs.mjs).
+  dependsOn:
+    - component: api-edge
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+  # wrangler picks the environment's section of wrangler.jsonc (its API_EDGE
+  # binding) from CLOUDFLARE_ENV: the composition deploys with `--name`, not
+  # `--env`. `{{ .environment }}` is the Orun environment of the job.
+  env:
+    CLOUDFLARE_ENV: "{{ .environment }}"
   subscribe:
     environments:
       - name: dev
@@ -68,6 +84,8 @@ spec:
 
     # @opennextjs/cloudflare emits a Worker entrypoint plus a static-assets
     # directory bound via ASSETS — both are deployed in one `wrangler deploy`.
+    # (The build's output, checked after it. Since SM-4 the deployed `main` is
+    # src/worker/index.mjs, which answers `/api/*` and imports this lazily.)
     workerEntrypoint: .open-next/worker.js
     assetsDir: .open-next/assets
 
@@ -102,7 +120,11 @@ spec:
     # `${WORKERS_DEV_SUBDOMAIN}` is exported by the composition's deploy/smoke
     # step from the `workersDevSubdomain` parameter above (BF3: no duplicated
     # subdomain literal here).
-    smokeCommand: "html=$(curl -sfL \"${DEPLOYED_URL}/\") && echo \"${html}\" | grep -q 'cookpool Console' && health=$(curl -sf \"https://cookpool-api-edge-${ORUN_ENVIRONMENT}.${WORKERS_DEV_SUBDOMAIN}.workers.dev/health\") && echo \"${health}\" | grep -q ok"
+    # Then the API on the console's own address (SM-4): `/api/health` must
+    # reach api-edge over the binding, and api-edge must have taken the
+    # client's address from the console (`"source":"console"`), which proves
+    # the binding's props arrived. A stage that fails it holds prod back.
+    smokeCommand: "html=$(curl -sfL \"${DEPLOYED_URL}/\") && echo \"${html}\" | grep -q 'cookpool Console' && health=$(curl -sf \"https://cookpool-api-edge-${ORUN_ENVIRONMENT}.${WORKERS_DEV_SUBDOMAIN}.workers.dev/health\") && echo \"${health}\" | grep -q ok && api=$(curl -sf \"${DEPLOYED_URL}/api/health\") && echo \"${api}\" | grep -q '\"source\":\"console\"'"
   labels:
     team: platform
     layer: delivery

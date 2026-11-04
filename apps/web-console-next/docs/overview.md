@@ -6,7 +6,7 @@ Part of the cookpool runtime: a Cloudflare Worker serving static assets plus ser
 
 ## Depends on
 
-- (none)
+- **api-edge** — Cloudflare Worker for the API edge Runtime (the `API_EDGE` service binding behind `/api/*` on the app's own address, SM-4)
 
 ## Depended on by
 

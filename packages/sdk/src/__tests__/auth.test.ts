@@ -306,6 +306,22 @@ describe("AuthClient", () => {
     expect(parsed.searchParams.get("return_to")).toBe("https://console.test/auth/callback");
   });
 
+  it("oauthStartUrl builds on oauthBaseUrl when one is given, every other call on baseUrl (Cookpool SM-4)", async () => {
+    // The app calls its own origin's /api, but the OAuth start must be on the
+    // api-edge host the provider returns to: its state cookie is that host's.
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ providers: [] })));
+    const c = new Cookpool({
+      baseUrl: "https://cookpool.store/api",
+      oauthBaseUrl: "https://cookpool-api-edge-prod.cookpool.workers.dev/",
+      fetch,
+    });
+    const parsed = new URL(c.auth.oauthStartUrl("google", "https://cookpool.store/auth/callback"));
+    expect(`${parsed.origin}${parsed.pathname}`).toBe("https://cookpool-api-edge-prod.cookpool.workers.dev/v1/auth/oauth/google/start");
+    expect(parsed.searchParams.get("return_to")).toBe("https://cookpool.store/auth/callback");
+    await c.auth.listOAuthProviders();
+    expect(calls[0]!.url).toBe("https://cookpool.store/api/v1/auth/oauth/providers");
+  });
+
   it("client.auth is wired onto the Cookpool class", () => {
     const { fetch } = captureFetch(jsonResponse(envelope({ success: true })));
     const c = client(fetch);

@@ -24,4 +24,4 @@ Part of the cookpool runtime: a Cloudflare Worker deployed per environment (`sta
 
 ## Depended on by
 
-- (none)
+- **web-console-next** — Next.js 15 + opennextjs/cloudflare delivery of the cookpool web console (per-environment, Workers + Static Assets)

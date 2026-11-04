@@ -1,16 +1,24 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cookpool-web-console-next",
-  "main": ".open-next/worker.js",
+  // Cookpool SM-4: a small entry of our own answers `/api/*` (to api-edge, over
+  // API_EDGE below) and imports OpenNext's `.open-next/worker.js` lazily for
+  // everything else (src/worker/index.mjs).
+  "main": "src/worker/index.mjs",
   "compatibility_date": "2024-12-30",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // The API is never a file, and SM-2's `_redirects` never sees it: these
+    // paths go straight to the Worker.
+    "run_worker_first": ["/api/*"]
   },
   // The product's identity, read per request by src/lib/app-config.ts
   // (saas-console-artifact CA1): a console built from any tree serves the
   // product this file belongs to. The rebrand rewrites these with the rest.
+  // `vars` do not carry into the environments below, so each repeats them
+  // (tests/config-worker keeps all four the same).
   "vars": {
     "CONSOLE_PRODUCT_NAME": "cookpool",
     "CONSOLE_WORKERS_DEV_SUBDOMAIN": "cookpool",
@@ -20,5 +28,65 @@
     "CONSOLE_API_WORKER_PREFIX": "cookpool-api-edge",
     "CONSOLE_STORAGE_PREFIX": "cookpool.next",
     "CONSOLE_SALES_EMAIL": "sales@sourceplane.ai"
+  },
+  // One section per Orun environment (Cookpool SM-4), for the one thing that
+  // differs: which api-edge `/api` reaches. The deploy runs
+  // `wrangler deploy --config wrangler.jsonc --name cookpool-web-console-next-<env>`
+  // with CLOUDFLARE_ENV=<env> (component.yaml `env`), which picks the section;
+  // `--name` keeps the Worker's name. Without CLOUDFLARE_ENV (local
+  // `wrangler dev`) the top level applies: no binding, and `/api` answers 503.
+  "env": {
+    // Verify-only (a dry run, nothing deployed): no binding, as for every
+    // other Worker's dev.
+    "dev": {
+      "vars": {
+        "CONSOLE_PRODUCT_NAME": "cookpool",
+        "CONSOLE_WORKERS_DEV_SUBDOMAIN": "cookpool",
+        "CONSOLE_CUSTOM_DOMAINS": "stage=stage.cookpool.store,prod=cookpool.store",
+        "CONSOLE_API_WORKER_PREFIX": "cookpool-api-edge",
+        "CONSOLE_STORAGE_PREFIX": "cookpool.next",
+        "CONSOLE_SALES_EMAIL": "sales@sourceplane.ai"
+      }
+    },
+    "stage": {
+      "vars": {
+        "CONSOLE_PRODUCT_NAME": "cookpool",
+        "CONSOLE_WORKERS_DEV_SUBDOMAIN": "cookpool",
+        "CONSOLE_CUSTOM_DOMAINS": "stage=stage.cookpool.store,prod=cookpool.store",
+        "CONSOLE_API_WORKER_PREFIX": "cookpool-api-edge",
+        "CONSOLE_STORAGE_PREFIX": "cookpool.next",
+        "CONSOLE_SALES_EMAIL": "sales@sourceplane.ai"
+      },
+      // `props` is how api-edge knows a request came over this binding and
+      // not from the internet, so it may believe the client address the
+      // console forwards (apps/api-edge/src/client-ip.ts). Only a deploy can
+      // set it. The default entrypoint (no `entrypoint`): Smart Placement
+      // moves fetch handlers only, not named entrypoints, and api-edge's
+      // placement near the database is the point (SM-3).
+      "services": [
+        {
+          "binding": "API_EDGE",
+          "service": "cookpool-api-edge-stage",
+          "props": { "caller": "web-console-next" }
+        }
+      ]
+    },
+    "prod": {
+      "vars": {
+        "CONSOLE_PRODUCT_NAME": "cookpool",
+        "CONSOLE_WORKERS_DEV_SUBDOMAIN": "cookpool",
+        "CONSOLE_CUSTOM_DOMAINS": "stage=stage.cookpool.store,prod=cookpool.store",
+        "CONSOLE_API_WORKER_PREFIX": "cookpool-api-edge",
+        "CONSOLE_STORAGE_PREFIX": "cookpool.next",
+        "CONSOLE_SALES_EMAIL": "sales@sourceplane.ai"
+      },
+      "services": [
+        {
+          "binding": "API_EDGE",
+          "service": "cookpool-api-edge-prod",
+          "props": { "caller": "web-console-next" }
+        }
+      ]
+    }
   }
 }

@@ -14,10 +14,13 @@
 //                  is the edge's answer time, not the handshake's
 //   --report-only  print, and exit 0 whatever the numbers
 //
-// Each line also says how many answers came from the console Worker
-// (`x-opennext` header) — a page served as a file has none — and the
-// Cloudflare colos that answered. Unauthenticated GETs only; it never signs
-// in and never writes. Node, no dependencies.
+// Each page line also says how many answers came from the console Worker's
+// OpenNext (`x-opennext` header) — a page served as a file has none — and
+// every line the Cloudflare colos that answered. The reads are timed twice
+// over (SM-4): on api-edge's own workers.dev host, and on the app's hosts at
+// `/api/…`, where the console Worker forwards them over its service binding
+// (what the app itself calls). Unauthenticated GETs only; it never signs in
+// and never writes. Node, no dependencies.
 
 import https from "node:https";
 import { performance } from "node:perf_hooks";
@@ -25,8 +28,8 @@ import { pathToFileURL } from "node:url";
 
 const BUDGET = { page: 0.3, read: 0.4 };
 
-// The product's addresses (SI-8, SI-10). The API answers on workers.dev only,
-// until SM-4 puts it on the app's own address.
+// The product's addresses (SI-8, SI-10). The API answers on api-edge's
+// workers.dev host and, since SM-4, on each app host at `/api`.
 const SUBDOMAIN = "cookpool";
 const ENVIRONMENTS = {
   stage: { domain: "stage.cookpool.store" },
@@ -34,13 +37,16 @@ const ENVIRONMENTS = {
 };
 const PAGES = ["/login", "/home", "/pantry", "/use", "/icons/icon-192.png"];
 const READS = ["/health", "/v1/auth/oauth/providers"];
+/** Where the console Worker answers the API on the app's own address (SM-4). */
+const APP_API_PREFIX = "/api";
 
-function targets(env) {
+export function targets(env) {
   const app = [ENVIRONMENTS[env].domain, `cookpool-web-console-next-${env}.${SUBDOMAIN}.workers.dev`];
   const api = `cookpool-api-edge-${env}.${SUBDOMAIN}.workers.dev`;
   return [
     ...app.flatMap((host) => PAGES.map((p) => ({ kind: "page", url: `https://${host}${p}` }))),
     ...READS.map((p) => ({ kind: "read", url: `https://${api}${p}` })),
+    ...app.flatMap((host) => READS.map((p) => ({ kind: "read", url: `https://${host}${APP_API_PREFIX}${p}` }))),
   ];
 }
 
@@ -124,7 +130,9 @@ async function main() {
       const r = await measure(target, runs, fresh, agents);
       if (r.over) over += 1;
       const verdict = r.over ? `✕ over ${BUDGET[r.kind]}` : `✓`;
-      const notes = [`worker ${r.worker}/${runs}`, r.colos.join(" ") || "no colo"];
+      // A read on /api runs the console Worker but never OpenNext, so the
+      // OpenNext count says something about pages only.
+      const notes = [...(r.kind === "page" ? [`worker ${r.worker}/${runs}`] : []), r.colos.join(" ") || "no colo"];
       if (r.errors) notes.push(`${r.errors} failed: ${r.statuses.join(" ")}`);
       console.log(`  ${r.kind}  ${r.url.padEnd(72)} median ${s(r.median)}  p75 ${s(r.p75)}  ${verdict}  (${notes.join(", ")})`);
     }

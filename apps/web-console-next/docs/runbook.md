@@ -27,6 +27,12 @@ exercised through `api-edge` (this Worker has no public URL).
 - **Service-binding target missing (Cloudflare 10143)**: the target
   Worker does not exist yet on this account — converge the fleet before
   this lane (the bootstrap's two-pass landing handles first boot).
+- **Smoke fails on `/api/health`**: the console reached no api-edge
+  (`api_edge_unbound`: the deploy ran without `CLOUDFLARE_ENV`, so the top
+  level of `wrangler.jsonc`, with no binding, applied) or api-edge did not
+  take the client's address from it (`"source"` is not `"console"`: the
+  binding's props did not arrive, and signed-out requests through `/api`
+  would share one rate-limit bucket). Stage failing it holds prod back.
 - **Smoke fails right after a first deploy**: a brand-new workers.dev
   route can 4xx for a few seconds; the lane already retries — persistent
   failure means a real regression.

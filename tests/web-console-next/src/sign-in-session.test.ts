@@ -35,7 +35,11 @@ describe("createClient reports a 401 to the session's token", () => {
     globalThis.fetch = realFetch;
   });
 
-  const target = { name: "stage", url: "https://cookpool-api-edge-stage.unrouted.workers.dev" };
+  const target = {
+    name: "stage",
+    url: "https://cookpool-api-edge-stage.unrouted.workers.dev",
+    directUrl: "https://cookpool-api-edge-stage.unrouted.workers.dev",
+  };
 
   it("tells the session when the API refuses its token", async () => {
     let reports = 0;

@@ -68,6 +68,13 @@ describe("Transport — success path", () => {
     expect(calls[0]!.url).toBe("https://api.test/v1/organizations");
   });
 
+  it("appends every route to a baseUrl that carries a path (the app's own /api, Cookpool SM-4)", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(SUCCESS_LIST));
+    const client = new Cookpool({ baseUrl: "https://cookpool.store/api/", fetch });
+    await client.organizations.list();
+    expect(calls[0]!.url).toBe("https://cookpool.store/api/v1/organizations");
+  });
+
   it("returns 204 as undefined", async () => {
     const { fetch } = captureFetch(new Response(null, { status: 204 }));
     const transport = new Transport({ baseUrl: "https://api.test", fetch });

@@ -68,7 +68,15 @@ describe("derivations follow the runtime config", () => {
   it("locks to the deploy env when one is set at runtime", () => {
     const locked = resolveAppConfig({ ...acme, CONSOLE_DEPLOY_ENV: "prod" });
     expect(deployEnv(locked)).toBe("prod");
-    expect(apiTargets(locked)).toEqual([{ name: "prod", url: "https://acme-cloud-api-edge-prod.acme-inc.workers.dev" }]);
+    // No page origin here (no browser), so the workers.dev API (Cookpool SM-4:
+    // a page on the environment's own host calls its origin's /api instead).
+    expect(apiTargets(locked)).toEqual([
+      {
+        name: "prod",
+        url: "https://acme-cloud-api-edge-prod.acme-inc.workers.dev",
+        directUrl: "https://acme-cloud-api-edge-prod.acme-inc.workers.dev",
+      },
+    ]);
     expect(isLocked(locked)).toBe(true);
   });
 });

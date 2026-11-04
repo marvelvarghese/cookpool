@@ -17,10 +17,22 @@ export type AuthOption =
 
 export interface ClientOptions {
   /**
-   * Base URL of the Cookpool api-edge worker, e.g.
-   * `https://cookpool-api-edge-prod.cookpool.workers.dev`. Trailing slash is stripped.
+   * Base URL of the Cookpool API, e.g.
+   * `https://cookpool-api-edge-prod.cookpool.workers.dev` (api-edge itself) or
+   * `https://cookpool.store/api` (the app's own address, where the console
+   * Worker forwards to api-edge, Cookpool SM-4). It may carry a path: every
+   * route is appended to it. Trailing slash is stripped.
    */
   baseUrl: string;
+  /**
+   * Base URL that {@link AuthClient.oauthStartUrl} builds on, when it differs
+   * from `baseUrl`: the api-edge host the OAuth provider returns to. The
+   * start sets a state cookie on its own host that the provider's callback
+   * must carry back, so the start and the callback have to be on the same
+   * host (the provider's registered redirect URI). Defaults to `baseUrl`.
+   * Trailing slash is stripped.
+   */
+  oauthBaseUrl?: string;
   /** Optional auth credential; sent on every request when present. */
   auth?: AuthOption;
   /** Default headers merged into every request (per-request wins on conflict). */
@@ -79,12 +91,15 @@ interface PerformInput {
  */
 export class Transport {
   readonly baseUrl: string;
+  /** Where top-level OAuth navigations start (see {@link ClientOptions.oauthBaseUrl}). */
+  readonly oauthBaseUrl: string;
   readonly auth: AuthOption | undefined;
   readonly defaultHeaders: Record<string, string>;
   readonly fetchImpl: typeof fetch;
 
   constructor(options: ClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
+    this.oauthBaseUrl = (options.oauthBaseUrl ?? options.baseUrl).replace(/\/+$/, "");
     this.auth = options.auth;
     this.defaultHeaders = { ...(options.defaultHeaders ?? {}) };
     const fetchImpl = options.fetch ?? globalThis.fetch;

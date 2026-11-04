@@ -82,13 +82,17 @@ export class AuthClient {
    * endpoint — assign it to `window.location` so the provider redirect and the
    * state-cookie handshake run as top-level browser navigations.
    *
+   * Built on the client's `oauthBaseUrl` (by default its `baseUrl`): the
+   * start must be on the host the provider's callback returns to, whose
+   * state cookie the callback checks.
+   *
    * @param providerId provider id from {@link listOAuthProviders} (e.g. "github")
    * @param returnTo   absolute URL the user is returned to after sign-in
    *                   (must be an allow-listed console origin server-side)
    */
   oauthStartUrl(providerId: string, returnTo: string): string {
     const url = new URL(
-      `${this.transport.baseUrl}/v1/auth/oauth/${encodeURIComponent(providerId)}/start`,
+      `${this.transport.oauthBaseUrl}/v1/auth/oauth/${encodeURIComponent(providerId)}/start`,
     );
     url.searchParams.set("return_to", returnTo);
     return url.toString();
