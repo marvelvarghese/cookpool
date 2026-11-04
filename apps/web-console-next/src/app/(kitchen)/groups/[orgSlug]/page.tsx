@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -23,6 +23,7 @@ import type {
   UpdateKitchenSettingsRequest,
   WastePolicy,
 } from "@saas/contracts/kitchen";
+import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -80,8 +81,7 @@ import { GroupDishesPanel } from "@/components/kitchen/dish-ui";
  * person, and a viewer sees no write actions.
  */
 export default function GroupPage() {
-  const params = useParams<{ orgSlug: string }>();
-  const slug = params?.orgSlug ?? "";
+  const slug = usePathParam("/groups/:orgSlug", "orgSlug");
   const groups = useGroups();
   const group = groups.data?.find((g) => g.slug === slug) ?? null;
   const foundSlug = group?.slug ?? null;

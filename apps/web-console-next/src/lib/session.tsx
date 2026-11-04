@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { Cookpool } from "@saas/sdk";
 import {
+  allTargets,
   apiTargets,
   deployEnv,
   isLocked,
@@ -11,9 +12,8 @@ import {
 } from "./api";
 import { appConfig } from "./app-config";
 
-// Keys are built per call, not at import: the storage prefix is runtime config
-// (saas-console-artifact CA1), installed by <AppConfigProvider> before any of
-// these run.
+// Keys are built per call, not at import: the storage prefix is part of the app
+// config (saas-console-artifact CA1), which the browser resolves on first use.
 const tokenKey = (): string => `${appConfig().storagePrefix}.token`;
 const targetKey = (): string => `${appConfig().storagePrefix}.target`;
 
@@ -59,7 +59,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // on `ready` (set in an effect), so the committed markup stays consistent.
   const [target, setTargetState] = React.useState<ApiTarget>(() => {
     const targets = apiTargets();
-    if (typeof window === "undefined") return targets[0]!;
+    // Prerendering (SM-2) knows no host, so no environment; and a build locked
+    // to an environment with no API target would find none. The server makes
+    // no API call, so any target is harmless there; the browser resolves its
+    // own on this same first render.
+    if (typeof window === "undefined") return targets[0] ?? allTargets()[0]!;
     try {
       const saved = window.localStorage.getItem(targetKey());
       return targets.find((t) => t.name === saved) ?? targets[0]!;

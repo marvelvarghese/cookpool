@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { ArrowLeft, CircleCheck, CookingPot, Undo2 } from "lucide-react";
 import type { KitchenDish } from "@saas/contracts/kitchen";
+import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,8 +53,7 @@ import {
  * dish-posted email links it.
  */
 export default function DishPage() {
-  const params = useParams<{ dishRef: string }>();
-  const dishId = parseDishRef(params?.dishRef);
+  const dishId = parseDishRef(usePathParam("/dishes/:dishRef", "dishRef"));
   if (!dishId) return <DishNotFound />;
   return <DishLoader key={dishId} dishId={dishId} />;
 }

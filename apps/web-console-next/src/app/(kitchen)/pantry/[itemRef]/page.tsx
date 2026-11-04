@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRightLeft, CookingPot, Minus, Plus, Trash2 } from "lucide-react";
 import type { KitchenItem, KitchenStockMove } from "@saas/contracts/kitchen";
+import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -84,8 +85,7 @@ import { undoneToast } from "@/components/kitchen/undo";
  * `/pantry/org:org_…:itm_…` (a group's). Viewers see it all and change nothing.
  */
 export default function ItemPage() {
-  const params = useParams<{ itemRef: string }>();
-  const ref = parseItemRef(params?.itemRef);
+  const ref = parseItemRef(usePathParam("/pantry/:itemRef", "itemRef"));
   if (!ref) return <ItemNotFound />;
   return <ItemLoader key={itemRefParam(ref)} itemRef={ref} />;
 }
