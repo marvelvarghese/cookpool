@@ -13,7 +13,7 @@ import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { MAX_MINOR, formatMinor } from "@/components/kitchen/money";
 import { useMemberNames, useMyBalances, useMyRoles } from "@/components/kitchen/people-data";
-import { useKitchenItem, useMembersOf } from "@/components/kitchen/pantry-data";
+import { useItemsByRef, useKitchenItem, useMembersOf } from "@/components/kitchen/pantry-data";
 import { itemRefParam, parseItemRef, type ItemRef } from "@/components/kitchen/pantry";
 import { useCookDish, useCookableItems } from "@/components/kitchen/dish-maker-data";
 import {
@@ -62,8 +62,24 @@ import {
   withQty,
   type DishForm,
   type DishLine,
+  type NewItemDraft,
   type NewLine,
 } from "@/components/kitchen/dish-maker";
+import {
+  fromBeforeTerm,
+  mergeRecipeLines,
+  missingDraft,
+  missingFor,
+  newLineFromMissing,
+  recipeFill,
+  recipeSuggestion,
+  resolvePending,
+  shownSuggestions,
+  type MissingIngredient,
+  type PendingIngredient,
+} from "@/components/kitchen/from-before";
+import { useRecipes } from "@/components/kitchen/from-before-data";
+import { SuggestionList, useTypeahead } from "@/components/kitchen/from-before-ui";
 
 const NO_GROUPS: readonly MyGroupBalance[] = [];
 
@@ -80,6 +96,12 @@ const NO_GROUPS: readonly MyGroupBalance[] = [];
  * panels, "Take from any pantry" and the dish as a table. Every number is the
  * engine's. `/cook?item=me:itm_…` (Cook with it) starts with that item in the
  * dish. Cooking opens the dish's page, with a ten-second Undo.
+ *
+ * Cook again (SM-9): as the dish's name is typed, dishes cooked before show
+ * under it ("Egg fried rice · 3× · 5 portions · ₹156"). Picking one fills the
+ * portions, the extras, who it is for and the ingredients, each from an item
+ * usable now at last time's amount; one with nothing to take it from reads
+ * "Not in a pantry · add it" and opens "Bought it just now?" for it.
  */
 export default function CookPage() {
   const searchParams = useSearchParams();
@@ -136,6 +158,13 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
   const nameRef = React.useRef<HTMLInputElement>(null);
   const ingredientsRef = React.useRef<HTMLHeadingElement>(null);
   const addRef = React.useRef<HTMLButtonElement>(null);
+  const nameFieldRef = React.useRef<HTMLDivElement>(null);
+  // Cook again: what the last pick put in (a new pick replaces it), what it
+  // still reads, and what is in no pantry now.
+  const recipeKeys = React.useRef<ReadonlySet<string>>(new Set());
+  const [pending, setPending] = React.useState<readonly PendingIngredient[]>([]);
+  const [missing, setMissing] = React.useState<readonly MissingIngredient[]>([]);
+  const [buy, setBuy] = React.useState<{ draft: NewItemDraft; seq: number } | null>(null);
 
   // Cook with it: the item goes in once it is read (and known to be yours to use).
   const linkedItem = useKitchenItem(linked);
@@ -161,11 +190,33 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
 
   // What is in the dish, as read now: someone may have used some meanwhile.
   const cookable = useCookableItems();
+  const usable = React.useMemo(
+    () => new Map<string, KitchenItem>((cookable.data ?? []).map((i) => [i.id, i] as const)),
+    [cookable.data],
+  );
   React.useEffect(() => {
     if (!cookable.data) return;
-    const fresh = new Map<string, KitchenItem>(cookable.data.map((i) => [i.id, i] as const));
-    setLines((cur) => refreshLines(cur, fresh));
-  }, [cookable.data]);
+    setLines((cur) => refreshLines(cur, usable));
+  }, [cookable.data, usable]);
+
+  // A picked dish's ingredient the usable-items list doesn't hold (it lists
+  // 100) is read on its own, once the list has loaded, for its price.
+  const listed = cookable.data !== null || cookable.error !== null;
+  const toRead = React.useMemo(
+    () => (listed ? pending.filter((p) => !usable.has(p.ref.itemId)).map((p) => p.ref) : []),
+    [listed, pending, usable],
+  );
+  const read = useItemsByRef(toRead);
+  React.useEffect(() => {
+    if (pending.length === 0) return;
+    const r = resolvePending(pending, { usable, read });
+    if (r.pending.length === pending.length) return;
+    const merged = mergeRecipeLines(lines, new Set(), r.lines);
+    recipeKeys.current = new Set([...recipeKeys.current, ...merged.keys]);
+    setLines(merged.lines);
+    setPending(r.pending);
+    if (r.missing.length > 0) setMissing((cur) => [...cur, ...r.missing]);
+  }, [pending, usable, read, lines]);
 
   // Who it is for: the cook's pick, else the linked item's group or the group opened last.
   const pickedGroup = picked && picked !== JUST_ME ? (groups.find((g) => g.orgId === picked) ?? null) : null;
@@ -222,7 +273,10 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
   const addNew = (line: NewLine) => {
     setError(null);
     setShowProblem(false);
-    setLines((cur) => [...cur, line]);
+    // Bought for an ingredient that was in no pantry: last time's amount goes in.
+    const was = missingFor(line, missing);
+    if (was) setMissing((cur) => cur.filter((m) => m.key !== was.key));
+    setLines((cur) => [...cur, was ? newLineFromMissing(line, was) : line]);
   };
   const stepEater = (subjectId: string, delta: 1 | -1) => {
     if (!shareGroup) return;
@@ -233,6 +287,36 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
   const openPanel = () => {
     setPanelOpen(true);
     window.requestAnimationFrame(() => document.getElementById("dish-pantry-search")?.focus());
+  };
+
+  // Cook again: dishes cooked before, as the name is typed (the most recent on an empty field).
+  const typeahead = useTypeahead(name, "dish-name-suggestions");
+  const recipes = useRecipes(typeahead.term, typeahead.open || typeahead.term === "");
+  const freshRecipes = !recipes.isPlaceholderData && typeahead.term === fromBeforeTerm(name);
+  const suggestions = typeahead.open ? shownSuggestions(recipes.data, name, freshRecipes) : [];
+  const pickRecipe = (index: number) => {
+    const recipe = suggestions[index];
+    if (!recipe) return;
+    const fill = recipeFill(recipe, { usable, groups });
+    const merged = mergeRecipeLines(lines, recipeKeys.current, fill.lines);
+    recipeKeys.current = merged.keys;
+    setError(null);
+    setShowProblem(false);
+    setName(fill.name);
+    setLines(merged.lines);
+    setPending(fill.pending);
+    setMissing(fill.missing);
+    setPortionsHalf(fill.portionsHalf);
+    setExtras(fill.extrasMinor);
+    if (fill.share !== null) setPicked(fill.share);
+    typeahead.close();
+    // What it filled is next: the ingredients (on a phone, the keyboard goes down).
+    window.requestAnimationFrame(() => ingredientsRef.current?.focus());
+  };
+  // "Not in a pantry · add it": "Bought it just now?" opens for that name.
+  const buyMissing = (m: MissingIngredient) => {
+    setBuy((cur) => ({ draft: missingDraft(m), seq: (cur?.seq ?? 0) + 1 }));
+    setPanelOpen(true);
   };
 
   const submit = async () => {
@@ -319,22 +403,37 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
       <div className="min-w-0 space-y-5 min-[900px]:col-start-2 min-[900px]:row-start-2">
         {linkNote ? <p className="rounded-xl bg-cp-soon-tint p-3 text-sm font-medium text-cp-soon">{linkNote}</p> : null}
         <div className="space-y-2">
-          <label htmlFor="dish-name" className="text-sm font-bold">
-            Dish
-          </label>
-          <Input
-            ref={nameRef}
-            id="dish-name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setShowProblem(false);
-            }}
-            maxLength={DISH_NAME_MAX + 20}
-            placeholder="What are you making?"
-            autoComplete="off"
-            aria-invalid={showProblem && problem?.field === "name"}
-            className="h-[52px] rounded-[14px] bg-card px-3.5 text-lg font-bold sm:h-[52px] sm:text-lg"
+          <div ref={nameFieldRef} className="space-y-2">
+            <label htmlFor="dish-name" className="text-sm font-bold">
+              Dish
+            </label>
+            <Input
+              ref={nameRef}
+              id="dish-name"
+              value={name}
+              {...typeahead.inputProps({
+                count: suggestions.length,
+                onPick: pickRecipe,
+                onChange: (e) => {
+                  setName(e.target.value);
+                  setShowProblem(false);
+                },
+              })}
+              maxLength={DISH_NAME_MAX + 20}
+              placeholder="What are you making?"
+              autoComplete="off"
+              aria-invalid={showProblem && problem?.field === "name"}
+              className="h-[52px] rounded-[14px] bg-card px-3.5 text-lg font-bold sm:h-[52px] sm:text-lg"
+            />
+          </div>
+          <SuggestionList
+            id="dish-name-suggestions"
+            label="Cooked before"
+            views={suggestions.map(recipeSuggestion)}
+            active={typeahead.active}
+            onPick={pickRecipe}
+            onHighlight={typeahead.highlight}
+            fieldRef={nameFieldRef}
           />
         </div>
 
@@ -345,12 +444,12 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
             </h2>
             {fromText ? <span className="text-[13px] text-muted-foreground">{fromText}</span> : null}
           </div>
-          {lines.length === 0 ? (
+          {lines.length === 0 && missing.length === 0 && pending.length === 0 ? (
             <KCard className="p-4 text-sm text-muted-foreground">
               Nothing in it yet. Take things from your own pantry or any group&apos;s you cook in — or add something you just bought.
               <span className="hidden min-[900px]:inline"> Pick from the list on the left.</span>
             </KCard>
-          ) : (
+          ) : lines.length === 0 ? null : (
             <>
               {/* Cards on a phone and while the dish's column is narrow; the table from 1200px. */}
               <ul aria-label="In the dish" className="space-y-2 min-[1200px]:hidden">
@@ -372,6 +471,31 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
               </div>
             </>
           )}
+          {pending.length > 0 || missing.length > 0 ? (
+            <ul aria-label="Not in the dish yet" className="space-y-2">
+              {pending.map((p) => (
+                <li key={p.key} className="flex min-h-11 items-center gap-3 rounded-[18px] border bg-card px-3.5 py-2.5">
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{p.ingredient.name}</span>
+                  <Skeleton className="h-4 w-16" aria-hidden />
+                </li>
+              ))}
+              {missing.map((m) => (
+                <li key={m.key}>
+                  <button
+                    type="button"
+                    onClick={() => buyMissing(m)}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-[18px] border border-dashed border-[#A9B2A6] bg-card px-3.5 py-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-bold text-muted-foreground">{m.name}</span>
+                      <span className="block text-xs font-bold text-cp-tomato">Not in a pantry · add it</span>
+                    </span>
+                    <Plus className="h-5 w-5 shrink-0 text-cp-tomato" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {panelOpen ? null : (
             <button
               ref={addRef}
@@ -406,6 +530,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
           names={names}
           onAdd={addItem}
           onAddNew={addNew}
+          buy={buy}
           newKey={() => `new:${(seq.current += 1)}`}
           onClose={() => {
             setPanelOpen(false);

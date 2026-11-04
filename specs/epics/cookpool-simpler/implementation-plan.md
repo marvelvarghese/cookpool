@@ -44,7 +44,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 **Done when**
 - Anu sets Dev's portion; Dev's row reads "by Anu", Dev is emailed once, and Dev can change it
 
-## SM3 — from before
+## SM3 — from before ✅
 
 - **SM-8** (kitchen-worker, db, contracts, sdk): the history and recipes
   reads.
