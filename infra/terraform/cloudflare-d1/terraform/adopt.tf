@@ -10,6 +10,12 @@
 # for. Both lookups run inside the job: process env carries the brokered
 # CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID and the TF_HTTP_* state
 # credentials, so no extra secrets are needed.
+#
+# SM-3: it adopts the Asia–Pacific database (`platform_apac`, named
+# `…-apac`), never the one before it. On the run that lands SM-3 the state
+# holds only the old `platform`, the lookup finds no `…-apac` database, and
+# the plan creates it. The lookup only reads, so a pull request's plan-only
+# lane creates nothing.
 
 data "external" "adopt_platform_database" {
   program = ["bash", "-c", <<-EOT
@@ -20,7 +26,7 @@ data "external" "adopt_platform_database" {
     code="$(curl -s -o "$state_file" -w '%%{http_code}' \
       -u "$TF_HTTP_USERNAME:$TF_HTTP_PASSWORD" "$TF_HTTP_ADDRESS" || echo 000)"
     if [ "$code" = "200" ] && jq -e \
-        '[.resources[]? | select(.type == "cloudflare_d1_database" and .name == "platform")] | length > 0' \
+        '[.resources[]? | select(.type == "cloudflare_d1_database" and .name == "platform_apac")] | length > 0' \
         "$state_file" >/dev/null 2>&1; then
       jq -n '{id: ""}'
       exit 0
@@ -38,6 +44,6 @@ data "external" "adopt_platform_database" {
 
 import {
   for_each = toset(compact([data.external.adopt_platform_database.result.id]))
-  to       = cloudflare_d1_database.platform
+  to       = cloudflare_d1_database.platform_apac
   id       = "${var.cloudflare_account_id}/${each.value}"
 }

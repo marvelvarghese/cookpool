@@ -27,7 +27,16 @@ spec:
     # advisory: they are runtime calls, not deploy order. A pull request deploys
     # nothing, so nothing on one waits.
     - component: events-worker
+    # The tables this worker reads exist before it serves: on main the
+    # migrations apply first. SM-3: the database it binds starts empty, and
+    # the migrations create its tables, so a deploy before db-migrate would
+    # serve from a database with no tables.
     - component: db-migrate
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
     - component: policy-worker
       mode: enforced
       modeRules:
@@ -109,4 +118,4 @@ spec:
 # ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
 # ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
 # ci: re-trigger deploy (verify orun-secrets brokered CLOUDFLARE_API_TOKEN resolve in worker deploy lane, 20260727T153639Z)
-# orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z
+# orun: redeploy SM-3 bind the Asia-Pacific database, Smart Placement 2026-11-04T07:56:11Z

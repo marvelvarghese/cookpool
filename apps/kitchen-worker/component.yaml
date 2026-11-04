@@ -115,4 +115,4 @@ spec:
     layer: runtime
     surface: kitchen
     runtime: cloudflare
-# orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z
+# orun: redeploy SM-3 bind the Asia-Pacific database, Smart Placement 2026-11-04T07:56:11Z
