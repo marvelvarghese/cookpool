@@ -359,7 +359,9 @@ const BROWSE_LIMIT = 30;
  * use's search, `usable=1`), and before you type, your items soonest use-by
  * first. Each row says where it is, who paid and what is left, with Add.
  * Nothing matching offers "Bought it just now?" — a small form that adds it
- * to your pantry and the dish in the same write.
+ * to your pantry and the dish in the same write. `buy` opens that form from
+ * outside, prefilled (a dish cooked before whose ingredient is in no pantry
+ * now, SM-9).
  */
 export function PantryPanel({
   idPrefix,
@@ -373,6 +375,7 @@ export function PantryPanel({
   onAddNew,
   newKey,
   onClose,
+  buy,
   autoFocus,
   className,
 }: {
@@ -390,12 +393,21 @@ export function PantryPanel({
   newKey: () => string;
   /** Phones: close the panel. */
   onClose?: () => void;
+  /** Open "Bought it just now?" with this draft (each new `seq` opens it again). */
+  buy?: { draft: NewItemDraft; seq: number } | null;
   autoFocus?: boolean;
   className?: string;
 }) {
   const [query, setQuery] = React.useState("");
   const [buying, setBuying] = React.useState<NewItemDraft | null>(null);
+  const [buyingKey, setBuyingKey] = React.useState(0);
   const [said, setSaid] = React.useState("");
+  React.useEffect(() => {
+    if (!buy) return;
+    setQuery("");
+    setBuying(buy.draft);
+    setBuyingKey(buy.seq);
+  }, [buy]);
   const term = useDebounced(query.trim(), 200);
   const search = useItemSearch(term);
   const browse = useCookableItems();
@@ -456,6 +468,7 @@ export function PantryPanel({
 
       {buying ? (
         <NewItemForm
+          key={buyingKey}
           idPrefix={`${idPrefix}-new`}
           draft={buying}
           onDraft={setBuying}

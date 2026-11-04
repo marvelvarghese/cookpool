@@ -1,0 +1,16 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-9
+  title: "From before, in the app"
+spec:
+  goal: Typing a name on Bought suggests items bought before and picking one fills the form; typing a dish name on Cook suggests dishes cooked before and picking one fills portions, extras and ingredients matched to items usable now.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-9.TaskContract.yaml
+  doneWhen:
+    - buying milk again is type "mi", tap Milk, tap Add
+    - cooking a dish again fills its portions, extras and ingredients, and an ingredient with nothing left reads "Not in a pantry"
+  gates: []

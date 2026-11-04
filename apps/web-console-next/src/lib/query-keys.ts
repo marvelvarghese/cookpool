@@ -70,6 +70,12 @@ export const qk = {
   // The dish maker (CP-15): the items the cook may cook with, under
   // `kitchenPantry()` so any stock write refreshes them.
   kitchenCookable: () => ["kitchenPantry", "cookable"] as const,
+  // From before (SM-9): names bought before and dishes cooked before, per
+  // typed text. Under `kitchenPantry()` too, so adding an item, a use and
+  // cooking (which refreshes every pantry read) refresh them: a count, or
+  // what an ingredient would come from now, may have changed.
+  kitchenItemHistory: (q: string) => ["kitchenPantry", "history", q] as const,
+  kitchenRecipes: (q: string) => ["kitchenPantry", "recipes", q] as const,
   // Cookpool's dishes (CP-17): one dish (its page) and a group's dishes (the
   // group's Dishes tab). Both start with `kitchenDishes()`, so one
   // invalidation after cooking, a claim, an assignment, a finalize, a
