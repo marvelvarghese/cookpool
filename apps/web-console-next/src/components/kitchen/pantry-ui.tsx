@@ -213,11 +213,18 @@ export function PantryPicker({
   );
 }
 
+/** A row's body while its item is not on the server yet: the same look, nothing to open. */
+function PendingRow({ className, children }: { href: string; className?: string; children: React.ReactNode }) {
+  return <span className={cn(className, "block cursor-default opacity-70 hover:bg-transparent")}>{children}</span>;
+}
+
 /** One item on a phone: name, how much is left and who paid, the chip, price per unit, the bar, its worth — and Use on the right edge. */
 export function ItemCard({ row }: { row: ItemRowView }) {
+  // Just added (SM-5): shown at once, opened once the server has it.
+  const Opens = row.pending ? PendingRow : Link;
   return (
-    <li className="flex items-stretch overflow-hidden rounded-2xl border bg-card">
-      <Link
+    <li className="flex items-stretch overflow-hidden rounded-2xl border bg-card" aria-busy={row.pending || undefined}>
+      <Opens
         href={row.href}
         className="min-w-0 flex-1 space-y-2 py-3 pl-3.5 pr-2 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
@@ -238,7 +245,7 @@ export function ItemCard({ row }: { row: ItemRowView }) {
             {row.worth}
           </span>
         </span>
-      </Link>
+      </Opens>
       {row.canUse ? (
         <Link
           href={row.useHref}
@@ -292,16 +299,20 @@ export function ItemTable({ rows, showPantry }: { rows: readonly ItemRowView[]; 
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} className="border-b last:border-b-0">
-              <td className="px-4 py-2.5">
-                <Link
-                  href={r.href}
-                  className={cn(
-                    "rounded font-bold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    r.struck && "text-muted-foreground line-through",
-                  )}
-                >
-                  {r.name}
-                </Link>
+              <td className="px-4 py-2.5" aria-busy={r.pending || undefined}>
+                {r.pending ? (
+                  <span className={cn("font-bold opacity-70", r.struck && "text-muted-foreground line-through")}>{r.name}</span>
+                ) : (
+                  <Link
+                    href={r.href}
+                    className={cn(
+                      "rounded font-bold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      r.struck && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {r.name}
+                  </Link>
+                )}
               </td>
               {showPantry ? (
                 <td className="px-4 py-2.5">

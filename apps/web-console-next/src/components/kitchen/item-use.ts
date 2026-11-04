@@ -26,6 +26,7 @@ import { relativeWhen } from "./activity";
 import { boughtText, capitalize, countWords, dayMonth, joinNames, leftText } from "./pantry";
 import { pricePer } from "./item-form";
 import type { GroupRole } from "./groups";
+import { isPendingId } from "@/lib/optimistic";
 
 type StockFields = Pick<KitchenItem, "priceMinor" | "qtyBoughtMilli" | "qtyLeftMilli" | "worthMinor">;
 
@@ -400,6 +401,8 @@ export function canUndoMove(
   ctx: { meId: string | null; personal: boolean; role: GroupRole | null; canWrite: boolean },
 ): boolean {
   if (!ctx.canWrite) return false;
+  // Not on the server yet (SM-5): its toast undoes it.
+  if (isPendingId(move.id)) return false;
   if (move.undone || (move.kind !== "use" && move.kind !== "waste")) return false;
   const manager = ctx.role === "owner" || ctx.role === "admin";
   const mine = ctx.meId !== null && move.actor === ctx.meId;

@@ -25,6 +25,7 @@ import { formatMinor } from "./money";
 import { foldForSearch, groupInitials, sortGroups } from "./groups";
 import { memberLabel, memberLabelInline, type MemberNames } from "./members";
 import { dayMonthText } from "./when";
+import { isPendingId } from "@/lib/optimistic";
 
 // ── Which pantry ──────────────────────────────────────────────────
 
@@ -457,6 +458,8 @@ export interface ItemRowView {
   worth: string;
   /** Show Use: the caller may use it (not a viewer) and some is left. */
   canUse: boolean;
+  /** Just added, the server's answer still on its way (SM-5): listed, but nothing opens it yet. */
+  pending: boolean;
 }
 
 export function itemRowView(
@@ -487,7 +490,8 @@ export function itemRowView(
     percent: leftPercent(item),
     bar: barTone(item),
     worth: formatMinor(item.worthMinor, item.currency),
-    canUse: (item.canUse ?? true) && item.state === "active" && item.qtyLeftMilli > 0,
+    canUse: !isPendingId(item.id) && (item.canUse ?? true) && item.state === "active" && item.qtyLeftMilli > 0,
+    pending: isPendingId(item.id),
   };
 }
 

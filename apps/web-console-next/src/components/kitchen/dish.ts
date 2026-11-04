@@ -13,6 +13,7 @@
  * amount by hand. Pure and dependency-free, so it is unit-testable.
  */
 
+import { isPendingId } from "@/lib/optimistic";
 import type {
   DishAmount,
   DishNet,
@@ -359,11 +360,32 @@ function nettingPreview(dish: SplitDish, splits: readonly Split[], amounts: read
 }
 
 /**
+ * Whether the API's split (`amounts`) is of the dish's shares as they are: a
+ * portion shown before the server answers (Cookpool SM-5) changes the shares
+ * and leaves the amounts as they were, and an open dish is then previewed.
+ */
+export function amountsFitShares(dish: Pick<KitchenDish, "cook" | "state" | "shares" | "amounts">): boolean {
+  if (dish.state !== "open" && dish.state !== "draft") return true;
+  // A claim the server has not answered yet is a new share with a pending id.
+  if (dish.shares.some((s) => isPendingId(s.id))) return false;
+  const bySubject = new Map(dish.shares.map((s) => [s.subjectId, s] as const));
+  for (const a of dish.amounts) {
+    const share = bySubject.get(a.subjectId);
+    if (!share) {
+      if (a.subjectId !== dish.cook || (a.portionsHalf ?? 0) !== 0 || a.exactMinor !== null) return false;
+      continue;
+    }
+    if ((a.portionsHalf ?? null) !== (share.portionsHalf ?? null) || (a.exactMinor ?? null) !== (share.exactMinor ?? null)) return false;
+  }
+  return true;
+}
+
+/**
  * The split the screen shows: the API's while the shares on screen are the
- * dish's own, else the engine's preview of them.
+ * dish's own (and it is of them), else the engine's preview of them.
  */
 export function splitFor(dish: KitchenDish, shares: readonly ShareDraft[]): SplitView {
-  return sameShares(shares, sharesOf(dish)) ? splitOfDish(dish) : previewSplit(dish, shares);
+  return sameShares(shares, sharesOf(dish)) && amountsFitShares(dish) ? splitOfDish(dish) : previewSplit(dish, shares);
 }
 
 /** The most half portions the viewer may claim: what nobody has, plus their own. */

@@ -28,7 +28,8 @@ import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
-import { forgetRecentGroup, recordRecentGroup } from "@/lib/recent-groups";
+import { forgetRecentGroup, recordRecentGroup, rememberGroupId, rememberedGroupId } from "@/lib/recent-groups";
+import { usePrefetchKitchen } from "@/components/kitchen/prefetch";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -85,13 +86,24 @@ export default function GroupPage() {
   const groups = useGroups();
   const group = groups.data?.find((g) => g.slug === slug) ?? null;
   const foundSlug = group?.slug ?? null;
+  const foundId = group?.id ?? null;
   // Set once the person leaves, so the page does not flash "not in this
   // group" while the router moves to /groups.
   const [left, setLeft] = React.useState(false);
+  const prefetch = usePrefetchKitchen();
+
+  // Opened cold, the group's own reads start beside the group list, by the
+  // id this slug had last time (SM-5): no waiting for one before the other.
+  React.useEffect(() => {
+    const known = rememberedGroupId(slug);
+    if (known) prefetch.group(known);
+  }, [slug, prefetch]);
 
   React.useEffect(() => {
-    if (foundSlug) recordRecentGroup(foundSlug);
-  }, [foundSlug]);
+    if (!foundSlug) return;
+    recordRecentGroup(foundSlug);
+    if (foundId) rememberGroupId(foundSlug, foundId);
+  }, [foundSlug, foundId]);
 
   // A group just created or joined may not be in the cached list yet: wait for
   // the refetch before deciding the person is not in it.

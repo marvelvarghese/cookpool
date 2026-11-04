@@ -22,7 +22,6 @@ import { memberLabel, memberLabelInline, type MemberNames } from "@/components/k
 import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
 import { GroupPickerList } from "@/components/kitchen/group-picker";
 import { wasteRuleLabel, type GroupRole } from "@/components/kitchen/groups";
-import { formatMinor } from "@/components/kitchen/money";
 import {
   refreshPantry,
   undoRefusal,
@@ -30,8 +29,8 @@ import {
   useItemMoves,
   useKitchenItem,
   useLogUse,
-  useOfferStockUndo,
   usePantries,
+  useWasteItem,
 } from "@/components/kitchen/pantry-data";
 import { ShareList, StockBar, UseByPill, WhoHadIt } from "@/components/kitchen/pantry-ui";
 import {
@@ -73,6 +72,7 @@ import {
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookHref } from "@/components/kitchen/dish-maker";
 import { undoneToast } from "@/components/kitchen/undo";
+import { usePrefetchKitchen } from "@/components/kitchen/prefetch";
 
 /**
  * One item (CP-12): how much is left of what was bought, what it cost and is
@@ -93,6 +93,13 @@ export default function ItemPage() {
 function ItemLoader({ itemRef }: { itemRef: ItemRef }) {
   const profile = useProfile();
   const item = useKitchenItem(itemRef);
+  // Its history and its group's members start beside the item, not after it (SM-5).
+  const prefetch = usePrefetchKitchen();
+  const refParam = itemRefParam(itemRef);
+  React.useEffect(() => {
+    const ref = parseItemRef(refParam);
+    if (ref) prefetch.item(ref);
+  }, [refParam, prefetch]);
   if (item.loading || profile.loading) return <ItemSkeleton />;
   if (item.error?.code === "not_found") return <ItemNotFound />;
   if (item.error || !item.data) {
@@ -258,9 +265,6 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
   const [qtyMilli, setQtyMilli] = React.useState(() => initialAmount(item));
   const [typed, setTyped] = React.useState<string | null>(null);
   const [chosen, setChosen] = React.useState<ReadonlySet<string>>(() => new Set(meId ? [meId] : []));
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const idemKey = React.useRef(crypto.randomUUID());
 
   // What is left can shrink under us (someone else used some): stay within it.
   React.useEffect(() => {
@@ -278,11 +282,9 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
 
   const stepBy = (delta: 1 | -1) => {
     setTyped(null);
-    setError(null);
     setQtyMilli((q) => stepAmount(amount ?? q, delta, item));
   };
   const toggle = (id: string) => {
-    setError(null);
     setChosen((cur) => {
       const next = new Set(cur);
       if (next.has(id)) next.delete(id);
@@ -291,22 +293,16 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
     });
   };
 
-  const submit = async () => {
+  // The use shows at once (SM-5): what is left drops, the history gains the
+  // row and the Undo toast is up before the server answers; a refusal is put
+  // back and the toast says why. Each tap is its own write, with its own key.
+  const submit = () => {
     if (amount === null || !ready) return;
-    setBusy(true);
-    setError(null);
-    const r = await logUse({ ref: itemRef, item, qtyMilli: amount, consumers, idempotencyKey: idemKey.current, meId, names });
-    setBusy(false);
-    if (!r.ok) {
-      // A refusal is stored against its key at the edge: the next try needs a new one.
-      if (r.answered) idemKey.current = crypto.randomUUID();
-      if (r.gone.length > 0) setChosen((cur) => new Set([...cur].filter((id) => !r.gone.includes(id))));
-      setError(r.message);
-      return;
-    }
-    idemKey.current = crypto.randomUUID();
+    void logUse({ ref: itemRef, item, qtyMilli: amount, consumers, idempotencyKey: crypto.randomUUID(), meId, names }).then((r) => {
+      if (!r.ok && r.gone.length > 0) setChosen((cur) => new Set([...cur].filter((id) => !r.gone.includes(id))));
+    });
     setTyped(null);
-    setQtyMilli(initialAmount(r.response.item));
+    setQtyMilli(initialAmount({ dimension: item.dimension, qtyLeftMilli: item.qtyLeftMilli - amount }));
   };
 
   const btn =
@@ -339,7 +335,6 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
               inputMode="decimal"
               value={typed ?? amountInput(qtyMilli)}
               onChange={(e) => {
-                setError(null);
                 setTyped(e.target.value);
               }}
               onBlur={() => {
@@ -397,13 +392,7 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
           />
         </>
       )}
-
-      {error ? (
-        <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
-          {error}
-        </p>
-      ) : null}
-      <Button type="button" className={cn(K_BUTTON, "h-12 w-full")} disabled={!ready} loading={busy} onClick={() => void submit()}>
+      <Button type="button" className={cn(K_BUTTON, "h-12 w-full")} disabled={!ready} onClick={submit}>
         {label}
       </Button>
     </section>
@@ -413,45 +402,16 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
 // ── Cook with it · Mark wasted ─────────────────────────────────────
 
 function ActionsCard({ itemRef, item, meId, names, roster }: ItemCtx) {
-  const { client } = useSession();
-  const qc = useQueryClient();
-  const offerUndo = useOfferStockUndo();
+  const wasteItem = useWasteItem();
   const [open, setOpen] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const idemKey = React.useRef(crypto.randomUUID());
   const preview = wastePreview({ item, members: roster ?? [], meId, names });
   const waiting = item.pantry.kind === "group" && roster === null;
 
-  const waste = async () => {
-    setBusy(true);
-    setError(null);
-    const opts = { idempotencyKey: idemKey.current };
-    const r = await wrap(() =>
-      itemRef.kind === "group"
-        ? client.kitchen.wasteGroupItem(itemRef.orgId, itemRef.itemId, {}, opts)
-        : client.kitchen.wastePersonalItem(itemRef.itemId, {}, opts),
-    );
-    setBusy(false);
-    if (!r.ok) {
-      // A refusal is stored against its key at the edge: the next try needs a new one.
-      if (r.status > 0 && r.status < 500) idemKey.current = crypto.randomUUID();
-      refreshPantry(qc, null);
-      setError(r.error.reason === "insufficient_stock" ? "There's nothing left to waste now." : r.error.message);
-      return;
-    }
-    idemKey.current = crypto.randomUUID();
+  // At once (SM-5): nothing left on screen and the Undo toast up before the
+  // server answers; a refusal is put back and the toast says why.
+  const waste = () => {
     setOpen(false);
-    refreshPantry(qc, itemRef.kind === "group" ? itemRef.orgId : null);
-    const what = `${amountText(r.data.move.qtyMilli, item)} of ${item.name}`;
-    offerUndo(
-      itemRef,
-      r.data,
-      `Marked ${what} wasted`,
-      r.data.txn
-        ? `${formatMinor(r.data.txn.totalMinor, item.currency)} split equally in ${pantryLabel(item.pantry)}.`
-        : "Nobody was charged.",
-    );
+    void wasteItem({ ref: itemRef, item, meId, idempotencyKey: crypto.randomUUID() });
   };
 
   return (
@@ -470,7 +430,6 @@ function ActionsCard({ itemRef, item, meId, names, roster }: ItemCtx) {
           aria-expanded={open}
           aria-controls="waste-preview"
           onClick={() => {
-            setError(null);
             setOpen((o) => !o);
           }}
           className="flex min-h-[50px] items-center justify-center gap-2 rounded-[14px] border border-input bg-card px-3 text-[15px] font-bold text-cp-expired transition-colors hover:bg-cp-expired-tint/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -492,16 +451,11 @@ function ActionsCard({ itemRef, item, meId, names, roster }: ItemCtx) {
               ) : null}
             </>
           )}
-          {error ? (
-            <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
-              {error}
-            </p>
-          ) : null}
           <div className="grid grid-cols-2 gap-2.5">
             <Button type="button" variant="outline" className={K_BUTTON} onClick={() => setOpen(false)}>
               Keep it
             </Button>
-            <Button type="button" variant="destructive" className={K_BUTTON} loading={busy} disabled={waiting} onClick={() => void waste()}>
+            <Button type="button" variant="destructive" className={K_BUTTON} disabled={waiting} onClick={waste}>
               Mark wasted
             </Button>
           </div>

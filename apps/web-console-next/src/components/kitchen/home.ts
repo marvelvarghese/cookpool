@@ -42,6 +42,8 @@ export const RECENT_ROWS = 6;
 export interface RecentRow extends ActivityRow {
   /** "Flat 4B" */
   groupName: string;
+  /** The group's `org_…` (what the row opens is read ahead from it, SM-5). */
+  orgId: string;
   /** The dish it came from, else the entry in its group's activity. */
   href: string;
   occurredAt: string;
@@ -73,6 +75,7 @@ export function recentAcrossGroups(
       ...row,
       whoWhen: `${group.name} · ${row.whoWhen}`,
       groupName: group.name,
+      orgId: group.orgId,
       occurredAt: txn.occurredAt,
       href:
         txn.sourceKind === "dish" && txn.sourceId

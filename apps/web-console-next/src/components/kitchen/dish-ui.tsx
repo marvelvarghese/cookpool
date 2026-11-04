@@ -175,11 +175,6 @@ export function DishClaimChoices({
           </button>
         </div>
       )}
-      {claimer.error ? (
-        <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
-          {claimer.error}
-        </p>
-      ) : null}
     </div>
   );
 }

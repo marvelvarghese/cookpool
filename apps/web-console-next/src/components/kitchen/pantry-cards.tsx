@@ -12,7 +12,9 @@ import { useMemberNames } from "./people-data";
 import { usePantries, usePantryItems, useUseSoonItems } from "./pantry-data";
 import { UseByPill } from "./pantry-ui";
 import { memberLabelInline } from "./members";
-import { HOME_USE_SOON, expiryChip, itemHref, leftText, pantryLabel, soonStrip, totalsOf } from "./pantry";
+import { HOME_USE_SOON, expiryChip, itemHref, itemRefOf, leftText, pantryLabel, soonStrip, totalsOf } from "./pantry";
+import { pressIn, usePrefetchKitchen } from "./prefetch";
+import { isPendingId } from "@/lib/optimistic";
 
 /**
  * The pantry outside /pantry (CP-12): Home's "Use soon" strip — the soonest
@@ -23,6 +25,7 @@ import { HOME_USE_SOON, expiryChip, itemHref, leftText, pantryLabel, soonStrip, 
 
 export function HomeUseSoon({ exclude, className }: { exclude?: ReadonlySet<string>; className?: string } = {}) {
   const strip = useUseSoonItems();
+  const prefetch = usePrefetchKitchen();
   const pantries = usePantries();
   const items = strip.data ? soonStrip(strip.data.soon, strip.data.expired, HOME_USE_SOON, exclude) : null;
   const total = pantries.data ? totalsOf(pantries.data).itemCount : null;
@@ -92,6 +95,7 @@ export function HomeUseSoon({ exclude, className }: { exclude?: ReadonlySet<stri
             return (
               <li key={item.id} className="w-36 shrink-0 snap-start min-[900px]:w-auto">
                 <Link
+                  {...pressIn(() => prefetch.item(itemRefOf(item)))}
                   href={itemHref(item)}
                   className="flex h-full min-h-28 flex-col gap-1.5 rounded-[18px] border bg-card p-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
@@ -169,9 +173,13 @@ export function GroupPantryPanel({ orgId, name, canWrite }: { orgId: string; nam
         {list.slice(0, GROUP_TAB_ROWS).map((item) => {
           const chip = expiryChip(item);
           return (
-            <li key={item.id}>
+            <li key={item.id} aria-busy={isPendingId(item.id) || undefined}>
               <Link
                 href={itemHref(item)}
+                // Just added (SM-5): listed at once, opened once the server has it.
+                onClick={(e) => {
+                  if (isPendingId(item.id)) e.preventDefault();
+                }}
                 className="flex min-h-14 items-center gap-3 px-4 py-2.5 transition-colors first:rounded-t-[18px] last:rounded-b-[18px] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1">

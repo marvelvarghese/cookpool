@@ -14,7 +14,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 - the documents are on `main` under `specs/epics/cookpool-simpler`
 - `orun task epic show cookpool-simpler` lists SM0 to SM5, and `SM-1` reads done
 
-## SM1 — fast
+## SM1 — fast ✅
 
 - **SM-2 — pages are files** (web-console-next): no `headers()` in the root
   layout; the app config resolves in the browser; kitchen routes prerender;

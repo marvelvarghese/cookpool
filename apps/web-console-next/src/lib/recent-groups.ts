@@ -58,18 +58,66 @@ export function clearRecentGroups(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(recentKey());
+    window.localStorage.removeItem(idsKey());
   } catch {
     return;
   }
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
+// ── Which id a slug had (Cookpool SM-5) ───────────────────────────
+//
+// A group's reads are by its `org_…` id, and the address names its slug, so
+// a group page opened cold waited for the group list before reading anything
+// of the group. Remembering the id each slug had lets its reads start at once,
+// beside the list. A hint, like the slugs: a stale id only reads ahead what
+// the page then does not use.
+
+const idsKey = (): string => `${appConfig().storagePrefix}.group-ids`;
+/** At most this many slugs are remembered (the most recent). */
+const MAX_IDS = 20;
+
+function readIds(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(idsKey()) ?? "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, string> = {};
+    for (const [slug, id] of Object.entries(parsed as Record<string, unknown>)) if (typeof id === "string") out[slug] = id;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Note the id the group `slug` has. */
+export function rememberGroupId(slug: string, orgId: string): void {
+  if (typeof window === "undefined" || !slug || !orgId) return;
+  const ids = readIds();
+  if (ids[slug] === orgId) return;
+  delete ids[slug];
+  const next = Object.fromEntries([[slug, orgId] as const, ...Object.entries(ids)].slice(0, MAX_IDS));
+  try {
+    window.localStorage.setItem(idsKey(), JSON.stringify(next));
+  } catch {
+    return;
+  }
+}
+
+/** The id the group `slug` had when last opened here, if it was. */
+export function rememberedGroupId(slug: string): string | null {
+  return readIds()[slug] ?? null;
+}
+
 /** Forget a group (after leaving it). */
 export function forgetRecentGroup(slug: string): void {
   if (typeof window === "undefined") return;
   const next = read().filter((s) => s !== slug);
+  const ids = readIds();
+  delete ids[slug];
   try {
     window.localStorage.setItem(recentKey(), JSON.stringify(next));
+    window.localStorage.setItem(idsKey(), JSON.stringify(ids));
   } catch {
     return;
   }

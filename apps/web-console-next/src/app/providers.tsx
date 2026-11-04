@@ -13,10 +13,13 @@ function makeQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         // Stale-while-revalidate: cached data paints instantly on navigation
-        // and revalidates in the background. gcTime keeps it around between
-        // visits. Conservative focus refetch to avoid surprise spinners.
-        staleTime: 30_000,
-        gcTime: 5 * 60_000,
+        // and revalidates in the background. Conservative focus refetch to
+        // avoid surprise spinners. Cookpool SM-5: every write patches what it
+        // changes and reads it again, so moving between tabs within a minute
+        // reads nothing again; what was read stays for half an hour, so a
+        // revisit paints from it instead of a skeleton.
+        staleTime: 60_000,
+        gcTime: 30 * 60_000,
         refetchOnWindowFocus: false,
         retry: 1,
       },

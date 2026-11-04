@@ -3,23 +3,41 @@
 import * as React from "react";
 import { useQueries, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type {
+  CreateGroupItemRequest,
+  CreatePersonalItemRequest,
   KitchenItem,
   KitchenMember,
   KitchenStockMove,
   KitchenUsual,
   Pantry,
+  PantryRef,
   ReachableItem,
   StockMoveResponse,
 } from "@saas/contracts/kitchen";
 import { wrap, type ApiErrorBody, type ApiResult } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { useApiQuery, qk } from "@/lib/query";
+import { useApiQuery, afterWrites, prefetchApi, qk } from "@/lib/query";
+import { applyPatches } from "@/lib/optimistic";
+import { useToast } from "@/components/ui/toast";
 import { refreshLedger } from "./ledger-data";
-import type { UndoResult } from "./undo";
+import { loadMembers } from "./people-data";
+import { REFUSAL_MS, refusedToast, type UndoResult } from "./undo";
 import { useUndoToast } from "./undo-toast";
-import { itemRefParam, type ItemRef } from "./pantry";
-import { amountText, logRefusal, logRequest, loggedText } from "./item-use";
-import type { MemberNames } from "./members";
+import { itemRefOf, itemRefParam, leftText, type ItemRef } from "./pantry";
+import { amountCost, amountText, logRefusal, logRequest, loggedText } from "./item-use";
+import { formatMinor } from "./money";
+import { memberLabel, type MemberNames } from "./members";
+import {
+  itemAddedPatches,
+  itemRemovedPatches,
+  movesPatch,
+  pendingItem,
+  pendingMove,
+  stockPatches,
+  stockReturnPatches,
+  type StockChange,
+} from "./cache-patches";
+import { beginWrite, queryCacheOf } from "./optimistic-data";
 
 /**
  * Cookpool's pantry reads and stock writes (CP-12), through the CP-10/CP-11
@@ -28,6 +46,8 @@ import type { MemberNames } from "./members";
  * item and its history; a write that moved money also refreshes the group's
  * ledger and the cross-group reads (`refreshLedger`).
  */
+
+type Client = ReturnType<typeof useSession>["client"];
 
 /** Items are read 100 at a time, up to 1,000 per pantry choice. */
 const ITEMS_PAGE = 100;
@@ -45,25 +65,36 @@ export interface LoadedItems {
   truncated: boolean;
 }
 
+/** Read the items of one choice ("all", "personal" or a group's `org_…`), soonest use-by first, every page. */
+function loadPantryItems(client: Client, pantry: string): Promise<ApiResult<LoadedItems>> {
+  return wrap(async () => {
+    const items: ReachableItem[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < ITEMS_MAX_PAGES; page++) {
+      const res = await client.kitchen.items(cursor ? { pantry, cursor, limit: ITEMS_PAGE } : { pantry, limit: ITEMS_PAGE });
+      items.push(...res.items);
+      cursor = res.nextCursor;
+      if (!cursor) return { items, truncated: false };
+    }
+    return { items, truncated: true };
+  });
+}
+
 /** The items of one choice ("all", "personal" or a group's `org_…`), soonest use-by first, every page. */
 export function usePantryItems(pantry: string, enabled = true) {
   const { client } = useSession();
-  return useApiQuery<LoadedItems>(
-    qk.kitchenPantryItems(pantry),
-    () =>
-      wrap(async () => {
-        const items: ReachableItem[] = [];
-        let cursor: string | null = null;
-        for (let page = 0; page < ITEMS_MAX_PAGES; page++) {
-          const res = await client.kitchen.items(cursor ? { pantry, cursor, limit: ITEMS_PAGE } : { pantry, limit: ITEMS_PAGE });
-          items.push(...res.items);
-          cursor = res.nextCursor;
-          if (!cursor) return { items, truncated: false };
-        }
-        return { items, truncated: true };
-      }),
-    { enabled },
-  );
+  const qc = useQueryClient();
+  return useApiQuery<LoadedItems>(qk.kitchenPantryItems(pantry), () => loadPantryItems(client, pantry), {
+    enabled,
+    // A pantry chip opened for the first time shows its items from "all", when that is read, until its own arrive (SM-5).
+    placeholder: () => {
+      if (pantry === "all") return undefined;
+      const all = qc.getQueryData<LoadedItems>(qk.kitchenPantryItems("all"));
+      if (!all) return undefined;
+      const items = all.items.filter((i) => (pantry === "personal" ? i.pantry.kind === "personal" : i.pantry.kind === "group" && i.pantry.orgId === pantry));
+      return { items, truncated: all.truncated };
+    },
+  });
 }
 
 /**
@@ -84,20 +115,28 @@ export function useUseSoonItems() {
   );
 }
 
+/** Read one item by its ref (its page's read; Home reads it ahead, SM-5). */
+export function loadItem(client: Client, ref: ItemRef): Promise<ApiResult<KitchenItem>> {
+  return wrap(async () =>
+    ref.kind === "personal" ? (await client.kitchen.getPersonalItem(ref.itemId)).item : (await client.kitchen.getGroupItem(ref.orgId, ref.itemId)).item,
+  );
+}
+
+/** Read an item's stock moves, newest first (its page's history). */
+export function loadItemMoves(client: Client, ref: ItemRef): Promise<ApiResult<KitchenStockMove[]>> {
+  return wrap(async () =>
+    ref.kind === "personal"
+      ? (await client.kitchen.personalItemMoves(ref.itemId, { limit: 100 })).moves
+      : (await client.kitchen.groupItemMoves(ref.orgId, ref.itemId, { limit: 100 })).moves,
+  );
+}
+
 /** One item, by its page ref: your own (`getPersonalItem`) or a group's (`getGroupItem`). */
 export function useKitchenItem(ref: ItemRef | null) {
   const { client } = useSession();
   return useApiQuery<KitchenItem>(
     qk.kitchenItem(ref ? itemRefParam(ref) : ""),
-    () =>
-      wrap(async () => {
-        if (!ref) throw new Error("no item");
-        const res =
-          ref.kind === "personal"
-            ? await client.kitchen.getPersonalItem(ref.itemId)
-            : await client.kitchen.getGroupItem(ref.orgId, ref.itemId);
-        return res.item;
-      }),
+    () => (ref ? loadItem(client, ref) : wrap<KitchenItem>(() => Promise.reject(new Error("no item")))),
     { enabled: ref !== null },
   );
 }
@@ -107,15 +146,7 @@ export function useItemMoves(ref: ItemRef | null) {
   const { client } = useSession();
   return useApiQuery<KitchenStockMove[]>(
     qk.kitchenItemMoves(ref ? itemRefParam(ref) : ""),
-    () =>
-      wrap(async () => {
-        if (!ref) throw new Error("no item");
-        const res =
-          ref.kind === "personal"
-            ? await client.kitchen.personalItemMoves(ref.itemId, { limit: 100 })
-            : await client.kitchen.groupItemMoves(ref.orgId, ref.itemId, { limit: 100 });
-        return res.moves;
-      }),
+    () => (ref ? loadItemMoves(client, ref) : wrap<KitchenStockMove[]>(() => Promise.reject(new Error("no item")))),
     { enabled: ref !== null },
   );
 }
@@ -129,11 +160,7 @@ export function useMembersOf(orgId: string | null) {
   const { client } = useSession();
   return useApiQuery<KitchenMember[]>(
     qk.kitchenMembers(orgId ?? ""),
-    () =>
-      wrap(async () => {
-        if (!orgId) throw new Error("no group");
-        return (await client.kitchen.groupMembers(orgId)).members;
-      }),
+    () => (orgId ? loadMembers(client, orgId) : wrap<KitchenMember[]>(() => Promise.reject(new Error("no group")))),
     { enabled: orgId !== null },
   );
 }
@@ -191,32 +218,6 @@ function undoRefusalText(error: ApiErrorBody): { kind: "warning" | "error"; titl
   }
 }
 
-/**
- * Stock actions confirm by undo, not by a dialog (design §7): after a use or
- * waste, the one Undo toast (`useUndoToast`, CP-23) offers Undo for ten
- * seconds.
- */
-export function useOfferStockUndo() {
-  const { client } = useSession();
-  const qc = useQueryClient();
-  const offer = useUndoToast();
-  return React.useCallback(
-    (ref: ItemRef, response: StockMoveResponse, title: string, description?: string) => {
-      const orgId = ref.kind === "group" ? ref.orgId : null;
-      offer({
-        title,
-        description,
-        undo: async (): Promise<UndoResult> => {
-          const r = await undoStockMove(client, ref, { id: response.move.id, txnId: response.txn?.id ?? response.move.txnId });
-          refreshPantry(qc, orgId);
-          return r.ok ? { ok: true, description: `${response.item.name} is back as it was.` } : undoRefusal(r.error);
-        },
-      });
-    },
-    [client, qc, offer],
-  );
-}
-
 // ── Quick use (CP-13) ─────────────────────────────────────────────
 
 /** How many usuals the app reads: quick use's strip, and the + Add sheet's Do it again (one cache entry). */
@@ -239,7 +240,8 @@ export function useItemSearch(q: string) {
   return useApiQuery<ReachableItem[]>(
     qk.kitchenSearch(term),
     () => wrap(async () => (await client.kitchen.searchItems(term, { usable: true, limit: 20 })).items),
-    { enabled: term !== "" },
+    // The last matches stay while the next ones come (SM-5).
+    { enabled: term !== "", keepPrevious: true },
   );
 }
 
@@ -260,16 +262,15 @@ export function useUsableItems(enabled: boolean) {
  */
 export function useItemsByRef(refs: readonly ItemRef[]): ReadonlyMap<string, KitchenItem | null> {
   const { client } = useSession();
+  const qc = useQueryClient();
   const results = useQueries({
     queries: refs.map((ref) => ({
       queryKey: qk.kitchenItem(itemRefParam(ref)),
-      queryFn: async (): Promise<KitchenItem> => {
-        const r = await wrap(() =>
-          ref.kind === "personal" ? client.kitchen.getPersonalItem(ref.itemId) : client.kitchen.getGroupItem(ref.orgId, ref.itemId),
-        );
+      queryFn: afterWrites(qc, qk.kitchenItem(itemRefParam(ref)), async (): Promise<KitchenItem> => {
+        const r = await loadItem(client, ref);
         if (!r.ok) throw r.error;
-        return r.data.item;
-      },
+        return r.data;
+      }),
     })),
   });
   const out = new Map<string, KitchenItem | null>();
@@ -307,47 +308,293 @@ export type LogUseResult =
       answered: boolean;
     };
 
+/** The server answered (a refusal is stored against its key at the edge): the next try needs a new key. */
+function wasAnswered(r: { status: number }): boolean {
+  return r.status > 0 && r.status < 500;
+}
+
+/** A use or waste the screen already shows: the request, its toast, its Undo. */
+function useStockWrite() {
+  const { client } = useSession();
+  const qc = useQueryClient();
+  const offer = useUndoToast();
+  return React.useCallback(
+    (input: {
+      ref: ItemRef;
+      item: KitchenItem;
+      change: StockChange;
+      move: KitchenStockMove;
+      send: () => Promise<ApiResult<StockMoveResponse>>;
+      title: string;
+      /** The toast's second line once the server answers (what it did to money). */
+      answeredText: (answer: StockMoveResponse) => string | undefined;
+      refusal: (error: ApiErrorBody) => { title: string; message: string };
+    }): Promise<ApiResult<StockMoveResponse>> => {
+      const { ref, item, change } = input;
+      const orgId = ref.kind === "group" ? ref.orgId : null;
+      const write = beginWrite(qc, [...stockPatches(change), movesPatch(itemRefParam(ref), input.move)]);
+      const request = write.track(input.send());
+      let undone = false;
+      const toast = offer({
+        title: input.title,
+        // Pressed before the server answered: it is put back once it has, if it was written at all.
+        undo: async (): Promise<UndoResult> => {
+          const r = await request;
+          if (!r.ok) return { ok: true, description: `${item.name} is back as it was.` };
+          const u = await write.track(undoStockMove(client, ref, { id: r.data.move.id, txnId: r.data.txn?.id ?? r.data.move.txnId }));
+          refreshPantry(qc, orgId);
+          return u.ok ? { ok: true, description: `${item.name} is back as it was.` } : undoRefusal(u.error);
+        },
+        restore: () => {
+          undone = true;
+          write.restore(stockReturnPatches(change));
+        },
+      });
+      return request.then((r) => {
+        if (!r.ok) {
+          write.rollback();
+          // What is left may have changed under us: read it again.
+          refreshPantry(qc, null);
+          const why = input.refusal(r.error);
+          toast.refuse(refusedToast(why.title, why.message));
+          return r;
+        }
+        if (undone) return r;
+        // The server's item on its page at once; every other read is read again.
+        qc.setQueryData(qk.kitchenItem(itemRefParam(ref)), r.data.item);
+        refreshPantry(qc, orgId);
+        const description = input.answeredText(r.data);
+        if (description) toast.update({ description });
+        return r;
+      });
+    },
+    [client, qc, offer],
+  );
+}
+
 /**
- * Log a use — the item page's Use some, quick use and Do it again share it:
- * the request (`logRequest`), the refresh of every pantry read (and the
- * group's ledger), the refusal in words (`logRefusal`), and on success the
- * ten-second Undo toast (`useOfferStockUndo`) saying what was logged
- * (`loggedText`).
+ * Log a use — the item page's Use some, quick use, Do it again and Home's
+ * one tap share it. It shows at once (Cookpool SM-5): what is left goes down
+ * wherever the item is listed, its history gains the row, and the one Undo
+ * toast says what was logged (`loggedText`) before the server answers; its
+ * second line — what it did to money — is the server's, when it answers. A
+ * refusal puts everything back exactly and the toast says why in one line
+ * (`logRefusal`). The promise says how it came out: callers move on at once
+ * and look only for what a refusal asks of them (who left the group).
  */
 export function useLogUse() {
   const { client } = useSession();
-  const qc = useQueryClient();
-  const offerUndo = useOfferStockUndo();
+  const stockWrite = useStockWrite();
   return React.useCallback(
-    async (input: LogUseInput): Promise<LogUseResult> => {
+    (input: LogUseInput): Promise<LogUseResult> => {
       const { ref, item, qtyMilli, meId, names } = input;
       const consumers = item.pantry.kind === "personal" ? [] : [...input.consumers];
       const body = logRequest(item, qtyMilli, consumers);
+      const what = input.what ?? amountText(qtyMilli, item);
+      const change: StockChange = { itemId: item.id, kind: "use", qtyMilli, costMinor: amountCost(item, qtyMilli) };
+      const textFor = (txnTotalMinor: number | null, costMinor: number) =>
+        loggedText({ item, what, consumers, meId, names: names ?? null, txnTotalMinor, costMinor, inPantry: input.inPantry ?? false });
       const opts = { idempotencyKey: input.idempotencyKey };
-      const r = await wrap(() =>
-        ref.kind === "group"
-          ? client.kitchen.useGroupItem(ref.orgId, ref.itemId, body, opts)
-          : client.kitchen.usePersonalItem(ref.itemId, body, opts),
-      );
-      if (!r.ok) {
-        refreshPantry(qc, null);
-        const refusal = logRefusal(r.error, { item, meId, names: names ?? null });
-        return { ok: false, ...refusal, answered: r.status > 0 && r.status < 500 };
-      }
-      refreshPantry(qc, ref.kind === "group" ? ref.orgId : null);
-      const text = loggedText({
+      return stockWrite({
+        ref,
         item,
-        what: input.what ?? amountText(qtyMilli, item),
-        consumers,
-        meId,
-        names: names ?? null,
-        txnTotalMinor: r.data.txn ? r.data.txn.totalMinor : null,
-        costMinor: r.data.move.costMinor,
-        inPantry: input.inPantry ?? false,
+        change,
+        move: pendingMove({
+          change,
+          quantity: Number(body.quantity),
+          unit: body.unit ?? item.displayUnit,
+          actor: meId ?? item.createdBy,
+          consumers: item.pantry.kind === "personal" ? null : consumers,
+          at: new Date().toISOString(),
+        }),
+        send: () =>
+          wrap(() =>
+            ref.kind === "group"
+              ? client.kitchen.useGroupItem(ref.orgId, ref.itemId, body, opts)
+              : client.kitchen.usePersonalItem(ref.itemId, body, opts),
+          ),
+        title: textFor(null, change.costMinor).title,
+        answeredText: (a) => textFor(a.txn ? a.txn.totalMinor : null, a.move.costMinor).description,
+        refusal: (error) => ({ title: `Couldn't log ${item.name}`, message: logRefusal(error, { item, meId, names: names ?? null }).message }),
+      }).then((r): LogUseResult => {
+        if (r.ok) return { ok: true, response: r.data };
+        const refusal = logRefusal(r.error, { item, meId, names: names ?? null });
+        return { ok: false, ...refusal, answered: wasAnswered(r) };
       });
-      offerUndo(ref, r.data, text.title, text.description);
-      return { ok: true, response: r.data };
     },
-    [client, qc, offerUndo],
+    [client, stockWrite],
+  );
+}
+
+/**
+ * Mark the rest of an item wasted (the item page), at once like a use: none
+ * left wherever it is listed, its history gains the row, and the Undo toast
+ * says so before the server answers — its second line, who was charged, is
+ * the server's.
+ */
+export function useWasteItem() {
+  const { client } = useSession();
+  const stockWrite = useStockWrite();
+  return React.useCallback(
+    (input: { ref: ItemRef; item: KitchenItem; meId: string | null; idempotencyKey: string }): Promise<ApiResult<StockMoveResponse>> => {
+      const { ref, item } = input;
+      const change: StockChange = { itemId: item.id, kind: "waste", qtyMilli: item.qtyLeftMilli, costMinor: item.worthMinor };
+      const what = `${amountText(item.qtyLeftMilli, item)} of ${item.name}`;
+      const opts = { idempotencyKey: input.idempotencyKey };
+      return stockWrite({
+        ref,
+        item,
+        change,
+        move: pendingMove({
+          change,
+          quantity: item.qtyLeft,
+          unit: item.displayUnit,
+          actor: input.meId ?? item.createdBy,
+          consumers: null,
+          at: new Date().toISOString(),
+        }),
+        send: () =>
+          wrap(() =>
+            ref.kind === "group"
+              ? client.kitchen.wasteGroupItem(ref.orgId, ref.itemId, {}, opts)
+              : client.kitchen.wastePersonalItem(ref.itemId, {}, opts),
+          ),
+        title: `Marked ${what} wasted`,
+        answeredText: (a) =>
+          a.txn ? `${formatMinor(a.txn.totalMinor, item.currency)} split equally in ${item.pantry.name}.` : "Nobody was charged.",
+        refusal: (error) => ({
+          title: `Couldn't mark ${item.name} wasted`,
+          message: error.reason === "insufficient_stock" ? "There's nothing left to waste now." : error.message,
+        }),
+      });
+    },
+    [client, stockWrite],
+  );
+}
+
+// ── Adding an item (CP-12) ────────────────────────────────────────
+
+export type AddItemRequest =
+  | { kind: "personal"; body: CreatePersonalItemRequest }
+  | { kind: "group"; orgId: string; body: CreateGroupItemRequest };
+
+/** Why an add was refused, in one line (the add form's own messages, CP-12). */
+export function addRefusal(error: ApiErrorBody, ctx: { groupName: string | null; payer: string | null }): string {
+  const details = error.details ?? {};
+  if (error.reason === "not_in_group") return `${ctx.payer ?? "That person"} isn't in ${ctx.groupName ?? "the group"} any more. Add it again with you as the payer.`;
+  if (error.reason === "currency_mismatch") return `${ctx.groupName ?? "This group"} counts in ${String(details["currency"] ?? "another currency")}. Reload and try again.`;
+  const fields = details["fields"];
+  if (fields && typeof fields === "object") {
+    for (const messages of Object.values(fields as Record<string, unknown>)) {
+      if (Array.isArray(messages) && typeof messages[0] === "string") return messages[0];
+    }
+  }
+  return error.message;
+}
+
+/**
+ * Add an item (the add form), at once (Cookpool SM-5): the item is listed in
+ * its pantry before the server answers — a row nothing can be done to yet —
+ * and the toast says so, with Undo (which removes it) for whoever may remove
+ * it. The server's item takes the row's place when it answers; a refusal
+ * takes the row off and the toast says why in one line. `pantry` is the
+ * pantry the form is adding to: its list is read ahead, so the row has a
+ * list to show in.
+ */
+export function useAddItem(pantry: string | null) {
+  const { client } = useSession();
+  const qc = useQueryClient();
+  const { toast, update } = useToast();
+  const offer = useUndoToast();
+  React.useEffect(() => {
+    if (pantry) prefetchApi(qc, qk.kitchenPantryItems(pantry), () => loadPantryItems(client, pantry));
+  }, [client, qc, pantry]);
+  return React.useCallback(
+    (input: {
+      request: AddItemRequest;
+      pantry: PantryRef;
+      currency: string;
+      groupWastePolicy: KitchenItem["wastePolicy"];
+      meId: string | null;
+      names: MemberNames;
+      today: string;
+      /** "your pantry", "Flat 4B". */
+      where: string;
+      /** Whoever paid for it, or an owner or admin, may take it off again (the API's rule). */
+      canRemove: boolean;
+      idempotencyKey: string;
+    }): Promise<ApiResult<{ item: KitchenItem }>> => {
+      const { request, meId } = input;
+      const name = request.body.name;
+      const shown = meId
+        ? pendingItem({
+            body: request.body,
+            pantry: input.pantry,
+            currency: input.currency,
+            groupWastePolicy: input.groupWastePolicy,
+            meId,
+            today: input.today,
+            at: new Date().toISOString(),
+          })
+        : null;
+      const write = beginWrite(qc, shown ? itemAddedPatches(shown) : []);
+      const opts = { idempotencyKey: input.idempotencyKey };
+      const sent = write.track(
+        wrap(() =>
+          request.kind === "personal"
+            ? client.kitchen.createPersonalItem(request.body, opts)
+            : client.kitchen.createGroupItem(request.orgId, request.body, opts),
+        ),
+      );
+      const title = `Added ${name} to ${input.where}`;
+      const description = shown ? `${leftText(shown)} · nobody is charged until someone uses it.` : undefined;
+      let undone = false;
+      const handle = input.canRemove
+        ? offer({
+            title,
+            description,
+            undo: async (): Promise<UndoResult> => {
+              const r = await sent;
+              if (!r.ok) return { ok: true, description: `${name} is off the list.` };
+              const item = r.data.item;
+              const orgId = item.pantry.kind === "group" ? item.pantry.orgId : null;
+              const u = await write.track(
+                wrap(() => (orgId ? client.kitchen.removeGroupItem(orgId, item.id) : client.kitchen.removePersonalItem(item.id))),
+              );
+              refreshPantry(qc, null);
+              if (u.ok) return { ok: true, description: `${name} is off the list.` };
+              if (u.error.reason === "item_used") return { ok: false, kind: "warning", title: "Someone already used some", description: "Mark it wasted on its page instead." };
+              return { ok: false, kind: "error", title: "Couldn't undo it", description: u.error.message };
+            },
+            restore: () => {
+              undone = true;
+              write.restore([]);
+            },
+          })
+        : null;
+      const plain = handle ? null : toast({ kind: "success", title, description });
+      return sent.then((r) => {
+        if (!r.ok) {
+          write.rollback();
+          if (r.error.reason === "currency_mismatch" || r.error.reason === "not_in_group") refreshPantry(qc, null);
+          const payer = request.kind === "group" && request.body.paidBy ? memberLabel(request.body.paidBy, meId, input.names) : null;
+          const why = refusedToast(`Couldn't add ${name}`, addRefusal(r.error, { groupName: input.pantry.kind === "group" ? input.pantry.name : null, payer }));
+          if (handle) handle.refuse(why);
+          else if (plain !== null) update(plain, { ...why, duration: REFUSAL_MS });
+          return r;
+        }
+        if (undone) {
+          // Undo came first: the row stays off until the removal lands (the undo reads again).
+          applyPatches(queryCacheOf(qc), itemRemovedPatches(r.data.item.id));
+          return r;
+        }
+        // The server's item in the row's place, so it opens; then everything is read again.
+        if (shown) applyPatches(queryCacheOf(qc), itemAddedPatches({ ...r.data.item, canUse: true }, shown.id));
+        qc.setQueryData(qk.kitchenItem(itemRefParam(itemRefOf(r.data.item))), r.data.item);
+        refreshPantry(qc, null);
+        return r;
+      });
+    },
+    [client, qc, toast, update, offer],
   );
 }

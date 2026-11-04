@@ -6,9 +6,9 @@ the code departed from `design.md`.
 | Milestone | State | PR |
 |---|---|---|
 | SM0 — the spec | ✅ shipped 2026-11-04 | #36 (SM-1) |
-| SM1 — fast | in progress | #37 (SM-3), #38 (SM-2), #41 (SM-4) |
+| SM1 — fast | ✅ shipped 2026-11-04 | #37 (SM-3), #38 (SM-2), #41 (SM-4), SM-5 |
 | SM2 — for anyone | in progress | #39 (SM-6) |
-| SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), SM-9 |
+| SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), #42 (SM-9) |
 | SM4 — simpler screens | | |
 | SM5 — the rest | | |
 
@@ -415,3 +415,132 @@ the code departed from `design.md`.
 - **Left for SM-11.** The canvas's "Filled from last time · change anything"
   card and "Add Milk · ₹68" button belong to Add item's and Cook's restyle;
   both screens keep their layout (and Cook its subtitle) here.
+
+### SM1 — writes show at once (SM-5)
+
+- **One optimistic handle, not a `useMutation` per write.** The writes were
+  already callbacks with their own toasts and refusal words, so React Query's
+  pattern — patch before the request (`onMutate`), roll back exactly when it
+  is refused (`onError`), read again what it touched once it answers
+  (`onSettled`) — is one handle they share (`beginWrite`,
+  `src/components/kitchen/optimistic-data.ts`) over a pure core
+  (`src/lib/optimistic.ts`). Each write's patches are pure too
+  (`src/components/kitchen/cache-patches.ts`): one write patches every cached
+  read that shows the thing, by the `qk.*` keys. tests/web-console-next
+  (`kitchen-optimistic.test.ts`) applies each write's patches to a cache
+  holding every read a phone has after Home, Pantry, an item, a dish and a
+  group, and rolls them back.
+- **What the screen shows at once, per write.**
+
+  | Write (screens) | Changes in the same frame | A refusal puts back |
+  |---|---|---|
+  | Log a use (Use, the item page, Do it again, Home's one tap) | what is left (and what the rest is worth, by the engine's cost of use — the price on the button) on the item, every pantry list, Home's strip and card, search, usuals; a row at the top of the item's history; the Use screen resets, the sheet closes | all of it, exactly |
+  | "Used it" (Home's use card) | the card's "left" (the card goes when nothing is left) | the card |
+  | Waste (the item page) | none left, the history row | all of it |
+  | Claim / portion (the dish page, Home's chips) | the share, "x of y claimed", Home's "x of y portions left"; the dish page previews what it costs with the engine | the dish as it was |
+  | Finalize (the dish page, Home) | the dish reads finalized everywhere, Home's card goes | the dish and the card |
+  | "Paid" (Home, Settle up, a group's Balances, a person) | the payment leaves the group's plan and Home, its row tops the group's activity; on All groups the row reads "Recorded" | plan, Home, activity |
+  | Add an item | the pantry opens with the item listed (inert until the server's item replaces it) | the row |
+  | An expense | the group opens with its row on top: who paid, each share as the form split it | the row |
+
+  Every one opens the one Undo toast at once. Its second line, where it is
+  money (what a use or waste charged, what finalizing posted), is the
+  server's, filled in when it answers.
+- **Money stays the server's (risk SM-D).** Balances, plans' amounts, pantry
+  totals and a dish's `amounts`/`netting` are never patched; they are read
+  again once the write answers. Two numbers that are not balances do change:
+  the plan's payment count (a row taken off) and an item's worth (by the
+  engine, as the button priced it). While a portion is shown before the
+  answer the dish's `amounts` lag its shares, so the dish page previews the
+  split with the engine then (`amountsFitShares`): before, it showed "₹0.00
+  (your share)" for that moment.
+- **A refusal turns the same toast into why**: "Couldn't log Milk" with the
+  refusal message each screen had, in one line, and no Undo. The inline
+  error boxes on the Use form, the item page's Use and Waste, the claim
+  buttons and Home's cards are gone: the toast says it, and the form has
+  usually moved on. The item page still takes people who left the group off
+  "Who had it". Add item and Add expense navigate at once, so a refusal there
+  (rare: both forms validate first) means typing it again; the form's own
+  field errors from the server are now the toast's one line.
+- **Undo works before the answer.** Pressing it puts the screen back at
+  once ("Undone" shows at once), and the reversal is sent once the write
+  has landed — or nothing, if the write was refused. Pressed after the
+  answer, the reads that hold the server's answer get the inverse patch.
+  Either way a refresh already on its way is stopped first, so it cannot
+  bring the undone write back. A claim burst (taps on − ½ +) is one toast
+  whose words follow the taps; Undo goes back to before the burst.
+- **Finalize keeps "Correct it", not Undo.** The canvas shows Finalize
+  turning into Undo; there is no un-finalize route (a correction is a
+  reversal and a new transaction), so the toast still offers Correct it.
+- **Home's claim card stays until the server answers.** The server drops a
+  claim card once you have a share; the card's count and your chip change at
+  once and the card goes with the inbox's refresh, as before.
+- **Refreshes wait for writes on their way** (`afterWrites` in `useApiQuery`,
+  and in the dish, item, activity and Dishes reads): a read again of
+  something on screen started while a write is on its way waits for it, so
+  an answer computed before the write cannot bring the old screen back for a
+  moment. A first read (nothing on screen) goes at once. Not in the design.
+- **Left waiting for the server, on purpose:** cooking (the page it opens is
+  the dish the server makes: its id, price per portion and who owes whom are
+  the server's), the cook's shares, a correction and cancelling a dish (they
+  re-split or reverse money), moving an item into a group (it becomes
+  another item, in another pantry), Undo of an entry from the activity menu
+  (already struck through at once since CP-8), flags, group settings, roles,
+  join codes, joining, leaving and new groups.
+- **No spinners on revisit:** `staleTime` 60 s (was 30 s) and `gcTime` 30 min
+  (was 5): writes refresh what they touch, so tabs within a minute read
+  nothing again, and a revisit within half an hour paints from the cache.
+  Quick use's search keeps the last matches while the next come
+  (`keepPreviousData`); a pantry chip opened the first time shows its items
+  from "All" until its own arrive. The toast API gained `update` and
+  `dismiss` (and `toast()` returns an id).
+- **Home reads ahead what its rows open:** each person on the balance card
+  (their "why") and the group members of each dish card, when Home renders;
+  a group row (members, balances, first activity page), a recent row, a
+  use-soon item (and its history) and a to-do card, on press-in (pointer
+  down, hover, focus).
+- **Waterfalls taken out.** A group page opened cold waited for the group
+  list before reading the group: the slug's id from last time is remembered
+  on this device (`recent-groups.ts`, beside the recent slugs, cleared on sign
+  out and on leaving) and its members, balances and activity start beside
+  the list; Home's Recent activity does the same for the groups opened most
+  recently. The pantry page read a chosen pantry's items only after the
+  pantry list (to check it is still reachable): they now start together. The
+  item page read its history and its group's members only after the item:
+  they now start with it. Left, because the second read needs the first's
+  answer: a dish page's group members (Home reads them ahead), the inbox's
+  cards' dishes and items, Settle up's per-group plans.
+- **For SM-7:** a portion's patch takes whose portion it is
+  (`PortionChange.subjectId`, `withPortion`, `portionPatches`; `ownPortion`
+  is the caller's), and its `setBy` and `myClaimHalf` follow the caller, so
+  setting someone else's portion reuses it.
+- **Measured** (the production build, the UX mock answering every request
+  1.5 s late, in the app's browser pane, from the tap to the DOM change):
+  logging a use on the item page changed what is left in 8–13 ms and opened
+  the toast in 5–10 ms (before: 3.0 s and 1.5 s — the write's round trip,
+  then a read's); Undo 13 ms; a forced refusal put it back 1.5 s after the
+  tap, when the answer came; Home's claim chip 23 ms, "Used it" 19 ms,
+  Finalize 17 ms, "Paid" 14 ms; Settle up's Record 8 ms; Add item opened the
+  pantry with the row listed in 46 ms and Add expense the group with its row
+  in 92 ms (the dev server; the payload fetch). The pane was hidden, which
+  slows timers and rendering; a visible tab should be quicker. Revisiting
+  Home, Pantry, People and Groups showed no skeletons; a person opened from
+  Home painted without one.
+
+### SM1 — the exit check (2026-11-04)
+
+`node tooling/perf/check.mjs` after SM-2, SM-3 and SM-4 deployed, from the
+owner's machine (kept-alive connection, 10 GETs each, p75):
+
+- **Pages** on every app host came from assets (`worker 0/10`): stage
+  0.07–0.13 s (SIN), prod 0.20–0.23 s (MRS). All under 0.3 s.
+- **Reads** through `/api` on the app's own address, answered in Asia
+  (SIN, HKG, NRT): `/health` (one D1 query) 0.18–0.19 s, providers
+  0.08–0.19 s. Under 0.4 s.
+- **Not from India.** This machine is routed to SIN/HKG/NRT most of the time
+  and to CDG/MRS some of the time; from CDG `/health` is 0.43 s, because the
+  database is in Asia–Pacific and Smart Placement had not moved the quiet
+  api-edge yet (`cf-placement: local-*`). The budget is for India, which
+  Cloudflare serves from Indian and nearby Asian colos.
+- **Writes** show at once (SM-5): from the tap to the screen 8–23 ms against
+  a mock that answers in 1.5 s; a refusal rolls back when the answer comes.

@@ -3,12 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
+import { ArrowLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/toast";
 import { ADD_SECONDARY, ADD_TILES, groupActionHref, type AddAction } from "./nav";
 import { kitchenIcon } from "./icons";
 import { CLOSE_44, K_BUTTON, SoonBadge } from "./kit";
@@ -226,13 +225,11 @@ function DoItAgain({ onLogged }: { onLogged: () => void }) {
   const meId = profile.data?.id ?? null;
   const usuals = useUsuals();
   const names = useMemberNames();
-  const { toast } = useToast();
   const logUse = useLogUse();
   const fit = React.useMemo(() => usualsThatFit(usuals.data ?? []).slice(0, DO_IT_AGAIN_READS), [usuals.data]);
   const refs = React.useMemo(() => fit.map(usualRef), [fit]);
   const items = useItemsByRef(refs);
   const rows = doItAgainRows(fit, items, { meId, names });
-  const [pending, setPending] = React.useState<string | null>(null);
 
   if (usuals.loading || profile.loading) {
     return (
@@ -244,10 +241,11 @@ function DoItAgain({ onLogged }: { onLogged: () => void }) {
   }
   if (usuals.error || rows.length === 0) return null;
 
-  const again = async (row: DoItAgainRow) => {
-    if (!row.item || pending) return;
-    setPending(row.key);
-    const r = await logUse({
+  // Logged at once (SM-5): the sheet closes on the Undo toast before the
+  // server answers; a refusal is put back and the toast says why.
+  const again = (row: DoItAgainRow) => {
+    if (!row.item) return;
+    void logUse({
       ref: row.ref,
       item: row.item,
       qtyMilli: row.qtyMilli,
@@ -258,9 +256,7 @@ function DoItAgain({ onLogged }: { onLogged: () => void }) {
       meId,
       names,
     });
-    setPending(null);
-    if (r.ok) onLogged();
-    else toast({ kind: "error", title: `Couldn't log ${row.title}`, description: r.message });
+    onLogged();
   };
 
   return (
@@ -270,15 +266,13 @@ function DoItAgain({ onLogged }: { onLogged: () => void }) {
       </h3>
       <ul className="divide-y rounded-[18px] border">
         {rows.map((row) => {
-          const busy = pending === row.key;
           return (
             <li key={row.key}>
               <button
                 type="button"
                 aria-label={row.label}
-                aria-disabled={!row.item || (pending !== null && !busy) ? true : undefined}
-                aria-busy={busy || undefined}
-                onClick={() => void again(row)}
+                aria-disabled={!row.item ? true : undefined}
+                onClick={() => again(row)}
                 className={cn(
                   "flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left transition-colors first:rounded-t-[18px] last:rounded-b-[18px]",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
@@ -286,7 +280,7 @@ function DoItAgain({ onLogged }: { onLogged: () => void }) {
                 )}
               >
                 <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cp-herb-tint text-primary">
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" strokeWidth={2.2} />}
+                  <RotateCcw className="h-4 w-4" strokeWidth={2.2} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-semibold">{row.title}</span>

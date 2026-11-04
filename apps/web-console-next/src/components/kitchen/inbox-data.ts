@@ -1,10 +1,10 @@
 "use client";
 
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import type { InboxResponse, KitchenTxn } from "@saas/contracts/kitchen";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { useApiQuery, qk } from "@/lib/query";
+import { afterWrites, useApiQuery, qk } from "@/lib/query";
 import { RECENT_PER_GROUP } from "./home";
 
 /**
@@ -18,6 +18,13 @@ import { RECENT_PER_GROUP } from "./home";
 export function useInbox() {
   const { client } = useSession();
   return useApiQuery<InboxResponse>(qk.kitchenInbox(), () => wrap(() => client.kitchen.inbox()));
+}
+
+/** Read a group's newest entries for Home's Recent activity (read ahead from the group's remembered id, SM-5). */
+export async function loadRecentActivity(client: ReturnType<typeof useSession>["client"], orgId: string): Promise<KitchenTxn[]> {
+  const r = await wrap(() => client.kitchen.activity(orgId, { limit: RECENT_PER_GROUP }));
+  if (!r.ok) throw r.error;
+  return r.data.items;
 }
 
 export interface GroupActivity {
@@ -35,14 +42,11 @@ export interface GroupActivity {
  */
 export function useRecentActivity(groups: readonly { id: string; name: string; slug: string }[]) {
   const { client } = useSession();
+  const qc = useQueryClient();
   const results = useQueries({
     queries: groups.map((g) => ({
       queryKey: qk.kitchenRecentActivity(g.id),
-      queryFn: async (): Promise<KitchenTxn[]> => {
-        const r = await wrap(() => client.kitchen.activity(g.id, { limit: RECENT_PER_GROUP }));
-        if (!r.ok) throw r.error;
-        return r.data.items;
-      },
+      queryFn: afterWrites(qc, qk.kitchenRecentActivity(g.id), () => loadRecentActivity(client, g.id)),
     })),
   });
   const data: GroupActivity[] = [];

@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import {
+  keepPreviousData,
   useQuery,
   useQueryClient,
   type QueryClient,
   type QueryKey,
 } from "@tanstack/react-query";
 import type { ApiResult } from "./api";
+import { writesSettled } from "./optimistic";
 
 export { qk } from "./query-keys";
 
@@ -32,21 +34,49 @@ export interface AsyncState<T> {
   reload: () => void;
 }
 
+/**
+ * A read again of something on screen waits for the writes on their way
+ * (Cookpool SM-5): they patched it at once, and an answer computed before
+ * they land would bring the old screen back for a moment. A first read has
+ * nothing to bring back, so it goes at once.
+ */
+export function afterWrites<T>(qc: QueryClient, key: QueryKey, fn: () => Promise<T>): () => Promise<T> {
+  return async () => {
+    if (qc.getQueryData(key) !== undefined) await writesSettled(qc);
+    return fn();
+  };
+}
+
 export function useApiQuery<T>(
   key: QueryKey,
   fn: () => Promise<ApiResult<T>>,
-  opts?: { enabled?: boolean },
+  opts?: {
+    enabled?: boolean;
+    /**
+     * While another key's answer is on its way (a new search, another
+     * pantry), keep showing the last one instead of a skeleton (SM-5).
+     * Only for reads where the last answer is a fair stand-in.
+     */
+    keepPrevious?: boolean;
+    /** What to show until the first answer, from other reads already cached (SM-5); undefined for nothing. */
+    placeholder?: () => T | undefined;
+  },
 ): AsyncState<T> {
   const qc = useQueryClient();
   const enabled = opts?.enabled ?? true;
   const q = useQuery<T, { code: string; message: string }>({
     queryKey: key,
-    queryFn: async () => {
+    queryFn: afterWrites(qc, key, async () => {
       const r = await fn();
       if (!r.ok) throw r.error;
       return r.data;
-    },
+    }),
     enabled,
+    ...(opts?.keepPrevious
+      ? { placeholderData: keepPreviousData }
+      : opts?.placeholder
+        ? { placeholderData: opts.placeholder as unknown as () => undefined }
+        : {}),
   });
 
   return {
