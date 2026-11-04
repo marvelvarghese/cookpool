@@ -22,16 +22,19 @@ describe("kitchen migrations", () => {
     expect(ids.indexOf("210_kitchen_settings")).toBe(ids.indexOf("200_membership_join_codes") + 1);
   });
 
-  it("only creates kitchen_* tables, each guarded with IF NOT EXISTS", () => {
+  it("only creates or alters kitchen_* tables, each create guarded with IF NOT EXISTS", () => {
     for (const m of kitchen) {
       // Statements only: the header comments may name what they describe.
       const sql = readFileSync(resolve(MIGRATIONS_ROOT, m.path), "utf8").replace(/--.*$/gm, "");
       const creates = [...sql.matchAll(/CREATE\s+(?:UNIQUE\s+)?(TABLE|INDEX)\s+(IF NOT EXISTS\s+)?([a-z_]+)/gi)];
-      expect(creates.length).toBeGreaterThan(0);
+      const alters = [...sql.matchAll(/ALTER\s+TABLE\s+([a-z_]+)/gi)];
+      // A migration that only adds a column (290) has no CREATE; every one does something.
+      expect(creates.length + alters.length).toBeGreaterThan(0);
       for (const [, kind, guard, name] of creates) {
         expect(guard).toBeDefined();
         if (kind!.toUpperCase() === "TABLE") expect(name).toMatch(/^kitchen_/);
       }
+      for (const [, table] of alters) expect(table).toMatch(/^kitchen_/);
     }
   });
 
@@ -162,7 +165,7 @@ describe("kitchen migrations", () => {
 
   it("adds the daily sweep's record as 270_kitchen_sweeps, right after the dish shares", () => {
     const ids = manifest.migrations.map((m) => m.id);
-    expect(kitchen.map((m) => m.id).slice(-2)).toEqual(["260_kitchen_dish_shares", "270_kitchen_sweeps"]);
+    expect(kitchen.map((m) => m.id).slice(5, 7)).toEqual(["260_kitchen_dish_shares", "270_kitchen_sweeps"]);
     expect(ids.indexOf("270_kitchen_sweeps")).toBe(ids.indexOf("260_kitchen_dish_shares") + 1);
 
     const sql = readFileSync(resolve(MIGRATIONS_ROOT, "270_kitchen_sweeps/up.sql"), "utf8").replace(/--.*$/gm, "");
@@ -176,5 +179,26 @@ describe("kitchen migrations", () => {
     // Additive only, and nothing about anyone: counts, not names or addresses.
     expect(sql).not.toMatch(/\b(ALTER|DROP|UPDATE|DELETE)\b/i);
     expect(sql).not.toMatch(/subject|email|address/i);
+  });
+
+  it("records who set each dish share as 290_kitchen_dish_share_setter, the next kitchen migration after the sweeps", () => {
+    const ids = manifest.migrations.map((m) => m.id);
+    expect(kitchen.map((m) => m.id).slice(0, 8)).toEqual([
+      "210_kitchen_settings",
+      "220_kitchen_ledger",
+      "230_kitchen_pantry",
+      "240_kitchen_stock_moves",
+      "250_kitchen_dishes",
+      "260_kitchen_dish_shares",
+      "270_kitchen_sweeps",
+      "290_kitchen_dish_share_setter",
+    ]);
+    // 280 is identity's (SI-2): 290 follows it in the manifest.
+    expect(ids.indexOf("290_kitchen_dish_share_setter")).toBe(ids.indexOf("280_identity_login_attempts") + 1);
+
+    const sql = readFileSync(resolve(MIGRATIONS_ROOT, "290_kitchen_dish_share_setter/up.sql"), "utf8").replace(/--.*$/gm, "");
+    // Additive: one nullable column with no default, so shares written before read as NULL.
+    expect(sql.trim()).toBe("ALTER TABLE kitchen_dish_shares ADD COLUMN set_by TEXT;");
+    expect(sql).not.toMatch(/\b(CREATE|DROP|UPDATE|DELETE|DEFAULT|NOT NULL)\b/i);
   });
 });

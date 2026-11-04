@@ -163,4 +163,40 @@ describe("kitchen emails through notifications-worker", () => {
     expect(outbox[0]!.html).toContain(`href="https://cookpool.test/groups/${flat.slug}"`);
     expect(rows()).toHaveLength(1);
   });
+
+  it("emails a portion someone else set once per dish, rendered, however often it changes after (SM-6)", async () => {
+    const rice = await call<KitchenItemResponse>("POST", "/v1/kitchen/me/items", MEERA, {
+      name: "Rice",
+      category: "Grains",
+      quantity: "1",
+      unit: "kg",
+      priceMinor: 8000,
+    });
+    const cooked = await call<DishResponse>("POST", "/v1/kitchen/me/dishes", MEERA, {
+      name: "Egg fried rice",
+      orgId: flat.publicId,
+      portionsHalf: 8,
+      splitMode: "claims",
+      ingredients: [{ itemId: rice.body.data.item.id, quantity: "500", unit: "g" }],
+    });
+    expect(cooked.status).toBe(201);
+    const dish = cooked.body.data.dish;
+    outbox.length = 0;
+
+    const set = (as: string, portionsHalf: number) =>
+      call<DishResponse>("PUT", groupPath(flat, `dishes/${dish.id}/claims/${RAHUL}`), as, { portionsHalf });
+    expect((await set(ANU, 2)).status).toBe(200);
+    expect((await set(ANU, 3)).status).toBe(200);
+    expect((await set(MEERA, 1)).status).toBe(200);
+
+    expect(outbox).toHaveLength(1);
+    expect(outbox[0]!.to).toBe("rahul@example.com");
+    expect(outbox[0]!.subject).toBe("Anu said you had 1 portion of Egg fried rice");
+    expect(outbox[0]!.text).toContain("In Flat 4B: Anu said you had 1 portion of Egg fried rice.");
+    expect(outbox[0]!.text).toContain("Your share: ₹10.00.");
+    expect(outbox[0]!.html).toContain(`href="https://cookpool.test/dishes/${dish.id}"`);
+    expect(rows().filter((r) => r.template_key === "kitchen.portion_set")).toEqual([
+      { template_key: "kitchen.portion_set", recipient_address: "rahul@example.com", status: "sent", org_id: flat.id },
+    ]);
+  });
 });

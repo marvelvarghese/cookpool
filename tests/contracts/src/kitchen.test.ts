@@ -32,6 +32,9 @@ import type {
   ClaimDishRequest,
   CorrectDishRequest,
   SetDishSharesRequest,
+  KitchenDishShare,
+  SetPortionRequest,
+  SetPortionResponse,
 } from "@saas/contracts/kitchen";
 import type { SubjectOrganizationsResponse } from "@saas/contracts/membership";
 import {
@@ -330,5 +333,24 @@ describe("contracts: splitting dishes (Cookpool CP-16)", () => {
     expect(correction.shares).toHaveLength(2);
     expect(split.claimedHalf + split.unclaimedHalf).toBe(8);
     expect(split.amounts.reduce((a, x) => a + x.owedMinor, 0)).toBe(21100);
+  });
+});
+
+describe("contracts: anyone's portion (Cookpool SM-6)", () => {
+  it("sets anyone's portion with a claim's body, and says who set each share", () => {
+    const body: SetPortionRequest = { portionsHalf: 2 };
+    const claim: ClaimDishRequest = body;
+    const share: KitchenDishShare = {
+      id: "dsr_1", subjectId: "usr_dev", portionsHalf: 2, exactMinor: null, source: "self", setBy: "usr_anu",
+      createdAt: "2026-11-04T12:00:00.000Z", updatedAt: "2026-11-04T12:00:00.000Z",
+    };
+    // A share written before SM-6 says nobody.
+    const older: KitchenDishShare = { ...share, setBy: null };
+    const answer: SetPortionResponse = { dish: { shares: [share, older] } as KitchenDish };
+    expect(claim.portionsHalf).toBe(2);
+    expect(answer.dish.shares.map((s) => s.setBy)).toEqual(["usr_anu", null]);
+    // Who set it is not where it came from: a claim (self) may be someone else's for them.
+    expect(DISH_SHARE_SOURCES).toContain(share.source);
+    expect(share.setBy).not.toBe(share.subjectId);
   });
 });

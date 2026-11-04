@@ -1,6 +1,7 @@
-// Cookpool's emails (CP-18): the template keys kitchen-worker enqueues and
-// notifications-worker renders, the digest's window, and the digest's flat
-// templateData — numbered item keys — written and read back.
+// Cookpool's emails (CP-18, and SM-6's portion set for you): the template
+// keys kitchen-worker enqueues and notifications-worker renders, the digest's
+// window, and the digest's flat templateData — numbered item keys — written
+// and read back.
 
 import {
   KITCHEN_EMAILS,
@@ -12,16 +13,19 @@ import {
   useSoonEmailData,
   type DishPostedEmail,
   type LoggedForYouEmail,
+  type PortionSetEmail,
   type UseSoonEmail,
 } from "@saas/contracts/kitchen";
 import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES } from "@saas/contracts/notifications";
 
 describe("kitchen emails", () => {
-  it("are three templates, sent as product email, from an allowed internal caller", () => {
+  it("are four templates, sent as product email, from an allowed internal caller", () => {
     expect(KITCHEN_EMAILS).toEqual({
       USE_SOON: "kitchen.use_soon",
       DISH_POSTED: "kitchen.dish_posted",
       LOGGED_FOR_YOU: "kitchen.logged_for_you",
+      // SM-6: someone else set your portion of a dish.
+      PORTION_SET: "kitchen.portion_set",
     });
     expect(KITCHEN_EMAIL_CATEGORY).toBe("product");
     expect(NOTIFICATIONS_INTERNAL_ACTOR_VALUES).toContain("kitchen-worker");
@@ -94,7 +98,16 @@ describe("kitchen emails", () => {
       youPaid: null,
       groupUrl: "https://stage.cookpool.store/groups/flat-4b",
     };
+    const portion: PortionSetEmail = {
+      actorName: "Anu",
+      dishName: "Egg fried rice",
+      groupName: "Flat 4B",
+      portions: "1",
+      yourShare: "₹8.89",
+      dishUrl: "https://stage.cookpool.store/dishes/dsh_1",
+    };
     expect(Object.keys(dish)).toHaveLength(6);
     expect(Object.keys(logged)).toHaveLength(8);
+    expect(Object.keys(portion)).toHaveLength(6);
   });
 });

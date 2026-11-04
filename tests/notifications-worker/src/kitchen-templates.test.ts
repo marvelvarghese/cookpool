@@ -1,8 +1,9 @@
 // Cookpool's kitchen email templates (CP-18): kitchen.use_soon,
-// kitchen.dish_posted and kitchen.logged_for_you render a subject, text and
-// HTML in the app's voice, link into the app only over http(s), escape
-// everything they substitute, and keep subjects to one line. And
-// notifications-worker's internal-actor gate lets kitchen-worker in.
+// kitchen.dish_posted and kitchen.logged_for_you — and SM-6's
+// kitchen.portion_set — render a subject, text and HTML in the app's voice,
+// link into the app only over http(s), escape everything they substitute,
+// and keep subjects to one line. And notifications-worker's internal-actor
+// gate lets kitchen-worker in.
 
 import crypto from "node:crypto";
 import { route } from "@notifications-worker/router";
@@ -14,6 +15,7 @@ import {
   useSoonEmailData,
   type DishPostedEmail,
   type LoggedForYouEmail,
+  type PortionSetEmail,
 } from "@saas/contracts/kitchen";
 import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES } from "@saas/contracts/notifications";
 
@@ -143,6 +145,63 @@ describe("kitchen.logged_for_you", () => {
     expect(email.subject).toBe("Rahul logged Groceries for you");
     expect(email.text).toContain("You paid: ₹600.00.");
     expect(email.text).toContain("logs an expense that names you");
+  });
+});
+
+const portion: PortionSetEmail = {
+  actorName: "Anu",
+  dishName: "Egg fried rice",
+  groupName: "Flat 4B",
+  portions: "1",
+  yourShare: "₹8.89",
+  dishUrl: "https://stage.cookpool.store/dishes/dsh_0123",
+};
+
+describe("kitchen.portion_set", () => {
+  it("says who set your portion of which dish, what it costs you, and links to the dish", () => {
+    const email = renderEmailTemplate(KITCHEN_EMAILS.PORTION_SET, portion, { brandName: "cookpool" })!;
+    expect(email.subject).toBe("Anu said you had 1 portion of Egg fried rice");
+    expect(email.text).toBe(
+      [
+        "In Flat 4B: Anu said you had 1 portion of Egg fried rice.",
+        "Your share: ₹8.89.",
+        "",
+        "Not right? Change it on the dish before it is finalized.",
+        "https://stage.cookpool.store/dishes/dsh_0123",
+        "",
+        "You get this once per dish when someone in Flat 4B sets your portion.",
+      ].join("\n"),
+    );
+    expect(email.html).toContain('href="https://stage.cookpool.store/dishes/dsh_0123"');
+    expect(email.html).toContain(">Open the dish</a>");
+    expect(email.html).toContain("Sent by cookpool.");
+  });
+
+  it("says half and several portions plainly, and leaves out what is missing", () => {
+    expect(renderEmailTemplate(KITCHEN_EMAILS.PORTION_SET, { ...portion, portions: "½" })!.subject).toBe(
+      "Anu said you had ½ portion of Egg fried rice",
+    );
+    expect(renderEmailTemplate(KITCHEN_EMAILS.PORTION_SET, { ...portion, portions: "1½" })!.subject).toBe(
+      "Anu said you had 1½ portions of Egg fried rice",
+    );
+    const bare = renderEmailTemplate(KITCHEN_EMAILS.PORTION_SET, { ...portion, actorName: null, yourShare: null, dishUrl: "" })!;
+    expect(bare.subject).toBe("Someone said you had 1 portion of Egg fried rice");
+    expect(bare.text).not.toContain("Your share");
+    expect(bare.html).not.toContain("href=");
+  });
+
+  it("escapes what it substitutes, keeps the subject to one line, and links only over http(s)", () => {
+    const email = renderEmailTemplate(KITCHEN_EMAILS.PORTION_SET, {
+      ...portion,
+      actorName: "Anu\r\nBcc: everyone@example.com",
+      dishName: "<img src=x onerror=alert(1)>",
+      dishUrl: "javascript:alert(1)",
+    })!;
+    expect(email.subject).not.toMatch(/[\r\n]/);
+    expect(email.html).not.toContain("<img");
+    expect(email.html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(email.html).not.toContain("javascript:");
+    expect(email.text).not.toContain("javascript:");
   });
 });
 

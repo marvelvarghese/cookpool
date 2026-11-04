@@ -24,6 +24,10 @@
 // posts the `dish` transaction and the leftovers item in the same batch; a
 // correction posts the reversal of the dish transaction and a new one, and
 // replaces the shares, in one batch too.
+//
+// Every share write records who made it in `set_by` (SM-6, migration
+// 290_kitchen_dish_share_setter): a claim its claimer — the eater, or another
+// member setting it for them — and an assignment or a correction its caller.
 
 import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executor.js";
 import { isCheckViolation, isForeignKeyViolation, isUniqueViolation } from "../d1/errors.js";
@@ -116,6 +120,7 @@ function mapShare(row: Row): KitchenDishShareRecord {
     portionsHalf: row.portions_half === null || row.portions_half === undefined ? null : Number(row.portions_half),
     exactMinor: row.exact_minor === null || row.exact_minor === undefined ? null : Number(row.exact_minor),
     source: row.source as KitchenDishShareSource,
+    setBy: nullableString(row.set_by),
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -182,19 +187,20 @@ function cancelReversal(original: KitchenTxnRecord, dishId: string, actor: strin
   };
 }
 
-/** A share row's insert, listed at `position`, set by `source`. */
+/** A share row's insert, listed at `position`, written through `source` by `setBy`. */
 function insertShareStatement(
   dishId: string,
   share: NewDishShare,
   position: number,
   source: KitchenDishShareSource,
+  setBy: string,
   now: Date,
 ): SqlStatement {
   return {
     text: `INSERT INTO kitchen_dish_shares (
-             id, dish_id, subject_id, position, portions_half, exact_minor, source, created_at, updated_at
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
-    params: [share.id, dishId, share.subjectId, position, share.portionsHalf, share.exactMinor, source, now],
+             id, dish_id, subject_id, position, portions_half, exact_minor, source, set_by, created_at, updated_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
+    params: [share.id, dishId, share.subjectId, position, share.portionsHalf, share.exactMinor, source, setBy, now],
   };
 }
 
@@ -269,7 +275,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
     const byDish = new Map<string, KitchenDishShareRecord[]>();
     if (dishIds.length === 0) return byDish;
     const result = await executor.execute(
-      `SELECT dish_id, id, subject_id, position, portions_half, exact_minor, source, created_at, updated_at
+      `SELECT dish_id, id, subject_id, position, portions_half, exact_minor, source, set_by, created_at, updated_at
        FROM kitchen_dish_shares
        WHERE dish_id IN (SELECT value FROM json_each($1))
        ORDER BY dish_id, position, id`,
@@ -573,7 +579,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
       }
     },
 
-    async claimDish({ dishId, subjectId, portionsHalf, shareId, now }) {
+    async claimDish({ dishId, subjectId, portionsHalf, shareId, setBy, now }) {
       if (!Number.isSafeInteger(portionsHalf) || portionsHalf < 0) return fail({ kind: "invalid", reason: "share_out_of_range" });
       const statements: SqlStatement[] = [
         {
@@ -597,22 +603,23 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
         portionsHalf === 0
           ? { text: "DELETE FROM kitchen_dish_shares WHERE dish_id = $1 AND subject_id = $2", params: [dishId, subjectId] }
           : {
-              // The claimer's own row: new ones are listed after every share
-              // so far; a claim again keeps its place, and replaces an amount
-              // the cook had assigned.
+              // The eater's row: new ones are listed after every share so
+              // far; a claim again keeps its place, and replaces an amount
+              // the cook had assigned. Whoever set it last is its `set_by`.
               text: `INSERT INTO kitchen_dish_shares (
-                       id, dish_id, subject_id, position, portions_half, exact_minor, source, created_at, updated_at
+                       id, dish_id, subject_id, position, portions_half, exact_minor, source, set_by, created_at, updated_at
                      ) VALUES (
                        $1, $2, $3,
                        (SELECT COALESCE(MAX(position) + 1, 0) FROM kitchen_dish_shares WHERE dish_id = $2),
-                       $4, NULL, 'self', $5, $5
+                       $4, NULL, 'self', $6, $5, $5
                      )
                      ON CONFLICT (dish_id, subject_id) DO UPDATE SET
                        portions_half = excluded.portions_half,
                        exact_minor = NULL,
                        source = 'self',
+                       set_by = excluded.set_by,
                        updated_at = excluded.updated_at`,
-              params: [shareId, dishId, subjectId, portionsHalf, now],
+              params: [shareId, dishId, subjectId, portionsHalf, now, setBy],
             },
       ];
       try {
@@ -647,7 +654,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
       }
     },
 
-    async setDishShares({ dish, shares, now }) {
+    async setDishShares({ dish, shares, setBy, now }) {
       const problem = sharesProblem(dish, shares);
       if (problem) return fail(problem);
       const statements: SqlStatement[] = [
@@ -661,7 +668,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
           params: [dish.id, now],
         },
         { text: "DELETE FROM kitchen_dish_shares WHERE dish_id = $1", params: [dish.id] },
-        ...shares.map((share, position) => insertShareStatement(dish.id, share, position, "cook", now)),
+        ...shares.map((share, position) => insertShareStatement(dish.id, share, position, "cook", setBy, now)),
       ];
       try {
         await executeBatch(executor, statements);
@@ -744,7 +751,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
       }
     },
 
-    async correctDish({ dish, reversal, txn, leftover, shares, now, audits }) {
+    async correctDish({ dish, reversal, txn, leftover, shares, setBy, now, audits }) {
       const shareProblem = sharesProblem(dish, shares);
       if (shareProblem) return fail(shareProblem);
       // A correction reverses the dish's current transaction, nothing else.
@@ -816,7 +823,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
         });
       }
       statements.push({ text: "DELETE FROM kitchen_dish_shares WHERE dish_id = $1", params: [dish.id] });
-      shares.forEach((share, position) => statements.push(insertShareStatement(dish.id, share, position, "cook", now)));
+      shares.forEach((share, position) => statements.push(insertShareStatement(dish.id, share, position, "cook", setBy, now)));
       for (const audit of audits) statements.push(...eventWithAuditStatements(audit));
 
       try {
