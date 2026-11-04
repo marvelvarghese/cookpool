@@ -34,6 +34,7 @@ describe("resolveAppConfig", () => {
       apiWorkerPrefix: "acme-cloud-api-edge",
       storagePrefix: "acme-cloud.next",
       salesEmail: "sales@acme.dev",
+      customDomains: DEFAULT_APP_CONFIG.customDomains,
       deployEnv: "stage",
     });
   });
@@ -118,14 +119,25 @@ describe("environmentFromHost", () => {
   });
 
   it("locks the prod app on cookpool.store to the prod API, the var still winning", () => {
-    const unbuilt = { ...DEFAULT_APP_CONFIG, deployEnv: undefined };
+    // No compiled-in map, so only the var names the custom domains here.
+    const unbuilt = { ...DEFAULT_APP_CONFIG, customDomains: "", deployEnv: undefined };
     expect(resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: domains }, unbuilt, "cookpool.store").deployEnv).toBe("prod");
     expect(resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: domains }, unbuilt, "stage.cookpool.store").deployEnv).toBe("stage");
     expect(isLocked(resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: domains }, unbuilt, "cookpool.store"))).toBe(true);
     expect(
       resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: domains, CONSOLE_DEPLOY_ENV: "stage" }, unbuilt, "cookpool.store").deployEnv,
     ).toBe("stage");
-    // Without the var, a custom domain is unlocked (both targets), as before.
+    // Without the var or a compiled-in map, a custom domain is unlocked (both targets).
     expect(resolveAppConfig({}, unbuilt, "cookpool.store").deployEnv).toBeUndefined();
+  });
+
+  // SM-2: a static page reaches no server that could read the var, so the
+  // build carries the map itself.
+  it("knows Cookpool's custom domains with no var at all", () => {
+    const unbuilt = { ...DEFAULT_APP_CONFIG, deployEnv: undefined };
+    expect(DEFAULT_APP_CONFIG.customDomains).toBe(domains);
+    expect(resolveAppConfig({}, unbuilt, "cookpool.store").deployEnv).toBe("prod");
+    expect(resolveAppConfig({}, unbuilt, "stage.cookpool.store").deployEnv).toBe("stage");
+    expect(resolveAppConfig({ CONSOLE_CUSTOM_DOMAINS: "stage=cookpool.store" }, unbuilt, "cookpool.store").deployEnv).toBe("stage");
   });
 });

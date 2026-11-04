@@ -26,6 +26,13 @@ Cloudflare Pages-compatible bundle into `.open-next/`:
 - `.open-next/worker.js` — Pages Function entrypoint, referenced from
   `wrangler.jsonc#main`.
 
+Then `scripts/pages-as-files.mjs` copies the prerendered Cookpool pages
+(`src/lib/static-pages.mjs`: the kitchen, `/login`, `/auth/callback`, `/`)
+and their RSC payloads into `.open-next/assets`, with a `_redirects` that
+serves each dynamic page's `_` file for every value, so Workers Static Assets
+answers them without running the Worker (Cookpool SM-2). The build fails if
+one of them stopped being static.
+
 `open-next.config.ts` keeps the in-memory `dummy` overrides for the
 incremental cache / tag cache / queue — this app has no R2/KV/D1 bindings
 and runs fully session-authenticated, so no persistent caching layer is

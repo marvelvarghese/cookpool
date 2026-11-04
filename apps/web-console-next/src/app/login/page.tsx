@@ -99,10 +99,32 @@ type JoinLookup =
   | { state: "found"; preview: JoinPreviewPublic }
   | { state: "missing" };
 
+/** What the page reads from its address. */
+type LoginParams = Pick<URLSearchParams, "get" | "toString">;
+
+const NO_PARAMS: LoginParams = new URLSearchParams();
+
+/**
+ * The page is a prerendered file (Cookpool SM-2), and its address's query is
+ * only known in the browser: the file holds the page as it is with no query,
+ * and the browser renders it with the real one (`useSearchParams` under a
+ * Suspense boundary is how Next allows that in a static page).
+ */
 export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<SignInPage params={NO_PARAMS} />}>
+      <SignInWithQuery />
+    </React.Suspense>
+  );
+}
+
+function SignInWithQuery() {
+  return <SignInPage params={useSearchParams()} />;
+}
+
+function SignInPage({ params }: { params: LoginParams }) {
   useKitchenBodyTheme();
   const router = useRouter();
-  const params = useSearchParams();
   const rawNext = params.get("next");
   const signedOut = signedOutFrom(params.toString());
   const askedForName = nameStepFrom(params.toString());

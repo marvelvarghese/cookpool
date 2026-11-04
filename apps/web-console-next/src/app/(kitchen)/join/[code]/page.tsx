@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, Link2Off, UsersRound } from "lucide-react";
 import type { JoinPreview } from "@saas/contracts/membership";
+import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -30,8 +31,7 @@ import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/k
  * they did not see.
  */
 export default function JoinPage() {
-  const params = useParams<{ code: string }>();
-  const code = extractJoinCode(safeDecode(params?.code ?? ""));
+  const code = extractJoinCode(safeDecode(usePathParam("/join/:code", "code")));
   return (
     <div className="mx-auto w-full max-w-md pt-2 min-[900px]:pt-8">
       {code ? <JoinFlow code={code} /> : <LinkNotFound />}
