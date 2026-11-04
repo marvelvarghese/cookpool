@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-1
+  title: "The Cookpool simpler spec"
+spec:
+  goal: The cookpool-simpler doc set is on main, the design behind the epic and its six milestones in Orunbase, with the simpler screens on the design canvas and the phone audit beside it.
+  affects:
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-1.TaskContract.yaml
+  doneWhen:
+    - the README, design, plan, risks, status and the phone audit are on main under specs/epics/cookpool-simpler
+    - orun task epic show cookpool-simpler lists milestones SM0 to SM5
+    - orun task show SM-1 reads done
+  gates: []
