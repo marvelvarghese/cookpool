@@ -14,7 +14,8 @@
  * instead of delivering an empty message.
  *
  * Cookpool's kitchen emails (CP-18) — `kitchen.use_soon`,
- * `kitchen.dish_posted`, `kitchen.logged_for_you` — are enqueued by
+ * `kitchen.dish_posted`, `kitchen.logged_for_you`, and from SM-6
+ * `kitchen.portion_set` — are enqueued by
  * kitchen-worker with the shapes `@saas/contracts/kitchen` defines: amounts
  * already formatted, links absolute (a link that is not http(s) is left
  * out), the digest's items as numbered keys. They speak plainly and briefly,
@@ -345,6 +346,39 @@ const renderLoggedForYou: TemplateRenderer = (data, opts) => {
   return { subject, html, text };
 };
 
+// ── Anyone's portion (SM-6) ───────────────────────────────────
+
+const renderPortionSet: TemplateRenderer = (data, opts) => {
+  const actor = oneLine(str(data, "actorName")) || "Someone";
+  const dish = oneLine(str(data, "dishName")) || "a dish";
+  const group = oneLine(str(data, "groupName")) || "your group";
+  const portions = oneLine(str(data, "portions"));
+  const share = str(data, "yourShare");
+  const link = safeUrl(str(data, "dishUrl"));
+  const brand = opts.brandName ?? "";
+  const had = portions ? `${portionsPhrase(portions)} of ${dish}` : `some of ${dish}`;
+  const subject = `${actor} said you had ${had}`;
+  const lead = `In ${group}: ${actor} said you had ${had}.`;
+  const amounts = share ? [`Your share: ${share}.`] : [];
+  const check = "Not right? Change it on the dish before it is finalized.";
+  const why = `You get this once per dish when someone in ${group} sets your portion.`;
+
+  const text = [lead, ...amounts, "", check, ...(link ? [link] : []), "", why].join("\n");
+
+  const html = htmlShell(
+    escapeHtml(`${actor} said you had ${had}`),
+    [
+      paragraphHtml(lead),
+      ...amounts.map((line) => paragraphHtml(line)),
+      paragraphHtml(check, true),
+      link ? buttonHtml(link, "Open the dish") : "",
+    ].join(""),
+    footerFor(brand, why),
+  );
+
+  return { subject, html, text };
+};
+
 const TEMPLATES: Record<string, TemplateRenderer> = {
   "auth.magic_link": renderMagicLink,
   "invitation.created": renderInvitationCreated,
@@ -353,6 +387,8 @@ const TEMPLATES: Record<string, TemplateRenderer> = {
   [KITCHEN_EMAILS.USE_SOON]: renderUseSoon,
   [KITCHEN_EMAILS.DISH_POSTED]: renderDishPosted,
   [KITCHEN_EMAILS.LOGGED_FOR_YOU]: renderLoggedForYou,
+  // Cookpool (SM-6).
+  [KITCHEN_EMAILS.PORTION_SET]: renderPortionSet,
 };
 
 /**

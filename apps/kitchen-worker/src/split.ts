@@ -238,6 +238,7 @@ export function dishSplitView(dish: KitchenDishRecord, viewer: string): DishSpli
     portionsHalf: s.portionsHalf,
     exactMinor: s.exactMinor,
     source: s.source,
+    setBy: s.setBy,
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
   }));

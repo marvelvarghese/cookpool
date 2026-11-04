@@ -108,7 +108,8 @@ describe("Identity Migration Verification", () => {
       const ids = manifest.migrations.map((m) => m.id);
       expect(identityMigrations.map((m) => m.id).slice(-1)).toEqual(["280_identity_login_attempts"]);
       expect(ids.indexOf("280_identity_login_attempts")).toBe(ids.indexOf("270_kitchen_sweeps") + 1);
-      expect(ids[ids.length - 1]).toBe("280_identity_login_attempts");
+      // The next migration is kitchen's 290_kitchen_dish_share_setter (SM-6).
+      expect(ids[ids.indexOf("280_identity_login_attempts") + 1]).toBe("290_kitchen_dish_share_setter");
     });
 
     // Statements only: the header comments may name what they describe.
