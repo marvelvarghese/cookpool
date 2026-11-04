@@ -7,8 +7,8 @@ the code departed from `design.md`.
 |---|---|---|
 | SM0 — the spec | ✅ shipped 2026-11-04 | #36 (SM-1) |
 | SM1 — fast | in progress | #37 (SM-3), #38 (SM-2) |
-| SM2 — for anyone | in progress | SM-6 |
-| SM3 — from before | | |
+| SM2 — for anyone | in progress | #39 (SM-6) |
+| SM3 — from before | in progress | SM-8 |
 | SM4 — simpler screens | | |
 | SM5 — the rest | | |
 
@@ -183,3 +183,52 @@ the code departed from `design.md`.
   notifications-worker is a peer edge. If kitchen-worker goes live first, a
   portion email asked for in that gap is recorded as failed (no template)
   under its key, and that dish and person get no email later either.
+
+### SM3 — from before: the history and recipes reads (SM-8)
+
+- **Routes.** `GET /v1/kitchen/me/items/history?q=&limit=` and
+  `GET /v1/kitchen/me/dishes/recipes?q=&limit=` (kitchen-worker
+  `handlers/from-before.ts`; SDK `kitchen.itemHistory(q)` and
+  `kitchen.recipes(q)`; contracts `ItemHistoryResponse`, `RecipesResponse`).
+  `limit` is 1–20, default 8; anything else is 422 `validation_failed`, as on
+  the other lists. They sit ahead of the `{itm}` and `{dsh}` routes in the
+  router, whose capture would otherwise take "history" and "recipes".
+- **Match order.** Design §3 says "newest first". Names starting with the
+  text typed come first, then names with a word starting with it, then names
+  that only contain it, and newest first within each, so "mi" puts Milk ahead
+  of a newer Jasmine rice. With no text, the order is newest first.
+- **What counts as bought before.** Every record of the name counts,
+  including used-up and wasted ones. Two kinds are left out: items removed
+  as added by mistake, and a dish's leftovers (`source_dish_id`), which were
+  cooked, not bought. "Last time" is the record with the latest `bought_on`,
+  then the latest `created_at`, so a purchase logged later but bought earlier
+  doesn't win. `useByDays` is never below 0, because an edit can set a use-by
+  before the day bought.
+- **What counts as cooked before.** Canceled dishes are left out: they
+  neither show nor count towards `times`.
+- **Case.** Names group and match case-insensitively through SQLite's
+  `lower()`, which folds ASCII letters only (as the pantry search does).
+- **Seeing only what one may.** History reads the caller's own pantry and
+  every group they hold a group role in, viewers included, as the
+  cross-pantry reads do. A billing admin's group is not read. Recipes read the
+  caller's dishes and those shared with any of their groups, as the dish list
+  does. An ingredient's `pantry` is null when it came from a pantry the caller
+  can't see: another cook's own pantry, or a group they aren't in. A recipe's
+  `orgId` is null once the caller has left that group. `match` comes only
+  from the caller's own pantry or a group where their role holds
+  `kitchen.item.use`, so a viewer group's stock is never matched.
+- **Fields added to the brief.** The brief didn't name three fields that
+  were added: `Recipe.currency` (extras and total need it), `Recipe.totalMinor`
+  ("₹156" on the canvas), and `RecipeMatch.pantry` (the note under an
+  ingredient names where the match is now, which can differ from last time).
+- **One statement each, no new index.** No migration. The history read is a
+  window over the items in scope, found through the existing owner and group
+  indexes. The recipes read is one statement of `MATERIALIZED` steps: the
+  dishes in scope by cook and by group, then their newest ingredients by
+  dish (a `CROSS JOIN` keeps that order), then the usable items with those
+  names by owner and by group, then the best item per ingredient. No step
+  scans a table. tests/db pins both plans. Both reads grow with the caller's
+  own history, not the database's. With 18,000 visible items (118,000 in the
+  database), node:sqlite runs a history read in 23 ms ("mi") and 80 ms (empty
+  text). A recipes read over 2,000 visible dishes (22,000 in all) takes
+  14 ms.

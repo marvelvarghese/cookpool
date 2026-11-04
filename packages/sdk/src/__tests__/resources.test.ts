@@ -1220,6 +1220,29 @@ describe("KitchenClient — Home's inbox (Cookpool CP-19)", () => {
   });
 });
 
+describe("KitchenClient — from before (Cookpool SM-8)", () => {
+  it("itemHistory and recipes read the caller's paths with the text typed and the limit", async () => {
+    const history = { items: [{ name: "Milk", times: 6 }] };
+    const h = captureFetch(jsonResponse(envelope(history)));
+    expect(await client(h.fetch).kitchen.itemHistory("mi", { limit: 5 })).toEqual(history);
+    expect(h.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/history?q=mi&limit=5");
+    expect(h.calls[0]!.init.method).toBe("GET");
+
+    const recipes = { recipes: [{ name: "Egg fried rice", times: 3, ingredients: [] }] };
+    const r = captureFetch(jsonResponse(envelope(recipes)));
+    expect(await client(r.fetch).kitchen.recipes("egg fried")).toEqual(recipes);
+    expect(r.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes/recipes?q=egg+fried");
+
+    // Nothing typed yet: the most recent, with no empty q on the URL.
+    const recent = captureFetch(jsonResponse(envelope({ items: [] })));
+    await client(recent.fetch).kitchen.itemHistory();
+    expect(recent.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/history");
+    const cooked = captureFetch(jsonResponse(envelope({ recipes: [] })));
+    await client(cooked.fetch).kitchen.recipes("", { limit: 20 });
+    expect(cooked.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes/recipes?limit=20");
+  });
+});
+
 describe("KitchenClient — dishes (Cookpool CP-14)", () => {
   const dish = { id: "dsh_1", name: "Paneer butter masala", state: "open", totalMinor: 21100 };
 

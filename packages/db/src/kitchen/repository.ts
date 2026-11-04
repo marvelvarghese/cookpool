@@ -14,6 +14,7 @@ import { createPantryRepository } from "./pantry.js";
 import { createStockRepository } from "./stock.js";
 import { createDishesRepository } from "./dishes.js";
 import { createSweepRepository } from "./sweep.js";
+import { createHistoryRepository } from "./history.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -116,5 +117,6 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     ...createStockRepository(executor),
     ...createDishesRepository(executor),
     ...createSweepRepository(executor),
+    ...createHistoryRepository(executor),
   };
 }
