@@ -875,6 +875,153 @@ export interface UsualsResponse {
   usuals: KitchenUsual[];
 }
 
+// ── From before (SM-8) ──────────────────────────────────────
+//
+// What the caller bought and cooked before, for the type-ahead on Bought and
+// Cook (cookpool-simpler design §3): picking a suggestion fills the form from
+// last time. Each read is one database query, so the app can run it as
+// someone types.
+//
+//   GET /v1/kitchen/me/items/history?q=&limit=   names bought before, with last time's details
+//   GET /v1/kitchen/me/dishes/recipes?q=&limit=  dishes cooked before, ingredients matched to items usable now
+//
+// Both group by name case-insensitively (ASCII letters fold; "Milk" and
+// "milk" are one name), and the newest record of a name fills its fields.
+// Names starting with `q` come first, then names with a word starting with
+// it, then names containing it — newest first within each; an empty `q`
+// lists the most recent. Only the caller's own pantry and the groups they
+// are in are read: nothing from a group they cannot see ever shows.
+
+/** How many suggestions a "from before" read returns by default. */
+export const FROM_BEFORE_DEFAULT_LIMIT = 8;
+/** The most it returns (`limit`, 1–20). */
+export const FROM_BEFORE_MAX_LIMIT = 20;
+
+/** `?q=&limit=` of both reads. */
+export interface FromBeforeQuery {
+  /** Matched against the name (at most 100 characters; trimmed). */
+  q?: string;
+  /** 1–FROM_BEFORE_MAX_LIMIT, default FROM_BEFORE_DEFAULT_LIMIT. */
+  limit?: number;
+}
+
+/** Where something was last time: the caller's own pantry (no `orgId`), or one of their groups (its `org_…`). */
+export type FromBeforePantry =
+  | { kind: "personal"; orgId: null; name: string }
+  | { kind: "group"; orgId: string; name: string };
+
+/**
+ * One name bought before, with what the newest record of it said. Every
+ * record counts — still there, used up or wasted — except items removed as a
+ * mistake and a dish's leftovers (cooked, not bought).
+ */
+export interface ItemHistoryEntry {
+  /** As the newest record spells it. */
+  name: string;
+  category: string;
+  dimension: KitchenDimension;
+  /** The unit it was bought in; `quantity` is in it. */
+  unit: string;
+  /** What was bought last time, in `unit` (three decimals at most). */
+  quantity: number;
+  /** The same, exactly: thousandths of the dimension's base unit. */
+  qtyMilli: number;
+  /** What was paid last time. */
+  priceMinor: number;
+  currency: string;
+  /** The pantry it was put in last time. */
+  pantry: FromBeforePantry;
+  /** Who paid last time (`usr_…`). */
+  paidBy: string;
+  /** Last time's own waste rule; null when it followed its group (always null for a personal item). */
+  wastePolicy: WastePolicy | null;
+  /** Days from buying to its use-by date last time (0 or more); null when it had none. */
+  useByDays: number | null;
+  /** How many times it was bought: the records of this name. */
+  times: number;
+  /** ISO date it was last bought. */
+  lastBoughtOn: string;
+}
+
+/** The query of GET /v1/kitchen/me/items/history. */
+export type ItemHistoryQuery = FromBeforeQuery;
+
+export interface ItemHistoryResponse {
+  items: ItemHistoryEntry[];
+}
+
+/**
+ * The item an ingredient would come from now: active, with something left,
+ * the same name (case-insensitively) and dimension, in the caller's own
+ * pantry or a group where they may use items. The one in the pantry it came
+ * from last time is preferred, then the one with most left.
+ */
+export interface RecipeMatch {
+  /** `itm_…` */
+  itemId: string;
+  /** The item page's ref: `me:itm_…` for the caller's own, `org:org_…:itm_…` for a group's. */
+  ref: string;
+  /** The pantry it is in now. */
+  pantry: PantryRef;
+  /** What is left of it: compare with the ingredient's `qtyMilli`. */
+  qtyLeftMilli: number;
+  /** Always true here: only items the caller may use are matched. */
+  canUse: boolean;
+}
+
+/** One ingredient of the newest dish of a name, in the cook's order. */
+export interface RecipeIngredient {
+  /** The item's name (as it is now). */
+  name: string;
+  /** What went in last time: thousandths of the dimension's base unit. */
+  qtyMilli: number;
+  /** The same, in `unit` (three decimals at most). */
+  quantity: number;
+  /** The unit it was entered in. */
+  unit: string;
+  dimension: KitchenDimension;
+  /**
+   * Where it came from last time, as the caller sees it: their own pantry (a
+   * dish they cooked from it), or a group they are in. Null when it came from
+   * a pantry they cannot see — another cook's own, or a group they are not in.
+   */
+  pantry: FromBeforePantry | null;
+  /** An item to take it from now; null when there is none ("Not in a pantry · add it"). */
+  match: RecipeMatch | null;
+}
+
+/**
+ * One dish name cooked before: the dishes the caller cooked and those shared
+ * with their groups, except canceled ones. The newest dish of the name fills
+ * the fields and the ingredients.
+ */
+export interface Recipe {
+  /** As the newest dish spells it. */
+  name: string;
+  /** How many times it was cooked: the dishes of this name. */
+  times: number;
+  /** When it was last cooked (ISO instant). */
+  lastCookedAt: string;
+  /** Portions × 2, last time. */
+  portionsHalf: number;
+  /** Gas, spices and the like, last time. */
+  extrasMinor: number;
+  /** What it cost in all last time (ingredients and extras). */
+  totalMinor: number;
+  /** The currency of `extrasMinor` and `totalMinor`. */
+  currency: string;
+  /** The group it was last shared with (`org_…`); null for just its cook, or a group the caller is no longer in. */
+  orgId: string | null;
+  ingredients: RecipeIngredient[];
+}
+
+/** The query of GET /v1/kitchen/me/dishes/recipes. */
+export type RecipesQuery = FromBeforeQuery;
+
+export interface RecipesResponse {
+  recipes: Recipe[];
+}
+
 // ── Dishes (CP-14) ──────────────────────────────────────────
 //
 // A cook makes one dish from their own pantry and any group pantry where they
@@ -1039,7 +1186,11 @@ export interface KitchenDish {
   netting: DishNet[];
 }
 
-/** Who set a share: the eater, claiming it; or the cook, assigning it. */
+/**
+ * Which route wrote a share: self, a claim (the eater's own, or since SM-6
+ * another member's for them — `setBy` says who); cook, the cook's assignment
+ * or a correction.
+ */
 export const DISH_SHARE_SOURCES = ["cook", "self"] as const;
 export type DishShareSource = (typeof DISH_SHARE_SOURCES)[number];
 
@@ -1054,6 +1205,13 @@ export interface KitchenDishShare {
   /** A fixed amount in minor units, taken off the top of the total; null for portions. */
   exactMinor: number | null;
   source: DishShareSource;
+  /**
+   * Who set it last (`usr_…`, SM-6): the eater, another member setting it
+   * for them, or whoever assigned or corrected the shares; null for a share
+   * written before SM-6. Every answer carries it; it is optional here only so
+   * shares typed before SM-6 still check.
+   */
+  setBy?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1199,15 +1357,39 @@ export type ClaimDishResponse = DishResponse;
 export type SetDishSharesResponse = DishResponse;
 export type CorrectDishResponse = DishResponse;
 
+// ── Anyone's portion (SM-6) ─────────────────────────────────
+//
+// Any member of a dish's group sets any member's portion of an open dish,
+// under the same guard as a claim: never more than the portions. The row
+// records who set it (`KitchenDishShare.setBy`), the latest write wins, and
+// the person whose portion someone else set is emailed once per dish
+// (`kitchen.portion_set`).
+
+/**
+ * PUT /v1/organizations/{org}/kitchen/dishes/{dsh}/claims/{subjectId}
+ * (`kitchen.dish.claim`: members, owners and admins — the opaque 404 for a
+ * viewer, or a dish not shared with the group). `subjectId` is a `usr_…`
+ * id, or `me` (the caller: `…/claims/me` is the same route). Only while the
+ * dish is `open` (409 `dish_not_open`, `details.state`); everyone's portions
+ * may not exceed the dish's (409 `claims_exceed_portions`, with
+ * `details.availableHalf`: what the others leave free for this person);
+ * the person must be a current member of the group, viewers included (422
+ * `not_in_group`, `details.subjectIds`). 0 takes their portion back.
+ * Answers 200 `{ dish }`; `myClaimHalf` is still the caller's.
+ */
+export type SetPortionRequest = ClaimDishRequest;
+export type SetPortionResponse = DishResponse;
+
 // ── Emails (CP-18) ──────────────────────────────────────────
 //
-// kitchen-worker asks notifications-worker to send Cookpool's three emails
+// kitchen-worker asks notifications-worker to send Cookpool's emails — three
+// from CP-18, and the portion someone else set for you from SM-6 —
 // (POST /v1/notifications over its NOTIFICATIONS_WORKER binding, through
 // `@saas/notifications-client`), always after the write that causes them has
 // committed and never failing the request; notifications-worker's template
 // registry renders them. Each is sent to one person, tagged with their
 // subject id, under the `product` category: opting out of product email for
-// a group stops that group's dish and logged-for-you emails, and opting out
+// a group stops that group's dish, logged-for-you and portion emails, and opting out
 // under the system organization stops the daily digest. Every enqueue
 // carries an idempotency key that names what it is about (the day, the dish,
 // the transaction) and the recipient, so a re-run or a retried request
@@ -1224,6 +1406,8 @@ export const KITCHEN_EMAILS = {
   DISH_POSTED: "kitchen.dish_posted",
   /** Someone else logged a use or an expense that names you. */
   LOGGED_FOR_YOU: "kitchen.logged_for_you",
+  /** Someone else said you had a portion of a dish (SM-6). */
+  PORTION_SET: "kitchen.portion_set",
 } as const;
 
 export type KitchenEmail = (typeof KITCHEN_EMAILS)[keyof typeof KITCHEN_EMAILS];
@@ -1339,6 +1523,24 @@ export interface LoggedForYouEmail extends KitchenEmailData {
   youPaid: string | null;
   /** The group in the app, where its activity is. */
   groupUrl: string;
+}
+
+/**
+ * `kitchen.portion_set` (SM-6): another member set your portion of an open
+ * dish — "Anu said you had 1 portion of Egg fried rice". Once per dish and
+ * person (`kitchen.portion_set:<dsh>:<usr>`), however often it changes after.
+ */
+export interface PortionSetEmail extends KitchenEmailData {
+  /** Who set it; null when they have none to show. */
+  actorName: string | null;
+  dishName: string;
+  groupName: string;
+  /** Your portions, half portions as "½" ("1", "1½"). */
+  portions: string;
+  /** What those portions cost you at the dish's price, formatted; null when nothing. */
+  yourShare: string | null;
+  /** The dish in the app, where you can change it. */
+  dishUrl: string;
 }
 
 // ── The Home inbox (CP-19) ──────────────────────────────────

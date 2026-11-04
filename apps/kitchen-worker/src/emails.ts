@@ -15,6 +15,8 @@
 //   kitchen.logged_for_you  a use or an expense logged by someone else: each
 //                           person it charges or credits, not whoever logged it
 //                           — once per transaction
+//   kitchen.portion_set     a portion of an open dish someone else set for you
+//                           (SM-6) — once per dish and person
 //
 // Each email is sent to one person, tagged with their subject id so their
 // preferences apply, under the `product` category, and keyed
@@ -29,6 +31,7 @@ import {
   type KitchenEmail,
   type KitchenEmailData,
   type LoggedForYouEmail,
+  type PortionSetEmail,
 } from "@saas/contracts/kitchen";
 import type { Uuid } from "@saas/db/ids";
 import type { KitchenDishRecord, KitchenItemRecord, KitchenStockMoveRecord, KitchenTxnRecord } from "@saas/db/kitchen";
@@ -44,6 +47,7 @@ import type { Env } from "./env.js";
 import type { MemberGroup } from "./groups-client.js";
 import { displayNameOf } from "./identity-client.js";
 import { toPublicId } from "./ids.js";
+import { inSplitOrder, splitDish } from "./split.js";
 
 /**
  * The organization an email that belongs to no one group is sent under:
@@ -264,4 +268,55 @@ export async function emailLoggedForYou(ctx: RequestContext, logged: LoggedFor, 
     });
   }
   await sendAll(ctx.env, ctx, mails);
+}
+
+/**
+ * `kitchen.portion_set` (SM-6): someone set another member's portion of an
+ * open dish ("Anu said you had 1 portion of Egg fried rice"). Emailed to that
+ * person — never for your own portion, nor for taking one back — once per
+ * dish and person (`kitchen.portion_set:<dsh>:<usr>`): a change after, by
+ * anyone, sends nothing more. Says who set it, how much, what it costs them
+ * at the dish's price, and links to the dish, where they can change it.
+ */
+export async function emailPortionSet(ctx: RequestContext, dish: KitchenDishRecord, subjectId: string): Promise<void> {
+  const actor = ctx.actor.subjectId;
+  if (!dish.orgId || subjectId === actor) return;
+  const share = dish.shares.find((s) => s.subjectId === subjectId);
+  if (!share || share.portionsHalf === null || share.portionsHalf <= 0) return;
+  const dishId = toPublicId("dsh", dish.id);
+  const idempotencyKey = mailKey(KITCHEN_EMAILS.PORTION_SET, dishId, subjectId);
+  if (!idempotencyKey) return;
+
+  const [group, people] = await Promise.all([groupOf(ctx, dish.orgId), ctx.people.users([actor, subjectId])]);
+  const to = people.get(subjectId);
+  if (!to || !to.email.trim()) return;
+  const by = people.get(actor);
+
+  // What their portions cost them, as the dish splits now (the cook's own
+  // amount also holds the unclaimed portions: those are not theirs to pay).
+  let yourShare: string | null = null;
+  try {
+    const split = splitDish(dish, inSplitOrder(dish.cook, dish.shares));
+    const owed = split.amounts.find((a) => a.subjectId === subjectId)?.owedMinor ?? 0;
+    const own = subjectId === dish.cook ? owed - split.unclaimedMinor : owed;
+    if (own > 0) yourShare = formatMinor(own, dish.currency);
+  } catch {
+    // The write's own guard keeps the shares splittable; the email still goes without an amount.
+  }
+
+  const data: PortionSetEmail = {
+    actorName: by ? displayNameOf(by) : null,
+    dishName: dish.name,
+    groupName: group?.name ?? "your group",
+    portions: formatPortions(share.portionsHalf),
+    yourShare,
+    dishUrl: appLink(ctx.env, `/dishes/${dishId}`),
+  };
+  await sendKitchenMail(ctx.env, ctx, {
+    orgId: toPublicId("org", dish.orgId),
+    templateKey: KITCHEN_EMAILS.PORTION_SET,
+    templateData: data,
+    to,
+    idempotencyKey,
+  });
 }

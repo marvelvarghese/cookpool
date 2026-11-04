@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-8
+  title: "From before: item history and recipes"
+spec:
+  goal: The app can suggest items bought before and dishes cooked before, with everything needed to fill the forms, from a bounded number of reads.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-8.TaskContract.yaml
+  doneWhen:
+    - GET items/history groups past items by name with their last details
+    - GET dishes/recipes returns past dishes with ingredients matched to items usable now
+    - neither read shows anything from a group the caller cannot see
+  gates: []

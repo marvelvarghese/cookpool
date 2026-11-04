@@ -18,6 +18,7 @@ import { groupAllows, requireGroupAction, requireOrgAction } from "../authz.js";
 import type { OrgContext, RequestContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
 import { dishAudits, dishErrorResponse } from "../dishes.js";
+import { emailPortionSet } from "../emails.js";
 import { conflict, forbidden, notFound, readJsonObject, unavailable, unprocessable, validationError } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";
@@ -37,12 +38,13 @@ import {
   type DishSplit,
   type ParsedShare,
 } from "../split.js";
-import { Fields, text } from "../validate.js";
+import { Fields, subjectId as subjectIdOf, text } from "../validate.js";
 import { dishResponse, myGroups, readable } from "./dishes.js";
 
 // Splitting a dish shared with a group (CP-16), /v1/organizations/{org}/kitchen/dishes/{dsh}/…
 //
 //   PUT  …/claims/me   kitchen.dish.claim (members — not viewers): claim half portions of an open dish
+//   PUT  …/claims/{subjectId}  the same grant (SM-6): set any member's half portions of an open dish
 //   PUT  …/shares      its cook, or kitchen.dish.finalize_any: replace every share of a draft or open dish
 //   POST …/finalize    its cook, or kitchen.dish.finalize_any: the dish transaction, leftovers, finalized
 //   POST …/correct     its cook, or kitchen.dish.finalize_any: reversal + a new dish transaction
@@ -58,7 +60,8 @@ import { dishResponse, myGroups, readable } from "./dishes.js";
 // claim landing in between fails the batch, and the write is planned once
 // more from a fresh read (409 `stale` on a second loss). Finalize and correct
 // are idempotent: a finalized dish answers as it is, and a retried correction
-// finds the transaction it posted.
+// finds the transaction it posted. Every share written records its caller as
+// `set_by` (SM-6).
 
 /** The dishes shared with the request's group. */
 function inGroup(ctx: OrgContext): KitchenDishScope {
@@ -112,18 +115,49 @@ function parseSharesBody(body: Record<string, unknown>, withNote: boolean): { ok
   return { ok: true, shares, note };
 }
 
-// ── Claims ─────────────────────────────────────────────────
+// ── Claims, and anyone's portion (SM-6) ────────────────────
 
+/** PUT …/claims/me — the caller's own half portions. */
 export async function handleClaimDish(ctx: OrgContext, request: Request, params: readonly string[]): Promise<Response> {
+  return setPortion(ctx, request, params[0]!, "me");
+}
+
+/** PUT …/claims/{subjectId} — anyone's half portions (SM-6); `me` is the caller, as above. */
+export async function handleSetPortion(ctx: OrgContext, request: Request, params: readonly string[]): Promise<Response> {
+  return setPortion(ctx, request, params[0]!, params[1]!);
+}
+
+/** A path segment as sent, percent-decoded; as is when it does not decode. */
+function pathSegment(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+/**
+ * Set `subjectParam`'s half portions of an open dish (`me`: the caller's),
+ * under the dish's guard: never more than the portions, however many members
+ * write at once. Anyone the caller names must be in the group (viewers count:
+ * they eat). The share records the caller as who set it; when it is someone
+ * else's and they now have some, that person is emailed once the write has
+ * committed (once per dish and person, `kitchen.portion_set`).
+ */
+async function setPortion(ctx: OrgContext, request: Request, dishParam: string, subjectParam: string): Promise<Response> {
   const denied = await requireGroupAction(ctx, "kitchen.dish.claim");
   if (denied) return denied;
-  const dishId = parsePublicId("dsh", params[0]!);
+  const dishId = parsePublicId("dsh", dishParam);
   if (!dishId) return notFound(ctx.requestId);
   const body = await readJsonObject(request);
   if (!body) return validationError(ctx.requestId, { body: ["Must be a JSON object"] });
   const fields = new Fields();
+  const named = pathSegment(subjectParam);
+  const subjectId = named === "me" ? ctx.actor.subjectId : subjectIdOf(fields, "subjectId", named);
   const portionsHalf = portionsHalfOf(fields, "portionsHalf", body.portionsHalf, 0);
-  if (portionsHalf === undefined) return validationError(ctx.requestId, fields.errors);
+  if (subjectId === undefined || portionsHalf === undefined) return validationError(ctx.requestId, fields.errors);
+  const forSomeoneElse = subjectId !== ctx.actor.subjectId;
+  const setBy = ctx.actor.subjectId;
 
   return withKitchenRepo(ctx, async (repo) => {
     const read = await groupDish(ctx, repo, dishId);
@@ -131,17 +165,26 @@ export async function handleClaimDish(ctx: OrgContext, request: Request, params:
     const dish = read.dish;
     // Claims are made on an open dish; an assigned one (a draft) is the cook's to split.
     if (dish.state !== "open") return dishErrorResponse(ctx.requestId, { kind: "dish_not_open", state: dish.state }, "claimed");
+    // The caller is in the group (the grant says so); anyone else must be too.
+    if (forSomeoneElse) {
+      const outsider = await eatersInGroup(ctx, [{ subjectId, portionsHalf, exactMinor: null }]);
+      if (outsider) return outsider;
+    }
 
     const result = await ctx.timings.measure("db", () =>
       repo.claimDish({
         dishId,
-        subjectId: ctx.actor.subjectId,
+        subjectId,
         portionsHalf,
         shareId: asUuid(crypto.randomUUID()),
+        setBy,
         now: ctx.now(),
       }),
     );
-    return result.ok ? dishResponse(ctx, result.value) : refused(ctx, result.error, "claimed");
+    if (!result.ok) return refused(ctx, result.error, "claimed");
+    const set = result.value;
+    if (forSomeoneElse && portionsHalf > 0) await ctx.defer(() => emailPortionSet(ctx, set, subjectId));
+    return dishResponse(ctx, set);
   });
 }
 
@@ -172,7 +215,7 @@ export async function handleSetDishShares(ctx: OrgContext, request: Request, par
     if (misfit) return misfit;
 
     const result = await ctx.timings.measure("db", () =>
-      repo.setDishShares({ dish, shares: newShares(parsed.shares), now: ctx.now() }),
+      repo.setDishShares({ dish, shares: newShares(parsed.shares), setBy: ctx.actor.subjectId, now: ctx.now() }),
     );
     return result.ok ? dishResponse(ctx, result.value) : refused(ctx, result.error, "split again");
   });
@@ -378,7 +421,7 @@ async function planCorrect(
       },
     }),
   });
-  return { dish, reversal, txn, leftover, shares, now, audits };
+  return { dish, reversal, txn, leftover, shares, setBy: actor, now, audits };
 }
 
 // ── Finalize ───────────────────────────────────────────────

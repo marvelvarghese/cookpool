@@ -43,6 +43,8 @@ import type {
   FinalizeDishResponse,
   SetDishSharesRequest,
   SetDishSharesResponse,
+  SetPortionRequest,
+  SetPortionResponse,
   CookDishRequest,
   CookDishResponse,
   DishResponse,
@@ -55,6 +57,8 @@ import type {
 } from "@saas/contracts/kitchen";
 
 import type { RequestOptions, Transport } from "./transport.js";
+// "From before" (SM-8).
+import type { ItemHistoryQuery, ItemHistoryResponse, RecipesQuery, RecipesResponse } from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -504,6 +508,44 @@ export class KitchenClient {
   }
 
   // -------------------------------------------------------------------------
+  // From before (SM-8)
+  //
+  // The type-ahead on Bought and Cook: what the caller (or their groups)
+  // bought and cooked before, grouped by name, best match and newest first —
+  // one database read each, so they can run as someone types.
+  // -------------------------------------------------------------------------
+
+  /**
+   * GET /v1/kitchen/me/items/history
+   *
+   * Names bought before across the caller's own pantry and their groups —
+   * used up and wasted ones too — each with last time's quantity, unit,
+   * price, pantry, buyer, waste rule and use-by offset, and how often it was
+   * bought. An empty `q` lists the most recent (`limit` 1–20, default 8).
+   */
+  itemHistory(q = "", query: Omit<ItemHistoryQuery, "q"> = {}, opts: RequestOptions = {}): Promise<ItemHistoryResponse> {
+    return this.transport.request<ItemHistoryResponse>(
+      { method: "GET", path: this.mePath("items/history"), query: { q: q || undefined, limit: query.limit } },
+      opts,
+    );
+  }
+
+  /**
+   * GET /v1/kitchen/me/dishes/recipes
+   *
+   * Dishes cooked before — the caller's and those shared with their groups —
+   * each with last time's portions and extras and its ingredients, every one
+   * matched to an item the caller may use now (`match`, null when there is
+   * none). An empty `q` lists the most recent (`limit` 1–20, default 8).
+   */
+  recipes(q = "", query: Omit<RecipesQuery, "q"> = {}, opts: RequestOptions = {}): Promise<RecipesResponse> {
+    return this.transport.request<RecipesResponse>(
+      { method: "GET", path: this.mePath("dishes/recipes"), query: { q: q || undefined, limit: query.limit } },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
   // Dishes (CP-14)
   //
   // A dish takes ingredients from the caller's own pantry and any group
@@ -651,6 +693,39 @@ export class KitchenClient {
   correctDish(orgId: string, dishId: string, body: CorrectDishRequest, opts: RequestOptions = {}): Promise<CorrectDishResponse> {
     return this.transport.request<CorrectDishResponse>(
       { method: "POST", path: this.groupPath(orgId, `dishes/${encodeURIComponent(dishId)}/correct`), body },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Anyone's portion (SM-6)
+  // -------------------------------------------------------------------------
+
+  /**
+   * PUT /v1/organizations/:orgId/kitchen/dishes/:dishId/claims/:subjectId
+   *
+   * Any member (not a viewer) sets any member's half portions of an open dish
+   * (0 takes them back); `subjectId` `"me"` is the caller, as `claimDish`.
+   * The share records who set it (`setBy`), and the person is emailed once
+   * per dish when it was someone else. More than is free is a
+   * `ConflictError` with `reason: "claims_exceed_portions"`
+   * (`details.availableHalf`); a dish that is not open, `reason:
+   * "dish_not_open"`; someone not in the group a `ValidationError` with
+   * `reason: "not_in_group"`. A viewer gets a `NotFoundError`.
+   */
+  setPortion(
+    orgId: string,
+    dishId: string,
+    subjectId: string,
+    body: SetPortionRequest,
+    opts: RequestOptions = {},
+  ): Promise<SetPortionResponse> {
+    return this.transport.request<SetPortionResponse>(
+      {
+        method: "PUT",
+        path: this.groupPath(orgId, `dishes/${encodeURIComponent(dishId)}/claims/${encodeURIComponent(subjectId)}`),
+        body,
+      },
       opts,
     );
   }

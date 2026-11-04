@@ -104,7 +104,7 @@ function internal(err: unknown): KitchenResult<never> {
 const NOT_FOUND: KitchenResult<never> = { ok: false, error: { kind: "not_found" } };
 
 /** Escape LIKE's wildcards so a search for "50%" means the characters. */
-function likeEscape(text: string): string {
+export function likeEscape(text: string): string {
   return text.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 

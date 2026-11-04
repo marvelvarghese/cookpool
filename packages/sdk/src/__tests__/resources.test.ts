@@ -1220,6 +1220,29 @@ describe("KitchenClient — Home's inbox (Cookpool CP-19)", () => {
   });
 });
 
+describe("KitchenClient — from before (Cookpool SM-8)", () => {
+  it("itemHistory and recipes read the caller's paths with the text typed and the limit", async () => {
+    const history = { items: [{ name: "Milk", times: 6 }] };
+    const h = captureFetch(jsonResponse(envelope(history)));
+    expect(await client(h.fetch).kitchen.itemHistory("mi", { limit: 5 })).toEqual(history);
+    expect(h.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/history?q=mi&limit=5");
+    expect(h.calls[0]!.init.method).toBe("GET");
+
+    const recipes = { recipes: [{ name: "Egg fried rice", times: 3, ingredients: [] }] };
+    const r = captureFetch(jsonResponse(envelope(recipes)));
+    expect(await client(r.fetch).kitchen.recipes("egg fried")).toEqual(recipes);
+    expect(r.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes/recipes?q=egg+fried");
+
+    // Nothing typed yet: the most recent, with no empty q on the URL.
+    const recent = captureFetch(jsonResponse(envelope({ items: [] })));
+    await client(recent.fetch).kitchen.itemHistory();
+    expect(recent.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/history");
+    const cooked = captureFetch(jsonResponse(envelope({ recipes: [] })));
+    await client(cooked.fetch).kitchen.recipes("", { limit: 20 });
+    expect(cooked.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/dishes/recipes?limit=20");
+  });
+});
+
 describe("KitchenClient — dishes (Cookpool CP-14)", () => {
   const dish = { id: "dsh_1", name: "Paneer butter masala", state: "open", totalMinor: 21100 };
 
@@ -1288,5 +1311,39 @@ describe("KitchenClient — dishes (Cookpool CP-14)", () => {
     await expect(
       client(captureFetch(reason("conflict", 409, { reason: "dish_not_open", state: "finalized" })).fetch).kitchen.cancelDish("dsh_1"),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("KitchenClient — anyone's portion (Cookpool SM-6)", () => {
+  const dish = {
+    id: "dsh_1",
+    state: "open",
+    shares: [{ id: "dsr_1", subjectId: "usr_dev", portionsHalf: 2, exactMinor: null, source: "self", setBy: "usr_anu" }],
+  };
+
+  it("PUTs anyone's half portions to claims/{subjectId}, and the caller's to claims/me", async () => {
+    const set = captureFetch(jsonResponse(envelope({ dish })));
+    expect(await client(set.fetch).kitchen.setPortion("org_1", "dsh_1", "usr_dev", { portionsHalf: 2 })).toEqual({ dish });
+    expect(set.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/dishes/dsh_1/claims/usr_dev");
+    expect(set.calls[0]!.init.method).toBe("PUT");
+    expect(JSON.parse(String(set.calls[0]!.init.body))).toEqual({ portionsHalf: 2 });
+
+    const mine = captureFetch(jsonResponse(envelope({ dish })));
+    await client(mine.fetch).kitchen.setPortion("org_1", "dsh_1", "me", { portionsHalf: 0 });
+    expect(mine.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/dishes/dsh_1/claims/me");
+  });
+
+  it("surfaces the portions limit as ConflictError and someone outside the group as ValidationError", async () => {
+    const reason = (code: string, status: number, details: Record<string, unknown>) =>
+      jsonResponse({ error: { code, message: code, details, requestId: "req_err" } }, { status });
+    const over = await client(captureFetch(reason("conflict", 409, { reason: "claims_exceed_portions", portionsHalf: 8, availableHalf: 2 })).fetch)
+      .kitchen.setPortion("org_1", "dsh_1", "usr_dev", { portionsHalf: 6 })
+      .catch((e: unknown) => e);
+    expect(over).toBeInstanceOf(ConflictError);
+    expect((over as ConflictError).details).toEqual({ reason: "claims_exceed_portions", portionsHalf: 8, availableHalf: 2 });
+    await expect(
+      client(captureFetch(reason("validation_failed", 422, { reason: "not_in_group", subjectIds: ["usr_x"] })).fetch)
+        .kitchen.setPortion("org_1", "dsh_1", "usr_x", { portionsHalf: 2 }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 });

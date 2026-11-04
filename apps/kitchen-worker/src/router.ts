@@ -13,6 +13,7 @@ import {
   handleUpdateGroupItem,
 } from "./handlers/group-items.js";
 import { handleHealth } from "./handlers/health.js";
+import { handleItemHistory, handleRecipes } from "./handlers/from-before.js";
 import { handleCreateMyItem, handleGetMyItem, handleRemoveMyItem, handleUpdateMyItem } from "./handlers/my-items.js";
 import {
   handleMyItemMoves,
@@ -40,6 +41,7 @@ import {
   handleFinalizeDish,
   handleFinalizeMyDish,
   handleSetDishShares,
+  handleSetPortion,
 } from "./handlers/dish-split.js";
 import {
   errorResponse,
@@ -199,6 +201,13 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/correct$/,
     methods: { POST: handleCorrectDish },
   },
+  // Anyone's portion (SM-6). After kitchen.dish.claim, so `claims/me` is
+  // still matched there first (the caller's shorthand, one route).
+  {
+    name: "kitchen.dish.portion",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/claims\/([^/]+)$/,
+    methods: { PUT: handleSetPortion },
+  },
 ];
 
 // The caller's own routes, /v1/kitchen/me/…: their personal pantry, and every
@@ -211,6 +220,18 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.pantries",
     pattern: /^\/v1\/kitchen\/me\/pantries$/,
     methods: { GET: handleMyPantries },
+  },
+  // From before (SM-8). Listed ahead of the item and dish routes: their
+  // `{itm}` / `{dsh}` capture would otherwise take "history" and "recipes".
+  {
+    name: "kitchen.me.items.history",
+    pattern: /^\/v1\/kitchen\/me\/items\/history$/,
+    methods: { GET: handleItemHistory },
+  },
+  {
+    name: "kitchen.me.dishes.recipes",
+    pattern: /^\/v1\/kitchen\/me\/dishes\/recipes$/,
+    methods: { GET: handleRecipes },
   },
   {
     name: "kitchen.me.items",
