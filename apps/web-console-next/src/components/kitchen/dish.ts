@@ -20,6 +20,7 @@ import type {
   DishShareRequest,
   KitchenDish,
   KitchenDishIngredient,
+  KitchenDishShare,
 } from "@saas/contracts/kitchen";
 import { buildDish, buildIngredientTake, pairLines, type DishShare, type Split, type Txn } from "@saas/kitchen-engine/ledger";
 import { formatMinor, splitByWeights } from "@saas/kitchen-engine/money";
@@ -393,6 +394,41 @@ export function claimableHalf(dish: Pick<KitchenDish, "unclaimedHalf" | "myClaim
   return dish.unclaimedHalf + dish.myClaimHalf;
 }
 
+/**
+ * The most half portions anyone may give `subjectId` now (Cookpool SM-7):
+ * what they have plus what nobody has — the server's guard (SM-6), so a step
+ * past it is off rather than refused.
+ */
+export function portionLimit(dish: Pick<KitchenDish, "shares" | "unclaimedHalf">, subjectId: string): number {
+  return (dish.shares.find((s) => s.subjectId === subjectId)?.portionsHalf ?? 0) + dish.unclaimedHalf;
+}
+
+/** Someone's half portions as the dish has them (0 for none, or an exact amount). */
+export function portionOf(dish: Pick<KitchenDish, "shares">, subjectId: string): number {
+  return dish.shares.find((s) => s.subjectId === subjectId)?.portionsHalf ?? 0;
+}
+
+/**
+ * Who set a share, as its row says it (SM-7, design rule 5): "by Anu" when
+ * someone else set it, "by you" when you set someone else's; nothing when
+ * the person set their own, or it was set before anyone could (`setBy` null
+ * or missing).
+ */
+export function setByText(
+  share: Pick<KitchenDishShare, "subjectId"> & { setBy?: string | null | undefined },
+  meId: string | null,
+  names?: MemberNames | null,
+): string | null {
+  const by = share.setBy ?? null;
+  if (!by || by === share.subjectId) return null;
+  return `by ${memberLabelInline(by, meId, names)}`;
+}
+
+/** Whose portion and how much, in a button or a toast: "Anu · 1 portion", "You · ½ portion". */
+export function portionLabel(subjectId: string, half: number, meId: string | null, names?: MemberNames | null): string {
+  return `${memberLabel(subjectId, meId, names)} · ${portionsText(Math.max(0, half))}`;
+}
+
 // ── Who had some ──────────────────────────────────────────────────
 
 export interface WhoRow {
@@ -406,7 +442,9 @@ export interface WhoRow {
   exactMinor: number | null;
   /** What they owe for what they had (the cook's own part, without the leftovers); null when nothing. */
   amountMinor: number | null;
-  /** "Claimed it · ₹52.75", "You set this · ₹79.13 (your share)", "Hasn't claimed". */
+  /** "by Anu", "by you" (`setByText`); null when they set their own, or nobody is known to have. */
+  by: string | null;
+  /** The numbers: "₹52.75", "₹50.00 fixed", "Not saved yet · ₹26.37" (the cook's edit); "" for nothing. */
   note: string;
 }
 
@@ -415,27 +453,36 @@ export interface WhoInput extends DishPeople {
   /** The shares on screen (the dish's own, or the cook's edit). */
   shares: readonly ShareDraft[];
   split: SplitView;
-  /** Everyone else to list with nothing yet (the group's members, in order); once it is finalized, only while editing. */
+  /**
+   * The group's members, in the order to list them (you first, then by
+   * name). While the dish is being split (or corrected) everyone is listed,
+   * each in their place — the cook, then these, then anyone else with a
+   * share — so no row moves when someone's portion is set. Once it is
+   * finalized only who had some is listed, as shared.
+   */
   others?: readonly string[] | null;
   /** The cook is editing: rows changed from the dish's own shares say so. */
   editing?: boolean;
 }
 
 /**
- * One row per person: the cook first, then everyone with a share as listed,
- * then (while it is still being split, or the cook is correcting it)
- * everyone else in the group with nothing yet. Each says who set the share
- * and what it costs them.
+ * One row per person: the cook first; while it is still being split (or the
+ * cook is correcting it) then everyone in the group in `others`' order, and
+ * anyone else with a share; once it is finalized, everyone with a share as
+ * listed. Each says who set the share, if it was someone else (SM-7), and
+ * what it costs them.
  */
 export function whoHadSome(input: WhoInput): WhoRow[] {
   const { dish, shares, split, meId, names } = input;
   const settled = dish.state === "finalized" || dish.state === "canceled";
   const ids: string[] = [dish.cook];
-  for (const s of shares) if (!ids.includes(s.subjectId)) ids.push(s.subjectId);
-  // A correction can count in someone who had none, so the rest of the group is listed while editing.
-  if (!settled || input.editing) for (const id of input.others ?? []) if (!ids.includes(id)) ids.push(id);
+  const push = (id: string) => {
+    if (!ids.includes(id)) ids.push(id);
+  };
+  // A correction can count in someone who had none, so the whole group is listed while editing too.
+  if (!settled || input.editing) for (const id of input.others ?? []) push(id);
+  for (const s of shares) push(s.subjectId);
 
-  const cookName = memberLabel(dish.cook, meId, names);
   const saved = new Map(dish.shares.map((s) => [s.subjectId, s]));
   const amounts = new Map(split.amounts.map((a) => [a.subjectId, a.owedMinor]));
 
@@ -455,17 +502,13 @@ export function whoHadSome(input: WhoInput): WhoRow[] {
     const parts: string[] = [];
     const before = saved.get(id) ?? null;
     const changed = !before ? has : before.portionsHalf !== share?.portionsHalf || before.exactMinor !== share?.exactMinor;
-    if (input.editing && changed) parts.push("Not saved yet");
-    else if (has && before) {
-      if (before.source === "self") parts.push(isMe ? "You claimed this" : "Claimed it");
-      else parts.push(dish.cook === meId ? "You set this" : `${cookName} set this`);
-    } else if (!has) {
-      parts.push(settled ? "Had none" : dish.splitMode === "claims" ? "Hasn't claimed" : "Not set");
-    }
+    const unsaved = input.editing === true && changed;
+    if (unsaved) parts.push("Not saved yet");
     if (exactMinor !== null) parts.push(`${formatMinor(exactMinor, dish.currency)} fixed`);
-    else if (amountMinor !== null) parts.push(`${formatMinor(amountMinor, dish.currency)}${isMe ? " (your share)" : ""}`);
+    else if (amountMinor !== null) parts.push(formatMinor(amountMinor, dish.currency));
+    const by = !unsaved && has && before ? setByText(before, meId, names) : null;
 
-    return { subjectId: id, label: memberLabel(id, meId, names), isMe, isCook, half, exactMinor, amountMinor, note: parts.join(" · ") };
+    return { subjectId: id, label: memberLabel(id, meId, names), isMe, isCook, half, exactMinor, amountMinor, by, note: parts.join(" · ") };
   });
 }
 
@@ -479,6 +522,18 @@ export function claimCount(
   const verb = dish.splitMode === "claims" ? "claimed" : "set";
   const tone: CountTone = split.over || split.claimedHalf > dish.portionsHalf ? "over" : split.claimedHalf === dish.portionsHalf ? "exact" : "under";
   return { text: `${halfText(split.claimedHalf)} of ${halfText(dish.portionsHalf)} ${verb}`, tone };
+}
+
+/**
+ * "3 of 6 left" — what anyone may still be given of an open dish (SM-7),
+ * shown once, over everyone's rows: green when every portion is had.
+ */
+export function portionsLeft(
+  dish: Pick<KitchenDish, "portionsHalf">,
+  split: Pick<SplitView, "unclaimedHalf" | "over">,
+): { text: string; tone: CountTone } {
+  const tone: CountTone = split.over ? "over" : split.unclaimedHalf === 0 ? "exact" : "under";
+  return { text: `${halfText(split.unclaimedHalf)} of ${halfText(dish.portionsHalf)} left`, tone };
 }
 
 /** The alert when more portions are set than were cooked. */
@@ -543,6 +598,21 @@ export function claimedToast(input: { dish: KitchenDish; meId: string; names?: M
   return { title: `Claimed ${portionsText(half)} of ${dish.name}`, description: `${claimText(input)}.` };
 }
 
+/**
+ * The toast after setting a portion: your own claim's (`claimedToast`), or —
+ * someone else's (SM-7) — who and how much, in one line: "Anu · 1 portion".
+ */
+export function portionToast(input: {
+  dish: KitchenDish;
+  subjectId: string;
+  meId: string;
+  names?: MemberNames | null;
+  half: number;
+}): { title: string; description?: string } {
+  if (input.subjectId === input.meId) return claimedToast(input);
+  return { title: portionLabel(input.subjectId, input.half, input.meId, input.names) };
+}
+
 interface Refusal {
   code: string;
   message: string;
@@ -563,23 +633,40 @@ function notOpenText(state: unknown, cook: string): string {
   }
 }
 
-/** What to say when a claim is refused. */
-export function claimRefusal(error: Refusal, input: { dish: Pick<KitchenDish, "cook">; meId: string | null; names?: MemberNames | null }): string {
+/**
+ * What to say when a claim is refused — your own, or (SM-7) the portion you
+ * set for `subjectId`: "Only 1 portion is left for Anu now."
+ */
+export function claimRefusal(
+  error: Refusal,
+  input: { dish: Pick<KitchenDish, "cook">; meId: string | null; names?: MemberNames | null; subjectId?: string | null },
+): string {
   const cook = memberLabel(input.dish.cook, input.meId, input.names);
+  const other = input.subjectId && input.subjectId !== input.meId ? memberLabel(input.subjectId, input.meId, input.names) : null;
   switch (error.reason) {
     case "claims_exceed_portions": {
       const left = typeof error.details?.availableHalf === "number" ? error.details.availableHalf : null;
       if (left === null) return "That's more than is left now.";
-      if (left === 0) return `Every portion is claimed now. Ask ${cook} if there's more.`;
-      return `Only ${portionsText(left)} ${left <= 2 ? "is" : "are"} left for you now.`;
+      if (left === 0) return other ? "Every portion is taken now." : `Every portion is claimed now. Ask ${cook} if there's more.`;
+      return `Only ${portionsText(left)} ${left <= 2 ? "is" : "are"} left for ${other ?? "you"} now.`;
     }
     case "dish_not_open":
       return notOpenText(error.details?.state, cook);
+    case "not_in_group":
+      return other ? `${other} isn't in the group any more.` : error.message;
     case "stale":
       return "The dish changed as you claimed. Try again.";
   }
-  if (error.code === "not_found") return `You only view this group, so you can't claim. Ask ${cook} to count you in.`;
+  if (error.code === "not_found") {
+    return other ? "You only view this group, so you can't set portions." : `You only view this group, so you can't claim. Ask ${cook} to count you in.`;
+  }
   return error.message;
+}
+
+/** The toast's title when a portion is refused: "Couldn't claim Egg fried rice", "Couldn't change Anu's portion". */
+export function portionRefusedTitle(input: { dish: Pick<KitchenDish, "name">; subjectId: string; meId: string; names?: MemberNames | null; half: number }): string {
+  if (input.subjectId === input.meId) return input.half === 0 ? "Couldn't take your claim back" : `Couldn't claim ${input.dish.name}`;
+  return `Couldn't change ${memberLabel(input.subjectId, input.meId, input.names)}'s portion`;
 }
 
 /** What to say when the cook's assignment, finalize, correction or cancel is refused. */

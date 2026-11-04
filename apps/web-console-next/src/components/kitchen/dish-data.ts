@@ -11,13 +11,17 @@ import { useToast } from "@/components/ui/toast";
 import { refreshLedger } from "./ledger-data";
 import { REFUSAL_MS, UNDO_MS, refusedToast, type UndoResult } from "./undo";
 import { useUndoToast, type UndoToastHandle } from "./undo-toast";
-import { finalizePatches, portionPatches, type PortionChange } from "./cache-patches";
+import { finalizePatches, portionChange, portionPatches } from "./cache-patches";
 import { beginWrite, type OptimisticWrite } from "./optimistic-data";
 import {
   claimRefusal,
-  claimedToast,
   dishHref,
   finalizedToast,
+  portionLabel,
+  portionLimit,
+  portionOf,
+  portionRefusedTitle,
+  portionToast,
   portionsText,
   shareRequests,
   sharesOf,
@@ -144,6 +148,9 @@ export function useDishWrites() {
       /** PUT …/claims/me — the caller's half portions (0 takes the claim back). */
       claim: async (dish: KitchenDish, portionsHalf: number) =>
         settle(dish, await wrap(() => client.kitchen.claimDish(dish.orgId ?? "", dish.id, { portionsHalf }))),
+      /** PUT …/claims/{subjectId} — anyone's half portions, set by the caller (SM-6/SM-7; 0 takes them back). */
+      setPortion: async (dish: KitchenDish, subjectId: string, portionsHalf: number) =>
+        settle(dish, await wrap(() => client.kitchen.setPortion(dish.orgId ?? "", dish.id, subjectId, { portionsHalf }))),
       /** PUT …/shares — the cook sets everyone's share (draft or open). */
       setShares: async (dish: KitchenDish, shares: readonly ShareDraft[]) =>
         settle(dish, await wrap(() => client.kitchen.setDishShares(dish.orgId ?? "", dish.id, { shares: shareRequests(shares) }))),
@@ -175,59 +182,70 @@ export function useDishWrites() {
   }, [client, qc]);
 }
 
-/** One burst of taps on a claim: what the server had before it, the patch on screen, its toast. */
-interface ClaimBurst {
+/** One burst of taps on someone's portion: what the server had before it, the patch on screen, its toast. */
+interface PortionBurst {
+  /** Whose portion (the caller's own claim, or — SM-7 — anyone's in the group). */
+  subjectId: string;
   /** The half portions before the first tap (what Undo goes back to). */
   base: number;
   /** What the latest tap set. */
   latest: number;
   write: OptimisticWrite;
   toast: UndoToastHandle | null;
-  /** The last claim sent for it, on its way or answered. */
+  /** The last write sent for it, on its way or answered. */
   request: Promise<DishWrite> | null;
   /** Undo was pressed. */
   undone: boolean;
 }
 
-/** The change a claim makes to the caller's own portion (`withPortion`; SM-7 passes someone else's `subjectId`). */
-export function ownPortion(dishId: string, meId: string, half: number): PortionChange {
-  return { dishId, subjectId: meId, half, setBy: meId, meId, at: new Date().toISOString() };
-}
-
 /**
- * The viewer's own claim on an open dish, one tap at a time: `set(half)`
- * shows it at once wherever the dish is cached — the dish page, its group's
- * Dishes tab, Home's card ("2 of 5 portions left") — through `portionPatches`,
- * and opens the one Undo toast at once (Cookpool SM-5). The claim is sent
- * when the taps settle (or at once with `now`); a refusal puts the dish back
- * exactly and the toast says why. Undo sets it back to what it was before the
- * taps, at once, and sends that once the claim on its way has landed. A claim
- * waiting to be sent is sent when the screen goes away.
+ * Everyone's portions of an open dish, one tap at a time (Cookpool SM-5;
+ * anyone's since SM-7): `set(subjectId, half)` shows it at once wherever the
+ * dish is cached — the dish page, its group's Dishes tab, Home's card ("2 of
+ * 5 portions left") — through `portionPatches`, the share reading as set by
+ * you, and opens the Undo toast at once. Each person's taps are a burst of
+ * their own, sent when they settle (or at once with `now`): yours on
+ * `…/claims/me`, anyone else's on `…/claims/{subjectId}`. A refusal puts the
+ * dish back exactly and the toast says why. Undo sets it back to what it was
+ * before the taps, at once, and sends that once the write on its way has
+ * landed. One toast at a time: stepping another person closes the last
+ * one's (its write still goes; a refusal still says so). A write waiting to
+ * be sent is sent when the screen goes away.
  */
-export function useClaimer(dish: KitchenDish, meId: string | null, names: MemberNames) {
+export function usePortions(dish: KitchenDish, meId: string | null, names: MemberNames) {
   const writes = useDishWrites();
   const qc = useQueryClient();
   const offerUndo = useUndoToast();
-  const [pending, setPending] = React.useState<number | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const burst = React.useRef<ClaimBurst | null>(null);
+  const { toast } = useToast();
+  const [pending, setPending] = React.useState<ReadonlyMap<string, number>>(() => new Map());
+  const [inFlight, setInFlight] = React.useState(0);
+  const timers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const bursts = React.useRef(new Map<string, PortionBurst>());
   // What the screen shows, as of the latest tap (state lags a render behind).
-  const shown = React.useRef<number | null>(null);
+  const shown = React.useRef(new Map<string, number>());
   const latest = React.useRef({ dish, meId, names });
   React.useEffect(() => {
     latest.current = { dish, meId, names };
   }, [dish, meId, names]);
 
-  const finish = React.useCallback((b: ClaimBurst) => {
-    if (burst.current === b) burst.current = null;
-    shown.current = null;
-    setPending(null);
+  const finish = React.useCallback((b: PortionBurst) => {
+    if (bursts.current.get(b.subjectId) === b) bursts.current.delete(b.subjectId);
+    shown.current.delete(b.subjectId);
+    setPending((cur) => {
+      if (!cur.has(b.subjectId)) return cur;
+      const next = new Map(cur);
+      next.delete(b.subjectId);
+      return next;
+    });
+  }, []);
+
+  const patchFor = React.useCallback((b: PortionBurst, me: string, half: number, from: number) => {
+    b.write.patch(portionPatches(portionChange(latest.current.dish.id, b.subjectId, me, half, new Date().toISOString()), from));
   }, []);
 
   const send = React.useCallback(
-    async (b: ClaimBurst) => {
-      timer.current = null;
+    async (b: PortionBurst) => {
+      timers.current.delete(b.subjectId);
       if (b.undone) return;
       const { dish: current, meId: me, names: known } = latest.current;
       const half = b.latest;
@@ -238,123 +256,190 @@ export function useClaimer(dish: KitchenDish, meId: string | null, names: Member
         finish(b);
         return;
       }
-      setBusy(true);
-      const request = b.write.track(writes.claim(current, half));
+      setInFlight((n) => n + 1);
+      const request = b.write.track(b.subjectId === me ? writes.claim(current, half) : writes.setPortion(current, b.subjectId, half));
       b.request = request;
       const r = await request;
-      setBusy(false);
+      setInFlight((n) => n - 1);
       if (b.undone) {
-        // Undo showed the claim as it was; keep it so over the answer until the undo lands.
-        if (r.ok) b.write.patch(portionPatches(ownPortion(current.id, me, b.base), half));
+        // Undo showed the portion as it was; keep it so over the answer until the undo lands.
+        if (r.ok) patchFor(b, me, b.base, half);
         return;
       }
       if (b.latest !== half) {
         // A tap made while this was on its way waits for its own send: keep it on screen over the answer.
-        if (r.ok) b.write.patch(portionPatches(ownPortion(current.id, me, b.latest), half));
+        if (r.ok) patchFor(b, me, b.latest, half);
         return;
       }
       if (!r.ok) {
         b.write.rollback();
-        b.toast?.refuse(refusedToast(half === 0 ? "Couldn't take your claim back" : `Couldn't claim ${current.name}`, claimRefusal(r.error, { dish: current, meId: me, names: known })));
+        const said = refusedToast(
+          portionRefusedTitle({ dish: current, subjectId: b.subjectId, meId: me, names: known, half }),
+          claimRefusal(r.error, { dish: current, meId: me, names: known, subjectId: b.subjectId }),
+        );
+        if (b.toast) b.toast.refuse(said);
+        else toast({ ...said, duration: REFUSAL_MS });
         finish(b);
         return;
       }
-      b.toast?.update(claimedToast({ dish: r.dish, meId: me, names: known, half }));
+      b.toast?.update(portionToast({ dish: r.dish, subjectId: b.subjectId, meId: me, names: known, half }));
       finish(b);
     },
-    [writes, finish],
+    [writes, finish, patchFor, toast],
   );
 
-  /** Undo, pressed: the claim as it was before the taps, at once. */
+  /** Undo, pressed: the portion as it was before the taps, at once. */
   const restore = React.useCallback(
-    (b: ClaimBurst) => {
+    (b: PortionBurst) => {
       b.undone = true;
       const me = latest.current.meId;
-      if (burst.current === b && timer.current) {
-        clearTimeout(timer.current);
-        timer.current = null;
+      const timer = timers.current.get(b.subjectId);
+      if (bursts.current.get(b.subjectId) === b && timer) {
+        clearTimeout(timer);
+        timers.current.delete(b.subjectId);
       }
       if (b.request === null) b.write.rollback();
-      else if (me) b.write.patch(portionPatches(ownPortion(latest.current.dish.id, me, b.base), b.latest));
+      else if (me) patchFor(b, me, b.base, b.latest);
       b.latest = b.base;
       finish(b);
     },
-    [finish],
+    [finish, patchFor],
   );
 
-  /** …and on the server: once the claim on its way has landed, set it back (claims are PUTs: no reversal to post). */
+  /** …and on the server: once the write on its way has landed, set it back (portions are PUTs: no reversal to post). */
   const undo = React.useCallback(
-    async (b: ClaimBurst): Promise<UndoResult> => {
+    async (b: PortionBurst): Promise<UndoResult> => {
       const back = b.base;
-      const said = back === 0 ? "Your claim is taken back." : `You're back to ${portionsText(back)}.`;
+      const { meId: me0 } = latest.current;
+      const said =
+        b.subjectId === me0
+          ? back === 0
+            ? "Your claim is taken back."
+            : `You're back to ${portionsText(back)}.`
+          : `${portionLabel(b.subjectId, back, me0, latest.current.names)}.`;
       if (b.request === null) return { ok: true, description: said };
       const sent = await b.request;
       // Refused: nothing was written, and the screen already shows what the server has.
       if (!sent.ok) return { ok: true, description: said };
       const { meId: me, names: known } = latest.current;
-      const r = await b.write.track(writes.claim(sent.dish, back));
+      const r = await b.write.track(b.subjectId === me ? writes.claim(sent.dish, back) : writes.setPortion(sent.dish, b.subjectId, back));
       if (r.ok) return { ok: true, description: said };
       void qc.invalidateQueries({ queryKey: qk.kitchenDish(sent.dish.id) });
-      return { ok: false, title: "Couldn't undo it", description: claimRefusal(r.error, { dish: sent.dish, meId: me, names: known }) };
+      return { ok: false, title: "Couldn't undo it", description: claimRefusal(r.error, { dish: sent.dish, meId: me, names: known, subjectId: b.subjectId }) };
     },
     [writes, qc],
   );
 
+  /** What the cache (else the screen) has for `subjectId` now: yours is `myClaimHalf`. */
+  const savedHalf = React.useCallback(
+    (subjectId: string): number => {
+      const { dish: current, meId: me } = latest.current;
+      const cached = qc.getQueryData<KitchenDish>(qk.kitchenDish(current.id)) ?? current;
+      return subjectId === me ? cached.myClaimHalf : portionOf(cached, subjectId);
+    },
+    [qc],
+  );
+
   const set = React.useCallback(
-    (half: number, opts: { now?: boolean } = {}) => {
+    (subjectId: string, half: number, opts: { now?: boolean } = {}) => {
       const { dish: current, meId: me, names: known } = latest.current;
       if (!me) return;
-      let b = burst.current;
+      let b = bursts.current.get(subjectId);
       if (!b) {
         // A new burst of taps starts from what the cache has.
-        const from = qc.getQueryData<KitchenDish>(qk.kitchenDish(current.id))?.myClaimHalf ?? current.myClaimHalf;
-        b = { base: from, latest: from, write: beginWrite(qc, []), toast: null, request: null, undone: false };
-        burst.current = b;
+        const from = savedHalf(subjectId);
+        b = { subjectId, base: from, latest: from, write: beginWrite(qc, []), toast: null, request: null, undone: false };
+        bursts.current.set(subjectId, b);
       }
       const mine = b;
-      if (half !== mine.latest) mine.write.patch(portionPatches(ownPortion(current.id, me, half), mine.latest));
+      if (half !== mine.latest) patchFor(mine, me, half, mine.latest);
       mine.latest = half;
-      shown.current = half;
-      setPending(half);
-      const text = claimedToast({ dish: current, meId: me, names: known, half });
+      shown.current.set(subjectId, half);
+      setPending((cur) => new Map(cur).set(subjectId, half));
+      const text = portionToast({ dish: current, subjectId, meId: me, names: known, half });
       if (half === mine.base && mine.request === null) {
         // Back where it started (or "None" on a dish not claimed): nothing to say or undo.
         mine.toast?.close();
         mine.toast = null;
       } else if (!mine.toast) {
+        // One toast at a time: the last person's closes (its write still goes).
+        for (const other of bursts.current.values()) {
+          if (other !== mine && other.toast) {
+            other.toast.close();
+            other.toast = null;
+          }
+        }
         mine.toast = offerUndo({ title: text.title, description: text.description, undo: () => undo(mine), restore: () => restore(mine) });
       } else {
         mine.toast.update({ title: text.title, description: text.description });
       }
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => void send(mine), opts.now ? 0 : CLAIM_SETTLE_MS);
+      const timer = timers.current.get(subjectId);
+      if (timer) clearTimeout(timer);
+      timers.current.set(
+        subjectId,
+        setTimeout(() => void send(mine), opts.now ? 0 : CLAIM_SETTLE_MS),
+      );
     },
-    [qc, offerUndo, undo, restore, send],
+    [qc, offerUndo, undo, restore, send, savedHalf, patchFor],
   );
 
-  // Leaving the screen sends a claim still waiting for the taps to settle.
-  React.useEffect(
-    () => () => {
-      if (timer.current) {
-        clearTimeout(timer.current);
-        timer.current = null;
-        const b = burst.current;
+  // Leaving the screen sends what is still waiting for the taps to settle.
+  React.useEffect(() => {
+    const waiting = timers.current;
+    const open = bursts.current;
+    return () => {
+      for (const [subjectId, timer] of waiting) {
+        clearTimeout(timer);
+        const b = open.get(subjectId);
         if (b) void send(b);
       }
-    },
-    [send],
+      waiting.clear();
+    };
+  }, [send]);
+
+  /** What `subjectId` has on screen: the latest tap, else the dish's. */
+  const halfOf = React.useCallback(
+    (subjectId: string): number => pending.get(subjectId) ?? (subjectId === meId ? dish.myClaimHalf : portionOf(dish, subjectId)),
+    [pending, dish, meId],
   );
 
-  /** Half a portion more or less than the latest tap, between none and `max`. */
+  /** Half a portion more or less than the latest tap, between none and what is free for them (`portionLimit`). */
   const step = React.useCallback(
-    (delta: 1 | -1, max: number) => {
-      const from = shown.current ?? latest.current.dish.myClaimHalf;
-      set(Math.max(0, Math.min(max, from + delta)));
+    (subjectId: string, delta: 1 | -1) => {
+      const { dish: current } = latest.current;
+      const cached = qc.getQueryData<KitchenDish>(qk.kitchenDish(current.id)) ?? current;
+      const from = shown.current.get(subjectId) ?? savedHalf(subjectId);
+      const next = Math.max(0, Math.min(portionLimit(cached, subjectId), from + delta));
+      if (next !== from) set(subjectId, next);
     },
-    [set],
+    [qc, savedHalf, set],
   );
 
-  return { half: pending ?? dish.myClaimHalf, pending: pending !== null, busy, set, step };
+  return {
+    halfOf,
+    /** The most `subjectId` may have now (a + past it is off). */
+    limitOf: (subjectId: string) => portionLimit(dish, subjectId),
+    /** A tap for `subjectId` is on screen and not answered yet. */
+    isPending: (subjectId: string) => pending.has(subjectId),
+    /** Any portion on screen is not answered yet (finalizing waits). */
+    pending: pending.size > 0,
+    busy: inFlight > 0,
+    set,
+    step,
+  };
+}
+
+/**
+ * The viewer's own claim, one tap at a time — `usePortions` for the caller
+ * (Home's claim chips and "How much did you have?").
+ */
+export function useClaimer(dish: KitchenDish, meId: string | null, names: MemberNames) {
+  const portions = usePortions(dish, meId, names);
+  const me = meId ?? "";
+  const { set: setFor, step: stepFor } = portions;
+  const set = React.useCallback((half: number, opts?: { now?: boolean }) => setFor(me, half, opts), [setFor, me]);
+  const step = React.useCallback((delta: 1 | -1) => stepFor(me, delta), [stepFor, me]);
+  return { half: meId ? portions.halfOf(meId) : dish.myClaimHalf, pending: meId ? portions.isPending(meId) : false, busy: portions.busy, set, step };
 }
 
 export type DishBusy = null | "shares" | "finalize" | "correct" | "cancel";

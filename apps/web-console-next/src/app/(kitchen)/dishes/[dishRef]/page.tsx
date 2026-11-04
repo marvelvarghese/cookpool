@@ -13,16 +13,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, SoonBadge } from "@/components/kitchen/kit";
 import { canManageGroup, canWriteInGroup, roleFromKitchen } from "@/components/kitchen/groups";
-import { memberLabel } from "@/components/kitchen/members";
+import { memberLabel, sortMembers } from "@/components/kitchen/members";
 import { useMembersOf } from "@/components/kitchen/pantry-data";
 import { useMemberNames } from "@/components/kitchen/people-data";
 import { itemHref } from "@/components/kitchen/pantry";
-import { useClaimer, useDish, useDishActions } from "@/components/kitchen/dish-data";
-import { DishClaimChoices, DishCostCard, MoneyFlowCard, PortionStepper, WhoHadSomeList } from "@/components/kitchen/dish-ui";
+import { useDish, useDishActions, usePortions } from "@/components/kitchen/dish-data";
+import { DishCostCard, MoneyFlowCard, PortionStepper, WhoHadSomeList } from "@/components/kitchen/dish-ui";
 import {
   OVER_CLAIMED,
   claimCount,
-  claimableHalf,
   dishStateChip,
   dishSubtitle,
   dishWhen,
@@ -31,6 +30,7 @@ import {
   leftoverNote,
   moneyFlow,
   parseDishRef,
+  portionsLeft,
   sameShares,
   sharesOf,
   splitFor,
@@ -44,13 +44,14 @@ import {
  * One dish (CP-17): what it cost (Total · Portions · Each, and every
  * ingredient with its pantry and buyer), who had how much, the leftovers, and
  * how it moves money — what the eaters owe the cook, what the cook owes the
- * buyers of what they took, and the two netted inside each group. A member
- * claims half portions in one tap ("How much did you have?", or the stepper on
- * their own row), with Undo; the cook (or an owner or admin) sets everyone's
- * portions, finalizes — a toast with "Correct it", no dialog — corrects a
- * finalized split, or cancels a dish still open. Open dishes are read again
- * every 20 seconds. The address is the plain id, `/dishes/dsh_…`, as the
- * dish-posted email links it.
+ * buyers of what they took, and the two netted inside each group. On an open
+ * dish everyone in the group has a row with a ½-portion stepper, and any
+ * member steps anyone's (SM-7), with Undo; a row someone else set says "by
+ * Anu", and what is left shows once, over the rows. The cook (or an owner or
+ * admin) splits a draft, finalizes — a toast with "Correct it", no dialog —
+ * corrects a finalized split, or cancels a dish still open. Open dishes are
+ * read again every 20 seconds. The address is the plain id, `/dishes/dsh_…`,
+ * as the dish-posted email links it.
  */
 export default function DishPage() {
   const dishId = parseDishRef(usePathParam("/dishes/:dishRef", "dishRef"));
@@ -118,7 +119,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
     setNote("");
     setMode("correct");
   }, [dish]);
-  const claimer = useClaimer(dish, meId, names);
+  const portions = usePortions(dish, meId, names);
   const actions = useDishActions({ dish, meId, names, groupName, onCorrect: startCorrecting });
   const stopEditing = () => {
     setMode(null);
@@ -140,22 +141,24 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [dish.state, canSplit, startCorrecting]);
 
-  // The shares on screen: the cook's edit, your claim on its way, or the dish's own.
+  // The shares on screen: the cook's edit, or the dish's own (a portion on its
+  // way is in it already: SM-5's patch of the cached dish).
   const saved = sharesOf(dish);
-  const shares = editing ? draft : claimer.pending && meId ? withHalf(saved, meId, claimer.half) : saved;
+  const shares = editing ? draft : saved;
   const dirty = editing !== null && !sameShares(draft, saved);
   const split = splitFor(dish, shares);
   const shared = dish.orgId !== null;
-  // Everyone else in the group with nothing yet; viewers don't claim, so they
-  // are listed only while the cook sets portions (they can be counted in).
-  const others =
-    shared && members.data
-      ? members.data.filter((m) => editing !== null || roleFromKitchen(m.role) !== "viewer").map((m) => m.subjectId)
-      : canClaim && dish.state === "open" && meId
-        ? [meId]
-        : [];
+  // Everyone in the group, you first, then by name — viewers too: they eat,
+  // and anyone may count them in (SM-6). Each keeps their row as portions change.
+  const roster = React.useMemo(
+    () => (members.data ? sortMembers(members.data.map((m) => m.subjectId), meId, names) : null),
+    [members.data, meId, names],
+  );
+  const others = shared ? (roster ?? (canClaim && dish.state === "open" && meId ? [meId] : [])) : [];
   const rows = whoHadSome({ dish, shares, split, others, editing: editing !== null, ...people });
-  const count = claimCount(dish, split);
+  // Anyone (not a viewer) steps anyone's portion while the dish is open.
+  const stepping = shared && dish.state === "open" && editing === null && canClaim;
+  const count = dish.state === "open" && editing === null ? portionsLeft(dish, split) : claimCount(dish, split);
   const leftovers = leftoverNote({ dish, split, ...people });
   const flow = moneyFlow({ dish, split, ...people });
   const previewLabel = editing === "correct" ? "Until you post it" : dish.state === "finalized" || dish.state === "canceled" ? null : "Until finalized";
@@ -177,9 +180,15 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
         />
       );
     }
-    if (dish.state === "open" && row.isMe && canClaim) {
-      const max = claimableHalf(dish);
-      return <PortionStepper value={claimer.half} max={max} who="you" onStep={(delta) => claimer.step(delta, max)} />;
+    if (stepping && row.exactMinor === null) {
+      return (
+        <PortionStepper
+          value={portions.halfOf(row.subjectId)}
+          max={portions.limitOf(row.subjectId)}
+          who={row.isMe ? "you" : row.label}
+          onStep={(delta) => portions.step(row.subjectId, delta)}
+        />
+      );
     }
     return null;
   };
@@ -226,21 +235,6 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
         <div className="min-w-0 space-y-5">
           <DishCostCard dish={dish} chip={dishStateChip(dish)} people={people} />
 
-          {/* A member's one tap: how much they had. */}
-          {shared && dish.state === "open" && !isCook && meId && !editing ? (
-            !roleKnown ? (
-              <Skeleton className="h-28 w-full rounded-[20px]" />
-            ) : canClaim ? (
-              <KCard className="p-4">
-                <DishClaimChoices dish={dish} meId={meId} names={names} claimer={claimer} />
-              </KCard>
-            ) : (
-              <KCard className="p-4 text-sm text-muted-foreground">
-                You view {groupName ?? "this group"}, so you don&apos;t claim portions. The cook can count you in.
-              </KCard>
-            )
-          ) : null}
-
           {shared ? (
             <section aria-labelledby="who-h" className="space-y-2.5">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -271,7 +265,8 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
                   {OVER_CLAIMED}
                 </p>
               ) : null}
-              {leftovers ? (
+              {/* While it is open, what is left shows once: in the count. */}
+              {leftovers && (dish.state !== "open" || editing) ? (
                 <p className="rounded-[14px] bg-muted px-3.5 py-3 text-sm text-foreground/80">
                   {leftovers}
                   {isCook && dish.state === "finalized" && dish.leftoverItemId && !editing ? (
@@ -283,18 +278,6 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
                     </>
                   ) : null}
                 </p>
-              ) : null}
-              {isCook && dish.state === "open" && !editing ? (
-                <button
-                  type="button"
-                  onClick={startAssigning}
-                  className="min-h-11 rounded-xl px-1 text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  Set everyone&apos;s portions yourself
-                </button>
-              ) : null}
-              {isCook && dish.state === "open" && dish.splitMode === "claims" && groupName ? (
-                <p className="text-xs text-muted-foreground">{groupName} was emailed when you cooked, so everyone can claim theirs.</p>
               ) : null}
             </section>
           ) : null}
@@ -351,14 +334,17 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
               <div className="flex flex-wrap gap-2">
                 {isSplitOpen(dish) ? (
                   <>
-                    <Button variant="outline" className={K_BUTTON} onClick={startAssigning} disabled={actions.busy !== null}>
-                      Set portions
-                    </Button>
+                    {/* An open dish's rows step already; a draft is set here. */}
+                    {dish.state === "draft" ? (
+                      <Button variant="outline" className={K_BUTTON} onClick={startAssigning} disabled={actions.busy !== null}>
+                        Set portions
+                      </Button>
+                    ) : null}
                     <Button
                       variant="outline"
                       className={K_BUTTON}
                       loading={actions.busy === "finalize"}
-                      disabled={claimer.pending || (actions.busy !== null && actions.busy !== "finalize")}
+                      disabled={portions.pending || (actions.busy !== null && actions.busy !== "finalize")}
                       onClick={() => void actions.finalize()}
                     >
                       Finalize for {cookName}
@@ -447,7 +433,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
             ) : null}
             <Button
               className={cn(K_BUTTON, "h-[52px] flex-[1.4] text-base font-extrabold")}
-              disabled={split.over || claimer.pending || (actions.busy !== null && actions.busy !== "finalize")}
+              disabled={split.over || portions.pending || (actions.busy !== null && actions.busy !== "finalize")}
               loading={actions.busy === "finalize"}
               onClick={() => void actions.finalize(dirty ? draft : undefined).then((ok) => ok && setTouched(false))}
             >

@@ -1,0 +1,16 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-7
+  title: "Portions for anyone, in the app"
+spec:
+  goal: On the dish page every person's row steps up and down for anyone in the group and says who set it, and Use, Dish and Bill pick people by faces with a main button that names who it is for.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-7.TaskContract.yaml
+  doneWhen:
+    - any member steps any member's portion on an open dish and the row reads "by <name>" when someone else set it
+    - Use, Dish and Bill show the same row of faces and the main button names who it is for
+  gates: []

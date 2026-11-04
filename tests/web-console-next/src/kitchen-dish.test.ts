@@ -1,7 +1,9 @@
 // The dish page's view-model (Cookpool CP-17): the cost card, who had some,
 // the claims summary and its over/under states, the leftovers, the netting
 // sections, and the words for claims — against design.md §3's worked example,
-// whose numbers the engine's preview must reproduce exactly.
+// whose numbers the engine's preview must reproduce exactly. Since SM-7:
+// everyone's row in its place, "by Anu", what is left, the stepper's limit,
+// and the words when someone else's portion is set or refused.
 
 import type { KitchenDish, KitchenDishIngredient, KitchenDishShare } from "@saas/contracts/kitchen";
 import { formatMinor } from "@saas/kitchen-engine/money";
@@ -28,6 +30,12 @@ import {
   parseDishRef,
   perPortion,
   perPortionText,
+  portionLabel,
+  portionLimit,
+  portionOf,
+  portionRefusedTitle,
+  portionToast,
+  portionsLeft,
   portionsText,
   previewSplit,
   sameShares,
@@ -35,10 +43,13 @@ import {
   sharesOf,
   splitFor,
   splitOfDish,
+  setByText,
   splitRefusal,
   whoHadSome,
   withHalf,
 } from "@web-console-next/components/kitchen/dish";
+import { portionChange, withPortion } from "@web-console-next/components/kitchen/cache-patches";
+import { sortMembers } from "@web-console-next/components/kitchen/members";
 import { ANU, DEV, FLAT, KIRAN, LUNCH, ME, MEERA } from "./kitchen-pantry-fixtures";
 
 const VEENA = "usr_0000000000000000000000000000e3e3";
@@ -80,8 +91,11 @@ function ingredient(
   };
 }
 
-function share(subjectId: string, portionsHalf: number, source: "self" | "cook" = "self"): KitchenDishShare {
-  return { id: `dsr_${subjectId.slice(-4)}`, subjectId, portionsHalf, exactMinor: null, source, createdAt: AT, updatedAt: AT };
+/** A share; with no `setBy` it reads as one written before SM-6 (who set it is not known). */
+function share(subjectId: string, portionsHalf: number, source: "self" | "cook" = "self", setBy?: string | null): KitchenDishShare {
+  const out: KitchenDishShare = { id: `dsr_${subjectId.slice(-4)}`, subjectId, portionsHalf, exactMinor: null, source, createdAt: AT, updatedAt: AT };
+  if (setBy !== undefined) out.setBy = setBy;
+  return out;
 }
 
 /**
@@ -358,68 +372,158 @@ describe("the split: the engine's preview reproduces the API", () => {
 });
 
 describe("who had some", () => {
-  it("lists the cook first, then the claims, then whoever has not claimed", () => {
+  /** The group as the dish page lists it: you first, then by name (SM-7). */
+  const roster = (meId: string = ME) => sortMembers([ME, ANU, DEV, VEENA, MEERA], meId, NAMES);
+
+  it("lists everyone while it is open: the cook, then the group in its order, with what each owes", () => {
     const dish = paneer();
-    const rows = whoHadSome({ dish, shares: sharesOf(dish), split: splitOfDish(dish), others: [ME, ANU, DEV, VEENA, MEERA], ...people() });
-    expect(rows.map((r) => [r.label, halfText(r.half), r.note])).toEqual([
-      ["You", "1½", "You claimed this · ₹79.13 (your share)"],
-      ["Anu", "1", "Claimed it · ₹52.75"],
-      ["Dev", "1", "Claimed it · ₹52.75"],
-      ["Meera", "½", "Claimed it · ₹26.37"],
-      ["Veena", "0", "Hasn't claimed"],
+    const rows = whoHadSome({ dish, shares: sharesOf(dish), split: splitOfDish(dish), others: roster(), ...people() });
+    expect(rows.map((r) => [r.label, halfText(r.half), r.by, r.note])).toEqual([
+      ["You", "1½", null, "₹79.13"],
+      ["Anu", "1", null, "₹52.75"],
+      ["Dev", "1", null, "₹52.75"],
+      ["Meera", "½", null, "₹26.37"],
+      ["Veena", "0", null, ""],
     ]);
     expect(rows[0]).toMatchObject({ isMe: true, isCook: true });
   });
 
-  it("says who set a share the cook assigned", () => {
-    const dish = paneer({ shares: [share(ME, 3, "cook"), share(ANU, 2), share(DEV, 2, "cook"), share(MEERA, 1)] });
+  it("keeps every row in its place when someone's portion is set (SM-7)", () => {
+    const rice = eggRice();
+    const before = whoHadSome({ dish: rice, shares: sharesOf(rice), split: splitOfDish(rice), others: roster(), ...people() });
+    expect(before.map((r) => r.label)).toEqual(["Meera", "You", "Anu", "Dev", "Veena"]);
+    // You give Veena ½ — the last row — and Dev 1: nobody moves; both read "by you".
+    const after = withPortion(withPortion(rice, portionChange(rice.id, VEENA, ME, 1, AT)), portionChange(rice.id, DEV, ME, 2, AT));
+    const rows = whoHadSome({ dish: after, shares: sharesOf(after), split: splitOfDish(after), others: roster(), ...people() });
+    expect(rows.map((r) => [r.label, halfText(r.half), r.by])).toEqual([
+      ["Meera", "0", null],
+      ["You", "0", null],
+      ["Anu", "1", null],
+      ["Dev", "1", "by you"],
+      ["Veena", "½", "by you"],
+    ]);
+  });
+
+  it("says who set a share: 'by Anu', 'by you', nothing for their own or an older share", () => {
+    expect(setByText({ subjectId: DEV, setBy: ANU }, ME, NAMES)).toBe("by Anu");
+    expect(setByText({ subjectId: DEV, setBy: ME }, ME, NAMES)).toBe("by you");
+    expect(setByText({ subjectId: DEV, setBy: DEV }, ME, NAMES)).toBeNull();
+    expect(setByText({ subjectId: ME, setBy: ME }, ME, NAMES)).toBeNull();
+    expect(setByText({ subjectId: DEV, setBy: null }, ME, NAMES)).toBeNull();
+    expect(setByText({ subjectId: DEV }, ME, NAMES)).toBeNull();
+    // Dev sees his own share, set by Anu; Anu sees the share she set for Dev.
+    expect(setByText({ subjectId: DEV, setBy: ANU }, DEV, NAMES)).toBe("by Anu");
+    expect(setByText({ subjectId: DEV, setBy: ANU }, ANU, NAMES)).toBe("by you");
+    // A setter whose name the page has not got reads as the id's tag.
+    expect(setByText({ subjectId: DEV, setBy: "usr_00000000000000000000000000007a7a" }, ME, NAMES)).toBe("by Member · 7a7a");
+
+    const dish = paneer({ shares: [share(ME, 3, "cook", ME), share(ANU, 2, "self", ANU), share(DEV, 2, "self", ANU), share(MEERA, 1, "cook", null)] });
     const mine = whoHadSome({ dish, shares: sharesOf(dish), split: splitOfDish(dish), ...people() });
-    expect(mine.map((r) => r.note.split(" · ")[0])).toEqual(["You set this", "Claimed it", "You set this", "Claimed it"]);
+    expect(mine.map((r) => r.by)).toEqual([null, null, "by Anu", null]);
     const anus = whoHadSome({ dish, shares: sharesOf(dish), split: splitOfDish(dish), ...people(ANU) });
-    expect(anus.map((r) => r.note)).toEqual([
-      "Rahul set this · ₹79.13",
-      "You claimed this · ₹52.75 (your share)",
-      "Rahul set this · ₹52.75",
-      "Claimed it · ₹26.37",
+    expect(anus.map((r) => [r.label, r.by, r.note])).toEqual([
+      ["Rahul", null, "₹79.13"],
+      ["You", null, "₹52.75"],
+      ["Dev", "by you", "₹52.75"],
+      ["Meera", null, "₹26.37"],
     ]);
   });
 
   it("shows the cook's own part without the leftovers", () => {
     const dish = withApiSplit(paneer({ shares: [share(ME, 2), share(ANU, 2)] }));
     const rows = whoHadSome({ dish, shares: sharesOf(dish), split: splitOfDish(dish), ...people() });
-    expect(rows[0]).toMatchObject({ half: 2, amountMinor: 5275, note: "You claimed this · ₹52.75 (your share)" });
+    expect(rows[0]).toMatchObject({ half: 2, amountMinor: 5275, by: null, note: "₹52.75" });
   });
 
   it("marks the cook's unsaved changes while editing", () => {
-    const dish = paneer({ state: "draft", splitMode: "assign" });
+    const dish = paneer({ state: "draft", splitMode: "assign", shares: [share(ME, 3), share(ANU, 2), share(DEV, 2, "cook", ME), share(MEERA, 1, "cook", ME)] });
     const shares = withHalf(withHalf(sharesOf(dish), DEV, 1), MEERA, 2);
-    const rows = whoHadSome({ dish, shares, split: previewSplit(dish, shares), others: [VEENA], editing: true, ...people() });
-    expect(rows.map((r) => r.note)).toEqual([
-      "You claimed this · ₹79.13 (your share)",
-      "Claimed it · ₹52.75",
-      "Not saved yet · ₹26.37",
-      "Not saved yet · ₹52.75",
-      "Not set",
+    const rows = whoHadSome({ dish, shares, split: previewSplit(dish, shares), others: roster(), editing: true, ...people() });
+    expect(rows.map((r) => [r.label, r.by, r.note])).toEqual([
+      ["You", null, "₹79.13"],
+      ["Anu", null, "₹52.75"],
+      ["Dev", null, "Not saved yet · ₹26.37"],
+      ["Meera", null, "Not saved yet · ₹52.75"],
+      ["Veena", null, ""],
     ]);
   });
 
   it("lists only who had some once it is finalized", () => {
     const dish = paneer({ state: "finalized" });
-    const rows = whoHadSome({ dish, shares: sharesOf(dish), split: splitOfDish(dish), others: [VEENA], ...people() });
+    const rows = whoHadSome({ dish, shares: sharesOf(dish), split: splitOfDish(dish), others: roster(), ...people() });
     expect(rows.map((r) => r.label)).toEqual(["You", "Anu", "Dev", "Meera"]);
     // Correcting it can count in someone who had none.
     const correcting = whoHadSome({ dish, shares: sharesOf(dish), split: splitOfDish(dish), others: [VEENA], editing: true, ...people() });
-    expect(correcting.map((r) => [r.label, r.note])).toContainEqual(["Veena", "Had none"]);
+    expect(correcting.map((r) => [r.label, r.note])).toContainEqual(["Veena", ""]);
     const noCookShare = withApiSplit(paneer({ state: "finalized", shares: [share(ANU, 2)] }));
-    expect(whoHadSome({ dish: noCookShare, shares: sharesOf(noCookShare), split: splitOfDish(noCookShare), ...people() })[0]!.note).toBe("Had none");
+    expect(whoHadSome({ dish: noCookShare, shares: sharesOf(noCookShare), split: splitOfDish(noCookShare), ...people() })[0]).toMatchObject({
+      half: 0,
+      note: "",
+    });
     // A canceled dish owes nothing: who had claimed shows, without amounts.
     const canceled = paneer({ state: "canceled", amounts: [], netting: [] });
     expect(whoHadSome({ dish: canceled, shares: sharesOf(canceled), split: splitOfDish(canceled), ...people() }).map((r) => r.note)).toEqual([
-      "You claimed this",
-      "Claimed it",
-      "Claimed it",
-      "Claimed it",
+      "",
+      "",
+      "",
+      "",
     ]);
+  });
+});
+
+describe("portions for anyone (SM-7)", () => {
+  it("says what is left once: '3 of 5 left', green when every portion is had", () => {
+    const rice = eggRice();
+    expect(portionsLeft(rice, splitOfDish(rice))).toEqual({ text: "4 of 5 left", tone: "under" });
+    const dish = paneer();
+    expect(portionsLeft(dish, splitOfDish(dish))).toEqual({ text: "0 of 4 left", tone: "exact" });
+    const half = withApiSplit(paneer({ shares: [share(ME, 3), share(ANU, 2), share(DEV, 2)] }));
+    expect(portionsLeft(half, splitOfDish(half))).toEqual({ text: "½ of 4 left", tone: "under" });
+  });
+
+  it("stops a step at what that person has plus what nobody has", () => {
+    const rice = eggRice(); // 5 portions, Anu has 1: 8 halves free
+    expect(portionLimit(rice, ANU)).toBe(10);
+    expect(portionLimit(rice, DEV)).toBe(8);
+    expect(portionLimit(rice, ME)).toBe(claimableHalf(rice));
+    // Every portion had: nobody can be given more, and each can only go down from what they have.
+    const full = paneer();
+    expect([ME, ANU, DEV, MEERA, VEENA].map((id) => portionLimit(full, id))).toEqual([3, 2, 2, 1, 0]);
+    // A portion on its way counts: once you give Dev 4 of the 8 free halves, Veena may have 4.
+    const stepped = withPortion(rice, portionChange(rice.id, DEV, ME, 4, AT));
+    expect(portionOf(stepped, DEV)).toBe(4);
+    expect(portionLimit(stepped, VEENA)).toBe(4);
+    expect(portionLimit(stepped, DEV)).toBe(8);
+  });
+
+  it("names whose portion and how much: 'Anu · 1 portion'", () => {
+    expect(portionLabel(ANU, 2, ME, NAMES)).toBe("Anu · 1 portion");
+    expect(portionLabel(DEV, 3, ME, NAMES)).toBe("Dev · 1½ portions");
+    expect(portionLabel(ME, 1, ME, NAMES)).toBe("You · ½ portion");
+    expect(portionLabel(DEV, 0, ME, NAMES)).toBe("Dev · 0 portions");
+    const rice = eggRice();
+    expect(portionToast({ dish: rice, subjectId: DEV, meId: ME, names: NAMES, half: 2 })).toEqual({ title: "Dev · 1 portion" });
+    // Your own claim keeps its toast (Home's chips share it).
+    expect(portionToast({ dish: rice, subjectId: ME, meId: ME, names: NAMES, half: 2 })).toEqual(claimedToast({ dish: rice, meId: ME, names: NAMES, half: 2 }));
+  });
+
+  it("says why someone else's portion was refused, in one line", () => {
+    const ctx = { dish: eggRice(), meId: ME, names: NAMES, subjectId: DEV };
+    const refusal = (reason: string | undefined, details: Record<string, unknown> = {}, code = "conflict") => claimRefusal({ code, message: "server says no", reason, details }, ctx);
+    expect(refusal("claims_exceed_portions", { availableHalf: 1 })).toBe("Only ½ portion is left for Dev now.");
+    expect(refusal("claims_exceed_portions", { availableHalf: 4 })).toBe("Only 2 portions are left for Dev now.");
+    expect(refusal("claims_exceed_portions", { availableHalf: 0 })).toBe("Every portion is taken now.");
+    expect(refusal("not_in_group", { subjectIds: [DEV] }, "precondition_failed")).toBe("Dev isn't in the group any more.");
+    expect(refusal("dish_not_open", { state: "finalized" })).toBe("Meera already finalized it.");
+    expect(refusal(undefined, {}, "not_found")).toBe("You only view this group, so you can't set portions.");
+    // Yours reads as it did; your own id is you too.
+    expect(claimRefusal({ code: "conflict", message: "x", reason: "claims_exceed_portions", details: { availableHalf: 1 } }, { ...ctx, subjectId: ME })).toBe(
+      "Only ½ portion is left for you now.",
+    );
+    const rice = eggRice();
+    expect(portionRefusedTitle({ dish: rice, subjectId: DEV, meId: ME, names: NAMES, half: 2 })).toBe("Couldn't change Dev's portion");
+    expect(portionRefusedTitle({ dish: rice, subjectId: ME, meId: ME, names: NAMES, half: 2 })).toBe("Couldn't claim Egg fried rice");
+    expect(portionRefusedTitle({ dish: rice, subjectId: ME, meId: ME, names: NAMES, half: 0 })).toBe("Couldn't take your claim back");
   });
 });
 
