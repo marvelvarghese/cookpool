@@ -1,36 +1,26 @@
 import type { Metadata, Viewport } from "next";
 import "../styles/globals.css";
 import { Providers } from "./providers";
-import { headers } from "next/headers";
-import { consoleTitle, rememberRequestHost, resolveAppConfig, type AppConfig } from "@/lib/app-config";
+import { DEFAULT_APP_CONFIG, consoleTitle } from "@/lib/app-config";
 import { APPLE_TOUCH_ICON } from "@/lib/manifest";
+import { rscFetchShim } from "@/lib/static-pages.mjs";
 
-// The product's identity for this request, from the Worker's `vars` (OpenNext
-// copies them into process.env per request), falling back to the compiled-in
-// defaults (saas-console-artifact CA1); the deploy environment falls back to
-// the one the host names (CA2). Server only: the client receives it through
-// <Providers config>.
-async function requestConfig(): Promise<AppConfig> {
-  const host = (await headers()).get("host");
-  rememberRequestHost(host);
-  return resolveAppConfig(process.env, undefined, host);
-}
-
-export async function generateMetadata(): Promise<Metadata> {
-  const config = await requestConfig();
-  return {
-    title: consoleTitle(config),
-    description: config.productDescription,
-    manifest: "/manifest.webmanifest",
-    // The pot mark (CP-23): the tab's icon, and the home-screen icon iOS uses.
-    icons: { icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }], apple: APPLE_TOUCH_ICON },
-    appleWebApp: {
-      capable: true,
-      title: config.productName,
-      statusBarStyle: "black-translucent",
-    },
-  };
-}
+// Static (Cookpool SM-2): the layout reads nothing from the request, so every
+// page under it can be prerendered and served as a file. The product's
+// identity is the compiled-in one, which the Worker's vars repeat
+// (src/lib/app-config.ts); the environment is resolved in the browser.
+export const metadata: Metadata = {
+  title: consoleTitle(DEFAULT_APP_CONFIG),
+  description: DEFAULT_APP_CONFIG.productDescription,
+  manifest: "/manifest.webmanifest",
+  // The pot mark (CP-23): the tab's icon, and the home-screen icon iOS uses.
+  icons: { icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }], apple: APPLE_TOUCH_ICON },
+  appleWebApp: {
+    capable: true,
+    title: DEFAULT_APP_CONFIG.productName,
+    statusBarStyle: "black-translucent",
+  },
+};
 
 // `viewport-fit=cover` enables `env(safe-area-inset-*)` on notched devices;
 // theme-color tints the mobile browser chrome to match light/dark surfaces.
@@ -44,17 +34,11 @@ export const viewport: Viewport = {
   ],
 };
 
-// The whole console is session-authenticated and renders nothing of value
-// statically — the root Providers tree (SessionProvider, theme, CommandPalette)
-// is fully client-only and trips Next.js 15's static export with
-// `TypeError: Cannot read properties of undefined (reading 'url')` inside
-// useMemo on every route including /_not-found. Opt the entire app out of
-// static prerender at the root; per-route fixes don't help because the
-// failing code paths live in the layout's Providers.
-export const dynamic = "force-dynamic";
+// A production build's pages are files (src/lib/static-pages.mjs): its client
+// navigations fetch their RSC payloads as files too. `next dev` has none.
+const STATIC_RSC = process.env.NODE_ENV === "production";
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const config = await requestConfig();
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
@@ -70,7 +54,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             __html: "globalThis.__name=globalThis.__name||function(t){return t};",
           }}
         />
-        <Providers config={config}>{children}</Providers>
+        {STATIC_RSC ? <script dangerouslySetInnerHTML={{ __html: rscFetchShim() }} /> : null}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

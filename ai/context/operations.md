@@ -107,6 +107,27 @@ orun secrets list --org <ws> --env stage
 orun integrations list --org <ws> --json && orun cloud check --org <ws>
 ```
 
+### Timing check (cookpool-simpler SM-2)
+
+```bash
+node tooling/perf/check.mjs                 # stage and prod; exits 1 over budget
+node tooling/perf/check.mjs --env stage --report-only
+node tooling/perf/check.mjs --fresh         # a new TCP + TLS connection per GET
+```
+
+Ten GETs each, time to first byte, median and 75th percentile, for the app
+pages (`/login`, `/home`, `/pantry`, `/use`, an icon) on the custom domain and
+on workers.dev, and the API reads that need no sign-in (`/health`,
+`/v1/auth/oauth/providers`). Budgets at p75: a page 0.3 s, a read 0.4 s
+(cookpool-simpler decision 2). Each line says how many answers came from the
+console Worker (`x-opennext`): the Cookpool pages are files and should say
+`worker 0/10`; anything else means a page went back to the Worker. It also
+names the Cloudflare colos that answered: the budgets are for India, so a run
+answered from elsewhere measures elsewhere. By default it reuses one
+connection per host, as a browser does after its first request; `--fresh`
+pays the handshake every time, as a first visit does. Unauthenticated GETs
+only: it never signs in and never writes.
+
 ## Common operations
 
 | task | how |

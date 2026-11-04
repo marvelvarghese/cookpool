@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, CheckCircle2, CookingPot, Minus, Plus } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
+import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -43,8 +44,7 @@ import {
  * back to the group's Activity, with a toast that can undo it.
  */
 export default function AddExpensePage() {
-  const params = useParams<{ orgSlug: string }>();
-  const slug = params?.orgSlug ?? "";
+  const slug = usePathParam("/groups/:orgSlug/expense", "orgSlug");
   const groups = useGroups();
   const group = groups.data?.find((g) => g.slug === slug) ?? null;
   const foundSlug = group?.slug ?? null;
