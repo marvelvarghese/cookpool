@@ -654,3 +654,87 @@ describe("the database near its people (SM-3)", () => {
     });
   }
 });
+
+// ── the API on the app's address (Cookpool SM-4) ───────────────
+//
+// The console Worker answers `/api/*` on the app's own hosts by forwarding to
+// api-edge over a service binding, per environment. The composition deploys it
+// with `wrangler deploy --config wrangler.jsonc --name <worker>-<env>` (no
+// --env), so the component sets CLOUDFLARE_ENV, which picks the section. The
+// binding's props are how api-edge tells the console from the internet before
+// it believes a forwarded client address (apps/api-edge/src/client-ip.ts).
+
+describe("the API on the app's address (SM-4)", () => {
+  type Service = { binding: string; service: string; entrypoint?: string; props?: Record<string, unknown> };
+  type Section = { vars?: Record<string, string>; services?: Service[]; placement?: unknown };
+  type ConsoleConfig = Section & {
+    main?: string;
+    assets?: { directory?: string; binding?: string; run_worker_first?: boolean | string[] };
+    env: Record<string, Section>;
+  };
+  const consoleConfig = parseJsoncStrings(
+    fs.readFileSync(path.join(ROOT, "apps/web-console-next/wrangler.jsonc"), "utf-8"),
+  ) as unknown as ConsoleConfig;
+  const component = readYaml("apps/web-console-next/component.yaml");
+  const clientIp = fs.readFileSync(path.join(ROOT, "apps/api-edge/src/client-ip.ts"), "utf-8");
+  const forwarder = fs.readFileSync(path.join(ROOT, "apps/web-console-next/src/worker/api-forward.mjs"), "utf-8");
+  const consoleCaller = (clientIp.match(/export const CONSOLE_CALLER = "([a-z-]+)";/) ?? [])[1];
+
+  test("the Worker's entry is the console's own, which forwards /api and loads OpenNext lazily", () => {
+    expect(consoleConfig.main).toBe("src/worker/index.mjs");
+    expect(fs.existsSync(path.join(ROOT, "apps/web-console-next", consoleConfig.main!))).toBe(true);
+    // The composition still checks the build's own output exists.
+    expect(component).toMatch(/^\s*workerEntrypoint: \.open-next\/worker\.js\s*$/m);
+  });
+
+  test("/api/* always reaches the Worker, never the static assets or their _redirects", () => {
+    expect(consoleConfig.assets).toEqual({ directory: ".open-next/assets", binding: "ASSETS", run_worker_first: ["/api/*"] });
+  });
+
+  for (const envName of ["stage", "prod"]) {
+    test(`${envName} binds API_EDGE to cookpool-api-edge-${envName}, its default entrypoint, with the console's props`, () => {
+      expect(consoleConfig.env[envName]?.services).toEqual([
+        { binding: "API_EDGE", service: `cookpool-api-edge-${envName}`, props: { caller: "web-console-next" } },
+      ]);
+    });
+  }
+
+  test("dev (verify-only) and the top level (local wrangler dev) bind nothing", () => {
+    expect(consoleConfig.services).toBeUndefined();
+    expect(consoleConfig.env.dev?.services).toBeUndefined();
+    expect(Object.keys(consoleConfig.env).sort()).toEqual(["dev", "prod", "stage"]);
+  });
+
+  test("every environment carries the top level's vars (wrangler does not inherit them)", () => {
+    expect(consoleConfig.vars).toBeDefined();
+    for (const envName of Object.keys(consoleConfig.env)) expect(consoleConfig.env[envName]?.vars).toEqual(consoleConfig.vars);
+  });
+
+  test("the props are the caller api-edge believes, and what the forwarder says it sends", () => {
+    expect(consoleCaller).toBe("web-console-next");
+    expect(forwarder).toContain(`export const BINDING_PROPS = Object.freeze({ caller: "${consoleCaller}" });`);
+    expect(forwarder).toContain('export const CLIENT_IP_HEADER = "x-console-client-ip";');
+    expect(clientIp).toContain('export const FORWARDED_CLIENT_IP_HEADER = "x-console-client-ip";');
+  });
+
+  test("the deploy picks the environment's section: CLOUDFLARE_ENV is the job's Orun environment", () => {
+    expect(component).toMatch(/^  env:\n\s+CLOUDFLARE_ENV: "\{\{ \.environment \}\}"\s*$/m);
+  });
+
+  test("on main the console deploys after api-edge; there is no cycle", () => {
+    expect(component).toMatch(
+      /- component: api-edge\n\s+mode: enforced\n\s+modeRules:\n\s+- mode: advisory\n\s+when:\n\s+triggerRef: github-pull-request/,
+    );
+    expect(readYaml("apps/api-edge/component.yaml")).not.toMatch(/component: web-console-next/);
+  });
+
+  test("the deploy smoke reaches api-edge through /api and requires the console's forwarded address", () => {
+    expect(component).toContain('api=$(curl -sf \\"${DEPLOYED_URL}/api/health\\")');
+    expect(component).toContain("grep -q '\\\"source\\\":\\\"console\\\"'");
+  });
+
+  test("the console takes no Smart Placement: it binds no database, and api-edge is placed on its own (SM-3)", () => {
+    expect(consoleConfig.placement).toBeUndefined();
+    for (const envName of Object.keys(consoleConfig.env)) expect(consoleConfig.env[envName]?.placement).toBeUndefined();
+  });
+});

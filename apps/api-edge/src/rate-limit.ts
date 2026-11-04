@@ -591,6 +591,8 @@ async function deriveIdentityKey(
       return `bearer:${hash.slice(0, 32)}`;
     }
   }
+  // Set (or removed) once at the entry by ./client-ip.ts: Cloudflare's own
+  // value from the internet, the console's forwarded one over its binding.
   const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
   return `anon:${routeFamily}:${ip}`;
 }

@@ -25,12 +25,21 @@ The screens are on the design canvas, row "Simpler — less to read, one tap"
    is served by Workers Static Assets without running the worker. Routes
    that truly need the server (the OAuth callback, the manifest) stay
    dynamic.
-2. **The API on the app's address.** `cookpool.store/api/*` (and
-   `stage.cookpool.store/api/*`) reach api-edge directly through a Workers
-   Route on the zone; api-edge strips the `/api` prefix. On a custom domain
-   the app calls its own origin, so there is no preflight at all. On
-   workers.dev the app keeps calling the workers.dev API (preflights cached
-   as today).
+2. **The API on the app's address.** The app calls the API on its own
+   origin, `/api/*`, on every host that serves it: `cookpool.store`,
+   `stage.cookpool.store` and the console's workers.dev hosts alike. Same
+   origin, so there is no preflight at all. The console Worker answers those
+   requests itself, before it loads OpenNext, by forwarding them to api-edge
+   over a service binding (`API_EDGE` → `cookpool-api-edge-<env>`) with the
+   `/api` prefix stripped; static files and `_redirects` never see them.
+   api-edge keys signed-out rate limits on the client's IP, which a
+   service-binding request does not carry: the console forwards the address
+   Cloudflare gave it, and api-edge believes that header only over the
+   console's binding (its `props`), never from the internet. Sign-in with
+   Google still starts on api-edge's workers.dev host, where Google returns
+   (the registered callback and its state cookie). Nothing is set up in the
+   dashboard: the binding deploys with the console. Local development keeps
+   the workers.dev targets.
 3. **The database near its people.** The D1 database is recreated with the
    location hint `apac` (Asia–Pacific). It starts empty (decision 3). The
    workers that query it (api-edge, kitchen, identity, membership, and the

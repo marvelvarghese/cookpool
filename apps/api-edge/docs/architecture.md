@@ -10,6 +10,13 @@ from `apps/api-edge`, deployed per environment by its CI lane.
 - **Wired configuration** (resolved at deploy time from job-output
   secrets published by the infrastructure terraform; names only):
   `WIRING_CLOUDFLARE_D1_STAGE`, `WIRING_CLOUDFLARE_D1_PROD`, `WIRING_CLOUDFLARE_KV_STAGE`, `WIRING_CLOUDFLARE_KV_PROD`.
+- **Callers.** The internet, on `cookpool-api-edge-<env>.<subdomain>.workers.dev`,
+  and `web-console-next` over its `API_EDGE` service binding (the app's
+  `/api/*` on its own address, SM-4), which declares
+  `props: { caller: "web-console-next" }`. The client address the rate
+  limits key on is Cloudflare's `CF-Connecting-IP` from the internet and the
+  console's `x-console-client-ip` over that binding, never the other way
+  round (`src/client-ip.ts`); `/health` reports which (`checks.clientIp.source`).
 - **`PLATFORM_DB`** is a D1 binding. SQLite types apply: timestamps are
   ISO-8601 text, JSON is text, booleans are 0/1, and there is no
   interactive transaction (see `packages/db/src/d1`).

@@ -22,6 +22,7 @@ import {
 import { isKitchenRoute, handleKitchenRoute } from "./kitchen-facade";
 import { isJoinPreviewRoute, handleJoinPreviewRoute } from "./join-preview-facade";
 import { isSoloMode, isSoloSuppressed } from "./solo-mode";
+import { withTrustedClientIp, type ClientIpSource } from "./client-ip";
 
 // Durable Object class backing the PERF5 Stage B rate-limit counters. Must be
 // exported from the Worker entry so the runtime can instantiate it for the
@@ -29,7 +30,12 @@ import { isSoloMode, isSoloSuppressed } from "./solo-mode";
 export { RateLimiterDO } from "./rate-limit-do";
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(incoming: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+    // The client's address, once, before anything reads it: Cloudflare's
+    // CF-Connecting-IP from the internet, the console's forwarded one over its
+    // service binding (ctx.props), and never a client's own (./client-ip.ts).
+    const { request, source: clientIpSource } = withTrustedClientIp(incoming, ctx?.props);
+
     const preflight = handlePreflight(request, env);
     if (preflight) return preflight;
 
@@ -39,7 +45,7 @@ export default {
     let response: Response;
 
     if (url.pathname === "/health") {
-      response = await handleHealth(env);
+      response = await handleHealth(env, clientIpSource);
     } else if (isSoloMode(env) && isSoloSuppressed(url.pathname, request.method)) {
       // M0 / Solo profile: org/team/project and platform-plumbing surfaces are
       // hidden. Suppress at the edge before any facade dispatch — the route
@@ -92,7 +98,7 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-async function handleHealth(env: Env): Promise<Response> {
+async function handleHealth(env: Env, clientIpSource: ClientIpSource): Promise<Response> {
   const db = await checkDatabase(env);
   const identity = checkIdentityBinding(env);
   const membership = checkMembershipBinding(env);
@@ -111,7 +117,11 @@ async function handleHealth(env: Env): Promise<Response> {
       service: "api-edge",
       environment: env.ENVIRONMENT ?? "local",
       timestamp: new Date().toISOString(),
-      checks: { database: db, identity, membership },
+      // `clientIp.source` says which address the rate limits would key this
+      // request on: "cloudflare" from the internet, "console" over the
+      // console's binding (`/api/health` on the app's address; the console's
+      // deploy smoke requires it), "none" when there is none to trust.
+      checks: { database: db, identity, membership, clientIp: { source: clientIpSource } },
     },
     { status: code },
   );

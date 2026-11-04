@@ -1,0 +1,22 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-4
+  title: "The API on the app's address"
+spec:
+  goal: The app calls the API on its own origin through the console worker's service binding to api-edge, on every host, so no request ever waits for a CORS preflight.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/sdk
+    - default/cookpool/config-worker-tests
+    - tooling/perf/**
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-4.TaskContract.yaml
+  doneWhen:
+    - requests to /api/* on the app's origin reach api-edge with the prefix stripped
+    - the app's API calls use its own origin on custom domains and workers.dev
+    - api-edge trusts a forwarded client IP only over the binding
+  gates: []

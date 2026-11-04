@@ -19,18 +19,41 @@
 //     happens here — that all comes from the SDK.
 
 import { Cookpool, CookpoolError, type ClientOptions } from "@saas/sdk";
-import { DEPLOY_ENVIRONMENTS, apiEdgeWorkersDevUrl, appConfig, type AppConfig } from "./app-config";
+import {
+  DEPLOY_ENVIRONMENTS,
+  apiEdgeWorkersDevUrl,
+  appConfig,
+  environmentFromHost,
+  type AppConfig,
+} from "./app-config";
 
 export type ApiClient = Cookpool;
 
 export interface ApiTarget {
   name: string;
+  /** Where the app sends its API calls (see {@link sameOriginTarget}). */
   url: string;
+  /**
+   * api-edge's own address, the environment's workers.dev API. OAuth sign-in
+   * starts there: the provider returns to it, and the start's state cookie is
+   * that host's (Cookpool SM-4).
+   */
+  directUrl: string;
 }
 
-/** Every API target this console can talk to, under the config in force. */
+/**
+ * Where the console Worker answers the API on the app's own address
+ * (Cookpool SM-4): it forwards `/api/*` to api-edge over a service binding
+ * (src/worker/api-forward.mjs).
+ */
+export const SAME_ORIGIN_API_PATH = "/api";
+
+/** Every API target this console can talk to, under the config in force: the workers.dev APIs. */
 export function allTargets(config: AppConfig = appConfig()): ApiTarget[] {
-  return DEPLOY_ENVIRONMENTS.map((name) => ({ name, url: apiEdgeWorkersDevUrl(name, config) }));
+  return DEPLOY_ENVIRONMENTS.map((name) => {
+    const url = apiEdgeWorkersDevUrl(name, config);
+    return { name, url, directUrl: url };
+  });
 }
 
 /** The single environment this deploy serves, when it is locked to one. */
@@ -38,11 +61,41 @@ export function deployEnv(config: AppConfig = appConfig()): string | undefined {
   return config.deployEnv;
 }
 
-/** The targets the user may pick: only the deploy's own when it is locked. */
-export function apiTargets(config: AppConfig = appConfig()): ApiTarget[] {
+/** This page's origin, in a browser. */
+function pageOrigin(): string | undefined {
+  return typeof window === "undefined" ? undefined : window.location?.origin;
+}
+
+/**
+ * `target` as a page on `origin` reaches it. A host that one environment's
+ * console Worker serves names that environment itself (its custom domain, or
+ * its `-<env>` workers.dev host), and that Worker answers the API on the
+ * page's own origin, `/api`: same origin, so no request ever waits for a CORS
+ * preflight (Cookpool SM-4). Anywhere else (localhost, a dev server, a host
+ * that names no environment or another one) there is no such Worker, and the
+ * calls go to the environment's workers.dev API, as before. Pure.
+ */
+export function sameOriginTarget(target: ApiTarget, config: AppConfig, origin: string | undefined): ApiTarget {
+  if (!origin) return target;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return target;
+  }
+  if (environmentFromHost(host, config.customDomains) !== target.name) return target;
+  return { ...target, url: `${origin}${SAME_ORIGIN_API_PATH}` };
+}
+
+/**
+ * The targets the user may pick: only the deploy's own when it is locked,
+ * reached on the page's own origin when its host serves it (`origin`, the
+ * page's by default).
+ */
+export function apiTargets(config: AppConfig = appConfig(), origin: string | undefined = pageOrigin()): ApiTarget[] {
   const env = deployEnv(config);
   const all = allTargets(config);
-  return env ? all.filter((t) => t.name === env) : all;
+  return env ? all.filter((t) => t.name === env).map((t) => sameOriginTarget(t, config, origin)) : all;
 }
 
 /** True when this deploy serves exactly one environment (no target switcher). */
@@ -74,7 +127,8 @@ export function createClient(
   token: string | null,
   onUnauthorized?: () => void,
 ): Cookpool {
-  const opts: ClientOptions = { baseUrl: target.url };
+  // OAuth's start stays on api-edge's own host, where its callback lands.
+  const opts: ClientOptions = { baseUrl: target.url, oauthBaseUrl: target.directUrl };
   if (token) {
     opts.auth = { kind: "bearer", token };
     if (onUnauthorized) opts.fetch = reportingUnauthorized(onUnauthorized);

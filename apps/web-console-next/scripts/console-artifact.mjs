@@ -114,7 +114,10 @@ function pack() {
     // uploads — and re-bundling it in a product's deploy is a no-op.
     const wrangler = path.join(app, "node_modules", ".bin", "wrangler");
     if (!fs.existsSync(wrangler)) fail(`${wrangler} is missing: install the workspace first`);
-    execFileSync(wrangler, ["deploy", "--dry-run", "--config", "wrangler.jsonc", "--outdir", path.join(work, "bundle")], {
+    // OpenNext's own worker, not wrangler.jsonc's `main` (Cookpool SM-4's
+    // src/worker/index.mjs, which imports this one lazily): the artifact stays
+    // the build's output, and a product's deploy bundles the entry around it.
+    execFileSync(wrangler, ["deploy", "--dry-run", ".open-next/worker.js", "--config", "wrangler.jsonc", "--outdir", path.join(work, "bundle")], {
       cwd: app,
       stdio: ["ignore", "ignore", "inherit"],
     });
@@ -126,6 +129,10 @@ function pack() {
     const stage = path.join(work, "stage", ".open-next");
     fs.mkdirSync(stage, { recursive: true });
     fs.copyFileSync(bundled, path.join(stage, "worker.js"));
+    // The entry re-exports OpenNext's Durable Object classes from these
+    // (self-contained) files, so they travel with the worker.
+    const durableObjects = path.join(".build", "durable-objects");
+    fs.cpSync(path.join(app, ".open-next", durableObjects), path.join(stage, durableObjects), { recursive: true });
     fs.cpSync(path.join(app, ".open-next", "assets"), path.join(stage, "assets"), { recursive: true });
 
     const name = assetName(hash);
