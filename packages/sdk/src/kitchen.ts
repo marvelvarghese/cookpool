@@ -43,6 +43,8 @@ import type {
   FinalizeDishResponse,
   SetDishSharesRequest,
   SetDishSharesResponse,
+  SetPortionRequest,
+  SetPortionResponse,
   CookDishRequest,
   CookDishResponse,
   DishResponse,
@@ -691,6 +693,39 @@ export class KitchenClient {
   correctDish(orgId: string, dishId: string, body: CorrectDishRequest, opts: RequestOptions = {}): Promise<CorrectDishResponse> {
     return this.transport.request<CorrectDishResponse>(
       { method: "POST", path: this.groupPath(orgId, `dishes/${encodeURIComponent(dishId)}/correct`), body },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Anyone's portion (SM-6)
+  // -------------------------------------------------------------------------
+
+  /**
+   * PUT /v1/organizations/:orgId/kitchen/dishes/:dishId/claims/:subjectId
+   *
+   * Any member (not a viewer) sets any member's half portions of an open dish
+   * (0 takes them back); `subjectId` `"me"` is the caller, as `claimDish`.
+   * The share records who set it (`setBy`), and the person is emailed once
+   * per dish when it was someone else. More than is free is a
+   * `ConflictError` with `reason: "claims_exceed_portions"`
+   * (`details.availableHalf`); a dish that is not open, `reason:
+   * "dish_not_open"`; someone not in the group a `ValidationError` with
+   * `reason: "not_in_group"`. A viewer gets a `NotFoundError`.
+   */
+  setPortion(
+    orgId: string,
+    dishId: string,
+    subjectId: string,
+    body: SetPortionRequest,
+    opts: RequestOptions = {},
+  ): Promise<SetPortionResponse> {
+    return this.transport.request<SetPortionResponse>(
+      {
+        method: "PUT",
+        path: this.groupPath(orgId, `dishes/${encodeURIComponent(dishId)}/claims/${encodeURIComponent(subjectId)}`),
+        body,
+      },
       opts,
     );
   }

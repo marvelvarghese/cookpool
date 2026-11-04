@@ -9,6 +9,9 @@
 #
 # Files in this `public/` directory are copied to the asset root
 # (`.open-next/assets/`) by the @opennextjs/cloudflare adapter, where Pages
-# honours `_headers`. HTML stays dynamic (SSR, `no-store`) and is unaffected.
+# honours `_headers`. The pages served as files (Cookpool SM-2,
+# scripts/pages-as-files.mjs) and their `/_rsc/*` payloads keep the default:
+# their names do not change between deploys, so they revalidate (ETag) on
+# every visit. The Worker's pages stay `no-store`.
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable

@@ -746,7 +746,11 @@ export interface KitchenDishIngredientRecord {
   useTxnId: string | null;
 }
 
-/** Who set a share: the eater, claiming it; or the cook, assigning it. */
+/**
+ * Which route wrote a share: self, a claim (the eater's own, or since SM-6
+ * another member's for them — `setBy` says who); cook, the cook's assignment
+ * or a correction.
+ */
 export type KitchenDishShareSource = "cook" | "self";
 
 /** One eater's share of a dish, as stored: half portions or an exact amount. */
@@ -761,6 +765,8 @@ export interface KitchenDishShareRecord {
   /** A fixed amount, in minor units; null for portions. */
   exactMinor: number | null;
   source: KitchenDishShareSource;
+  /** Who wrote it last (`usr_…`, SM-6, migration 290); null for a share written before. */
+  setBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -914,10 +920,11 @@ export interface NewDishShare {
 
 /**
  * Claim `portionsHalf` half portions of an open dish for `subjectId` (an
- * upsert of their own share, `source` self), or take the claim back with 0 —
- * in ONE batch with the dish's version bump. The dish's state is the guard:
- * a dish that is not open, or claims that would exceed its portions, sets
- * the state NULL, which the NOT NULL constraint refuses, and nothing is
+ * upsert of their share, `source` self, `set_by` whoever claims — the eater,
+ * or since SM-6 another member setting it for them), or take the claim back
+ * with 0 — in ONE batch with the dish's version bump. The dish's state is the
+ * guard: a dish that is not open, or claims that would exceed its portions,
+ * sets the state NULL, which the NOT NULL constraint refuses, and nothing is
  * written (`dish_not_open`, `claims_exceed_portions`). Re-claiming the same
  * amount writes the same row.
  */
@@ -928,6 +935,8 @@ export interface ClaimDishInput {
   portionsHalf: number;
   /** The id a new share row gets (an existing row keeps its own). */
   shareId: Uuid;
+  /** Who is setting it (`usr_…`): recorded as the row's `set_by` (SM-6). */
+  setBy: string;
   now: Date;
 }
 
@@ -941,6 +950,8 @@ export interface SetDishSharesInput {
   /** The dish as the caller read it. */
   dish: KitchenDishRecord;
   shares: readonly NewDishShare[];
+  /** Who assigns them (`usr_…`: the cook, or an owner or admin): every row's `set_by` (SM-6). */
+  setBy: string;
   now: Date;
 }
 
@@ -1002,6 +1013,8 @@ export interface CorrectDishInput {
   txn: { txn: NewKitchenTxn; splits: readonly KitchenSplit[] } | null;
   leftover: DishLeftoverChange;
   shares: readonly NewDishShare[];
+  /** Who corrects it (`usr_…`): every new share row's `set_by` (SM-6). */
+  setBy: string;
   now: Date;
   audits: readonly AppendEventWithAuditInput[];
 }

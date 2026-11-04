@@ -1313,3 +1313,37 @@ describe("KitchenClient — dishes (Cookpool CP-14)", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });
+
+describe("KitchenClient — anyone's portion (Cookpool SM-6)", () => {
+  const dish = {
+    id: "dsh_1",
+    state: "open",
+    shares: [{ id: "dsr_1", subjectId: "usr_dev", portionsHalf: 2, exactMinor: null, source: "self", setBy: "usr_anu" }],
+  };
+
+  it("PUTs anyone's half portions to claims/{subjectId}, and the caller's to claims/me", async () => {
+    const set = captureFetch(jsonResponse(envelope({ dish })));
+    expect(await client(set.fetch).kitchen.setPortion("org_1", "dsh_1", "usr_dev", { portionsHalf: 2 })).toEqual({ dish });
+    expect(set.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/dishes/dsh_1/claims/usr_dev");
+    expect(set.calls[0]!.init.method).toBe("PUT");
+    expect(JSON.parse(String(set.calls[0]!.init.body))).toEqual({ portionsHalf: 2 });
+
+    const mine = captureFetch(jsonResponse(envelope({ dish })));
+    await client(mine.fetch).kitchen.setPortion("org_1", "dsh_1", "me", { portionsHalf: 0 });
+    expect(mine.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/dishes/dsh_1/claims/me");
+  });
+
+  it("surfaces the portions limit as ConflictError and someone outside the group as ValidationError", async () => {
+    const reason = (code: string, status: number, details: Record<string, unknown>) =>
+      jsonResponse({ error: { code, message: code, details, requestId: "req_err" } }, { status });
+    const over = await client(captureFetch(reason("conflict", 409, { reason: "claims_exceed_portions", portionsHalf: 8, availableHalf: 2 })).fetch)
+      .kitchen.setPortion("org_1", "dsh_1", "usr_dev", { portionsHalf: 6 })
+      .catch((e: unknown) => e);
+    expect(over).toBeInstanceOf(ConflictError);
+    expect((over as ConflictError).details).toEqual({ reason: "claims_exceed_portions", portionsHalf: 8, availableHalf: 2 });
+    await expect(
+      client(captureFetch(reason("validation_failed", 422, { reason: "not_in_group", subjectIds: ["usr_x"] })).fetch)
+        .kitchen.setPortion("org_1", "dsh_1", "usr_x", { portionsHalf: 2 }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+});

@@ -1620,7 +1620,7 @@ describe("kitchen dishes, against a real SQLite engine", () => {
     const { repo, dishId, input } = await cook();
     expect((await repo.cookDish(input)).ok).toBe(true);
     const claim = (subjectId: string, portionsHalf: number) =>
-      repo.claimDish({ dishId, subjectId, portionsHalf, shareId: asUuid(randomUUID()), now });
+      repo.claimDish({ dishId, subjectId, portionsHalf, shareId: asUuid(randomUUID()), setBy: subjectId, now });
 
     const anu = await claim("usr_anu", 6);
     expect(anu.ok && anu.value.shares.map((s) => [s.subjectId, s.portionsHalf, s.source, s.position])).toEqual([["usr_anu", 6, "self", 0]]);
@@ -1659,7 +1659,7 @@ describe("kitchen dishes, against a real SQLite engine", () => {
     const again = await repo.finalizeDish({ dish: current.value, txn: dishTxn(dishId, "fin-2"), leftover: null, now, audits: [] });
     expect(again.ok && again.value).toMatchObject({ replayed: true, dish: { state: "finalized", txnId: txn.txn.id } });
     expect(await claim("usr_meera", 1)).toEqual({ ok: false, error: { kind: "dish_not_open", state: "finalized" } });
-    expect(await repo.setDishShares({ dish: current.value, shares: [], now })).toEqual({
+    expect(await repo.setDishShares({ dish: current.value, shares: [], setBy: "usr_rahul", now })).toEqual({
       ok: false, error: { kind: "dish_not_open", state: "finalized" },
     });
     expect([count("kitchen_txns"), count("kitchen_items"), dishRow(dishId).version]).toEqual(before);
@@ -1674,6 +1674,7 @@ describe("kitchen dishes, against a real SQLite engine", () => {
         { id: asUuid(randomUUID()), subjectId: "usr_anu", portionsHalf: 6, exactMinor: null },
         { id: asUuid(randomUUID()), subjectId: "usr_dev", portionsHalf: 2, exactMinor: null },
       ],
+      setBy: "usr_rahul",
       now,
     });
     if (!assigned.ok) throw new Error("not assigned");
@@ -1699,6 +1700,7 @@ describe("kitchen dishes, against a real SQLite engine", () => {
       ]),
       leftover: { kind: "update" as const, itemId: leftover.id, expectedVersion: 1, qtyMilli: 1000, priceMinor: 3050 },
       shares: [{ id: asUuid(randomUUID()), subjectId: "usr_anu", portionsHalf: 6, exactMinor: null }],
+      setBy: "usr_rahul",
       now: later,
       audits: [],
     });
@@ -1749,6 +1751,72 @@ describe("kitchen dishes, against a real SQLite engine", () => {
     expect(share({ subject: "usr_meera", source: "admin" })).toThrow(/CHECK constraint failed/);
     expect(share({ subject: "usr_meera", dish: randomUUID() })).toThrow(/FOREIGN KEY constraint failed/);
     expect(() => db.prepare("UPDATE kitchen_dishes SET version = 0 WHERE id = ?").run(dishId)).toThrow(/CHECK constraint failed/);
+  });
+
+  it("records who set every share — a claim, someone else's, an assignment, a correction — and the latest write wins (290_kitchen_dish_share_setter)", async () => {
+    const { repo, dishId, input } = await cook();
+    expect((await repo.cookDish(input)).ok).toBe(true);
+    const setBy = () =>
+      db.prepare("SELECT subject_id, portions_half, source, set_by FROM kitchen_dish_shares WHERE dish_id = ? ORDER BY position").all(dishId);
+    const claim = (subjectId: string, portionsHalf: number, by: string) =>
+      repo.claimDish({ dishId, subjectId, portionsHalf, shareId: asUuid(randomUUID()), setBy: by, now });
+
+    // A share written before 290 (no set_by) reads as null.
+    db.prepare(
+      `INSERT INTO kitchen_dish_shares (id, dish_id, subject_id, position, portions_half, exact_minor, source)
+       VALUES (?, ?, 'usr_meera', 0, 1, NULL, 'self')`,
+    ).run(randomUUID(), dishId);
+    expect(setBy()).toEqual([{ subject_id: "usr_meera", portions_half: 1, source: "self", set_by: null }]);
+
+    // Anu claims her own; Anu sets Dev's; then Dev changes his own — the latest write wins, its author with it.
+    expect((await claim("usr_anu", 2, "usr_anu")).ok).toBe(true);
+    const forDev = await claim("usr_dev", 2, "usr_anu");
+    expect(forDev.ok && forDev.value.shares.map((s) => [s.subjectId, s.setBy])).toEqual([
+      ["usr_meera", null],
+      ["usr_anu", "usr_anu"],
+      ["usr_dev", "usr_anu"],
+    ]);
+    expect((await claim("usr_dev", 3, "usr_dev")).ok).toBe(true);
+    expect(setBy()).toEqual([
+      { subject_id: "usr_meera", portions_half: 1, source: "self", set_by: null },
+      { subject_id: "usr_anu", portions_half: 2, source: "self", set_by: "usr_anu" },
+      { subject_id: "usr_dev", portions_half: 3, source: "self", set_by: "usr_dev" },
+    ]);
+    // Setting someone else's past the portions is refused like any claim, and writes nothing.
+    expect(await claim("usr_kiran", 3, "usr_anu")).toEqual({ ok: false, error: { kind: "claims_exceed_portions", portionsHalf: 8, availableHalf: 2 } });
+    expect(setBy()).toHaveLength(3);
+
+    // The cook's assignment, and a correction, record their caller on every row.
+    const current = await repo.getDish(dishId, mine);
+    if (!current.ok) throw new Error("not read");
+    const assigned = await repo.setDishShares({
+      dish: current.value,
+      shares: [{ id: asUuid(randomUUID()), subjectId: "usr_anu", portionsHalf: 4, exactMinor: null }],
+      setBy: "usr_rahul",
+      now,
+    });
+    expect(assigned.ok && assigned.value.shares.map((s) => [s.subjectId, s.source, s.setBy])).toEqual([["usr_anu", "cook", "usr_rahul"]]);
+    const finalized = await repo.finalizeDish({
+      dish: (assigned as { ok: true; value: typeof current.value }).value, txn: dishTxn(dishId, "fin"), leftover: null, now, audits: [],
+    });
+    if (!finalized.ok) throw new Error("not finalized");
+    const original = await repo.getTxn(orgId, asUuid(finalized.value.dish.txnId!));
+    if (!original.ok) throw new Error("no txn");
+    const corrected = await repo.correctDish({
+      dish: finalized.value.dish,
+      reversal: {
+        original: original.value, id: asUuid(randomUUID()), title: "Reversal: Paneer", createdBy: "usr_anu",
+        note: null, idemKey: "fix_reversal",
+        splits: original.value.splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.owedMinor, owedMinor: s.paidMinor })),
+      },
+      txn: dishTxn(dishId, "fix"),
+      leftover: { kind: "keep" },
+      shares: [{ id: asUuid(randomUUID()), subjectId: "usr_dev", portionsHalf: 4, exactMinor: null }],
+      setBy: "usr_anu",
+      now,
+      audits: [],
+    });
+    expect(corrected.ok && corrected.value.dish.shares.map((s) => [s.subjectId, s.source, s.setBy])).toEqual([["usr_dev", "cook", "usr_anu"]]);
   });
 });
 

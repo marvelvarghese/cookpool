@@ -1,0 +1,25 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-6
+  title: "Anyone sets anyone's portion"
+spec:
+  goal: Any member of a group can set any member's portion of an open dish, the row records who set it, and that person is emailed once.
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-6.TaskContract.yaml
+  doneWhen:
+    - PUT claims/{subjectId} sets another member's portion under the portions limit
+    - every share records set_by and the dish read returns it
+    - the person whose portion was set is emailed once per dish
+  gates: []

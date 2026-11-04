@@ -41,6 +41,7 @@ import {
   handleFinalizeDish,
   handleFinalizeMyDish,
   handleSetDishShares,
+  handleSetPortion,
 } from "./handlers/dish-split.js";
 import {
   errorResponse,
@@ -199,6 +200,13 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     name: "kitchen.dish.correct",
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/correct$/,
     methods: { POST: handleCorrectDish },
+  },
+  // Anyone's portion (SM-6). After kitchen.dish.claim, so `claims/me` is
+  // still matched there first (the caller's shorthand, one route).
+  {
+    name: "kitchen.dish.portion",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/claims\/([^/]+)$/,
+    methods: { PUT: handleSetPortion },
   },
 ];
 

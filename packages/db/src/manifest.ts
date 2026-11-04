@@ -264,5 +264,14 @@ export const manifest: MigrationManifest = {
       description:
         "Limits on sign-in codes: identity_login_challenges.attempts (wrong codes taken; login/complete counts them in the guarded UPDATE that checks the code, and a challenge at the limit is spent) and a (user_id, created_at) index for login/start's per-address count of codes in the last 15 minutes (Cookpool SI-2)",
     },
+    {
+      id: "290_kitchen_dish_share_setter",
+      context: "kitchen",
+      path: "290_kitchen_dish_share_setter/up.sql",
+      checksum:
+        "a5ab4fcb0d3014f2d377e02b47518423284fb1f123d4628a6a7ed8b766c9b54d",
+      description:
+        "Who set each share of a dish: nullable kitchen_dish_shares.set_by (usr_…), written by every claim — the eater's own, or another member's for them — the cook's assignment and a correction; null for shares written before (Cookpool SM-6)",
+    },
   ],
 };

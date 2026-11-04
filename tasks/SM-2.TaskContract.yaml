@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-2
+  title: "Pages are files"
+spec:
+  goal: Cookpool's pages are prerendered and served as files from the edge, with the app config resolved in the browser before any API call, so a page's first byte comes in well under a second from India.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - tooling/perf/**
+    - ai/context/operations.md
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-2.TaskContract.yaml
+  doneWhen:
+    - the root layout reads no request headers and the kitchen routes and /login build as static
+    - the app resolves its environment in the browser before its first API call, on custom domains and workers.dev
+    - tooling/perf/check.mjs measures pages and reads against the budgets
+  gates: []

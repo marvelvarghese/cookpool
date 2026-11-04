@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, BellRing, ChevronRight, HandCoins, Route, X } from "lucide-react";
 import type { PersonGroupView, PersonViewResponse, SettlementMethod } from "@saas/contracts/kitchen";
+import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -44,8 +44,7 @@ import {
  * words, and what the group's plan asks.
  */
 export default function PersonPage() {
-  const params = useParams<{ subjectId: string }>();
-  const subjectId = safeDecode(params?.subjectId ?? "");
+  const subjectId = safeDecode(usePathParam("/people/:subjectId", "subjectId"));
   const profile = useProfile();
   const myId = profile.data?.id ?? null;
   const person = usePerson(subjectId);

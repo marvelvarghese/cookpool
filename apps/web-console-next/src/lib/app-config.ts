@@ -4,13 +4,20 @@
 // namespaces live here so a new instance of the starter retargets one file.
 // Do not add behavior — values and trivial derivations only.
 //
-// RUNTIME, NOT BUILD (saas-console-artifact CA1). Every value below can be
-// overridden per request by the Worker's `vars` (wrangler.jsonc), which the
-// OpenNext runtime copies into `process.env`. So one build of the console can
-// serve any product and any environment: the root layout resolves the config
-// on the server and hands it to the client through <AppConfigProvider>. The
-// literals here are the fallback — what a deploy with no `vars` gets — and are
-// what the rebrand rewrites, so they stay this tree's own identity.
+// THE BROWSER RESOLVES IT (Cookpool SM-2). The pages are prerendered files
+// (no request reaches a server to render them), so the browser builds the
+// config itself, synchronously, on the first call: the compiled-in values
+// below plus the page's own host, which names the environment — a custom
+// domain through `customDomains`, a workers.dev host through its `-<env>`
+// (saas-console-artifact CA2). Nothing can call the API before that, since
+// every API client is made from it (risk SM-C).
+//
+// On the server (the Worker's routes that still render: the admin console,
+// the manifest) every field can still be overridden by the Worker's `vars`
+// (wrangler.jsonc), which OpenNext copies into `process.env` (CA1). The
+// browser does not see those vars, so the literals here must equal them;
+// tests/web-console-next keeps the two in step. They are what the rebrand
+// rewrites, so they stay this tree's own identity.
 
 export interface AppConfig {
   /** Product/brand name shown across the console. */
@@ -25,6 +32,11 @@ export interface AppConfig {
   storagePrefix: string;
   /** Sales contact surfaced by the billing upgrade UX. */
   salesEmail: string;
+  /**
+   * Custom domains and the environment each serves (Cookpool SI-12):
+   * `stage=stage.cookpool.store,prod=cookpool.store`.
+   */
+  customDomains: string;
   /** The single environment this deploy serves; unset offers every target. */
   deployEnv: string | undefined;
 }
@@ -45,6 +57,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   apiWorkerPrefix: "cookpool-api-edge",
   storagePrefix: "cookpool.next",
   salesEmail: "sales@sourceplane.ai",
+  customDomains: "stage=stage.cookpool.store,prod=cookpool.store",
   deployEnv: BUILD_DEPLOY_ENV,
 };
 
@@ -56,6 +69,7 @@ export const RUNTIME_KEYS: Record<keyof AppConfig, string> = {
   apiWorkerPrefix: "CONSOLE_API_WORKER_PREFIX",
   storagePrefix: "CONSOLE_STORAGE_PREFIX",
   salesEmail: "CONSOLE_SALES_EMAIL",
+  customDomains: "CONSOLE_CUSTOM_DOMAINS",
   deployEnv: "CONSOLE_DEPLOY_ENV",
 };
 
@@ -63,7 +77,7 @@ export const RUNTIME_KEYS: Record<keyof AppConfig, string> = {
 export const DEPLOY_ENVIRONMENTS = ["stage", "prod"] as const;
 
 /** The Worker var mapping custom domains to environments (Cookpool SI-12). */
-export const CUSTOM_DOMAINS_KEY = "CONSOLE_CUSTOM_DOMAINS";
+export const CUSTOM_DOMAINS_KEY = RUNTIME_KEYS.customDomains;
 
 /**
  * `CONSOLE_CUSTOM_DOMAINS` parsed: `stage=stage.cookpool.store,prod=cookpool.store`
@@ -101,10 +115,10 @@ export function environmentFromHost(
 }
 
 /**
- * The config for one request: each field from its runtime var when that is a
+ * The config for one host: each field from its runtime var when that is a
  * non-empty string, else the default. The deploy environment falls back
- * further, to the one the request's host names (saas-console-artifact CA2), so
- * one build serves every environment without being told which at build time.
+ * further, to the one the host names (saas-console-artifact CA2), so one
+ * build serves every environment without being told which at build time.
  * Pure, so it is unit-testable.
  */
 export function resolveAppConfig(
@@ -116,6 +130,7 @@ export function resolveAppConfig(
     const value = env[RUNTIME_KEYS[key]];
     return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
   };
+  const customDomains = pick("customDomains") ?? defaults.customDomains;
   return {
     productName: pick("productName") ?? defaults.productName,
     productDescription: pick("productDescription") ?? defaults.productDescription,
@@ -123,38 +138,40 @@ export function resolveAppConfig(
     apiWorkerPrefix: pick("apiWorkerPrefix") ?? defaults.apiWorkerPrefix,
     storagePrefix: pick("storagePrefix") ?? defaults.storagePrefix,
     salesEmail: pick("salesEmail") ?? defaults.salesEmail,
-    deployEnv: pick("deployEnv") ?? defaults.deployEnv ?? environmentFromHost(host, env[CUSTOM_DOMAINS_KEY]),
+    customDomains,
+    deployEnv: pick("deployEnv") ?? defaults.deployEnv ?? environmentFromHost(host, customDomains),
   };
 }
 
-let current: AppConfig = DEFAULT_APP_CONFIG;
-let serverHost: string | null = null;
-
 /**
- * Record the host the server is answering on (the root layout calls this per
- * request). Every console Worker serves one environment, so every request an
- * isolate sees names the same one: concurrent requests cannot disagree.
+ * The config a browser page resolves for itself: the compiled-in values and
+ * the page's host (no runtime vars reach a static page). Pure.
  */
-export function rememberRequestHost(host: string | null): void {
-  if (host) serverHost = host;
+export function browserAppConfig(host: string, defaults: AppConfig = DEFAULT_APP_CONFIG): AppConfig {
+  return resolveAppConfig({}, defaults, host);
 }
 
+let browser: AppConfig | null = null;
+
 /**
- * The config in force. On the server it is resolved from the request's
- * environment (and the host the layout recorded) on every call, so a server
- * component never depends on the root layout having rendered first. In the
- * browser it is what <Providers> installed from the layout's resolution.
+ * The config in force. On the server it is resolved from the Worker's vars on
+ * every call (there is no host: the environment comes from
+ * `CONSOLE_DEPLOY_ENV` or the build, else none). In the browser it is
+ * resolved once, on the first call, from `window.location.host`, before
+ * anything can have made an API client.
  */
 export function appConfig(): AppConfig {
-  if (typeof window === "undefined" && typeof process !== "undefined") {
-    return resolveAppConfig(process.env, DEFAULT_APP_CONFIG, serverHost);
+  if (typeof window === "undefined") {
+    return resolveAppConfig(typeof process !== "undefined" ? process.env : {}, DEFAULT_APP_CONFIG, null);
   }
-  return current;
+  // (`location` is always there in a browser; some tests fake a window without it.)
+  browser ??= browserAppConfig(window.location?.host ?? "");
+  return browser;
 }
 
-/** Install the resolved config in the browser. Idempotent; called by <Providers> on render. */
-export function setAppConfig(config: AppConfig): void {
-  current = config;
+/** Forget the browser's resolution, so the next call resolves again. For tests. */
+export function resetAppConfigForTests(): void {
+  browser = null;
 }
 
 /** Browser/document title of the console. */
