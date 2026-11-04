@@ -232,3 +232,80 @@ the code departed from `design.md`.
   database), node:sqlite runs a history read in 23 ms ("mi") and 80 ms (empty
   text). A recipes read over 2,000 visible dishes (22,000 in all) takes
   14 ms.
+
+### SM3 — from before, in the app (SM-9)
+
+- **Where.** The name field of Add item (`/pantry/new`, where "+ Add → I
+  bought food" lands) and of the dish maker (`/cook`) is a combobox over the
+  SM-8 reads; the suggestions sit directly under it, one 44 px row each —
+  "Milk · 1 L · Flat 4B · 6× · ₹68", "Egg fried rice · 3× · 5 portions ·
+  ₹156" — under a small "From before" / "Cooked before" label (the list's own
+  label, as on the canvas; nothing is added above the field). Focus (or a tap
+  on the field after Esc) shows the most recent; ↑/↓ move and wrap, Enter
+  picks the highlighted row (with none highlighted it stays the form's), Esc
+  closes. A row is pressed without taking focus from the field, so a tap is
+  one pick. Pure parts in `components/kitchen/from-before.ts`, the reads in
+  `from-before-data.ts`, the combobox and list in `from-before-ui.tsx`.
+- **The reads.** `useItemHistory(q)` and `useRecipes(q)`: one React Query
+  entry per typed text, normalized as the server matches it (trimmed, spaces
+  collapsed, ASCII letters folded, 100 characters), under `kitchenPantry()` —
+  so adding an item, a use and cooking (which refresh every pantry read)
+  refresh them too. `staleTime` five minutes (retyping a prefix answers from
+  the cache), `placeholderData: keepPreviousData`, no retry (a failed read
+  just shows no suggestions). The query function hands React Query's signal
+  to the SDK, so the request for a text typed past is aborted when the field
+  moves on (tested against a real `QueryClient`). The text is debounced
+  120 ms; an emptied field asks at once. **`limit=5`**, not the read's
+  default 8: five rows fit above a phone's keyboard. While the next answer
+  loads, the last one is narrowed at once to names containing what is typed
+  now, and kept whole when nothing in it matches, so the list follows each
+  keystroke and never flashes empty.
+- **On a phone the list stays in sight** (rule 1): below 900 px, when the
+  list would end under the keyboard (`visualViewport`) or, with the keyboard
+  down, under the tab bar and a sticky button, the page scrolls just enough —
+  never so far that the field leaves the screen.
+- **Bought: what a pick fills.** Name, quantity and unit, price, pantry, who
+  paid, the waste rule and a use-by as many days after buying as last time —
+  and the **category**, which the brief didn't list but the form requires
+  (without it "tap Add" would stop at "Pick a category"). The use-by counts
+  from the form's "Bought on", which is today unless changed. Focus then moves
+  to Add (focusing scrolls to it; the form's layout is as before, SM-11
+  restyles it), so buying milk again is: type "mi", tap Milk, tap Add.
+  Last time's pantry when you can no longer add there (you view it, or left)
+  falls back to the form's default — the `?pantry=` group when you add there,
+  else your own — and the rest is kept, with two exceptions: who paid becomes
+  you when it falls back to your own pantry, and the **price is cleared when
+  the pantry it falls back to counts in another currency** than last time. A
+  unit or category the app doesn't know keeps the form's own; a cooking
+  measure opens "more" units.
+- **Cook: what a pick fills.** Name, portions (1–100), extras, who it is for
+  and the ingredients. **Who it is for:** the group, while you still cook in
+  it; a group you now only view keeps the form's default; and **`orgId:
+  null` is "Just me"** — null means either a dish for its cook alone or a
+  group you have left, the form can't tell which, and "Just me" never posts a
+  dish to a group nobody picked. The split mode stays the form's (a recipe
+  doesn't carry it). Each matched ingredient goes in at last time's amount,
+  never more than is left now, priced by the form's own pricing from the
+  item in the usable-items list; two ingredients from one item go in as one.
+  A match that list doesn't hold (it lists 100) is read on its own
+  (`useItemsByRef`) once the list has loaded, with a placeholder row
+  meanwhile — never guessed. An ingredient with no match, whose item has
+  nothing left now, or whose item can't be read reads "Not in a pantry · add
+  it"; a tap opens the existing "Bought it just now?" for it (a new `buy`
+  prop on `PantryPanel`), with its name and last time's unit — how much and
+  the price are what you bought now — and once added, that line takes last
+  time's amount, not all of it. A second pick replaces what the first one put
+  in; what the cook added by hand (or came with "Cook with it") stays. Focus
+  then moves to the Ingredients heading, which on a phone puts the keyboard
+  away over what was filled.
+- **Tests** (`tests/web-console-next/src/kitchen-from-before.test.ts`, 35):
+  the Add-item fill (pantry fallback, other currency, use-by across months,
+  a leap day and the year's end, the request it posts), the recipe fill
+  (matched, capped, pending, missing, a group no longer yours, "Just me"),
+  the debounce, the stale request aborted and the cache answering a retyped
+  prefix, the keyboard. The test package maps `@tanstack/react-query` to the
+  app's own install (it has no copy of its own, and adding one would change
+  the lockfile).
+- **Left for SM-11.** The canvas's "Filled from last time · change anything"
+  card and "Add Milk · ₹68" button belong to Add item's and Cook's restyle;
+  both screens keep their layout (and Cook its subtitle) here.

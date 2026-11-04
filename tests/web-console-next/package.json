@@ -35,7 +35,8 @@
       "^@saas/kitchen-engine$": "<rootDir>/../../packages/kitchen-engine/src/index.ts",
       "^@saas/kitchen-engine/(.*)$": "<rootDir>/../../packages/kitchen-engine/src/$1.ts",
       "^@/(.*)$": "<rootDir>/../../apps/web-console-next/src/$1",
-      "^@web-console-next/(.*)$": "<rootDir>/../../apps/web-console-next/src/$1"
+      "^@web-console-next/(.*)$": "<rootDir>/../../apps/web-console-next/src/$1",
+      "^@tanstack/react-query$": "<rootDir>/../../apps/web-console-next/node_modules/@tanstack/react-query/build/modern/index.js"
     },
     "transform": {
       "^.+\\.tsx?$": ["ts-jest", { "useESM": true, "tsconfig": { "jsx": "react-jsx" } }]

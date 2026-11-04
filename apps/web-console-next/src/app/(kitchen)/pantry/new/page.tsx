@@ -25,6 +25,9 @@ import { canManageGroup, roleFromKitchen } from "@/components/kitchen/groups";
 import { useMemberNames, useMyBalances, useMyRoles } from "@/components/kitchen/people-data";
 import { refreshPantry, useMembersOf, usePantries } from "@/components/kitchen/pantry-data";
 import { PantryPicker } from "@/components/kitchen/pantry-ui";
+import { fromBeforeTerm, historyFill, historySuggestion, shownSuggestions } from "@/components/kitchen/from-before";
+import { useItemHistory } from "@/components/kitchen/from-before-data";
+import { SuggestionList, useTypeahead } from "@/components/kitchen/from-before-ui";
 import { ALL_PANTRIES, PERSONAL_PANTRY, pantryKey, parsePantryParam, leftText } from "@/components/kitchen/pantry";
 import {
   ITEM_CATEGORIES,
@@ -50,6 +53,11 @@ import {
  * it goes in: your own, or a group you add to (a searchable picker, recent
  * first). For a group: who paid, and who pays if some of it goes to waste.
  * Adding charges nobody; the toast can undo it for ten seconds.
+ *
+ * From before (SM-9): as the name is typed, what was bought before shows
+ * under it ("Milk · 1 L · Flat 4B · 6× · ₹68"; the most recent on an empty
+ * field). Picking one fills the form from last time and moves to Add, so
+ * buying milk again is: type "mi", tap Milk, tap Add.
  */
 export default function AddItemPage() {
   const searchParams = useSearchParams();
@@ -111,6 +119,27 @@ function AddItemForm({
   const [serverFields, setServerFields] = React.useState<Partial<Record<ItemField, string>>>({});
   // One key per item being added: a retry after a lost answer adds it once.
   const idemKey = React.useRef(crypto.randomUUID());
+  const nameFieldRef = React.useRef<HTMLDivElement>(null);
+  const addRef = React.useRef<HTMLButtonElement>(null);
+
+  // From before: names bought before, as the name is typed (the most recent on an empty field).
+  const typeahead = useTypeahead(form.name, "item-name-suggestions");
+  const history = useItemHistory(typeahead.term, typeahead.open || typeahead.term === "");
+  const fresh = !history.isPlaceholderData && typeahead.term === fromBeforeTerm(form.name);
+  const suggestions = typeahead.open ? shownSuggestions(history.data, form.name, fresh) : [];
+  const pickSuggestion = (index: number) => {
+    const entry = suggestions[index];
+    if (!entry) return;
+    const fill = historyFill(entry, form, { today, pantries, fallbackPantry: start, meId });
+    setServerFields({});
+    setServerError(null);
+    setMorePayers(false);
+    if (fill.moreUnits) setMoreUnits(true);
+    setForm(fill.form);
+    typeahead.close();
+    // Everything stays editable; the next tap is Add.
+    window.requestAnimationFrame(() => addRef.current?.focus());
+  };
 
   const chosen = pantries.find((p) => pantryKey(p) === form.pantry) ?? pantries.find((p) => p.kind === "personal") ?? null;
   const group = chosen?.kind === "group" ? chosen : null;
@@ -252,22 +281,37 @@ function AddItemForm({
       <form onSubmit={submit} noValidate className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
         <KCard className="space-y-6 p-5">
           <div className="space-y-2" data-field="name">
-            <Label htmlFor="item-name" className="text-sm font-bold">
-              What did you buy?
-            </Label>
-            <Input
-              id="item-name"
-              value={form.name}
-              onChange={(e) => update({ name: e.target.value })}
-              placeholder="e.g. Tomatoes"
-              maxLength={ITEM_NAME_MAX}
-              autoComplete="off"
-              autoFocus
-              aria-invalid={!!err("name")}
-              aria-describedby={err("name") ? "item-name-error" : undefined}
-              className={cn(K_INPUT, "h-12 sm:h-12")}
-            />
+            <div ref={nameFieldRef} className="space-y-2">
+              <Label htmlFor="item-name" className="text-sm font-bold">
+                What did you buy?
+              </Label>
+              <Input
+                id="item-name"
+                value={form.name}
+                {...typeahead.inputProps({
+                  count: suggestions.length,
+                  onPick: pickSuggestion,
+                  onChange: (e) => update({ name: e.target.value }),
+                })}
+                placeholder="e.g. Tomatoes"
+                maxLength={ITEM_NAME_MAX}
+                autoComplete="off"
+                autoFocus
+                aria-invalid={!!err("name")}
+                aria-describedby={err("name") ? "item-name-error" : undefined}
+                className={cn(K_INPUT, "h-12 sm:h-12")}
+              />
+            </div>
             <FieldError id="item-name-error" message={err("name")} />
+            <SuggestionList
+              id="item-name-suggestions"
+              label="From before"
+              views={suggestions.map(historySuggestion)}
+              active={typeahead.active}
+              onPick={pickSuggestion}
+              onHighlight={typeahead.highlight}
+              fieldRef={nameFieldRef}
+            />
           </div>
 
           <fieldset data-field="category" aria-describedby={err("category") ? "item-category-error" : undefined}>
@@ -479,7 +523,7 @@ function AddItemForm({
             <Button asChild variant="ghost" className={K_BUTTON}>
               <Link href="/pantry">Cancel</Link>
             </Button>
-            <Button type="submit" className={cn(K_BUTTON, "h-12 min-[560px]:min-w-48")} loading={busy}>
+            <Button ref={addRef} type="submit" className={cn(K_BUTTON, "h-12 min-[560px]:min-w-48")} loading={busy}>
               {addButtonLabel(group ? group.name : null)}
             </Button>
           </div>
