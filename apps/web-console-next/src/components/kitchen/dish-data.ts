@@ -6,11 +6,13 @@ import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from "@t
 import type { DishesPage, KitchenDish } from "@saas/contracts/kitchen";
 import { wrap, type ApiErrorBody, type ApiResult } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { qk, type AsyncState } from "@/lib/query";
+import { afterWrites, qk, type AsyncState } from "@/lib/query";
 import { useToast } from "@/components/ui/toast";
 import { refreshLedger } from "./ledger-data";
-import { UNDO_MS, type UndoResult } from "./undo";
-import { useUndoToast } from "./undo-toast";
+import { REFUSAL_MS, UNDO_MS, refusedToast, type UndoResult } from "./undo";
+import { useUndoToast, type UndoToastHandle } from "./undo-toast";
+import { finalizePatches, portionPatches, type PortionChange } from "./cache-patches";
+import { beginWrite, type OptimisticWrite } from "./optimistic-data";
 import {
   claimRefusal,
   claimedToast,
@@ -48,12 +50,18 @@ async function unwrap<T>(fn: () => Promise<T>): Promise<T> {
   return r.data;
 }
 
+/** Read one dish (its page's read; Home reads it ahead, SM-5). */
+export function loadDish(client: ReturnType<typeof useSession>["client"], dishId: string): Promise<KitchenDish> {
+  return unwrap(async () => (await client.kitchen.getDish(dishId)).dish);
+}
+
 /** One dish, by its `dsh_…` id: its cook, or any member of its group, may read it. */
 export function useDish(dishId: string | null): AsyncState<KitchenDish> {
   const { client } = useSession();
+  const qc = useQueryClient();
   const q = useQuery<KitchenDish, ApiErrorBody>({
     queryKey: qk.kitchenDish(dishId ?? ""),
-    queryFn: () => unwrap(async () => (await client.kitchen.getDish(dishId ?? "")).dish),
+    queryFn: afterWrites(qc, qk.kitchenDish(dishId ?? ""), () => loadDish(client, dishId ?? "")),
     enabled: dishId !== null,
     refetchInterval: (query) => {
       const state = query.state.data?.state;
@@ -72,15 +80,18 @@ export function useDish(dishId: string | null): AsyncState<KitchenDish> {
 /** The dishes shared with a group, newest first, a page at a time. */
 export function useGroupDishes(orgId: string) {
   const { client } = useSession();
+  const qc = useQueryClient();
   return useInfiniteQuery<DishesPage, ApiErrorBody>({
     queryKey: qk.kitchenGroupDishes(orgId),
     queryFn: ({ pageParam }) =>
-      unwrap(() =>
-        client.kitchen.groupDishes(
-          orgId,
-          typeof pageParam === "string" ? { cursor: pageParam, limit: GROUP_DISHES_PAGE } : { limit: GROUP_DISHES_PAGE },
+      afterWrites(qc, qk.kitchenGroupDishes(orgId), () =>
+        unwrap(() =>
+          client.kitchen.groupDishes(
+            orgId,
+            typeof pageParam === "string" ? { cursor: pageParam, limit: GROUP_DISHES_PAGE } : { limit: GROUP_DISHES_PAGE },
+          ),
         ),
-      ),
+      )(),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
   });
@@ -164,85 +175,161 @@ export function useDishWrites() {
   }, [client, qc]);
 }
 
+/** One burst of taps on a claim: what the server had before it, the patch on screen, its toast. */
+interface ClaimBurst {
+  /** The half portions before the first tap (what Undo goes back to). */
+  base: number;
+  /** What the latest tap set. */
+  latest: number;
+  write: OptimisticWrite;
+  toast: UndoToastHandle | null;
+  /** The last claim sent for it, on its way or answered. */
+  request: Promise<DishWrite> | null;
+  /** Undo was pressed. */
+  undone: boolean;
+}
+
+/** The change a claim makes to the caller's own portion (`withPortion`; SM-7 passes someone else's `subjectId`). */
+export function ownPortion(dishId: string, meId: string, half: number): PortionChange {
+  return { dishId, subjectId: meId, half, setBy: meId, meId, at: new Date().toISOString() };
+}
+
 /**
  * The viewer's own claim on an open dish, one tap at a time: `set(half)`
- * shows it at once (the engine previews what it costs), sends it when the
- * taps settle (or at once with `now`), and offers Undo, which sets it back.
- * A claim waiting to be sent is sent when the screen goes away.
+ * shows it at once wherever the dish is cached — the dish page, its group's
+ * Dishes tab, Home's card ("2 of 5 portions left") — through `portionPatches`,
+ * and opens the one Undo toast at once (Cookpool SM-5). The claim is sent
+ * when the taps settle (or at once with `now`); a refusal puts the dish back
+ * exactly and the toast says why. Undo sets it back to what it was before the
+ * taps, at once, and sends that once the claim on its way has landed. A claim
+ * waiting to be sent is sent when the screen goes away.
  */
 export function useClaimer(dish: KitchenDish, meId: string | null, names: MemberNames) {
   const writes = useDishWrites();
+  const qc = useQueryClient();
   const offerUndo = useUndoToast();
   const [pending, setPending] = React.useState<number | null>(null);
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inflight = React.useRef(false);
-  const want = React.useRef<number | null>(null);
+  const burst = React.useRef<ClaimBurst | null>(null);
   // What the screen shows, as of the latest tap (state lags a render behind).
   const shown = React.useRef<number | null>(null);
-  const base = React.useRef(dish.myClaimHalf);
   const latest = React.useRef({ dish, meId, names });
   React.useEffect(() => {
     latest.current = { dish, meId, names };
   }, [dish, meId, names]);
 
-  /** Undo sets the claim back to what it was (claims are PUTs: no reversal to post). */
-  const undo = React.useCallback(
-    async (answer: KitchenDish, back: number): Promise<UndoResult> => {
-      const { meId: me, names: known } = latest.current;
-      const r = await writes.claim(answer, back);
-      if (r.ok) return { ok: true, description: back === 0 ? "Your claim is taken back." : `You're back to ${portionsText(back)}.` };
-      return { ok: false, title: "Couldn't undo it", description: claimRefusal(r.error, { dish: answer, meId: me, names: known }) };
-    },
-    [writes],
-  );
+  const finish = React.useCallback((b: ClaimBurst) => {
+    if (burst.current === b) burst.current = null;
+    shown.current = null;
+    setPending(null);
+  }, []);
 
   const send = React.useCallback(
-    async (half: number) => {
+    async (b: ClaimBurst) => {
       timer.current = null;
-      want.current = null;
+      if (b.undone) return;
       const { dish: current, meId: me, names: known } = latest.current;
-      const before = base.current;
-      if (!me || !current.orgId || half === before) {
-        shown.current = null;
-        setPending(null);
+      const half = b.latest;
+      if (!me || !current.orgId || (half === b.base && b.request === null)) {
+        // Back where it started before anything was sent: nothing to write.
+        b.write.rollback();
+        b.toast?.close();
+        finish(b);
         return;
       }
-      inflight.current = true;
       setBusy(true);
-      const r = await writes.claim(current, half);
-      inflight.current = false;
+      const request = b.write.track(writes.claim(current, half));
+      b.request = request;
+      const r = await request;
       setBusy(false);
-      // A tap made while this was on its way waits for its own send.
-      if (want.current === null) {
-        shown.current = null;
-        setPending(null);
+      if (b.undone) {
+        // Undo showed the claim as it was; keep it so over the answer until the undo lands.
+        if (r.ok) b.write.patch(portionPatches(ownPortion(current.id, me, b.base), half));
+        return;
+      }
+      if (b.latest !== half) {
+        // A tap made while this was on its way waits for its own send: keep it on screen over the answer.
+        if (r.ok) b.write.patch(portionPatches(ownPortion(current.id, me, b.latest), half));
+        return;
       }
       if (!r.ok) {
-        setError(claimRefusal(r.error, { dish: current, meId: me, names: known }));
+        b.write.rollback();
+        b.toast?.refuse(refusedToast(half === 0 ? "Couldn't take your claim back" : `Couldn't claim ${current.name}`, claimRefusal(r.error, { dish: current, meId: me, names: known })));
+        finish(b);
         return;
       }
-      base.current = half;
-      const text = claimedToast({ dish: r.dish, meId: me, names: known, half });
-      offerUndo({ title: text.title, description: text.description, undo: () => undo(r.dish, before) });
+      b.toast?.update(claimedToast({ dish: r.dish, meId: me, names: known, half }));
+      finish(b);
     },
-    [writes, offerUndo, undo],
+    [writes, finish],
+  );
+
+  /** Undo, pressed: the claim as it was before the taps, at once. */
+  const restore = React.useCallback(
+    (b: ClaimBurst) => {
+      b.undone = true;
+      const me = latest.current.meId;
+      if (burst.current === b && timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      if (b.request === null) b.write.rollback();
+      else if (me) b.write.patch(portionPatches(ownPortion(latest.current.dish.id, me, b.base), b.latest));
+      b.latest = b.base;
+      finish(b);
+    },
+    [finish],
+  );
+
+  /** …and on the server: once the claim on its way has landed, set it back (claims are PUTs: no reversal to post). */
+  const undo = React.useCallback(
+    async (b: ClaimBurst): Promise<UndoResult> => {
+      const back = b.base;
+      const said = back === 0 ? "Your claim is taken back." : `You're back to ${portionsText(back)}.`;
+      if (b.request === null) return { ok: true, description: said };
+      const sent = await b.request;
+      // Refused: nothing was written, and the screen already shows what the server has.
+      if (!sent.ok) return { ok: true, description: said };
+      const { meId: me, names: known } = latest.current;
+      const r = await b.write.track(writes.claim(sent.dish, back));
+      if (r.ok) return { ok: true, description: said };
+      void qc.invalidateQueries({ queryKey: qk.kitchenDish(sent.dish.id) });
+      return { ok: false, title: "Couldn't undo it", description: claimRefusal(r.error, { dish: sent.dish, meId: me, names: known }) };
+    },
+    [writes, qc],
   );
 
   const set = React.useCallback(
     (half: number, opts: { now?: boolean } = {}) => {
-      if (!latest.current.meId) return;
-      // A new burst of taps starts from what the server has.
-      if (timer.current === null && !inflight.current) base.current = latest.current.dish.myClaimHalf;
-      if (timer.current) clearTimeout(timer.current);
-      setError(null);
-      setPending(half);
+      const { dish: current, meId: me, names: known } = latest.current;
+      if (!me) return;
+      let b = burst.current;
+      if (!b) {
+        // A new burst of taps starts from what the cache has.
+        const from = qc.getQueryData<KitchenDish>(qk.kitchenDish(current.id))?.myClaimHalf ?? current.myClaimHalf;
+        b = { base: from, latest: from, write: beginWrite(qc, []), toast: null, request: null, undone: false };
+        burst.current = b;
+      }
+      const mine = b;
+      if (half !== mine.latest) mine.write.patch(portionPatches(ownPortion(current.id, me, half), mine.latest));
+      mine.latest = half;
       shown.current = half;
-      want.current = half;
-      timer.current = setTimeout(() => void send(half), opts.now ? 0 : CLAIM_SETTLE_MS);
+      setPending(half);
+      const text = claimedToast({ dish: current, meId: me, names: known, half });
+      if (half === mine.base && mine.request === null) {
+        // Back where it started (or "None" on a dish not claimed): nothing to say or undo.
+        mine.toast?.close();
+        mine.toast = null;
+      } else if (!mine.toast) {
+        mine.toast = offerUndo({ title: text.title, description: text.description, undo: () => undo(mine), restore: () => restore(mine) });
+      } else {
+        mine.toast.update({ title: text.title, description: text.description });
+      }
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => void send(mine), opts.now ? 0 : CLAIM_SETTLE_MS);
     },
-    [send],
+    [qc, offerUndo, undo, restore, send],
   );
 
   // Leaving the screen sends a claim still waiting for the taps to settle.
@@ -250,7 +337,9 @@ export function useClaimer(dish: KitchenDish, meId: string | null, names: Member
     () => () => {
       if (timer.current) {
         clearTimeout(timer.current);
-        if (want.current !== null) void send(want.current);
+        timer.current = null;
+        const b = burst.current;
+        if (b) void send(b);
       }
     },
     [send],
@@ -265,7 +354,7 @@ export function useClaimer(dish: KitchenDish, meId: string | null, names: Member
     [set],
   );
 
-  return { half: pending ?? dish.myClaimHalf, pending: pending !== null, busy, error, set, step, clearError: () => setError(null) };
+  return { half: pending ?? dish.myClaimHalf, pending: pending !== null, busy, set, step };
 }
 
 export type DishBusy = null | "shares" | "finalize" | "correct" | "cancel";
@@ -289,6 +378,8 @@ export function useDishActions(input: {
   const { toast } = useToast();
   const offerUndo = useUndoToast();
   const router = useRouter();
+  const qc = useQueryClient();
+  const { update } = useToast();
   const keys = React.useRef({ finalize: crypto.randomUUID(), correct: crypto.randomUUID(), cancel: crypto.randomUUID() });
   const [busy, setBusy] = React.useState<DishBusy>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -339,7 +430,14 @@ export function useDishActions(input: {
     return r.dish;
   };
 
-  /** Finalize; with `shares`, save them first (the cook's unsaved edit). */
+  /**
+   * Finalize; with `shares`, save them first (the cook's unsaved edit, which
+   * waits for the server). Finalizing itself shows at once (SM-5): the dish
+   * reads finalized wherever it is cached and Home's card goes, and the toast
+   * (with "Correct it") is up before the server answers; what it posted —
+   * who owes what — is the server's, in the toast once it answers. A refusal
+   * puts the dish back and the toast says why.
+   */
   const finalize = async (shares?: readonly ShareDraft[]): Promise<boolean> => {
     let current = dish;
     if (shares) {
@@ -347,26 +445,27 @@ export function useDishActions(input: {
       if (!saved) return false;
       current = saved;
     }
-    setBusy("finalize");
     setError(null);
-    const r = await writes.finalize(current, keys.current.finalize);
-    setBusy(null);
+    const write = beginWrite(qc, finalizePatches(current.id, new Date().toISOString()));
+    const shown = finalizedToast({ dish: current, meId, names, groupName });
+    const id = toast({
+      kind: "success",
+      title: shown.title,
+      duration: UNDO_MS,
+      action: current.orgId
+        ? { label: "Correct it", onClick: onCorrect ?? (() => router.push(`${dishHref(current.id)}?correct=1`)) }
+        : undefined,
+    });
+    const r = await write.track(writes.finalize(current, keys.current.finalize));
     if (!r.ok) {
       if (answered(r)) keys.current.finalize = crypto.randomUUID();
-      setError(refusal(r));
+      write.rollback();
+      update(id, { ...refusedToast(`Couldn't finalize ${current.name}`, refusal(r)), action: undefined, duration: REFUSAL_MS });
       return false;
     }
     keys.current.finalize = crypto.randomUUID();
     const text = finalizedToast({ dish: r.dish, meId, names, groupName });
-    toast({
-      kind: "success",
-      title: text.title,
-      description: text.description,
-      duration: UNDO_MS,
-      action: r.dish.orgId
-        ? { label: "Correct it", onClick: onCorrect ?? (() => router.push(`${dishHref(r.dish.id)}?correct=1`)) }
-        : undefined,
-    });
+    update(id, { title: text.title, description: text.description });
     return true;
   };
 

@@ -6,10 +6,10 @@ import { ChevronRight, HandCoins, Plus, Scale, Search, Ticket, UsersRound } from
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useRecentGroupSlugs } from "@/lib/recent-groups";
+import { rememberedGroupId, useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { personInitials } from "@/components/kitchen/you";
-import { byGroupRows, friendlyName, greetingFor, recentAcrossGroups, recentGroupsToRead } from "@/components/kitchen/home";
+import { RECENT_GROUPS, byGroupRows, friendlyName, greetingFor, recentAcrossGroups, recentGroupsToRead } from "@/components/kitchen/home";
 import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { Money } from "@/components/kitchen/ledger-ui";
 import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data";
@@ -18,6 +18,8 @@ import { HomeUseSoon } from "@/components/kitchen/pantry-cards";
 import { useInbox, useRecentActivity } from "@/components/kitchen/inbox-data";
 import { inboxItemIds } from "@/components/kitchen/inbox";
 import { NeedsYou, RecentActivityList } from "@/components/kitchen/inbox-ui";
+import { pressIn, usePrefetchKitchen } from "@/components/kitchen/prefetch";
+import { parseDishRef } from "@/components/kitchen/dish";
 
 /**
  * Home (CP-5; balances since CP-8, across groups since CP-9, use soon since
@@ -132,6 +134,12 @@ function BalanceCard() {
   const balances = useMyBalances();
   const data = balances.data;
   const summary = data ? homeBalance(data, HOME_PEOPLE_ROWS) : null;
+  // Each person listed opens their "why": read it ahead (SM-5), so it opens at once.
+  const prefetch = usePrefetchKitchen();
+  const peopleIds = (summary?.people ?? []).map((p) => p.subjectId).join(",");
+  React.useEffect(() => {
+    for (const id of peopleIds ? peopleIds.split(",") : []) prefetch.person(id);
+  }, [peopleIds, prefetch]);
 
   return (
     <KCard className="p-5">
@@ -195,6 +203,7 @@ function BalanceCard() {
               {summary.people.map((p) => (
                 <li key={p.subjectId}>
                   <Link
+                    {...pressIn(() => prefetch.person(p.subjectId))}
                     href={`/people/${encodeURIComponent(p.subjectId)}`}
                     className="-mx-2 flex min-h-14 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -243,6 +252,7 @@ function ByGroup({ className }: { className?: string }) {
   const shown = rows.slice(0, BY_GROUP_ROWS);
   const loading = balances.loading || groups.loading;
   const none = !loading && !balances.error && rows.length === 0 && (groups.data?.length ?? 0) === 0;
+  const prefetch = usePrefetchKitchen();
 
   return (
     <section aria-labelledby="home-by-group" className={cn("space-y-3", className)}>
@@ -302,6 +312,7 @@ function ByGroup({ className }: { className?: string }) {
           {shown.map((g) => (
             <li key={g.orgId}>
               <Link
+                {...pressIn(() => prefetch.group(g.orgId))}
                 href={g.href}
                 className="flex min-h-14 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
@@ -333,9 +344,24 @@ function RecentActivity({ meId }: { meId: string | null }) {
   const recent = useRecentActivity(toRead);
   const now = React.useMemo(() => new Date(), []);
   const rows = recentAcrossGroups(recent.data, { meId, names, now });
+  const prefetch = usePrefetchKitchen();
+  // The groups opened most recently are read beside the group list, by the
+  // ids they had last time (SM-5), not after it.
+  const recentKey = recentSlugs.slice(0, RECENT_GROUPS).join(",");
+  React.useEffect(() => {
+    for (const slug of recentKey ? recentKey.split(",") : []) {
+      const id = rememberedGroupId(slug);
+      if (id) prefetch.recent(id);
+    }
+  }, [recentKey, prefetch]);
   return (
     <RecentActivityList
       rows={rows}
+      onPressRow={(row) => {
+        const dishId = row.href.startsWith("/dishes/") ? parseDishRef(row.href.slice("/dishes/".length)) : null;
+        if (dishId) prefetch.dish(dishId, row.orgId);
+        else prefetch.group(row.orgId);
+      }}
       loading={groups.loading || recent.loading}
       failed={recent.failed}
       reload={recent.reload}

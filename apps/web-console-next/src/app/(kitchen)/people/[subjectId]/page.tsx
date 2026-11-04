@@ -2,14 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, BellRing, ChevronRight, HandCoins, Route, X } from "lucide-react";
 import type { PersonGroupView, PersonViewResponse, SettlementMethod } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
-import { wrap } from "@/lib/api";
-import { useSession } from "@/lib/session";
-import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "@/components/kitchen/data";
@@ -18,7 +14,7 @@ import { Chip, KindBubble, Money } from "@/components/kitchen/ledger-ui";
 import { TXN_KIND_META, relativeWhen } from "@/components/kitchen/activity";
 import { formatMinor, formatSignedMinor } from "@/components/kitchen/money";
 import { nameInitials, type MemberNames } from "@/components/kitchen/members";
-import { refreshLedger, useOfferUndo } from "@/components/kitchen/ledger-data";
+import { useRecordPayment } from "@/components/kitchen/settle-card";
 import { useMemberNames, usePerson } from "@/components/kitchen/people-data";
 import { SETTLE_METHODS } from "@/components/kitchen/settle";
 import {
@@ -29,7 +25,6 @@ import {
   personName,
   recordOptionSentence,
   recordOptions,
-  recordRequest,
   shortcutSentence,
   type LineFilter,
   type RecordOption,
@@ -166,13 +161,9 @@ function RecordPayment({
   myId: string | null;
   options: RecordOption[];
 }) {
-  const { client } = useSession();
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const offerUndo = useOfferUndo();
+  const recordPayment = useRecordPayment();
   const [open, setOpen] = React.useState(false);
   const [chosen, setChosen] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState<SettlementMethod | null>(null);
   const panelId = React.useId();
   // One group: nothing to pick.
   const option = options.length === 1 ? options[0]! : (options.find((o) => o.orgId === chosen) ?? null);
@@ -182,22 +173,20 @@ function RecordPayment({
     if (!open) setChosen(null);
   }, [open]);
 
-  const record = async (o: RecordOption, method: SettlementMethod) => {
-    if (busy) return;
-    setBusy(method);
-    const r = await wrap(() => client.kitchen.createSettlement(o.orgId, recordRequest(o, method), { idempotencyKey: crypto.randomUUID() }));
-    setBusy(null);
-    refreshLedger(qc, o.orgId);
-    if (!r.ok) {
-      const description =
-        r.error.reason === "not_in_group"
-          ? `${name} has left ${o.groupName}. An owner or admin can undo their entries instead.`
-          : r.error.message;
-      toast({ kind: "error", title: "Couldn't record the payment", description });
-      return;
-    }
+  // Recorded at once (SM-5), as everywhere: the panel closes on the Undo
+  // toast before the server answers; the balances here are read again once it
+  // has, and a refusal says why.
+  const record = (o: RecordOption, method: SettlementMethod) => {
     setOpen(false);
-    offerUndo(o.orgId, r.data.txn, "Payment recorded", `${recordOptionSentence(o, name, myId)}, by ${METHOD_LABEL[method]}.`);
+    void recordPayment({
+      orgId: o.orgId,
+      payment: { fromSubjectId: o.fromSubjectId, toSubjectId: o.toSubjectId, amountMinor: o.amountMinor },
+      currency: o.currency,
+      method,
+      sentence: recordOptionSentence(o, name, myId),
+      description: `${recordOptionSentence(o, name, myId)}, by ${METHOD_LABEL[method]}.`,
+      leftText: `${name} has left ${o.groupName}. An owner or admin can undo their entries instead.`,
+    });
   };
 
   return (
@@ -271,14 +260,7 @@ function RecordPayment({
               </span>
               <div role="group" aria-labelledby={`${panelId}-how`} className="flex flex-wrap gap-2">
                 {SETTLE_METHODS.map((m) => (
-                  <Chip
-                    key={m.id}
-                    disabled={busy !== null}
-                    selected={busy === m.id}
-                    aria-busy={busy === m.id || undefined}
-                    className={cn(busy === m.id && "animate-pulse disabled:opacity-100")}
-                    onClick={() => void record(option, m.id)}
-                  >
+                  <Chip key={m.id} onClick={() => record(option, m.id)}>
                     {m.label}
                   </Chip>
                 ))}
@@ -286,7 +268,6 @@ function RecordPayment({
               <button
                 type="button"
                 aria-label="Cancel recording"
-                disabled={busy !== null}
                 onClick={() => setOpen(false)}
                 className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
               >

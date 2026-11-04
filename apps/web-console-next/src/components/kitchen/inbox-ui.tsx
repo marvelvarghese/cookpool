@@ -7,7 +7,6 @@ import type { InboxResponse, KitchenDish, SettlementMethod } from "@saas/contrac
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/toast";
 import { IconBubble, KCard, K_BUTTON } from "./kit";
 import { KindBubble, Money } from "./ledger-ui";
 import type { MemberNames } from "./members";
@@ -19,6 +18,7 @@ import { DishClaimStepper } from "./dish-ui";
 import { dishHref, leftoverNote, splitOfDish } from "./dish";
 import { PaymentMethodChips, useRecordPayment } from "./settle-card";
 import { finalizePreview, inboxView, type InboxAction, type InboxCard, type InboxTone } from "./inbox";
+import { pressIn, usePrefetchKitchen } from "./prefetch";
 import type { RecentRow } from "./home";
 import type { AsyncState } from "@/lib/query";
 
@@ -94,6 +94,20 @@ export function NeedsYou({
 function InboxCardView({ card, meId, names }: { card: InboxCard; meId: string | null; names: MemberNames }) {
   const tone = TONES[card.tone];
   const Icon = tone.icon;
+  const prefetch = usePrefetchKitchen();
+  const { action } = card;
+  // What the card's page needs beyond what the card already read (SM-5): a
+  // dish's group members now; the rest when the card is pressed.
+  const claimGroup = action.kind === "claim" ? action.orgId : null;
+  React.useEffect(() => {
+    if (claimGroup) prefetch.members(claimGroup);
+  }, [claimGroup, prefetch]);
+  const readAhead = () => {
+    if (action.kind === "claim") prefetch.dish(action.dishId, action.orgId);
+    else if (action.kind === "finalize") prefetch.dish(action.dishId, null);
+    else if (action.kind === "use") prefetch.item(action.ref);
+    else if (action.kind === "pay") prefetch.group(action.orgId);
+  };
   return (
     <KCard className="p-4">
       <div className="flex items-start gap-3">
@@ -102,6 +116,7 @@ function InboxCardView({ card, meId, names }: { card: InboxCard; meId: string | 
         </span>
         <div className="min-w-0 flex-1">
           <Link
+            {...pressIn(readAhead)}
             href={card.href}
             className="block rounded text-[15px] font-bold leading-snug underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -197,6 +212,11 @@ function FinalizeInline({
   names: MemberNames;
 }) {
   const actions = useDishActions({ dish, meId, names, groupName });
+  const prefetch = usePrefetchKitchen();
+  const dishGroup = dish.orgId;
+  React.useEffect(() => {
+    if (dishGroup) prefetch.members(dishGroup);
+  }, [dishGroup, prefetch]);
   const preview = finalizePreview(dish, { meId, names });
   const leftovers = leftoverNote({ dish, split: splitOfDish(dish), meId, names });
   const shown = preview.lines.slice(0, PREVIEW_LINES);
@@ -247,15 +267,14 @@ function UseAction({ action, meId, names }: { action: Extract<InboxAction, { kin
   const items = useItemsByRef([action.ref]);
   const item = items.get(action.ref.itemId);
   const logUse = useLogUse();
-  const { toast } = useToast();
-  const [busy, setBusy] = React.useState(false);
   const fits = item ? item.state === "active" && action.qtyMilli <= item.qtyLeftMilli : true;
   const cost = item && fits ? formatMinor(amountCost(item, action.qtyMilli), item.currency) : null;
 
-  const use = async () => {
-    if (!item || busy || !meId) return;
-    setBusy(true);
-    const r = await logUse({
+  // At once (SM-5): the card's "left" drops (or the card goes, with nothing
+  // left) and the Undo toast is up; a refusal is put back and says why.
+  const use = () => {
+    if (!item || !meId) return;
+    void logUse({
       ref: action.ref,
       item,
       qtyMilli: action.qtyMilli,
@@ -266,14 +285,12 @@ function UseAction({ action, meId, names }: { action: Extract<InboxAction, { kin
       meId,
       names,
     });
-    setBusy(false);
-    if (!r.ok) toast({ kind: "error", title: `Couldn't log ${item.name}`, description: r.message });
   };
 
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap gap-2">
-        <Button className={K_BUTTON} loading={busy} disabled={!item || !fits || !meId || busy} onClick={() => void use()}>
+        <Button className={K_BUTTON} disabled={!item || !fits || !meId} onClick={use}>
           {cost ? `${action.label} · ${cost}` : action.label}
         </Button>
         <Button asChild variant="outline" className={K_BUTTON}>
@@ -300,7 +317,6 @@ function UseAction({ action, meId, names }: { action: Extract<InboxAction, { kin
 function PayAction({ action, meId }: { action: Extract<InboxAction, { kind: "pay" }>; meId: string | null }) {
   const record = useRecordPayment();
   const [choosing, setChoosing] = React.useState(false);
-  const [busy, setBusy] = React.useState<SettlementMethod | null>(null);
   const chipsId = React.useId();
   const to = action.toLabel;
 
@@ -311,21 +327,21 @@ function PayAction({ action, meId }: { action: Extract<InboxAction, { kind: "pay
       </p>
     );
   }
-  const pick = async (method: SettlementMethod) => {
-    if (busy || !meId) return;
-    setBusy(method);
-    const done = await record({
+  // Recorded at once (SM-5): the card leaves Home and the Undo toast is up
+  // before the server answers; a refusal brings it back and says why.
+  const pick = (method: SettlementMethod) => {
+    if (!meId) return;
+    setChoosing(false);
+    void record({
       orgId: action.orgId,
       payment: { fromSubjectId: meId, toSubjectId: action.toSubjectId, amountMinor: action.amountMinor },
       currency: action.currency,
       method,
       sentence: `You paid ${to}`,
     });
-    setBusy(null);
-    if (done) setChoosing(false);
   };
   return choosing ? (
-    <PaymentMethodChips id={chipsId} busy={busy} onPick={(m) => void pick(m)} onCancel={() => setChoosing(false)} />
+    <PaymentMethodChips id={chipsId} busy={null} onPick={pick} onCancel={() => setChoosing(false)} />
   ) : (
     <Button className={K_BUTTON} disabled={!meId} aria-expanded={false} aria-controls={chipsId} onClick={() => setChoosing(true)}>
       <HandCoins aria-hidden />
@@ -346,6 +362,7 @@ export function RecentActivityList({
   failed,
   reload,
   hasGroups,
+  onPressRow,
   className,
 }: {
   rows: readonly RecentRow[];
@@ -353,6 +370,8 @@ export function RecentActivityList({
   failed: readonly string[];
   reload: () => void;
   hasGroups: boolean;
+  /** A row is being pressed: read ahead what it opens. */
+  onPressRow?: (row: RecentRow) => void;
   className?: string;
 }) {
   return (
@@ -377,6 +396,7 @@ export function RecentActivityList({
           {rows.map((row) => (
             <li key={row.id}>
               <Link
+                {...pressIn(() => onPressRow?.(row))}
                 href={row.href}
                 className="flex min-h-[64px] items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >

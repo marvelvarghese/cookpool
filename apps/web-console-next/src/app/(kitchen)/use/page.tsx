@@ -415,9 +415,6 @@ function UseForm({
   const [presetId, setPresetId] = React.useState<string | null>(() => defaultPreset(presets)?.id ?? null);
   const [typed, setTyped] = React.useState<string | null>(null);
   const [chosenState, setChosen] = React.useState<ReadonlySet<string> | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const idemKey = React.useRef(crypto.randomUUID());
   const otherRef = React.useRef<HTMLInputElement>(null);
   const step = amountStep(item);
 
@@ -434,12 +431,10 @@ function UseForm({
   const ready = qtyMilli !== null && words !== null && (personal || (!waitingForRoster && consumers.length > 0));
 
   const choose = (id: string) => {
-    setError(null);
     setTyped(null);
     setPresetId(id);
   };
   const toggle = (id: string) => {
-    setError(null);
     setChosen((cur) => {
       const next = new Set(cur ?? chosen);
       if (next.has(id)) next.delete(id);
@@ -448,30 +443,22 @@ function UseForm({
     });
   };
 
-  const submit = async () => {
+  // Logged at once (SM-5): what is left drops wherever the item is listed,
+  // the Undo toast is up and the screen is fresh for the next thing before
+  // the server answers. A refusal is put back and the toast says why.
+  const submit = () => {
     if (!ready || qtyMilli === null || words === null) return;
-    setBusy(true);
-    setError(null);
-    const r = await logUse({
+    void logUse({
       ref: itemRef,
       item,
       qtyMilli,
       consumers,
-      idempotencyKey: idemKey.current,
+      idempotencyKey: crypto.randomUUID(),
       what: words,
       inPantry: true,
       meId,
       names,
     });
-    setBusy(false);
-    if (!r.ok) {
-      // A refusal is stored against its key at the edge: the next try needs a new one.
-      if (r.answered) idemKey.current = crypto.randomUUID();
-      if (r.gone.length > 0) setChosen(new Set([...chosen].filter((id) => !r.gone.includes(id))));
-      setError(r.message);
-      return;
-    }
-    idemKey.current = crypto.randomUUID();
     onLogged();
   };
 
@@ -532,7 +519,6 @@ function UseForm({
           <button
             type="button"
             onClick={() => {
-              setError(null);
               setTyped("");
               window.requestAnimationFrame(() => otherRef.current?.focus());
             }}
@@ -552,7 +538,6 @@ function UseForm({
                 inputMode="decimal"
                 value={typed}
                 onChange={(e) => {
-                  setError(null);
                   setTyped(e.target.value);
                 }}
                 aria-invalid={parsed !== null && !parsed.ok && typed.trim() !== ""}
@@ -603,19 +588,12 @@ function UseForm({
         </>
       )}
 
-      {error ? (
-        <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
-          {error}
-        </p>
-      ) : null}
-
       <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static">
         <Button
           type="button"
           className={cn(K_BUTTON, "h-[52px] w-full text-base shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")}
           disabled={!ready}
-          loading={busy}
-          onClick={() => void submit()}
+          onClick={submit}
         >
           {label}
         </Button>

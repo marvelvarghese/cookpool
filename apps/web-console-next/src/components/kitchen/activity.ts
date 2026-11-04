@@ -9,6 +9,7 @@ import type { ActivityPage, KitchenTxn, KitchenTxnKind } from "@saas/contracts/k
 import { formatMinor, formatSignedMinor } from "./money";
 import { memberLabel, memberLabelInline, type MemberNames } from "./members";
 import { agoText } from "./when";
+import { isPendingId } from "@/lib/optimistic";
 
 export type RowTone = "owed" | "owe" | "neutral";
 export type KindTone = "green" | "tomato" | "blue" | "neutral";
@@ -101,6 +102,7 @@ export function activityRow(
           : "No change to your balance";
   const when = relativeWhen(txn.occurredAt, ctx.now);
   const mine = ctx.meId !== null && txn.createdBy === ctx.meId;
+  const pending = isPendingId(txn.id);
   return {
     id: txn.id,
     kind: txn.kind,
@@ -115,8 +117,9 @@ export function activityRow(
     amountWords,
     totalText: formatMinor(txn.totalMinor, txn.currency),
     reversed: txn.reversed,
-    canUndo: canWrite && !txn.reversed && txn.kind !== "reversal" && (mine || ctx.canReverseAny),
-    canFlag: canWrite && !txn.reversed && yourMinor !== null,
+    // A row the server has not posted yet (SM-5) is undone from its toast, not its menu.
+    canUndo: canWrite && !pending && !txn.reversed && txn.kind !== "reversal" && (mine || ctx.canReverseAny),
+    canFlag: canWrite && !pending && !txn.reversed && yourMinor !== null,
   };
 }
 

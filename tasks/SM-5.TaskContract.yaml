@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-5
+  title: "Writes show at once"
+spec:
+  goal: Every write in the app changes the screen in the same frame with an Undo toast, rolls back with a one-line reason when refused, and revisits show the last data without spinners.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-5.TaskContract.yaml
+  doneWhen:
+    - logging, claiming, paying, finalizing and adding change the screen before the server answers
+    - a refused write rolls back exactly and says why in one line
+    - main reads keep previous data while refreshing and Home prefetches what its rows open
+  gates: []

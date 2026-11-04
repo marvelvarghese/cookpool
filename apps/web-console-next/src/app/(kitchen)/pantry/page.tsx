@@ -73,9 +73,11 @@ export default function PantryPage() {
   };
 
   // A pantry you can no longer reach (a group you left) reads as All pantries.
+  // Its items are read beside the pantry list, not after it (SM-5): a pantry
+  // that turns out unreachable only costs that one read.
   const list = pantries.data;
   const scope = list && selected !== ALL_PANTRIES && !list.some((p) => pantryKey(p) === selected) ? ALL_PANTRIES : selected;
-  const items = usePantryItems(scope, list !== null || selected === ALL_PANTRIES);
+  const items = usePantryItems(scope);
 
   const memberCounts = React.useMemo(
     () => new Map((balances.data?.groups ?? []).map((g) => [g.orgId, g.memberCount] as const)),

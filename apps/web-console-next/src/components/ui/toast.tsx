@@ -21,8 +21,19 @@ interface ToastItem {
   duration?: number | undefined;
 }
 
+export type ToastInput = Omit<ToastItem, "id">;
+
 interface ToastCtx {
-  toast: (t: Omit<ToastItem, "id">) => void;
+  /** Show a toast; the id it returns can change or close it. */
+  toast: (t: ToastInput) => number;
+  /**
+   * Change a toast in place (Cookpool SM-5: an optimistic write's toast shows
+   * at once, then takes the server's words, or its refusal). A new
+   * `duration` restarts its timer. Unknown ids (already closed) are ignored.
+   */
+  update: (id: number, patch: Partial<ToastInput>) => void;
+  /** Close a toast now. */
+  dismiss: (id: number) => void;
 }
 
 const Ctx = React.createContext<ToastCtx | null>(null);
@@ -35,11 +46,20 @@ export function useToast(): ToastCtx {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = React.useState<ToastItem[]>([]);
-  const toast = React.useCallback((t: Omit<ToastItem, "id">) => {
-    setItems((cur) => [...cur, { ...t, id: Date.now() + Math.random() }]);
+  const toast = React.useCallback((t: ToastInput) => {
+    const id = Date.now() + Math.random();
+    setItems((cur) => [...cur, { ...t, id }]);
+    return id;
   }, []);
+  const update = React.useCallback((id: number, patch: Partial<ToastInput>) => {
+    setItems((cur) => cur.map((x) => (x.id === id ? { ...x, ...patch, id } : x)));
+  }, []);
+  const dismiss = React.useCallback((id: number) => {
+    setItems((cur) => cur.filter((x) => x.id !== id));
+  }, []);
+  const value = React.useMemo(() => ({ toast, update, dismiss }), [toast, update, dismiss]);
   return (
-    <Ctx.Provider value={{ toast }}>
+    <Ctx.Provider value={value}>
       <ToastPrimitive.Provider swipeDirection="right">
         {children}
         {items.map((t) => (

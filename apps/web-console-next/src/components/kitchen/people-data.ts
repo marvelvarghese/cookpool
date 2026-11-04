@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import type { GroupMembersResponse, MyBalancesResponse, PersonViewResponse } from "@saas/contracts/kitchen";
-import { wrap } from "@/lib/api";
+import type { GroupMembersResponse, KitchenMember, MyBalancesResponse, PersonViewResponse } from "@saas/contracts/kitchen";
+import { wrap, type ApiResult } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
 import { roleFromKitchen, type GroupRole } from "./groups";
@@ -22,9 +22,21 @@ export function useMyBalances() {
   return useApiQuery<MyBalancesResponse>(qk.kitchenMyBalances(), () => wrap(() => client.kitchen.myBalances()));
 }
 
+type Client = ReturnType<typeof useSession>["client"];
+
+/** Read the "why" for one person (their page's read; Home reads it ahead, SM-5). */
+export function loadPerson(client: Client, subjectId: string): Promise<ApiResult<PersonViewResponse>> {
+  return wrap(() => client.kitchen.person(subjectId));
+}
+
+/** Read a group's members (oldest first), by name and role. */
+export function loadMembers(client: Client, orgId: string): Promise<ApiResult<KitchenMember[]>> {
+  return wrap(async () => (await client.kitchen.groupMembers(orgId)).members);
+}
+
 export function usePerson(subjectId: string) {
   const { client } = useSession();
-  return useApiQuery<PersonViewResponse>(qk.kitchenPerson(subjectId), () => wrap(() => client.kitchen.person(subjectId)), {
+  return useApiQuery<PersonViewResponse>(qk.kitchenPerson(subjectId), () => loadPerson(client, subjectId), {
     enabled: subjectId !== "",
   });
 }
@@ -32,9 +44,7 @@ export function usePerson(subjectId: string) {
 /** A group's members (oldest first), by name and role — every member may read it. */
 export function useGroupMembers(orgId: string) {
   const { client } = useSession();
-  return useApiQuery<GroupMembersResponse["members"]>(qk.kitchenMembers(orgId), () =>
-    wrap(async () => (await client.kitchen.groupMembers(orgId)).members),
-  );
+  return useApiQuery<GroupMembersResponse["members"]>(qk.kitchenMembers(orgId), () => loadMembers(client, orgId));
 }
 
 /**

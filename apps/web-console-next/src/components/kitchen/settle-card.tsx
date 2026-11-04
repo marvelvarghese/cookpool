@@ -8,7 +8,6 @@ import type { SettlementMethod, SettlePayment, SettlePlan } from "@saas/contract
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KCard, K_BUTTON, GroupAvatar } from "./kit";
@@ -18,8 +17,13 @@ import { formatMinor } from "./money";
 import { debtsBehind } from "./debts";
 import { TXN_KIND_META } from "./activity";
 import { SETTLE_METHODS, paymentSentence, settlementRequest, workingLine, type GroupRef } from "./settle";
-import { refreshLedger, useAllActivity, useOfferUndo } from "./ledger-data";
+import { refreshLedger, useAllActivity } from "./ledger-data";
 import { useMemberNames } from "./people-data";
+import { useProfile } from "./data";
+import { refusedToast, undoFailed, type UndoResult } from "./undo";
+import { useUndoToast } from "./undo-toast";
+import { paymentPatches, paymentTxn, txnReversedPatches } from "./cache-patches";
+import { beginWrite } from "./optimistic-data";
 
 /**
  * "Fewest payments" for one group (CP-8): the working (debts → pairs →
@@ -210,45 +214,86 @@ function DebtsBehind({ orgId, meId, currency }: { orgId: string; meId: string | 
 
 const METHOD_LABEL: Record<SettlementMethod, string> = { upi: "UPI", cash: "cash", bank: "bank transfer", other: "other" };
 
+/** Why a payment was refused, in one line (the messages Settle up and a person's page had, CP-8/CP-9). */
+export function paymentRefusal(error: { reason?: string | undefined; message: string }, opts: { leftText?: string } = {}): string {
+  if (error.reason === "not_a_party") return "Only the two people in a payment, or an owner or admin, can record it.";
+  if (error.reason === "not_in_group") return opts.leftText ?? "One of them has left the group. An owner or admin can undo their entries instead.";
+  return error.message;
+}
+
 /**
- * Record one payment of a group's plan (CP-8), shared by Settle up's rows
- * and Home's "I paid" (CP-23): post the settlement, refresh the ledger (and
- * with it the cross-group reads and the inbox), put a refusal in words, and
- * end in the one Undo toast, which reverses it. Resolves true once recorded.
+ * Record one payment of a group's plan (CP-8), shared by Settle up's rows,
+ * Home's "I paid" (CP-23) and a person's Record payment (CP-9). It shows at
+ * once (Cookpool SM-5): the payment comes off the group's plan and off Home,
+ * its row is at the top of the group's activity, and the one Undo toast is
+ * up — before the server answers. Balances are the server's: they are read
+ * again once it does. A refusal puts everything back exactly and the toast
+ * says why in one line; Undo reverses it (at once on screen, on the server
+ * once the payment has landed). Resolves true once recorded.
  */
 export function useRecordPayment() {
   const { client } = useSession();
   const qc = useQueryClient();
-  const { toast } = useToast();
-  const offerUndo = useOfferUndo();
+  const offer = useUndoToast();
+  const profile = useProfile();
+  const meId = profile.data?.id ?? null;
   return React.useCallback(
-    async (input: { orgId: string; payment: SettlePayment; currency: string; method: SettlementMethod; sentence: string }): Promise<boolean> => {
+    (input: {
+      orgId: string;
+      payment: SettlePayment;
+      currency: string;
+      method: SettlementMethod;
+      sentence: string;
+      /** The toast's second line; "You paid Dev ₹45.00 by UPI." by default. */
+      description?: string;
+      /** What a refusal says when one of the two has left the group. */
+      leftText?: string;
+      /** Undo was pressed: the screen's own "recorded" marks go too. */
+      onRestore?: () => void;
+    }): Promise<boolean> => {
       const { orgId, payment, currency, method } = input;
-      const r = await wrap(() =>
-        client.kitchen.createSettlement(orgId, settlementRequest(payment, method), {
-          idempotencyKey: crypto.randomUUID(),
-        }),
+      const change = { orgId, ...payment };
+      const shown = paymentTxn(change, { currency, method, createdBy: meId ?? payment.fromSubjectId, at: new Date().toISOString() });
+      const write = beginWrite(qc, paymentPatches(change, shown));
+      const request = write.track(
+        wrap(() =>
+          client.kitchen.createSettlement(orgId, settlementRequest(payment, method), {
+            idempotencyKey: crypto.randomUUID(),
+          }),
+        ),
       );
-      refreshLedger(qc, orgId);
-      if (!r.ok) {
-        const description =
-          r.error.reason === "not_a_party"
-            ? "Only the two people in a payment, or an owner or admin, can record it."
-            : r.error.reason === "not_in_group"
-              ? "One of them has left the group. An owner or admin can undo their entries instead."
-              : r.error.message;
-        toast({ kind: "error", title: "Couldn't record the payment", description });
-        return false;
-      }
-      offerUndo(
-        orgId,
-        r.data.txn,
-        "Payment recorded",
-        `${input.sentence} ${formatMinor(payment.amountMinor, currency)} by ${METHOD_LABEL[method]}.`,
-      );
-      return true;
+      let undone = false;
+      let posted: string | null = null;
+      const toast = offer({
+        title: "Payment recorded",
+        description: input.description ?? `${input.sentence} ${formatMinor(payment.amountMinor, currency)} by ${METHOD_LABEL[method]}.`,
+        undo: async (): Promise<UndoResult> => {
+          const r = await request;
+          if (!r.ok) return { ok: true, description: "Nothing was recorded." };
+          const u = await write.track(wrap(() => client.kitchen.reverseTxn(orgId, r.data.txn.id, {}, { idempotencyKey: crypto.randomUUID() })));
+          refreshLedger(qc, orgId);
+          return u.ok ? { ok: true, description: "The payment is reversed." } : undoFailed(u.error);
+        },
+        restore: () => {
+          undone = true;
+          input.onRestore?.();
+          // Before the answer the plan, Home and the activity are exactly as they were; after it, the row is struck through.
+          write.restore(posted ? txnReversedPatches(orgId, posted) : []);
+        },
+      });
+      return request.then((r) => {
+        if (!r.ok) {
+          write.rollback();
+          refreshLedger(qc, orgId);
+          toast.refuse(refusedToast("Couldn't record the payment", paymentRefusal(r.error, input.leftText ? { leftText: input.leftText } : {})));
+          return false;
+        }
+        posted = r.data.txn.id;
+        if (!undone) refreshLedger(qc, orgId);
+        return true;
+      });
     },
-    [client, qc, toast, offerUndo],
+    [client, qc, offer, meId],
   );
 }
 
@@ -321,7 +366,8 @@ export function PaymentRow({
 }) {
   const recordPayment = useRecordPayment();
   const [choosing, setChoosing] = React.useState(false);
-  const [busy, setBusy] = React.useState<SettlementMethod | null>(null);
+  // Recorded, until the plan or the balances are read again without it (SM-5).
+  const [recorded, setRecorded] = React.useState(false);
   const chipsId = React.useId();
   const names = useMemberNames();
   const sentence = paymentSentence(payment, meId, names);
@@ -329,12 +375,15 @@ export function PaymentRow({
   // Your own payments open the person: everything between you two, across groups.
   const involvesMe = !!meId && (payment.fromSubjectId === meId || payment.toSubjectId === meId);
 
-  const record = async (method: SettlementMethod) => {
-    if (busy) return;
-    setBusy(method);
-    const recorded = await recordPayment({ orgId, payment, currency, method, sentence });
-    setBusy(null);
-    if (recorded) setChoosing(false);
+  // Recorded at once (SM-5): the row leaves the plan (or, on All groups, reads
+  // "Recorded" until the balances are read again) with the Undo toast up.
+  const record = (method: SettlementMethod) => {
+    if (recorded) return;
+    setChoosing(false);
+    setRecorded(true);
+    void recordPayment({ orgId, payment, currency, method, sentence, onRestore: () => setRecorded(false) }).then((ok) => {
+      if (!ok) setRecorded(false);
+    });
   };
 
   return (
@@ -371,7 +420,11 @@ export function PaymentRow({
             payment.fromSubjectId === meId ? "text-cp-owe" : payment.toSubjectId === meId ? "text-cp-owed" : "",
           )}
         />
-        {canRecord && !choosing ? (
+        {recorded ? (
+          <span role="status" className="ml-auto shrink-0 px-2 text-sm font-semibold text-muted-foreground">
+            Recorded
+          </span>
+        ) : canRecord && !choosing ? (
           <Button
             variant="outline"
             className={cn(K_BUTTON, "ml-auto shrink-0 px-4")}
@@ -386,10 +439,10 @@ export function PaymentRow({
           </Button>
         ) : null}
       </div>
-      {choosing ? (
+      {choosing && !recorded ? (
         <PaymentMethodChips
           id={chipsId}
-          busy={busy}
+          busy={null}
           onPick={(m) => void record(m)}
           onCancel={() => setChoosing(false)}
           className="mt-3 pl-12"

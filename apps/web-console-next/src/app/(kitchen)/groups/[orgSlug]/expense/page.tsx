@@ -3,13 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, CheckCircle2, CookingPot, Minus, Plus } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
-import { wrap } from "@/lib/api";
-import { useSession } from "@/lib/session";
 import { recordRecentGroup } from "@/lib/recent-groups";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, K_INPUT, PageHeader } from "@/components/kitchen/kit";
-import { refreshLedger, useBalances, useGroupRole, useOfferUndo } from "@/components/kitchen/ledger-data";
+import { useAddExpense, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { Chip, Money, PersonAvatar, Segmented } from "@/components/kitchen/ledger-ui";
 import { memberLabel, memberLabelInline, sortMembers, type MemberNames } from "@/components/kitchen/members";
 import { useMemberNames } from "@/components/kitchen/people-data";
@@ -152,17 +149,13 @@ function ExpenseFormView({
   currency: string;
   names: MemberNames;
 }) {
-  const { client } = useSession();
-  const qc = useQueryClient();
   const router = useRouter();
-  const offerUndo = useOfferUndo();
+  const addExpense = useAddExpense();
   const [form, setForm] = React.useState<ExpenseForm>(() => initialExpenseForm(roster, myId));
   const [showErrors, setShowErrors] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
-  /** People the server says are no longer in the group. */
-  const [gone, setGone] = React.useState<readonly string[]>([]);
-  const people = React.useMemo(() => roster.filter((id) => !gone.includes(id)), [roster, gone]);
+  const people = roster;
   const preview = React.useMemo(() => previewExpense(form, people, currency), [form, people, currency]);
   const prefix = currencyPrefix(currency);
   const update = (patch: Partial<ExpenseForm>) => setForm((f) => ({ ...f, ...patch }));
@@ -181,38 +174,24 @@ function ExpenseFormView({
       if (first) document.querySelector<HTMLElement>(`[data-field="${first}"] :is(input, button)`)?.focus();
       return;
     }
+    // Added at once (SM-5): its row tops the group's activity and the Undo
+    // toast is up before the server answers; the balances follow its answer.
+    // A refusal takes the row off and the toast says why.
     setBusy(true);
-    const r = await wrap(() => client.kitchen.createExpense(group.id, request, { idempotencyKey: crypto.randomUUID() }));
-    if (!r.ok) {
-      setBusy(false);
-      const details = r.error.details ?? {};
-      if (r.error.reason === "not_in_group") {
-        const ids = Array.isArray(details["subjectIds"])
-          ? (details["subjectIds"] as unknown[]).filter((x): x is string => typeof x === "string")
-          : [];
-        setGone((g) => [...new Set([...g, ...ids])]);
-        setServerError(
-          ids.length > 0
-            ? `${ids.map((id) => memberLabel(id, myId, names)).join(", ")} ${ids.length === 1 ? "has" : "have"} left ${group.name}, so ${ids.length === 1 ? "they're" : "they're all"} off this expense now. Check the split and save again.`
-            : "Someone on this expense has left the group. Check the split and save again.",
-        );
-        return;
-      }
-      if (r.error.reason === "currency_mismatch") {
-        refreshLedger(qc, group.id);
-        setServerError(`${group.name} counts in ${String(details["currency"] ?? "another currency")}. Reload and try again.`);
-        return;
-      }
-      setServerError(r.error.message);
-      return;
-    }
-    refreshLedger(qc, group.id);
-    offerUndo(
-      group.id,
-      r.data.txn,
-      `Added: ${request.title}`,
-      `${formatMinor(request.totalMinor, currency)}, split ${SPLIT_MODE_OPTIONS.find((m) => m.id === request.mode)?.name.toLowerCase() ?? request.mode}.`,
-    );
+    const owed = new Map<string, number>();
+    for (const p of preview.people) if (p.inSplit && p.owedMinor !== null) owed.set(p.subjectId, p.owedMinor);
+    void addExpense({
+      orgId: group.id,
+      groupName: group.name,
+      request,
+      owed,
+      order: people,
+      currency,
+      meId: myId,
+      names,
+      title: `Added: ${request.title}`,
+      description: `${formatMinor(request.totalMinor, currency)}, split ${SPLIT_MODE_OPTIONS.find((m) => m.id === request.mode)?.name.toLowerCase() ?? request.mode}.`,
+    });
     router.push(`/groups/${group.slug}`);
   };
 

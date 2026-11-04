@@ -42,4 +42,26 @@ export interface UndoOffer {
   description?: string | undefined;
   /** Reverse exactly what was written; resolves to what it came to. */
   undo: () => Promise<UndoResult>;
+  /**
+   * Put the screen back the moment Undo is pressed (Cookpool SM-5), before
+   * `undo` answers: the "Undone" toast then shows at once too, and takes
+   * `undo`'s answer when it comes — a refusal included, after `undo` has put
+   * back what the server still has.
+   */
+  restore?: () => void;
+}
+
+/** How long a refusal stays on screen. */
+export const REFUSAL_MS = 6_000;
+
+/**
+ * A write the server refused, as its toast says it (Cookpool SM-5): what did
+ * not happen, and why in one line — the refusal messages each screen already
+ * had. It replaces the write's own toast, which showed before the answer.
+ */
+export function refusedToast(title: string, reason: string | null | undefined): UndoToast {
+  const out: UndoToast = { kind: "error", title };
+  const why = reason?.trim();
+  if (why) out.description = why;
+  return out;
 }

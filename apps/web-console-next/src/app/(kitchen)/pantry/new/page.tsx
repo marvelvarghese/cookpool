@@ -3,29 +3,23 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import type { KitchenItem, Pantry } from "@saas/contracts/kitchen";
+import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
-import { wrap } from "@/lib/api";
-import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/toast";
 import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
 import { Chip } from "@/components/kitchen/ledger-ui";
-import { undoFailed, type UndoResult } from "@/components/kitchen/undo";
-import { useUndoToast } from "@/components/kitchen/undo-toast";
 import { memberLabel } from "@/components/kitchen/members";
 import { currencyPrefix } from "@/components/kitchen/money";
 import { canManageGroup, roleFromKitchen } from "@/components/kitchen/groups";
 import { useMemberNames, useMyBalances, useMyRoles } from "@/components/kitchen/people-data";
-import { refreshPantry, useMembersOf, usePantries } from "@/components/kitchen/pantry-data";
+import { useAddItem, useMembersOf, usePantries } from "@/components/kitchen/pantry-data";
 import { PantryPicker } from "@/components/kitchen/pantry-ui";
-import { ALL_PANTRIES, PERSONAL_PANTRY, pantryKey, parsePantryParam, leftText } from "@/components/kitchen/pantry";
+import { ALL_PANTRIES, PERSONAL_PANTRY, pantryKey, parsePantryParam } from "@/components/kitchen/pantry";
 import {
   ITEM_CATEGORIES,
   ITEM_NAME_MAX,
@@ -95,11 +89,7 @@ function AddItemForm({
   /** The group the link asked for, when you only view it (the item goes to your own pantry instead). */
   viewerOf: Pantry | null;
 }) {
-  const { client } = useSession();
-  const qc = useQueryClient();
   const router = useRouter();
-  const { toast } = useToast();
-  const offerUndoToast = useUndoToast();
   const balances = useMyBalances();
   const today = React.useMemo(() => localIsoDay(new Date()), []);
   const [form, setForm] = React.useState<ItemForm>(() => initialItemForm({ today, pantry: start, meId }));
@@ -114,6 +104,8 @@ function AddItemForm({
 
   const chosen = pantries.find((p) => pantryKey(p) === form.pantry) ?? pantries.find((p) => p.kind === "personal") ?? null;
   const group = chosen?.kind === "group" ? chosen : null;
+  // Reads the chosen pantry's list ahead, so the item is listed there the moment it is added.
+  const addItem = useAddItem(chosen ? pantryKey(chosen) : null);
   const members = useMembersOf(group?.orgId ?? null);
   const names = useMemberNames(members.data);
   const memberCounts = React.useMemo(
@@ -141,29 +133,11 @@ function AddItemForm({
   const payerChips = chipWindow(roster, { meId, names, chosen: form.paidBy ? [form.paidBy] : [], expanded: morePayers, max: 5 });
   const myRole = roleFromKitchen(members.data?.find((m) => m.subjectId === meId)?.role);
 
-  // Undo removes what was just added — offered to whoever paid for it, or an owner or admin (the API's rule).
-  const offerUndo = (item: KitchenItem, where: string, canRemove: boolean) => {
-    const orgId = item.pantry.kind === "group" ? item.pantry.orgId : null;
-    const title = `Added ${item.name} to ${where}`;
-    const description = `${leftText(item)} · nobody is charged until someone uses it.`;
-    if (!canRemove) {
-      toast({ kind: "success", title, description });
-      return;
-    }
-    offerUndoToast({
-      title,
-      description,
-      undo: async (): Promise<UndoResult> => {
-        const r = await wrap(() => (orgId ? client.kitchen.removeGroupItem(orgId, item.id) : client.kitchen.removePersonalItem(item.id)));
-        refreshPantry(qc, null);
-        if (r.ok) return { ok: true, description: `${item.name} is off the list.` };
-        if (r.error.reason === "item_used") return { ok: false, kind: "warning", title: "Someone already used some", description: "Mark it wasted on its page instead." };
-        return undoFailed(r.error);
-      },
-    });
-  };
-
-  const submit = async (e: React.FormEvent) => {
+  // Added at once (SM-5): the item is listed in its pantry, the toast is up
+  // (Undo for whoever paid for it, or an owner or admin — the API's rule) and
+  // the pantry opens, before the server answers; a refusal takes the row off
+  // and the toast says why.
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowErrors(true);
     setServerError(null);
@@ -174,58 +148,20 @@ function AddItemForm({
       return;
     }
     setBusy(true);
-    const opts = { idempotencyKey: idemKey.current };
-    const r = await wrap(() =>
-      request.kind === "personal"
-        ? client.kitchen.createPersonalItem(request.body, opts)
-        : client.kitchen.createGroupItem(request.orgId, request.body, opts),
-    );
-    if (!r.ok) {
-      setBusy(false);
-      const details = r.error.details ?? {};
-      if (r.error.reason === "not_in_group") {
-        members.reload();
-        setForm((f) => ({ ...f, paidBy: meId }));
-        setServerError(`${form.paidBy ? memberLabel(form.paidBy, meId, names) : "That person"} isn't in ${group?.name ?? "the group"} any more, so you're down as the payer. Check and add again.`);
-        return;
-      }
-      if (r.error.reason === "currency_mismatch") {
-        refreshPantry(qc, null);
-        setServerError(`${group?.name ?? "This group"} counts in ${String(details["currency"] ?? "another currency")}. Reload and try again.`);
-        return;
-      }
-      const fields = details["fields"];
-      if (fields && typeof fields === "object") {
-        const map: Record<string, ItemField> = {
-          name: "name",
-          category: "category",
-          quantity: "quantity",
-          unit: "quantity",
-          priceMinor: "price",
-          currency: "price",
-          boughtOn: "boughtOn",
-          expiresOn: "expiresOn",
-          paidBy: "paidBy",
-        };
-        const next: Partial<Record<ItemField, string>> = {};
-        for (const [key, messages] of Object.entries(fields as Record<string, unknown>)) {
-          const field = map[key];
-          if (field && Array.isArray(messages) && typeof messages[0] === "string") next[field] = messages[0];
-        }
-        if (Object.keys(next).length > 0) {
-          setServerFields(next);
-          return;
-        }
-      }
-      setServerError(r.error.message);
-      return;
-    }
-    const item = r.data.item;
+    const paidBy = request.kind === "group" ? (request.body.paidBy ?? meId) : meId;
+    void addItem({
+      request,
+      pantry: group ? { kind: "group", orgId: group.orgId, slug: group.slug, name: group.name } : { kind: "personal", name: chosen?.name ?? "Personal" },
+      currency,
+      groupWastePolicy: group ? group.wastePolicy : null,
+      meId,
+      names,
+      today,
+      where: group ? group.name : "your pantry",
+      canRemove: !group || paidBy === meId || canManageGroup(myRole),
+      idempotencyKey: idemKey.current,
+    });
     idemKey.current = crypto.randomUUID();
-    refreshPantry(qc, null);
-    const where = group ? group.name : "your pantry";
-    const canRemove = !group || item.paidBy === meId || canManageGroup(myRole);
-    offerUndo(item, where, canRemove);
     router.push(`/pantry?pantry=${encodeURIComponent(group ? group.orgId : PERSONAL_PANTRY)}`);
   };
 
