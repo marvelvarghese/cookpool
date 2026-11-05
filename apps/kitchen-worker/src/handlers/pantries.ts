@@ -14,6 +14,7 @@ import { withKitchenRepo } from "../db.js";
 import { canUseIn, type MemberGroup } from "../groups-client.js";
 import { notFound, successResponse, unavailable, validationError } from "../http.js";
 import { parseOrgPublicId } from "../ids.js";
+import { readMeasures } from "../measures.js";
 import {
   DEFAULT_SEARCH_LIMIT,
   MAX_SEARCH_LIMIT,
@@ -65,8 +66,9 @@ function reachable(groups: readonly MemberGroup[], usable: boolean): readonly Me
 }
 
 /**
- * Items as the API shows them, each with its pantry and whether the caller may use it. The groups' waste rules
- * are read in one query for the groups the items are in.
+ * Items as the API shows them, each with its pantry, whether the caller may use it and its measures (SM-13). The
+ * groups' waste rules are read in one query for the groups the items are in, and every item's measures in one
+ * more, side by side.
  */
 async function present(
   ctx: RequestContext,
@@ -76,21 +78,24 @@ async function present(
 ): Promise<ReachableItem[] | null> {
   const byId = new Map(groups.map((g) => [g.orgId as string, g]));
   const orgIds = [...new Set(records.flatMap((r) => (r.orgId ? [r.orgId] : [])))];
-  const settings = await ctx.timings.measure("db", () => repo.listGroupSettings(orgIds));
-  if (!settings.ok) return null;
+  const [settings, measures] = await Promise.all([
+    ctx.timings.measure("db", () => repo.listGroupSettings(orgIds)),
+    readMeasures(ctx, repo, records),
+  ]);
+  if (!settings.ok || !measures) return null;
   const rules = new Map<string, WastePolicy>(settings.value.map((s) => [s.orgId, s.wastePolicy]));
 
   const { today } = todayOf(ctx.now());
   const items: ReachableItem[] = [];
   for (const record of records) {
     if (record.orgId === null) {
-      items.push({ ...toKitchenItem(record, personalPantryRef(), null, today), canUse: true });
+      items.push({ ...toKitchenItem(record, personalPantryRef(), null, today, measures(record)), canUse: true });
       continue;
     }
     const group = byId.get(record.orgId);
     if (!group) continue; // Not reachable: the scope only reads groups in `groups`.
     items.push({
-      ...toKitchenItem(record, groupPantryRef(group), rules.get(record.orgId) ?? wastePolicyOf(null), today),
+      ...toKitchenItem(record, groupPantryRef(group), rules.get(record.orgId) ?? wastePolicyOf(null), today, measures(record)),
       canUse: canUseIn(group),
     });
   }

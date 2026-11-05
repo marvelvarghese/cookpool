@@ -4,7 +4,7 @@ import {
   type StockMoveResponse,
 } from "@saas/contracts/kitchen";
 import { asUuid } from "@saas/db/ids";
-import type { KitchenGroupSettings, KitchenPantryOwner, KitchenSplit, StockMoved } from "@saas/db/kitchen";
+import type { KitchenGroupSettings, KitchenPantryOwner, KitchenRepository, KitchenSplit, StockMoved } from "@saas/db/kitchen";
 import { buildUse, buildWaste, type Split } from "@saas/kitchen-engine/ledger";
 import { costOfUse, formatMinor } from "@saas/kitchen-engine/money";
 import { formatQuantity } from "@saas/kitchen-engine/units";
@@ -25,6 +25,7 @@ import {
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";
 import { ledgerAudit, toKitchenTxn } from "../ledger.js";
+import { readMeasures, type MeasureBook } from "../measures.js";
 import {
   groupPantryRef,
   isoDay,
@@ -44,6 +45,7 @@ import {
   takeStock,
   toStockMove,
   undoMove,
+  useAmount,
 } from "../stock.js";
 import { Fields } from "../validate.js";
 import { thisGroup } from "./group-items.js";
@@ -79,16 +81,24 @@ function toSplits(splits: readonly Split[]): KitchenSplit[] {
   return splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.paidMinor, owedMinor: s.owedMinor }));
 }
 
-/** 201 with the item as it is now (in this group's pantry), the move and its transaction. */
-function moved(
+/**
+ * 201 with the item as it is now (in this group's pantry, with its measures —
+ * `known` when the write read them already, else read here), the move and its
+ * transaction.
+ */
+async function moved(
   ctx: OrgContext,
+  repo: KitchenRepository,
   group: MemberGroup,
   settings: KitchenGroupSettings | null,
   result: StockMoved,
-): Response {
+  known: MeasureBook | null = null,
+): Promise<Response> {
+  const measures = known ?? (await readMeasures(ctx, repo, [result.item]));
+  if (!measures) return unavailable(ctx.requestId);
   return successResponse<StockMoveResponse>(
     {
-      item: toKitchenItem(result.item, groupPantryRef(group), wastePolicyOf(settings), isoDay(ctx.now())),
+      item: toKitchenItem(result.item, groupPantryRef(group), wastePolicyOf(settings), isoDay(ctx.now()), measures(result.item)),
       move: toStockMove(result.move, result.item),
       txn: result.txn ? toKitchenTxn(result.txn) : null,
     },
@@ -131,12 +141,16 @@ export async function handleUseGroupItem(ctx: OrgContext, request: Request, para
     const settings = await ctx.timings.measure("db", () => repo.getGroupSettings(ctx.orgId));
     if (!settings.ok) return unavailable(ctx.requestId);
 
+    // A use in a measure (SM-13) reads the item's measures to know how much it
+    // takes; the answer then shows the same ones.
+    let measures: MeasureBook | null = null;
     const result = await takeStock(ctx, repo, { owner: owner(ctx), itemId, kind: "use", idemKey: idem.key }, async (item) => {
-      const qty = quantityOf(item, use.quantity, use.unit);
-      if (!qty.ok) return validationError(ctx.requestId, qty.fields);
-      if (qty.value.qtyMilli > item.qtyLeftMilli) return insufficientStock(ctx.requestId, item.qtyLeftMilli);
+      const qty = await useAmount(ctx.requestId, item, use, async () => (measures = await readMeasures(ctx, repo, [item])));
+      if (qty instanceof Response) return qty;
 
-      const costMinor = costOfUse(item, qty.value.qtyMilli);
+      // A measure only decides how much is taken: what that costs is the
+      // engine's proportional cost, as for any use.
+      const costMinor = costOfUse(item, qty.qtyMilli);
       const splits = buildUse({
         costMinor,
         buyerId: item.paidBy,
@@ -146,7 +160,8 @@ export async function handleUseGroupItem(ctx: OrgContext, request: Request, para
       const moveId = asUuid(crypto.randomUUID());
       const txnId = asUuid(crypto.randomUUID());
       const now = ctx.now();
-      const what = formatQuantity(qty.value.qtyMilli, item.dimension, qty.value.unit);
+      // In the words it was given in: "2 onions", else "250 ml".
+      const what = qty.label ?? formatQuantity(qty.qtyMilli, item.dimension, qty.unit);
       const posts = movesMoney(splits);
       return {
         owner: owner(ctx),
@@ -155,9 +170,10 @@ export async function handleUseGroupItem(ctx: OrgContext, request: Request, para
         move: {
           id: moveId,
           kind: "use",
-          qtyMilli: qty.value.qtyMilli,
+          qtyMilli: qty.qtyMilli,
           costMinor,
-          unit: qty.value.unit,
+          unit: qty.unit,
+          label: qty.label,
           consumers,
           actor,
           idemKey: idem.key,
@@ -194,8 +210,9 @@ export async function handleUseGroupItem(ctx: OrgContext, request: Request, para
             itemId: toPublicId("itm", item.id),
             moveId: toPublicId("mov", moveId),
             txnId: posts ? toPublicId("txn", txnId) : null,
-            qtyMilli: qty.value.qtyMilli,
-            unit: qty.value.unit,
+            qtyMilli: qty.qtyMilli,
+            unit: qty.unit,
+            label: qty.label,
             costMinor,
             currency: item.currency,
             paidBy: item.paidBy,
@@ -211,7 +228,7 @@ export async function handleUseGroupItem(ctx: OrgContext, request: Request, para
     if (txn) {
       await ctx.defer(() => emailLoggedForYou(ctx, { kind: "use", txn, item: result.item, move: result.move }, here.group));
     }
-    return moved(ctx, here.group, settings.value, result);
+    return moved(ctx, repo, here.group, settings.value, result, measures);
   });
 }
 
@@ -308,7 +325,7 @@ export async function handleWasteGroupItem(ctx: OrgContext, request: Request, pa
       };
     });
     if (result instanceof Response) return result;
-    return moved(ctx, here.group, settings.value, result);
+    return moved(ctx, repo, here.group, settings.value, result);
   });
 }
 
@@ -375,6 +392,6 @@ export async function handleUndoGroupMove(ctx: OrgContext, request: Request, par
         }),
     });
     if (result instanceof Response) return result;
-    return moved(ctx, here.group, settings.value, result);
+    return moved(ctx, repo, here.group, settings.value, result);
   });
 }

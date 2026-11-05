@@ -19,6 +19,7 @@ import {
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";
 import { groupCurrency, idempotencyKeyReused, ledgerAudit } from "../ledger.js";
+import { readMeasures } from "../measures.js";
 import {
   encodeItemsCursor,
   expectedVersion,
@@ -65,18 +66,25 @@ function owner(ctx: OrgContext): KitchenPantryOwner {
   return { kind: "group", orgId: ctx.orgId };
 }
 
-/** The group's items as the API shows them, with its waste rule read once. */
+/**
+ * The group's items as the API shows them: its waste rule and the items'
+ * measures (SM-13) read once each, side by side — two statements however
+ * many items.
+ */
 async function present(
   ctx: OrgContext,
   repo: KitchenRepository,
   group: MemberGroup,
   records: readonly KitchenItemRecord[],
 ): Promise<KitchenItem[] | null> {
-  const settings = await ctx.timings.measure("db", () => repo.getGroupSettings(ctx.orgId));
-  if (!settings.ok) return null;
+  const [settings, measures] = await Promise.all([
+    ctx.timings.measure("db", () => repo.getGroupSettings(ctx.orgId)),
+    readMeasures(ctx, repo, records),
+  ]);
+  if (!settings.ok || !measures) return null;
   const pantry = groupPantryRef(group);
   const today = isoDay(ctx.now());
-  return records.map((r) => toKitchenItem(r, pantry, wastePolicyOf(settings.value), today));
+  return records.map((r) => toKitchenItem(r, pantry, wastePolicyOf(settings.value), today, measures(r)));
 }
 
 async function itemResponse(

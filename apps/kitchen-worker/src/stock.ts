@@ -17,9 +17,10 @@ import type {
 } from "@saas/db/kitchen";
 import { UNITS, UnitError, isUnit, toMilli, type UnitKey } from "@saas/kitchen-engine/units";
 import type { RequestContext } from "./context.js";
-import { conflict, unprocessable } from "./http.js";
+import { conflict, unavailable, unprocessable, validationError } from "./http.js";
 import { toPublicId } from "./ids.js";
 import { idempotencyKeyReused } from "./ledger.js";
+import { MEASURE_QUANTITY_MESSAGE, measureQuantity, measureWord, takeInMeasure, type MeasureBook } from "./measures.js";
 import { displayQuantity, itemErrorResponse } from "./pantry.js";
 import { Fields, decimals, subjectId, type FieldErrors } from "./validate.js";
 
@@ -50,6 +51,7 @@ export function toStockMove(record: KitchenStockMoveRecord, item: KitchenItemRec
     qtyMilli: record.qtyMilli,
     quantity: displayQuantity(record.qtyMilli, unit),
     unit,
+    label: record.label,
     costMinor: record.costMinor,
     actor: record.actor,
     consumers: record.consumers,
@@ -74,6 +76,11 @@ export interface ParsedTake {
 
 export interface ParsedUse extends ParsedTake {
   quantity: string | number;
+  /**
+   * One of the item's measures instead of a unit (SM-13): its word, and
+   * `quantity` read as a count of it (halves allowed). Null: a unit.
+   */
+  measure: { word: string; quantity: number } | null;
   /** Absent: the caller had it. */
   consumers: string[] | null;
   /** Absent: equal shares. One positive weight per consumer. */
@@ -97,10 +104,37 @@ function takeFields(fields: Fields, body: Record<string, unknown>, quantityRequi
   return { quantity, unit };
 }
 
-/** A POST …/uses body: `quantity`, `unit`, and for a group item `consumers` and `weights`. */
+/**
+ * `measure` (SM-13), beside a `quantity` and `unit` already read: the word,
+ * and the quantity as a count of it. Not with a unit; `field` names it in the
+ * errors (`measure`, `ingredients[2].measure`).
+ */
+export function measureField(
+  fields: Fields,
+  field: string,
+  raw: { measure: unknown; quantity: string | number | null | undefined; unit: unknown },
+  quantityField: string,
+): { word: string; quantity: number } | null {
+  if (raw.measure === undefined || raw.measure === null) return null;
+  const word = measureWord(fields, field, raw.measure);
+  if (raw.unit !== undefined && raw.unit !== null) {
+    fields.add(field, "Send unit or measure, not both");
+    return null;
+  }
+  if (word === undefined || raw.quantity === null || raw.quantity === undefined) return null;
+  const quantity = measureQuantity(raw.quantity);
+  if (quantity === null) {
+    fields.add(quantityField, MEASURE_QUANTITY_MESSAGE);
+    return null;
+  }
+  return { word, quantity };
+}
+
+/** A POST …/uses body: `quantity`, `unit` or `measure`, and for a group item `consumers` and `weights`. */
 export function parseUse(body: Record<string, unknown>, options: { group: boolean }): Parsed<ParsedUse> {
   const fields = new Fields();
   const { quantity, unit } = takeFields(fields, body, true);
+  const measure = measureField(fields, "measure", { measure: body.measure, quantity, unit: body.unit }, "quantity");
   let consumers: string[] | null = null;
   let weights: number[] | null = null;
   if (options.group && body.consumers !== undefined) {
@@ -127,7 +161,7 @@ export function parseUse(body: Record<string, unknown>, options: { group: boolea
     }
   }
   if (!fields.ok || quantity === null) return { ok: false, fields: fields.errors };
-  return { ok: true, value: { quantity, unit, consumers, weights } };
+  return { ok: true, value: { quantity, unit, measure, consumers, weights } };
 }
 
 /** A POST …/waste body: an optional `quantity` (default: everything left) and `unit`. */
@@ -172,6 +206,41 @@ export function quantityOf(
 /** 409: not that much is left. Nothing was written. */
 export function insufficientStock(requestId: string, qtyLeftMilli: number): Response {
   return conflict(requestId, "Not that much of this item is left", KITCHEN_ERROR_REASONS.INSUFFICIENT_STOCK, { qtyLeftMilli });
+}
+
+/** What a use takes, in the item's base unit: the unit it is shown in, and its words when it was given in a measure. */
+export interface UseAmount {
+  qtyMilli: number;
+  unit: string;
+  /** "2 onions" for a use in a measure (SM-13); null for one in a unit. */
+  label: string | null;
+}
+
+/**
+ * What a use takes from `item`, or the refusal: a unit that does not measure
+ * what the item does or a measure its name does not have (422), more than is
+ * left (409 `insufficient_stock`). A use in a measure reads the item's
+ * measures (`measures`, called only then) and is shown in the item's own
+ * unit, with its words beside it.
+ */
+export async function useAmount(
+  requestId: string,
+  item: KitchenItemRecord,
+  use: Pick<ParsedUse, "quantity" | "unit" | "measure">,
+  measures: () => Promise<MeasureBook | null>,
+): Promise<UseAmount | Response> {
+  if (use.measure) {
+    const book = await measures();
+    if (!book) return unavailable(requestId);
+    const taken = takeInMeasure(item, book(item), use.measure);
+    if (taken.kind === "unknown") return validationError(requestId, taken.fields);
+    if (taken.kind === "short") return insufficientStock(requestId, item.qtyLeftMilli);
+    return { qtyMilli: taken.qtyMilli, unit: item.displayUnit, label: taken.label };
+  }
+  const qty = quantityOf(item, use.quantity, use.unit);
+  if (!qty.ok) return validationError(requestId, qty.fields);
+  if (qty.value.qtyMilli > item.qtyLeftMilli) return insufficientStock(requestId, item.qtyLeftMilli);
+  return { ...qty.value, label: null };
 }
 
 /** The response to a refused stock write. */

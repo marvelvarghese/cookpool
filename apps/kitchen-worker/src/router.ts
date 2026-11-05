@@ -14,6 +14,7 @@ import {
 } from "./handlers/group-items.js";
 import { handleHealth } from "./handlers/health.js";
 import { handleItemHistory, handleRecipes } from "./handlers/from-before.js";
+import { handleSetGroupMeasures, handleSetMyMeasures } from "./handlers/measures.js";
 import { handleCreateMyItem, handleGetMyItem, handleRemoveMyItem, handleUpdateMyItem } from "./handlers/my-items.js";
 import {
   handleMyItemMoves,
@@ -169,6 +170,12 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)\/moves$/,
     methods: { GET: handleGroupItemMoves },
   },
+  // Your measures (SM-13).
+  {
+    name: "kitchen.item.measures",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)\/measures$/,
+    methods: { PUT: handleSetGroupMeasures },
+  },
   {
     name: "kitchen.move.undo",
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/moves\/([^/]+)\/undo$/,
@@ -279,6 +286,12 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.item.moves",
     pattern: /^\/v1\/kitchen\/me\/items\/([^/]+)\/moves$/,
     methods: { GET: handleMyItemMoves },
+  },
+  // Your measures (SM-13).
+  {
+    name: "kitchen.me.item.measures",
+    pattern: /^\/v1\/kitchen\/me\/items\/([^/]+)\/measures$/,
+    methods: { PUT: handleSetMyMeasures },
   },
   {
     name: "kitchen.me.move.undo",
