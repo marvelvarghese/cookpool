@@ -2,29 +2,31 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, CircleCheck, CookingPot, Undo2 } from "lucide-react";
+import { ChevronLeft, CookingPot, MoreHorizontal } from "lucide-react";
 import type { KitchenDish } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON, SoonBadge } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { canManageGroup, canWriteInGroup, roleFromKitchen } from "@/components/kitchen/groups";
 import { memberLabel, sortMembers } from "@/components/kitchen/members";
 import { useMembersOf } from "@/components/kitchen/pantry-data";
 import { useMemberNames } from "@/components/kitchen/people-data";
 import { itemHref } from "@/components/kitchen/pantry";
 import { useDish, useDishActions, usePortions } from "@/components/kitchen/dish-data";
-import { DishCostCard, MoneyFlowCard, PortionStepper, WhoHadSomeList } from "@/components/kitchen/dish-ui";
+import { DishChipPill, DishMoney, PortionStepper, WhoHadSomeList } from "@/components/kitchen/dish-ui";
 import {
   OVER_CLAIMED,
   claimCount,
+  dishByline,
+  dishMoneySummary,
   dishStateChip,
-  dishSubtitle,
-  dishWhen,
   halfOf,
   isSplitOpen,
   leftoverNote,
@@ -36,22 +38,22 @@ import {
   splitFor,
   whoHadSome,
   withHalf,
+  type CountTone,
   type ShareDraft,
   type WhoRow,
 } from "@/components/kitchen/dish";
 
 /**
- * One dish (CP-17): what it cost (Total · Portions · Each, and every
- * ingredient with its pantry and buyer), who had how much, the leftovers, and
- * how it moves money — what the eaters owe the cook, what the cook owes the
- * buyers of what they took, and the two netted inside each group. On an open
- * dish everyone in the group has a row with a ½-portion stepper, and any
- * member steps anyone's (SM-7), with Undo; a row someone else set says "by
- * Anu", and what is left shows once, over the rows. The cook (or an owner or
- * admin) splits a draft, finalizes — a toast with "Correct it", no dialog —
- * corrects a finalized split, or cancels a dish still open. Open dishes are
- * read again every 20 seconds. The address is the plain id, `/dishes/dsh_…`,
- * as the dish-posted email links it.
+ * One dish (CP-17; SM-10 as the canvas's "Simpler — Dish" draws it): its
+ * name, who cooked it and what a portion costs, one status word; one count
+ * ("2 of 5 left") over a bar; who had some, a row each, any member stepping
+ * anyone's portion while it is open (SM-7, with Undo; "by Anu" when someone
+ * else set it); the money in at most two lines, the rest behind Details; and
+ * one main button — the cook's Finalize, or Settle up once it is final. What
+ * an owner or admin may do to someone else's stuck dish (set portions,
+ * finalize, correct), and the cook's Cancel and Correct it, sit behind one
+ * "…" menu at the top. Open dishes are read again every 20 seconds. The
+ * address is the plain id, `/dishes/dsh_…`, as the dish-posted email links it.
  */
 export default function DishPage() {
   const dishId = parseDishRef(usePathParam("/dishes/:dishRef", "dishRef"));
@@ -79,6 +81,12 @@ function DishLoader({ dishId }: { dishId: string }) {
 
 type EditMode = null | "assign" | "correct";
 
+const COUNT_TONES: Record<CountTone, string> = {
+  over: "text-cp-expired",
+  exact: "text-primary",
+  under: "text-foreground",
+};
+
 function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
   const groups = useGroups();
   const group = dish.orgId ? (groups.data?.find((g) => g.id === dish.orgId) ?? null) : null;
@@ -94,7 +102,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
   const roleKnown = !dish.orgId || role !== null || members.error !== null || (members.data !== null && !meMember);
   const isCook = meId !== null && meId === dish.cook;
   // Splitting is the cook's; an owner or admin may also split, finalize or
-  // correct someone else's dish (a stuck one), from a quieter card.
+  // correct someone else's dish (a stuck one), from the "…" menu.
   const canSplit = isCook || (dish.orgId !== null && canManageGroup(role));
   const canClaim = dish.orgId !== null && meId !== null && roleKnown && (role === null || canWriteInGroup(role));
   const groupName = dish.orgId ? (group?.name ?? null) : null;
@@ -158,10 +166,12 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
   const rows = whoHadSome({ dish, shares, split, others, editing: editing !== null, ...people });
   // Anyone (not a viewer) steps anyone's portion while the dish is open.
   const stepping = shared && dish.state === "open" && editing === null && canClaim;
+  // One count: what is left of an open dish, else how much was had.
   const count = dish.state === "open" && editing === null ? portionsLeft(dish, split) : claimCount(dish, split);
+  const hadHalf = Math.min(split.claimedHalf, dish.portionsHalf);
   const leftovers = leftoverNote({ dish, split, ...people });
   const flow = moneyFlow({ dish, split, ...people });
-  const previewLabel = editing === "correct" ? "Until you post it" : dish.state === "finalized" || dish.state === "canceled" ? null : "Until finalized";
+  const summary = dishMoneySummary({ dish, split, ...people });
 
   const stepperFor = (row: WhoRow): React.ReactNode => {
     if (editing) {
@@ -217,48 +227,76 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
     }
   };
 
+  // Everything but the one main button, behind "…" (SM-10): an owner's or
+  // admin's way into someone else's stuck dish, and the cook's Cancel and Correct it.
+  const menu: { key: string; label: string; onSelect: () => void; destructive?: boolean; disabled?: boolean }[] = [];
+  if (!editing && dish.state !== "canceled") {
+    if (isCook) {
+      if (isSplitOpen(dish)) menu.push({ key: "cancel", label: "Cancel dish", onSelect: () => setConfirmCancel(true), destructive: true });
+      else if (shared) menu.push({ key: "correct", label: "Correct it", onSelect: startCorrecting });
+    } else if (canSplit && shared) {
+      if (dish.state === "draft") menu.push({ key: "assign", label: "Set portions", onSelect: startAssigning });
+      if (isSplitOpen(dish)) {
+        menu.push({
+          key: "finalize",
+          label: `Finalize for ${cookName}`,
+          onSelect: () => void actions.finalize(),
+          disabled: portions.pending || actions.busy !== null,
+        });
+      } else menu.push({ key: "correct", label: "Correct it", onSelect: startCorrecting });
+    }
+  }
+
   return (
-    <div className="space-y-5">
-      <Link
-        href={back.href}
-        className="-ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        {back.label}
-      </Link>
-      <header className="min-w-0">
-        <h1 className="break-words text-[26px] font-extrabold leading-tight tracking-tight">{dish.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{dishSubtitle(dish, { ...people, now })}</p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href={back.href}
+          aria-label={`Back to ${back.label}`}
+          className="-ml-2 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronLeft className="h-6 w-6" aria-hidden />
+        </Link>
+        {menu.length > 0 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="More"
+              className="-mr-2 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <MoreHorizontal className="h-6 w-6" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48 rounded-xl p-1.5">
+              {menu.map((m) => (
+                <DropdownMenuItem
+                  key={m.key}
+                  onSelect={m.onSelect}
+                  disabled={m.disabled ?? false}
+                  className={cn("min-h-11 rounded-lg px-3 text-[15px] font-semibold", m.destructive && "text-cp-expired focus:text-cp-expired")}
+                >
+                  {m.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
+
+      <header className="min-w-0 space-y-1">
+        <h1 className="break-words text-[28px] font-extrabold leading-tight tracking-tight">{dish.name}</h1>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold text-muted-foreground">
+          <span className="tabular-nums">{dishByline(dish, people)}</span>
+          <DishChipPill chip={dishStateChip(dish)} />
+        </p>
       </header>
 
-      <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
-        <div className="min-w-0 space-y-5">
-          <DishCostCard dish={dish} chip={dishStateChip(dish)} people={people} />
-
+      <div className="grid gap-4 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
+        <div className="min-w-0 space-y-4">
           {shared ? (
-            <section aria-labelledby="who-h" className="space-y-2.5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <h2 id="who-h" className="text-[17px] font-extrabold">
-                  Who had some
-                </h2>
-                <span
-                  className={cn(
-                    "text-[13px] font-bold",
-                    count.tone === "over" ? "text-cp-expired" : count.tone === "exact" ? "text-primary" : "text-muted-foreground",
-                  )}
-                >
-                  {count.text}
-                </span>
+            <>
+              <div className="space-y-2">
+                <p className={cn("text-[15px] font-extrabold tabular-nums", COUNT_TONES[count.tone])}>{count.text}</p>
+                <PortionBar half={hadHalf} of={dish.portionsHalf} over={count.tone === "over"} />
               </div>
-              {editing ? (
-                <p className="text-[13px] text-muted-foreground">
-                  {editing === "correct"
-                    ? "Set what everyone really had. Posting it reverses the old split and posts the new one."
-                    : dish.state === "draft"
-                      ? "Set how much everyone had, then finalize."
-                      : "You're setting everyone's portions. Saving replaces their claims."}
-                </p>
-              ) : null}
               <WhoHadSomeList rows={rows} meId={meId} names={names} stepperFor={stepperFor} />
               {split.over ? (
                 <p role="alert" className="rounded-[14px] bg-cp-expired-tint px-3.5 py-3 text-sm font-semibold text-cp-expired">
@@ -267,50 +305,27 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
               ) : null}
               {/* While it is open, what is left shows once: in the count. */}
               {leftovers && (dish.state !== "open" || editing) ? (
-                <p className="rounded-[14px] bg-muted px-3.5 py-3 text-sm text-foreground/80">
+                <p className="px-1 text-sm font-semibold text-muted-foreground tabular-nums">
                   {leftovers}
                   {isCook && dish.state === "finalized" && dish.leftoverItemId && !editing ? (
                     <>
-                      {" "}
-                      <Link href={itemHref({ kind: "personal", itemId: dish.leftoverItemId })} className="font-semibold text-primary underline-offset-2 hover:underline">
-                        Open Leftovers
+                      {" · "}
+                      <Link href={itemHref({ kind: "personal", itemId: dish.leftoverItemId })} className="font-bold text-primary underline-offset-2 hover:underline">
+                        Open
                       </Link>
                     </>
                   ) : null}
                 </p>
               ) : null}
-            </section>
+            </>
           ) : null}
         </div>
 
-        <div className="min-w-0 space-y-5">
-          {dish.state === "canceled" ? (
-            <KCard className="flex gap-3 p-5">
-              <Undo2 className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-              <p className="text-sm text-muted-foreground">
-                Canceled {dish.canceledAt ? dishWhen(dish.canceledAt, now) : ""}. Every ingredient went back to its pantry, and what
-                cooking charged was reversed. Nothing is owed for it.
-              </p>
-            </KCard>
-          ) : (
-            <MoneyFlowCard flow={flow} currency={dish.currency} previewLabel={previewLabel} />
-          )}
-
-          {dish.state === "finalized" && !editing ? (
-            <div role="status" className="flex items-start gap-2.5 rounded-2xl bg-cp-herb-tint px-4 py-3.5 text-[15px] font-bold text-primary">
-              <CircleCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
-              <span>
-                {shared
-                  ? `Posted to ${groupName ?? "the group"}${dish.finalizedAt ? ` ${dishWhen(dish.finalizedAt, now)}` : ""}. Changing it later adds a correction; nothing is overwritten.`
-                  : "Finalized. It was just for you, so nothing was split."}
-              </span>
-            </div>
-          ) : null}
-
+        <div className="min-w-0 space-y-4">
           {editing === "correct" ? (
             <div className="space-y-1.5">
               <Label htmlFor="correct-note" className="text-sm font-semibold">
-                Why (optional)
+                Why? (optional)
               </Label>
               <Input
                 id="correct-note"
@@ -320,76 +335,9 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
                 onChange={(e) => setNote(e.target.value)}
                 className="h-11 rounded-xl"
               />
-              <p className="text-xs text-muted-foreground">It goes on the reversal, so the group sees why the numbers changed.</p>
             </div>
           ) : null}
-
-          {!isCook && canSplit && shared && dish.state !== "canceled" && !editing ? (
-            <KCard className="space-y-3 p-4">
-              <p className="text-sm text-muted-foreground">
-                As {role === "owner" ? "an owner" : "an admin"} of {groupName ?? "the group"}, you can{" "}
-                {isSplitOpen(dish) ? "set the portions and finalize" : "correct"} {cookName}&apos;s dish if it&apos;s{" "}
-                {isSplitOpen(dish) ? "stuck" : "wrong"}.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {isSplitOpen(dish) ? (
-                  <>
-                    {/* An open dish's rows step already; a draft is set here. */}
-                    {dish.state === "draft" ? (
-                      <Button variant="outline" className={K_BUTTON} onClick={startAssigning} disabled={actions.busy !== null}>
-                        Set portions
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="outline"
-                      className={K_BUTTON}
-                      loading={actions.busy === "finalize"}
-                      disabled={portions.pending || (actions.busy !== null && actions.busy !== "finalize")}
-                      onClick={() => void actions.finalize()}
-                    >
-                      Finalize for {cookName}
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="outline" className={K_BUTTON} onClick={startCorrecting}>
-                    Correct it
-                  </Button>
-                )}
-              </div>
-            </KCard>
-          ) : null}
-
-          {isCook && isSplitOpen(dish) && !editing ? (
-            confirmCancel ? (
-              <KCard className="space-y-3 border-cp-expired/40 p-4">
-                <p className="text-sm">
-                  Canceling puts every ingredient back in its pantry and reverses what cooking charged, so nobody owes anything for
-                  it. This can&apos;t be undone.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" className={K_BUTTON} onClick={() => setConfirmCancel(false)} disabled={actions.busy === "cancel"}>
-                    Keep it
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    className={K_BUTTON}
-                    loading={actions.busy === "cancel"}
-                    onClick={() => void actions.cancel().then((ok) => ok && setConfirmCancel(false))}
-                  >
-                    Cancel the dish
-                  </Button>
-                </div>
-              </KCard>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmCancel(true)}
-                className="min-h-11 rounded-xl px-1 text-sm font-semibold text-cp-expired hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                Cancel this dish
-              </button>
-            )
-          ) : null}
+          <DishMoney dish={dish} summary={summary} flow={flow} people={people} now={now} />
         </div>
       </div>
 
@@ -402,7 +350,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
       <ActionBar>
         {editing === "correct" || (editing === "assign" && (dish.state === "open" || !isCook)) ? (
           <>
-            <Button variant="outline" className={cn(K_BUTTON, "h-[52px] flex-1")} onClick={stopEditing} disabled={actions.busy !== null}>
+            <Button variant="outline" className={cn(K_BUTTON, "h-[52px] flex-1 bg-card")} onClick={stopEditing} disabled={actions.busy !== null}>
               Cancel
             </Button>
             <Button
@@ -416,56 +364,72 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
           </>
         ) : isSplitOpen(dish) && isCook ? (
           <>
-            {shared && dish.state === "open" ? (
-              // No reminder API yet (CP-18 emails the group at cook time): shown, honestly not clickable.
-              <button
-                type="button"
-                aria-disabled="true"
-                className="relative flex h-[52px] flex-1 cursor-not-allowed items-center justify-center whitespace-nowrap rounded-xl border border-input bg-card px-3 text-[15px] font-semibold text-muted-foreground"
-              >
-                Remind group
-                <SoonBadge className="absolute -top-2.5 right-2 border bg-card" />
-              </button>
-            ) : dirty ? (
-              <Button variant="outline" className={cn(K_BUTTON, "h-[52px] flex-1")} loading={actions.busy === "shares"} disabled={split.over || actions.busy !== null} onClick={() => void saveEdit()}>
+            {dirty ? (
+              <Button variant="outline" className={cn(K_BUTTON, "h-[52px] flex-1 bg-card")} loading={actions.busy === "shares"} disabled={split.over || actions.busy !== null} onClick={() => void saveEdit()}>
                 Save for later
               </Button>
             ) : null}
             <Button
-              className={cn(K_BUTTON, "h-[52px] flex-[1.4] text-base font-extrabold")}
+              className={cn(K_BUTTON, "h-[60px] flex-[1.4] rounded-[18px] text-[17px] font-extrabold")}
               disabled={split.over || portions.pending || (actions.busy !== null && actions.busy !== "finalize")}
               loading={actions.busy === "finalize"}
               onClick={() => void actions.finalize(dirty ? draft : undefined).then((ok) => ok && setTouched(false))}
             >
-              {shared ? "Finalize split" : "Finalize"}
+              Finalize
             </Button>
           </>
         ) : dish.state === "finalized" && shared ? (
-          <>
-            {isCook ? (
-              <Button variant="outline" className={cn(K_BUTTON, "h-[52px] flex-1")} onClick={startCorrecting}>
-                Correct it
-              </Button>
-            ) : null}
-            <Button asChild className={cn(K_BUTTON, "h-[52px] flex-[1.4] bg-foreground text-base font-extrabold text-background hover:bg-foreground/90")}>
-              <Link href={group ? `/settle?group=${encodeURIComponent(group.slug)}` : "/settle"}>Settle up</Link>
-            </Button>
-          </>
+          <Button asChild className={cn(K_BUTTON, "h-[60px] flex-1 rounded-[18px] text-[17px] font-extrabold")}>
+            <Link href={group ? `/settle?group=${encodeURIComponent(group.slug)}` : "/settle"}>Settle up</Link>
+          </Button>
         ) : null}
       </ActionBar>
-      {!shared && isSplitOpen(dish) && isCook ? (
-        <p className="-mt-2 text-center text-xs text-muted-foreground">It&apos;s just for you, so finalizing only closes it: nothing is split.</p>
-      ) : null}
+
+      <ConfirmDialog
+        open={confirmCancel}
+        onOpenChange={setConfirmCancel}
+        title={`Cancel ${dish.name}?`}
+        description="Its ingredients go back to their pantries, and nobody owes for it."
+        confirmLabel="Cancel dish"
+        cancelLabel="Keep it"
+        onConfirm={async () => {
+          await actions.cancel();
+        }}
+      />
     </div>
   );
 }
 
-/** The dish's actions, held above the tab bar on a phone and at the bottom of the column on a wide screen. */
+/** The count's bar: half portions had, out of all of them (decorative — the count says it). */
+function PortionBar({ half, of, over }: { half: number; of: number; over: boolean }) {
+  const segments = of > 0 && of <= 20;
+  if (segments) {
+    return (
+      <div aria-hidden className="grid gap-1" style={{ gridTemplateColumns: `repeat(${of}, minmax(0, 1fr))` }}>
+        {Array.from({ length: of }, (_, i) => (
+          <span key={i} className={cn("h-2.5 rounded", i < half ? (over ? "bg-cp-expired" : "bg-primary") : "bg-border")} />
+        ))}
+      </div>
+    );
+  }
+  const pct = of > 0 ? Math.min(100, Math.round((half * 100) / of)) : 0;
+  return (
+    <div aria-hidden className="h-2.5 overflow-hidden rounded-full bg-border">
+      <div className={cn("h-full rounded-full", over ? "bg-cp-expired" : "bg-primary")} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+/**
+ * The one main button, at the end of the page and held above the tab bar
+ * while the page is longer than the screen. It comes after everything you
+ * choose, so scrolling to the end always shows every row above it.
+ */
 function ActionBar({ children }: { children: React.ReactNode }) {
   const items = React.Children.toArray(children).filter(Boolean);
   if (items.length === 0) return null;
   return (
-    <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 flex gap-2.5 rounded-[20px] border bg-card p-3 shadow-[0_8px_24px_rgba(23,32,27,0.14)] min-[900px]:bottom-6">
+    <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 flex gap-2.5 bg-gradient-to-t from-background from-70% to-transparent px-4 pb-2 pt-4 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:px-0">
       {children}
     </div>
   );
@@ -475,11 +439,8 @@ function DishNotFound() {
   return (
     <KCard className="flex gap-4 p-5">
       <CookingPot className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="min-w-0 space-y-2">
+      <div className="min-w-0 space-y-3">
         <h1 className="text-lg font-bold">This dish isn&apos;t here</h1>
-        <p className="text-sm text-muted-foreground">
-          It may be in a group you&apos;re not in, or the link is wrong. Dishes shared with your groups are on each group&apos;s Dishes tab.
-        </p>
         <Button asChild variant="outline" className={K_BUTTON}>
           <Link href="/groups">Your groups</Link>
         </Button>
@@ -490,14 +451,14 @@ function DishNotFound() {
 
 function DishSkeleton() {
   return (
-    <div className="space-y-5" aria-hidden>
-      <Skeleton className="h-4 w-24" />
+    <div className="space-y-4" aria-hidden>
+      <Skeleton className="h-11 w-11 rounded-xl" />
       <div className="space-y-2">
         <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-4 w-48" />
       </div>
-      <Skeleton className="h-44 w-full rounded-[22px]" />
-      <Skeleton className="h-56 w-full rounded-[18px]" />
+      <Skeleton className="h-3 w-full" />
+      <Skeleton className="h-72 w-full rounded-[22px]" />
     </div>
   );
 }

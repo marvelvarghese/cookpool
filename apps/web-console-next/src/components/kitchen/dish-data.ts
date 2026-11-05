@@ -506,11 +506,7 @@ export function useDishActions(input: {
       return null;
     }
     if (opts.toast ?? true) {
-      offerUndo({
-        title: "Saved who had what",
-        description: r.dish.state === "open" ? "Members can still change their own claims until you finalize." : "Finalize when it's right.",
-        undo: () => undoShares(r.dish, before),
-      });
+      offerUndo({ title: "Saved who had what", undo: () => undoShares(r.dish, before) });
     }
     return r.dish;
   };
@@ -550,7 +546,7 @@ export function useDishActions(input: {
     }
     keys.current.finalize = crypto.randomUUID();
     const text = finalizedToast({ dish: r.dish, meId, names, groupName });
-    update(id, { title: text.title, description: text.description });
+    update(id, { title: text.title });
     return true;
   };
 
@@ -566,11 +562,7 @@ export function useDishActions(input: {
       return false;
     }
     keys.current.correct = crypto.randomUUID();
-    offerUndo({
-      title: `Corrected ${r.dish.name}`,
-      description: "The old split was reversed and the new one posted. Nothing was overwritten.",
-      undo: () => undoCorrection(r.dish, before),
-    });
+    offerUndo({ title: `Corrected ${r.dish.name}`, undo: () => undoCorrection(r.dish, before) });
     return true;
   };
 
@@ -585,11 +577,7 @@ export function useDishActions(input: {
       return false;
     }
     keys.current.cancel = crypto.randomUUID();
-    toast({
-      kind: "success",
-      title: `Canceled ${r.dish.name}`,
-      description: "Every ingredient is back in its pantry, and what cooking charged was reversed.",
-    });
+    toast({ kind: "success", title: `Canceled ${r.dish.name}` });
     return true;
   };
 

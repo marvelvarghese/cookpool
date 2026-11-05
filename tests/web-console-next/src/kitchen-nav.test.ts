@@ -1,5 +1,4 @@
 import {
-  ADD_SECONDARY,
   ADD_TILES,
   KITCHEN_NAV_LINKS,
   KITCHEN_SIDEBAR_LINKS,
@@ -83,19 +82,15 @@ describe("isKitchenTabActive", () => {
   });
 });
 
-describe("the + Add sheet", () => {
-  it("offers the four tiles, each linking to its route", () => {
+describe("the + Add sheet (SM-10: the four things that happen, and nothing else)", () => {
+  it("offers the four tiles, each a word or two, each linking to its route", () => {
     expect(ADD_TILES.map((t) => [t.label, t.href])).toEqual([
-      ["I used something", "/use"],
-      ["I cooked", "/cook"],
-      ["I bought food", "/pantry/new"],
-      ["I paid a bill", "/groups/[slug]/expense"],
+      ["Used", "/use"],
+      ["Cooked", "/cook"],
+      ["Bought", "/pantry/new"],
+      ["Paid a bill", "/groups/[slug]/expense"],
     ]);
-  });
-
-  it("has every tile live: I used something (CP-13), I cooked (CP-15), I bought food (CP-12), I paid a bill (CP-8)", () => {
-    expect(ADD_TILES.filter((t) => t.live).map((t) => t.id)).toEqual(["use", "cook", "buy", "bill"]);
-    expect(ADD_TILES.filter((t) => !t.live)).toEqual([]);
+    for (const t of ADD_TILES) expect(KITCHEN_ICONS[t.icon]).toBeDefined();
   });
 
   it("asks for a group before Add expense, then goes to that group's", () => {
@@ -105,15 +100,9 @@ describe("the + Add sheet", () => {
     expect(groupActionHref(bill, "flat-4b-k3x9")).toBe("/groups/flat-4b-k3x9/expense");
   });
 
-  it("has Record a payment (live, to /settle) and Invite to a group (live, to /groups)", () => {
-    const payment = ADD_SECONDARY.find((a) => a.id === "payment")!;
-    const invite = ADD_SECONDARY.find((a) => a.id === "invite")!;
-    expect(payment.label).toBe("Record a payment");
-    expect(payment.live).toBe(true);
-    expect(payment.href).toBe("/settle");
-    expect(invite.label).toBe("Invite to a group");
-    expect(invite.live).toBe(true);
-    expect(invite.href).toBe("/groups");
+  it("has no captions under the tiles and no second list (Do it again, Record a payment, Invite)", () => {
+    for (const t of ADD_TILES) expect(Object.keys(t).sort()).toEqual(t.pickGroup ? ["href", "icon", "id", "label", "pickGroup"] : ["href", "icon", "id", "label"]);
+    expect(ADD_TILES).toHaveLength(4);
   });
 });
 

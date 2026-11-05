@@ -2,33 +2,34 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, ChevronRight, Clock, CookingPot, Flag, HandCoins, Receipt, TriangleAlert, type LucideIcon } from "lucide-react";
-import type { InboxResponse, KitchenDish, SettlementMethod } from "@saas/contracts/kitchen";
+import { Check, Clock, CookingPot, Flag, HandCoins, TriangleAlert, X, type LucideIcon } from "lucide-react";
+import type { InboxResponse, SettlementMethod } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { IconBubble, KCard, K_BUTTON } from "./kit";
-import { KindBubble, Money } from "./ledger-ui";
+import { KindBubble } from "./ledger-ui";
+import { Face } from "./faces-ui";
 import type { MemberNames } from "./members";
 import { formatMinor } from "./money";
 import { amountCost } from "./item-use";
 import { useItemsByRef, useLogUse } from "./pantry-data";
-import { useDish, useDishActions } from "./dish-data";
-import { DishClaimStepper } from "./dish-ui";
-import { dishHref, leftoverNote, splitOfDish } from "./dish";
-import { PaymentMethodChips, useRecordPayment } from "./settle-card";
-import { finalizePreview, inboxView, type InboxAction, type InboxCard, type InboxTone } from "./inbox";
+import { quickUseHref } from "./pantry";
+import { useClaimer, useDish, useDishActions } from "./dish-data";
+import { CLAIM_CHOICES, claimableHalf, halfText, portionsText } from "./dish";
+import { useRecordPayment } from "./settle-card";
+import { SETTLE_METHODS } from "./settle";
+import { HOME_TODOS, homeTodos, type HomeTodo, type InboxAction, type InboxTone } from "./inbox";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import type { RecentRow } from "./home";
 import type { AsyncState } from "@/lib/query";
 
 /**
- * Home's inbox (Cookpool CP-23): "Needs you · N to do", one card per thing
- * that needs you, each done where it is — claim a portion, finalize your dish
- * after a preview of who owes what, "I had a glass", I paid, open a flagged
- * entry — and "All clear" when nothing does. Every money or stock action ends
- * in the one Undo toast; the inbox refreshes after each. Also Home's Recent
- * activity rows.
+ * Home's to-do list (Cookpool CP-23; SM-10 as the canvas draws it): at most
+ * three rows, each one thing that needs you — a dish to say how much you had
+ * (½-step chips), your dish to finalize, food to use soon, someone to pay, a
+ * flag — with its one action at the end of the row and no captions; "See all"
+ * when there are more. Every money or stock action ends in the one Undo
+ * toast. Also Home's Recent activity rows.
  */
 
 const TONES: Record<InboxTone, { icon: LucideIcon; className: string; label: string }> = {
@@ -39,7 +40,17 @@ const TONES: Record<InboxTone, { icon: LucideIcon; className: string; label: str
   flag: { icon: Flag, className: "bg-muted text-muted-foreground", label: "Flag" },
 };
 
-export function NeedsYou({
+const SUB_TONES: Record<HomeTodo["subTone"], string> = {
+  muted: "text-muted-foreground",
+  expired: "font-semibold text-cp-expired",
+  soon: "font-semibold text-cp-soon",
+  owe: "font-bold text-cp-owe",
+};
+
+/** A row's button: 44px tall, the green one for what settles it, outlined otherwise. */
+const ROW_BUTTON = "h-11 shrink-0 rounded-[14px] px-4 text-[15px] font-extrabold";
+
+export function HomeTodoList({
   inbox,
   meId,
   names,
@@ -51,38 +62,52 @@ export function NeedsYou({
   className?: string;
 }) {
   const now = React.useMemo(() => new Date(), []);
-  const view = inbox.data ? inboxView(inbox.data, { meId, names, now }) : null;
+  const [all, setAll] = React.useState(false);
+  const todos = inbox.data ? homeTodos(inbox.data, { meId, names, now }, { all }) : null;
+  const listId = React.useId();
 
   return (
-    <section aria-labelledby="home-needs-you" className={cn("space-y-3", className)}>
-      <h2 id="home-needs-you" className="text-lg font-bold tracking-tight">
-        {view ? view.heading : "Needs you"}
-      </h2>
+    <section aria-labelledby="home-todo" className={cn("space-y-2", className)}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="home-todo" className="text-lg font-extrabold tracking-tight">
+          To do
+        </h2>
+        {todos && todos.total > HOME_TODOS ? (
+          <button
+            type="button"
+            aria-expanded={all}
+            aria-controls={listId}
+            onClick={() => setAll((v) => !v)}
+            className="-my-2 -mr-2 min-h-11 rounded-xl px-2 text-sm font-bold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {all ? "Show less" : `See all ${todos.total}`}
+          </button>
+        ) : null}
+      </div>
       {inbox.loading ? (
-        <div className="space-y-2.5" aria-hidden>
-          <Skeleton className="h-28 w-full rounded-[20px]" />
-          <Skeleton className="h-28 w-full rounded-[20px]" />
+        <div className="space-y-px overflow-hidden rounded-[22px] border bg-card" aria-hidden>
+          <Skeleton className="h-[68px] w-full rounded-none" />
+          <Skeleton className="h-[68px] w-full rounded-none" />
         </div>
-      ) : inbox.error || !view ? (
-        <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load what needs you. {inbox.error?.message ?? ""}</p>
-          <Button variant="outline" className={K_BUTTON} onClick={inbox.reload}>
+      ) : inbox.error || !todos ? (
+        <div className="flex min-h-[68px] items-center justify-between gap-3 rounded-[22px] border bg-card px-4">
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load your to-dos.</p>
+          <Button variant="outline" className={ROW_BUTTON} onClick={inbox.reload}>
             Try again
           </Button>
-        </KCard>
-      ) : view.empty ? (
-        <KCard className="flex items-center gap-4 p-5">
-          <IconBubble icon={CheckCircle2} />
-          <div className="min-w-0">
-            <h3 className="text-base font-bold tracking-tight">All clear</h3>
-            <p className="mt-0.5 text-sm text-muted-foreground">Nothing needs you right now.</p>
-          </div>
-        </KCard>
+        </div>
+      ) : todos.total === 0 ? (
+        <div role="status" className="flex min-h-[68px] items-center gap-3 rounded-[22px] border bg-card px-4">
+          <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cp-herb-tint text-primary">
+            <Check className="h-5 w-5" strokeWidth={2.4} />
+          </span>
+          <span className="text-base font-extrabold">All clear</span>
+        </div>
       ) : (
-        <ul className="space-y-2.5">
-          {view.cards.map((card) => (
-            <li key={card.key}>
-              <InboxCardView card={card} meId={meId} names={names} />
+        <ul id={listId} className="divide-y overflow-hidden rounded-[22px] border bg-card">
+          {todos.rows.map((todo) => (
+            <li key={todo.key}>
+              <TodoRow todo={todo} meId={meId} names={names} />
             </li>
           ))}
         </ul>
@@ -91,13 +116,13 @@ export function NeedsYou({
   );
 }
 
-function InboxCardView({ card, meId, names }: { card: InboxCard; meId: string | null; names: MemberNames }) {
-  const tone = TONES[card.tone];
+function TodoRow({ todo, meId, names }: { todo: HomeTodo; meId: string | null; names: MemberNames }) {
+  const tone = TONES[todo.tone];
   const Icon = tone.icon;
   const prefetch = usePrefetchKitchen();
-  const { action } = card;
-  // What the card's page needs beyond what the card already read (SM-5): a
-  // dish's group members now; the rest when the card is pressed.
+  const { action } = todo;
+  // What the row's page needs beyond what the row already read (SM-5): a
+  // dish's group members now; the rest when the row is pressed.
   const claimGroup = action.kind === "claim" ? action.orgId : null;
   React.useEffect(() => {
     if (claimGroup) prefetch.members(claimGroup);
@@ -108,170 +133,176 @@ function InboxCardView({ card, meId, names }: { card: InboxCard; meId: string | 
     else if (action.kind === "use") prefetch.item(action.ref);
     else if (action.kind === "pay") prefetch.group(action.orgId);
   };
-  return (
-    <KCard className="p-4">
-      <div className="flex items-start gap-3">
-        <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full", tone.className)}>
+  // A payment's method chips open under the row, like a dish's portion chips.
+  const [paying, setPaying] = React.useState(false);
+
+  const head = (
+    <div className="flex items-center gap-3">
+      {todo.faceId ? (
+        <Face subjectId={todo.faceId} meId={meId} names={names} />
+      ) : (
+        <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", tone.className)}>
           <Icon className="h-5 w-5" strokeWidth={2} />
         </span>
-        <div className="min-w-0 flex-1">
-          <Link
-            {...pressIn(readAhead)}
-            href={card.href}
-            className="block rounded text-[15px] font-bold leading-snug underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <span className="sr-only">{tone.label}: </span>
-            {card.title}
-          </Link>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">{card.meta}</p>
-          {card.note ? <p className="mt-1 break-words text-sm italic text-foreground/80">{card.note}</p> : null}
-        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <Link
+          {...pressIn(readAhead)}
+          href={todo.href}
+          className="block truncate rounded text-base font-extrabold leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="sr-only">{tone.label}: </span>
+          {todo.title}
+        </Link>
+        <p className={cn("truncate text-[13px] tabular-nums", SUB_TONES[todo.subTone])}>{todo.sub}</p>
       </div>
-      <div className="mt-3">
-        <CardAction action={card.action} meId={meId} names={names} />
-      </div>
-    </KCard>
+      <RowAction action={action} title={todo.title} meId={meId} names={names} paying={paying} onPay={() => setPaying(true)} />
+    </div>
+  );
+
+  return (
+    <div className="space-y-2.5 px-4 py-3">
+      {head}
+      {action.kind === "claim" ? <ClaimChips dishId={action.dishId} meId={meId} names={names} /> : null}
+      {action.kind === "pay" && paying ? <PayChips action={action} meId={meId} onDone={() => setPaying(false)} /> : null}
+    </div>
   );
 }
 
-function CardAction({ action, meId, names }: { action: InboxAction; meId: string | null; names: MemberNames }) {
+function RowAction({
+  action,
+  title,
+  meId,
+  names,
+  paying,
+  onPay,
+}: {
+  action: InboxAction;
+  title: string;
+  meId: string | null;
+  names: MemberNames;
+  paying: boolean;
+  onPay: () => void;
+}) {
   switch (action.kind) {
     case "claim":
-      return <ClaimAction dishId={action.dishId} meId={meId} names={names} />;
+      return null;
     case "finalize":
-      return <FinalizeAction dishId={action.dishId} groupName={action.groupName} meId={meId} names={names} />;
+      return <FinalizeButton dishId={action.dishId} groupName={action.groupName} meId={meId} names={names} />;
     case "split":
     case "open":
       return (
-        <Button asChild variant="outline" className={K_BUTTON}>
-          <Link href={action.href}>
-            {action.label}
-            <ChevronRight aria-hidden />
+        <Button asChild variant="outline" className={ROW_BUTTON}>
+          <Link href={action.href} aria-label={`${action.label}: ${title}`}>
+            {action.kind === "split" ? "Set" : "Open"}
           </Link>
         </Button>
       );
     case "use":
-      return <UseAction action={action} meId={meId} names={names} />;
+      return <UseButton action={action} meId={meId} names={names} />;
     case "pay":
-      return <PayAction action={action} meId={meId} />;
+      return action.canRecord && !paying ? (
+        <Button
+          className={ROW_BUTTON}
+          disabled={!meId}
+          aria-label={`Paid: ${formatMinor(action.amountMinor, action.currency)} to ${action.toLabel} in ${action.groupName}`}
+          onClick={onPay}
+        >
+          Paid
+        </Button>
+      ) : null;
   }
 }
 
-// ── Claim: CP-17's claim buttons, over the dish read ──────────────
+// ── How much did you have: 0 · ½ · 1 · 1½ · 2 ────────────────────
 
-function DishFallback({ dishId, loading }: { dishId: string; loading: boolean }) {
-  if (loading) return <Skeleton className="h-11 w-full rounded-xl" aria-hidden />;
+function ClaimChips({ dishId, meId, names }: { dishId: string; meId: string | null; names: MemberNames }) {
+  const dish = useDish(dishId);
+  if (!meId || !dish.data || dish.data.state !== "open") {
+    return (
+      <div className="grid grid-cols-5 gap-1.5" aria-hidden>
+        {CLAIM_CHOICES.map((h) => (
+          <Skeleton key={h} className="h-11 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+  return <ClaimChipRow dish={dish.data} meId={meId} names={names} />;
+}
+
+function ClaimChipRow({ dish, meId, names }: { dish: NonNullable<ReturnType<typeof useDish>["data"]>; meId: string; names: MemberNames }) {
+  const claimer = useClaimer(dish, meId, names);
+  const max = claimableHalf(dish);
   return (
-    <Button asChild variant="outline" className={K_BUTTON}>
-      <Link href={dishHref(dishId)}>
-        Open the dish
-        <ChevronRight aria-hidden />
-      </Link>
-    </Button>
+    <div role="group" aria-label={`Your portions of ${dish.name}`} className="grid grid-cols-5 gap-1.5">
+      {CLAIM_CHOICES.map((h) => {
+        const on = claimer.half === h && h > 0;
+        return (
+          <button
+            key={h}
+            type="button"
+            aria-pressed={on}
+            aria-label={portionsText(h)}
+            disabled={h > max}
+            onClick={() => claimer.set(h, { now: true })}
+            className={cn(
+              "min-h-11 rounded-xl border text-[15px] font-extrabold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40",
+              on ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-accent",
+            )}
+          >
+            {halfText(h)}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-function ClaimAction({ dishId, meId, names }: { dishId: string; meId: string | null; names: MemberNames }) {
-  const dish = useDish(dishId);
-  if (!meId || !dish.data || dish.data.state !== "open") return <DishFallback dishId={dishId} loading={!meId || dish.loading} />;
-  return <DishClaimStepper dish={dish.data} meId={meId} names={names} />;
-}
+// ── Finalize your dish, in one tap ────────────────────────────────
 
-// ── Finalize: a preview of who owes what, then the dish page's finalize ──
-
-/** Preview lines shown before "and N more". */
-const PREVIEW_LINES = 3;
-
-function FinalizeAction({
-  dishId,
-  groupName,
-  meId,
-  names,
-}: {
-  dishId: string;
-  groupName: string | null;
-  meId: string | null;
-  names: MemberNames;
-}) {
+function FinalizeButton({ dishId, groupName, meId, names }: { dishId: string; groupName: string | null; meId: string | null; names: MemberNames }) {
   const dish = useDish(dishId);
   if (!dish.data || (dish.data.state !== "open" && dish.data.state !== "draft")) {
-    return <DishFallback dishId={dishId} loading={dish.loading} />;
+    return (
+      <Button className={ROW_BUTTON} disabled>
+        Finalize
+      </Button>
+    );
   }
-  return <FinalizeInline dish={dish.data} groupName={groupName} meId={meId} names={names} />;
+  return <FinalizeNow dish={dish.data} groupName={groupName} meId={meId} names={names} />;
 }
 
-function FinalizeInline({
+function FinalizeNow({
   dish,
   groupName,
   meId,
   names,
 }: {
-  dish: KitchenDish;
+  dish: NonNullable<ReturnType<typeof useDish>["data"]>;
   groupName: string | null;
   meId: string | null;
   names: MemberNames;
 }) {
+  // At once (SM-5): the dish reads finalized everywhere and this row goes, with "Correct it" on the toast.
   const actions = useDishActions({ dish, meId, names, groupName });
-  const prefetch = usePrefetchKitchen();
-  const dishGroup = dish.orgId;
-  React.useEffect(() => {
-    if (dishGroup) prefetch.members(dishGroup);
-  }, [dishGroup, prefetch]);
-  const preview = finalizePreview(dish, { meId, names });
-  const leftovers = leftoverNote({ dish, split: splitOfDish(dish), meId, names });
-  const shown = preview.lines.slice(0, PREVIEW_LINES);
-  const more = preview.lines.length - shown.length;
   return (
-    <div className="space-y-2.5">
-      <div className="rounded-xl bg-background px-3 py-2.5 text-sm">
-        {preview.empty ? (
-          <p className="text-muted-foreground">{preview.empty}</p>
-        ) : (
-          <>
-            <p className="text-xs font-semibold text-muted-foreground">Once you finalize, they owe you</p>
-            <ul className="mt-1 space-y-0.5">
-              {shown.map((l) => (
-                <li key={l.subjectId} className="flex justify-between gap-3">
-                  <span className="min-w-0 truncate">{l.label}</span>
-                  <Money minor={l.amountMinor} currency={dish.currency} className="shrink-0 font-bold text-cp-owed" />
-                </li>
-              ))}
-            </ul>
-            {more > 0 ? <p className="mt-0.5 text-xs text-muted-foreground">and {more} more on the dish page</p> : null}
-          </>
-        )}
-        {leftovers ? <p className="mt-1.5 text-xs text-muted-foreground">{leftovers}</p> : null}
-      </div>
-      {actions.error ? (
-        <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
-          {actions.error}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Button className={K_BUTTON} loading={actions.busy === "finalize"} disabled={actions.busy !== null} onClick={() => void actions.finalize()}>
-          Finalize<span className="sr-only"> {dish.name}</span>
-        </Button>
-        <Button asChild variant="outline" className={K_BUTTON}>
-          <Link href={dishHref(dish.id)}>
-            Open the dish<span className="sr-only">: {dish.name}</span>
-          </Link>
-        </Button>
-      </div>
-    </div>
+    <Button className={ROW_BUTTON} loading={actions.busy === "finalize"} disabled={actions.busy !== null} onClick={() => void actions.finalize()}>
+      Finalize<span className="sr-only"> {dish.name}</span>
+    </Button>
   );
 }
 
-// ── Use soon: one tap for your usual amount, or cook with it ──────
+// ── Use soon: your usual amount, for just you, in one tap ─────────
 
-function UseAction({ action, meId, names }: { action: Extract<InboxAction, { kind: "use" }>; meId: string | null; names: MemberNames }) {
+function UseButton({ action, meId, names }: { action: Extract<InboxAction, { kind: "use" }>; meId: string | null; names: MemberNames }) {
   const items = useItemsByRef([action.ref]);
   const item = items.get(action.ref.itemId);
   const logUse = useLogUse();
   const fits = item ? item.state === "active" && action.qtyMilli <= item.qtyLeftMilli : true;
   const cost = item && fits ? formatMinor(amountCost(item, action.qtyMilli), item.currency) : null;
 
-  // At once (SM-5): the card's "left" drops (or the card goes, with nothing
-  // left) and the Undo toast is up; a refusal is put back and says why.
+  // At once (SM-5): what is left drops (the row goes with nothing left) and
+  // the Undo toast is up; a refusal is put back and says why.
   const use = () => {
     if (!item || !meId) return;
     void logUse({
@@ -287,70 +318,65 @@ function UseAction({ action, meId, names }: { action: Extract<InboxAction, { kin
     });
   };
 
+  if (item !== undefined && (item === null || !fits)) {
+    // It can't be read, or less is left than that: its page says what is left.
+    return (
+      <Button asChild variant="outline" className={ROW_BUTTON}>
+        <Link href={quickUseHref(action.ref)}>Use</Link>
+      </Button>
+    );
+  }
   return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-2">
-        <Button className={K_BUTTON} disabled={!item || !fits || !meId} onClick={use}>
-          {cost ? `${action.label} · ${cost}` : action.label}
-        </Button>
-        <Button asChild variant="outline" className={K_BUTTON}>
-          <Link href={action.cookHref}>
-            <CookingPot aria-hidden />
-            Cook with it
-            {item ? <span className="sr-only">: {item.name}</span> : null}
-          </Link>
-        </Button>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {item === null
-          ? "It can't be read just now: open it to see what's left."
-          : !fits
-            ? "Less is left than that now: open it to log another amount."
-            : `${action.usual ? "Your usual amount" : "A usual measure"}, for just you.`}
-      </p>
-    </div>
+    <Button
+      variant="outline"
+      className={ROW_BUTTON}
+      disabled={!item || !meId}
+      aria-label={`${action.label}${cost ? `, ${cost}` : ""}, for you`}
+      onClick={use}
+    >
+      {action.words}
+    </Button>
   );
 }
 
-// ── I paid: record the plan's payment, with Undo ──────────────────
+// ── Paid: how, then it is recorded with Undo ──────────────────────
 
-function PayAction({ action, meId }: { action: Extract<InboxAction, { kind: "pay" }>; meId: string | null }) {
+function PayChips({ action, meId, onDone }: { action: Extract<InboxAction, { kind: "pay" }>; meId: string | null; onDone: () => void }) {
   const record = useRecordPayment();
-  const [choosing, setChoosing] = React.useState(false);
-  const chipsId = React.useId();
-  const to = action.toLabel;
-
-  if (!action.canRecord) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        You view {action.groupName}, so {to} or an owner or admin records it.
-      </p>
-    );
-  }
-  // Recorded at once (SM-5): the card leaves Home and the Undo toast is up
+  // Recorded at once (SM-5): the row leaves Home and the Undo toast is up
   // before the server answers; a refusal brings it back and says why.
   const pick = (method: SettlementMethod) => {
     if (!meId) return;
-    setChoosing(false);
+    onDone();
     void record({
       orgId: action.orgId,
       payment: { fromSubjectId: meId, toSubjectId: action.toSubjectId, amountMinor: action.amountMinor },
       currency: action.currency,
       method,
-      sentence: `You paid ${to}`,
+      sentence: `You paid ${action.toLabel}`,
     });
   };
-  return choosing ? (
-    <PaymentMethodChips id={chipsId} busy={null} onPick={pick} onCancel={() => setChoosing(false)} />
-  ) : (
-    <Button className={K_BUTTON} disabled={!meId} aria-expanded={false} aria-controls={chipsId} onClick={() => setChoosing(true)}>
-      <HandCoins aria-hidden />
-      I paid
-      <span className="sr-only">
-        {" "}
-        {formatMinor(action.amountMinor, action.currency)} in {action.groupName}
-      </span>
-    </Button>
+  return (
+    <div role="group" aria-label="How was it paid?" className="flex items-center gap-1.5">
+      {SETTLE_METHODS.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => pick(m.id)}
+          className="min-h-11 flex-1 rounded-xl border border-input bg-card text-[15px] font-extrabold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {m.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        aria-label="Not now"
+        onClick={onDone}
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <X className="h-5 w-5" aria-hidden />
+      </button>
+    </div>
   );
 }
 
@@ -375,34 +401,31 @@ export function RecentActivityList({
   className?: string;
 }) {
   return (
-    <section aria-labelledby="home-recent" className={cn("space-y-3", className)}>
-      <h2 id="home-recent" className="text-lg font-bold tracking-tight">
-        Recent activity
+    <section aria-labelledby="home-recent" className={cn("space-y-2", className)}>
+      <h2 id="home-recent" className="text-lg font-extrabold tracking-tight">
+        Recent
       </h2>
       {loading ? (
-        <div className="space-y-2" aria-hidden>
-          <Skeleton className="h-16 w-full rounded-[18px]" />
-          <Skeleton className="h-16 w-full rounded-[18px]" />
+        <div className="space-y-px overflow-hidden rounded-[22px] border bg-card" aria-hidden>
+          <Skeleton className="h-14 w-full rounded-none" />
+          <Skeleton className="h-14 w-full rounded-none" />
         </div>
       ) : rows.length === 0 ? (
-        <KCard className="flex gap-4 p-5">
-          <IconBubble icon={Receipt} tone="blue" />
-          <p className="min-w-0 self-center text-sm text-muted-foreground">
-            {hasGroups ? "Nothing logged in your groups yet." : "Start or join a group to see what's logged in it."}
-          </p>
-        </KCard>
+        <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">
+          {hasGroups ? "Nothing logged yet" : "No groups yet"}
+        </p>
       ) : (
-        <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
+        <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
           {rows.map((row) => (
             <li key={row.id}>
               <Link
                 {...pressIn(() => onPressRow?.(row))}
                 href={row.href}
-                className="flex min-h-[64px] items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
-                <KindBubble glyph={row.glyph} label={row.kindLabel} tone={row.reversed ? "neutral" : row.kindTone} />
+                <KindBubble glyph={row.glyph} label={row.kindLabel} tone={row.reversed ? "neutral" : row.kindTone} className="h-9 w-9 text-sm" />
                 <span className="min-w-0 flex-1">
-                  <span className={cn("block truncate text-[15px] font-semibold", row.reversed && "text-muted-foreground line-through")}>
+                  <span className={cn("block truncate text-[15px] font-bold leading-snug", row.reversed && "text-muted-foreground line-through")}>
                     {row.title}
                   </span>
                   <span className="block truncate text-[13px] text-muted-foreground">
@@ -410,25 +433,24 @@ export function RecentActivityList({
                     {row.whoWhen}
                   </span>
                 </span>
-                <span className="shrink-0 text-right">
+                <span
+                  className={cn(
+                    "shrink-0 text-[15px] font-bold tabular-nums",
+                    !row.amountText || row.reversed || row.tone === "neutral" ? "text-muted-foreground" : row.tone === "owed" ? "text-cp-owed" : "text-cp-owe",
+                    row.reversed && "line-through",
+                  )}
+                >
                   {row.amountText ? (
-                    <span
-                      className={cn(
-                        "block text-sm font-bold tabular-nums",
-                        row.reversed || row.tone === "neutral" ? "text-muted-foreground" : row.tone === "owed" ? "text-cp-owed" : "text-cp-owe",
-                        row.reversed && "line-through",
-                      )}
-                    >
+                    <>
                       <span aria-hidden>{row.amountText}</span>
                       <span className="sr-only">{row.amountWords}</span>
-                    </span>
+                    </>
                   ) : (
-                    <span className="block text-xs text-muted-foreground">not involved</span>
+                    <>
+                      <span className="sr-only">Not you; in all </span>
+                      {row.totalText}
+                    </>
                   )}
-                  <span className="block text-xs tabular-nums text-muted-foreground">
-                    <span className="sr-only">Total </span>
-                    {row.totalText}
-                  </span>
                 </span>
               </Link>
             </li>

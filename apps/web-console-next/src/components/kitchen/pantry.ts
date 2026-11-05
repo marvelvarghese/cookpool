@@ -547,11 +547,11 @@ export interface FilterChip {
   label: string;
 }
 
-/** "All items", "Use soon · N", and "Expired · N" only when something has expired. */
+/** "All", "Soon · N", and "Expired · N" only when something has expired (SM-10, the canvas's chips). */
 export function filterChips(summary: Pick<PantrySummary, "useSoonCount" | "expiredCount">): FilterChip[] {
   const chips: FilterChip[] = [
-    { id: "all", label: "All items" },
-    { id: "soon", label: `Use soon · ${summary.useSoonCount}` },
+    { id: "all", label: "All" },
+    { id: "soon", label: `Soon · ${summary.useSoonCount}` },
   ];
   if (summary.expiredCount > 0) chips.push({ id: "expired", label: `Expired · ${summary.expiredCount}` });
   return chips;
@@ -667,6 +667,85 @@ export function pantryRows<T extends KitchenItem>(
       matchesFilter(i, opts.filter ?? "all") &&
       matchesQuery(i, opts.query ?? ""),
   );
+}
+
+// ── The phone list (SM-10) ────────────────────────────────────────
+
+/** A pantry's chip on /pantry: "Me" for your own (its badge), else the group's name. */
+export function pantryChipLabel(pantry: PantryRef | Pantry): string {
+  return pantry.kind === "personal" ? "Me" : pantry.name;
+}
+
+/** The pantry chips, in the picker's order: yours, then groups opened last first. */
+export function pantryChips(pantries: readonly Pantry[], recentSlugs: readonly string[] = []): { key: string; label: string }[] {
+  return orderPantries(pantries, recentSlugs).map((p) => ({ key: pantryKey(p), label: pantryChipLabel(p) }));
+}
+
+/** What a row's Use does: log your usual amount at once, or open Use with the item chosen. */
+export type RowUse =
+  | {
+      kind: "log";
+      qtyMilli: number;
+      /** "1 glass" — the button says it. */
+      words: string;
+      /** "Log 1 glass of Milk for you" — the button's name. */
+      label: string;
+    }
+  | { kind: "open"; href: string; label: string };
+
+/**
+ * One item on the phone's list (SM-10): its name, what is left, one chip
+ * when it is due soon or past its date, the pantry's chip on All pantries —
+ * and Use. Price, worth, who paid and the bar are the item page's.
+ */
+export interface PantryListRow {
+  id: string;
+  href: string;
+  name: string;
+  struck: boolean;
+  /** "400 g" (never wrapped). */
+  left: string;
+  /** Only soon or expired: a later date is not a warning. */
+  chip: ExpiryChip | null;
+  /** "Me", "Flat 4B" — on All pantries only. */
+  pantry: string | null;
+  /** Null when you may not use it (a viewer), or nothing is left. */
+  use: RowUse | null;
+  pending: boolean;
+}
+
+/**
+ * A row of the phone list. Use logs your usual amount of the item for just
+ * you, in one tap (with Undo), when you have one that fits what is left;
+ * otherwise it opens Use with the item chosen. Never for others: nobody is
+ * charged from a row they cannot see.
+ */
+export function pantryListRow(
+  item: KitchenItem & { canUse?: boolean },
+  ctx: { showPantry: boolean; usualQtyMilli?: number | null; usualWords?: string | null },
+): PantryListRow {
+  const chip = expiryChip(item);
+  const pending = isPendingId(item.id);
+  const canUse = !pending && (item.canUse ?? true) && item.state === "active" && item.qtyLeftMilli > 0;
+  const usual = ctx.usualQtyMilli ?? null;
+  let use: RowUse | null = null;
+  if (canUse) {
+    use =
+      usual !== null && usual > 0 && usual <= item.qtyLeftMilli && ctx.usualWords
+        ? { kind: "log", qtyMilli: usual, words: ctx.usualWords, label: `Log ${ctx.usualWords} of ${item.name} for you` }
+        : { kind: "open", href: quickUseHref(item), label: `Use some ${item.name}` };
+  }
+  return {
+    id: item.id,
+    href: itemHref(item),
+    name: item.name,
+    struck: isExpired(item.daysToUseBy),
+    left: leftText(item),
+    chip: chip && chip.tone !== "later" ? chip : null,
+    pantry: ctx.showPantry ? pantryChipLabel(item.pantry) : null,
+    use,
+    pending,
+  };
 }
 
 // ── Home: use soon ────────────────────────────────────────────────
