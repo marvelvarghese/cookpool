@@ -2126,6 +2126,266 @@ describe("from before, against a real SQLite engine (SM-8)", () => {
   });
 });
 
+// Your measures (Cookpool SM-13, migration 300): the sizes a name is counted
+// in, per pantry and dimension, read for many items in ONE statement and
+// replaced as a set in one batch; and the words a use or an ingredient was
+// given in, kept on the move and the ingredient row.
+describe("your measures, against a real SQLite engine (300_kitchen_measures)", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  /** Every statement the repository sent, with what it bound. */
+  let sent: Array<{ query: string; values: unknown[] }>;
+  const flat = asUuid("c3c3c3c3-c3c3-43c3-83c3-c3c3c3c3c3c3");
+  const lunch = asUuid("c4c4c4c4-c4c4-44c4-84c4-c4c4c4c4c4c4");
+  const me = { kind: "user", subjectId: "usr_rahul" } as const;
+  const inFlat = { kind: "group", orgId: flat } as const;
+  const now = new Date("2026-11-05T08:00:00.000Z");
+  const onion = { one: "onion", many: "onions", count: 1, amountMilli: 150_000 };
+  const katori = { one: "katori", many: "katoris", count: 1, amountMilli: 120_000 };
+  let seq = 0;
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    sent = [];
+    const binding = d1Over(db);
+    executor = createSqlExecutor({
+      ...binding,
+      prepare(query: string) {
+        const statement = binding.prepare(query);
+        const record = { query, values: [] as unknown[] };
+        sent.push(record);
+        return {
+          ...statement,
+          bind(...values: unknown[]) {
+            record.values = values;
+            statement.bind(...values);
+            return this;
+          },
+          all: () => statement.all(),
+        };
+      },
+      batch: (statements: unknown[]) => binding.batch!(statements as never),
+    } as unknown as D1Binding);
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  const count = (table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
+  const fresh = <T extends object>(m: T) => ({ id: asUuid(randomUUID()), ...m });
+
+  function newItem(overrides: Partial<NewKitchenItem> = {}): NewKitchenItem {
+    seq += 1;
+    return {
+      id: asUuid(randomUUID()),
+      owner: me,
+      name: "Onions",
+      category: "Veg",
+      dimension: "mass",
+      displayUnit: "kg",
+      qtyMilli: 1_000_000,
+      priceMinor: 4000,
+      currency: "INR",
+      paidBy: "usr_rahul",
+      boughtOn: "2026-11-05",
+      expiresOn: null,
+      wastePolicy: null,
+      createdBy: "usr_rahul",
+      idemKey: `add-${seq}`,
+      now,
+      ...overrides,
+    };
+  }
+
+  it("replaces a name's set in one batch: a word kept keeps its id and who first set it, the rest go, an empty set clears it", async () => {
+    const repo = createKitchenRepository(executor);
+    const key = { owner: inFlat, name: "Onions", dimension: "mass" } as const;
+    const first = await repo.replaceMeasures({ key, measures: [fresh(onion)], actor: "usr_anu", now });
+    expect(first.ok && first.value).toEqual([
+      expect.objectContaining({
+        ownerKind: "group", ownerId: flat, nameKey: "onions", dimension: "mass", ...onion, position: 0,
+        createdBy: "usr_anu", updatedBy: "usr_anu",
+      }),
+    ]);
+    const onionId = first.ok ? first.value[0]!.id : "";
+
+    // Through another spelling of the name: one set.
+    const later = new Date(now.getTime() + 60_000);
+    const before = sent.length;
+    const second = await repo.replaceMeasures({
+      key: { ...key, name: " ONIONS " },
+      measures: [fresh(katori), fresh({ ...onion, amountMilli: 160_000 })],
+      actor: "usr_dev",
+      now: later,
+    });
+    // One batch: the delete, then one upsert per measure.
+    expect(sent.length - before).toBe(3);
+    expect(second.ok && second.value.map((m) => [m.one, m.amountMilli, m.position, m.createdBy, m.updatedBy])).toEqual([
+      ["katori", 120_000, 0, "usr_dev", "usr_dev"],
+      ["onion", 160_000, 1, "usr_anu", "usr_dev"],
+    ]);
+    expect(second.ok && second.value[1]!.id).toBe(onionId);
+    expect(second.ok && second.value[1]!.createdAt).toEqual(now);
+    expect(second.ok && second.value[1]!.updatedAt).toEqual(later);
+
+    const third = await repo.replaceMeasures({ key, measures: [fresh(onion)], actor: "usr_rahul", now: later });
+    expect(third.ok && third.value.map((m) => [m.id, m.one, m.position])).toEqual([[onionId, "onion", 0]]);
+    expect(count("kitchen_measures")).toBe(1);
+    expect(await repo.replaceMeasures({ key, measures: [], actor: "usr_rahul", now: later })).toEqual({ ok: true, value: [] });
+    expect(count("kitchen_measures")).toBe(0);
+  });
+
+  it("reads many names in one statement through the lookup index, each in position order; pantries and dimensions apart", async () => {
+    const repo = createKitchenRepository(executor);
+    await repo.replaceMeasures({ key: { owner: inFlat, name: "Onions", dimension: "mass" }, measures: [fresh(katori), fresh(onion)], actor: "usr_anu", now });
+    await repo.replaceMeasures({ key: { owner: inFlat, name: "Onions", dimension: "count" }, measures: [fresh({ ...onion, amountMilli: 1_000 })], actor: "usr_anu", now });
+    await repo.replaceMeasures({ key: { owner: me, name: "Onions", dimension: "mass" }, measures: [fresh({ ...onion, amountMilli: 100_000 })], actor: "usr_rahul", now });
+    const slice = { one: "slice", many: "slices", count: 16, amountMilli: 1_000 };
+    await repo.replaceMeasures({ key: { owner: me, name: "Bread", dimension: "pack" }, measures: [fresh(slice)], actor: "usr_rahul", now });
+
+    const before = sent.length;
+    const found = await repo.listMeasures([
+      { owner: inFlat, name: "onions", dimension: "mass" },
+      { owner: { kind: "group", orgId: lunch }, name: "Onions", dimension: "mass" },
+      { owner: me, name: "Bread", dimension: "pack" },
+      { owner: me, name: "Onions", dimension: "mass" },
+      { owner: inFlat, name: "Onions", dimension: "count" },
+      { owner: inFlat, name: "Onions", dimension: "mass" },
+      // A group's id where a person's would be is not that person's pantry.
+      { owner: { kind: "group", orgId: "usr_rahul" as typeof flat }, name: "Bread", dimension: "pack" },
+    ]);
+    expect(sent.length - before).toBe(1);
+    expect(found.ok && found.value.map((list) => list.map((m) => `${m.one}:${m.amountMilli}`))).toEqual([
+      ["katori:120000", "onion:150000"],
+      [],
+      ["slice:1000"],
+      ["onion:100000"],
+      ["onion:1000"],
+      ["katori:120000", "onion:150000"],
+      [],
+    ]);
+    const last = sent[sent.length - 1]!;
+    const plan = (db.prepare(`EXPLAIN QUERY PLAN ${last.query}`).all(...(last.values as never[])) as Array<{ detail: string }>).map(
+      (p) => p.detail,
+    );
+    // Each key by the lookup index — never a scan of the table.
+    expect(plan).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^SEARCH m USING INDEX kitchen_measures_lookup_idx \(owner_kind=\? AND owner_id=\? AND name_key=\? AND dimension=\?\)$/),
+      ]),
+    );
+    expect(plan.filter((p) => /^SCAN m\b/.test(p))).toEqual([]);
+
+    // No keys, no statement.
+    const none = sent.length;
+    expect(await repo.listMeasures([])).toEqual({ ok: true, value: [] });
+    expect(sent.length).toBe(none);
+  });
+
+  it("checks the words, the numbers, the places and one row per word in the table itself", () => {
+    const insert = (values: Partial<Record<"one" | "many" | "kind" | "dimension", string>> & { count?: number; amount?: number; position?: number; name?: string }) => () =>
+      db.prepare(
+        `INSERT INTO kitchen_measures (id, owner_kind, owner_id, name_key, dimension, one, many, count, amount_milli, position, created_by, updated_by)
+         VALUES (?, ?, 'usr_rahul', ?, ?, ?, ?, ?, ?, ?, 'usr_rahul', 'usr_rahul')`,
+      ).run(
+        randomUUID(), values.kind ?? "user", values.name ?? "onions", values.dimension ?? "mass", values.one ?? "onion",
+        values.many ?? "onions", values.count ?? 1, values.amount ?? 150_000, values.position ?? 0,
+      );
+    expect(insert({})).not.toThrow();
+    expect(insert({})).toThrow(/UNIQUE constraint failed/);
+    expect(insert({ dimension: "count" })).not.toThrow();
+    expect(insert({ one: "bulb", position: 2 })).not.toThrow();
+    for (const bad of [
+      { one: "x", kind: "team" },
+      { one: "x", dimension: "weight" },
+      { one: "" },
+      { one: "x".repeat(25) },
+      { one: "x", many: "" },
+      { one: "x", count: 0 },
+      { one: "x", amount: 0 },
+      { one: "x", position: 3 },
+      { one: "x", position: -1 },
+      { one: "x", name: "" },
+    ]) {
+      expect(insert(bad)).toThrow(/CHECK constraint failed/);
+    }
+    const row = db.prepare("SELECT created_at, updated_at FROM kitchen_measures LIMIT 1").get() as { created_at: string; updated_at: string };
+    expect(Number.isNaN(new Date(row.created_at).getTime())).toBe(false);
+    expect(count("kitchen_measures")).toBe(3);
+  });
+
+  it("keeps the words a use and an ingredient were given in — and a reversal's — and nothing for a unit", async () => {
+    const repo = createKitchenRepository(executor);
+    const item = newItem();
+    await repo.createItem({ item });
+    const take = async (label: string | null | undefined, qtyMilli: number) => {
+      const current = await repo.getItem(me, item.id);
+      const version = current.ok ? current.value.version : 0;
+      const moved = await repo.takeStock({
+        owner: me,
+        itemId: item.id,
+        expectedVersion: version,
+        move: {
+          id: asUuid(randomUUID()), kind: "use", qtyMilli, costMinor: qtyMilli / 250, unit: "kg", consumers: ["usr_rahul"],
+          actor: "usr_rahul", idemKey: `use-${randomUUID()}`, now,
+          ...(label === undefined ? {} : { label }),
+        },
+      });
+      expect(moved.ok).toBe(true);
+      return moved.ok ? moved.value : null;
+    };
+    const twoOnions = await take("2 onions", 300_000);
+    expect(twoOnions!.move.label).toBe("2 onions");
+    await take(undefined, 100_000);
+    await take(null, 50_000);
+    const half = await take("½ onion", 75_000);
+
+    const undone = await repo.undoMove({
+      owner: me,
+      move: half!.move,
+      expectedVersion: half!.item.version,
+      reversal: { id: asUuid(randomUUID()), actor: "usr_rahul", idemKey: "undo-1", now },
+    });
+    expect(undone.ok && undone.value.move).toMatchObject({ kind: "reversal", label: "½ onion", qtyMilli: 75_000 });
+    const moves = await repo.listMoves(me, item.id, 10);
+    expect(moves.ok && moves.value.map((m) => [m.kind, m.label])).toEqual([
+      ["reversal", "½ onion"],
+      ["use", "½ onion"],
+      ["use", null],
+      ["use", null],
+      ["use", "2 onions"],
+    ]);
+    expect(() =>
+      db.prepare("UPDATE kitchen_stock_moves SET label = ? WHERE id = ?").run("x".repeat(65), twoOnions!.move.id),
+    ).toThrow(/CHECK constraint failed/);
+
+    // A dish's ingredient, and its move.
+    const current = await repo.getItem(me, item.id);
+    const dishId = asUuid(randomUUID());
+    const cooked = await repo.cookDish({
+      dish: {
+        id: dishId, cook: "usr_rahul", orgId: null, name: "Onion curry", portionsHalf: 4, extrasMinor: 0, currency: "INR",
+        splitMode: "assign", state: "draft", idemKey: "cook-1", now,
+      },
+      newItems: [],
+      ingredients: [
+        {
+          owner: me, itemId: item.id, expectedVersion: current.ok ? current.value.version : 0, qtyMilli: 150_000, unit: "kg",
+          label: "1 onion", costMinor: 600, paidBy: "usr_rahul", useTxnId: null, moveId: asUuid(randomUUID()),
+        },
+      ],
+      txns: [],
+      audits: [],
+    });
+    expect(cooked.ok && cooked.value.dish.ingredients.map((i) => [i.qtyMilli, i.unit, i.label])).toEqual([[150_000, "kg", "1 onion"]]);
+    const dishMoves = await repo.listMoves(me, item.id, 1);
+    expect(dishMoves.ok && dishMoves.value[0]).toMatchObject({ kind: "dish", dishId, label: "1 onion" });
+    const read = await repo.getDish(dishId, { cook: "usr_rahul", orgIds: [] });
+    expect(read.ok && read.value.ingredients[0]!.label).toBe("1 onion");
+  });
+});
+
 // Cookpool SI-2: a code allows 5 tries, and an address can ask for 5 codes in
 // 15 minutes. Both limits are one guarded statement each, so they are checked
 // here against the engine itself, with requests racing: a read-then-write

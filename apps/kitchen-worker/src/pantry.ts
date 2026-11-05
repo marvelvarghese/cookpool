@@ -14,6 +14,7 @@ import {
   WASTE_POLICIES,
   type ItemFilter,
   type KitchenItem,
+  type KitchenMeasure,
   type PantryRef,
   type PantryTotals,
   type WastePolicy,
@@ -107,13 +108,15 @@ export function displayQuantity(milli: number, unit: string): number {
 
 /**
  * The item as the API shows it. `groupWastePolicy` is its group's rule (null
- * for a personal item); `today` is the day `daysToUseBy` counts from.
+ * for a personal item); `today` is the day `daysToUseBy` counts from;
+ * `measures` its name's measures in its pantry (SM-13, `readMeasures`).
  */
 export function toKitchenItem(
   record: KitchenItemRecord,
   pantry: PantryRef,
   groupWastePolicy: WastePolicy | null,
   today: string,
+  measures: KitchenMeasure[],
 ): KitchenItem {
   // What is left of the price is what using all that is left would cost: the
   // engine's last-use rule charges exactly price − cost taken.
@@ -144,6 +147,7 @@ export function toKitchenItem(
     createdBy: record.createdBy,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
+    measures,
   };
 }
 

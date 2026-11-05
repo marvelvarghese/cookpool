@@ -422,6 +422,13 @@ export interface KitchenStockMoveRecord {
   consumers: string[] | null;
   /** The unit it was logged in; null reads as the item's display unit. */
   unit: string | null;
+  /**
+   * The words it was given in ("2 onions", SM-13, migration 300): a use or a
+   * dish's take given in one of the item's measures, and the reversal that
+   * puts such a move back. Null when it was given in a unit, and for every
+   * move written before.
+   */
+  label: string | null;
   /** For a reversal: the move it puts back. */
   reverses: string | null;
   /** The reversal that put this move back, if any. Read by join, never stored. */
@@ -461,6 +468,8 @@ export interface TakeStockInput {
     costMinor: number;
     unit: string;
     consumers: readonly string[] | null;
+    /** The words a use in a measure was given in ("2 onions", SM-13); absent or null for a unit. */
+    label?: string | null;
   };
   /** The transaction the move posts: a group use, or waste split equally. Its id becomes the move's txn_id. */
   txn?: { txn: NewKitchenTxn; splits: readonly KitchenSplit[] } | null;
@@ -523,6 +532,8 @@ export interface KitchenUsualRecord {
   usedCount: number;
   lastQtyMilli: number;
   lastUnit: string | null;
+  /** The words the last use was given in ("2 onions", SM-13); null for a unit. */
+  lastLabel: string | null;
   lastConsumers: string[] | null;
   lastUsedAt: Date;
 }
@@ -695,6 +706,82 @@ export interface KitchenRepository {
   itemHistory(query: KitchenItemHistoryQuery): Promise<KitchenResult<KitchenItemHistoryRecord[]>>;
   /** Dish names cooked before, each with its newest dish's ingredients matched to usable items (see `KitchenRecipesQuery`). ONE read. */
   recipes(query: KitchenRecipesQuery): Promise<KitchenResult<KitchenRecipeRecord[]>>;
+
+  // ── Your measures (SM-13) ──
+
+  /**
+   * The measures of each key — one list per key, in the keys' order, each in
+   * `position` order (empty when a name has none) — in ONE statement however
+   * many keys: they bind as one JSON parameter. No keys, no query.
+   */
+  listMeasures(keys: readonly KitchenMeasureKey[]): Promise<KitchenResult<KitchenMeasureRecord[][]>>;
+  /**
+   * Replace a name's measures in ONE batch (see `ReplaceMeasuresInput`): the
+   * ones whose word is not in `measures` are deleted, the rest written in
+   * their new order. Answers the name's measures as they now are.
+   */
+  replaceMeasures(input: ReplaceMeasuresInput): Promise<KitchenResult<KitchenMeasureRecord[]>>;
+}
+
+// ── Your measures (SM-13) ───────────────────────────────────
+
+/**
+ * Which measures: a name in one pantry, for one dimension. The name is
+ * matched as `lower(trim(name))` in SQL — the same expression the measures
+ * are written with, so the two always agree (ASCII letters fold).
+ */
+export interface KitchenMeasureKey {
+  owner: KitchenPantryOwner;
+  /** The item's name, as stored. */
+  name: string;
+  dimension: KitchenDimension;
+}
+
+/** A measure as stored (migration 300): `count` of it make `amountMilli` of the stock, in thousandths of the dimension's base unit. */
+export interface KitchenMeasureRecord {
+  id: string;
+  ownerKind: "user" | "group";
+  /** The pantry: the person (`usr_…`) for a personal pantry, the group's UUID for a group's. */
+  ownerId: string;
+  /** lower(trim(name)). */
+  nameKey: string;
+  dimension: KitchenDimension;
+  /** The word for one ("onion"). */
+  one: string;
+  /** The word for more than one ("onions"). */
+  many: string;
+  count: number;
+  amountMilli: number;
+  /** 0, 1 or 2. */
+  position: number;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** One measure of a name's new set. */
+export interface NewKitchenMeasure {
+  /** Used when the word is new to the name; a word it already has keeps its id. */
+  id: Uuid;
+  one: string;
+  many: string;
+  count: number;
+  amountMilli: number;
+}
+
+/**
+ * Replace a name's measures (at most three, each word once — the caller
+ * validates both). A word the name already has keeps its id and who first set
+ * it; every measure written records `actor` as who set it last.
+ */
+export interface ReplaceMeasuresInput {
+  key: KitchenMeasureKey;
+  /** In order: each one's position is its index. Empty clears the name's measures. */
+  measures: readonly NewKitchenMeasure[];
+  /** Who set them (`usr_…`). */
+  actor: string;
+  now: Date;
 }
 
 // ── Dishes (CP-14) ──────────────────────────────────────────
@@ -737,6 +824,8 @@ export interface KitchenDishIngredientRecord {
   qtyMilli: number;
   /** The unit it was entered in. */
   unit: string;
+  /** The words it was given in ("2 onions", SM-13, migration 300); null for a unit, and for every ingredient written before. */
+  label: string | null;
   costMinor: number;
   /** The group pantry it came from; null for the cook's own. */
   orgId: string | null;
@@ -814,6 +903,8 @@ export interface CookIngredient {
   qtyMilli: number;
   /** The unit it was entered in. */
   unit: string;
+  /** The words it was given in, in one of the item's measures ("2 onions", SM-13); absent or null for a unit. */
+  label?: string | null;
   costMinor: number;
   /** Who bought it (`usr_…`). */
   paidBy: string;

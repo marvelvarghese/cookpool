@@ -73,7 +73,7 @@ export function takeStockStatements(
   const m = new Params();
   const insert: SqlStatement = {
     text: `INSERT INTO kitchen_stock_moves (
-             id, item_id, kind, qty_milli, cost_minor, actor, txn_id, dish_id, consumers, unit, idem_key, created_at
+             id, item_id, kind, qty_milli, cost_minor, actor, txn_id, dish_id, consumers, unit, label, idem_key, created_at
            ) VALUES (
              ${m.add(move.id)},
              (SELECT id FROM kitchen_items
@@ -81,7 +81,7 @@ export function takeStockStatements(
                 AND ${ownerClause(m, owner)}),
              ${m.add(move.kind)}, ${m.add(move.qtyMilli)}, ${m.add(move.costMinor)}, ${m.add(move.actor)},
              ${m.add(move.txnId)}, ${m.add(move.dishId)}, ${m.add(move.consumers ? JSON.stringify(move.consumers) : null)},
-             ${m.add(move.unit)}, ${m.add(move.idemKey)}, ${m.add(move.createdAt)}
+             ${m.add(move.unit)}, ${m.add(move.label)}, ${m.add(move.idemKey)}, ${m.add(move.createdAt)}
            )`,
     params: m.values,
   };
@@ -177,6 +177,7 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
         dishId: null,
         consumers: move.consumers ? [...move.consumers] : null,
         unit: move.unit,
+        label: move.label ?? null,
         reverses: null,
         undoneBy: null,
         idemKey: move.idemKey,
@@ -235,6 +236,7 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
         dishId: null,
         consumers: null,
         unit: item.displayUnit,
+        label: null,
         reverses: null,
         undoneBy: null,
         idemKey: move.idemKey,
@@ -397,7 +399,7 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
         // newest one per item says how it was used last.
         const result = await executor.execute(
           `WITH mine AS (
-             SELECT m.item_id, m.qty_milli, m.unit, m.consumers, m.created_at,
+             SELECT m.item_id, m.qty_milli, m.unit, m.label, m.consumers, m.created_at,
                     COUNT(*) OVER (PARTITION BY m.item_id) AS used_count,
                     ROW_NUMBER() OVER (PARTITION BY m.item_id ORDER BY m.created_at DESC, m.rowid DESC) AS rn
              FROM kitchen_stock_moves m JOIN kitchen_items i ON i.id = m.item_id
@@ -407,7 +409,7 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
                AND i.state = 'active' AND i.qty_left_milli > 0 AND ${scopeClause(params, query)}
            )
            SELECT ${itemColumns("i")}, mine.used_count, mine.qty_milli AS last_qty_milli, mine.unit AS last_unit,
-                  mine.consumers AS last_consumers, mine.created_at AS last_used_at
+                  mine.label AS last_label, mine.consumers AS last_consumers, mine.created_at AS last_used_at
            FROM mine JOIN kitchen_items i ON i.id = mine.item_id
            WHERE mine.rn = 1
            ORDER BY mine.used_count DESC, mine.created_at DESC, i.id
@@ -421,6 +423,7 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
             usedCount: Number(row.used_count),
             lastQtyMilli: Number(row.last_qty_milli),
             lastUnit: typeof row.last_unit === "string" ? row.last_unit : null,
+            lastLabel: typeof row.last_label === "string" ? row.last_label : null,
             lastConsumers: Array.isArray(consumers) ? consumers.map(String) : null,
             lastUsedAt: new Date(row.last_used_at as string),
           };

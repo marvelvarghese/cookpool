@@ -36,8 +36,9 @@ import { conflict, unprocessable, validationError } from "./http.js";
 import { parseOrgPublicId, parsePublicId, toPublicId } from "./ids.js";
 import { ledgerAudit } from "./ledger.js";
 import { MAX_NAME, displayQuantity, isoDay, parseNewItem } from "./pantry.js";
+import { takeInMeasure, type MeasureBook } from "./measures.js";
 import { MAX_PORTIONS_HALF, dishSplitView } from "./split.js";
-import { quantityOf, stockErrorResponse } from "./stock.js";
+import { measureField, quantityOf, stockErrorResponse } from "./stock.js";
 import { Fields, minor, oneOf, text, type FieldErrors } from "./validate.js";
 
 /** What an item bought for a dish is filed under when the cook names nothing. */
@@ -58,6 +59,8 @@ export interface ParsedIngredient {
   itemId: Uuid;
   quantity: string | number;
   unit: UnitKey | null;
+  /** Instead of a unit, one of the item's measures (SM-13): its word, and `quantity` as a count of it. */
+  measure: { word: string; quantity: number } | null;
 }
 
 /** An item just bought: what was bought, and how much of it goes in. */
@@ -106,7 +109,8 @@ function parseIngredient(fields: Fields, at: string, value: unknown): ParsedIngr
     if (isUnit(raw.unit)) unit = raw.unit;
     else fields.add(`${at}.unit`, `Must be one of: ${Object.keys(UNITS).join(", ")}`);
   }
-  return itemId && quantity !== undefined ? { itemId, quantity, unit } : undefined;
+  const measure = measureField(fields, `${at}.measure`, { measure: raw.measure, quantity, unit: raw.unit }, `${at}.quantity`);
+  return itemId && quantity !== undefined ? { itemId, quantity, unit, measure } : undefined;
 }
 
 function parseNewDishItem(fields: Fields, at: string, value: unknown): ParsedNewDishItem | undefined {
@@ -228,6 +232,8 @@ export interface DishPlanInput {
   shared: { orgId: Uuid; currency: string } | null;
   /** Every item `dish.ingredients` names, as just read, by id. */
   items: ReadonlyMap<string, KitchenItemRecord>;
+  /** Their measures (SM-13): read only when an ingredient is given in one. */
+  measures: MeasureBook;
 }
 
 type MutableIngredient = { -readonly [K in keyof CookIngredient]: CookIngredient[K] } & { name: string; what: string };
@@ -244,13 +250,22 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
   const { cook, dishId, idemKey, now, items } = input;
   const mine = { kind: "user", subjectId: cook } as const;
 
-  // Quantities, in each item's own dimension.
+  // Quantities, in each item's own dimension — or in one of its measures
+  // (SM-13), which only decides how much is taken; the item's unit shows it.
   const fields = new Fields();
-  const taken: Array<{ item: KitchenItemRecord; qtyMilli: number; unit: string }> = [];
+  const taken: Array<{ item: KitchenItemRecord; qtyMilli: number; unit: string; label: string | null }> = [];
+  let short: KitchenItemRecord | null = null;
   dish.ingredients.forEach((ingredient, i) => {
     const item = items.get(ingredient.itemId)!;
+    if (ingredient.measure) {
+      const inMeasure = takeInMeasure(item, input.measures(item), ingredient.measure, `ingredients[${i}].measure`);
+      if (inMeasure.kind === "taken") taken.push({ item, qtyMilli: inMeasure.qtyMilli, unit: item.displayUnit, label: inMeasure.label });
+      else if (inMeasure.kind === "unknown") merge(fields, inMeasure.fields);
+      else short ??= item;
+      return;
+    }
     const qty = quantityOf(item, ingredient.quantity, ingredient.unit);
-    if (qty.ok) taken.push({ item, ...qty.value });
+    if (qty.ok) taken.push({ item, ...qty.value, label: null });
     else merge(fields, prefixed(`ingredients[${i}].`, qty.fields));
   });
   if (!fields.ok) return validationError(ctx.requestId, fields.errors);
@@ -268,27 +283,29 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
   }
 
   // Enough of each.
-  for (const { item, qtyMilli } of taken) {
-    if (qtyMilli > item.qtyLeftMilli) {
-      return conflict(ctx.requestId, `Not that much ${item.name} is left`, KITCHEN_ERROR_REASONS.INSUFFICIENT_STOCK, {
-        itemId: toPublicId("itm", item.id),
-        qtyLeftMilli: item.qtyLeftMilli,
-      });
-    }
+  const over = short ?? taken.find(({ item, qtyMilli }) => qtyMilli > item.qtyLeftMilli)?.item;
+  if (over) {
+    return conflict(ctx.requestId, `Not that much ${over.name} is left`, KITCHEN_ERROR_REASONS.INSUFFICIENT_STOCK, {
+      itemId: toPublicId("itm", over.id),
+      qtyLeftMilli: over.qtyLeftMilli,
+    });
   }
 
-  const ingredients = taken.map(({ item, qtyMilli, unit }): MutableIngredient => ({
+  const ingredients = taken.map(({ item, qtyMilli, unit, label }): MutableIngredient => ({
     owner: item.orgId ? { kind: "group", orgId: item.orgId as Uuid } : mine,
     itemId: item.id as Uuid,
     expectedVersion: item.version,
     qtyMilli,
     unit,
+    label,
+    // A measure only decides how much is taken: the cost is any take's.
     costMinor: costOfUse(item, qtyMilli),
     paidBy: item.paidBy,
     useTxnId: null,
     moveId: asUuid(crypto.randomUUID()),
     name: item.name,
-    what: formatQuantity(qtyMilli, item.dimension, unit),
+    // In the words it was given in: "Onions (2 onions)", else "Rice (250 g)".
+    what: label ?? formatQuantity(qtyMilli, item.dimension, unit),
   }));
 
   // Just bought: into the cook's own pantry, paid by them, then into the dish.
@@ -404,6 +421,7 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
             itemId: toPublicId("itm", i.itemId),
             qtyMilli: i.qtyMilli,
             unit: i.unit,
+            label: i.label ?? null,
             costMinor: i.costMinor,
             paidBy: i.paidBy,
           })),
@@ -504,6 +522,7 @@ export function toKitchenDish(record: KitchenDishRecord, viewer: string): Kitche
       qtyMilli: i.qtyMilli,
       quantity: isUnit(i.unit) ? displayQuantity(i.qtyMilli, i.unit) : i.qtyMilli / 1000,
       unit: i.unit,
+      label: i.label,
       costMinor: i.costMinor,
       useTxnId: i.useTxnId ? toPublicId("txn", i.useTxnId) : null,
     })),
