@@ -6,8 +6,8 @@ the code departed from `design.md`.
 | Milestone | State | PR |
 |---|---|---|
 | SM0 — the spec | ✅ shipped 2026-11-04 | #36 (SM-1) |
-| SM1 — fast | ✅ shipped 2026-11-04 | #37 (SM-3), #38 (SM-2), #41 (SM-4), SM-5 |
-| SM2 — for anyone | in progress | #39 (SM-6) |
+| SM1 — fast | ✅ shipped 2026-11-04 | #37 (SM-3), #38 (SM-2), #41 (SM-4), #43 (SM-5) |
+| SM2 — for anyone | ✅ shipped 2026-11-05 | #39 (SM-6), SM-7 |
 | SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), #42 (SM-9) |
 | SM4 — simpler screens | | |
 | SM5 — the rest | | |
@@ -544,3 +544,90 @@ owner's machine (kept-alive connection, 10 GETs each, p75):
   Cloudflare serves from Indian and nearby Asian colos.
 - **Writes** show at once (SM-5): from the tap to the screen 8–23 ms against
   a mock that answers in 1.5 s; a refusal rolls back when the answer comes.
+
+### SM2 — portions for anyone, in the app (SM-7)
+
+- **Every person in the group has a row on an open dish, viewers too.**
+  Viewers eat and anyone may count them in (SM-6), so they are listed like
+  everyone else. Any member (not a viewer) steps any row. The rows keep
+  their place as portions change: the cook first, then the group with you
+  first and the rest by name, then anyone else who holds a share (someone
+  who left). Before, a new share moved up the list under the thumb. The
+  cook's edit (a draft, a correction) uses the same order. A finalized dish
+  still lists only who had some, in the order they were shared.
+- **"by Anu", and numbers only under each name.** A row someone else set
+  reads "by Anu", or "by you" when you set it. It reads nothing when the
+  person set their own, or `setBy` is null or missing (shares from before
+  SM-6). The amount follows ("by Anu · ₹62.40"). The words are gone: "Claimed
+  it", "You claimed this", "You set this", "Hasn't claimed", "Not set", "Had
+  none" and "(your share)". Only "Not saved yet" stays, in the cook's edit.
+  A share the cook assigned is "by" the cook too, since `…/shares` records its
+  caller.
+- **What is left shows once, over the rows.** An open dish reads "2 of 5
+  left", green at "0 of 5 left". The leftovers note is hidden while the dish
+  is open, so the count is not said twice. Draft, correction and finalized
+  dishes keep "x of y set/claimed" and the note. A + that would go past what
+  is free is off: the limit is what that person has plus what nobody has,
+  read from the cached dish, which already holds any portion on its way.
+- **One write pattern, for anyone.** SM-5's `useClaimer` became
+  `usePortions` (dish-data.ts): a burst of taps per person, on `beginWrite`
+  + `portionPatches` (`portionChange(dishId, subjectId, meId, half, at)`
+  replaces `ownPortion`). Your own portion goes to `…/claims/me` as before;
+  anyone else's goes to `…/claims/{subjectId}` (`setPortion`). `useClaimer`
+  is now `usePortions` for the caller, so Home's chips are unchanged (they
+  still claim only your own, as briefed). Measured on the production build
+  with the mock answering 1.5 s late: the tap to the row reading "by you"
+  took 7–52 ms.
+- **One toast at a time, in one line.** Someone else's portion toasts as
+  "Dev Patel · 2 portions", with Undo. Your own keeps its old toast. Stepping
+  a second person closes the first person's toast; their write still goes,
+  and a refusal still opens its own toast. A refusal for someone else reads
+  "Couldn't change veena.k's portion / Only ½ portion is left for veena.k
+  now." (409 `claims_exceed_portions`, from `availableHalf`). Also "Every
+  portion is taken now." (0 left), "Dev isn't in the group any more." (422
+  `not_in_group`) and "You only view this group, so you can't set portions."
+  (the 404). These words are the caller's own claim refusals, worded for
+  someone else.
+- **"Anu · 1 portion" is that toast, not a button.** The brief gives it as a
+  main-button label for Dish. On the dish page a member has no main button:
+  the steppers write at once (SM-5), and the toast names whose portion
+  changed and how much.
+- **Gone from the dish page, as duplicates (rule 6) or explanations
+  (rule 2):** the "How much did you have?" card (your row's stepper does the
+  same; Home keeps the card), the viewer's "You view …, so you don't claim
+  portions" card, "Set everyone's portions yourself" and an admin's "Set
+  portions" on an open dish (the rows do it; both stay for a draft), and
+  "{group} was emailed when you cooked, so everyone can claim theirs."
+- **Faces, one component** (`faces.ts`, `faces-ui.tsx`). `FaceRow` is a
+  grid of faces: initials on a colour that is the same on every screen
+  (yours is the app's green, others one of six by id), the name under each,
+  you first and the rest by name. It shows ten faces, then "+N" (anyone
+  picked further down stays shown). A tap puts the person in or takes them
+  out. `Face` is one person. The faces replace "Who had it?" (`WhoHadIt` is
+  removed) on Use and on the item page's Use. On Bill they replace the
+  "Paid by" chips (one pick) and, in Equally, the tick list ("For", with
+  Everyone / No one). The dish page's rows and Bill's per-person rows (Exact,
+  %, Shares) use `Face`. Seven or more people share six colours, so two
+  faces can match. The initials and names tell them apart.
+- **The main button says who it is for.** On Use it reads "Log 1 glass ·
+  ₹17.00 / You + Anu · ₹8.50 each". On Bill it reads "Add · ₹600.00 / You +
+  Anu · ₹300.00 each". With no amount yet it reads "Add expense". Exact, %
+  and Shares give names only. "≈ ₹5.67 each" means the paisa do not divide
+  (the engine's split). Four or more people read "You + Anu + 2 more". Bill's
+  button is now the one main button: sticky above the tab bar on a phone,
+  with Cancel removed (the back link stays). The item page's button keeps its
+  label ("Log 100 g for you and Dev"), which already named who.
+- **Less text on Use and Bill.** Use loses the who-owes-whom list, its two
+  empty-state sentences and "… Split equally; whoever paid is paid back." The
+  button carries the numbers, and "Meera paid" is in the item's line. Bill's
+  Equally loses its hint, the "assigned" check and "Enter the amount to see
+  everyone's share."
+- **Fixed: the expense toast read "split split equally".** It now reads
+  "₹600.00, split equally." (`expenseAddedText`).
+- **`KitchenDishShare.setBy` stays optional** in `packages/contracts`, which
+  is outside SM-7's contract. The app treats `undefined` as null.
+- **Follow-ups.** Someone who left the group but still holds a share has a
+  row with a stepper. Changing it is refused (422 `not_in_group`, SM-6), and
+  the toast says they are not in the group any more. SM-6's suggested fix
+  (allow 0 for a person who still holds a share) would let it go to 0.
+  Nothing to redeploy beyond the console: only web-console-next changed.

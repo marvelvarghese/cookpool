@@ -24,7 +24,8 @@ import {
   useUsableItems,
   useUsuals,
 } from "@/components/kitchen/pantry-data";
-import { ShareList, WhoHadIt } from "@/components/kitchen/pantry-ui";
+import { FaceRow, MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
+import { faceOrder, toggleFace, whoLine } from "@/components/kitchen/faces";
 import { itemRefParam, leftText, pantryLabel, parseItemRef, type ItemRef } from "@/components/kitchen/pantry";
 import { amountCost, amountStep, costPerText, orderConsumers, parseAmount, shareBreakdown } from "@/components/kitchen/item-use";
 import { formatMinor } from "@/components/kitchen/money";
@@ -53,9 +54,9 @@ const STRIP_USUALS = 8;
  * and usual items (or, while searching, the matches); choosing one shows the
  * item — how much is left and who paid, its pantry — then **How much?** as
  * four kitchen-sized presets with your usual amount marked and chosen,
- * **Who had it?** with the people of your last use chosen, who owes whom, and
- * the Log button ("Log 1 glass · ₹17.00"), sticky above the tab bar on a
- * phone. Logging ends in the ten-second Undo toast and a fresh screen for the
+ * **Who?** as the group's faces with the people of your last use chosen
+ * (SM-7), and the Log button naming who it is for ("Log 1 glass · ₹17.00" /
+ * "You + Anu · ₹8.50 each"), sticky above the tab bar on a phone. Logging ends in the ten-second Undo toast and a fresh screen for the
  * next thing. `/use?item=me:itm_…` (Use on a pantry row) opens with that item
  * chosen. Only items you may use are offered: a viewer's groups never appear.
  */
@@ -434,14 +435,11 @@ function UseForm({
     setTyped(null);
     setPresetId(id);
   };
-  const toggle = (id: string) => {
-    setChosen((cur) => {
-      const next = new Set(cur ?? chosen);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const toggle = (id: string) => setChosen((cur) => toggleFace(cur ?? chosen, id));
+  // Named as the faces are ordered (you first); "each" is the engine's split of the cost.
+  const who = personal
+    ? null
+    : whoLine({ ids: faceOrder(consumers, meId, names), meId, names, amounts: breakdown?.lines.map((l) => l.amountMinor) ?? null, currency: item.currency });
 
   // Logged at once (SM-5): what is left drops wherever the item is listed,
   // the Undo toast is up and the screen is fresh for the next thing before
@@ -571,31 +569,17 @@ function UseForm({
           {cost !== null ? ` It cost you ${formatMinor(cost, item.currency)} (${costPerText(item)}).` : ""}
         </p>
       ) : (
-        <>
-          <WhoHadIt roster={roster} chosen={chosen} onToggle={toggle} meId={meId} names={names} />
-          <div className="space-y-1.5">
-            <ShareList
-              lines={breakdown?.lines ?? []}
-              currency={item.currency}
-              empty={consumers.length === 0 ? "Pick at least one person." : qtyMilli === null ? "Enter how much to see who owes what." : null}
-            />
-            {cost !== null ? (
-              <p className="px-1 text-xs text-muted-foreground">
-                {formatMinor(cost, item.currency)} in all · {costPerText(item)}, as bought. Split equally; whoever paid is paid back.
-              </p>
-            ) : null}
-          </div>
-        </>
+        <FaceRow legend="Who?" people={roster} chosen={chosen} onToggle={toggle} meId={meId} names={names} />
       )}
 
       <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static">
         <Button
           type="button"
-          className={cn(K_BUTTON, "h-[52px] w-full text-base shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")}
+          className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")}
           disabled={!ready}
           onClick={submit}
         >
-          {label}
+          <MainButtonLabel title={label} who={ready ? who : null} />
         </Button>
       </div>
     </section>

@@ -34,7 +34,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 - the timing script passes on stage and prod: page first byte under 0.3 s, reads under 0.4 s at p75 from India
 - logging a use shows in the list before the server answers, and a refusal rolls it back
 
-## SM2 — for anyone
+## SM2 — for anyone ✅
 
 - **SM-6** (kitchen-worker, db, contracts, sdk, notifications): the
   `claims/{subjectId}` route, `set_by`, the email.

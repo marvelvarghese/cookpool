@@ -221,7 +221,7 @@ export function stockReturnPatches(change: StockChange): CachePatch[] {
 /** Someone's portion of a dish, set by `setBy` (the caller). */
 export interface PortionChange {
   dishId: string;
-  /** Whose portion: the caller's own claim today; anyone's once SM-7 sets other people's. */
+  /** Whose portion: the caller's own claim, or anyone's in the group (SM-7). */
   subjectId: string;
   /** Half portions; 0 takes it back. */
   half: number;
@@ -231,6 +231,11 @@ export interface PortionChange {
   meId: string;
   /** ISO time of the write. */
   at: string;
+}
+
+/** `subjectId`'s portion set to `half` by the caller (`meId`), at `at`: their own claim, or anyone's (SM-7). */
+export function portionChange(dishId: string, subjectId: string, meId: string, half: number, at: string): PortionChange {
+  return { dishId, subjectId, half, setBy: meId, meId, at };
 }
 
 /**

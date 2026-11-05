@@ -6,13 +6,10 @@ import { Check, ChevronDown, Search, Utensils } from "lucide-react";
 import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { GroupAvatar, K_INPUT } from "./kit";
-import { Chip, Money } from "./ledger-ui";
-import { chipWindow } from "./item-form";
+import { Money } from "./ledger-ui";
 import type { ShareLine } from "./item-use";
-import { memberInitials, memberLabel, type MemberNames } from "./members";
 import {
   pantryChoice,
   pantryPickerList,
@@ -377,65 +374,7 @@ export function FilterChips({ chips, value, onChange }: { chips: readonly Filter
   );
 }
 
-// ── Using an item (CP-12, shared with quick use since CP-13) ─────
-
-/**
- * "Who had it?": a chip per member — you first, then by name, six until
- * "N more" — each pressed or not. A skeleton while the roster loads (null).
- */
-export function WhoHadIt({
-  roster,
-  chosen,
-  onToggle,
-  meId,
-  names,
-}: {
-  /** The group's members, or null while they load. */
-  roster: readonly string[] | null;
-  chosen: ReadonlySet<string>;
-  onToggle: (subjectId: string) => void;
-  meId: string | null;
-  names?: MemberNames | null;
-}) {
-  const [expanded, setExpanded] = React.useState(false);
-  const people = chipWindow(roster ?? (meId ? [meId] : []), { meId, names: names ?? null, chosen, expanded, max: 6 });
-  return (
-    <fieldset>
-      <legend className="mb-2 text-sm font-bold">Who had it?</legend>
-      {roster === null ? (
-        <div className="flex gap-2" aria-hidden>
-          <Skeleton className="h-11 w-20 rounded-full" />
-          <Skeleton className="h-11 w-24 rounded-full" />
-        </div>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {people.shown.map((id) => {
-            const on = chosen.has(id);
-            return (
-              <Chip key={id} aria-pressed={on} selected={on} onClick={() => onToggle(id)} className="pl-1.5">
-                <span
-                  aria-hidden
-                  className={cn(
-                    "grid h-7 w-7 place-items-center rounded-full text-[10px] font-bold",
-                    on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {memberInitials(id, meId, names)}
-                </span>
-                {memberLabel(id, meId, names)}
-              </Chip>
-            );
-          })}
-          {people.more > 0 ? (
-            <Chip onClick={() => setExpanded(true)} className="text-muted-foreground">
-              {people.more} more
-            </Chip>
-          ) : null}
-        </div>
-      )}
-    </fieldset>
-  );
-}
+// ── Using an item (CP-12; who had it is the faces' row since SM-7) ─
 
 /** Who owes whom for a use or waste: "You owe Anu ₹2.00" (orange), "Dev owes you" (blue), own shares grey. */
 export function ShareList({ lines, currency, empty }: { lines: readonly ShareLine[]; currency: string; empty?: string | null }) {

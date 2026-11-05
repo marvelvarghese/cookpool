@@ -8,7 +8,8 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IconBubble, KCard, K_BUTTON } from "./kit";
-import { Money, PersonAvatar } from "./ledger-ui";
+import { Money } from "./ledger-ui";
+import { Face } from "./faces-ui";
 import type { MemberNames } from "./members";
 import { useClaimer, useGroupDishes } from "./dish-data";
 import {
@@ -268,13 +269,19 @@ export function WhoHadSomeList({
         const stepper = stepperFor(r);
         return (
           <li key={r.subjectId} className="flex min-h-[68px] items-center gap-3 py-2.5 pl-3.5 pr-3">
-            <PersonAvatar subjectId={r.subjectId} meId={meId} names={names} className="h-[38px] w-[38px]" />
+            <Face subjectId={r.subjectId} meId={meId} names={names} className="h-11 w-11" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[15px] font-bold">
                 {r.label}
                 {r.isCook ? <span className="font-medium text-muted-foreground"> · cook</span> : null}
               </p>
-              <p className="text-[13px] text-muted-foreground">{r.note}</p>
+              {r.by || r.note ? (
+                <p className="truncate text-[13px] text-muted-foreground">
+                  {r.by ? <span className="font-bold text-[#6B4FBB]">{r.by}</span> : null}
+                  {r.by && r.note ? " · " : null}
+                  {r.note}
+                </p>
+              ) : null}
             </div>
             {stepper ?? (
               <span className="min-w-[34px] shrink-0 text-center text-[15px] font-extrabold tabular-nums">

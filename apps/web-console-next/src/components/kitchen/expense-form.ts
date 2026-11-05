@@ -13,6 +13,8 @@
 import type { CreateExpenseRequest, SplitMode } from "@saas/contracts/kitchen";
 import { splitBy } from "@saas/kitchen-engine/money";
 import { formatMinor, formatPercentHundredths, moneyInputMessage, parseMoney, parsePercentHundredths } from "./money";
+import { faceOrder, whoLine } from "./faces";
+import type { MemberNames } from "./members";
 
 export const EXPENSE_TITLE_MAX = 200;
 /** Shares per person on the − / + steppers. */
@@ -329,4 +331,34 @@ export function previewExpense(form: ExpenseForm, memberIds: readonly string[], 
 export function firstExpenseError(errors: Partial<Record<ExpenseField, string>>): ExpenseField | null {
   for (const f of ["title", "amount", "payers", "split"] as const) if (errors[f]) return f;
   return null;
+}
+
+/**
+ * The main button (SM-7): what it adds — "Add · ₹1,200.00", or "Add expense"
+ * before there is an amount — and who it is for, you first: "You + Anu ·
+ * ₹600.00 each" split equally, "You + Anu + Dev" any other way.
+ */
+export function expenseButton(input: {
+  preview: Pick<ExpensePreview, "totalMinor" | "people">;
+  mode: SplitMode;
+  meId: string | null;
+  names?: MemberNames | null;
+  currency: string;
+}): { title: string; who: string | null } {
+  const { preview, currency } = input;
+  const title = preview.totalMinor === null ? "Add expense" : `Add · ${formatMinor(preview.totalMinor, currency)}`;
+  const inSplit = preview.people.filter((p) => p.inSplit);
+  const ids = faceOrder(
+    inSplit.map((p) => p.subjectId),
+    input.meId,
+    input.names,
+  );
+  const amounts = input.mode === "equal" && preview.totalMinor !== null ? inSplit.map((p) => p.owedMinor ?? 0) : null;
+  return { title, who: whoLine({ ids, meId: input.meId, names: input.names, amounts, currency }) };
+}
+
+/** The toast's second line once it is added: "₹1,200.00, split equally.", "₹1,200.00, by shares." */
+export function expenseAddedText(request: Pick<CreateExpenseRequest, "totalMinor" | "mode">, currency: string): string {
+  const how = SPLIT_MODE_OPTIONS.find((m) => m.id === request.mode)?.name.toLowerCase() ?? request.mode;
+  return `${formatMinor(request.totalMinor, currency)}, ${how}.`;
 }

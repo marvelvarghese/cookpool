@@ -32,7 +32,9 @@ import {
   usePantries,
   useWasteItem,
 } from "@/components/kitchen/pantry-data";
-import { ShareList, StockBar, UseByPill, WhoHadIt } from "@/components/kitchen/pantry-ui";
+import { ShareList, StockBar, UseByPill } from "@/components/kitchen/pantry-ui";
+import { FaceRow } from "@/components/kitchen/faces-ui";
+import { toggleFace } from "@/components/kitchen/faces";
 import {
   barTone,
   boughtText,
@@ -284,14 +286,7 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
     setTyped(null);
     setQtyMilli((q) => stepAmount(amount ?? q, delta, item));
   };
-  const toggle = (id: string) => {
-    setChosen((cur) => {
-      const next = new Set(cur);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const toggle = (id: string) => setChosen((cur) => toggleFace(cur, id));
 
   // The use shows at once (SM-5): what is left drops, the history gains the
   // row and the Undo toast is up before the server answers; a refusal is put
@@ -384,7 +379,7 @@ function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { ca
         </p>
       ) : (
         <>
-          <WhoHadIt roster={roster} chosen={chosen} onToggle={toggle} meId={meId} names={names} />
+          <FaceRow legend="Who?" people={roster} chosen={chosen} onToggle={toggle} meId={meId} names={names} />
           <ShareList
             lines={breakdown?.lines ?? []}
             currency={item.currency}

@@ -16,14 +16,17 @@ import { Switch } from "@/components/ui/switch";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, K_INPUT, PageHeader } from "@/components/kitchen/kit";
 import { useAddExpense, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
-import { Chip, Money, PersonAvatar, Segmented } from "@/components/kitchen/ledger-ui";
+import { Money, Segmented } from "@/components/kitchen/ledger-ui";
+import { Face, FaceRow, MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
 import { memberLabel, memberLabelInline, sortMembers, type MemberNames } from "@/components/kitchen/members";
 import { useMemberNames } from "@/components/kitchen/people-data";
-import { currencyPrefix, formatMinor } from "@/components/kitchen/money";
+import { currencyPrefix } from "@/components/kitchen/money";
 import {
   EXPENSE_TITLE_MAX,
   MAX_SHARES,
   SPLIT_MODE_OPTIONS,
+  expenseAddedText,
+  expenseButton,
   firstExpenseError,
   initialExpenseForm,
   previewExpense,
@@ -34,11 +37,13 @@ import {
 } from "@/components/kitchen/expense-form";
 
 /**
- * Add expense (CP-8): what for, how much, who paid (one person, or several
- * with amounts that must add up), and how it is split — Equally, Exact, % or
- * Shares — with every person's share previewed live by `@saas/kitchen-engine`,
- * the same maths the server splits it with. Saving posts the expense and goes
- * back to the group's Activity, with a toast that can undo it.
+ * Add expense (CP-8): what for, how much, who paid (a face, or several people
+ * with amounts that must add up), and how it is split — Equally (the faces
+ * of who is in, SM-7), Exact, % or Shares — with every person's share
+ * previewed live by `@saas/kitchen-engine`, the same maths the server splits
+ * it with. The one main button says who it is for ("You + Anu · ₹600.00
+ * each"). Saving posts the expense and goes back to the group's Activity,
+ * with a toast that can undo it.
  */
 export default function AddExpensePage() {
   const slug = usePathParam("/groups/:orgSlug/expense", "orgSlug");
@@ -129,8 +134,8 @@ function ExpenseLoader({ group }: { group: PublicOrganization }) {
   return <ExpenseFormView group={group} roster={roster} myId={myId} currency={balances.data.currency} names={names} />;
 }
 
-const MODE_HINT: Record<ExpenseForm["mode"], string> = {
-  equal: "Everyone ticked pays the same; any odd paisa goes to whoever's listed first.",
+/** The why behind a mode other than Equally (whose faces need none). */
+const MODE_HINT: Record<Exclude<ExpenseForm["mode"], "equal">, string> = {
   exact: "Type what each person owes. They must add up to the total.",
   percent: "Give each person a percentage. They must add up to 100%.",
   shares: "Two shares pays twice as much as one.",
@@ -190,12 +195,14 @@ function ExpenseFormView({
       meId: myId,
       names,
       title: `Added: ${request.title}`,
-      description: `${formatMinor(request.totalMinor, currency)}, split ${SPLIT_MODE_OPTIONS.find((m) => m.id === request.mode)?.name.toLowerCase() ?? request.mode}.`,
+      description: expenseAddedText(request, currency),
     });
     router.push(`/groups/${group.slug}`);
   };
 
   const allIn = people.every((id) => form.included[id]);
+  const included = new Set(people.filter((id) => form.included[id]));
+  const main = expenseButton({ preview, mode: form.mode, meId: myId, names, currency });
 
   return (
     <div className="space-y-6">
@@ -262,27 +269,23 @@ function ExpenseFormView({
 
         {/* Who paid */}
         <KCard className="p-5 min-[900px]:col-start-1" data-field="payers">
-          <fieldset>
-            <legend className="text-base font-bold tracking-tight">Paid by</legend>
-            {!form.severalPayers ? (
-              <div role="group" aria-label="Who paid" className="mt-3 flex flex-wrap gap-2">
-                {people.map((id) => (
-                  <Chip
-                    key={id}
-                    aria-pressed={form.payerId === id}
-                    selected={form.payerId === id}
-                    onClick={() => update({ payerId: id })}
-                  >
-                    {memberLabel(id, myId, names)}
-                  </Chip>
-                ))}
-              </div>
-            ) : (
+          {!form.severalPayers ? (
+            <FaceRow
+              legend="Paid by"
+              people={people}
+              chosen={new Set(form.payerId ? [form.payerId] : [])}
+              onToggle={(id) => update({ payerId: id })}
+              meId={myId}
+              names={names}
+            />
+          ) : (
+            <fieldset>
+              <legend className="text-[15px] font-extrabold">Paid by</legend>
               <ul className="mt-2 divide-y">
                 {people.map((id) => (
                   <li key={id} className="py-2">
                     <div className="flex items-center gap-3">
-                      <PersonAvatar subjectId={id} meId={myId} names={names} />
+                      <Face subjectId={id} meId={myId} names={names} />
                       <label htmlFor={`payer-${id}`} className="min-w-0 flex-1 truncate text-[15px] font-semibold">
                         {memberLabel(id, myId, names)}
                       </label>
@@ -304,20 +307,16 @@ function ExpenseFormView({
                   </li>
                 ))}
               </ul>
-            )}
-            <div className="mt-4 flex min-h-11 items-center justify-between gap-3">
-              <Label htmlFor="several-payers" className="flex min-h-11 flex-1 cursor-pointer items-center text-[15px] font-medium">
-                Several people paid
-              </Label>
-              <Switch
-                id="several-payers"
-                checked={form.severalPayers}
-                onCheckedChange={(on) => update({ severalPayers: on })}
-              />
-            </div>
-            {form.severalPayers && preview.paid ? <CheckLine check={preview.paid} /> : null}
-            {err("payers") ? <p className="mt-2 text-sm font-medium text-destructive">{err("payers")}</p> : null}
-          </fieldset>
+            </fieldset>
+          )}
+          <div className="mt-4 flex min-h-11 items-center justify-between gap-3">
+            <Label htmlFor="several-payers" className="flex min-h-11 flex-1 cursor-pointer items-center text-[15px] font-medium">
+              Several people paid
+            </Label>
+            <Switch id="several-payers" checked={form.severalPayers} onCheckedChange={(on) => update({ severalPayers: on })} />
+          </div>
+          {form.severalPayers && preview.paid ? <CheckLine check={preview.paid} /> : null}
+          {err("payers") ? <p className="mt-2 text-sm font-medium text-destructive">{err("payers")}</p> : null}
         </KCard>
 
         {/* How it's split, and Save */}
@@ -333,50 +332,42 @@ function ExpenseFormView({
               onChange={(mode) => update({ mode })}
               className="mt-3"
             />
-            <p className="mt-2 text-sm text-muted-foreground">{MODE_HINT[form.mode]}</p>
-
             {form.mode === "equal" ? (
-              <div className="mt-2 flex justify-end">
+              <div className="relative mt-4">
+                <FaceRow
+                  legend="For"
+                  people={people}
+                  chosen={included}
+                  // From the latest form, so two quick taps both count.
+                  onToggle={(id) => setForm((f) => ({ ...f, included: { ...f.included, [id]: !f.included[id] } }))}
+                  meId={myId}
+                  names={names}
+                />
                 <Button
                   type="button"
                   variant="ghost"
-                  className="min-h-11 rounded-xl px-3 text-sm font-semibold text-primary"
+                  className="absolute -top-3 right-0 min-h-11 rounded-xl px-3 text-sm font-semibold text-primary"
                   onClick={() => setForm((f) => toggleEveryone(f, people))}
                 >
                   {allIn ? "No one" : "Everyone"}
                 </Button>
               </div>
-            ) : null}
-
-            <ul aria-labelledby="split-heading" className={cn("divide-y", form.mode === "equal" ? "mt-0" : "mt-2")}>
-              {preview.people.map((p) => {
-                const name = memberLabel(p.subjectId, myId, names);
-                const owed =
-                  p.owedMinor === null ? (
-                    <span className="text-muted-foreground">—</span>
-                  ) : (
-                    <Money minor={p.owedMinor} currency={currency} className={cn(!p.inSplit && "text-muted-foreground")} />
-                  );
-                return (
-                  <li key={p.subjectId} className="py-2">
-                    <div className="flex min-h-11 items-center gap-3">
-                      {form.mode === "equal" ? (
-                        <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={!!form.included[p.subjectId]}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setForm((f) => ({ ...f, included: { ...f.included, [p.subjectId]: checked } }));
-                            }}
-                            className="h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
-                          />
-                          <PersonAvatar subjectId={p.subjectId} meId={myId} names={names} />
-                          <span className="truncate text-[15px] font-semibold">{name}</span>
-                        </label>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-muted-foreground">{MODE_HINT[form.mode]}</p>
+                <ul aria-labelledby="split-heading" className="mt-2 divide-y">
+                  {preview.people.map((p) => {
+                    const name = memberLabel(p.subjectId, myId, names);
+                    const owed =
+                      p.owedMinor === null ? (
+                        <span className="text-muted-foreground">—</span>
                       ) : (
-                        <>
-                          <PersonAvatar subjectId={p.subjectId} meId={myId} names={names} />
+                        <Money minor={p.owedMinor} currency={currency} className={cn(!p.inSplit && "text-muted-foreground")} />
+                      );
+                    return (
+                      <li key={p.subjectId} className="py-2">
+                        <div className="flex min-h-11 items-center gap-3">
+                          <Face subjectId={p.subjectId} meId={myId} names={names} />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[15px] font-semibold">{name}</span>
                             {form.mode === "percent" || form.mode === "shares" ? (
@@ -386,64 +377,59 @@ function ExpenseFormView({
                               </span>
                             ) : null}
                           </span>
-                        </>
-                      )}
 
-                      {form.mode === "exact" ? (
-                        <MoneyInput
-                          id={`split-${p.subjectId}`}
-                          prefix={prefix}
-                          value={form.exact[p.subjectId] ?? ""}
-                          invalid={!!p.error}
-                          describedBy={p.error ? `split-${p.subjectId}-error` : undefined}
-                          onChange={(v) => updatePerson("exact", p.subjectId, v)}
-                          label={`What ${memberLabelInline(p.subjectId, myId, names)} ${p.subjectId === myId ? "owe" : "owes"}`}
-                        />
-                      ) : form.mode === "percent" ? (
-                        <div className="relative w-24 shrink-0">
-                          <Input
-                            id={`split-${p.subjectId}`}
-                            inputMode="decimal"
-                            value={form.percent[p.subjectId] ?? ""}
-                            onChange={(e) => updatePerson("percent", p.subjectId, e.target.value)}
-                            placeholder="0"
-                            autoComplete="off"
-                            aria-label={`Percentage for ${name}`}
-                            aria-invalid={!!p.error}
-                            aria-describedby={p.error ? `split-${p.subjectId}-error` : undefined}
-                            className={cn(K_INPUT, "pr-8 text-right tabular-nums")}
-                          />
-                          <span aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                            %
-                          </span>
+                          {form.mode === "exact" ? (
+                            <MoneyInput
+                              id={`split-${p.subjectId}`}
+                              prefix={prefix}
+                              value={form.exact[p.subjectId] ?? ""}
+                              invalid={!!p.error}
+                              describedBy={p.error ? `split-${p.subjectId}-error` : undefined}
+                              onChange={(v) => updatePerson("exact", p.subjectId, v)}
+                              label={`What ${memberLabelInline(p.subjectId, myId, names)} ${p.subjectId === myId ? "owe" : "owes"}`}
+                            />
+                          ) : form.mode === "percent" ? (
+                            <div className="relative w-24 shrink-0">
+                              <Input
+                                id={`split-${p.subjectId}`}
+                                inputMode="decimal"
+                                value={form.percent[p.subjectId] ?? ""}
+                                onChange={(e) => updatePerson("percent", p.subjectId, e.target.value)}
+                                placeholder="0"
+                                autoComplete="off"
+                                aria-label={`Percentage for ${name}`}
+                                aria-invalid={!!p.error}
+                                aria-describedby={p.error ? `split-${p.subjectId}-error` : undefined}
+                                className={cn(K_INPUT, "pr-8 text-right tabular-nums")}
+                              />
+                              <span aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                %
+                              </span>
+                            </div>
+                          ) : form.mode === "shares" ? (
+                            <SharesStepper
+                              value={form.shares[p.subjectId] ?? 0}
+                              name={name}
+                              onStep={(d) => setForm((f) => stepShares(f, p.subjectId, d))}
+                            />
+                          ) : null}
                         </div>
-                      ) : form.mode === "shares" ? (
-                        <SharesStepper
-                          value={form.shares[p.subjectId] ?? 0}
-                          name={name}
-                          onStep={(d) => setForm((f) => stepShares(f, p.subjectId, d))}
-                        />
-                      ) : (
-                        <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums">{owed}</span>
-                      )}
-                    </div>
-                    {p.error ? (
-                      <p id={`split-${p.subjectId}-error`} className="mt-1 text-right text-sm font-medium text-destructive">
-                        {p.error}
-                      </p>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-
-            {preview.split ? (
-              <CheckLine check={preview.split} extra={form.mode === "percent" ? preview.percentText : null} />
-            ) : (
-              <p className="mt-3 rounded-xl bg-background px-3 py-2.5 text-sm text-muted-foreground">
-                Enter the amount to see everyone&apos;s share.
-              </p>
+                        {p.error ? (
+                          <p id={`split-${p.subjectId}-error`} className="mt-1 text-right text-sm font-medium text-destructive">
+                            {p.error}
+                          </p>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
+
+            {/* Equally, the button says what each pays; the other ways add up here. */}
+            {form.mode !== "equal" && preview.split ? (
+              <CheckLine check={preview.split} extra={form.mode === "percent" ? preview.percentText : null} />
+            ) : null}
             {err("split") ? <p className="mt-2 text-sm font-medium text-destructive">{err("split")}</p> : null}
           </KCard>
 
@@ -457,15 +443,6 @@ function ExpenseFormView({
               {Object.values(preview.errors).join(". ")}
             </p>
           ) : null}
-
-          <div className="flex flex-col-reverse gap-2 min-[560px]:flex-row min-[560px]:justify-end">
-            <Button asChild variant="ghost" className={K_BUTTON}>
-              <Link href={`/groups/${group.slug}`}>Cancel</Link>
-            </Button>
-            <Button type="submit" className={cn(K_BUTTON, "h-12 min-[560px]:min-w-48")} loading={busy}>
-              Save expense
-            </Button>
-          </div>
         </div>
 
         {/* The dish maker does this by portions (CP-15). */}
@@ -483,6 +460,13 @@ function ExpenseFormView({
             </Button>
           </div>
         </KCard>
+
+        {/* The one main button, in thumb reach above the tab bar on a phone. */}
+        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:col-start-2">
+          <Button type="submit" className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")} loading={busy}>
+            <MainButtonLabel title={main.title} who={main.who} />
+          </Button>
+        </div>
       </form>
     </div>
   );

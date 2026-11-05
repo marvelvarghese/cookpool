@@ -38,6 +38,7 @@ import {
   paymentTxn,
   pendingItem,
   pendingMove,
+  portionChange,
   portionPatches,
   stockPatches,
   stockReturnPatches,
@@ -472,7 +473,7 @@ describe("stock patches", () => {
   });
 });
 
-// ── A portion (the caller's claim today, anyone's with SM-7) ──────
+// ── A portion (the caller's claim, or anyone's since SM-7) ────────
 
 describe("portion patches", () => {
   const mine = (half: number): PortionChange => ({ dishId: "dsh_fried", subjectId: ME, half, setBy: ME, meId: ME, at: AT });
@@ -536,6 +537,41 @@ describe("portion patches", () => {
     expect((cache.get(qk.kitchenDish("dsh_fried")) as KitchenDish).myClaimHalf).toBe(3);
     expect(rollbackPatches(cache, entries)).toEqual([]);
     expectExactlyAsBefore(cache, before);
+  });
+
+  it("someone else's portion shows at once, by you, and a refusal puts it back exactly (SM-7)", () => {
+    const cache = warmCache();
+    const before = cache.snapshot();
+    // You give Dev ½, then 1 (one burst of taps), while Anu still has her 1.
+    const forDev = (half: number) => portionChange("dsh_fried", DEV, ME, half, AT);
+    const entries = applyPatches(cache, portionPatches(forDev(1), 0));
+    applyPatches(cache, portionPatches(forDev(2), 1), entries);
+    const dish = cache.get(qk.kitchenDish("dsh_fried")) as KitchenDish;
+    expect(dish.shares.map((s) => [s.subjectId, s.portionsHalf, s.setBy])).toEqual([
+      [ANU, 2, ANU],
+      [DEV, 2, ME],
+    ]);
+    // Your own claim is untouched; the counts follow everyone's.
+    expect(dish).toMatchObject({ myClaimHalf: 0, claimedHalf: 4, unclaimedHalf: 6 });
+    const tab = cache.get(qk.kitchenGroupDishes(FLAT.orgId)) as { pages: { dishes: KitchenDish[] }[] };
+    expect(tab.pages[0]!.dishes[0]!).toMatchObject({ claimedHalf: 4, myClaimHalf: 0 });
+    const card = (cache.get(qk.kitchenInbox()) as InboxResponse).items.find((i) => i.kind === "claim_dish");
+    expect(card && card.kind === "claim_dish" ? [card.dish.claimedHalf, card.dish.unclaimedHalf] : null).toEqual([4, 6]);
+    // 409 claims_exceed_portions (someone took the rest meanwhile): every read holds exactly what it did.
+    expect(rollbackPatches(cache, entries)).toEqual([]);
+    expectExactlyAsBefore(cache, before);
+  });
+
+  it("changing a portion someone else set makes it yours, in its place (the latest write wins)", () => {
+    const dish = friedRice({ shares: [share(ANU, 2), { ...share(DEV, 1), setBy: ANU }], claimedHalf: 3, unclaimedHalf: 7 });
+    const after = withPortion(dish, portionChange(dish.id, DEV, ME, 2, AT));
+    expect(after.shares.map((s) => [s.subjectId, s.portionsHalf, s.setBy])).toEqual([
+      [ANU, 2, ANU],
+      [DEV, 2, ME],
+    ]);
+    expect(after.shares[1]!.id).toBe(dish.shares[1]!.id);
+    // Taking it back (0) takes the row off; nothing is left to say who set it.
+    expect(withPortion(dish, portionChange(dish.id, DEV, ME, 0, AT)).shares.map((s) => s.subjectId)).toEqual([ANU]);
   });
 });
 
