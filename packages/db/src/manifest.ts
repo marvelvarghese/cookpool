@@ -273,5 +273,14 @@ export const manifest: MigrationManifest = {
       description:
         "Who set each share of a dish: nullable kitchen_dish_shares.set_by (usr_…), written by every claim — the eater's own, or another member's for them — the cook's assignment and a correction; null for shares written before (Cookpool SM-6)",
     },
+    {
+      id: "300_kitchen_measures",
+      context: "kitchen",
+      path: "300_kitchen_measures/up.sql",
+      checksum:
+        "c49137d8d6280af027e90cc34d2cf1269e26cc89e293b2797294d928bf2ebceb",
+      description:
+        "Your measures: kitchen_measures (up to three sizes per item name, pantry and dimension — count of a measure make amount_milli of the stock, exactly; one row per word and name; looked up by pantry, name and dimension in position order) and a nullable label (the words a use was given in, \"2 onions\") on kitchen_stock_moves and kitchen_dish_ingredients (Cookpool SM-13)",
+    },
   ],
 };

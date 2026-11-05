@@ -19,6 +19,7 @@ import { notFound, readJsonObject, successResponse, unavailable, unprocessable, 
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parseOrgPublicId, parsePublicId, toPublicId } from "../ids.js";
 import { idempotencyKeyReused, ledgerAudit } from "../ledger.js";
+import { readMeasures, type MeasureBook } from "../measures.js";
 import {
   displayQuantity,
   groupPantryRef,
@@ -42,6 +43,7 @@ import {
   takeStock,
   toStockMove,
   undoMove,
+  useAmount,
 } from "../stock.js";
 import { Fields } from "../validate.js";
 
@@ -64,11 +66,21 @@ function owner(ctx: RequestContext): KitchenPantryOwner {
   return { kind: "user", subjectId: ctx.actor.subjectId };
 }
 
-/** 201 with the item as it is now (in the caller's pantry), and the move. */
-function moved(ctx: RequestContext, result: StockMoved): Response {
+/**
+ * 201 with the item as it is now (in the caller's pantry, with its measures —
+ * `known` when the write read them already, else read here), and the move.
+ */
+async function moved(
+  ctx: RequestContext,
+  repo: KitchenRepository,
+  result: StockMoved,
+  known: MeasureBook | null = null,
+): Promise<Response> {
+  const measures = known ?? (await readMeasures(ctx, repo, [result.item]));
+  if (!measures) return unavailable(ctx.requestId);
   return successResponse<StockMoveResponse>(
     {
-      item: toKitchenItem(result.item, personalPantryRef(), null, isoDay(ctx.now())),
+      item: toKitchenItem(result.item, personalPantryRef(), null, isoDay(ctx.now()), measures(result.item)),
       move: toStockMove(result.move, result.item),
       txn: null,
     },
@@ -90,10 +102,11 @@ export async function handleUseMyItem(ctx: RequestContext, request: Request, par
   const actor = ctx.actor.subjectId;
 
   return withKitchenRepo(ctx, async (repo) => {
+    // A use in a measure (SM-13) reads the item's measures to know how much it takes.
+    let measures: MeasureBook | null = null;
     const result = await takeStock(ctx, repo, { owner: owner(ctx), itemId, kind: "use", idemKey: idem.key }, async (item) => {
-      const qty = quantityOf(item, use.quantity, use.unit);
-      if (!qty.ok) return validationError(ctx.requestId, qty.fields);
-      if (qty.value.qtyMilli > item.qtyLeftMilli) return insufficientStock(ctx.requestId, item.qtyLeftMilli);
+      const qty = await useAmount(ctx.requestId, item, use, async () => (measures = await readMeasures(ctx, repo, [item])));
+      if (qty instanceof Response) return qty;
       return {
         owner: owner(ctx),
         itemId,
@@ -101,9 +114,11 @@ export async function handleUseMyItem(ctx: RequestContext, request: Request, par
         move: {
           id: asUuid(crypto.randomUUID()),
           kind: "use",
-          qtyMilli: qty.value.qtyMilli,
-          costMinor: costOfUse(item, qty.value.qtyMilli),
-          unit: qty.value.unit,
+          qtyMilli: qty.qtyMilli,
+          // A measure only decides how much is taken; the cost is any use's.
+          costMinor: costOfUse(item, qty.qtyMilli),
+          unit: qty.unit,
+          label: qty.label,
           consumers: [actor],
           actor,
           idemKey: idem.key,
@@ -111,7 +126,7 @@ export async function handleUseMyItem(ctx: RequestContext, request: Request, par
         },
       };
     });
-    return result instanceof Response ? result : moved(ctx, result);
+    return result instanceof Response ? result : moved(ctx, repo, result, measures);
   });
 }
 
@@ -154,7 +169,7 @@ export async function handleWasteMyItem(ctx: RequestContext, request: Request, p
         },
       };
     });
-    return result instanceof Response ? result : moved(ctx, result);
+    return result instanceof Response ? result : moved(ctx, repo, result);
   });
 }
 
@@ -197,16 +212,20 @@ export async function handleTransferMyItem(ctx: RequestContext, request: Request
     const settings = await ctx.timings.measure("db", () => repo.getGroupSettings(orgId));
     if (!settings.ok) return unavailable(ctx.requestId);
     const currency = settings.value?.currency ?? DEFAULT_KITCHEN_CURRENCY;
-    const respond = (result: StockMoved) =>
-      successResponse<StockMoveResponse>(
+    // In the group, the item reads the group's measures for its name (SM-13).
+    const respond = async (result: StockMoved): Promise<Response> => {
+      const measures = await readMeasures(ctx, repo, [result.item]);
+      if (!measures) return unavailable(ctx.requestId);
+      return successResponse<StockMoveResponse>(
         {
-          item: toKitchenItem(result.item, groupPantryRef(group), wastePolicyOf(settings.value), isoDay(ctx.now())),
+          item: toKitchenItem(result.item, groupPantryRef(group), wastePolicyOf(settings.value), isoDay(ctx.now()), measures(result.item)),
           move: toStockMove(result.move, result.item),
           txn: null,
         },
         ctx.requestId,
         201,
       );
+    };
 
     for (let attempt = 0; ; attempt += 1) {
       const found = await ctx.timings.measure("db", () => repo.getItem(owner(ctx), itemId));
@@ -299,7 +318,7 @@ export async function handleUndoMyMove(ctx: RequestContext, request: Request, pa
       idemKey: idem.key,
       authorize: () => Promise.resolve(null),
     });
-    return result instanceof Response ? result : moved(ctx, result);
+    return result instanceof Response ? result : moved(ctx, repo, result);
   });
 }
 
@@ -327,6 +346,9 @@ export async function handleUsuals(ctx: RequestContext, request: Request): Promi
       }),
     );
     if (!found.ok) return unavailable(ctx.requestId);
+    // Every usual's measures (SM-13), in one more statement.
+    const measures = await readMeasures(ctx, repo, found.value.map((u) => u.item));
+    if (!measures) return unavailable(ctx.requestId);
     const usuals: KitchenUsual[] = [];
     for (const usual of found.value) {
       const { item } = usual;
@@ -340,10 +362,12 @@ export async function handleUsuals(ctx: RequestContext, request: Request): Promi
         lastQtyMilli: usual.lastQtyMilli,
         lastQuantity: displayQuantity(usual.lastQtyMilli, lastUnit),
         lastUnit,
+        lastLabel: usual.lastLabel,
         consumers: usual.lastConsumers ?? [actor],
         usedCount: usual.usedCount,
         lastUsedAt: usual.lastUsedAt.toISOString(),
         qtyLeftMilli: item.qtyLeftMilli,
+        measures: measures(item),
       });
     }
     return successResponse<UsualsResponse>({ usuals }, ctx.requestId);

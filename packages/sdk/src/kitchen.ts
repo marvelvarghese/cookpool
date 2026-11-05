@@ -59,6 +59,8 @@ import type {
 import type { RequestOptions, Transport } from "./transport.js";
 // "From before" (SM-8).
 import type { ItemHistoryQuery, ItemHistoryResponse, RecipesQuery, RecipesResponse } from "@saas/contracts/kitchen";
+// Your measures (SM-13).
+import type { ItemScope, KitchenMeasureInput, SetMeasuresRequest, SetMeasuresResponse } from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -390,6 +392,8 @@ export class KitchenClient {
    * cost — equally, or by `weights` — and the buyer is paid back. More than
    * is left is a `ConflictError` with `reason: "insufficient_stock"`; someone
    * not in the group a `ValidationError` with `reason: "not_in_group"`.
+   * `measure` (one of the item's measures, SM-13) instead of `unit` counts
+   * `quantity` in it; the move keeps its words as `label` ("2 onions").
    */
   useGroupItem(
     orgId: string,
@@ -449,7 +453,7 @@ export class KitchenClient {
     );
   }
 
-  /** POST /v1/kitchen/me/items/:itemId/uses — use some of the caller's own item (no ledger). */
+  /** POST /v1/kitchen/me/items/:itemId/uses — use some of the caller's own item (no ledger); `measure` as on `useGroupItem`. */
   usePersonalItem(itemId: string, body: UsePersonalItemRequest, opts: RequestOptions = {}): Promise<StockMoveResponse> {
     return this.transport.request<StockMoveResponse>(
       { method: "POST", path: this.mePath(`items/${encodeURIComponent(itemId)}/uses`), body },
@@ -503,6 +507,37 @@ export class KitchenClient {
   usuals(query: UsualsQuery = {}, opts: RequestOptions = {}): Promise<UsualsResponse> {
     return this.transport.request<UsualsResponse>(
       { method: "GET", path: this.mePath("usuals"), query: { limit: query.limit } },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Your measures (SM-13)
+  // -------------------------------------------------------------------------
+
+  /**
+   * PUT /v1/kitchen/me/items/:itemId/measures (`scope` personal) or
+   * PUT /v1/organizations/:orgId/kitchen/items/:itemId/measures (`scope` a
+   * group — anyone who may use its items, not a viewer).
+   *
+   * Replaces the measures of the item's name in its pantry, for its
+   * dimension (0–3; `[]` removes them): every item of that name there reads
+   * them as `measures`. `scope` is an item's `pantry`, or any
+   * `{ kind: "group", orgId }`. Invalid words or numbers are a
+   * `ValidationError` with field errors; an item the caller cannot use a
+   * `NotFoundError`. A use or ingredient then takes `measure` (the `one`)
+   * instead of `unit`.
+   */
+  setMeasures(
+    scope: ItemScope,
+    itemId: string,
+    measures: KitchenMeasureInput[],
+    opts: RequestOptions = {},
+  ): Promise<SetMeasuresResponse> {
+    const rest = `items/${encodeURIComponent(itemId)}/measures`;
+    const body: SetMeasuresRequest = { measures };
+    return this.transport.request<SetMeasuresResponse>(
+      { method: "PUT", path: scope.kind === "group" ? this.groupPath(scope.orgId, rest) : this.mePath(rest), body },
       opts,
     );
   }

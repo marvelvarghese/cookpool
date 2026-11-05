@@ -7,9 +7,10 @@ the code departed from `design.md`.
 |---|---|---|
 | SM0 — the spec | ✅ shipped 2026-11-04 | #36 (SM-1) |
 | SM1 — fast | ✅ shipped 2026-11-04 | #37 (SM-3), #38 (SM-2), #41 (SM-4), #43 (SM-5) |
-| SM2 — for anyone | ✅ shipped 2026-11-05 | #39 (SM-6), SM-7 |
+| SM2 — for anyone | ✅ shipped 2026-11-05 | #39 (SM-6), #44 (SM-7) |
 | SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), #42 (SM-9) |
-| SM4 — simpler screens | | |
+| SM6 — your measures | in progress | #46 (SM-13), SM-14 |
+| SM4 — simpler screens | ✅ shipped 2026-11-05 | SM-10 (Use is rebuilt in SM-14) |
 | SM5 — the rest | | |
 
 ## Departures from the design
@@ -631,6 +632,115 @@ owner's machine (kept-alive connection, 10 GETs each, p75):
   the toast says they are not in the group any more. SM-6's suggested fix
   (allow 0 for a person who still holds a share) would let it go to 0.
   Nothing to redeploy beyond the console: only web-console-next changed.
+
+### SM6 — your measures, in the server (SM-13)
+
+- **Routes as built.** `PUT /v1/organizations/{org}/kitchen/items/{itm}/measures`
+  (`kitchen.item.use`, no new policy action) and
+  `PUT /v1/kitchen/me/items/{itm}/measures` (the pantry's owner), body
+  `{ measures: [{ one, many, count, amountMilli }] }`, 0–3 entries, answer
+  200 `{ measures: [{ id: "msr_…", one, many, count, amountMilli }] }` in
+  order (kitchen-worker `handlers/measures.ts`, `measures.ts`). Order of
+  refusals: the opaque 404 (a viewer, someone outside the group, another
+  pantry's item, a malformed id), 422 `validation_failed` with field errors
+  (`measures`, `measures[1].one` …). The words are trimmed, 1–24 characters,
+  each `one` once case-insensitively; `count` and `amountMilli` are positive
+  safe integers. SDK: `kitchen.setMeasures(scope, itemId, measures)`, where
+  `scope` is `{ kind: "personal" }` or `{ kind: "group", orgId }` — an item's
+  `pantry`, or the app's item ref, fits as is (contracts `ItemScope`).
+- **Also refused: `amountMilli` below `count`.** Not in the design. A measure
+  smaller than a thousandth of the unit would make half of one round to
+  nothing, a use that takes no stock. Every real size passes (a grain of rice
+  ≈ 0.02 g is `count` 1, `amountMilli` 20).
+- **Replacing keeps what stays.** One batch: the words the name no longer has
+  are deleted and the rest upserted on the table's unique
+  (`owner_kind, owner_id, name_key, dimension, one`), so a word kept keeps its
+  `msr_` id and `created_by`/`created_at`, and every row written records the
+  caller in `updated_by`. The unique is case-sensitive: changing "Onion" to
+  "onion" is a new measure. Last writer wins between two people saving at
+  once (each batch leaves exactly its set). No audit event: a size moves no
+  money (like a portion, SM-6); the row says who set it, and a use's audit
+  payload now carries its `label`.
+- **The name key is SQLite's.** `name_key` is written and looked up as
+  `lower(trim(name))` in SQL on both sides, so it folds exactly as the pantry
+  search and the history reads do (ASCII letters) and can never disagree with
+  itself. The `measure` a use names is matched against `one` in the worker,
+  case-insensitively (any letters). Owner: `owner_kind` user with the
+  person's `usr_…`, or group with the group's UUID, as `kitchen_items` keys
+  its pantry.
+- **One statement for many items.** `repo.listMeasures(keys)` binds every
+  (pantry, name, dimension) as one JSON parameter and answers one list per
+  key; the worker folds items sharing a key into one. The lookup goes through
+  `kitchen_measures_lookup_idx` (pantry, name, dimension, position), so it
+  also comes back in order; tests/db pins the plan. Both the table's unique
+  index and this one exist: the second is the one that gives the order.
+- **Every item answer carries `measures`**, not only the reads: a pantry's
+  list, every pantry (`/me/items`, `usable=1`), search, one item (both
+  scopes), and every write that answers an item — add, edit, remove, use,
+  waste, undo, transfer (a moved item reads the group's measures for its
+  name). The settings and the measures are read side by side, so a group's
+  list is three statements however many items (items, settings, measures),
+  an item three in a group and two in a personal pantry, usuals two —
+  tests/kitchen-worker counts them with two items and with twenty-seven. A
+  write that answers an item reads the measures once more after it commits (a
+  use in a measure has them already from its plan); a failed read there is a 503, as
+  the other reads after a commit are, and the Idempotency-Key replays the
+  write. Usuals carry `measures` and the last use's words, `lastLabel` (not in
+  the brief: "Do it again" can show "1½ onions").
+- **Not on these reads:** `itemHistory` and `recipes` (SM-8), as the brief
+  says. Design §6.1 lists "history" among the reads; the item's own history
+  (its moves) carries `label`. A recipe's ingredient still reads in the
+  item's unit (300 g, not "2 onions"), and Home's use-soon card's usual
+  amount has no words either. Follow-ups if SM-14 wants them.
+- **How much a use in a measure takes** (contracts `measureTakeMilli`,
+  shared with the app): round(quantity × amountMilli ÷ count) thousandths,
+  halves up — then exactly a unit use's path: the stock guard, 409
+  `insufficient_stock` (nothing written), cost = the engine's `costOfUse` of
+  that amount, the ledger. One addition so "16 uses of 1 slice" cost exactly
+  the pack: a sixteenth of 1 000 milli-pack is 62.5, so each slice takes 63,
+  and the 16th would ask 63 of the 55 left. A use in a measure that comes
+  within rounding of what is left takes exactly what is left; then the
+  engine's last-use rule charges exactly what is left of the price. "Within
+  rounding" is ½ a thousandth per half-measure the item held (rounded up),
+  never more than a quarter of the measure: 15 milli-pack for the bread,
+  7 milli-g (0.007 g) for a kilo of onions. So it only ever absorbs rounding;
+  "1 onion" with 100 g left is still refused, and "The rest" (in the unit)
+  takes it. The money path is untouched: the measure only chooses
+  `qtyMilli`, and the tests compare each cost with `costOfUse` for that
+  amount and the sum of a used-up pack's uses with its price.
+- **The words.** `measureLabel`: "½ onion", "1 onion", "1½ onions",
+  "2 onions" — `one` up to 1, `many` above. `quantity` in a measure is a
+  positive multiple of ½ up to 10 000 (the label then fits the column's 64).
+  A use in a measure stores the item's own unit and the amount in it
+  (`unit`, `quantity`, `qtyMilli`), with `label` beside it. The group use's
+  title reads "Onions (2 onions)", the dish's charge "Onion curry: Onions
+  (2 onions)", the logged-for-you email "2 onions of Onions", the audit
+  description the same words. A reversal (a ledger reversal, an undo, a
+  canceled dish) copies the label of the move it puts back.
+- **A dish ingredient in a measure:** `CookIngredientRequest.measure`
+  (exclusive with `unit`; field errors under `ingredients[i].measure` /
+  `.quantity`), stored on the ingredient row and its `dish` move; the cook
+  reads the items' measures in one more statement, only when an ingredient
+  names one. Over the stock: 409 `insufficient_stock` with `itemId`, as
+  before. `CookNewItemRequest` is unchanged. Waste takes no measure (the
+  design does not ask for one).
+- **The new response fields are optional in the contract types**
+  (`KitchenItem.measures?`, `KitchenStockMove.label?`,
+  `KitchenDishIngredient.label?`, `KitchenUsual.lastLabel?` and
+  `measures?`), as SM-6 did with `setBy`: web-console-next and
+  tests/web-console-next build these literals (the optimistic `pendingMove`)
+  and are outside this task. Every answer sends them. SM-14 can make them
+  required when it touches those files.
+- **The arithmetic lives in `packages/contracts`** (`findMeasure`,
+  `measureLabel`, `measureTakeMilli`, `inMeasure` — what is left in a
+  measure, to the half), next to the types, so the app shows the same words
+  and amounts the server writes. `packages/kitchen-engine` is outside this
+  task's contract; moving them there is a follow-up if wanted.
+- **Deploy order.** db-migrate (300) before kitchen-worker is enforced (SM-3).
+  If kitchen-worker went live first, every item read would fail on the
+  missing table (503) until the migration ran. Nothing else to redeploy:
+  kitchen-worker changes in this PR, and no other worker reads measures or
+  labels. The console picks up the SDK and contracts with SM-14.
 
 ### SM4 — simpler screens (SM-10)
 

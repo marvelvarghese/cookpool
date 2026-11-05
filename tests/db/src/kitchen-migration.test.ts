@@ -201,4 +201,32 @@ describe("kitchen migrations", () => {
     expect(sql.trim()).toBe("ALTER TABLE kitchen_dish_shares ADD COLUMN set_by TEXT;");
     expect(sql).not.toMatch(/\b(CREATE|DROP|UPDATE|DELETE|DEFAULT|NOT NULL)\b/i);
   });
+
+  it("adds your measures as 300_kitchen_measures, the next migration after 290 (SM-13)", () => {
+    const ids = manifest.migrations.map((m) => m.id);
+    expect(kitchen.map((m) => m.id).slice(7, 9)).toEqual(["290_kitchen_dish_share_setter", "300_kitchen_measures"]);
+    // 300 follows 290 in the manifest.
+    expect(ids.indexOf("300_kitchen_measures")).toBe(ids.indexOf("290_kitchen_dish_share_setter") + 1);
+
+    const sql = readFileSync(resolve(MIGRATIONS_ROOT, "300_kitchen_measures/up.sql"), "utf8").replace(/--.*$/gm, "");
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS kitchen_measures \(/);
+    // The pantry the way kitchen_items keys it, the name, the dimension.
+    expect(sql).toMatch(/owner_kind\s+TEXT NOT NULL CHECK \(owner_kind IN \('user', 'group'\)\)/);
+    expect(sql).toMatch(/owner_id\s+TEXT NOT NULL,/);
+    expect(sql).toMatch(/dimension\s+TEXT NOT NULL CHECK \(dimension IN \('count', 'mass', 'volume', 'pack'\)\)/);
+    // Exact: whole numbers above zero; at most three places.
+    expect(sql).toMatch(/count\s+INTEGER NOT NULL CHECK \(count > 0\)/);
+    expect(sql).toMatch(/amount_milli\s+INTEGER NOT NULL CHECK \(amount_milli > 0\)/);
+    expect(sql).toMatch(/position\s+INTEGER NOT NULL CHECK \(position BETWEEN 0 AND 2\)/);
+    expect(sql).toMatch(/UNIQUE \(owner_kind, owner_id, name_key, dimension, one\)/);
+    expect(sql).toMatch(
+      /CREATE INDEX IF NOT EXISTS kitchen_measures_lookup_idx\s+ON kitchen_measures \(owner_kind, owner_id, name_key, dimension, position\)/,
+    );
+    // Additive: two nullable labels with no default, so older moves and ingredients read as NULL.
+    for (const table of ["kitchen_stock_moves", "kitchen_dish_ingredients"]) {
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ADD COLUMN label TEXT\\s+CHECK \\(label IS NULL OR length\\(label\\) BETWEEN 1 AND 64\\);`));
+    }
+    expect(sql.match(/\bALTER\b/gi)).toHaveLength(2);
+    expect(sql).not.toMatch(/\b(DROP|UPDATE|DELETE)\b/i);
+  });
 });

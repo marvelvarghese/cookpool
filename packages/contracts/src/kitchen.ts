@@ -425,6 +425,13 @@ export interface KitchenItem {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * The sizes it can be counted in (SM-13): its name's measures in its
+   * pantry, for its dimension, in their order; empty when it has none. Every
+   * answer that carries an item carries them; the field is optional here only
+   * so items typed before SM-13 still check.
+   */
+  measures?: KitchenMeasure[];
 }
 
 /**
@@ -727,8 +734,16 @@ export interface KitchenStockMove {
   qtyMilli: number;
   /** The same quantity in `unit`. */
   quantity: number;
-  /** The unit it was logged in (the item's display unit for a transfer). */
+  /** The unit it was logged in (the item's display unit for a transfer, and for a use given in a measure). */
   unit: string;
+  /**
+   * The words it was given in, when it was given in one of the item's
+   * measures (SM-13): "2 onions", "½ onion" — and on the reversal that puts
+   * it back. Null when it was given in a unit, and for moves written before.
+   * `quantity` and `unit` are what it took, in the item's own unit. Every
+   * answer carries it; optional here only so moves typed before SM-13 check.
+   */
+  label?: string | null;
   /** What it cost: charged to whoever had it (a group use), shared (split waste), or absorbed. 0 for a transfer. */
   costMinor: number;
   /** Who logged it (`usr_…`). */
@@ -759,6 +774,13 @@ export interface KitchenStockMove {
 export interface UseGroupItemRequest {
   quantity: string | number;
   unit?: string;
+  /**
+   * Instead of `unit` (both: 422): one of the item's measures, by its `one`
+   * (case-insensitive) — `quantity` is then a count of it, halves allowed
+   * (see `measureTakeMilli`; SM-13). A word the item's name does not have is
+   * 422 `validation_failed` (field `measure`).
+   */
+  measure?: string;
   consumers?: string[];
   weights?: number[];
 }
@@ -767,6 +789,8 @@ export interface UseGroupItemRequest {
 export interface UsePersonalItemRequest {
   quantity: string | number;
   unit?: string;
+  /** Instead of `unit`: one of the item's measures, as on `UseGroupItemRequest`. */
+  measure?: string;
 }
 
 /**
@@ -856,6 +880,14 @@ export interface KitchenUsual {
   lastQtyMilli: number;
   lastQuantity: number;
   lastUnit: string;
+  /**
+   * The words the last use was given in ("2 onions", SM-13); null when it was
+   * given in a unit. Every answer carries it; optional here only so usuals
+   * typed before SM-13 still check.
+   */
+  lastLabel?: string | null;
+  /** The item's measures, as `KitchenItem.measures` (SM-13). Every answer carries them. */
+  measures?: KitchenMeasure[];
   /** Who had it the last time. */
   consumers: string[];
   /** Uses in the last USUALS_DAYS days that the caller logged or was named in. */
@@ -873,6 +905,148 @@ export interface UsualsQuery {
 
 export interface UsualsResponse {
   usuals: KitchenUsual[];
+}
+
+// ── Your measures (SM-13) ───────────────────────────────────
+//
+// An item keeps its one stock in the unit it was bought in, and money is
+// worked out from that stock as before. A measure is a size in the stock's
+// unit — "1 onion ≈ 150 g", "20 slices in a pack" — stored exactly as `count`
+// of it making `amountMilli` of the stock (1 onion = 150 000 milli-g; 20
+// slices = 1 000 milli-pack). Measures belong to a name (case-insensitive) in
+// one pantry, for one dimension: every purchase of Onions in Flat 4B counts
+// in the same onions, a personal pantry's Onions in their own. At most
+// MAX_MEASURES per name. Anyone who can use an item sets its name's measures
+// (`kitchen.item.use` in a group; the owner of a personal pantry):
+//
+//   PUT /v1/organizations/{org}/kitchen/items/{itm}/measures
+//   PUT /v1/kitchen/me/items/{itm}/measures
+//
+// A use or a dish ingredient may then be given as a count of a measure
+// (`measure` instead of `unit`): it takes `measureTakeMilli` of the stock, its
+// cost is the engine's proportional cost of that, as for any use, and it keeps
+// its words (`label`, "2 onions") on the move and on the dish.
+
+/** The most measures one name has in one pantry and dimension. */
+export const MAX_MEASURES = 3;
+/** The longest word for a measure (`one`, `many`). */
+export const MAX_MEASURE_WORD = 24;
+/** The most of a measure one use or ingredient asks for (a count; halves allowed). */
+export const MAX_MEASURE_QUANTITY = 10_000;
+
+export interface KitchenMeasure {
+  /** `msr_…` */
+  id: string;
+  /** The word for one ("onion", "slice"). */
+  one: string;
+  /** The word for more than one ("onions", "slices"). */
+  many: string;
+  /** How many of it make `amountMilli` (20 slices in a pack: 20). */
+  count: number;
+  /** What `count` of it amount to, in thousandths of the dimension's base unit (a pack: 1 000). */
+  amountMilli: number;
+}
+
+/** One measure as a request sets it. */
+export interface KitchenMeasureInput {
+  /** 1–MAX_MEASURE_WORD characters, trimmed; each `one` once per request (case-insensitive). */
+  one: string;
+  /** 1–MAX_MEASURE_WORD characters, trimmed. */
+  many: string;
+  /** A whole number above zero. */
+  count: number;
+  /** A whole number of thousandths, at least `count` (a measure is at least a thousandth of the unit). */
+  amountMilli: number;
+}
+
+/**
+ * PUT …/items/{itm}/measures (both pantries): replaces the measures of the
+ * item's name in its pantry, for its dimension — every item of that name
+ * there reads them. 0 to MAX_MEASURES, in the order the app offers them; an
+ * empty list removes them. A word kept keeps its `id`. Invalid: 422
+ * `validation_failed` with field errors (`measures`, `measures[1].one` …).
+ * An item the caller cannot use (a viewer, another group, someone else's own
+ * pantry) is the opaque 404.
+ */
+export interface SetMeasuresRequest {
+  measures: KitchenMeasureInput[];
+}
+
+/** 200: the name's measures as they now are, in order. */
+export interface SetMeasuresResponse {
+  measures: KitchenMeasure[];
+}
+
+/** Whose item: the caller's own pantry, or a group's (an item's `pantry`, or the app's item ref, fits). */
+export type ItemScope = { kind: "personal" } | { kind: "group"; orgId: string };
+
+/** The measure `word` names among `measures` (its `one`, case-insensitively), if any. */
+export function findMeasure<M extends Pick<KitchenMeasure, "one">>(measures: readonly M[], word: string): M | undefined {
+  const wanted = word.trim().toLowerCase();
+  return measures.find((m) => m.one.toLowerCase() === wanted);
+}
+
+/** "½", "1", "1½", "2": a count in halves as the words read it. */
+function halvesText(halves: number): string {
+  const whole = Math.floor(halves / 2);
+  const half = halves % 2 === 1 ? "½" : "";
+  return whole === 0 ? half : `${whole}${half}`;
+}
+
+/**
+ * What a use given in a measure says: "½ onion", "1 onion", "1½ onions",
+ * "2 onions" — the word for one up to 1, for many above. `quantity` is a
+ * count of the measure, a positive multiple of ½.
+ */
+export function measureLabel(quantity: number, measure: Pick<KitchenMeasure, "one" | "many">): string {
+  const halves = Math.round(quantity * 2);
+  return `${halvesText(halves)} ${halves <= 2 ? measure.one : measure.many}`;
+}
+
+/** round(n / d), halves up, for non-negative integers. */
+function roundDiv(n: bigint, d: bigint): bigint {
+  return (2n * n + d) / (2n * d);
+}
+
+/**
+ * How much of an item a use of `quantity` of `measure` takes, in thousandths
+ * of its base unit — or null when that is more than is left (409
+ * `insufficient_stock`). `quantity` is a count of the measure, a positive
+ * multiple of ½.
+ *
+ * It takes round(quantity × amountMilli / count), halves up. Rounding each
+ * use would leave an item's uses in one measure a few thousandths off what
+ * was bought (16 slices of a 1 000 milli-pack take 63 each), so the use that
+ * comes within that drift of what is left takes exactly what is left: then
+ * the engine's last-use rule charges exactly what is left of the price, and a
+ * pack eaten slice by slice costs exactly what was paid. The drift allowed is
+ * ½ a thousandth per half-measure the item holds, and never more than a
+ * quarter of the measure, so it only ever absorbs rounding — asking for more
+ * than is left by more than that is refused.
+ */
+export function measureTakeMilli(
+  quantity: number,
+  measure: Pick<KitchenMeasure, "count" | "amountMilli">,
+  item: { qtyBoughtMilli: number; qtyLeftMilli: number },
+): number | null {
+  const halves = BigInt(Math.round(quantity * 2));
+  const count = BigInt(measure.count);
+  const amount = BigInt(measure.amountMilli);
+  const left = BigInt(item.qtyLeftMilli);
+  const take = roundDiv(halves * amount, 2n * count);
+  // Half-measures the item held × ½ thousandth, rounded up; at most a quarter measure.
+  const drift = (BigInt(item.qtyBoughtMilli) * count + amount - 1n) / amount;
+  const cap = amount / (4n * count);
+  const slack = drift < cap ? drift : cap;
+  const gap = take > left ? take - left : left - take;
+  if (left > 0n && gap <= slack) return Number(left);
+  return take > left ? null : Number(take);
+}
+
+/** `qtyMilli` counted in `measure`, to the nearest ½ (halves up): "about 3½ onions left". */
+export function inMeasure(qtyMilli: number, measure: Pick<KitchenMeasure, "count" | "amountMilli">): number {
+  const halves = roundDiv(BigInt(qtyMilli) * 2n * BigInt(measure.count), BigInt(measure.amountMilli));
+  return Number(halves) / 2;
 }
 
 // ── From before (SM-8) ──────────────────────────────────────
@@ -1055,6 +1229,8 @@ export interface CookIngredientRequest {
   itemId: string;
   quantity: string | number;
   unit?: string;
+  /** Instead of `unit` (both: 422): one of the item's measures, as on a use (SM-13). The ingredient keeps its words (`label`). */
+  measure?: string;
 }
 
 /**
@@ -1108,9 +1284,15 @@ export interface KitchenDishIngredient {
   /** Who bought it (`usr_…`). */
   paidBy: string;
   qtyMilli: number;
-  /** The same quantity in `unit`, the unit it was entered in. */
+  /** The same quantity in `unit`, the unit it was entered in (the item's own when it was given in a measure). */
   quantity: number;
   unit: string;
+  /**
+   * The words it was given in, in one of the item's measures ("2 onions",
+   * SM-13); null when it was given in a unit. Every answer carries it;
+   * optional here only so ingredients typed before SM-13 still check.
+   */
+  label?: string | null;
   /** What it cost: proportional to its price, the last of an item taking what is left of the price. */
   costMinor: number;
   /** The `use` transaction (`txn_…`) that charged the cook for it; null when nobody else paid for it. */

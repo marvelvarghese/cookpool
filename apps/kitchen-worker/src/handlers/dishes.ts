@@ -28,6 +28,7 @@ import { canUseIn, type MemberGroup } from "../groups-client.js";
 import { conflict, forbidden, notFound, readJsonObject, successResponse, unavailable, validationError } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";
+import { readMeasures, type MeasureBook } from "../measures.js";
 import { limitParam } from "../pantry.js";
 import { Fields } from "../validate.js";
 
@@ -129,7 +130,14 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
         allowed.add(orgId);
       }
 
-      const plan = planDish(ctx, dish, { cook, dishId, idemKey: idem.key, now: ctx.now(), shared: sharedWith, items });
+      // An ingredient given in a measure (SM-13) needs the items' measures: one more statement, only then.
+      let measures: MeasureBook = () => [];
+      if (dish.ingredients.some((i) => i.measure)) {
+        const read = await readMeasures(ctx, repo, found.value);
+        if (!read) return unavailable(ctx.requestId);
+        measures = read;
+      }
+      const plan = planDish(ctx, dish, { cook, dishId, idemKey: idem.key, now: ctx.now(), shared: sharedWith, items, measures });
       if (plan instanceof Response) return plan;
       const result = await ctx.timings.measure("db", () => repo.cookDish(plan));
       if (result.ok) {

@@ -1347,3 +1347,35 @@ describe("KitchenClient — anyone's portion (Cookpool SM-6)", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
+
+describe("KitchenClient — your measures (Cookpool SM-13)", () => {
+  const measures = [{ id: "msr_1", one: "onion", many: "onions", count: 1, amountMilli: 150_000 }];
+  const onion = { one: "onion", many: "onions", count: 1, amountMilli: 150_000 };
+
+  it("PUTs a group item's measures under the group, and the caller's own under /me — scope is an item's pantry", async () => {
+    const group = captureFetch(jsonResponse(envelope({ measures })));
+    const pantry = { kind: "group", orgId: "org_1", slug: "flat-4b", name: "Flat 4B" } as const;
+    expect(await client(group.fetch).kitchen.setMeasures(pantry, "itm_1", [onion])).toEqual({ measures });
+    expect(group.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items/itm_1/measures");
+    expect(group.calls[0]!.init.method).toBe("PUT");
+    expect(JSON.parse(String(group.calls[0]!.init.body))).toEqual({ measures: [onion] });
+
+    const mine = captureFetch(jsonResponse(envelope({ measures: [] })));
+    expect(await client(mine.fetch).kitchen.setMeasures({ kind: "personal" }, "itm_2", [])).toEqual({ measures: [] });
+    expect(mine.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_2/measures");
+    expect(JSON.parse(String(mine.calls[0]!.init.body))).toEqual({ measures: [] });
+  });
+
+  it("sends a use in a measure as it is, and surfaces bad measures as ValidationError and a viewer as NotFoundError", async () => {
+    const used = captureFetch(jsonResponse(envelope({ item: {}, move: { label: "2 onions" }, txn: null }), { status: 201 }));
+    await client(used.fetch).kitchen.useGroupItem("org_1", "itm_1", { quantity: 2, measure: "onion" });
+    expect(JSON.parse(String(used.calls[0]!.init.body))).toEqual({ quantity: 2, measure: "onion" });
+
+    await expect(
+      client(captureFetch(errorResponse("validation_failed", 422)).fetch).kitchen.setMeasures({ kind: "personal" }, "itm_1", [onion]),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      client(captureFetch(errorResponse("not_found", 404)).fetch).kitchen.setMeasures({ kind: "group", orgId: "org_1" }, "itm_1", [onion]),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});

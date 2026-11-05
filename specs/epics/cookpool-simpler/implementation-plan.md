@@ -54,7 +54,21 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 **Done when**
 - buying milk again is: type "mi", tap Milk, tap Add
 
-## SM4 — simpler screens
+## SM6 — your measures
+
+- **SM-13** (kitchen-worker, db, db-migrate, contracts, sdk): migration 300,
+  the measures route, measures on every item read, a use and an ingredient
+  given in a measure, `label` (design §6).
+- **SM-14** (web-console-next): Use's tiles from the item's measures and
+  weights, the "Count in …" tile and its one question, "Another amount" with a
+  unit switch, the item page's "Counted as", Cook's per-ingredient unit
+  switch, the words in the activity.
+
+**Done when**
+- onions bought by the kilo are used as "1 onion" once a size is saved, asked once and remembered for that pantry
+- a use logged as "2 onions" reads "2 onions" in the activity and costs exactly the grams it took
+
+## SM4 — simpler screens ✅
 
 - **SM-10** (web-console-next): Home, Use, + Add, Dish, Pantry as the canvas
   draws them, under the seven rules.
@@ -78,3 +92,7 @@ SM-2 and SM-3 run side by side (console vs infra). SM-4 follows SM-2 (its
 entry wraps the console Worker SM-2 left serving only what is not a file). SM-5 follows SM-2. SM2 and SM3 can run side by
 side (different routes). SM4 starts after SM-5 so the screens are built on
 the instant writes.
+
+SM6 (your measures) was added on 2026-11-05, after SM3. SM-13 and SM-10 run
+side by side (server vs screens); SM-10 leaves the Use screen to SM-14, which
+follows SM-13, so Use is rebuilt once, with measures in it.
