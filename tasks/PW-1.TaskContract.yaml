@@ -1,0 +1,13 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-1
+  title: "The Cookpool app spec"
+spec:
+  goal: The cookpool-app epic's doc set is on main, so installing Cookpool, using it offline, its updates and its gestures are designed before they are built.
+  affects:
+    - specs/epics/cookpool-app/**
+    - tasks/PW-1.TaskContract.yaml
+  doneWhen:
+    - the documents are on main under specs/epics/cookpool-app
+  gates: []
