@@ -61,7 +61,7 @@ export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen:
         <Link
           href="/cook"
           aria-current={pathname === "/cook" ? "page" : undefined}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cp-tomato px-4 text-[15px] font-bold text-white transition-colors hover:bg-cp-tomato/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-[15px] font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <CookingPot className="h-5 w-5" aria-hidden />
           Cook a dish

@@ -12,7 +12,9 @@ import {
   itemRowView,
   joinNames,
   leftOfBought,
+  pantryChips,
   pantryChoice,
+  pantryListRow,
   pantryPickerList,
   pantryRows,
   pantrySections,
@@ -170,8 +172,8 @@ describe("the summary and filters", () => {
   });
 
   it("offers Expired only when something has expired", () => {
-    expect(filterChips({ useSoonCount: 2, expiredCount: 0 }).map((c) => c.label)).toEqual(["All items", "Use soon · 2"]);
-    expect(filterChips({ useSoonCount: 2, expiredCount: 1 }).map((c) => c.label)).toEqual(["All items", "Use soon · 2", "Expired · 1"]);
+    expect(filterChips({ useSoonCount: 2, expiredCount: 0 }).map((c) => c.label)).toEqual(["All", "Soon · 2"]);
+    expect(filterChips({ useSoonCount: 2, expiredCount: 1 }).map((c) => c.label)).toEqual(["All", "Soon · 2", "Expired · 1"]);
   });
 
   it("states stock in words, leaving out the zeros", () => {
@@ -310,6 +312,59 @@ describe("an item row", () => {
     expect(leftOfBought(makeItem({ unit: "kg", bought: "2", left: "1.6" }))).toBe("1.6 kg of 2 kg");
     expect(leftOfBought(makeItem({ unit: "L", bought: "1", left: "0.4" }))).toBe("400 ml of 1 L");
     expect(leftOfBought(makeItem({ unit: "g", bought: "500", left: "450" }))).toBe("450 g of 500 g");
+  });
+});
+
+describe("the phone's list (SM-10: each item one row)", () => {
+  const milk = () => makeItem({ name: "Milk", unit: "L", bought: "1", left: "1", priceMinor: 6800, daysToUseBy: 1 });
+
+  it("says only the name, what is left and one chip — not price, worth, who paid or a bar", () => {
+    const row = pantryListRow(milk(), { showPantry: false });
+    expect(row).toMatchObject({ name: "Milk", left: "1 L", chip: { label: "Tomorrow", tone: "soon" }, pantry: null, struck: false, pending: false });
+    expect(Object.keys(row).sort()).toEqual(["chip", "href", "id", "left", "name", "pantry", "pending", "struck", "use"]);
+    expect(row.href).toBe(`/pantry/org:${FLAT.orgId}:${row.id}`);
+  });
+
+  it("shows a chip only when it is due soon or past its date; a later date is not a warning", () => {
+    expect(pantryListRow(makeItem({ daysToUseBy: 12 }), { showPantry: false }).chip).toBeNull();
+    expect(pantryListRow(makeItem({ daysToUseBy: null }), { showPantry: false }).chip).toBeNull();
+    const old = pantryListRow(makeItem({ name: "Greek yogurt", unit: "g", bought: "400", daysToUseBy: -1 }), { showPantry: false });
+    expect(old).toMatchObject({ chip: { label: "Expired", tone: "expired" }, struck: true, left: "400 g" });
+  });
+
+  it("names the pantry on All pantries only: Me for yours, else the group", () => {
+    expect(pantryListRow(milk(), { showPantry: true }).pantry).toBe("Flat 4B");
+    expect(pantryListRow(makeItem({ pantry: PERSONAL_REF }), { showPantry: true }).pantry).toBe("Me");
+  });
+
+  it("Use logs your usual for you when it fits what is left; otherwise it opens Use with the item chosen", () => {
+    const item = milk();
+    expect(pantryListRow(item, { showPantry: false, usualQtyMilli: 250_000, usualWords: "1 glass" }).use).toEqual({
+      kind: "log",
+      qtyMilli: 250_000,
+      words: "1 glass",
+      label: "Log 1 glass of Milk for you",
+    });
+    const tooMuch = pantryListRow(item, { showPantry: false, usualQtyMilli: 2_000_000, usualWords: "2 L" }).use;
+    expect(tooMuch).toEqual({ kind: "open", href: `/use?item=org:${FLAT.orgId}:${item.id}`, label: "Use some Milk" });
+    expect(pantryListRow(item, { showPantry: false }).use?.kind).toBe("open");
+  });
+
+  it("offers no Use to a viewer, for something used up, or for a row the server has not answered yet", () => {
+    expect(pantryListRow(makeItem({ canUse: false }), { showPantry: false }).use).toBeNull();
+    expect(pantryListRow(makeItem({ left: "0" }), { showPantry: false }).use).toBeNull();
+    const pending = pantryListRow(makeItem({ id: "pending_item_1" }), { showPantry: false, usualQtyMilli: 1000, usualWords: "1 kg" });
+    expect(pending.use).toBeNull();
+  });
+
+  it("lists the pantries as chips: yours first (Me), then groups opened last first", () => {
+    const pantries = [groupPantry(LUNCH), personalPantry(), groupPantry(FLAT), groupPantry(TRIP)];
+    expect(pantryChips(pantries, [TRIP.slug])).toEqual([
+      { key: PERSONAL_PANTRY, label: "Me" },
+      { key: TRIP.orgId, label: "Goa trip" },
+      { key: FLAT.orgId, label: "Flat 4B" },
+      { key: LUNCH.orgId, label: "Lunch club" },
+    ]);
   });
 });
 

@@ -10,9 +10,10 @@ import { kitchenIcon } from "./icons";
 
 /**
  * Cookpool's bottom tab bar, below 900px (CP-5): Home · Pantry · + Add ·
- * Groups · People. The centre Add is a raised tomato circle that opens the Add
- * sheet. Fixed to the bottom with the home-indicator inset; every cell is at
- * least 60px tall.
+ * Groups · People. The centre Add is a raised circle that opens the Add
+ * sheet, in the app's one primary green (SM-10: it was tomato, a second
+ * "this is the action" colour). Fixed to the bottom with the home-indicator
+ * inset; every cell is at least 60px tall.
  */
 export function KitchenTabBar({ onAdd, addOpen }: { onAdd: () => void; addOpen: boolean }) {
   const pathname = usePathname();
@@ -33,7 +34,7 @@ export function KitchenTabBar({ onAdd, addOpen }: { onAdd: () => void; addOpen: 
                   aria-expanded={addOpen}
                   className="group -mt-6 flex min-h-[64px] w-full flex-col items-center gap-1 rounded-xl text-xs font-semibold text-foreground focus-visible:outline-none"
                 >
-                  <span className="grid h-14 w-14 place-items-center rounded-full bg-cp-tomato text-white shadow-[0_6px_16px_rgba(194,65,12,0.35)] ring-4 ring-card transition-transform group-active:scale-95 group-focus-visible:ring-ring">
+                  <span className="grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_16px_rgba(31,122,77,0.32)] ring-4 ring-card transition-transform group-active:scale-95 group-focus-visible:ring-ring">
                     <Plus className="h-7 w-7" strokeWidth={2.5} aria-hidden />
                   </span>
                   <span>{item.label}</span>

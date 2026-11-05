@@ -64,12 +64,8 @@ export function portionsText(half: number): string {
   return `${halfText(half)} ${half <= 2 && half > 0 ? "portion" : "portions"}`;
 }
 
-/** The claim buttons on a dish (and on Home): None · ½ · 1 · 1½ · 2. */
+/** The portion chips on Home's to-do (SM-10: 0 · ½ · 1 · 1½ · 2). */
 export const CLAIM_CHOICES: readonly number[] = [0, 1, 2, 3, 4];
-
-export function claimChoiceLabel(half: number): string {
-  return half === 0 ? "None" : halfText(half);
-}
 
 /**
  * What one portion costs: the total over the portions, to the paisa. Exact
@@ -97,13 +93,13 @@ export interface DishChip {
   tone: DishChipTone;
 }
 
-/** The cost card's chip: Open for claims · Not split yet · Finalized · Canceled. */
-export function dishStateChip(dish: Pick<KitchenDish, "state" | "orgId">): DishChip {
+/** The dish's one status word (SM-10): Open · Draft · Finalized · Canceled. */
+export function dishStateChip(dish: Pick<KitchenDish, "state">): DishChip {
   switch (dish.state) {
     case "open":
-      return { label: "Open for claims", tone: "open" };
+      return { label: "Open", tone: "open" };
     case "draft":
-      return { label: dish.orgId ? "Not split yet" : "Not finalized", tone: "open" };
+      return { label: "Draft", tone: "open" };
     case "finalized":
       return { label: "Finalized", tone: "ready" };
     case "canceled":
@@ -514,14 +510,17 @@ export function whoHadSome(input: WhoInput): WhoRow[] {
 
 export type CountTone = "exact" | "over" | "under";
 
-/** "3½ of 4 claimed" — green when every portion is had, red when more are set than were cooked. */
+/**
+ * "3½ of 4 had" (a draft, a finalized dish, the cook's edit) — green when
+ * every portion is had, red when more are set than were cooked. Plain words
+ * (SM-10, rule 3): "had", whether people said it or the cook did.
+ */
 export function claimCount(
-  dish: Pick<KitchenDish, "portionsHalf" | "splitMode">,
+  dish: Pick<KitchenDish, "portionsHalf">,
   split: Pick<SplitView, "claimedHalf" | "over">,
 ): { text: string; tone: CountTone } {
-  const verb = dish.splitMode === "claims" ? "claimed" : "set";
   const tone: CountTone = split.over || split.claimedHalf > dish.portionsHalf ? "over" : split.claimedHalf === dish.portionsHalf ? "exact" : "under";
-  return { text: `${halfText(split.claimedHalf)} of ${halfText(dish.portionsHalf)} ${verb}`, tone };
+  return { text: `${halfText(split.claimedHalf)} of ${halfText(dish.portionsHalf)} had`, tone };
 }
 
 /**
@@ -537,31 +536,26 @@ export function portionsLeft(
 }
 
 /** The alert when more portions are set than were cooked. */
-export const OVER_CLAIMED = "More portions are set than were cooked. Lower someone's share before saving.";
+export const OVER_CLAIMED = "More portions set than cooked";
 
 /**
- * What happens to the portions nobody had: they become the cook's Leftovers
- * (a dish shared with a group only — one just for its cook makes none).
+ * What happens to the portions nobody had, in numbers (SM-10): they become
+ * the cook's Leftovers — "2 portions left over · to your pantry · ₹105.50" —
+ * for a dish shared with a group only (one just for its cook makes none).
  */
 export function leftoverNote(
   input: DishPeople & { dish: Pick<KitchenDish, "cook" | "orgId" | "state" | "totalMinor" | "portionsHalf" | "currency">; split: SplitView },
 ): string | null {
   const { dish, split, meId, names } = input;
   if (!dish.orgId || dish.state === "canceled" || split.over || split.unclaimedHalf <= 0) return null;
-  const n = split.unclaimedHalf;
-  const one = n <= 2;
-  const portions = portionsText(n);
-  const worth = `${formatMinor(split.unclaimedMinor, dish.currency)}, at ${perPortionText(dish)} a portion`;
+  const portions = capitalize(portionsText(split.unclaimedHalf));
+  const worth = formatMinor(split.unclaimedMinor, dish.currency);
   const finalized = dish.state === "finalized";
   if (meId !== null && dish.cook === meId) {
-    return finalized
-      ? `${capitalize(portions)} nobody had ${one ? "is" : "are"} Leftovers in your pantry: ${worth}.`
-      : `${capitalize(portions)} unclaimed. When you finalize, ${one ? "it stays" : "they stay"} with you as Leftovers in your pantry: ${worth}.`;
+    return finalized ? `${portions} in your pantry as Leftovers · ${worth}` : `${portions} left over · to your pantry · ${worth}`;
   }
   const cook = memberLabel(dish.cook, meId, names);
-  return finalized
-    ? `${cook} kept ${portions} as leftovers.`
-    : `${capitalize(portions)} unclaimed so far. Whatever nobody claims stays with ${cook} as leftovers.`;
+  return finalized ? `${cook} kept ${portionsText(split.unclaimedHalf)}` : `${portions} left over · to ${cook}`;
 }
 
 // ── Claims ────────────────────────────────────────────────────────
@@ -578,24 +572,13 @@ export function claimOwedMinor(dish: KitchenDish, meId: string, half: number): n
 }
 
 /**
- * "You had 1 · you'll owe Meera ₹31.20" (open), "… · you owe Meera ₹31.20"
- * (finalized), "You had 1½ · your share is ₹79.13" (the cook), "You didn't
- * have any".
+ * The toast after setting your own portion, in one line (SM-10): "You · 1
+ * portion · ₹31.20" (what it costs you), "You · none".
  */
-export function claimText(input: { dish: KitchenDish; meId: string; names?: MemberNames | null; half: number }): string {
-  const { dish, meId, half } = input;
-  if (half <= 0) return "You didn't have any";
-  const owed = formatMinor(claimOwedMinor(dish, meId, half), dish.currency);
-  if (dish.cook === meId) return `You had ${halfText(half)} · your share is ${owed}`;
-  const cook = memberLabel(dish.cook, meId, input.names);
-  return `You had ${halfText(half)} · ${dish.state === "finalized" ? "you owe" : "you'll owe"} ${cook} ${owed}`;
-}
-
-/** The toast after a claim. */
 export function claimedToast(input: { dish: KitchenDish; meId: string; names?: MemberNames | null; half: number }): { title: string; description?: string } {
-  const { dish, half } = input;
-  if (half <= 0) return { title: `Took back your claim on ${dish.name}` };
-  return { title: `Claimed ${portionsText(half)} of ${dish.name}`, description: `${claimText(input)}.` };
+  const { dish, meId, half } = input;
+  if (half <= 0) return { title: "You · none" };
+  return { title: `You · ${portionsText(half)} · ${formatMinor(claimOwedMinor(dish, meId, half), dish.currency)}` };
 }
 
 /**
@@ -753,14 +736,14 @@ export function moneyFlow(
     eaten.length > 0
       ? null
       : split.over
-        ? "More portions are set than were cooked, so it can't be split yet."
+        ? OVER_CLAIMED
         : !dish.orgId
-        ? cookIsMe
-          ? "Just for you: nobody owes you for it."
-          : `Just for ${cook}: nobody owes for it.`
-        : finalized
-          ? "Nobody else had any."
-          : "Nobody else has had some yet.";
+          ? cookIsMe
+            ? "Just for you"
+            : `Just for ${cook}`
+          : finalized
+            ? "Nobody else had any"
+            : "Nobody yet";
 
   const took: FlowLine[] = dish.owes.map((o) => {
     const items = [
@@ -790,41 +773,102 @@ export function moneyFlow(
   }
 
   return {
-    eatenTitle: cookIsMe ? "They owe you for what they ate" : `They owe ${cook} for what they ate`,
+    eatenTitle: cookIsMe ? "They owe you" : `They owe ${cook}`,
     eaten,
     eatenEmpty,
-    tookTitle: cookIsMe ? "You owe for items you took (posted when you cooked)" : `${cook} owes for items they took (posted when they cooked)`,
+    tookTitle: cookIsMe ? "You owe, for ingredients" : `${cook} owes, for ingredients`,
     took,
-    tookEmpty:
-      took.length > 0
-        ? null
-        : cookIsMe
-          ? "Every ingredient was yours already, so there's nobody to pay back."
-          : `Every ingredient was ${cook}'s already, so there's nobody to pay back.`,
+    tookEmpty: took.length > 0 ? null : cookIsMe ? "All yours already" : `All ${cook}'s already`,
     netted,
     posted: finalized,
   };
 }
 
-/** The toast after finalizing: who owes the cook now, and the leftovers. */
-export function finalizedToast(
-  input: DishPeople & { dish: KitchenDish; groupName: string | null },
-): { title: string; description: string } {
+/**
+ * Who owes the cook for what they ate, in one line: "Anu and Dev owe Meera
+ * ₹93.60", "You owe Meera ₹31.20", "Anu owes you ₹52.75"; null when nobody
+ * else had any.
+ */
+export function eatersOweText(
+  input: DishPeople & { dish: Pick<KitchenDish, "cook" | "currency">; amounts: readonly Pick<DishAmount, "subjectId" | "owedMinor">[] },
+): string | null {
   const { dish, meId, names } = input;
-  if (!dish.orgId) return { title: `Finalized ${dish.name}`, description: "It was just for you, so nothing was split." };
-  const eaters = dish.amounts.filter((a) => a.subjectId !== dish.cook && a.owedMinor > 0);
-  const sum = eaters.reduce((s, a) => s + a.owedMinor, 0);
-  const cook = memberLabelInline(dish.cook, meId, names);
+  const eaters = input.amounts.filter((a) => a.subjectId !== dish.cook && a.owedMinor > 0);
+  if (eaters.length === 0) return null;
+  const sum = eaters.reduce((t, a) => t + a.owedMinor, 0);
   const who = joinNames(eaters.map((a) => memberLabelInline(a.subjectId, meId, names)));
-  const owes =
-    eaters.length === 0
-      ? "Nobody else had any, so nobody owes for it."
-      : `${capitalize(who)} ${eaters.length === 1 && eaters[0]!.subjectId !== meId ? "owes" : "owe"} ${cook} ${formatMinor(sum, dish.currency)}.`;
-  const left =
-    dish.unclaimedHalf > 0 && dish.leftoverItemId
-      ? ` ${capitalize(portionsText(dish.unclaimedHalf))} went to ${dish.cook === meId ? "your" : `${memberLabel(dish.cook, meId, names)}'s`} pantry as Leftovers.`
-      : "";
-  return { title: `Posted to ${input.groupName ?? "the group"}`, description: `${owes}${left}` };
+  const verb = eaters.length === 1 && eaters[0]!.subjectId !== meId ? "owes" : "owe";
+  return `${capitalize(who)} ${verb} ${memberLabelInline(dish.cook, meId, names)} ${formatMinor(sum, dish.currency)}`;
+}
+
+/**
+ * The toast after finalizing, in one line (SM-10): "Finalized · Anu and Dev
+ * owe you ₹105.50". No "posted": the dish says Finalized, and its page has
+ * the leftovers.
+ */
+export function finalizedToast(input: DishPeople & { dish: KitchenDish; groupName: string | null }): { title: string } {
+  const { dish } = input;
+  if (!dish.orgId) return { title: "Finalized" };
+  return { title: `Finalized · ${eatersOweText({ ...input, amounts: dish.amounts }) ?? "nobody owes for it"}` };
+}
+
+/** "Meera · ₹31.20 a portion", "You · ≈ ₹33.33 a portion" — under the dish's name (SM-10, the canvas). */
+export function dishByline(dish: Pick<KitchenDish, "cook" | "totalMinor" | "portionsHalf" | "currency">, p: DishPeople): string {
+  return `${memberLabel(dish.cook, p.meId, p.names)} · ${perPortionText(dish)} a portion`;
+}
+
+/** One line of a dish's money summary, coloured from the viewer's side. */
+export interface MoneySummaryLine {
+  key: string;
+  text: string;
+  tone: FlowTone;
+}
+
+/**
+ * How a dish moves money in at most two short lines (SM-10, design §4 rule
+ * 2), instead of "How this moves money": who owes the cook for what they ate,
+ * and where it is settled — "Anu and Dev owe Meera ₹93.60 · in Flat 4B" — and,
+ * when the cook took from others' pantries, what the cook owes for them
+ * ("You owe ₹43.00 for ingredients"; your part, "Meera owes you ₹12.00 for
+ * ingredients", when it is yours). The lines behind it (each person, each buyer, the net per
+ * person) are the Details disclosure's, from `moneyFlow`.
+ */
+export function dishMoneySummary(
+  input: DishPeople & { dish: Pick<KitchenDish, "cook" | "orgId" | "state" | "owes" | "currency">; split: SplitView },
+): MoneySummaryLine[] {
+  const { dish, split, meId, names, groupNames } = input;
+  const cookIsMe = meId !== null && dish.cook === meId;
+  const cook = memberLabelInline(dish.cook, meId, names);
+  if (dish.state === "canceled") return [{ key: "canceled", text: "Canceled · nothing is owed", tone: "neutral" }];
+  if (!dish.orgId) return [{ key: "solo", text: cookIsMe ? "Just for you" : `Just for ${cook}`, tone: "neutral" }];
+  if (split.over) return [{ key: "over", text: OVER_CLAIMED, tone: "neutral" }];
+
+  const eaters = split.amounts.filter((a) => a.subjectId !== dish.cook && a.owedMinor > 0);
+  const owe = eatersOweText({ dish, amounts: split.amounts, meId, names: names ?? null });
+  const where = `in ${groupLabel(dish.orgId, groupNames)}`;
+  const lines: MoneySummaryLine[] = [
+    owe
+      ? {
+          key: "eaten",
+          text: `${owe} · ${where}`,
+          tone: cookIsMe ? "owed" : eaters.some((a) => a.subjectId === meId) ? "owe" : "neutral",
+        }
+      : { key: "eaten", text: `Nobody owes ${cook}${dish.state === "finalized" ? "" : " yet"}`, tone: "neutral" },
+  ];
+  if (dish.owes.length > 0) {
+    // Your part when it is owed to you; otherwise the whole, without the names (Details has them).
+    const mine = meId !== null && !cookIsMe ? dish.owes.filter((o) => o.buyerId === meId) : [];
+    const owed = (mine.length > 0 ? mine : dish.owes).reduce((t, o) => t + o.amountMinor, 0);
+    const amount = formatMinor(owed, dish.currency);
+    lines.push(
+      cookIsMe
+        ? { key: "took", text: `You owe ${amount} for ingredients`, tone: "owe" }
+        : mine.length > 0
+          ? { key: "took", text: `${capitalize(cook)} owes you ${amount} for ingredients`, tone: "owed" }
+          : { key: "took", text: `${capitalize(cook)} owes ${amount} for ingredients`, tone: "neutral" },
+    );
+  }
+  return lines;
 }
 
 // ── A group's Dishes tab ──────────────────────────────────────────

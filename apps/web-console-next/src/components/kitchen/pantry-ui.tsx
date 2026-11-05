@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronDown, Search, Utensils } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
   type FilterChip,
   type ItemFilter,
   type ItemRowView,
+  type PantryListRow,
   type PantryOption,
   type ExpiryChip,
 } from "./pantry";
@@ -24,8 +25,8 @@ import {
 /**
  * The pantry screens' visual pieces (Cookpool CP-12): a pantry's badge, the
  * use-by chip, the remaining bar, the searchable pantry picker (an inline
- * panel, recent first), an item as a phone row and as a desktop table, and
- * the filter chips. Colors come from the `.cookpool` tokens; the chip says
+ * panel, recent first), an item as a phone row (SM-10: one line) and as a
+ * desktop table, and the filter chips. Colors come from the `.cookpool` tokens; the chip says
  * its date in words, so color is never the only cue.
  */
 
@@ -210,49 +211,68 @@ export function PantryPicker({
   );
 }
 
-/** A row's body while its item is not on the server yet: the same look, nothing to open. */
-function PendingRow({ className, children }: { href: string; className?: string; children: React.ReactNode }) {
-  return <span className={cn(className, "block cursor-default opacity-70 hover:bg-transparent")}>{children}</span>;
-}
-
-/** One item on a phone: name, how much is left and who paid, the chip, price per unit, the bar, its worth — and Use on the right edge. */
-export function ItemCard({ row }: { row: ItemRowView }) {
-  // Just added (SM-5): shown at once, opened once the server has it.
-  const Opens = row.pending ? PendingRow : Link;
-  return (
-    <li className="flex items-stretch overflow-hidden rounded-2xl border bg-card" aria-busy={row.pending || undefined}>
-      <Opens
-        href={row.href}
-        className="min-w-0 flex-1 space-y-2 py-3 pl-3.5 pr-2 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-      >
-        <span className="flex items-start justify-between gap-2.5">
-          <span className="min-w-0">
-            <span className={cn("block truncate text-[15px] font-bold", row.struck && "text-muted-foreground line-through")}>{row.name}</span>
-            <span className="block truncate text-[13px] text-muted-foreground">{row.sub}</span>
-          </span>
-          <span className="flex shrink-0 flex-col items-end gap-1">
+/**
+ * One item on the phone's list (SM-10, the canvas's "Simpler — Pantry"): its
+ * name, what is left (never wrapped), one chip when it is due soon or past
+ * its date and its pantry's chip on All — the row opens the item — and Use at
+ * the end: your usual amount logged at once ("1 glass"), or Use, which opens
+ * the Use screen with it chosen. Just added (SM-5), it is listed at once and
+ * opens once the server has it.
+ */
+export function PantryListRowView({ row, onLog }: { row: PantryListRow; onLog: (() => void) | null }) {
+  const body = (
+    <>
+      <span className="min-w-0 flex-1">
+        <span className={cn("block truncate text-base font-extrabold leading-snug", row.struck && "text-muted-foreground line-through")}>{row.name}</span>
+        {row.chip || row.pantry ? (
+          <span className="mt-1 flex min-w-0 items-center gap-1.5">
             {row.chip ? <UseByPill chip={row.chip} /> : null}
-            <span className="text-[13px] tabular-nums text-muted-foreground">{row.unitPrice}</span>
+            {row.pantry ? (
+              <span className="min-w-0 truncate rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">{row.pantry}</span>
+            ) : null}
           </span>
-        </span>
-        <span className="flex items-center gap-2.5">
-          <StockBar percent={row.percent} tone={row.bar} className="flex-1" />
-          <span className="text-[13px] font-bold tabular-nums">
-            <span className="sr-only">Worth </span>
-            {row.worth}
-          </span>
-        </span>
-      </Opens>
-      {row.canUse ? (
+        ) : null}
+      </span>
+      <span className="shrink-0 whitespace-nowrap text-[15px] font-extrabold tabular-nums">
+        <span className="sr-only">Left: </span>
+        {row.left}
+      </span>
+    </>
+  );
+  const opens = "flex min-h-16 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 pr-1";
+  const use = row.use;
+  return (
+    <li className="flex items-center" aria-busy={row.pending || undefined}>
+      {row.pending ? (
+        <span className={cn(opens, "cursor-default opacity-70")}>{body}</span>
+      ) : (
         <Link
-          href={row.useHref}
-          aria-label={`Use some ${row.name}`}
-          className="flex w-[62px] shrink-0 flex-col items-center justify-center gap-1 border-l bg-accent/70 text-[13px] font-extrabold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          href={row.href}
+          className={cn(opens, "transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
         >
-          <Utensils className="h-5 w-5" aria-hidden />
-          Use
+          {body}
         </Link>
-      ) : null}
+      )}
+      <span className="flex w-[84px] shrink-0 justify-end pr-3">
+        {use?.kind === "log" && onLog ? (
+          <button
+            type="button"
+            aria-label={use.label}
+            onClick={onLog}
+            className="h-11 max-w-full truncate rounded-[12px] border border-primary bg-accent px-2.5 text-[13px] font-extrabold text-primary transition-colors hover:bg-cp-herb-tint/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {use.words}
+          </button>
+        ) : use ? (
+          <Link
+            href={use.kind === "open" ? use.href : row.href}
+            aria-label={use.label}
+            className="grid h-11 place-items-center rounded-[12px] border border-input bg-card px-3 text-[13px] font-extrabold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Use
+          </Link>
+        ) : null}
+      </span>
     </li>
   );
 }

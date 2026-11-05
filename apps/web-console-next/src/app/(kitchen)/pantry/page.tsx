@@ -3,8 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, Plus, Refrigerator, Search } from "lucide-react";
-import type { Pantry, ReachableItem } from "@saas/contracts/kitchen";
+import { Plus, Refrigerator, Search } from "lucide-react";
+import type { KitchenUsual, Pantry, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,20 +14,22 @@ import { useProfile } from "@/components/kitchen/data";
 import { IconBubble, KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
 import type { MemberNames } from "@/components/kitchen/members";
 import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data";
-import { usePantries, usePantryItems } from "@/components/kitchen/pantry-data";
-import { FilterChips, ItemCard, ItemTable, PantryBadge, PantryPicker } from "@/components/kitchen/pantry-ui";
+import { useLogUse, usePantries, usePantryItems, useUsuals } from "@/components/kitchen/pantry-data";
+import { FilterChips, ItemTable, PantryListRowView, PantryPicker } from "@/components/kitchen/pantry-ui";
+import { amountWords, usualFor } from "@/components/kitchen/quick-use";
 import {
   ALL_PANTRIES,
   filterChips,
+  itemRefOf,
   itemRowView,
+  pantryChips,
   pantryKey,
+  pantryListRow,
   pantryRows,
-  pantrySections,
   pantrySummary,
   parseFilterParam,
   parsePantryParam,
   type ItemFilter,
-  type PantrySection,
   type PantrySummary,
 } from "@/components/kitchen/pantry";
 
@@ -35,13 +37,15 @@ import {
 const TABLE_ROWS = 12;
 
 /**
- * Pantry — all pantries (CP-12). One screen for every pantry you can reach:
- * a searchable picker (All pantries, Personal, then groups — no per-group
- * tabs), what it all holds and is worth, filters (All items · Use soon ·
- * Expired), and the items — on a phone in a folding section per pantry, from
- * 900px in one table, soonest use-by first. Every row opens the item; Use
- * (when you may) opens its Use section. `?pantry=` and `?filter=` keep the
- * choice in the address.
+ * Pantry — all pantries (CP-12; on a phone, SM-10 as the canvas's "Simpler —
+ * Pantry" draws it). On a phone: one row of chips — All · Soon · Expired,
+ * then each pantry (tap one to see just it, again for all) — and one list,
+ * soonest use-by first, each item one row: its name, what is left, one chip
+ * when it is due soon or past its date, and its pantry's chip on All. The
+ * row opens the item; Use logs your usual amount of it at once (with Undo),
+ * or opens Use when you have none. From 900px, as before: the pantry picker,
+ * a search, what it is worth and one table. `?pantry=` and `?filter=` keep
+ * the choice in the address.
  */
 export default function PantryPage() {
   const pathname = usePathname();
@@ -87,13 +91,20 @@ export default function PantryPage() {
   const addHref = scope === ALL_PANTRIES ? "/pantry/new" : `/pantry/new?pantry=${encodeURIComponent(scope)}`;
 
   return (
-    <div className="space-y-5">
-      <header className="flex items-end justify-between gap-3">
+    <div className="space-y-4 min-[900px]:space-y-5">
+      <header className="flex items-center justify-between gap-3">
         <h1 className="text-[26px] font-extrabold leading-tight tracking-tight min-[900px]:text-[30px]">Pantry</h1>
-        <Button asChild className={K_BUTTON}>
+        <Link
+          href={addHref}
+          aria-label="Add an item"
+          className="grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[900px]:hidden"
+        >
+          <Plus className="h-[22px] w-[22px]" strokeWidth={2.4} aria-hidden />
+        </Link>
+        <Button asChild className={cn(K_BUTTON, "hidden min-[900px]:inline-flex")}>
           <Link href={addHref}>
             <Plus aria-hidden />
-            Add<span className="hidden min-[900px]:inline"> item</span>
+            Add item
           </Link>
         </Button>
       </header>
@@ -117,7 +128,6 @@ export default function PantryPage() {
           meId={meId}
           names={names}
           recentSlugs={recentSlugs}
-          memberCounts={memberCounts}
           addHref={addHref}
           onPantry={(key) => {
             setSelected(key);
@@ -142,7 +152,6 @@ function PantryBody({
   meId,
   names,
   recentSlugs,
-  memberCounts,
   addHref,
   onPantry,
   onFilter,
@@ -155,19 +164,19 @@ function PantryBody({
   meId: string | null;
   names: MemberNames;
   recentSlugs: readonly string[];
-  memberCounts: ReadonlyMap<string, number>;
   addHref: string;
   onPantry: (key: string) => void;
   onFilter: (filter: ItemFilter) => void;
 }) {
   const [query, setQuery] = React.useState("");
   const [showAll, setShowAll] = React.useState(false);
-  const [openOverride, setOpenOverride] = React.useState<Record<string, boolean>>({});
   const loaded = items.data?.items ?? null;
+  const usuals = useUsuals();
 
-  const sections = React.useMemo(
-    () => (loaded ? pantrySections(list, loaded, { selected: scope, filter, recentSlugs, memberCounts }) : null),
-    [loaded, list, scope, filter, recentSlugs, memberCounts],
+  // The phone's one list, soonest use-by first, every pantry together on All.
+  const phoneRows = React.useMemo(
+    () => (loaded ? pantryRows(loaded, { selected: scope, filter }) : []),
+    [loaded, scope, filter],
   );
   const tableRows = React.useMemo(
     () => (loaded ? pantryRows(loaded, { selected: scope, filter, query }).map((i) => itemRowView(i, { meId, names })) : []),
@@ -175,207 +184,257 @@ function PantryBody({
   );
   const shownRows = showAll ? tableRows : tableRows.slice(0, TABLE_ROWS);
   const nothingAnywhere = summary.itemCount === 0 && scope === ALL_PANTRIES;
+  const loading = items.loading || (!items.data && !items.error);
+  const failed = !loading && (items.error || !loaded);
+  const reload = (
+    <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
+      <p className="text-sm text-muted-foreground">Couldn&apos;t load the items. {items.error?.message ?? ""}</p>
+      <Button variant="outline" className={K_BUTTON} onClick={items.reload}>
+        Try again
+      </Button>
+    </KCard>
+  );
 
   return (
     <>
-      <div className="flex flex-col gap-3 min-[900px]:flex-row min-[900px]:items-start">
-        <PantryPicker
-          pantries={list}
-          value={scope}
-          onChange={(key) => {
-            setShowAll(false);
-            onPantry(key);
-          }}
-          label="Showing"
-          idPrefix="pantry-picker"
-          includeAll
-          className="min-[900px]:w-80 min-[900px]:shrink-0"
-        />
-        {nothingAnywhere ? null : (
-          <div className="relative hidden min-[900px]:block min-[900px]:flex-1">
-            <label htmlFor="pantry-search" className="sr-only">
-              Search items
-            </label>
-            <Search className="pointer-events-none absolute left-3.5 top-7 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              id="pantry-search"
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search items"
-              autoComplete="off"
-              className={cn(K_INPUT, "h-14 rounded-2xl bg-card pl-11 sm:h-14")}
+      {/* ── Phones (SM-10): one row of chips, one list ── */}
+      <div className="space-y-3 min-[900px]:hidden">
+        {nothingAnywhere ? (
+          <EmptyPantries />
+        ) : (
+          <>
+            <PhoneChips
+              filter={filter}
+              summary={summary}
+              pantries={pantryChips(list, recentSlugs)}
+              scope={scope}
+              onFilter={onFilter}
+              onPantry={onPantry}
             />
-          </div>
+            {loading ? (
+              <div className="space-y-px overflow-hidden rounded-[20px] border bg-card" aria-hidden>
+                <Skeleton className="h-16 w-full rounded-none" />
+                <Skeleton className="h-16 w-full rounded-none" />
+                <Skeleton className="h-16 w-full rounded-none" />
+              </div>
+            ) : failed ? (
+              reload
+            ) : phoneRows.length === 0 ? (
+              <NothingShown filter={filter} pantry={scope === ALL_PANTRIES ? null : (list.find((p) => pantryKey(p) === scope) ?? null)} addHref={addHref} />
+            ) : (
+              <PhoneList rows={phoneRows} showPantry={scope === ALL_PANTRIES} usuals={usuals.data ?? null} meId={meId} names={names} />
+            )}
+          </>
         )}
       </div>
 
-      <div>
-        <p className="text-[15px] font-bold tabular-nums">{summary.headline}</p>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">{summary.subline}</p>
+      {/* ── From 900px: the picker, a search, the worth and one table ── */}
+      <div className="hidden space-y-5 min-[900px]:block">
+        <div className="flex items-start gap-3">
+          <PantryPicker
+            pantries={list}
+            value={scope}
+            onChange={(key) => {
+              setShowAll(false);
+              onPantry(key);
+            }}
+            label="Showing"
+            idPrefix="pantry-picker"
+            includeAll
+            className="w-80 shrink-0"
+          />
+          {nothingAnywhere ? null : (
+            <div className="relative flex-1">
+              <label htmlFor="pantry-search" className="sr-only">
+                Search items
+              </label>
+              <Search className="pointer-events-none absolute left-3.5 top-7 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                id="pantry-search"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search items"
+                autoComplete="off"
+                className={cn(K_INPUT, "h-14 rounded-2xl bg-card pl-11 sm:h-14")}
+              />
+            </div>
+          )}
+        </div>
+
+        <div>
+          <p className="text-[15px] font-bold tabular-nums">{summary.headline}</p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">{summary.subline}</p>
+        </div>
+
+        {nothingAnywhere ? (
+          <EmptyPantries />
+        ) : (
+          <>
+            <FilterChips chips={filterChips(summary)} value={filter} onChange={onFilter} />
+            {loading ? (
+              <div className="space-y-2" aria-hidden>
+                <Skeleton className="h-14 w-full rounded-2xl" />
+                <Skeleton className="h-14 w-full rounded-2xl" />
+              </div>
+            ) : failed ? (
+              reload
+            ) : tableRows.length === 0 ? (
+              query.trim() ? (
+                <KCard className="p-6 text-center text-sm text-muted-foreground">No items match &ldquo;{query.trim()}&rdquo;.</KCard>
+              ) : (
+                <NothingShown filter={filter} pantry={null} addHref={addHref} />
+              )
+            ) : (
+              <div className="space-y-2">
+                <ItemTable rows={shownRows} showPantry={scope === ALL_PANTRIES} />
+                {tableRows.length > shownRows.length ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAll(true)}
+                    className="min-h-11 rounded-xl px-3 text-sm font-bold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Show all {tableRows.length} items
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {nothingAnywhere ? (
-        <EmptyPantries />
-      ) : (
-        <>
-          <FilterChips chips={filterChips(summary)} value={filter} onChange={onFilter} />
-
-          {items.loading || (!items.data && !items.error) ? (
-            <div className="space-y-2" aria-hidden>
-              <Skeleton className="h-24 w-full rounded-2xl" />
-              <Skeleton className="h-24 w-full rounded-2xl" />
-              <Skeleton className="h-24 w-full rounded-2xl" />
-            </div>
-          ) : items.error || !sections ? (
-            <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-              <p className="text-sm text-muted-foreground">Couldn&apos;t load the items. {items.error?.message ?? ""}</p>
-              <Button variant="outline" className={K_BUTTON} onClick={items.reload}>
-                Try again
-              </Button>
-            </KCard>
-          ) : (
-            <>
-              {/* Phones: a folding section per pantry. */}
-              <div className="space-y-5 min-[900px]:hidden">
-                {sections.sections.length === 0 ? (
-                  <NothingShown filter={filter} />
-                ) : (
-                  sections.sections.map((s) => (
-                    <SectionView
-                      key={s.key}
-                      section={s}
-                      open={openOverride[s.key] ?? s.startsOpen}
-                      onToggle={() => setOpenOverride((o) => ({ ...o, [s.key]: !(o[s.key] ?? s.startsOpen) }))}
-                      meId={meId}
-                      names={names}
-                      single={scope !== ALL_PANTRIES}
-                      addHref={addHref}
-                    />
-                  ))
-                )}
-              </div>
-
-              {/* From 900px: one table, soonest use-by first. */}
-              <div className="hidden space-y-2 min-[900px]:block">
-                {tableRows.length === 0 ? (
-                  query.trim() ? (
-                    <KCard className="p-6 text-center text-sm text-muted-foreground">No items match &ldquo;{query.trim()}&rdquo;.</KCard>
-                  ) : (
-                    <NothingShown filter={filter} />
-                  )
-                ) : (
-                  <>
-                    <ItemTable rows={shownRows} showPantry={scope === ALL_PANTRIES} />
-                    {tableRows.length > shownRows.length ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowAll(true)}
-                        className="min-h-11 rounded-xl px-3 text-sm font-bold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        Show all {tableRows.length} items
-                      </button>
-                    ) : null}
-                  </>
-                )}
-              </div>
-
-              {sections.emptyHidden.length > 0 ? (
-                <p className="text-[13px] text-muted-foreground">Empty pantries hidden: {sections.emptyHidden.join(", ")}.</p>
-              ) : null}
-              {items.data?.truncated ? (
-                <p className="text-[13px] text-muted-foreground">Showing the first 1,000 items to use.</p>
-              ) : null}
-            </>
-          )}
-        </>
-      )}
+      {items.data?.truncated ? <p className="text-[13px] text-muted-foreground">Showing the first 1,000 items.</p> : null}
     </>
   );
 }
 
-function SectionView({
-  section,
-  open,
-  onToggle,
-  meId,
-  names,
-  single,
-  addHref,
+/**
+ * The phone's one row of chips (SM-10): what to show — All · Soon · N ·
+ * Expired · N — then the pantries, yours first; a pantry chip narrows the
+ * list to it, and a second tap goes back to all of them. It scrolls sideways,
+ * without a scrollbar.
+ */
+function PhoneChips({
+  filter,
+  summary,
+  pantries,
+  scope,
+  onFilter,
+  onPantry,
 }: {
-  section: PantrySection<ReachableItem>;
-  open: boolean;
-  onToggle: () => void;
-  meId: string | null;
-  names: MemberNames;
-  single: boolean;
-  addHref: string;
+  filter: ItemFilter;
+  summary: PantrySummary;
+  pantries: readonly { key: string; label: string }[];
+  scope: string;
+  onFilter: (filter: ItemFilter) => void;
+  onPantry: (key: string) => void;
 }) {
-  const id = `pantry-section-${section.key}`;
+  const chip = (on: boolean) =>
+    cn(
+      "min-h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+      on ? "border-foreground bg-foreground font-bold text-background" : "border-input bg-card font-semibold hover:bg-accent",
+    );
   return (
-    <section aria-labelledby={`${id}-name`} className="space-y-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={onToggle}
-        className="flex min-h-11 w-full items-center gap-2.5 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <PantryBadge kind={section.pantry.kind} label={section.label} badge={section.badge} />
-        <span className="min-w-0 flex-1">
-          <span id={`${id}-name`} className="block truncate text-base font-extrabold">
-            {section.label}
-          </span>
-          <span className="block text-xs text-muted-foreground">{section.meta}</span>
-        </span>
-        <ChevronDown className={cn("h-5 w-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
-      </button>
-      {open ? (
-        section.items.length === 0 ? (
-          <KCard id={id} className="p-5 text-sm text-muted-foreground">
-            {single && section.pantry.itemCount === 0 ? (
-              <>
-                Nothing in {section.pantry.kind === "personal" ? "your pantry" : `${section.label}'s pantry`} yet.{" "}
-                <Link href={addHref} className="font-semibold text-primary underline-offset-2 hover:underline">
-                  Add something
-                </Link>
-              </>
-            ) : (
-              "Nothing here matches."
-            )}
-          </KCard>
-        ) : (
-          <ul id={id} className="space-y-2">
-            {section.items.map((item) => (
-              <ItemCard key={item.id} row={itemRowView(item, { meId, names })} />
-            ))}
-          </ul>
-        )
+    <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4">
+      <div role="group" aria-label="Show" className="flex shrink-0 gap-2">
+        {filterChips(summary).map((c) => (
+          <button key={c.id} type="button" aria-pressed={c.id === filter} onClick={() => onFilter(c.id)} className={chip(c.id === filter)}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+      {pantries.length > 1 ? (
+        <div role="group" aria-label="Pantry" className="flex shrink-0 gap-2 border-l pl-2">
+          {pantries.map((p) => {
+            const on = p.key === scope;
+            return (
+              <button key={p.key} type="button" aria-pressed={on} onClick={() => onPantry(on ? ALL_PANTRIES : p.key)} className={chip(on)}>
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
       ) : null}
-    </section>
+    </div>
   );
 }
 
-function NothingShown({ filter }: { filter: ItemFilter }) {
-  const text =
-    filter === "soon"
-      ? "Nothing to use in the next few days."
-      : filter === "expired"
-        ? "Nothing is past its use-by date."
-        : "Nothing here yet.";
-  return <KCard className="p-6 text-center text-sm text-muted-foreground">{text}</KCard>;
+/** The phone's list: one row per item; Use logs your usual of it for you, at once, with Undo. */
+function PhoneList({
+  rows,
+  showPantry,
+  usuals,
+  meId,
+  names,
+}: {
+  rows: readonly ReachableItem[];
+  showPantry: boolean;
+  usuals: readonly KitchenUsual[] | null;
+  meId: string | null;
+  names: MemberNames;
+}) {
+  const logUse = useLogUse();
+  return (
+    <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
+      {rows.map((item) => {
+        const usual = usualFor(item.id, usuals);
+        const row = pantryListRow(item, {
+          showPantry,
+          usualQtyMilli: usual?.lastQtyMilli ?? null,
+          usualWords: usual ? amountWords(usual.lastQtyMilli, item.dimension) : null,
+        });
+        const use = row.use;
+        return (
+          <PantryListRowView
+            key={item.id}
+            row={row}
+            onLog={
+              use?.kind === "log" && meId
+                ? () =>
+                    void logUse({
+                      ref: itemRefOf(item),
+                      item,
+                      qtyMilli: use.qtyMilli,
+                      consumers: [meId],
+                      idempotencyKey: crypto.randomUUID(),
+                      what: use.words,
+                      inPantry: true,
+                      meId,
+                      names,
+                    })
+                : null
+            }
+          />
+        );
+      })}
+    </ul>
+  );
+}
+
+function NothingShown({ filter, pantry, addHref }: { filter: ItemFilter; pantry: Pantry | null; addHref: string }) {
+  if (filter === "all" && pantry && pantry.itemCount === 0) {
+    return (
+      <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <p className="text-[15px] font-semibold">Nothing here yet</p>
+        <Button asChild className={K_BUTTON}>
+          <Link href={addHref}>
+            <Plus aria-hidden />
+            Add
+          </Link>
+        </Button>
+      </KCard>
+    );
+  }
+  const text = filter === "soon" ? "Nothing to use soon" : filter === "expired" ? "Nothing expired" : "Nothing here yet";
+  return <KCard className="p-6 text-center text-[15px] font-semibold text-muted-foreground">{text}</KCard>;
 }
 
 function EmptyPantries() {
   return (
-    <KCard className="flex flex-col items-center px-6 py-12 text-center">
+    <KCard className="flex flex-col items-center px-6 py-10 text-center">
       <IconBubble icon={Refrigerator} className="h-14 w-14" />
       <h2 className="mt-4 text-lg font-bold tracking-tight">Nothing in your pantries yet</h2>
-      <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Add what you buy — to your own pantry or a group&apos;s — and see what to use first. Nobody is charged until
-        someone uses it.
-      </p>
-      <Button asChild className={cn(K_BUTTON, "mt-5")}>
+      <Button asChild className={cn(K_BUTTON, "mt-4")}>
         <Link href="/pantry/new">
           <Plus aria-hidden />
           Add an item
@@ -387,15 +446,15 @@ function EmptyPantries() {
 
 function PantrySkeleton() {
   return (
-    <div className="space-y-4" aria-hidden>
-      <Skeleton className="h-14 w-full rounded-2xl min-[900px]:w-80" />
-      <Skeleton className="h-10 w-64" />
+    <div className="space-y-3" aria-hidden>
+      <Skeleton className="hidden h-14 w-80 rounded-2xl min-[900px]:block" />
       <div className="flex gap-2">
+        <Skeleton className="h-11 w-16 rounded-full" />
         <Skeleton className="h-11 w-24 rounded-full" />
         <Skeleton className="h-11 w-28 rounded-full" />
       </div>
-      <Skeleton className="h-24 w-full rounded-2xl" />
-      <Skeleton className="h-24 w-full rounded-2xl" />
+      <Skeleton className="h-16 w-full rounded-[20px]" />
+      <Skeleton className="h-16 w-full rounded-[20px]" />
     </div>
   );
 }
