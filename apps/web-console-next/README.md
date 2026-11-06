@@ -33,6 +33,14 @@ serves each dynamic page's `_` file for every value, so Workers Static Assets
 answers them without running the Worker (Cookpool SM-2). The build fails if
 one of them stopped being static.
 
+Last, `scripts/service-worker.mjs` writes `.open-next/assets/sw.js`, Cookpool's
+own service worker for this build (Cookpool PW-4, no Workbox): it precaches the
+pages served as files, their payloads, every `/_next/static/**` file and the
+icons, keeps the last-seen reads of the signed-in account for when there is no
+signal, and offers each new build as "New version · Reload". Its code is
+`src/service-worker/*.mjs`; its kill switch is `src/service-worker/switch.mjs`
+(`docs/runbook.md`).
+
 `open-next.config.ts` keeps the in-memory `dummy` overrides for the
 incremental cache / tag cache / queue — this app has no R2/KV/D1 bindings
 and runs fully session-authenticated, so no persistent caching layer is

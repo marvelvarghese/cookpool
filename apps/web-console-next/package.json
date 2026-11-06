@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build && opennextjs-cloudflare build --skipBuild --skipWranglerConfigCheck && node scripts/pages-as-files.mjs",
+    "build": "next build && opennextjs-cloudflare build --skipBuild --skipWranglerConfigCheck && node scripts/pages-as-files.mjs && node scripts/service-worker.mjs",
     "start": "next start -p 3001",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src"

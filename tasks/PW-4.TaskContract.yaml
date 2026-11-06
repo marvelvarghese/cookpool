@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-4
+  title: "No signal, clean updates"
+spec:
+  goal: A service worker makes Cookpool open with what you last saw when there is no signal, holds writes back offline with a one-line reason, and offers a new version without interrupting a write.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-app/**
+    - tasks/PW-4.TaskContract.yaml
+  doneWhen:
+    - the build emits a service worker that precaches its static pages, payloads and assets
+    - the last-seen API reads are cached per account and deleted on sign-out; tokens are never cached
+    - offline, a banner shows and writes say you are offline; nothing is queued
+    - a new build offers New version and Reload, never while a write is in flight
+  gates: []
