@@ -54,7 +54,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 **Done when**
 - buying milk again is: type "mi", tap Milk, tap Add
 
-## SM6 — your measures
+## SM6 — your measures ✅
 
 - **SM-13** (kitchen-worker, db, db-migrate, contracts, sdk): migration 300,
   the measures route, measures on every item read, a use and an ingredient
@@ -68,7 +68,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 - onions bought by the kilo are used as "1 onion" once a size is saved, asked once and remembered for that pantry
 - a use logged as "2 onions" reads "2 onions" in the activity and costs exactly the grams it took
 
-## SM4 — simpler screens
+## SM4 — simpler screens ✅
 
 - **SM-10** (web-console-next): Home, Use, + Add, Dish, Pantry as the canvas
   draws them, under the seven rules.

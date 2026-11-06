@@ -9,14 +9,14 @@ import type { KitchenDish, KitchenDishIngredient, KitchenDishShare } from "@saas
 import { formatMinor } from "@saas/kitchen-engine/money";
 import {
   CLAIM_CHOICES,
-  claimChoiceLabel,
   claimCount,
   claimOwedMinor,
   claimRefusal,
-  claimText,
   claimableHalf,
   claimedToast,
+  dishByline,
   dishHref,
+  dishMoneySummary,
   dishRow,
   dishStateChip,
   dishSubtitle,
@@ -25,6 +25,7 @@ import {
   halfText,
   ingredientLines,
   ingredientsSummary,
+  eatersOweText,
   leftoverNote,
   moneyFlow,
   parseDishRef,
@@ -219,8 +220,8 @@ describe("portions", () => {
     expect([1, 2, 3, 8].map(portionsText)).toEqual(["½ portion", "1 portion", "1½ portions", "4 portions"]);
   });
 
-  it("offers None · ½ · 1 · 1½ · 2 to claim", () => {
-    expect(CLAIM_CHOICES.map(claimChoiceLabel)).toEqual(["None", "½", "1", "1½", "2"]);
+  it("offers 0 · ½ · 1 · 1½ · 2 on Home's chips (SM-10, the canvas)", () => {
+    expect(CLAIM_CHOICES.map(halfText)).toEqual(["0", "½", "1", "1½", "2"]);
   });
 
   it("costs the total over the portions each, marked ≈ when it does not divide evenly", () => {
@@ -252,10 +253,10 @@ describe("the header and the cost card", () => {
     expect(dishWhen("not a date", now)).toBe("");
   });
 
-  it("chips the state: Open for claims, Not split yet, Finalized, Canceled", () => {
-    expect(dishStateChip(paneer())).toEqual({ label: "Open for claims", tone: "open" });
-    expect(dishStateChip(paneer({ state: "draft", splitMode: "assign" }))).toEqual({ label: "Not split yet", tone: "open" });
-    expect(dishStateChip(paneer({ state: "draft", orgId: null }))).toEqual({ label: "Not finalized", tone: "open" });
+  it("says the state in one word (SM-10): Open, Draft, Finalized, Canceled", () => {
+    expect(dishStateChip(paneer())).toEqual({ label: "Open", tone: "open" });
+    expect(dishStateChip(paneer({ state: "draft", splitMode: "assign" }))).toEqual({ label: "Draft", tone: "open" });
+    expect(dishStateChip(paneer({ state: "draft", orgId: null }))).toEqual({ label: "Draft", tone: "open" });
     expect(dishStateChip(paneer({ state: "finalized" }))).toEqual({ label: "Finalized", tone: "ready" });
     expect(dishStateChip(paneer({ state: "canceled" }))).toEqual({ label: "Canceled", tone: "muted" });
   });
@@ -527,29 +528,29 @@ describe("portions for anyone (SM-7)", () => {
   });
 });
 
-describe("the claims summary: exact, under, over", () => {
+describe("the count of what was had: exact, under, over (SM-10: \"had\", however it was set)", () => {
   it("is green when every portion is had", () => {
     const dish = paneer();
-    expect(claimCount(dish, splitOfDish(dish))).toEqual({ text: "4 of 4 claimed", tone: "exact" });
+    expect(claimCount(dish, splitOfDish(dish))).toEqual({ text: "4 of 4 had", tone: "exact" });
   });
 
-  it("counts what is claimed so far when under", () => {
+  it("counts what is had so far when under", () => {
     const rice = eggRice();
-    expect(claimCount(rice, splitOfDish(rice))).toEqual({ text: "1 of 5 claimed", tone: "under" });
+    expect(claimCount(rice, splitOfDish(rice))).toEqual({ text: "1 of 5 had", tone: "under" });
     const assigned = paneer({ splitMode: "assign", state: "draft" });
     const split = previewSplit(assigned, withHalf(sharesOf(assigned), MEERA, 0));
-    expect(claimCount(assigned, split)).toEqual({ text: "3½ of 4 set", tone: "under" });
+    expect(claimCount(assigned, split)).toEqual({ text: "3½ of 4 had", tone: "under" });
   });
 
   it("is a red alert when more are set than were cooked", () => {
     const dish = paneer();
     const split = previewSplit(dish, withHalf(sharesOf(dish), VEENA, 2));
-    expect(claimCount(dish, split)).toEqual({ text: "5 of 4 claimed", tone: "over" });
+    expect(claimCount(dish, split)).toEqual({ text: "5 of 4 had", tone: "over" });
     expect(leftoverNote({ dish, split, ...people() })).toBeNull();
     // Nothing is split while it is over; the cook's own debt in another group still shows.
     const flow = moneyFlow({ dish, split, ...people() });
     expect(flow.eaten).toEqual([]);
-    expect(flow.eatenEmpty).toBe("More portions are set than were cooked, so it can't be split yet.");
+    expect(flow.eatenEmpty).toBe("More portions set than cooked");
     expect(flow.netted.map((l) => l.text)).toEqual(["You → Kiran · Lunch club"]);
   });
 });
@@ -557,28 +558,20 @@ describe("the claims summary: exact, under, over", () => {
 describe("leftovers", () => {
   const under = () => withApiSplit(paneer({ shares: [share(ME, 2), share(ANU, 2)] }));
 
-  it("tells the cook what stays with them, and at what price", () => {
+  it("tells the cook what stays with them, and what it is worth — in numbers (SM-10)", () => {
     const dish = under();
-    expect(leftoverNote({ dish, split: splitOfDish(dish), ...people() })).toBe(
-      "2 portions unclaimed. When you finalize, they stay with you as Leftovers in your pantry: ₹105.50, at ₹52.75 a portion.",
-    );
+    expect(leftoverNote({ dish, split: splitOfDish(dish), ...people() })).toBe("2 portions left over · to your pantry · ₹105.50");
     const finalized = { ...dish, state: "finalized" as const };
-    expect(leftoverNote({ dish: finalized, split: splitOfDish(finalized), ...people() })).toBe(
-      "2 portions nobody had are Leftovers in your pantry: ₹105.50, at ₹52.75 a portion.",
-    );
+    expect(leftoverNote({ dish: finalized, split: splitOfDish(finalized), ...people() })).toBe("2 portions in your pantry as Leftovers · ₹105.50");
     const half = withApiSplit(paneer({ shares: [share(ME, 3), share(ANU, 2), share(DEV, 2)] }));
-    expect(leftoverNote({ dish: half, split: splitOfDish(half), ...people() })).toBe(
-      "½ portion unclaimed. When you finalize, it stays with you as Leftovers in your pantry: ₹26.37, at ₹52.75 a portion.",
-    );
+    expect(leftoverNote({ dish: half, split: splitOfDish(half), ...people() })).toBe("½ portion left over · to your pantry · ₹26.37");
   });
 
   it("tells a member they stay with the cook", () => {
     const dish = under();
-    expect(leftoverNote({ dish, split: splitOfDish(dish), ...people(ANU) })).toBe(
-      "2 portions unclaimed so far. Whatever nobody claims stays with Rahul as leftovers.",
-    );
+    expect(leftoverNote({ dish, split: splitOfDish(dish), ...people(ANU) })).toBe("2 portions left over · to Rahul");
     const finalized = { ...dish, state: "finalized" as const };
-    expect(leftoverNote({ dish: finalized, split: splitOfDish(finalized), ...people(ANU) })).toBe("Rahul kept 2 portions as leftovers.");
+    expect(leftoverNote({ dish: finalized, split: splitOfDish(finalized), ...people(ANU) })).toBe("Rahul kept 2 portions");
   });
 
   it("are none when everything was had, for a dish just for its cook, or once canceled", () => {
@@ -592,17 +585,12 @@ describe("leftovers", () => {
   });
 });
 
-describe("claim labels", () => {
-  it("says what a member's portion costs them: 'You had 1 · you'll owe Meera ₹31.20'", () => {
+describe("your own portion's words", () => {
+  it("says in one line what your portion costs you (SM-10): 'You · 1 portion · ₹31.20'", () => {
     const rice = eggRice();
-    expect(claimText({ dish: rice, meId: ME, names: NAMES, half: 2 })).toBe("You had 1 · you'll owe Meera ₹31.20");
-    expect(claimText({ dish: rice, meId: ME, names: NAMES, half: 3 })).toBe("You had 1½ · you'll owe Meera ₹46.80");
-    expect(claimText({ dish: rice, meId: ME, names: NAMES, half: 0 })).toBe("You didn't have any");
-    expect(claimedToast({ dish: rice, meId: ME, names: NAMES, half: 2 })).toEqual({
-      title: "Claimed 1 portion of Egg fried rice",
-      description: "You had 1 · you'll owe Meera ₹31.20.",
-    });
-    expect(claimedToast({ dish: rice, meId: ME, names: NAMES, half: 0 })).toEqual({ title: "Took back your claim on Egg fried rice" });
+    expect(claimedToast({ dish: rice, meId: ME, names: NAMES, half: 2 })).toEqual({ title: "You · 1 portion · ₹31.20" });
+    expect(claimedToast({ dish: rice, meId: ME, names: NAMES, half: 3 })).toEqual({ title: "You · 1½ portions · ₹46.80" });
+    expect(claimedToast({ dish: rice, meId: ME, names: NAMES, half: 0 })).toEqual({ title: "You · none" });
   });
 
   it("previews with the engine, and reads the API once it is your claim", () => {
@@ -611,13 +599,13 @@ describe("claim labels", () => {
     expect(claimOwedMinor(claimed, ME, 2)).toBe(3120);
     const tampered = { ...claimed, amounts: claimed.amounts.map((a) => (a.subjectId === ME ? { ...a, owedMinor: 3121 } : a)) };
     expect(claimOwedMinor(tampered, ME, 2)).toBe(3121);
-    expect(claimText({ dish: { ...claimed, state: "finalized" }, meId: ME, names: NAMES, half: 2 })).toBe("You had 1 · you owe Meera ₹31.20");
+    expect(claimedToast({ dish: { ...claimed, state: "finalized" }, meId: ME, names: NAMES, half: 2 })).toEqual({ title: "You · 1 portion · ₹31.20" });
   });
 
   it("gives the cook their own share, without the leftovers", () => {
-    expect(claimText({ dish: paneer(), meId: ME, names: NAMES, half: 3 })).toBe("You had 1½ · your share is ₹79.13");
+    expect(claimedToast({ dish: paneer(), meId: ME, names: NAMES, half: 3 })).toEqual({ title: "You · 1½ portions · ₹79.13" });
     const under = withApiSplit(paneer({ shares: [share(ME, 2), share(ANU, 2)] }));
-    expect(claimText({ dish: under, meId: ME, names: NAMES, half: 2 })).toBe("You had 1 · your share is ₹52.75");
+    expect(claimedToast({ dish: under, meId: ME, names: NAMES, half: 2 })).toEqual({ title: "You · 1 portion · ₹52.75" });
   });
 
   it("caps a claim at what nobody has plus your own", () => {
@@ -657,9 +645,9 @@ describe("how the dish moves money", () => {
   it("shows the cook what they are owed, what they owe, and the netting in each group", () => {
     const dish = paneer({ state: "finalized" });
     const flow = moneyFlow({ dish, split: splitOfDish(dish), ...people() });
-    expect(flow.eatenTitle).toBe("They owe you for what they ate");
+    expect(flow.eatenTitle).toBe("They owe you");
     expect(lines(flow.eaten)).toEqual(["Anu ₹52.75 owed", "Dev ₹52.75 owed", "Meera ₹26.37 owed"]);
-    expect(flow.tookTitle).toBe("You owe for items you took (posted when you cooked)");
+    expect(flow.tookTitle).toBe("You owe, for ingredients");
     expect(lines(flow.took)).toEqual([
       "Anu · Tomatoes · Flat 4B ₹12.00 owe",
       "Dev · Onions · Flat 4B ₹7.00 owe",
@@ -680,9 +668,9 @@ describe("how the dish moves money", () => {
   it("shows a member the same money from where they stand", () => {
     const dish = paneer();
     const flow = moneyFlow({ dish, split: splitOfDish(dish), meId: ANU, names: NAMES, groupNames: new Map([[FLAT.orgId, FLAT.name]]) });
-    expect(flow.eatenTitle).toBe("They owe Rahul for what they ate");
+    expect(flow.eatenTitle).toBe("They owe Rahul");
     expect(lines(flow.eaten)).toEqual(["You ₹52.75 owe", "Dev ₹52.75 neutral", "Meera ₹26.37 neutral"]);
-    expect(flow.tookTitle).toBe("Rahul owes for items they took (posted when they cooked)");
+    expect(flow.tookTitle).toBe("Rahul owes, for ingredients");
     expect(lines(flow.took)[0]).toBe("You · Tomatoes · Flat 4B ₹12.00 owed");
     expect(lines(flow.netted)).toEqual([
       "You → Rahul · Flat 4B ₹40.75 owe",
@@ -707,7 +695,7 @@ describe("how the dish moves money", () => {
     const mine = withApiSplit(paneer({ orgId: null, shares: [], splitMode: "assign", state: "draft" }));
     const flow = moneyFlow({ dish: mine, split: splitOfDish(mine), ...people() });
     expect(flow.eaten).toEqual([]);
-    expect(flow.eatenEmpty).toBe("Just for you: nobody owes you for it.");
+    expect(flow.eatenEmpty).toBe("Just for you");
     expect(lines(flow.netted)).toEqual([
       "You → Anu · Flat 4B ₹12.00 owe",
       "You → Dev · Flat 4B ₹7.00 owe",
@@ -716,10 +704,10 @@ describe("how the dish moves money", () => {
     const rice = eggRice();
     const riceFlow = moneyFlow({ dish: rice, split: splitOfDish(rice), ...people() });
     expect(riceFlow.took).toEqual([]);
-    expect(riceFlow.tookEmpty).toBe("Every ingredient was Meera's already, so there's nobody to pay back.");
+    expect(riceFlow.tookEmpty).toBe("All Meera's already");
     expect(lines(riceFlow.netted)).toEqual(["Anu → Meera · Flat 4B ₹31.20 neutral"]);
     const nobody = withApiSplit(paneer({ shares: [] }));
-    expect(moneyFlow({ dish: nobody, split: splitOfDish(nobody), ...people() }).eatenEmpty).toBe("Nobody else has had some yet.");
+    expect(moneyFlow({ dish: nobody, split: splitOfDish(nobody), ...people() }).eatenEmpty).toBe("Nobody yet");
   });
 
   it("follows the cook's edit before it is saved (the engine's preview)", () => {
@@ -731,25 +719,80 @@ describe("how the dish moves money", () => {
   });
 });
 
-describe("finalizing", () => {
+describe("finalizing (SM-10: one line, no \"posted\")", () => {
   it("says who owes the cook now (the canvas's ₹131.87)", () => {
     const dish = paneer({ state: "finalized", txnId: "txn_dish" });
-    expect(finalizedToast({ dish, ...people(), groupName: FLAT.name })).toEqual({
-      title: "Posted to Flat 4B",
-      description: "Anu, Dev and Meera owe you ₹131.87.",
-    });
+    expect(finalizedToast({ dish, ...people(), groupName: FLAT.name })).toEqual({ title: "Finalized · Anu, Dev and Meera owe you ₹131.87" });
   });
 
-  it("mentions the leftovers, and a dish just for its cook", () => {
+  it("says it of one eater, of nobody, and of a dish just for its cook", () => {
     const dish = { ...withApiSplit(paneer({ shares: [share(ME, 2), share(ANU, 2)] })), state: "finalized" as const, leftoverItemId: "itm_left" };
-    expect(finalizedToast({ dish, ...people(), groupName: FLAT.name }).description).toBe(
-      "Anu owes you ₹52.75. 2 portions went to your pantry as Leftovers.",
-    );
+    expect(finalizedToast({ dish, ...people(), groupName: FLAT.name })).toEqual({ title: "Finalized · Anu owes you ₹52.75" });
+    const alone = { ...withApiSplit(paneer({ shares: [share(ME, 2)] })), state: "finalized" as const };
+    expect(finalizedToast({ dish: alone, ...people(), groupName: FLAT.name })).toEqual({ title: "Finalized · nobody owes for it" });
     const mine = paneer({ orgId: null, shares: [], state: "finalized" });
-    expect(finalizedToast({ dish: mine, ...people(), groupName: null })).toEqual({
-      title: "Finalized Paneer butter masala with rotis",
-      description: "It was just for you, so nothing was split.",
-    });
+    expect(finalizedToast({ dish: mine, ...people(), groupName: null })).toEqual({ title: "Finalized" });
+  });
+});
+
+describe("the dish's money in two lines (SM-10)", () => {
+  const texts = (lines: { text: string; tone: string }[]) => lines.map((l) => `${l.text} (${l.tone})`);
+
+  it("says who owes the cook and where, then what the cook owes for ingredients — from the cook's side", () => {
+    const dish = paneer({ state: "finalized" });
+    expect(texts(dishMoneySummary({ dish, split: splitOfDish(dish), ...people() }))).toEqual([
+      "Anu, Dev and Meera owe you ₹131.87 · in Flat 4B (owed)",
+      "You owe ₹43.00 for ingredients (owe)",
+    ]);
+  });
+
+  it("says the same from a member's side, and from someone's who is in neither line", () => {
+    const dish = paneer();
+    expect(texts(dishMoneySummary({ dish, split: splitOfDish(dish), ...people(ANU) }))).toEqual([
+      "You, Dev and Meera owe Rahul ₹131.87 · in Flat 4B (owe)",
+      "Rahul owes you ₹12.00 for ingredients (owed)",
+    ]);
+    expect(texts(dishMoneySummary({ dish, split: splitOfDish(dish), ...people(VEENA) }))).toEqual([
+      "Anu, Dev and Meera owe Rahul ₹131.87 · in Flat 4B (neutral)",
+      "Rahul owes ₹43.00 for ingredients (neutral)",
+    ]);
+  });
+
+  it("is never more than two lines, and one when the cook took nothing from anyone", () => {
+    for (const dish of [paneer(), paneer({ state: "finalized" }), eggRice()]) {
+      expect(dishMoneySummary({ dish, split: splitOfDish(dish), ...people() }).length).toBeLessThanOrEqual(2);
+    }
+    const own = withApiSplit(paneer({ ingredients: [], owes: [] }));
+    expect(texts(dishMoneySummary({ dish: own, split: splitOfDish(own), ...people() }))).toEqual(["Anu, Dev and Meera owe you ₹131.87 · in Flat 4B (owed)"]);
+  });
+
+  it("says nobody owes yet, just for the cook, canceled, or more set than cooked", () => {
+    const nobody = withApiSplit(paneer({ shares: [] }));
+    expect(texts(dishMoneySummary({ dish: nobody, split: splitOfDish(nobody), ...people() }))[0]).toBe("Nobody owes you yet (neutral)");
+    const done = { ...nobody, state: "finalized" as const };
+    expect(texts(dishMoneySummary({ dish: done, split: splitOfDish(done), ...people(ANU) }))[0]).toBe("Nobody owes Rahul (neutral)");
+    const mine = withApiSplit(paneer({ orgId: null, shares: [], splitMode: "assign", state: "draft" }));
+    expect(texts(dishMoneySummary({ dish: mine, split: splitOfDish(mine), ...people() }))).toEqual(["Just for you (neutral)"]);
+    const canceled = { ...paneer(), state: "canceled" as const };
+    expect(texts(dishMoneySummary({ dish: canceled, split: splitOfDish(canceled), ...people() }))).toEqual(["Canceled · nothing is owed (neutral)"]);
+    const over = paneer();
+    const split = previewSplit(over, withHalf(sharesOf(over), VEENA, 2));
+    expect(texts(dishMoneySummary({ dish: over, split, ...people() }))).toEqual(["More portions set than cooked (neutral)"]);
+  });
+
+  it("has no ledger words", () => {
+    const dish = paneer();
+    const all = [
+      ...dishMoneySummary({ dish, split: splitOfDish(dish), ...people() }).map((l) => l.text),
+      ...dishMoneySummary({ dish, split: splitOfDish(dish), ...people(ANU) }).map((l) => l.text),
+    ].join(" ");
+    expect(all).not.toMatch(/netting|nets|claim|posted|folds/i);
+  });
+
+  it("names the cook and a portion's price under the dish's name", () => {
+    expect(dishByline(paneer(), people())).toBe("You · ₹52.75 a portion");
+    expect(dishByline(eggRice(), people())).toBe("Meera · ₹31.20 a portion");
+    expect(eatersOweText({ dish: eggRice(), amounts: [], ...people() })).toBeNull();
   });
 });
 

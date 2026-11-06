@@ -11,13 +11,10 @@ import { IconBubble, KCard, K_BUTTON } from "./kit";
 import { Money } from "./ledger-ui";
 import { Face } from "./faces-ui";
 import type { MemberNames } from "./members";
-import { useClaimer, useGroupDishes } from "./dish-data";
+import { useGroupDishes } from "./dish-data";
 import {
-  CLAIM_CHOICES,
-  claimChoiceLabel,
-  claimText,
-  claimableHalf,
   dishRow,
+  dishSubtitle,
   halfText,
   ingredientLines,
   ingredientsSummary,
@@ -27,15 +24,16 @@ import {
   type DishPeople,
   type FlowLine,
   type MoneyFlow,
+  type MoneySummaryLine,
   type WhoRow,
 } from "./dish";
 
 /**
- * The dish screens' pieces (Cookpool CP-17): the state chip, the ½-portion
- * stepper, the claim buttons a member taps ("How much did you have?" — also
- * for Home's inbox, CP-23), the cost card, who had some, how the dish moves
- * money, and a group's Dishes tab. Colors come from the `.cookpool` tokens;
- * every amount says which way it goes in words, not by color alone.
+ * The dish screens' pieces (Cookpool CP-17; SM-10 as the canvas's "Simpler —
+ * Dish" draws them): the one status word, the ½-portion stepper, who had
+ * some, the dish's money in two lines with Details, and a group's Dishes tab.
+ * Colors come from the `.cookpool` tokens; every amount says which way it
+ * goes in words, not by color alone.
  */
 
 const CHIP_TONES: Record<DishChip["tone"], string> = {
@@ -75,182 +73,25 @@ export function PortionStepper({
   disabled?: boolean;
 }) {
   const btn =
-    "grid h-11 w-9 shrink-0 place-items-center rounded-[10px] border border-input bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+    "grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <div role="group" aria-label={`Portions for ${who}`} className="flex shrink-0 items-center gap-1">
-      <button type="button" className={btn} aria-label={`Half a portion less for ${who}`} disabled={disabled || value <= 0} onClick={() => onStep(-1)}>
+      <button type="button" className={cn(btn, "border-input bg-card text-foreground hover:bg-accent")} aria-label={`Half a portion less for ${who}`} disabled={disabled || value <= 0} onClick={() => onStep(-1)}>
         <Minus className="h-4 w-4" aria-hidden />
       </button>
-      <span className="min-w-[34px] text-center text-[15px] font-extrabold tabular-nums" aria-live="polite">
+      <span className="min-w-[32px] text-center text-[17px] font-extrabold tabular-nums" aria-live="polite">
         {halfText(value)}
       </span>
-      <button type="button" className={btn} aria-label={`Half a portion more for ${who}`} disabled={disabled || value >= max} onClick={() => onStep(1)}>
+      <button type="button" className={cn(btn, "border-primary bg-accent text-primary hover:bg-cp-herb-tint/70")} aria-label={`Half a portion more for ${who}`} disabled={disabled || value >= max} onClick={() => onStep(1)}>
         <Plus className="h-4 w-4" aria-hidden />
       </button>
     </div>
   );
 }
 
-/**
- * "How much did you have?" — None · ½ · 1 · 1½ · 2, one tap to claim (and
- * Undo on the toast). Once claimed it says what it costs ("You had 1 ·
- * you'll owe Meera ₹31.20") with Change. Choices beyond what is left are off.
- * Render it for an open dish shared with a group, for someone who may claim
- * (not a viewer); Home's inbox (CP-23) reuses it.
- */
-export function DishClaimStepper(props: { dish: KitchenDish; meId: string; names: MemberNames; className?: string }) {
-  const claimer = useClaimer(props.dish, props.meId, props.names);
-  return <DishClaimChoices {...props} claimer={claimer} />;
-}
-
-export type Claimer = ReturnType<typeof useClaimer>;
-
-/** The claim buttons over a claimer the screen already holds (the dish page shares it with your row's stepper). */
-export function DishClaimChoices({
-  dish,
-  meId,
-  names,
-  claimer,
-  className,
-}: {
-  dish: KitchenDish;
-  meId: string;
-  names: MemberNames;
-  claimer: Claimer;
-  className?: string;
-}) {
-  const [changing, setChanging] = React.useState(false);
-  const [skipped, setSkipped] = React.useState(false);
-  const headingId = React.useId();
-  const half = claimer.half;
-  const max = claimableHalf(dish);
-  const choosing = changing || (half === 0 && !skipped);
-
-  return (
-    <div className={cn("space-y-2", className)}>
-      {choosing ? (
-        <>
-          <p id={headingId} className="text-sm font-bold">
-            How much did you have?
-          </p>
-          <div role="group" aria-labelledby={headingId} className="grid grid-cols-5 gap-1.5">
-            {CLAIM_CHOICES.map((h) => {
-              const selected = h === half && (h > 0 || skipped);
-              return (
-                <button
-                  key={h}
-                  type="button"
-                  aria-pressed={selected}
-                  aria-label={h === 0 ? "None" : portionsText(h)}
-                  disabled={h > max}
-                  onClick={() => {
-                    setChanging(false);
-                    setSkipped(h === 0);
-                    claimer.set(h, { now: true });
-                  }}
-                  className={cn(
-                    "min-h-11 rounded-xl border text-[15px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40",
-                    selected ? "border-primary bg-accent text-primary" : "border-input bg-card text-foreground hover:bg-accent/60",
-                  )}
-                >
-                  {claimChoiceLabel(h)}
-                </button>
-              );
-            })}
-          </div>
-          {max < CLAIM_CHOICES[CLAIM_CHOICES.length - 1]! ? (
-            <p className="text-xs text-muted-foreground">
-              {max === 0 ? "Every portion is claimed." : `You can claim up to ${portionsText(max)}: the rest is taken.`}
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <div role="status" className="flex items-center gap-2.5 rounded-xl bg-cp-herb-tint px-3 py-1 text-sm font-bold text-primary">
-          <span className="min-w-0 flex-1 py-1.5">{half === 0 ? "You skipped this one." : claimText({ dish, meId, names, half })}</span>
-          <button
-            type="button"
-            onClick={() => setChanging(true)}
-            className="min-h-11 shrink-0 rounded-lg px-2 font-extrabold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Change
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── The cost card ──────────────────────────────────────────────────
-
-export function DishCostCard({ dish, chip, people }: { dish: KitchenDish; chip: DishChip; people: DishPeople }) {
-  const [open, setOpen] = React.useState(false);
-  const listId = React.useId();
-  const lines = ingredientLines(dish, people);
-  return (
-    <section aria-label="Cost" className="space-y-3.5 rounded-[22px] border bg-card p-5">
-      <DishChipPill chip={chip} />
-      <dl className="grid grid-cols-3 gap-2.5">
-        <Fact term="Total">
-          <Money minor={dish.totalMinor} currency={dish.currency} />
-        </Fact>
-        <Fact term="Portions">{halfText(dish.portionsHalf)}</Fact>
-        <Fact term="Each" className="text-primary">
-          {perPortionText(dish)}
-        </Fact>
-      </dl>
-      <div className="border-t pt-1.5">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={listId}
-          onClick={() => setOpen((o) => !o)}
-          className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg text-left text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span>{ingredientsSummary(dish)}</span>
-          <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
-        </button>
-        {open ? (
-          <ul id={listId} className="mt-1 space-y-1.5 text-sm">
-            {lines.map((l) => (
-              <li key={l.key} className="flex justify-between gap-3">
-                <span className="min-w-0">
-                  {l.name} {l.qty} <span className="text-muted-foreground">· {l.where}</span>
-                </span>
-                <Money minor={l.amountMinor} currency={dish.currency} className="shrink-0" />
-              </li>
-            ))}
-            {dish.extrasMinor > 0 ? (
-              <li className="flex justify-between gap-3">
-                <span className="min-w-0">
-                  Extras <span className="text-muted-foreground">· gas, spices, paid by {people.meId === dish.cook ? "you" : "the cook"}</span>
-                </span>
-                <Money minor={dish.extrasMinor} currency={dish.currency} className="shrink-0" />
-              </li>
-            ) : null}
-            <li className="flex justify-between gap-3 border-t pt-1.5 font-bold">
-              <span>
-                Total · {portionsText(dish.portionsHalf)}
-              </span>
-              <Money minor={dish.totalMinor} currency={dish.currency} className="shrink-0" />
-            </li>
-          </ul>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-function Fact({ term, children, className }: { term: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs font-semibold text-muted-foreground">{term}</dt>
-      <dd className={cn("truncate text-xl font-extrabold tabular-nums", className)}>{children}</dd>
-    </div>
-  );
-}
-
 // ── Who had some ───────────────────────────────────────────────────
 
+/** "Who had some?" — a card with one row per person (the canvas): face, name, "by Anu · ₹62.40", and the stepper. */
 export function WhoHadSomeList({
   rows,
   meId,
@@ -263,15 +104,20 @@ export function WhoHadSomeList({
   /** The stepper for a row, or null when it is read-only. */
   stepperFor: (row: WhoRow) => React.ReactNode;
 }) {
+  const headingId = React.useId();
   return (
-    <ul className="divide-y rounded-[18px] border bg-card">
+    <section aria-labelledby={headingId} className="overflow-hidden rounded-[22px] border bg-card">
+      <h2 id={headingId} className="px-4 pb-1.5 pt-3 text-base font-extrabold">
+        Who had some?
+      </h2>
+    <ul className="divide-y border-t">
       {rows.map((r) => {
         const stepper = stepperFor(r);
         return (
-          <li key={r.subjectId} className="flex min-h-[68px] items-center gap-3 py-2.5 pl-3.5 pr-3">
+          <li key={r.subjectId} className="flex min-h-16 items-center gap-3 py-2.5 pl-4 pr-3">
             <Face subjectId={r.subjectId} meId={meId} names={names} className="h-11 w-11" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-bold">
+              <p className="truncate text-base font-extrabold">
                 {r.label}
                 {r.isCook ? <span className="font-medium text-muted-foreground"> · cook</span> : null}
               </p>
@@ -293,10 +139,11 @@ export function WhoHadSomeList({
         );
       })}
     </ul>
+    </section>
   );
 }
 
-// ── How this moves money ───────────────────────────────────────────
+// ── How the dish moves money: two lines, and Details ──────────────
 
 const FLOW_TONES: Record<FlowLine["tone"], string> = {
   owed: "text-cp-owed",
@@ -306,7 +153,7 @@ const FLOW_TONES: Record<FlowLine["tone"], string> = {
 
 function FlowRows({ lines, currency }: { lines: readonly FlowLine[]; currency: string }) {
   return (
-    <ul className="space-y-1.5">
+    <ul className="space-y-1">
       {lines.map((l) => (
         <li key={l.key} className="flex justify-between gap-3 text-sm">
           <span className="min-w-0">{l.text}</span>
@@ -317,37 +164,96 @@ function FlowRows({ lines, currency }: { lines: readonly FlowLine[]; currency: s
   );
 }
 
-export function MoneyFlowCard({ flow, currency, previewLabel }: { flow: MoneyFlow; currency: string; previewLabel: string | null }) {
+function FlowPart({ title, lines, empty, currency }: { title: string; lines: readonly FlowLine[]; empty: string | null; currency: string }) {
   return (
-    <section aria-labelledby="flow-h" className="space-y-3 rounded-[22px] border bg-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="flow-h" className="text-base font-extrabold">
-          How this moves money
-        </h2>
-        {previewLabel ? (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {previewLabel}
-          </span>
+    <div className="space-y-1">
+      <h3 className="text-[13px] font-extrabold text-muted-foreground">{title}</h3>
+      {lines.length > 0 ? <FlowRows lines={lines} currency={currency} /> : <p className="text-sm text-muted-foreground">{empty}</p>}
+    </div>
+  );
+}
+
+/**
+ * A dish's money (SM-10): at most two short lines — "Anu and Dev owe Meera
+ * ₹93.60 · in Flat 4B", "Meera owes Anu ₹40.00 for ingredients" — and the
+ * rest behind "Details": when and where it was cooked, every ingredient with
+ * its pantry and price, what each person owes, what the cook owes each
+ * buyer, and where each person ends up with the cook.
+ */
+export function DishMoney({
+  dish,
+  summary,
+  flow,
+  people,
+  now,
+}: {
+  dish: KitchenDish;
+  summary: readonly MoneySummaryLine[];
+  flow: MoneyFlow;
+  people: DishPeople;
+  now: Date;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const panelId = React.useId();
+  const lines = ingredientLines(dish, people);
+  return (
+    <section aria-label="Money" className="overflow-hidden rounded-[22px] border bg-card">
+      <div className="space-y-0.5 px-4 pb-2.5 pt-3">
+        {summary.map((l) => (
+          <p key={l.key} className={cn("text-[15px] font-bold leading-snug tabular-nums", FLOW_TONES[l.tone])}>
+            {l.text}
+          </p>
+        ))}
+      </div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((o) => !o)}
+        className="flex min-h-11 w-full items-center justify-between gap-2 border-t px-4 text-left text-sm font-bold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
+        Details
+        <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      <div id={panelId} hidden={!open} className="space-y-3 border-t px-4 pb-4 pt-3">
+        {open ? (
+          <>
+            <p className="text-[13px] text-muted-foreground">{dishSubtitle(dish, { ...people, now })}</p>
+            <div className="space-y-1">
+              <h3 className="text-[13px] font-extrabold text-muted-foreground">{ingredientsSummary(dish)}</h3>
+              <ul className="space-y-1 text-sm">
+                {lines.map((l) => (
+                  <li key={l.key} className="flex justify-between gap-3">
+                    <span className="min-w-0">
+                      {l.name} <span className="whitespace-nowrap">{l.qty}</span> <span className="text-muted-foreground">· {l.where}</span>
+                    </span>
+                    <Money minor={l.amountMinor} currency={dish.currency} className="shrink-0" />
+                  </li>
+                ))}
+                {dish.extrasMinor > 0 ? (
+                  <li className="flex justify-between gap-3">
+                    <span className="min-w-0">Extras</span>
+                    <Money minor={dish.extrasMinor} currency={dish.currency} className="shrink-0" />
+                  </li>
+                ) : null}
+                <li className="flex justify-between gap-3 border-t pt-1 font-bold">
+                  <span>
+                    Total · {portionsText(dish.portionsHalf)} · {perPortionText(dish)} each
+                  </span>
+                  <Money minor={dish.totalMinor} currency={dish.currency} className="shrink-0" />
+                </li>
+              </ul>
+            </div>
+            {dish.state === "canceled" ? null : (
+              <>
+                <FlowPart title={flow.eatenTitle} lines={flow.eaten} empty={flow.eatenEmpty} currency={dish.currency} />
+                <FlowPart title={flow.tookTitle} lines={flow.took} empty={flow.tookEmpty} currency={dish.currency} />
+                {flow.netted.length > 0 ? <FlowPart title="In the end" lines={flow.netted} empty={null} currency={dish.currency} /> : null}
+              </>
+            )}
+          </>
         ) : null}
       </div>
-      <div className="space-y-1.5">
-        <h3 className="text-[13px] font-bold text-cp-owed">{flow.eatenTitle}</h3>
-        {flow.eaten.length > 0 ? <FlowRows lines={flow.eaten} currency={currency} /> : <p className="text-sm text-muted-foreground">{flow.eatenEmpty}</p>}
-      </div>
-      <div className="h-px bg-border" />
-      <div className="space-y-1.5">
-        <h3 className="text-[13px] font-bold text-cp-owe">{flow.tookTitle}</h3>
-        {flow.took.length > 0 ? <FlowRows lines={flow.took} currency={currency} /> : <p className="text-sm text-muted-foreground">{flow.tookEmpty}</p>}
-      </div>
-      {flow.netted.length > 0 ? (
-        <div className="space-y-1.5 rounded-[14px] bg-cp-herb-tint/60 px-3.5 py-3">
-          <h3 className="text-[13px] font-extrabold text-primary">After netting inside each group</h3>
-          <FlowRows lines={flow.netted} currency={currency} />
-          <p className="text-xs text-muted-foreground">
-            Settle up folds these into everything else in the group and shows the fewest payments.
-          </p>
-        </div>
-      ) : null}
     </section>
   );
 }

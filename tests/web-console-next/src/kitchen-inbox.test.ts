@@ -1,16 +1,18 @@
-import type { InboxDish, InboxItem, InboxResponse, KitchenTxn, MyGroupBalance } from "@saas/contracts/kitchen";
+import type { InboxDish, InboxItem, InboxResponse, KitchenTxn } from "@saas/contracts/kitchen";
 import {
-  finalizePreview,
+  HOME_TODOS,
+  dueWord,
   flaggedEntryHref,
+  homeTodo,
+  homeTodos,
   inboxCard,
   inboxHeading,
-  inboxItemIds,
   inboxView,
   useButtonLabel,
   useByText,
   type InboxAction,
 } from "@web-console-next/components/kitchen/inbox";
-import { byGroupRows, recentAcrossGroups, recentGroupsToRead } from "@web-console-next/components/kitchen/home";
+import { RECENT_ROWS, recentAcrossGroups, recentGroupsToRead } from "@web-console-next/components/kitchen/home";
 import { leaveBalance } from "@web-console-next/components/kitchen/groups";
 import { isWideKitchenPage } from "@web-console-next/components/kitchen/nav";
 import { UNDO_MS, undoFailed, undoneToast } from "@web-console-next/components/kitchen/undo";
@@ -256,10 +258,7 @@ describe("Home's inbox: order, heading and All clear (CP-23)", () => {
     expect(inboxView(response([unknown, pay]), ctx).heading).toBe("Needs you · 1 to do");
   });
 
-  it("lists the items it shows, so Use soon leaves them out", () => {
-    const ids = inboxItemIds(response([milk, claim, yogurt]));
-    expect([...ids].sort()).toEqual(["itm_00000000000000000000000000000004", "itm_00000000000000000000000000000007"]);
-    expect(inboxItemIds(null).size).toBe(0);
+  it("Pantry's soonest items leave out what is excluded", () => {
     const soon = [makeItem({ id: "itm_a", daysToUseBy: 0 }), makeItem({ id: "itm_b", daysToUseBy: 2 }), makeItem({ id: "itm_c", daysToUseBy: 3 })];
     expect(soonStrip(soon, [], 4, new Set(["itm_a", "itm_b"])).map((i) => i.id)).toEqual(["itm_c"]);
   });
@@ -280,36 +279,67 @@ describe("Home's inbox: the words (CP-23)", () => {
     expect(useByText({ expiresOn: "2026-11-04", daysToUseBy: 2 })).toBe("use by 4 Nov");
     expect(useByText({ expiresOn: "2026-10-31", daysToUseBy: -2 })).toBe("expired 31 Oct");
   });
+});
 
-  it("finalizing here previews who will owe you, from the dish's own amounts", () => {
-    const preview = finalizePreview(
-      {
-        orgId: FLAT.orgId,
-        cook: ME,
-        amounts: [
-          { subjectId: ME, owedMinor: 7913 },
-          { subjectId: ANU, owedMinor: 5275 },
-          { subjectId: DEV, owedMinor: 5275 },
-          { subjectId: MEERA, owedMinor: 0 },
-        ],
-      },
-      { meId: ME, names },
-    );
-    expect(preview).toEqual({
-      lines: [
-        { subjectId: ANU, label: "Anu", amountMinor: 5275 },
-        { subjectId: DEV, label: "Dev", amountMinor: 5275 },
-      ],
-      empty: null,
-    });
-    expect(finalizePreview({ orgId: FLAT.orgId, cook: ME, amounts: [{ subjectId: ME, owedMinor: 100 }] }, { meId: ME, names }).empty).toBe(
-      "Nobody else has had some yet, so you keep it all.",
-    );
-    expect(finalizePreview({ orgId: null, cook: ME, amounts: [] }, { meId: ME, names }).empty).toBe("Just for you: nothing to split.");
+describe("Home's to-dos (SM-10: a compact list, three at most)", () => {
+  const all = [yogurt, claim, finalizeOpen, milk, pay, flag, finalizeDraft, finalizeSolo, eggs];
+
+  it("shows at most three, most urgent first, and how many See all adds", () => {
+    expect(HOME_TODOS).toBe(3);
+    const todos = homeTodos(response(all), ctx);
+    expect(todos.rows.map((r) => r.kind)).toEqual(["use_soon", "claim_dish", "finalize_dish"]);
+    expect(todos).toMatchObject({ total: 9, more: 6 });
+    const seeAll = homeTodos(response(all), ctx, { all: true });
+    expect(seeAll.rows).toHaveLength(9);
+    expect(seeAll.more).toBe(0);
+    expect(homeTodos(response([milk, pay]), ctx)).toMatchObject({ total: 2, more: 0 });
+    expect(homeTodos(response([]), ctx)).toEqual({ rows: [], total: 0, more: 0 });
+  });
+
+  it("lists each thing once — a debt the server repeats is still one row", () => {
+    const todos = homeTodos(response([pay, claim, pay, { ...pay } as InboxItem, claim]), ctx);
+    expect(todos.rows.map((r) => r.key)).toEqual([`payment_due:${FLAT.orgId}:${DEV}`, "claim_dish:dsh_00000000000000000000000000000002"]);
+    expect(todos.total).toBe(2);
+  });
+
+  it("is a word or two and one line of numbers per row, as the canvas draws it", () => {
+    const row = (item: InboxItem) => {
+      const r = homeTodo(item, ctx)!;
+      return [r.title, r.sub, r.subTone];
+    };
+    expect(row(claim)).toEqual(["Egg fried rice", "Meera · ₹31.20 each", "muted"]);
+    expect(row(finalizeOpen)).toEqual(["Paneer butter masala", "3½ of 4 had", "muted"]);
+    expect(row(finalizeDraft)).toEqual(["Dal tadka", "0 of 3 had", "muted"]);
+    expect(row(finalizeSolo)).toEqual(["Masala oats", "Just for you", "muted"]);
+    expect(row(yogurt)).toEqual(["Greek yogurt", "Expired", "expired"]);
+    expect(row(milk)).toEqual(["Milk", "Tomorrow", "soon"]);
+    expect(row(eggs)).toEqual(["Eggs", "Today", "soon"]);
+    expect(row(pay)).toEqual(["Pay Dev", "₹45.75", "owe"]);
+    expect(row(flag)).toEqual(["Anu flagged Tomatoes", "“I wasn't there for this one”", "muted"]);
+    expect(homeTodo({ ...flag, reason: "  " } as InboxItem, ctx)!.sub).toBe("₹12.00");
+  });
+
+  it("keeps each card's one action, and shows the face of who you pay", () => {
+    expect(homeTodo(pay, ctx)).toMatchObject({ faceId: DEV, action: { kind: "pay", canRecord: true } });
+    expect(homeTodo(claim, ctx)).toMatchObject({ faceId: null, action: { kind: "claim" } });
+    expect(homeTodo(milk, ctx)!.action).toMatchObject({ kind: "use", words: "1 glass", qtyMilli: 250_000 });
+    expect(homeTodo(finalizeDraft, ctx)!.action).toMatchObject({ kind: "split" });
+    expect(homeTodo({ kind: "something_new" } as unknown as InboxItem, ctx)).toBeNull();
+  });
+
+  it("has no captions or ledger words in any row", () => {
+    const words = homeTodos(response(all), ctx, { all: true })
+      .rows.map((r) => `${r.title} ${r.sub}`)
+      .join(" ");
+    expect(words).not.toMatch(/for just you|fewest|netting|claim|posted|finalize,|usual/i);
+  });
+
+  it("says when food is due in a word or two", () => {
+    expect([-3, 0, 1, 2, 9].map(dueWord)).toEqual(["Expired", "Today", "Tomorrow", "2 days", "9 days"]);
   });
 });
 
-describe("Home's columns: recent activity and balance by group (CP-23)", () => {
+describe("Home's recent activity (CP-23; SM-10: short, payments as money that moved)", () => {
   function txn(id: string, occurredAt: Date, patch: Partial<KitchenTxn> = {}): KitchenTxn {
     return {
       id,
@@ -364,20 +394,44 @@ describe("Home's columns: recent activity and balance by group (CP-23)", () => {
     expect(recentGroupsToRead(groups, [], 2).map((g) => g.slug)).toEqual(["a", "b"]);
   });
 
-  it("by group: money open first, largest first, each in words", () => {
-    const g = (slug: string, balanceMinor: number, currency = "INR"): MyGroupBalance => ({
-      orgId: `org_${slug}`,
-      slug,
-      name: slug.toUpperCase(),
-      currency,
-      balanceMinor,
-      role: "builder",
-      memberCount: 3,
+  it("is short (SM-10): two rows, so Home fits one screen", () => {
+    expect(RECENT_ROWS).toBe(2);
+    const many = Array.from({ length: 5 }, (_, n) => txn(`txn_${n}`, new Date(2026, 10, 2, 10 + n, 0)));
+    expect(recentAcrossGroups([{ orgId: FLAT.orgId, name: "Flat 4B", slug: FLAT.slug, txns: many }], { meId: ME, names, now: NOW })).toHaveLength(2);
+  });
+
+  it("shows a payment as the money that moved: one paid to you is +, in blue; one you paid is −", () => {
+    const paidToMe = txn("txn_p1", new Date(2026, 10, 2, 16, 0), {
+      kind: "settlement",
+      title: "Payment",
+      totalMinor: 40000,
+      method: "upi",
+      createdBy: ANU,
+      splits: [
+        { subjectId: ANU, paidMinor: 40000, owedMinor: 0 },
+        { subjectId: ME, paidMinor: 0, owedMinor: 40000 },
+      ],
     });
-    const rows = byGroupRows([g("zero", 0), g("owe", -2400), g("owed", 8650), g("trip", -2500, "USD")]);
-    expect(rows.map((r) => r.slug)).toEqual(["owed", "trip", "owe", "zero"]);
-    expect(rows.map((r) => r.words)).toEqual(["you get back ₹86.50", "you owe $25.00", "you owe ₹24.00", "settled up"]);
-    expect(rows[0]!.href).toBe("/groups/owed");
+    const iPaid = txn("txn_p2", new Date(2026, 10, 2, 15, 0), {
+      kind: "settlement",
+      title: "Payment",
+      totalMinor: 2500,
+      currency: "USD",
+      method: "cash",
+      createdBy: ME,
+      splits: [
+        { subjectId: ME, paidMinor: 2500, owedMinor: 0 },
+        { subjectId: DEV, paidMinor: 0, owedMinor: 2500 },
+      ],
+    });
+    const rows = recentAcrossGroups([{ orgId: FLAT.orgId, name: "Flat 4B", slug: FLAT.slug, txns: [paidToMe, iPaid] }], { meId: ME, names, now: NOW });
+    expect(rows.map((r) => [r.title, r.amountText, r.tone, r.amountWords])).toEqual([
+      ["Anu paid you · UPI", "+₹400.00", "owed", "You received ₹400.00"],
+      ["You paid Dev · cash", "−$25.00", "owe", "You paid $25.00"],
+    ]);
+    // Anything else keeps what it did to your balance.
+    const bill = recentAcrossGroups([{ orgId: FLAT.orgId, name: "Flat 4B", slug: FLAT.slug, txns: [txn("txn_b", new Date(2026, 10, 2, 17, 0))] }], { meId: ME, names, now: NOW });
+    expect(bill[0]).toMatchObject({ amountText: "−₹5.00", tone: "owe" });
   });
 });
 

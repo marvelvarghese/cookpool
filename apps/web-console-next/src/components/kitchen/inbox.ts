@@ -1,21 +1,21 @@
 /**
- * Home's inbox (Cookpool CP-23) as a view-model: one card per thing that
- * needs you, from `GET /v1/kitchen/me/inbox` (CP-19), each with the one
- * action that settles it where you are —
+ * Home's inbox (Cookpool CP-23) as a view-model: one thing that needs you per
+ * row, from `GET /v1/kitchen/me/inbox` (CP-19), each with the one action that
+ * settles it where you are —
  *
- *   claim_dish     How much did you have? None · ½ · 1 · 1½ · 2 (CP-17's
- *                  claimer, Undo sets it back)
- *   finalize_dish  your dish: finalize it here with a preview of who owes
- *                  what (an open dish, or one just for you), or set
- *                  everyone's portions on its page (an assigned dish)
- *   use_soon       "I had a glass" — your usual amount (else the first
- *                  kitchen measure) for just you, in one tap with Undo —
- *                  or Cook with it
- *   payment_due    I paid (records it, with Undo), when you may record it
+ *   claim_dish     how much you had: 0 · ½ · 1 · 1½ · 2 (Undo sets it back)
+ *   finalize_dish  your dish: Finalize, in one tap (an open dish, or one just
+ *                  for you), or Set everyone's portions on its page (an
+ *                  assigned dish)
+ *   use_soon       your usual amount (else the first kitchen measure) for
+ *                  just you, in one tap with Undo
+ *   payment_due    Paid (records it, with Undo), when you may record it
  *   flag           someone flagged an entry you logged: open it
  *
- * The cards keep the server's order (most urgent first). Every amount says
- * what it is ("₹52.75 a portion"); nobody is shown by id. Pure and
+ * `inboxCard` holds what each item is and does; since SM-10 Home shows it as
+ * a compact row (`homeTodo`: a word or two and one line of numbers, no
+ * captions), three at most (`homeTodos`). The rows keep the server's order
+ * (most urgent first), each thing once; nobody is shown by id. Pure and
  * dependency-free (contract types and the engine), so it is unit-testable.
  */
 
@@ -286,28 +286,94 @@ export function inboxView(res: Pick<InboxResponse, "items">, ctx: InboxContext):
   return { cards, heading: inboxHeading(cards.length), empty: cards.length === 0 };
 }
 
-/** The items the inbox already lists (Home's Use soon strip leaves them out). */
-export function inboxItemIds(res: Pick<InboxResponse, "items"> | null | undefined): Set<string> {
-  const out = new Set<string>();
-  for (const i of res?.items ?? []) if (i.kind === "use_soon") out.add(i.item.id);
-  return out;
+// ── Home's to-do list (SM-10) ─────────────────────────────────────
+
+/** How many to-dos Home shows before "See all". */
+export const HOME_TODOS = 3;
+
+/** The colour of a to-do's second line: grey, or what it warns of. */
+export type TodoSubTone = "muted" | "expired" | "soon" | "owe";
+
+/**
+ * One to-do as a single compact row (SM-10, the canvas's "To do"): what it is
+ * in a word or two ("Egg fried rice", "Greek yogurt", "Pay Dev"), one short
+ * line of numbers under it ("Meera · ₹31.20 each", "Expired", "2 of 4 had",
+ * "$25.00"), and the card's one action. No captions: the action says it.
+ */
+export interface HomeTodo {
+  key: string;
+  kind: InboxCardKind;
+  tone: InboxTone;
+  title: string;
+  sub: string;
+  subTone: TodoSubTone;
+  /** Where the row's title goes (the card's). */
+  href: string;
+  action: InboxAction;
+  /** A payment shows the face of who you pay; everything else an icon. */
+  faceId: string | null;
 }
 
-/** What finalizing an open dish here will post, before it does: "Anu ₹52.75 · Dev ₹52.75". */
-export interface FinalizePreview {
-  /** Each eater but the cook, with what they will owe you. */
-  lines: { subjectId: string; label: string; amountMinor: number }[];
-  /** "Nobody else has had some yet." / "Just for you: nothing to split." */
-  empty: string | null;
+/** "Expired", "Today", "Tomorrow", "3 days" — when food is due, in a word or two. */
+export function dueWord(daysToUseBy: number): string {
+  if (daysToUseBy < 0) return "Expired";
+  if (daysToUseBy === 0) return "Today";
+  if (daysToUseBy === 1) return "Tomorrow";
+  return `${daysToUseBy} days`;
 }
 
-export function finalizePreview(
-  dish: { orgId: string | null; cook: string; amounts: readonly { subjectId: string; owedMinor: number }[] },
-  ctx: Pick<InboxContext, "meId" | "names">,
-): FinalizePreview {
-  if (!dish.orgId) return { lines: [], empty: "Just for you: nothing to split." };
-  const lines = dish.amounts
-    .filter((a) => a.subjectId !== dish.cook && a.owedMinor > 0)
-    .map((a) => ({ subjectId: a.subjectId, label: memberLabel(a.subjectId, ctx.meId, ctx.names), amountMinor: a.owedMinor }));
-  return { lines, empty: lines.length === 0 ? "Nobody else has had some yet, so you keep it all." : null };
+/** One inbox item as Home's compact row; null for a kind this app does not know. */
+export function homeTodo(item: InboxItem, ctx: InboxContext): HomeTodo | null {
+  const card = inboxCard(item, ctx);
+  if (!card) return null;
+  const row = { key: card.key, kind: card.kind, tone: card.tone, href: card.href, action: card.action, faceId: null };
+  switch (item.kind) {
+    case "claim_dish": {
+      const d = item.dish;
+      return { ...row, title: d.name, sub: `${cookName(d, ctx)} · ${formatMinor(d.perPortionMinor, d.currency)} each`, subTone: "muted" };
+    }
+    case "finalize_dish": {
+      const d = item.dish;
+      const sub = d.orgId ? `${halfText(d.claimedHalf)} of ${halfText(d.portionsHalf)} had` : "Just for you";
+      return { ...row, title: d.name, sub, subTone: "muted" };
+    }
+    case "use_soon": {
+      const days = item.item.daysToUseBy;
+      return { ...row, title: item.item.name, sub: dueWord(days), subTone: days < 0 ? "expired" : "soon" };
+    }
+    case "payment_due": {
+      const to = item.toName ?? memberLabel(item.toSubjectId, ctx.meId, ctx.names);
+      return { ...row, title: `Pay ${to}`, sub: formatMinor(item.amountMinor, item.currency), subTone: "owe", faceId: item.toSubjectId };
+    }
+    case "flag": {
+      const who = item.flaggedByName ?? memberLabel(item.flaggedBy, ctx.meId, ctx.names);
+      return { ...row, title: `${who} flagged ${item.title}`, sub: card.note ?? formatMinor(item.totalMinor, item.currency), subTone: "muted" };
+    }
+    default:
+      return null;
+  }
+}
+
+export interface HomeTodos {
+  /** The first `limit` to-dos (all of them with `all`), in the server's order (most urgent first), each once. */
+  rows: HomeTodo[];
+  /** How many there are in all. */
+  total: number;
+  /** How many "See all" adds. */
+  more: number;
+}
+
+/** Home's to-dos: at most `limit` (three), each thing once, and how many more "See all" shows. */
+export function homeTodos(res: Pick<InboxResponse, "items">, ctx: InboxContext, opts: { limit?: number; all?: boolean } = {}): HomeTodos {
+  const limit = opts.limit ?? HOME_TODOS;
+  const seen = new Set<string>();
+  const all: HomeTodo[] = [];
+  for (const item of res.items) {
+    const row = homeTodo(item, ctx);
+    if (!row || seen.has(row.key)) continue;
+    seen.add(row.key);
+    all.push(row);
+  }
+  const rows = opts.all ? all : all.slice(0, limit);
+  return { rows, total: all.length, more: all.length - rows.length };
 }

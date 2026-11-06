@@ -3,19 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { ADD_SECONDARY, ADD_TILES, groupActionHref, type AddAction } from "./nav";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { ADD_TILES, groupActionHref, type AddAction } from "./nav";
 import { kitchenIcon } from "./icons";
-import { CLOSE_44, K_BUTTON, SoonBadge } from "./kit";
-import { useGroups, useProfile } from "./data";
+import { CLOSE_44, K_BUTTON } from "./kit";
+import { useGroups } from "./data";
 import { GroupPickerList } from "./group-picker";
-import { useMemberNames, useMyRoles } from "./people-data";
-import { useItemsByRef, useLogUse, useUsuals } from "./pantry-data";
-import { DO_IT_AGAIN_ROWS, doItAgainRows, usualRef, usualsThatFit, type DoItAgainRow } from "./quick-use";
+import { useMyRoles } from "./people-data";
 
 const TILE_TONES: Record<string, string> = {
   use: "bg-cp-herb-tint text-primary",
@@ -25,15 +23,13 @@ const TILE_TONES: Record<string, string> = {
 };
 
 /**
- * "+ Add" (CP-5): what happened? Four big tiles, "Do it again" (CP-13) and
- * two secondary actions. A tile whose feature has not shipped shows "Soon"
- * and does nothing (aria-disabled, still focusable so it can be discovered);
- * a live one is a link that closes the sheet. A tile that needs a group first
- * ("I paid a bill", CP-8) turns the sheet into a searchable group picker, then
- * goes to that group — leaving out groups the person only views (CP-9). "Do
- * it again" logs one of your usuals in one tap — the same amount for the same
- * people — and closes on the Undo toast. A bottom sheet on phones, a floating
- * panel from 900px.
+ * "+ Add" (CP-5; SM-10 as the canvas draws it): the four things that happen
+ * — Used · Cooked · Bought · Paid a bill — as big tiles, and nothing else
+ * (Home's row of usuals and Use's recents do "again"). A tile is a link that
+ * closes the sheet; "Paid a bill" needs a group first, so it turns the sheet
+ * into the group picker, then goes to that group — leaving out groups the
+ * person only views (CP-9). The title and × never scroll away: only the list
+ * under them does. A bottom sheet on phones, a floating panel from 900px.
  */
 export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();
@@ -47,7 +43,7 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
   const [picking, setPicking] = React.useState<AddAction | null>(null);
   const close = React.useCallback(() => onOpenChange(false), [onOpenChange]);
 
-  // Each opening starts at "What happened?".
+  // Each opening starts at the tiles.
   React.useEffect(() => {
     if (!open) setPicking(null);
   }, [open]);
@@ -66,31 +62,31 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
   const list = groups.data ?? [];
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className={cn(SHEET_CLASS, CLOSE_44)}>
-        <div aria-hidden className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-border min-[900px]:hidden" />
+      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, CLOSE_44)}>
+        <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
         {picking ? (
           <>
-            <button
-              type="button"
-              onClick={() => setPicking(null)}
-              className="-ml-2 mb-1 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden />
-              Back
-            </button>
-            <SheetTitle className="pr-12 text-xl font-extrabold">Which group?</SheetTitle>
-            <SheetDescription className="mt-1 text-sm">{picking.label}: pick the group it&apos;s split in.</SheetDescription>
-            <div className="mb-4 mt-4">
+            <div className="flex min-h-11 shrink-0 items-center gap-1 pr-12">
+              <button
+                type="button"
+                onClick={() => setPicking(null)}
+                aria-label="Back"
+                className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ArrowLeft className="h-5 w-5" aria-hidden />
+              </button>
+              <SheetTitle className="text-[22px] font-extrabold">Which group?</SheetTitle>
+            </div>
+            <div className="-mx-4 mt-2 min-h-0 flex-1 overflow-y-auto px-4 pb-4">
               {groups.loading ? (
                 <div className="space-y-2" aria-hidden>
                   <Skeleton className="h-14 w-full rounded-[18px]" />
                   <Skeleton className="h-14 w-full rounded-[18px]" />
                 </div>
               ) : list.length === 0 ? (
-                <div className="rounded-[18px] border p-4">
-                  <p className="text-[15px] font-semibold">You&apos;re not in a group yet</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Bills are split inside a group. Start one first.</p>
-                  <Button asChild className={cn(K_BUTTON, "mt-3")}>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border p-4">
+                  <p className="text-[15px] font-semibold">No group yet</p>
+                  <Button asChild className={K_BUTTON}>
                     <Link href="/groups?new=1" onClick={close}>
                       New group
                     </Link>
@@ -103,28 +99,16 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </>
         ) : (
           <>
-            <SheetTitle className="pr-12 text-xl font-extrabold">What happened?</SheetTitle>
-            <SheetDescription className="mt-1 text-sm">
-              Pick what you did, or log one of your usuals again in one tap.
-            </SheetDescription>
-
-            <ul className="mt-4 grid grid-cols-2 gap-3">
-              {ADD_TILES.map((tile) => (
-                <li key={tile.id} className="min-w-0">
-                  <AddTile action={tile} onNavigate={close} onPick={pickFor} />
-                </li>
-              ))}
-            </ul>
-
-            <DoItAgain onLogged={close} />
-
-            <ul className="mb-4 mt-3 divide-y rounded-[18px] border">
-              {ADD_SECONDARY.map((action) => (
-                <li key={action.id}>
-                  <SecondaryAction action={action} onNavigate={close} />
-                </li>
-              ))}
-            </ul>
+            <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-extrabold">Add</SheetTitle>
+            <div className="-mx-4 mt-3 min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+              <ul className="grid grid-cols-2 gap-3">
+                {ADD_TILES.map((tile) => (
+                  <li key={tile.id} className="min-w-0">
+                    <AddTile action={tile} onNavigate={close} onPick={pickFor} />
+                  </li>
+                ))}
+              </ul>
+            </div>
           </>
         )}
       </SheetContent>
@@ -132,8 +116,9 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
   );
 }
 
+// The sheet itself never scrolls (its title and × stay put); the part under the title does.
 const SHEET_CLASS = cn(
-  "mx-auto max-h-[92dvh] max-w-xl gap-0 overflow-y-auto rounded-t-[24px] border-x-0 px-4 pt-3 shadow-2xl",
+  "mx-auto max-h-[92dvh] max-w-xl gap-0 overflow-hidden rounded-t-[28px] border-x-0 bg-background px-4 pt-2.5 shadow-2xl focus:outline-none",
   "min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
 );
 
@@ -149,156 +134,25 @@ function AddTile({
   const Icon = kitchenIcon(action.icon);
   const body = (
     <>
-      <span className="flex w-full items-start justify-between gap-2">
-        <span aria-hidden className={cn("grid h-11 w-11 place-items-center rounded-full", TILE_TONES[action.id])}>
-          <Icon className="h-5 w-5" strokeWidth={2} />
-        </span>
-        {action.live ? null : <SoonBadge />}
+      <span aria-hidden className={cn("grid h-12 w-12 place-items-center rounded-2xl", TILE_TONES[action.id])}>
+        <Icon className="h-6 w-6" strokeWidth={2} />
       </span>
-      <span className="mt-3 block text-[15px] font-bold leading-snug">{action.label}</span>
-      <span className="mt-0.5 block text-xs text-muted-foreground">{action.hint}</span>
+      <span className="block text-[17px] font-extrabold leading-tight">{action.label}</span>
     </>
   );
   const tileClass =
-    "flex h-full min-h-[124px] w-full flex-col items-start rounded-[18px] border bg-card p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "flex h-full min-h-[108px] w-full flex-col items-center justify-center gap-2.5 rounded-[22px] border bg-card p-3 text-center transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-  if (!action.live) {
-    return (
-      <button type="button" aria-disabled="true" className={cn(tileClass, "cursor-not-allowed")}>
-        {body}
-      </button>
-    );
-  }
   if (action.pickGroup) {
     return (
-      <button type="button" onClick={() => onPick(action)} className={cn(tileClass, "hover:bg-accent")}>
+      <button type="button" onClick={() => onPick(action)} className={tileClass}>
         {body}
       </button>
     );
   }
   return (
-    <Link href={action.href} onClick={onNavigate} className={cn(tileClass, "hover:bg-accent")}>
+    <Link href={action.href} onClick={onNavigate} className={tileClass}>
       {body}
     </Link>
-  );
-}
-
-function SecondaryAction({ action, onNavigate }: { action: AddAction; onNavigate: () => void }) {
-  const Icon = kitchenIcon(action.icon);
-  const rowClass =
-    "flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left first:rounded-t-[18px] last:rounded-b-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
-  const body = (
-    <>
-      <Icon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-      <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold">{action.label}</span>
-        <span className="block text-xs text-muted-foreground">{action.hint}</span>
-      </span>
-      {action.live ? <ChevronRight className="h-5 w-5 text-muted-foreground" aria-hidden /> : <SoonBadge />}
-    </>
-  );
-  if (!action.live) {
-    return (
-      <button type="button" aria-disabled="true" className={cn(rowClass, "cursor-not-allowed")}>
-        {body}
-      </button>
-    );
-  }
-  return (
-    <Link href={action.href} onClick={onNavigate} className={cn(rowClass, "hover:bg-accent")}>
-      {body}
-    </Link>
-  );
-}
-
-/** Usuals whose items are read for "Do it again": a couple beyond the rows shown, so a usual that no longer fits is replaced. */
-const DO_IT_AGAIN_READS = DO_IT_AGAIN_ROWS + 2;
-
-/**
- * "Do it again" (CP-13): your top usuals as one-tap rows — "Milk · 1 glass",
- * "Flat 4B · you and Anu", what it costs now — each logging that again at
- * once, with the ten-second Undo toast. A usual whose amount no longer fits
- * what is left is left out. Nothing shows until you have usuals.
- */
-function DoItAgain({ onLogged }: { onLogged: () => void }) {
-  const profile = useProfile();
-  const meId = profile.data?.id ?? null;
-  const usuals = useUsuals();
-  const names = useMemberNames();
-  const logUse = useLogUse();
-  const fit = React.useMemo(() => usualsThatFit(usuals.data ?? []).slice(0, DO_IT_AGAIN_READS), [usuals.data]);
-  const refs = React.useMemo(() => fit.map(usualRef), [fit]);
-  const items = useItemsByRef(refs);
-  const rows = doItAgainRows(fit, items, { meId, names });
-
-  if (usuals.loading || profile.loading) {
-    return (
-      <div className="mt-4 space-y-2" aria-hidden>
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-14 w-full rounded-[18px]" />
-      </div>
-    );
-  }
-  if (usuals.error || rows.length === 0) return null;
-
-  // Logged at once (SM-5): the sheet closes on the Undo toast before the
-  // server answers; a refusal is put back and the toast says why.
-  const again = (row: DoItAgainRow) => {
-    if (!row.item) return;
-    void logUse({
-      ref: row.ref,
-      item: row.item,
-      qtyMilli: row.qtyMilli,
-      consumers: row.consumers,
-      idempotencyKey: crypto.randomUUID(),
-      what: row.words,
-      inPantry: true,
-      meId,
-      names,
-    });
-    onLogged();
-  };
-
-  return (
-    <section aria-labelledby="add-sheet-again" className="mt-4">
-      <h3 id="add-sheet-again" className="mb-2 px-1 text-sm font-bold text-muted-foreground">
-        Do it again
-      </h3>
-      <ul className="divide-y rounded-[18px] border">
-        {rows.map((row) => {
-          return (
-            <li key={row.key}>
-              <button
-                type="button"
-                aria-label={row.label}
-                aria-disabled={!row.item ? true : undefined}
-                onClick={() => again(row)}
-                className={cn(
-                  "flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left transition-colors first:rounded-t-[18px] last:rounded-b-[18px]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  row.item ? "hover:bg-accent" : "cursor-wait",
-                )}
-              >
-                <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cp-herb-tint text-primary">
-                  <RotateCcw className="h-4 w-4" strokeWidth={2.2} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] font-semibold">{row.title}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{row.meta}</span>
-                </span>
-                <span className="shrink-0 text-right">
-                  {row.cost ? (
-                    <span className="block text-sm font-bold tabular-nums">{row.cost}</span>
-                  ) : (
-                    <Skeleton className="h-4 w-12" />
-                  )}
-                  <span className="block text-xs font-bold text-primary">Log</span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }
