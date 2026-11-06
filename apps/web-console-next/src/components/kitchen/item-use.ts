@@ -12,6 +12,7 @@
 
 import type {
   KitchenItem,
+  KitchenMeasure,
   KitchenStockMove,
   Pantry,
   UseGroupItemRequest,
@@ -27,6 +28,8 @@ import { boughtText, capitalize, countWords, dayMonth, joinNames, leftText } fro
 import { pricePer } from "./item-form";
 import type { GroupRole } from "./groups";
 import { isPendingId } from "@/lib/optimistic";
+import { countDecimal } from "./measures";
+import { faceOrder, forWhom, eachText } from "./faces";
 
 type StockFields = Pick<KitchenItem, "priceMinor" | "qtyBoughtMilli" | "qtyLeftMilli" | "worthMinor">;
 
@@ -223,16 +226,24 @@ export function logButtonLabel(input: {
   return `Log ${qty} for ${consumersText(input.consumers, input.meId, input.names)}`;
 }
 
-/** The request for a use of `qtyMilli` in the stepper's unit (and, for a group item, who had it). */
+/**
+ * The request for a use (and, for a group item, who had it): `qtyMilli` in
+ * the stepper's base unit — `{ quantity: "250", unit: "ml" }` — or, given in
+ * one of the item's measures, its count and word — `{ quantity: "2",
+ * measure: "onion" }` (SM-14): the server then takes what `measureTakeMilli`
+ * says and keeps the words.
+ */
 export function logRequest(
   item: Pick<KitchenItem, "dimension" | "pantry">,
   qtyMilli: number,
   consumers: readonly string[],
+  counted: { measure: Pick<KitchenMeasure, "one">; quantity: number } | null = null,
 ): UseGroupItemRequest | UsePersonalItemRequest {
-  const step = amountStep(item);
-  const quantity = milliToDecimal(qtyMilli);
-  if (item.pantry.kind === "personal") return { quantity, unit: step.unit };
-  return { quantity, unit: step.unit, consumers: [...consumers] };
+  const amount = counted
+    ? { quantity: countDecimal(counted.quantity), measure: counted.measure.one }
+    : { quantity: milliToDecimal(qtyMilli), unit: amountStep(item).unit };
+  if (item.pantry.kind === "personal") return amount;
+  return { ...amount, consumers: [...consumers] };
 }
 
 // ── Mark wasted ───────────────────────────────────────────────────
@@ -317,9 +328,9 @@ export function wastePreview(input: {
 export interface HistoryRow {
   id: string;
   kind: KitchenStockMove["kind"] | "added";
-  /** "You and Dev used 100 g", "Anu marked 400 g wasted", "Anu added 1 kg". */
+  /** "You and Dev · 100 g", "Anu · 2 onions", "Anu marked 400 g wasted", "Anu added 1 kg". */
   what: string;
-  /** "2 h ago", "30 Oct". */
+  /** "2 h ago", "30 Oct"; "300 g · 2 h ago" under words given in a measure. */
   when: string;
   /** "₹4.00", or null when no money is involved. */
   amount: string | null;
@@ -345,6 +356,9 @@ export function historyRows(
   const byId = new Map(moves.map((m) => [m.id, m] as const));
   const rows: HistoryRow[] = moves.map((m) => {
     const qty = formatQuantity(m.qtyMilli, item.dimension, m.unit);
+    // Given in a measure (SM-14): its words lead ("2 onions"), and the amount it took goes under them.
+    const said = m.label ?? null;
+    const words = said ?? qty;
     const amount = m.costMinor > 0 ? formatMinor(m.costMinor, item.currency) : null;
     let what: string;
     switch (m.kind) {
@@ -352,11 +366,11 @@ export function historyRows(
         const consumers = m.consumers && m.consumers.length > 0 ? m.consumers : [m.actor];
         const had = capitalize(joinNames(consumers.map((c) => memberLabelInline(c, meId, names))));
         const logged = consumers.includes(m.actor) ? "" : ` · logged by ${memberLabelInline(m.actor, meId, names)}`;
-        what = `${had} used ${qty}${logged}`;
+        what = `${had} · ${words}${logged}`;
         break;
       }
       case "dish":
-        what = `${who(m.actor)} cooked with ${qty}`;
+        what = `${who(m.actor)} cooked with ${words}`;
         break;
       case "waste":
         what = `${who(m.actor)} marked ${qty} wasted`;
@@ -367,13 +381,14 @@ export function historyRows(
       case "reversal": {
         const original = m.reverses ? byId.get(m.reverses) : undefined;
         const kind = original?.kind === "waste" ? "waste" : original?.kind === "dish" ? "dish" : "use";
-        what = `${who(m.actor)} undid a ${kind}: ${qty} back`;
+        what = `${who(m.actor)} undid a ${kind}: ${words} back`;
         break;
       }
       default:
         what = `${who(m.actor)} adjusted it by ${qty}`;
     }
-    return { id: m.id, kind: m.kind, what, when: relativeWhen(m.at, now), amount, undone: m.undone };
+    const when = relativeWhen(m.at, now);
+    return { id: m.id, kind: m.kind, what, when: said ? `${qty} · ${when}` : when, amount, undone: m.undone };
   });
   const paid = item.paidBy === item.createdBy ? "" : ` · ${memberLabelInline(item.paidBy, meId, names)} paid`;
   const addedWhen = item.boughtOn ? (item.boughtOn === item.createdAt.slice(0, 10) ? relativeWhen(item.createdAt, now) : dayMonth(item.boughtOn)) : "";
@@ -461,52 +476,37 @@ export function peopleCount(n: number): string {
   return countWords(n, "person", "people");
 }
 
-// ── Logging a use: what it says (CP-13) ───────────────────────────
+// ── Logging a use: what it says (CP-13, one line since SM-14) ─────
 
 /**
- * The toast after a use. On the item's own page: "Logged 100 g of Tomatoes
- * for you and Dev"; from quick use or the + Add sheet, which are not on the
- * item's page, it also names the pantry: "Logged 1 glass of Milk for you and
- * Anu in Flat 4B." The description says what it did to money.
+ * The toast after a use, in one line (the seven rules): what was logged and
+ * what it cost — "Logged 2 onions · ₹12.00" — or, logged for someone else
+ * or for several people, who, what and what each owes: "Anu · 1 glass ·
+ * ₹17.00", "You + Anu · 1 glass · ₹8.50 each" ("≈ … each" when the paisa do
+ * not divide). `what` is the amount in words — the measure's when it was
+ * given in one ("2 onions"). Each share is the engine's split (`buildUse`),
+ * as the server posts it; the same words on Use, the item page, Home and
+ * Pantry.
  */
 export function loggedText(input: {
-  item: Pick<KitchenItem, "name" | "pantry" | "paidBy" | "currency">;
-  /** The amount in words: "100 g", "1 glass". */
+  item: Pick<KitchenItem, "pantry" | "paidBy" | "currency">;
+  /** The amount in words: "2 onions", "1 glass", "100 g". */
   what: string;
   consumers: readonly string[];
   meId: string | null;
   names?: MemberNames | null;
-  /** The total of the transaction it posted, or null when no money moved. */
-  txnTotalMinor: number | null;
   /** What the use cost (the move's cost). */
   costMinor: number;
-  /** Name the pantry in the title (quick use, the + Add sheet). */
-  inPantry?: boolean;
-}): { title: string; description: string } {
-  const { item, what, consumers, meId, names } = input;
-  const inPantry = input.inPantry ?? false;
-  if (item.pantry.kind === "personal") {
-    return {
-      title: inPantry ? `Logged ${what} of ${item.name} from your pantry.` : `Logged ${what} of ${item.name}`,
-      description: "From your own pantry: nobody owes anyone.",
-    };
-  }
-  const group = item.pantry.name;
-  const who = consumersText(consumers, meId, names);
-  const title = inPantry ? `Logged ${what} of ${item.name} for ${who} in ${group}.` : `Logged ${what} of ${item.name} for ${who}`;
-  if (input.txnTotalMinor !== null) {
-    const total = formatMinor(input.txnTotalMinor, item.currency);
-    return {
-      title,
-      description: inPantry
-        ? `${total} — it nets with everything else at settle-up.`
-        : `${total} in ${group}. It nets with everything else at settle-up.`,
-    };
-  }
-  return {
-    title,
-    description: `${formatMinor(input.costMinor, item.currency)} — ${memberLabel(item.paidBy, meId, names)} paid for it, so nobody owes anyone.`,
-  };
+}): string {
+  const { item, what, meId, names, costMinor } = input;
+  const cost = formatMinor(costMinor, item.currency);
+  const people = item.pantry.kind === "personal" ? [] : [...new Set(input.consumers)];
+  if (people.length === 0 || (people.length === 1 && people[0] === meId)) return `Logged ${what} · ${cost}`;
+  const ordered = faceOrder(people, meId, names);
+  if (people.length === 1) return `${forWhom(ordered, meId, names)} · ${what} · ${cost}`;
+  const owed = new Map(buildUse({ costMinor, buyerId: item.paidBy, consumers: people }).map((x) => [x.subjectId, x.owedMinor] as const));
+  const each = eachText(ordered.map((id) => owed.get(id) ?? 0), item.currency);
+  return `${forWhom(ordered, meId, names)} · ${what} · ${each ?? cost}`;
 }
 
 /**

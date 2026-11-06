@@ -70,33 +70,32 @@ describe("how much: presets per dimension", () => {
     expect(defaultPreset(presets)?.label).toBe("1 glass");
   });
 
-  it("offers a cup, half a cup and a spoon of something you weigh, then the rest", () => {
+  it("offers weights of something you weigh — no guessed cup or spoon (SM-14) — then the rest", () => {
     expect(amountPresets(rice()).map((p) => [p.label, p.amount])).toEqual([
-      ["1 cup", "200 g"],
-      ["½ cup", "100 g"],
-      ["A spoon", "20 g"],
+      ["100 g", "100 g"],
+      ["250 g", "250 g"],
+      ["½ kg", "500 g"],
       ["The rest", "3.2 kg"],
     ]);
   });
 
-  it("counts pieces one, two, three, then all; packs one, a half, two, then all", () => {
+  it("counts pieces one, two, three, then the rest; packs a half, one, then the rest", () => {
     expect(amountPresets(eggs()).map((p) => [p.label, p.amount])).toEqual([
       ["1 pc", "1 pc"],
       ["2 pcs", "2 pcs"],
       ["3 pcs", "3 pcs"],
-      ["All", "7 pcs"],
+      ["The rest", "7 pcs"],
     ]);
     expect(amountPresets(biscuits()).map((p) => [p.label, p.amount])).toEqual([
-      ["1 pack", "1 pack"],
       ["½ pack", "0.5 packs"],
-      ["2 packs", "2 packs"],
-      ["All", "3 packs"],
+      ["1 pack", "1 pack"],
+      ["The rest", "3 packs"],
     ]);
   });
 
-  it("puts your usual first, marked and chosen — 'your usual n, 1, 3, all' for things you count", () => {
+  it("puts your usual first, marked and chosen — 'your usual n, 1, 3, the rest' for things you count", () => {
     const presets = amountPresets(eggs(), 2_000);
-    expect(presets.map((p) => p.label)).toEqual(["2 pcs", "1 pc", "3 pcs", "All"]);
+    expect(presets.map((p) => p.label)).toEqual(["2 pcs", "1 pc", "3 pcs", "The rest"]);
     expect(presets.map((p) => p.usual)).toEqual([true, false, false, false]);
     expect(defaultPreset(presets)?.qtyMilli).toBe(2_000);
   });
@@ -121,7 +120,7 @@ describe("how much: presets per dimension", () => {
       ["A spoon", "15 ml"],
       ["The rest", "100 ml"],
     ]);
-    expect(amountPresets(eggs({ left: "1" })).map((p) => [p.label, p.amount])).toEqual([["All", "1 pc"]]);
+    expect(amountPresets(eggs({ left: "1" })).map((p) => [p.label, p.amount])).toEqual([["The rest", "1 pc"]]);
     expect(amountPresets(milk({ left: "0" }))).toEqual([]);
   });
 
@@ -153,7 +152,8 @@ describe("how much: presets per dimension", () => {
 
   it("knows every measure by name, and other amounts by the engine", () => {
     expect(amountWords(250_000, "volume")).toBe("1 glass");
-    expect(amountWords(200_000, "mass")).toBe("1 cup");
+    expect(amountWords(200_000, "mass")).toBe("200 g");
+    expect(amountWords(500_000, "mass")).toBe("½ kg");
     expect(amountWords(300_000, "volume")).toBe("300 ml");
     expect(amountWords(2_000, "count")).toBe("2 pcs");
     expect(amountWords(1_500_000, "volume")).toBe("1.5 L");
