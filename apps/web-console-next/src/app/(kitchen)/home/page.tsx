@@ -19,6 +19,7 @@ import { useInbox, useRecentActivity } from "@/components/kitchen/inbox-data";
 import { HomeTodoList, RecentActivityList } from "@/components/kitchen/inbox-ui";
 import { usePrefetchKitchen } from "@/components/kitchen/prefetch";
 import { parseDishRef } from "@/components/kitchen/dish";
+import { InstallCard } from "@/components/kitchen/install-ui";
 
 /**
  * Home (CP-5; SM-10 as the canvas's "Simpler — Home" draws it): "Hi, Rahul",
@@ -31,6 +32,9 @@ import { parseDishRef } from "@/components/kitchen/dish";
  *
  * From 900px, beside the sidebar, two columns: money, usuals and recent ·
  * to-dos.
+ *
+ * PW-2: under the greeting, the one invitation to install Cookpool, from the
+ * device's second day and never in the installed app (`InstallCard`).
  */
 export default function HomePage() {
   const profile = useProfile();
@@ -57,6 +61,8 @@ export default function HomePage() {
           {user ? personInitials(user) : ""}
         </Link>
       </header>
+
+      <InstallCard />
 
       <div className="flex flex-col gap-3 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:items-start min-[900px]:gap-6">
         <div className="contents min-[900px]:flex min-[900px]:min-w-0 min-[900px]:flex-col min-[900px]:gap-4">

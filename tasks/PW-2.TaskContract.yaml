@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-2
+  title: "Worth installing"
+spec:
+  goal: Cookpool invites people to install it once, in the way their phone allows, and installed it opens like an app with shortcuts, splash screens and no browser habits.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-app/**
+    - tasks/PW-2.TaskContract.yaml
+  doneWhen:
+    - Home shows the install card from the second day, never inside the installed app; Android installs in one tap and iPhone shows the two steps
+    - You has Install the app
+    - the manifest has shortcuts and screenshots, and iPhones get splash screens
+    - the app root does not rubber-band, double-tap zoom or select button text
+  gates: []

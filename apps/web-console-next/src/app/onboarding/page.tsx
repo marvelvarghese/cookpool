@@ -58,7 +58,7 @@ export default function OnboardingPage() {
   const selfHeal = useSoloSelfHeal(SOLO_MODE && orgs.data?.length === 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-dvh bg-gradient-to-br from-background via-background to-primary/5">
       <header className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4 md:px-8">
         <div className="flex items-center gap-2.5">
           <div className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/40 text-sm font-bold text-primary-foreground">

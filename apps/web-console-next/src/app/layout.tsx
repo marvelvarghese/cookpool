@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "../styles/globals.css";
 import { Providers } from "./providers";
 import { DEFAULT_APP_CONFIG, consoleTitle } from "@/lib/app-config";
-import { APPLE_TOUCH_ICON } from "@/lib/manifest";
+import { APPLE_SPLASH_SCREENS, APPLE_TOUCH_ICON } from "@/lib/manifest";
+import { appShellScript } from "@/lib/app-shell";
 import { rscFetchShim } from "@/lib/static-pages.mjs";
 import { OfflineBanner } from "@/components/shell/offline-banner";
 import { ServiceWorker } from "@/components/shell/service-worker";
@@ -21,6 +22,8 @@ export const metadata: Metadata = {
     capable: true,
     title: DEFAULT_APP_CONFIG.productName,
     statusBarStyle: "black-translucent",
+    // iPhone splash screens (cookpool-app PW-2): one per screen size.
+    startupImage: [...APPLE_SPLASH_SCREENS],
   },
 };
 
@@ -43,7 +46,9 @@ const STATIC_RSC = process.env.NODE_ENV === "production";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-background text-foreground antialiased">
+      <body className="min-h-dvh bg-background text-foreground antialiased">
+        {/* Before anything else (PW-2): keep the install prompt, and keep a focused field above the keyboard. */}
+        <script dangerouslySetInnerHTML={{ __html: appShellScript() }} />
         {/*
           esbuild's `keepNames` helper (`__name`) is referenced by the
           next-themes inline theme script in the @opennextjs/cloudflare build,
