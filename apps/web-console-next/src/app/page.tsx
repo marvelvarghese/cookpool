@@ -18,7 +18,7 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">
+    <div className="grid min-h-dvh place-items-center text-sm text-muted-foreground">
       Loading…
     </div>
   );

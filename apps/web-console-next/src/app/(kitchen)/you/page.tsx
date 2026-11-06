@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { applyNewName, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { InstallRow } from "@/components/kitchen/install-ui";
 import { GoogleMark, NoticeBox, PersonAvatar, SIGN_IN_INPUT } from "@/components/kitchen/sign-in-ui";
 import { NAME_LABEL, NAME_MAX, cleanDisplayName, namePrefill, saveNameOutcome, type SignInNotice } from "@/components/kitchen/sign-in";
 import {
@@ -42,6 +43,9 @@ import {
  * Home's avatar opens it on a phone, the sidebar's "Me" from 900px; the
  * phone tab bar is unchanged. Sign out works even when the profile cannot be
  * read.
+ *
+ * "Install the app" (cookpool-app PW-2) sits above sign-out: the same flow
+ * as Home's card, there any time, and gone in the installed app.
  */
 export default function YouPage() {
   const profile = useProfile();
@@ -78,6 +82,8 @@ export default function YouPage() {
           </Button>
         </KCard>
       )}
+
+      <InstallRow />
 
       <SignOut />
     </div>

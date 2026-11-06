@@ -133,6 +133,54 @@
     background: hsl(var(--primary) / 0.35);
   }
 
+  /*
+   * Like an app, not a web page (cookpool-app PW-2, design §2). No grey flash
+   * where a tap lands; no double-tap zoom (or its wait) on anything you tap,
+   * while pinch-zoom still works; button and tab words are not selectable and
+   * a long press on a tab opens no link preview. Text people copy — a join
+   * link or code — is never inside a button, so it stays selectable.
+   */
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"] {
+    touch-action: manipulation;
+  }
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  nav a {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  /*
+   * Installed, the app root does not rubber-band: the page stops at its ends
+   * and lists and sheets scroll inside it. In a browser tab the browser keeps
+   * its own pull-to-refresh, which installed iPhone apps lose (PW4 brings
+   * ours).
+   */
+  @media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+    html,
+    body {
+      overscroll-behavior: none;
+    }
+  }
+
   /* Respect the OS "reduce motion" setting: collapse animations/transitions to
      a near-instant state so the UI stays functional without movement. */
   @media (prefers-reduced-motion: reduce) {

@@ -22,7 +22,7 @@ export default function RootError({
   }, [error]);
 
   return (
-    <div className="grid min-h-screen place-items-center px-4">
+    <div className="grid min-h-dvh place-items-center px-4">
       <div className="w-full max-w-md space-y-4 text-center">
         <h1 className="text-lg font-semibold tracking-tight">Something went wrong</h1>
         <p className="text-sm text-muted-foreground">

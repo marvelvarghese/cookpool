@@ -26,7 +26,7 @@ import { wrap } from "@/lib/api";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const ready = useRequireAuth();
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-dvh bg-background">
       {ready ? (
         <Sidebar />
       ) : (
