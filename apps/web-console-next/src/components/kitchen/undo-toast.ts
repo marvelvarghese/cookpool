@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useToast } from "@/components/ui/toast";
+import { isOffline, refuseIfOffline } from "@/lib/connection";
 import { REFUSAL_MS, UNDO_MS, undoneToast, type UndoOffer, type UndoToast } from "./undo";
 
 /** The toast an offer opened: change its words, or turn it into the write's refusal. */
@@ -12,6 +13,19 @@ export interface UndoToastHandle {
   refuse: (toast: UndoToast) => void;
   /** Close it (a write that came to nothing). */
   close: () => void;
+}
+
+/** A write held back offline (PW-4) offers nothing: its handle does nothing. */
+const HELD_BACK: UndoToastHandle = Object.freeze({ update: () => undefined, refuse: () => undefined, close: () => undefined });
+
+let openOffers = 0;
+
+/**
+ * How many Undo toasts are on screen (Cookpool PW-4): "New version · Reload"
+ * waits for them, since reloading would take their Undo away.
+ */
+export function undoOffersOpen(): number {
+  return openOffers;
 }
 
 /**
@@ -32,8 +46,19 @@ export function useUndoToast() {
   const { toast, update, dismiss } = useToast();
   return React.useCallback(
     (offer: UndoOffer): UndoToastHandle => {
+      // Offline, the write was held back (beginWrite, the API client): no Undo.
+      if (isOffline()) return HELD_BACK;
       let pressed = false;
       let closed = false;
+      // Counted while it can still be pressed.
+      let counted = true;
+      openOffers += 1;
+      const uncount = () => {
+        if (!counted) return;
+        counted = false;
+        openOffers -= 1;
+      };
+      const timer = setTimeout(uncount, UNDO_MS + 500);
       const answer = (shown: number | null) =>
         offer.undo().then(
           (result) => {
@@ -56,7 +81,11 @@ export function useUndoToast() {
           label: "Undo",
           onClick: () => {
             if (pressed || closed) return;
+            // Undoing is a write too: offline it is held back, and nothing changes.
+            if (refuseIfOffline()) return;
             pressed = true;
+            clearTimeout(timer);
+            uncount();
             if (offer.restore) {
               offer.restore();
               void answer(toast({ kind: "success", title: "Undone", duration: 4_500 }));
@@ -74,10 +103,14 @@ export function useUndoToast() {
         refuse: (t) => {
           if (closed) return;
           closed = true;
+          clearTimeout(timer);
+          uncount();
           update(id, { ...t, action: undefined, duration: REFUSAL_MS });
         },
         close: () => {
           closed = true;
+          clearTimeout(timer);
+          uncount();
           dismiss(id);
         },
       };

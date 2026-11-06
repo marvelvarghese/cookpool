@@ -13,6 +13,7 @@ import { REFUSAL_MS, UNDO_MS, refusedToast, type UndoResult } from "./undo";
 import { useUndoToast, type UndoToastHandle } from "./undo-toast";
 import { finalizePatches, portionChange, portionPatches } from "./cache-patches";
 import { beginWrite, type OptimisticWrite } from "./optimistic-data";
+import { refuseIfOffline } from "@/lib/connection";
 import {
   claimRefusal,
   dishHref,
@@ -342,6 +343,8 @@ export function usePortions(dish: KitchenDish, meId: string | null, names: Membe
 
   const set = React.useCallback(
     (subjectId: string, half: number, opts: { now?: boolean } = {}) => {
+      // Offline (PW-4): held back at the tap, before the burst shows it.
+      if (refuseIfOffline()) return;
       const { dish: current, meId: me, names: known } = latest.current;
       if (!me) return;
       let b = bursts.current.get(subjectId);

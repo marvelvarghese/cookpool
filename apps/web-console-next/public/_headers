@@ -15,3 +15,9 @@
 # every visit. The Worker's pages stay `no-store`.
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Cookpool PW-4: the service worker. The browser checks it for a new build on
+# every launch (scripts/service-worker.mjs writes it per build); it must never
+# be served from an HTTP cache, or an update would wait for the cache to age.
+/sw.js
+  Cache-Control: no-cache

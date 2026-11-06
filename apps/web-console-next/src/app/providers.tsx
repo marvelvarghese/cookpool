@@ -22,6 +22,10 @@ function makeQueryClient(): QueryClient {
         gcTime: 30 * 60_000,
         refetchOnWindowFocus: false,
         retry: 1,
+        // Cookpool PW-4: a read is always tried, even when the browser says
+        // it is offline, because the service worker may answer it with the
+        // last data seen; only its retries wait for the network to return.
+        networkMode: "offlineFirst",
       },
     },
   });
