@@ -198,7 +198,8 @@ describe("Home's inbox: each card kind and its action (CP-23)", () => {
     const card = inboxCard(yogurt, ctx)!;
     expect(card.meta).toBe("Personal · 400 g left · expired yesterday");
     expect(card.tone).toBe("expired");
-    expect(card.action).toMatchObject({ kind: "use", qtyMilli: 200_000, label: "I had a cup", usual: false });
+    // The first plain weight: the guessed "cup" of something weighed is gone (SM-14).
+    expect(card.action).toMatchObject({ kind: "use", qtyMilli: 100_000, label: "I had 100 g", usual: false });
     const counted = inboxCard(eggs, ctx)!;
     expect(counted.meta).toBe("Personal · 7 pcs left · use by today");
     expect(counted.action).toMatchObject({ qtyMilli: 2000, label: "I used 2 pcs", usual: true });

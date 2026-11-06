@@ -6,6 +6,7 @@ import type {
   CreateGroupItemRequest,
   CreatePersonalItemRequest,
   KitchenItem,
+  KitchenMeasure,
   KitchenMember,
   KitchenStockMove,
   KitchenUsual,
@@ -14,6 +15,8 @@ import type {
   ReachableItem,
   StockMoveResponse,
 } from "@saas/contracts/kitchen";
+import { measureLabel } from "@saas/contracts/kitchen";
+import { fromMilli } from "@saas/kitchen-engine/units";
 import { wrap, type ApiErrorBody, type ApiResult } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, afterWrites, prefetchApi, qk } from "@/lib/query";
@@ -38,6 +41,7 @@ import {
   type StockChange,
 } from "./cache-patches";
 import { beginWrite, queryCacheOf } from "./optimistic-data";
+import { countedWords } from "./measures";
 
 /**
  * Cookpool's pantry reads and stock writes (CP-12), through the CP-10/CP-11
@@ -289,9 +293,16 @@ export interface LogUseInput {
   /** Who had it, in the order sent (ignored for your own pantry's item). */
   consumers: readonly string[];
   idempotencyKey: string;
-  /** The amount in words for the toast ("1 glass"); the amount itself by default. */
+  /** The amount in words for the toast ("1 glass", "2 onions"); the amount itself by default. */
   what?: string;
-  /** Name the pantry in the toast (quick use and the + Add sheet). */
+  /**
+   * Given in one of the item's measures (SM-14): sent as its count and word
+   * (`{ quantity: "2", measure: "onion" }`), and the move keeps the words.
+   * Left out, words that are one of the item's measures and take exactly
+   * `qtyMilli` ("2 onions" from a usual) are sent in it; null sends the unit.
+   */
+  measure?: { measure: KitchenMeasure; quantity: number } | null;
+  /** Kept for callers from before SM-14: the toast is one line everywhere now. */
   inPantry?: boolean;
   meId: string | null;
   names?: MemberNames | null;
@@ -326,8 +337,8 @@ function useStockWrite() {
       move: KitchenStockMove;
       send: () => Promise<ApiResult<StockMoveResponse>>;
       title: string;
-      /** The toast's second line once the server answers (what it did to money). */
-      answeredText: (answer: StockMoveResponse) => string | undefined;
+      /** The toast's words once the server answers (what it did to money), when they change. */
+      answered: (answer: StockMoveResponse) => { title?: string; description?: string } | undefined;
       refusal: (error: ApiErrorBody) => { title: string; message: string };
     }): Promise<ApiResult<StockMoveResponse>> => {
       const { ref, item, change } = input;
@@ -363,8 +374,8 @@ function useStockWrite() {
         // The server's item on its page at once; every other read is read again.
         qc.setQueryData(qk.kitchenItem(itemRefParam(ref)), r.data.item);
         refreshPantry(qc, orgId);
-        const description = input.answeredText(r.data);
-        if (description) toast.update({ description });
+        const words = input.answered(r.data);
+        if (words) toast.update(words);
         return r;
       });
     },
@@ -375,9 +386,9 @@ function useStockWrite() {
 /**
  * Log a use — the item page's Use some, quick use, Do it again and Home's
  * one tap share it. It shows at once (Cookpool SM-5): what is left goes down
- * wherever the item is listed, its history gains the row, and the one Undo
- * toast says what was logged (`loggedText`) before the server answers; its
- * second line — what it did to money — is the server's, when it answers. A
+ * wherever the item is listed, its history gains the row (with the measure's
+ * words, SM-14), and the one Undo toast says in one line what was logged and
+ * what it cost (`loggedText`) before the server answers. A
  * refusal puts everything back exactly and the toast says why in one line
  * (`logRefusal`). The promise says how it came out: callers move on at once
  * and look only for what a refusal asks of them (who left the group).
@@ -389,11 +400,13 @@ export function useLogUse() {
     (input: LogUseInput): Promise<LogUseResult> => {
       const { ref, item, qtyMilli, meId, names } = input;
       const consumers = item.pantry.kind === "personal" ? [] : [...input.consumers];
-      const body = logRequest(item, qtyMilli, consumers);
-      const what = input.what ?? amountText(qtyMilli, item);
+      const counted = input.measure !== undefined ? input.measure : countedWords(item, input.what, qtyMilli);
+      const body = logRequest(item, qtyMilli, consumers, counted);
+      const label = counted ? measureLabel(counted.quantity, counted.measure) : null;
+      const what = label ?? input.what ?? amountText(qtyMilli, item);
+      // What it takes: `measureTakeMilli` of the measure (the caller's amount), as the server will.
       const change: StockChange = { itemId: item.id, kind: "use", qtyMilli, costMinor: amountCost(item, qtyMilli) };
-      const textFor = (txnTotalMinor: number | null, costMinor: number) =>
-        loggedText({ item, what, consumers, meId, names: names ?? null, txnTotalMinor, costMinor, inPantry: input.inPantry ?? false });
+      const textFor = (costMinor: number) => loggedText({ item, what, consumers, meId, names: names ?? null, costMinor });
       const opts = { idempotencyKey: input.idempotencyKey };
       return stockWrite({
         ref,
@@ -401,8 +414,10 @@ export function useLogUse() {
         change,
         move: pendingMove({
           change,
-          quantity: Number(body.quantity),
-          unit: body.unit ?? item.displayUnit,
+          // A use in a measure is stored in the item's own unit, with its words beside it.
+          quantity: counted ? fromMilli(qtyMilli, item.displayUnit) : Number(body.quantity),
+          unit: counted ? item.displayUnit : (body.unit ?? item.displayUnit),
+          label,
           actor: meId ?? item.createdBy,
           consumers: item.pantry.kind === "personal" ? null : consumers,
           at: new Date().toISOString(),
@@ -413,8 +428,9 @@ export function useLogUse() {
               ? client.kitchen.useGroupItem(ref.orgId, ref.itemId, body, opts)
               : client.kitchen.usePersonalItem(ref.itemId, body, opts),
           ),
-        title: textFor(null, change.costMinor).title,
-        answeredText: (a) => textFor(a.txn ? a.txn.totalMinor : null, a.move.costMinor).description,
+        title: textFor(change.costMinor),
+        // The server's cost, if someone used some meanwhile and it differs.
+        answered: (a) => (a.move.costMinor !== change.costMinor ? { title: textFor(a.move.costMinor) } : undefined),
         refusal: (error) => ({ title: `Couldn't log ${item.name}`, message: logRefusal(error, { item, meId, names: names ?? null }).message }),
       }).then((r): LogUseResult => {
         if (r.ok) return { ok: true, response: r.data };
@@ -460,8 +476,9 @@ export function useWasteItem() {
               : client.kitchen.wastePersonalItem(ref.itemId, {}, opts),
           ),
         title: `Marked ${what} wasted`,
-        answeredText: (a) =>
-          a.txn ? `${formatMinor(a.txn.totalMinor, item.currency)} split equally in ${item.pantry.name}.` : "Nobody was charged.",
+        answered: (a) => ({
+          description: a.txn ? `${formatMinor(a.txn.totalMinor, item.currency)} split equally in ${item.pantry.name}.` : "Nobody was charged.",
+        }),
         refusal: (error) => ({
           title: `Couldn't mark ${item.name} wasted`,
           message: error.reason === "insufficient_stock" ? "There's nothing left to waste now." : error.message,

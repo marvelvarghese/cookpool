@@ -54,7 +54,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 **Done when**
 - buying milk again is: type "mi", tap Milk, tap Add
 
-## SM6 — your measures
+## SM6 — your measures ✅
 
 - **SM-13** (kitchen-worker, db, db-migrate, contracts, sdk): migration 300,
   the measures route, measures on every item read, a use and an ingredient

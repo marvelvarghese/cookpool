@@ -4,14 +4,13 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRightLeft, CookingPot, Minus, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, CookingPot, Trash2 } from "lucide-react";
 import type { KitchenItem, KitchenStockMove } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useProfile } from "@/components/kitchen/data";
@@ -28,13 +27,13 @@ import {
   undoStockMove,
   useItemMoves,
   useKitchenItem,
-  useLogUse,
   usePantries,
   useWasteItem,
 } from "@/components/kitchen/pantry-data";
 import { ShareList, StockBar, UseByPill } from "@/components/kitchen/pantry-ui";
-import { FaceRow } from "@/components/kitchen/faces-ui";
-import { toggleFace } from "@/components/kitchen/faces";
+import { MAIN_BUTTON } from "@/components/kitchen/faces-ui";
+import { CountedAs } from "@/components/kitchen/measures-ui";
+import { leftInMeasure } from "@/components/kitchen/measures";
 import {
   barTone,
   boughtText,
@@ -47,30 +46,13 @@ import {
   orderPantries,
   pantryLabel,
   parseItemRef,
+  quickUseHref,
   unitPriceText,
   expiryChip,
   expiryText,
   type ItemRef,
 } from "@/components/kitchen/pantry";
-import {
-  canUndoMove,
-  costPerText,
-  historyRows,
-  initialAmount,
-  isUnused,
-  orderConsumers,
-  parseAmount,
-  stepAmount,
-  transferNote,
-  transferTargets,
-  amountInput,
-  shareBreakdown,
-  logButtonLabel,
-  amountCost,
-  amountText,
-  amountStep,
-  wastePreview,
-} from "@/components/kitchen/item-use";
+import { canUndoMove, costPerText, historyRows, isUnused, transferNote, transferTargets, wastePreview } from "@/components/kitchen/item-use";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookHref } from "@/components/kitchen/dish-maker";
 import { undoneToast } from "@/components/kitchen/undo";
@@ -163,13 +145,7 @@ function ItemView(ctx: ItemCtx) {
     .filter(Boolean)
     .join(" · ");
   const stateLabel = STATE_LABEL[item.state];
-  const cardRef = React.useRef<HTMLElement>(null);
-
-  // A link to the Use section (#use) lands here: bring the Use card into view.
   const canUseHere = live && roleKnown && canWrite;
-  React.useEffect(() => {
-    if (canUseHere && window.location.hash === "#use") cardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, [canUseHere]);
 
   return (
     <div className="space-y-5">
@@ -191,16 +167,9 @@ function ItemView(ctx: ItemCtx) {
       <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
         <div className="min-w-0 space-y-5">
           <StockCard {...ctx} />
-          {live ? (
-            !roleKnown ? (
-              <Skeleton className="h-72 w-full rounded-[22px]" />
-            ) : canWrite ? (
-              <UseCard {...ctx} cardRef={cardRef} />
-            ) : (
-              <KCard className="p-5 text-sm text-muted-foreground">
-                You view {pantryLabel(item.pantry)}: you see its pantry, but don&apos;t use from it or change it.
-              </KCard>
-            )
+          {item.state === "active" ? <CountedAs item={item} canWrite={roleKnown && canWrite} /> : null}
+          {live && roleKnown && !canWrite ? (
+            <KCard className="p-4 text-sm text-muted-foreground">You only view {pantryLabel(item.pantry)}.</KCard>
           ) : null}
         </div>
 
@@ -210,6 +179,15 @@ function ItemView(ctx: ItemCtx) {
           <HistoryCard {...ctx} />
         </div>
       </div>
+
+      {/* One way to use an item (the audit's "two UIs for the same job"): Use some opens /use on it. */}
+      {canUseHere ? (
+        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:max-w-sm">
+          <Button asChild className={cn(MAIN_BUTTON, "text-[17px] font-extrabold shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")}>
+            <Link href={quickUseHref(item)}>Use some</Link>
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -221,6 +199,7 @@ function StockCard({ item, meId, names }: ItemCtx) {
   const long = expiryText(item);
   const personal = item.pantry.kind === "personal";
   const left = leftText(item);
+  const counted = leftInMeasure(item);
   const rule = personal
     ? "Nothing to split"
     : `${wasteRuleLabel(item.wastePolicy ?? "split_equally")}${item.wastePolicyOverride ? " (this item)" : ""}`;
@@ -229,7 +208,10 @@ function StockCard({ item, meId, names }: ItemCtx) {
       {chip && long ? <UseByPill chip={{ ...chip, label: long }} className="px-2.5 py-1" /> : null}
       <p className="flex flex-wrap items-baseline gap-x-2">
         <span className="text-[34px] font-extrabold leading-none tracking-tight tabular-nums">{left}</span>
-        <span className="text-[15px] text-muted-foreground">left of {boughtText(item)}</span>
+        <span className="text-[15px] text-muted-foreground">
+          left of {boughtText(item)}
+          {counted ? ` · ${counted}` : ""}
+        </span>
       </p>
       <StockBar percent={leftPercent(item)} tone={barTone(item)} thick />
       <dl className="grid grid-cols-2 gap-3">
@@ -255,142 +237,6 @@ function Fact({ term, children }: { term: string; children: React.ReactNode }) {
       <dt className="text-xs font-semibold text-muted-foreground">{term}</dt>
       <dd className="text-base font-bold tabular-nums">{children}</dd>
     </div>
-  );
-}
-
-// ── Use some ───────────────────────────────────────────────────────
-
-function UseCard({ itemRef, item, meId, names, roster, cardRef }: ItemCtx & { cardRef: React.RefObject<HTMLElement | null> }) {
-  const logUse = useLogUse();
-  const personal = item.pantry.kind === "personal";
-  const step = amountStep(item);
-  const [qtyMilli, setQtyMilli] = React.useState(() => initialAmount(item));
-  const [typed, setTyped] = React.useState<string | null>(null);
-  const [chosen, setChosen] = React.useState<ReadonlySet<string>>(() => new Set(meId ? [meId] : []));
-
-  // What is left can shrink under us (someone else used some): stay within it.
-  React.useEffect(() => {
-    setQtyMilli((q) => (q > item.qtyLeftMilli || q <= 0 ? initialAmount(item) : q));
-  }, [item]);
-
-  const parsed = typed === null ? null : parseAmount(typed, item);
-  const amount = parsed ? (parsed.ok ? parsed.milli : null) : qtyMilli;
-  const consumers = personal ? [] : orderConsumers(chosen, roster ?? [], meId);
-  const breakdown = amount !== null && !personal ? shareBreakdown({ item, qtyMilli: amount, consumers, meId, names }) : null;
-  const cost = amount !== null ? amountCost(item, amount) : null;
-  const label = logButtonLabel({ qtyMilli: amount ?? qtyMilli, item, consumers: personal ? null : consumers, meId, names });
-  const stepText = amountText(step.stepMilli, item);
-  const ready = amount !== null && (personal || consumers.length > 0);
-
-  const stepBy = (delta: 1 | -1) => {
-    setTyped(null);
-    setQtyMilli((q) => stepAmount(amount ?? q, delta, item));
-  };
-  const toggle = (id: string) => setChosen((cur) => toggleFace(cur, id));
-
-  // The use shows at once (SM-5): what is left drops, the history gains the
-  // row and the Undo toast is up before the server answers; a refusal is put
-  // back and the toast says why. Each tap is its own write, with its own key.
-  const submit = () => {
-    if (amount === null || !ready) return;
-    void logUse({ ref: itemRef, item, qtyMilli: amount, consumers, idempotencyKey: crypto.randomUUID(), meId, names }).then((r) => {
-      if (!r.ok && r.gone.length > 0) setChosen((cur) => new Set([...cur].filter((id) => !r.gone.includes(id))));
-    });
-    setTyped(null);
-    setQtyMilli(initialAmount({ dimension: item.dimension, qtyLeftMilli: item.qtyLeftMilli - amount }));
-  };
-
-  const btn =
-    "grid h-12 w-12 shrink-0 place-items-center rounded-[14px] border border-input bg-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
-  return (
-    <section
-      ref={cardRef}
-      id="use"
-      aria-labelledby="use-heading"
-      className="scroll-mt-6 space-y-4 rounded-[22px] border-2 border-primary bg-card p-5"
-    >
-      <div>
-        <h2 id="use-heading" className="text-[17px] font-extrabold">
-          Use some
-        </h2>
-        <p className="text-[13px] text-muted-foreground">No dish needed. A snack, a salad, a glass of milk all count.</p>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <button type="button" className={btn} aria-label={`${stepText} less`} disabled={amount !== null && amount <= Math.min(step.stepMilli, item.qtyLeftMilli)} onClick={() => stepBy(-1)}>
-          <Minus className="h-5 w-5" aria-hidden />
-        </button>
-        <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
-          <label htmlFor="use-amount" className="sr-only">
-            How much, in {step.unit}
-          </label>
-          <span className="flex items-baseline gap-1.5">
-            <Input
-              id="use-amount"
-              inputMode="decimal"
-              value={typed ?? amountInput(qtyMilli)}
-              onChange={(e) => {
-                setTyped(e.target.value);
-              }}
-              onBlur={() => {
-                if (parsed?.ok) {
-                  setQtyMilli(parsed.milli);
-                  setTyped(null);
-                }
-              }}
-              aria-invalid={parsed !== null && !parsed.ok}
-              aria-describedby="use-cost"
-              className="h-11 w-24 rounded-xl border-transparent bg-background text-center text-[26px] font-extrabold tabular-nums sm:h-11 sm:text-[26px]"
-            />
-            <span className="text-lg font-bold text-muted-foreground">{step.unit === "pcs" ? "pcs" : step.unit}</span>
-          </span>
-          <span id="use-cost" role="status" aria-live="polite" className="text-[13px] text-muted-foreground">
-            {parsed && !parsed.ok ? (
-              <span className="font-medium text-destructive">{parsed.message}</span>
-            ) : cost !== null ? (
-              <>
-                costs <Money minor={cost} currency={item.currency} className="font-bold text-foreground" />
-              </>
-            ) : null}
-          </span>
-        </div>
-        <button type="button" className={btn} aria-label={`${stepText} more`} disabled={amount !== null && amount >= item.qtyLeftMilli} onClick={() => stepBy(1)}>
-          <Plus className="h-5 w-5" aria-hidden />
-        </button>
-      </div>
-      {amount !== item.qtyLeftMilli ? (
-        <div className="-mt-2 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setTyped(null);
-              setQtyMilli(item.qtyLeftMilli);
-            }}
-            className="min-h-11 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            All that&apos;s left · {amountText(item.qtyLeftMilli, item)}
-          </button>
-        </div>
-      ) : null}
-
-      {personal ? (
-        <p className="rounded-[14px] bg-background px-3.5 py-3 text-sm text-muted-foreground">
-          It&apos;s your own pantry, so nobody owes anyone — this just keeps count.
-        </p>
-      ) : (
-        <>
-          <FaceRow legend="Who?" people={roster} chosen={chosen} onToggle={toggle} meId={meId} names={names} />
-          <ShareList
-            lines={breakdown?.lines ?? []}
-            currency={item.currency}
-            empty={consumers.length === 0 ? "Pick at least one person." : amount === null ? "Enter how much to see who owes what." : null}
-          />
-        </>
-      )}
-      <Button type="button" className={cn(K_BUTTON, "h-12 w-full")} disabled={!ready} onClick={submit}>
-        {label}
-      </Button>
-    </section>
   );
 }
 

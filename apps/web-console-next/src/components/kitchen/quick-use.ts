@@ -1,7 +1,9 @@
 /**
- * Quick use (Cookpool CP-13) as pure view-models: the preset amounts on /use
- * — kitchen measures per dimension (a glass, a cup, pieces, packs), never more
- * than is left, with the person's usual amount first and marked — who had it
+ * Quick use (Cookpool CP-13) as pure view-models: the amount tiles on /use
+ * — the item's own measures (SM-14: "1 onion · ≈ 150 g"), then plain amounts
+ * per dimension (a glass, weights, pieces, packs), never more than is left,
+ * with the person's usual amount first and marked, and Another amount in the
+ * measure or the unit — who had it
  * to start with (the people of their last use), the Log button, the request,
  * the cards of the "Recent and usual" strip and of a search's matches, and the
  * + Add sheet's "Do it again" rows. Costs, who owes whom and the request are
@@ -12,45 +14,65 @@
 
 import type {
   KitchenItem,
+  KitchenMeasure,
   KitchenUsual,
   ReachableItem,
   UseGroupItemRequest,
   UsePersonalItemRequest,
 } from "@saas/contracts/kitchen";
+import { inMeasure, measureLabel } from "@saas/contracts/kitchen";
 import { dimensionOf, formatQuantity, isUnit, type Dimension } from "@saas/kitchen-engine/units";
 import { formatMinor } from "./money";
-import { amountCost, consumersText, logRequest, orderConsumers } from "./item-use";
+import { amountCost, amountStep, consumersText, initialAmount, logRequest, orderConsumers, parseAmount, stepAmount } from "./item-use";
 import { capitalize, countWords, itemRefOf, leftText, pantryLabel, type ItemRef } from "./pantry";
 import { memberLabelInline, type MemberNames } from "./members";
+import {
+  askable,
+  isApprox,
+  leftInMeasure,
+  maxCount,
+  measureAmount,
+  measuresOf,
+  nearestCount,
+  parseCount,
+  parseLabel,
+  stepCount,
+  takeOf,
+  usualAmount,
+  type UseAmount,
+} from "./measures";
 
 // ── How much: the presets ─────────────────────────────────────────
 
-export interface KitchenMeasure {
+export interface BuiltInAmount {
   /** Thousandths of the dimension's base unit (ml, g, pcs, pack). */
   qtyMilli: number;
-  /** Its name inside a sentence ("1 glass", "a splash"); null when the amount says it ("2 pcs"). */
+  /** Its name inside a sentence ("1 glass", "a splash", "½ kg"); null when the amount says it ("100 g", "2 pcs"). */
   name: string | null;
+  /** The name is a kitchen measure, not an amount: its tile also says the amount ("1 glass · 250 ml"). */
+  named?: boolean;
 }
 
 /**
- * The amounts quick use offers, per dimension, in the order offered: a glass
- * (250 ml), half a glass, a splash (50 ml), a spoon (15 ml); a cup (200 g),
- * half a cup, a spoon (20 g), a teaspoon (5 g); one, two, three pieces; one
- * pack, half a pack, two packs. A measure is offered only while it is less
- * than what is left; "The rest" (or "All") always closes the row.
+ * The plain amounts quick use offers, per dimension, in the order offered:
+ * a glass (250 ml), half a glass, a splash (50 ml), a spoon (15 ml) — exact
+ * for any liquid, so they stay built in; weights (100 g, 250 g, ½ kg) — the
+ * guessed cup and spoon of something weighed are gone (SM-14): an item is
+ * counted its own way by its measures; one, two, three pieces; half a pack,
+ * one pack. An amount is offered only while it is less than what is left;
+ * "The rest" always closes the row.
  */
-export const KITCHEN_MEASURES: Record<Dimension, readonly KitchenMeasure[]> = {
+export const KITCHEN_MEASURES: Record<Dimension, readonly BuiltInAmount[]> = {
   volume: [
-    { qtyMilli: 250_000, name: "1 glass" },
-    { qtyMilli: 125_000, name: "½ glass" },
-    { qtyMilli: 50_000, name: "a splash" },
-    { qtyMilli: 15_000, name: "a spoon" },
+    { qtyMilli: 250_000, name: "1 glass", named: true },
+    { qtyMilli: 125_000, name: "½ glass", named: true },
+    { qtyMilli: 50_000, name: "a splash", named: true },
+    { qtyMilli: 15_000, name: "a spoon", named: true },
   ],
   mass: [
-    { qtyMilli: 200_000, name: "1 cup" },
-    { qtyMilli: 100_000, name: "½ cup" },
-    { qtyMilli: 20_000, name: "a spoon" },
-    { qtyMilli: 5_000, name: "a teaspoon" },
+    { qtyMilli: 100_000, name: null },
+    { qtyMilli: 250_000, name: null },
+    { qtyMilli: 500_000, name: "½ kg" },
   ],
   count: [
     { qtyMilli: 1_000, name: null },
@@ -58,9 +80,8 @@ export const KITCHEN_MEASURES: Record<Dimension, readonly KitchenMeasure[]> = {
     { qtyMilli: 3_000, name: null },
   ],
   pack: [
-    { qtyMilli: 1_000, name: null },
     { qtyMilli: 500, name: "½ pack" },
-    { qtyMilli: 2_000, name: null },
+    { qtyMilli: 1_000, name: null },
   ],
 };
 
@@ -72,12 +93,12 @@ export function qtyText(qtyMilli: number, dimension: Dimension): string {
   return formatQuantity(qtyMilli, dimension);
 }
 
-/** A measure's name for an amount ("1 glass" for 250 ml), or null when it is not one. */
+/** A built-in amount's name ("1 glass" for 250 ml), or null when it is not one. */
 export function measureName(qtyMilli: number, dimension: Dimension): string | null {
   return KITCHEN_MEASURES[dimension].find((m) => m.qtyMilli === qtyMilli)?.name ?? null;
 }
 
-/** An amount inside a sentence: its measure's name ("1 glass", "a splash"), else the amount ("200 ml", "2 pcs"). */
+/** An amount inside a sentence: its built-in name ("1 glass", "a splash"), else the amount ("200 ml", "2 pcs"). */
 export function amountWords(qtyMilli: number, dimension: Dimension): string {
   return measureName(qtyMilli, dimension) ?? qtyText(qtyMilli, dimension);
 }
@@ -86,7 +107,7 @@ export interface AmountPreset {
   /** The amount in thousandths, or "rest" for everything left. */
   id: string;
   qtyMilli: number;
-  /** The tile's title: "1 glass", "A splash", "2 pcs", "The rest", "All". */
+  /** The tile's title: "1 glass", "A splash", "2 pcs", "The rest". */
   label: string;
   /** The amount the title stands for: "250 ml", "7 pcs", "1 L". */
   amount: string;
@@ -98,12 +119,16 @@ export interface AmountPreset {
   rest: boolean;
 }
 
+/** "The rest": everything that is left, whatever is counted. */
+export const REST_LABEL = "The rest";
+
 /**
- * The four amount tiles for an item: the person's usual amount first (when
- * it fits what is left), then the dimension's measures that are less than
- * what is left, then everything left ("The rest"; "All" for things you
- * count). A usual of exactly what is left marks "The rest" as the usual; a
- * usual of more than is left is not offered.
+ * The four amount tiles for an item by its dimension alone (Home's one-tap
+ * use): the person's usual amount first (when it fits what is left), then
+ * the dimension's amounts that are less than what is left, then everything
+ * left ("The rest"). A usual of exactly what is left marks "The rest" as the
+ * usual; a usual of more than is left is not offered. The Use screen's tiles,
+ * which know the item's own measures, are `useTiles`.
  */
 export function amountPresets(
   item: Pick<KitchenItem, "dimension" | "qtyLeftMilli">,
@@ -125,21 +150,226 @@ export function amountPresets(
     out.push(tile(m.qtyMilli, false));
   }
   const all = qtyText(left, dimension);
-  out.push({
-    id: "rest",
-    qtyMilli: left,
-    label: dimension === "count" || dimension === "pack" ? "All" : "The rest",
-    amount: all,
-    words: all,
-    usual: usual === left,
-    rest: true,
-  });
+  out.push({ id: "rest", qtyMilli: left, label: REST_LABEL, amount: all, words: all, usual: usual === left, rest: true });
   return out;
 }
 
 /** The tile chosen to start with: your usual, else the first. */
 export function defaultPreset(presets: readonly AmountPreset[]): AmountPreset | null {
   return presets.find((p) => p.usual) ?? presets[0] ?? null;
+}
+
+// ── The Use screen's tiles (SM-14) ────────────────────────────────
+
+type TileItem = Pick<KitchenItem, "dimension" | "qtyLeftMilli" | "qtyBoughtMilli" | "priceMinor" | "worthMinor" | "currency" | "displayUnit"> & {
+  measures?: readonly KitchenMeasure[] | undefined;
+};
+
+export interface UseTile {
+  id: string;
+  /** What it takes: a count of one of the item's measures, or an amount in its unit. */
+  amount: UseAmount;
+  /** The tile's title: "1 onion", "100 g", "1 glass", "The rest". */
+  label: string;
+  /** Inside a sentence (the button, the toast): "1 onion", "100 g", "1 glass", "the rest". */
+  words: string;
+  /** Under the title: "≈ 150 g · ₹6.00", "₹4.00", "250 ml · ₹17.00", "600 g · ₹24.00". */
+  sub: string;
+  /** Your usual (marked, and chosen first). */
+  usual: boolean;
+  /** Everything that is left. */
+  rest: boolean;
+}
+
+/** An amount's identity: the same count of the same measure, or the same amount in the unit. */
+export function amountKey(a: UseAmount): string {
+  return a.kind === "measure" ? `m:${a.measure.one.toLowerCase()}:${a.quantity}` : `u:${a.qtyMilli}`;
+}
+
+/** What an amount costs, by the engine, in the item's currency. */
+function costText(item: TileItem, qtyMilli: number): string {
+  return formatMinor(amountCost(item, qtyMilli), item.currency);
+}
+
+/** Under a measure's count: "≈ 150 g · ₹6.00" for a weight or volume, "12 pcs · ₹x" counted, the price alone for slices of a pack. */
+export function measureSub(item: TileItem, qtyMilli: number): string {
+  const cost = costText(item, qtyMilli);
+  if (item.dimension === "pack") return cost;
+  const amount = qtyText(qtyMilli, item.dimension);
+  return isApprox(item.dimension) ? `≈ ${amount} · ${cost}` : `${amount} · ${cost}`;
+}
+
+function measureTile(item: TileItem, a: Extract<UseAmount, { kind: "measure" }>, usual: boolean): UseTile {
+  return { id: amountKey(a), amount: a, label: a.label, words: a.label, sub: measureSub(item, a.qtyMilli), usual, rest: false };
+}
+
+function unitTile(item: TileItem, qtyMilli: number, usual: boolean): UseTile {
+  const built = KITCHEN_MEASURES[item.dimension].find((m) => m.qtyMilli === qtyMilli);
+  const words = amountWords(qtyMilli, item.dimension);
+  const cost = costText(item, qtyMilli);
+  const amount: UseAmount = { kind: "unit", qtyMilli };
+  return {
+    id: amountKey(amount),
+    amount,
+    label: capitalize(words),
+    words,
+    sub: built?.named ? `${qtyText(qtyMilli, item.dimension)} · ${cost}` : cost,
+    usual,
+    rest: false,
+  };
+}
+
+/**
+ * The Use screen's tiles for an item (a 2×2 grid): your usual first (in its
+ * measure when its words still name one: "2 onions"), then 1 and 2 of the
+ * item's first measure, then plain amounts in its own unit — weights, the
+ * built-in glass and splash, pieces, half a pack — only those under what is
+ * left (largest first beside a measure, which covers the small ones), and
+ * "The rest", which always takes exactly what is left. An item that could be
+ * counted another way and isn't yet keeps a slot for the "Count in onions"
+ * tile (`askable`). Every amount is what the server takes
+ * (`measureTakeMilli`) and costs what the engine charges.
+ */
+export function useTiles(item: TileItem, usual: Pick<KitchenUsual, "lastQtyMilli" | "lastLabel"> | null = null): UseTile[] {
+  const left = item.qtyLeftMilli;
+  if (left <= 0) return [];
+  const slots = (askable(item) ? MAX_PRESETS - 1 : MAX_PRESETS) - 1;
+  const out: UseTile[] = [];
+  const taken = (a: UseAmount) => out.some((t) => amountKey(t.amount) === amountKey(a) || (a.kind === "unit" && t.amount.kind === "unit" && t.amount.qtyMilli === a.qtyMilli));
+  const mine = usualAmount(usual, item);
+  const usualIsRest = mine !== null && mine.qtyMilli >= left;
+  if (mine && !usualIsRest) out.push(mine.kind === "measure" ? measureTile(item, mine, true) : unitTile(item, mine.qtyMilli, true));
+  const first = measuresOf(item)[0];
+  if (first) {
+    for (const quantity of [1, 2]) {
+      if (out.length >= slots) break;
+      const a = measureAmount(item, first, quantity);
+      if (!a || a.qtyMilli >= left || taken(a)) continue;
+      out.push(measureTile(item, a, false));
+    }
+  }
+  const plain = KITCHEN_MEASURES[item.dimension].filter((m) => m.qtyMilli < left);
+  for (const m of first ? [...plain].reverse() : plain) {
+    if (out.length >= slots) break;
+    const a: UseAmount = { kind: "unit", qtyMilli: m.qtyMilli };
+    if (taken(a)) continue;
+    out.push(unitTile(item, m.qtyMilli, false));
+  }
+  const rest: UseAmount = { kind: "unit", qtyMilli: left };
+  out.push({
+    id: "rest",
+    amount: rest,
+    label: REST_LABEL,
+    words: "the rest",
+    sub: `${qtyText(left, item.dimension)} · ${costText(item, left)}`,
+    usual: usualIsRest,
+    rest: true,
+  });
+  return out;
+}
+
+/** The tile chosen to start with: your usual, else the first. */
+export function defaultTile(tiles: readonly UseTile[]): UseTile | null {
+  return tiles.find((t) => t.usual) ?? tiles[0] ?? null;
+}
+
+/** What is left, with the item's measure beside it: "600 g left · ≈ 4 onions", "1 pack left · 20 slices". */
+export function leftWithMeasure(item: Pick<KitchenItem, "qtyLeftMilli" | "dimension" | "displayUnit"> & { measures?: readonly KitchenMeasure[] | undefined }): string {
+  const counted = leftInMeasure(item);
+  return counted ? `${leftText(item)} left · ${counted}` : `${leftText(item)} left`;
+}
+
+// ── Another amount: a stepper, in the measure or the unit ─────────
+
+export interface OtherAmount {
+  /** Counting in the item's first measure, or in its unit (g, ml, pcs, pack). */
+  side: "measure" | "unit";
+  /** The count, on the measure's side (halves). */
+  quantity: number;
+  /** Thousandths of the unit, on the unit's side. */
+  qtyMilli: number;
+}
+
+/** The switch's two sides: [onions | g]; just the unit without a measure. */
+export function otherSides(item: TileItem): { measure: KitchenMeasure | null; unit: string } {
+  return { measure: measuresOf(item)[0] ?? null, unit: amountStep(item).unit };
+}
+
+/** "onions or g", "in g": what Another amount counts in, before it is opened. */
+export function otherHint(item: TileItem): string {
+  const { measure, unit } = otherSides(item);
+  return measure ? `${measure.many} or ${unit}` : `in ${unit}`;
+}
+
+/** Another amount opens on the chosen tile's amount, in the measure when the item has one. */
+export function otherStart(item: TileItem, from: UseAmount | null): OtherAmount {
+  const { measure } = otherSides(item);
+  const qtyMilli = from ? Math.min(from.qtyMilli, item.qtyLeftMilli) : initialAmount(item);
+  if (measure) {
+    const max = maxCount(item, measure);
+    if (max > 0) {
+      const quantity = from?.kind === "measure" && from.measure.one === measure.one ? from.quantity : nearestCount(qtyMilli, measure, max);
+      return { side: "measure", quantity, qtyMilli };
+    }
+  }
+  return { side: "unit", quantity: 0, qtyMilli };
+}
+
+/** One step of Another amount: a whole one of the measure (½ below one), or a step of the unit (50 g, 1 pc). */
+export function otherStep(item: TileItem, state: OtherAmount, delta: 1 | -1): OtherAmount {
+  const { measure } = otherSides(item);
+  if (state.side === "measure" && measure) {
+    const next = stepCount(state.quantity, delta, maxCount(item, measure));
+    return { ...state, quantity: next > 0 ? next : state.quantity };
+  }
+  return { ...state, qtyMilli: stepAmount(state.qtyMilli, delta, item) };
+}
+
+/** The switch, flipped: the same amount, as near as the other side counts it. */
+export function otherSwitch(item: TileItem, state: OtherAmount, side: OtherAmount["side"]): OtherAmount {
+  const { measure } = otherSides(item);
+  if (side === state.side || (side === "measure" && !measure)) return state;
+  if (side === "measure" && measure) {
+    const max = maxCount(item, measure);
+    if (max <= 0) return state;
+    return { side, quantity: nearestCount(state.qtyMilli, measure, max), qtyMilli: state.qtyMilli };
+  }
+  const taken = measure ? (takeOf(item, measure, state.quantity) ?? item.qtyLeftMilli) : state.qtyMilli;
+  const { stepMilli } = amountStep(item);
+  const snapped = Math.min(Math.max(Math.round(taken / stepMilli) * stepMilli, Math.min(stepMilli, item.qtyLeftMilli)), item.qtyLeftMilli);
+  return { side, quantity: state.quantity, qtyMilli: snapped };
+}
+
+/** Another amount as an amount to log; null when it doesn't fit. */
+export function otherAmount(item: TileItem, state: OtherAmount): UseAmount | null {
+  const { measure } = otherSides(item);
+  if (state.side === "measure" && measure) return measureAmount(item, measure, state.quantity);
+  return state.qtyMilli > 0 && state.qtyMilli <= item.qtyLeftMilli ? { kind: "unit", qtyMilli: state.qtyMilli } : null;
+}
+
+/** The line under Another amount: the other side and the price — "≈ 450 g · ₹18.00", "≈ 3 onions · ₹18.00", "₹18.00". */
+export function otherLine(item: TileItem, amount: UseAmount | null): string {
+  if (!amount) return "";
+  if (amount.kind === "measure") return measureSub(item, amount.qtyMilli);
+  const cost = costText(item, amount.qtyMilli);
+  const { measure } = otherSides(item);
+  if (!measure) return cost;
+  const n = inMeasure(amount.qtyMilli, measure);
+  if (n <= 0) return cost;
+  return `${isApprox(item.dimension) ? "≈ " : ""}${measureLabel(n, measure)} · ${cost}`;
+}
+
+/** What someone typed into Another amount: a count of the measure ("2", "1½") or an amount in the unit, at most what is left. */
+export function parseOther(item: TileItem, side: OtherAmount["side"], text: string): { ok: true; state: OtherAmount } | { ok: false; message: string } {
+  const { measure } = otherSides(item);
+  if (side === "measure" && measure) {
+    const n = parseCount(text);
+    if (n === null) return { ok: false, message: "Enter a number like 2 or 1.5" };
+    if (n > maxCount(item, measure)) return { ok: false, message: `Only ${leftInMeasure(item) ?? leftText(item)} left` };
+    return { ok: true, state: { side, quantity: n, qtyMilli: takeOf(item, measure, n) ?? 0 } };
+  }
+  const parsed = parseAmount(text, item);
+  return parsed.ok ? { ok: true, state: { side: "unit", quantity: 0, qtyMilli: parsed.milli } } : parsed;
 }
 
 // ── Who had it ────────────────────────────────────────────────────
@@ -183,19 +413,23 @@ export function quickLogLabel(input: {
 }
 
 /**
- * The request for a quick use: the item page's (`logRequest`, in the item's
- * base unit) with who had it in the order sent — you first, then the group's
- * order — so the preview's odd paisa lands where the server's does. Your own
- * pantry's item names nobody.
+ * The request for a quick use: the item page's (`logRequest`) with who had
+ * it in the order sent — you first, then the group's order — so the
+ * preview's odd paisa lands where the server's does. An amount in one of the
+ * item's measures goes as `{ quantity, measure }` ("2" onions), any other in
+ * the item's base unit (`{ quantity, unit }`). Your own pantry's item names
+ * nobody.
  */
 export function quickUseRequest(
   item: Pick<KitchenItem, "dimension" | "pantry">,
-  qtyMilli: number,
+  amount: UseAmount | number,
   chosen: Iterable<string>,
   roster: readonly string[],
   meId: string | null,
 ): UseGroupItemRequest | UsePersonalItemRequest {
-  return logRequest(item, qtyMilli, item.pantry.kind === "personal" ? [] : orderConsumers(chosen, roster, meId));
+  const a: UseAmount = typeof amount === "number" ? { kind: "unit", qtyMilli: amount } : amount;
+  const consumers = item.pantry.kind === "personal" ? [] : orderConsumers(chosen, roster, meId);
+  return logRequest(item, a.qtyMilli, consumers, a.kind === "measure" ? { measure: a.measure, quantity: a.quantity } : null);
 }
 
 // ── Picking the item: the strip and search ────────────────────────
@@ -238,7 +472,7 @@ export function usualCard(usual: KitchenUsual): PickCard | null {
     ref: usualRef(usual),
     name: usual.name,
     pantry: pantryLabel(usual.pantry),
-    sub: `Usually ${amountWords(usual.lastQtyMilli, dimension)}`,
+    sub: `Usually ${usual.lastLabel ?? amountWords(usual.lastQtyMilli, dimension)}`,
     meta: `${qtyText(usual.qtyLeftMilli, dimension)} left`,
     item: null,
   };
@@ -290,8 +524,10 @@ export interface DoItAgainRow {
   /** The whole row for a screen reader: "Log 1 glass of Milk for you and Anu in Flat 4B, ₹17.00". */
   label: string;
   qtyMilli: number;
-  /** The amount in words, for the toast: "1 glass". */
+  /** The amount in words, for the toast: "1 glass", "2 onions". */
   words: string;
+  /** Given in one of the item's measures (its words name it): logged in it again. */
+  measure: { measure: KitchenMeasure; quantity: number } | null;
   /** Who had it, in the order sent (empty for your own pantry). */
   consumers: string[];
   /** The item as read now; the row logs only once it is known. */
@@ -321,15 +557,20 @@ export function doItAgainRows(
     if (item === null) continue;
     if (item && (item.state !== "active" || item.pantry.kind !== usual.pantry.kind)) continue;
     const left = item ? item.qtyLeftMilli : usual.qtyLeftMilli;
-    if (usual.lastQtyMilli > left) continue;
+    // Given in a measure last time ("2 onions"): again in it, taking what it takes now.
+    const said = parseLabel(usual.lastLabel, measuresOf(item ?? usual));
+    const counted = said && item ? measureAmount(item, said.measure, said.quantity) : null;
+    if (said && item && !counted) continue;
+    const qtyMilli = counted ? counted.qtyMilli : usual.lastQtyMilli;
+    if (qtyMilli > left) continue;
     const dimension = item?.dimension ?? dimensionOf(usual.lastUnit);
-    const words = amountWords(usual.lastQtyMilli, dimension);
+    const words = said ? measureLabel(said.quantity, said.measure) : amountWords(usual.lastQtyMilli, dimension);
     const personal = usual.pantry.kind === "personal";
     const pantry = pantryLabel(usual.pantry);
     const people = usual.consumers.length > 0 ? usual.consumers : ctx.meId ? [ctx.meId] : [];
     const consumers = personal ? [] : orderConsumers(people, [], ctx.meId);
     const who = personal ? null : consumersText(consumers, ctx.meId, ctx.names);
-    const cost = item ? formatMinor(amountCost(item, usual.lastQtyMilli), item.currency) : null;
+    const cost = item ? formatMinor(amountCost(item, qtyMilli), item.currency) : null;
     const name = item?.name ?? usual.name;
     const sentence = personal ? `Log ${words} of ${name} from your pantry` : `Log ${words} of ${name} for ${who} in ${pantry}`;
     out.push({
@@ -339,8 +580,9 @@ export function doItAgainRows(
       meta: [pantry, who].filter(Boolean).join(" · "),
       cost,
       label: cost ? `${sentence}, ${cost}` : sentence,
-      qtyMilli: usual.lastQtyMilli,
+      qtyMilli,
       words,
+      measure: counted ? { measure: counted.measure, quantity: counted.quantity } : null,
       consumers,
       item: item ?? null,
     });

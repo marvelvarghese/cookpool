@@ -241,8 +241,8 @@ describe("history", () => {
     ];
     const rows = historyRows(moves, { item, meId: ME, names: NAMES, now });
     expect(rows.map((r) => [r.what, r.amount])).toEqual([
-      ["You and Dev used 100 g", "₹4.00"],
-      ["Dev used 200 g · logged by Anu", "₹8.00"],
+      ["You and Dev · 100 g", "₹4.00"],
+      ["Dev · 200 g · logged by Anu", "₹8.00"],
       ["Meera marked 50 g wasted", "₹2.00"],
       ["Anu added 1 kg", "₹40.00"],
     ]);
@@ -257,9 +257,26 @@ describe("history", () => {
     const rows = historyRows([back, use], { item: bought, meId: ME, names: NAMES, now });
     expect(rows.map((r) => [r.what, r.undone, r.amount])).toEqual([
       ["You undid a use: 100 g back", false, null],
-      ["You used 100 g", true, "₹4.00"],
+      ["You · 100 g", true, "₹4.00"],
       ["You added 1 kg · Anu paid", false, "₹40.00"],
     ]);
+  });
+
+  it("reads a use given in a measure by its words, the amount it took under them (SM-14)", () => {
+    const onions = makeItem({ name: "Onions", unit: "kg", bought: "1", priceMinor: 4000, paidBy: MEERA, createdBy: MEERA });
+    const moves = [
+      makeMove({ kind: "use", consumers: [ANU], actor: ANU, qtyMilli: 300_000, quantity: 0.3, unit: "kg", label: "2 onions", costMinor: 1200, at: "2026-11-02T08:00:00.000Z" }),
+      makeMove({ kind: "use", consumers: [DEV], actor: DEV, qtyMilli: 100_000, costMinor: 400, label: null, at: "2026-11-02T07:00:00.000Z" }),
+      makeMove({ kind: "dish", actor: ME, qtyMilli: 450_000, unit: "kg", label: "3 onions", costMinor: 1800, consumers: null, at: "2026-11-02T06:00:00.000Z" }),
+    ];
+    const rows = historyRows(moves, { item: onions, meId: ME, names: NAMES, now });
+    expect(rows.slice(0, 3).map((r) => [r.what, r.when, r.amount])).toEqual([
+      ["Anu · 2 onions", "300 g · 2 h ago", "₹12.00"],
+      ["Dev · 100 g", "3 h ago", "₹4.00"],
+      ["You cooked with 3 onions", "450 g · 4 h ago", "₹18.00"],
+    ]);
+    const back = makeMove({ kind: "reversal", actor: ANU, reverses: moves[0]!.id, label: "2 onions", qtyMilli: 300_000, unit: "kg", costMinor: 0, consumers: null });
+    expect(historyRows([back, moves[0]!], { item: onions, meId: ME, names: NAMES, now })[0]!.what).toBe("Anu undid a use: 2 onions back");
   });
 
   it("tells a move from your pantry, and never shows a raw id", () => {
@@ -345,26 +362,26 @@ describe("the shares never show a raw id", () => {
 describe("what a logged use says, and a refused one (shared with quick use, CP-13)", () => {
   const milk = () => makeItem({ name: "Milk", unit: "L", bought: "1", left: "1", priceMinor: 6800, paidBy: MEERA });
 
-  it("names the pantry from quick use: 'Logged 1 glass of Milk for you and Anu in Flat 4B.'", () => {
-    const t = loggedText({ item: milk(), what: "1 glass", consumers: [ME, ANU], meId: ME, names: NAMES, txnTotalMinor: 1700, costMinor: 1700, inPantry: true });
-    expect(t.title).toBe("Logged 1 glass of Milk for you and Anu in Flat 4B.");
-    expect(t.description).toBe(`${formatMinor(1700)} — it nets with everything else at settle-up.`);
+  it("is one line: what and what it cost, for just you (SM-14)", () => {
+    expect(loggedText({ item: milk(), what: "1 glass", consumers: [ME], meId: ME, names: NAMES, costMinor: 1700 })).toBe(`Logged 1 glass · ${formatMinor(1700)}`);
+    const onions = makeItem({ name: "Onions", unit: "kg", bought: "1", priceMinor: 4000, paidBy: MEERA });
+    expect(loggedText({ item: onions, what: "2 onions", consumers: [ME], meId: ME, names: NAMES, costMinor: 1200 })).toBe(`Logged 2 onions · ${formatMinor(1200)}`);
   });
 
-  it("keeps the item page's words there", () => {
-    const t = loggedText({ item: milk(), what: "100 ml", consumers: [ME, DEV], meId: ME, names: NAMES, txnTotalMinor: 680, costMinor: 680 });
-    expect(t.title).toBe("Logged 100 ml of Milk for you and Dev");
-    expect(t.description).toBe(`${formatMinor(680)} in Flat 4B. It nets with everything else at settle-up.`);
+  it("names who, and what each owes, by the engine's split — 'You + Anu · 1 glass · ₹8.50 each'", () => {
+    expect(loggedText({ item: milk(), what: "1 glass", consumers: [ANU, ME], meId: ME, names: NAMES, costMinor: 1700 })).toBe(
+      `You + Anu · 1 glass · ${formatMinor(850)} each`,
+    );
+    // A paisa that does not divide: "≈ … each".
+    expect(loggedText({ item: milk(), what: "100 g", consumers: [ME, ANU, DEV], meId: ME, names: NAMES, costMinor: 1000 })).toBe(
+      `You + Anu + Dev · 100 g · ≈ ${formatMinor(333)} each`,
+    );
+    expect(loggedText({ item: milk(), what: "1 glass", consumers: [MEERA], meId: ME, names: NAMES, costMinor: 1700 })).toBe(`Meera · 1 glass · ${formatMinor(1700)}`);
   });
 
-  it("says nobody owes anyone when the buyer had it, or for your own pantry", () => {
-    const own = loggedText({ item: milk(), what: "1 glass", consumers: [MEERA], meId: ME, names: NAMES, txnTotalMinor: null, costMinor: 1700, inPantry: true });
-    expect(own.title).toBe("Logged 1 glass of Milk for Meera in Flat 4B.");
-    expect(own.description).toBe(`${formatMinor(1700)} — Meera paid for it, so nobody owes anyone.`);
+  it("is the same one line for your own pantry, whoever is named", () => {
     const eggs = makeItem({ name: "Eggs", pantry: PERSONAL_REF, unit: "pcs", bought: "12", left: "7", priceMinor: 8400, paidBy: ME });
-    const personal = loggedText({ item: eggs, what: "2 pcs", consumers: [], meId: ME, txnTotalMinor: null, costMinor: 1400, inPantry: true });
-    expect(personal).toEqual({ title: "Logged 2 pcs of Eggs from your pantry.", description: "From your own pantry: nobody owes anyone." });
-    expect(loggedText({ item: eggs, what: "2 pcs", consumers: [], meId: ME, txnTotalMinor: null, costMinor: 1400 }).title).toBe("Logged 2 pcs of Eggs");
+    expect(loggedText({ item: eggs, what: "2 pcs", consumers: [ME, ANU], meId: ME, costMinor: 1400 })).toBe(`Logged 2 pcs · ${formatMinor(1400)}`);
   });
 
   it("explains a refusal in words, and who comes off the use", () => {

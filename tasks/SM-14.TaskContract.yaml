@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-14
+  title: "Your measures, in the app"
+spec:
+  goal: Use, the item page and Cook offer each item's own measures, ask for one once when someone wants it, and say what was used in those words.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-14.TaskContract.yaml
+  doneWhen:
+    - Use offers 1 onion and 2 onions for onions bought by the kilo once a size is saved, and asks for it once from a Count in onions tile
+    - the item page lists and changes measures, and its uses read 2 onions
+    - Cook steps an ingredient in its measure or its unit
+  gates: []
