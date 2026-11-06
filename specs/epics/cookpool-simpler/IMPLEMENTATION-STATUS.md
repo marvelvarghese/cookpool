@@ -7,9 +7,10 @@ the code departed from `design.md`.
 |---|---|---|
 | SM0 — the spec | ✅ shipped 2026-11-04 | #36 (SM-1) |
 | SM1 — fast | ✅ shipped 2026-11-04 | #37 (SM-3), #38 (SM-2), #41 (SM-4), #43 (SM-5) |
-| SM2 — for anyone | ✅ shipped 2026-11-05 | #39 (SM-6), SM-7 |
+| SM2 — for anyone | ✅ shipped 2026-11-05 | #39 (SM-6), #44 (SM-7) |
 | SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), #42 (SM-9) |
-| SM4 — simpler screens | | |
+| SM6 — your measures | in progress | #46 (SM-13), SM-14 |
+| SM4 — simpler screens | ✅ shipped 2026-11-05 | SM-10 (Use is rebuilt in SM-14) |
 | SM5 — the rest | | |
 
 ## Departures from the design
@@ -631,3 +632,285 @@ owner's machine (kept-alive connection, 10 GETs each, p75):
   the toast says they are not in the group any more. SM-6's suggested fix
   (allow 0 for a person who still holds a share) would let it go to 0.
   Nothing to redeploy beyond the console: only web-console-next changed.
+
+### SM6 — your measures, in the server (SM-13)
+
+- **Routes as built.** `PUT /v1/organizations/{org}/kitchen/items/{itm}/measures`
+  (`kitchen.item.use`, no new policy action) and
+  `PUT /v1/kitchen/me/items/{itm}/measures` (the pantry's owner), body
+  `{ measures: [{ one, many, count, amountMilli }] }`, 0–3 entries, answer
+  200 `{ measures: [{ id: "msr_…", one, many, count, amountMilli }] }` in
+  order (kitchen-worker `handlers/measures.ts`, `measures.ts`). Order of
+  refusals: the opaque 404 (a viewer, someone outside the group, another
+  pantry's item, a malformed id), 422 `validation_failed` with field errors
+  (`measures`, `measures[1].one` …). The words are trimmed, 1–24 characters,
+  each `one` once case-insensitively; `count` and `amountMilli` are positive
+  safe integers. SDK: `kitchen.setMeasures(scope, itemId, measures)`, where
+  `scope` is `{ kind: "personal" }` or `{ kind: "group", orgId }` — an item's
+  `pantry`, or the app's item ref, fits as is (contracts `ItemScope`).
+- **Also refused: `amountMilli` below `count`.** Not in the design. A measure
+  smaller than a thousandth of the unit would make half of one round to
+  nothing, a use that takes no stock. Every real size passes (a grain of rice
+  ≈ 0.02 g is `count` 1, `amountMilli` 20).
+- **Replacing keeps what stays.** One batch: the words the name no longer has
+  are deleted and the rest upserted on the table's unique
+  (`owner_kind, owner_id, name_key, dimension, one`), so a word kept keeps its
+  `msr_` id and `created_by`/`created_at`, and every row written records the
+  caller in `updated_by`. The unique is case-sensitive: changing "Onion" to
+  "onion" is a new measure. Last writer wins between two people saving at
+  once (each batch leaves exactly its set). No audit event: a size moves no
+  money (like a portion, SM-6); the row says who set it, and a use's audit
+  payload now carries its `label`.
+- **The name key is SQLite's.** `name_key` is written and looked up as
+  `lower(trim(name))` in SQL on both sides, so it folds exactly as the pantry
+  search and the history reads do (ASCII letters) and can never disagree with
+  itself. The `measure` a use names is matched against `one` in the worker,
+  case-insensitively (any letters). Owner: `owner_kind` user with the
+  person's `usr_…`, or group with the group's UUID, as `kitchen_items` keys
+  its pantry.
+- **One statement for many items.** `repo.listMeasures(keys)` binds every
+  (pantry, name, dimension) as one JSON parameter and answers one list per
+  key; the worker folds items sharing a key into one. The lookup goes through
+  `kitchen_measures_lookup_idx` (pantry, name, dimension, position), so it
+  also comes back in order; tests/db pins the plan. Both the table's unique
+  index and this one exist: the second is the one that gives the order.
+- **Every item answer carries `measures`**, not only the reads: a pantry's
+  list, every pantry (`/me/items`, `usable=1`), search, one item (both
+  scopes), and every write that answers an item — add, edit, remove, use,
+  waste, undo, transfer (a moved item reads the group's measures for its
+  name). The settings and the measures are read side by side, so a group's
+  list is three statements however many items (items, settings, measures),
+  an item three in a group and two in a personal pantry, usuals two —
+  tests/kitchen-worker counts them with two items and with twenty-seven. A
+  write that answers an item reads the measures once more after it commits (a
+  use in a measure has them already from its plan); a failed read there is a 503, as
+  the other reads after a commit are, and the Idempotency-Key replays the
+  write. Usuals carry `measures` and the last use's words, `lastLabel` (not in
+  the brief: "Do it again" can show "1½ onions").
+- **Not on these reads:** `itemHistory` and `recipes` (SM-8), as the brief
+  says. Design §6.1 lists "history" among the reads; the item's own history
+  (its moves) carries `label`. A recipe's ingredient still reads in the
+  item's unit (300 g, not "2 onions"), and Home's use-soon card's usual
+  amount has no words either. Follow-ups if SM-14 wants them.
+- **How much a use in a measure takes** (contracts `measureTakeMilli`,
+  shared with the app): round(quantity × amountMilli ÷ count) thousandths,
+  halves up — then exactly a unit use's path: the stock guard, 409
+  `insufficient_stock` (nothing written), cost = the engine's `costOfUse` of
+  that amount, the ledger. One addition so "16 uses of 1 slice" cost exactly
+  the pack: a sixteenth of 1 000 milli-pack is 62.5, so each slice takes 63,
+  and the 16th would ask 63 of the 55 left. A use in a measure that comes
+  within rounding of what is left takes exactly what is left; then the
+  engine's last-use rule charges exactly what is left of the price. "Within
+  rounding" is ½ a thousandth per half-measure the item held (rounded up),
+  never more than a quarter of the measure: 15 milli-pack for the bread,
+  7 milli-g (0.007 g) for a kilo of onions. So it only ever absorbs rounding;
+  "1 onion" with 100 g left is still refused, and "The rest" (in the unit)
+  takes it. The money path is untouched: the measure only chooses
+  `qtyMilli`, and the tests compare each cost with `costOfUse` for that
+  amount and the sum of a used-up pack's uses with its price.
+- **The words.** `measureLabel`: "½ onion", "1 onion", "1½ onions",
+  "2 onions" — `one` up to 1, `many` above. `quantity` in a measure is a
+  positive multiple of ½ up to 10 000 (the label then fits the column's 64).
+  A use in a measure stores the item's own unit and the amount in it
+  (`unit`, `quantity`, `qtyMilli`), with `label` beside it. The group use's
+  title reads "Onions (2 onions)", the dish's charge "Onion curry: Onions
+  (2 onions)", the logged-for-you email "2 onions of Onions", the audit
+  description the same words. A reversal (a ledger reversal, an undo, a
+  canceled dish) copies the label of the move it puts back.
+- **A dish ingredient in a measure:** `CookIngredientRequest.measure`
+  (exclusive with `unit`; field errors under `ingredients[i].measure` /
+  `.quantity`), stored on the ingredient row and its `dish` move; the cook
+  reads the items' measures in one more statement, only when an ingredient
+  names one. Over the stock: 409 `insufficient_stock` with `itemId`, as
+  before. `CookNewItemRequest` is unchanged. Waste takes no measure (the
+  design does not ask for one).
+- **The new response fields are optional in the contract types**
+  (`KitchenItem.measures?`, `KitchenStockMove.label?`,
+  `KitchenDishIngredient.label?`, `KitchenUsual.lastLabel?` and
+  `measures?`), as SM-6 did with `setBy`: web-console-next and
+  tests/web-console-next build these literals (the optimistic `pendingMove`)
+  and are outside this task. Every answer sends them. SM-14 can make them
+  required when it touches those files.
+- **The arithmetic lives in `packages/contracts`** (`findMeasure`,
+  `measureLabel`, `measureTakeMilli`, `inMeasure` — what is left in a
+  measure, to the half), next to the types, so the app shows the same words
+  and amounts the server writes. `packages/kitchen-engine` is outside this
+  task's contract; moving them there is a follow-up if wanted.
+- **Deploy order.** db-migrate (300) before kitchen-worker is enforced (SM-3).
+  If kitchen-worker went live first, every item read would fail on the
+  missing table (503) until the migration ran. Nothing else to redeploy:
+  kitchen-worker changes in this PR, and no other worker reads measures or
+  labels. The console picks up the SDK and contracts with SM-14.
+
+### SM4 — simpler screens (SM-10)
+
+Home, the + Add sheet, the dish page and the Pantry list, as the canvas's
+"Simpler" row draws them, under design §4's seven rules. Use, the item page,
+Cook, Add item and the desktop pages are SM-14's and SM-11's.
+
+- **Home is one screen.** "Hi, Rahul" (the canvas; the time-of-day greeting
+  and "Your kitchen, across every group." are gone), one money card, "What
+  did you use?" with one row of your usuals under it, at most three to-dos,
+  and two recent rows. At 390×844 with three to-dos (one of them the claim
+  row, the tallest) the whole page fits above the tab bar: see the measures
+  below.
+- **The money line** (`homeMoney`, home.ts): "You get back ₹62.50" big, in
+  the currency most of your groups count in (unless that one is settled and
+  another is not), and "You owe $25.00" under it for each other currency
+  with money open — never added across currencies. The card opens People.
+  **Each debt shows once:** the card lists no people and has no Settle up
+  (People has both); a payment you owe is a to-do ("Pay Dev · $25.00 ·
+  Paid"); "By group" is gone (the Groups tab is that list).
+- **The to-dos** (`homeTodo`/`homeTodos`, inbox.ts; `HomeTodoList`,
+  inbox-ui.tsx): one row each — a word or two and one line of numbers
+  ("Egg fried rice / Meera · ₹31.20 each", "Greek yogurt / Expired", "Aloo
+  paratha / 2 of 4 had", "Pay Dev / $25.00") — with its one action at the
+  end of the row and no captions. At most three, in the server's order;
+  "See all 13" opens the rest in place (there is no to-do page), "Show
+  less" folds them. The actions: a dish to say how much you had → the
+  canvas's chips 0 · ½ · 1 · 1½ · 2 (your own portion, SM-7's `useClaimer`);
+  your dish → Finalize in one tap (the preview card "Once you finalize, they
+  owe you" is gone: the one-line toast says who owes what, with Correct it);
+  an assigned dish → Set (its page); food to use soon → its measure ("1
+  cup", "1 glass"), your usual amount for just you, with Undo; a payment →
+  Paid; a flag → Open.
+- **Departure: Paid is two taps, not one.** The canvas's "Paid" records at
+  once; a payment records how it was paid, so Paid opens UPI · Cash · Bank
+  (and ×) under the row, without the old sentence about where the money
+  moves, and the pick records it with Undo (SM-5). A viewer's payment row
+  has no button (no sentence either).
+- **Departure: usuals, not "Use soon", under the search.** The canvas draws
+  a row of use-soon chips there; the brief's "one quick-log row of usuals,
+  not three places" wins. The row is + Add's old "Do it again"
+  (`doItAgainRows`, unchanged in quick-use.ts): each chip says what —
+  "Milk · 1 glass" — and, when it is not just you, the faces of who it is
+  for (design rule 4: a one-tap that charges Anu shows Anu); a tap logs it
+  again with the Undo toast. It scrolls sideways without a scrollbar
+  (`.scrollbar-none`, globals.css). Home's "Use soon" strip is gone: what is
+  due soon is a to-do, and Pantry's Soon chip lists the rest.
+- **Recent is two rows** (`RECENT_ROWS`), each one title, "Flat 4B · Dev ·
+  yesterday" and your part; the total only when you are not in it. **A
+  payment shows the money that moved** (`paymentAsCash`): "Anu paid you ·
+  UPI" is +₹400.00 in blue (it was −₹400.00 in orange, the audit's bug),
+  one you paid is −. On Home only: a group's activity feed is SM-11's and
+  still shows what an entry did to your balance.
+- **+ Add is the four tiles and nothing else** (nav.ts `ADD_TILES`): the
+  canvas's Used · Cooked · Bought · Paid a bill, under "Add" — no subtitle,
+  no captions, no "Do it again" (Home's row and Use's recents), and none of
+  the canvas's "Pay back" / "Invite" buttons (the brief: the four actions
+  only; People and the group page have them). `ADD_SECONDARY` and the tiles'
+  `hint`/`live` (every tile shipped long ago) are gone. **The title and ×
+  never scroll away:** the sheet itself does not scroll, only the part under
+  its title (the group picker can be long). The tab bar's + Add is the
+  primary green, not tomato (one primary colour; the sidebar's "Cook a
+  dish" too).
+- **The dish page** (canvas "Simpler — Dish"): an icon back (named "Back to
+  Flat 4B"), the name, "Meera · ₹31.20 a portion" and **one status word**
+  (`dishStateChip`: Open · Draft · Finalized · Canceled); **one count** —
+  "2 of 5 left" while it is open, "3½ of 4 had" otherwise (`claimCount` says
+  "had" now, not "claimed"/"set") — over a bar of half portions; "Who had
+  some?" as one card, the steppers 44×44 with the + in green; the money; and
+  **one main button** at the end of the page, held above the tab bar while
+  the page is longer than the screen: the cook's Finalize, full width (no
+  "Remind group · SOON" — there are no SOON placeholders on these screens
+  now), or Settle up once it is final, in green (it was black). Everything
+  else is behind **one "…" menu** at the top: for an owner or admin of
+  someone else's dish, Set portions (a draft), Finalize for Meera, Correct
+  it; for the cook, Cancel dish (a confirm dialog; it was a paragraph on the
+  page) and Correct it.
+- **The money in two lines** (`dishMoneySummary`): "Anu and Dev owe Meera
+  ₹93.60 · in Flat 4B" (from your side: "You owe…", "…owe you…") and, when
+  the cook took from others' pantries, "Meera owes ₹49.60 for ingredients"
+  — or your part, "Meera owes you ₹12.00 for ingredients", when it is owed
+  to you. **Departure:** the brief's example ends "· settled in Flat 4B"; it
+  reads as already settled, so it is "· in Flat 4B". Behind **Details**: when
+  and where it was cooked, every ingredient with its pantry and price, the
+  total and a portion's price, who owes the cook, what the cook owes each
+  buyer, and "In the end" per person (`moneyFlow`, now in plain titles:
+  "They owe Meera", "Meera owes, for ingredients" — no "netting", "posted"
+  or "folds"). The cost card (Total · Portions · Each), the "Posted to Flat
+  4B … nothing is overwritten" box, the canceled paragraph, the editing
+  hints ("Set how much everyone had, then finalize."), the "just for you"
+  footnote and the correction's helper line are gone: no sentence sits
+  above the main button.
+- **Leftovers in numbers** (`leftoverNote`): "2 portions left over · to your
+  pantry · ₹105.50", "Rahul kept 2 portions". Shown, as before, only when
+  the dish is not open (while it is open the count says it).
+- **One-line toasts** on these screens: your portion "You · 1 portion ·
+  ₹31.20" (`claimedToast`; it was "Claimed 1 portion of Egg fried rice" over
+  "You had 1 · you'll owe Meera ₹31.20."), "Finalized · Anu and Dev owe you
+  ₹105.50" (`finalizedToast`; no "Posted to"), "Saved who had what",
+  "Corrected …", "Canceled …" without their second lines.
+- **The Pantry list on a phone** (canvas "Simpler — Pantry"): "Pantry" and a
+  round + (Add an item); **one row of chips** — All · Soon · 4 · Expired · 1,
+  then the pantries, Me first (a second tap on a pantry goes back to all);
+  and one list, soonest use-by first, **each item one row**
+  (`pantryListRow`): its name, what is left (never wrapped), one chip only
+  when it is due soon or expired, the pantry's chip on All — the row opens
+  the item — and **Use**: your usual amount ("1 glass") logged for just you
+  in one tap with Undo when you have one that fits, otherwise "Use", which
+  opens Use with the item chosen. Nobody else is charged from a row. Gone on
+  phones: the picker, "15 items · worth …" and its sentence, the folding
+  sections and their meta lines, and each item's price per unit, worth, bar
+  and who paid (the item page has them). From 900px the page is as it was
+  (SM-11), with the filter chips' new words.
+- **Removed with what used them:** `HomeUseSoon`, Home's inbox cards
+  (`NeedsYou`, the finalize preview), `DishClaimStepper`/`DishClaimChoices`,
+  `DishCostCard`, `MoneyFlowCard`, the phone `ItemCard`, `greetingFor`,
+  `byGroupRows`, `finalizePreview`, `inboxItemIds`, `claimText`,
+  `claimChoiceLabel`; their tests went with them or now test what replaced
+  them. Left in place, unused, because SM-14 works in those files:
+  `useUseSoonItems` (pantry-data.ts), `soonStrip`/`HOME_USE_SOON`
+  (pantry.ts).
+- **Not here (other tasks' screens):** the use toast's "… it nets with
+  everything else at settle-up" (`loggedText`, item-use.ts: Use and the item
+  page, SM-14); the payment toast's second line (`useRecordPayment`,
+  settle-card.tsx, Settle's, SM-11); toasts above the sticky bar.
+- **Two toasts on these screens still have a second line**, because the
+  words are other screens' code: a use logged from Home's usuals or
+  Pantry's Use says "Logged 1 glass of Milk for you and Anu in Flat 4B." over
+  "₹17.00 — it nets with everything else at settle-up." (`loggedText`,
+  item-use.ts, which Use and the item page share: SM-14 rebuilds them), and
+  Paid says "Payment recorded" over "You paid Dev $25.00 by UPI."
+  (`useRecordPayment`, settle-card.tsx, Settle's: SM-11). Both have Undo.
+- **Measured** (the production build behind the SM-2 proxy with SM-7's mock,
+  390×844 at DPR 2; words are the visible ones — screen-reader-only text
+  left out — counted the same way before and after on the same mock): Home
+  484 words (94 above the fold) and 4,365 px tall before, **91 words and
+  everything above the fold** after (the audit's own count was 541); with
+  three to-dos, one of them the claim row, the last recent row ends at
+  767 px and the tab bar starts at 783 px, so nothing on Home needs a
+  scroll (the page's bottom padding makes it 871 px tall). The + Add sheet:
+  7 words (the audit counted 116). The dish page, member: 136 → 51 words,
+  1,356 px → one screen; cook: 163 → 61 words, 1,583 → 971 px; finalized:
+  172 → 59 words, 1,652 → 871 px. Pantry: 244 →
+  122 words, 2,028 → 1,250 px (15 items, one row each). No page scrolls
+  sideways (`scrollWidth` 390); no "left" amount wraps. The build still
+  serves the same 18 pages as files.
+- **Known:** on the cook's open dish with five people the held Finalize sits
+  over the money card until you scroll (the rows above it, what you choose,
+  are all in sight); at the end of the page it sits below the card.
+- **Checked in the browser:** a claim chip on Home writes `claims/me` and
+  toasts "You · 1 portion · ₹31.20"; a usual chip logs for the people its
+  faces show; Paid → UPI takes the row off at once and records the payment;
+  Pantry's "1 glass" turns 1 L into 750 ml at once; the cook's Finalize
+  turns the status word to Finalized, the main button to Settle up and
+  toasts "Finalized · Anu, Dev Patel and Meera owe you ₹131.87" with
+  Correct it; "…" → Cancel dish asks first; an owner sees "Finalize for
+  Meera" on Meera's dish; Paid a bill on + Add opens "Which group?" with the
+  title and × in place.
+- **Tests** (tests/web-console-next): `kitchen-home.test.ts` (the greeting;
+  the money line both ways and in two currencies, a settled own currency, no
+  groups, no people listed), `kitchen-inbox.test.ts` (three to-dos at most
+  and See all, each debt once when the server repeats it, the rows' words and
+  actions, no captions or ledger words; Recent is two rows, payments as
+  money that moved), `kitchen-dish.test.ts` (the money summary from the
+  cook's, a member's and a bystander's side, never more than two lines, the
+  empty, solo, canceled and over cases, no ledger words; the byline; the
+  status word, "had", leftovers in numbers, the one-line toasts),
+  `kitchen-pantry.test.ts` (each item one row with only its name, what is
+  left, one chip and the pantry on All; Use logs your usual or opens Use;
+  none for a viewer, a used-up item or a pending row; the pantry chips),
+  `kitchen-nav.test.ts` (the four tiles and nothing else). Pinned words that
+  changed on purpose were updated where they are tested.
+- **Nothing to redeploy beyond the console:** only web-console-next changed.

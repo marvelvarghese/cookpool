@@ -15,7 +15,7 @@ import type { KitchenStockMoveKind, KitchenStockMoveRecord } from "./types.js";
  * back — the partial unique index on `reverses` makes that a one-row lookup.
  */
 export const MOVE_COLUMNS = `m.id, m.item_id, m.kind, m.qty_milli, m.cost_minor, m.actor, m.txn_id, m.dish_id,
-  m.consumers, m.unit, m.reverses, m.idem_key, m.created_at,
+  m.consumers, m.unit, m.label, m.reverses, m.idem_key, m.created_at,
   (SELECT r.id FROM kitchen_stock_moves r WHERE r.reverses = m.id) AS undone_by`;
 
 type Row = Record<string, unknown>;
@@ -42,6 +42,7 @@ export function mapMove(row: Row): KitchenStockMoveRecord {
     dishId: nullableString(row.dish_id),
     consumers: consumersOf(row.consumers),
     unit: nullableString(row.unit),
+    label: nullableString(row.label),
     reverses: nullableString(row.reverses),
     undoneBy: nullableString(row.undone_by),
     idemKey: nullableString(row.idem_key),
@@ -84,6 +85,8 @@ export function reversalRecord(
     dishId: null,
     consumers: null,
     unit: move.unit,
+    // It puts back what the move took, in the same words ("2 onions").
+    label: move.label,
     reverses: move.id,
     undoneBy: null,
     idemKey: reversal.idemKey,
@@ -108,12 +111,12 @@ export function restockStatements(
   expectedVersion?: number,
 ): SqlStatement[] {
   const guarded = expectedVersion !== undefined;
-  const itemId = guarded ? "(SELECT id FROM kitchen_items WHERE id = $2 AND version = $11)" : "$2";
+  const itemId = guarded ? "(SELECT id FROM kitchen_items WHERE id = $2 AND version = $12)" : "$2";
   return [
     {
       text: `INSERT INTO kitchen_stock_moves (
-               id, item_id, kind, qty_milli, cost_minor, actor, txn_id, consumers, unit, reverses, idem_key, created_at
-             ) VALUES ($1, ${itemId}, 'reversal', $3, $4, $5, $6, NULL, $7, $8, $9, $10)`,
+               id, item_id, kind, qty_milli, cost_minor, actor, txn_id, consumers, unit, label, reverses, idem_key, created_at
+             ) VALUES ($1, ${itemId}, 'reversal', $3, $4, $5, $6, NULL, $7, $8, $9, $10, $11)`,
       params: [
         reversal.id,
         original.itemId,
@@ -122,6 +125,7 @@ export function restockStatements(
         reversal.actor,
         reversal.txnId,
         reversal.unit,
+        reversal.label,
         original.id,
         reversal.idemKey,
         reversal.createdAt,

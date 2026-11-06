@@ -112,7 +112,75 @@ losing its header on scroll, the carousel scrollbar, both "Who ate?" options
 looking selected on Cook, "Anu paid you" shown as red −₹400, three primary
 button colours, "Soon" placeholders in primary spots).
 
-## 6. Out of scope
+## 6. Your measures (SM6)
+
+Until now an item had one kind of amount — pieces, weight, volume or packs —
+and Use offered the same tiles for every item of a kind: anything weighed got
+"1 cup · ½ cup · a spoon · a teaspoon", a guess for rice and meaningless for
+onions. People count food the way they eat it: onions bought by the kilo are
+used one at a time, bread is bought by the pack and eaten by the slice. The
+screens are the canvas row "Use it your way — measures" (`MeasureUse`,
+`MeasureFirst`, `MeasureItem`, `MeasureCook`).
+
+- **One stock, plus sizes.** An item keeps its one stock in the unit it was
+  bought in — that is what the price paid for — and money is worked out from
+  it as before. A measure is a size in that stock's unit: "1 onion ≈ 150 g",
+  "20 slices in a pack", "1 katori ≈ 120 g". It is stored exactly, as *count*
+  of the measure making *amount* of the stock (1 onion = 150 000 milli-g;
+  20 slices = 1 000 milli-pack), so a slice of a 16-slice pack is exactly a
+  sixteenth of it.
+- **Per name, pantry and dimension.** Measures belong to a name
+  (case-insensitive) in one pantry — a person's own, or a group's — for one
+  dimension, not to one purchase: next week's onions in Flat 4B already count
+  in onions. At most three per name. Anyone who can use an item can add,
+  change or remove its measures (`kitchen.item.use` in a group; the owner in
+  a personal pantry).
+- **Asked once, never on Bought.** Bought stays as short as it is. The first
+  time someone wants an item counted another way, Use offers a "Count in
+  onions" tile that asks one question ("1 onion weighs about", "How many
+  slices in a pack?") with four quick picks and Save; it is not asked again
+  for that name in that pantry. There is no built-in table of sizes: a wrong
+  guess would quietly move money between people.
+- **A use in a measure.** A use, or a dish ingredient, may be given as a
+  count of a measure ("2 onions"; halves allowed). The server takes count ×
+  size from the stock — the money is price × amount ÷ amount bought, as for
+  any use — and keeps the words, so the activity, the item's history and the
+  dish read "2 onions", not "300 g". Changing a size later changes future
+  uses only: a past use keeps its amount and its words.
+- **Rough is fine; the last use is exact.** Sizes are approximate (onions
+  vary), and the app shows "≈" for a weight or volume measure. "The rest"
+  always takes exactly what is left, so an item's uses add up to exactly what
+  was paid.
+- **Built in, and gone.** Volume measures (a glass 250 ml, ½ glass, a splash
+  50 ml, tsp, tbsp) are exact for any liquid and stay built in. The guessed
+  weight tiles (cup 200 g, spoon 20 g, teaspoon 5 g) go: a weighed item
+  offers weights ("100 g", "250 g", "½ kg", "The rest") and its own measures.
+
+### 6.1 API
+
+- `PUT /v1/organizations/{org}/kitchen/items/{itm}/measures` and
+  `PUT /v1/kitchen/me/items/{itm}/measures`
+  `{ measures: [{ one, many, count, amountMilli }] }` (0–3) replace the
+  measures of that item's name in its pantry → `{ measures }`. `one` / `many`
+  are the words ("onion" / "onions"), 1–24 characters; `count` and
+  `amountMilli` are positive integers.
+- Every item read (a pantry's items, an item, the cross-pantry and quick-use
+  reads, history) carries `measures` (empty when none).
+- `…/uses` and a cook's ingredient take `quantity` + `unit` as today, or
+  `quantity` + `measure` (a measure's `one`; `quantity` may be a half). A
+  measure the item's name does not have is 422 `validation_failed`
+  (`measure`).
+- A stock move and a dish ingredient carry `label` ("2 onions"), or null.
+
+### 6.2 Storage
+
+Migration 300: `kitchen_measures` (`msr_…`; the pantry as `owner_kind`
+user | group and `owner_id`; `name_key`, the trimmed lower-cased name;
+`dimension`; `one`, `many`, `count`, `amount_milli`, `position`; who set it
+and when; unique on pantry, `name_key`, `dimension` and `one`), and a
+nullable `label` on `kitchen_stock_moves` and `kitchen_dish_ingredients`.
+
+## 7. Out of scope
 
 Native apps; offline mode; push notifications; a new visual identity (the
 green, the type and the shapes stay); changing how money is computed.

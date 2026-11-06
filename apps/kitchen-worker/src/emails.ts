@@ -237,9 +237,10 @@ export async function emailLoggedForYou(ctx: RequestContext, logged: LoggedFor, 
     ctx.people.users([actor, ...recipients]),
   ]);
   const by = people.get(actor);
+  // A use in the words it was given in ("2 onions of Onions", SM-13), else its quantity.
   const what =
     logged.kind === "use"
-      ? `${formatQuantity(logged.move.qtyMilli, logged.item.dimension, logged.move.unit ?? logged.item.displayUnit)} of ${logged.item.name}`
+      ? `${logged.move.label ?? formatQuantity(logged.move.qtyMilli, logged.item.dimension, logged.move.unit ?? logged.item.displayUnit)} of ${logged.item.name}`
       : txn.title;
   const txnId = toPublicId("txn", txn.id);
   const mails: KitchenMail[] = [];

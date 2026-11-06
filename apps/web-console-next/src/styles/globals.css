@@ -148,6 +148,14 @@
 }
 
 @layer utilities {
+  /* A row that scrolls sideways without a scrollbar (Cookpool SM-10: the
+     audit's grey bar under a carousel). It still scrolls by touch and keys. */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
   .scrollbar-thin::-webkit-scrollbar {
     width: 8px;
     height: 8px;

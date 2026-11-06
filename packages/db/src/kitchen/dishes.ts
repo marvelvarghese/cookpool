@@ -133,6 +133,7 @@ function mapIngredient(row: Row): KitchenDishIngredientRecord {
     position: Number(row.position),
     qtyMilli: Number(row.qty_milli),
     unit: row.unit as string,
+    label: nullableString(row.label),
     costMinor: Number(row.cost_minor),
     orgId: nullableString(row.org_id),
     paidBy: row.paid_by as string,
@@ -254,7 +255,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
     const byDish = new Map<string, KitchenDishIngredientRecord[]>();
     if (dishIds.length === 0) return byDish;
     const result = await executor.execute(
-      `SELECT di.dish_id, di.item_id, i.name, di.position, di.qty_milli, di.unit, di.cost_minor, di.org_id,
+      `SELECT di.dish_id, di.item_id, i.name, di.position, di.qty_milli, di.unit, di.label, di.cost_minor, di.org_id,
               di.paid_by, di.use_txn_id
        FROM kitchen_dish_ingredients di JOIN kitchen_items i ON i.id = di.item_id
        WHERE di.dish_id IN (SELECT value FROM json_each($1))
@@ -380,6 +381,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
           dishId: dish.id,
           consumers: null,
           unit: ingredient.unit,
+          label: ingredient.label ?? null,
           reverses: null,
           undoneBy: null,
           // The dish's own key (unique per cook) covers its moves.
@@ -389,14 +391,15 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
         statements.push(...takeStockStatements(ingredient.owner, ingredient.expectedVersion, move));
         statements.push({
           text: `INSERT INTO kitchen_dish_ingredients (
-                   dish_id, item_id, position, qty_milli, unit, cost_minor, org_id, paid_by, use_txn_id
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                   dish_id, item_id, position, qty_milli, unit, label, cost_minor, org_id, paid_by, use_txn_id
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           params: [
             dish.id,
             ingredient.itemId,
             position,
             ingredient.qtyMilli,
             ingredient.unit,
+            ingredient.label ?? null,
             ingredient.costMinor,
             ingredient.owner.kind === "group" ? ingredient.owner.orgId : null,
             ingredient.paidBy,

@@ -46,3 +46,13 @@ Any member can say another member had a portion. The row shows who set it,
 the person is emailed and can change it, and the cook finalizes. Groups are
 small and know each other; this is the same trust as logging a use for
 someone, which exists today.
+
+## SM-F — a measure is a guess at a size (ACCEPTED)
+
+"1 onion ≈ 150 g" is what the group says an onion weighs, not a weighing.
+Two people who think differently pay slightly differently for "an onion",
+and big and small onions under one name share one size. Accepted: the sizes
+are set by the group, shown with "≈", changeable by anyone who can use the
+item, and "The rest" settles the last of an item exactly, so the money adds
+up to what was paid. No built-in sizes, so nothing is guessed for them.
+

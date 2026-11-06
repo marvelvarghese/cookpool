@@ -1,11 +1,12 @@
 import { DEFAULT_KITCHEN_CURRENCY } from "@saas/contracts/kitchen";
 import { asUuid } from "@saas/db/ids";
-import type { KitchenItemRecord, KitchenPantryOwner } from "@saas/db/kitchen";
+import type { KitchenItemRecord, KitchenPantryOwner, KitchenRepository } from "@saas/db/kitchen";
 import type { RequestContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
-import { notFound, readJsonObject, successResponse, validationError } from "../http.js";
+import { notFound, readJsonObject, successResponse, unavailable, validationError } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId } from "../ids.js";
+import { readMeasures } from "../measures.js";
 import {
   expectedVersion,
   isoDay,
@@ -38,9 +39,12 @@ function owner(ctx: RequestContext): KitchenPantryOwner {
   return { kind: "user", subjectId: ctx.actor.subjectId };
 }
 
-function itemResponse(ctx: RequestContext, record: KitchenItemRecord, status = 200): Response {
+/** `{ item }`, with its name's measures (SM-13). */
+async function itemResponse(ctx: RequestContext, repo: KitchenRepository, record: KitchenItemRecord, status = 200): Promise<Response> {
+  const measures = await readMeasures(ctx, repo, [record]);
+  if (!measures) return unavailable(ctx.requestId);
   return successResponse(
-    { item: toKitchenItem(record, personalPantryRef(), null, isoDay(ctx.now())) },
+    { item: toKitchenItem(record, personalPantryRef(), null, isoDay(ctx.now()), measures(record)) },
     ctx.requestId,
     status,
   );
@@ -83,7 +87,7 @@ export async function handleCreateMyItem(ctx: RequestContext, request: Request):
     if (!result.ok) return itemErrorResponse(ctx.requestId, result.error);
     // The key is unique per pantry and this pantry is the caller's alone, so a
     // replay answers with the item their first request added.
-    return itemResponse(ctx, result.value.item, 201);
+    return itemResponse(ctx, repo, result.value.item, 201);
   });
 }
 
@@ -93,7 +97,7 @@ export async function handleGetMyItem(ctx: RequestContext, _request: Request, pa
   return withKitchenRepo(ctx, async (repo) => {
     const found = await ctx.timings.measure("db", () => repo.getItem(owner(ctx), itemId));
     if (!found.ok) return itemErrorResponse(ctx.requestId, found.error);
-    return itemResponse(ctx, found.value);
+    return itemResponse(ctx, repo, found.value);
   });
 }
 
@@ -126,7 +130,7 @@ export async function handleUpdateMyItem(ctx: RequestContext, request: Request, 
       }),
     );
     if (!updated.ok) return itemErrorResponse(ctx.requestId, updated.error);
-    return itemResponse(ctx, updated.value);
+    return itemResponse(ctx, repo, updated.value);
   });
 }
 
@@ -136,6 +140,6 @@ export async function handleRemoveMyItem(ctx: RequestContext, _request: Request,
   return withKitchenRepo(ctx, async (repo) => {
     const removed = await ctx.timings.measure("db", () => repo.removeItem(owner(ctx), itemId, ctx.now()));
     if (!removed.ok) return itemErrorResponse(ctx.requestId, removed.error);
-    return itemResponse(ctx, removed.value);
+    return itemResponse(ctx, repo, removed.value);
   });
 }

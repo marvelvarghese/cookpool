@@ -2,119 +2,25 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronRight, Clock, Plus, Refrigerator } from "lucide-react";
+import { Plus, Refrigerator } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IconBubble, KCard, K_BUTTON } from "./kit";
 import { useProfile } from "./data";
 import { useMemberNames } from "./people-data";
-import { usePantries, usePantryItems, useUseSoonItems } from "./pantry-data";
+import { usePantryItems } from "./pantry-data";
 import { UseByPill } from "./pantry-ui";
 import { memberLabelInline } from "./members";
-import { HOME_USE_SOON, expiryChip, itemHref, itemRefOf, leftText, pantryLabel, soonStrip, totalsOf } from "./pantry";
-import { pressIn, usePrefetchKitchen } from "./prefetch";
+import { expiryChip, itemHref, leftText } from "./pantry";
 import { isPendingId } from "@/lib/optimistic";
 
 /**
- * The pantry outside /pantry (CP-12): Home's "Use soon" strip — the soonest
- * items to use, then those past their date, each opening its page — and a
- * group's Pantry tab, a short list of what the group holds with a link to the
- * whole pantry.
+ * The pantry outside /pantry (CP-12): a group's Pantry tab, a short list of
+ * what the group holds with a link to the whole pantry. (Home's "Use soon"
+ * strip is gone since SM-10: food to use soon is one of Home's to-dos, and
+ * the rest is Pantry's Soon chip.)
  */
-
-export function HomeUseSoon({ exclude, className }: { exclude?: ReadonlySet<string>; className?: string } = {}) {
-  const strip = useUseSoonItems();
-  const prefetch = usePrefetchKitchen();
-  const pantries = usePantries();
-  const items = strip.data ? soonStrip(strip.data.soon, strip.data.expired, HOME_USE_SOON, exclude) : null;
-  const total = pantries.data ? totalsOf(pantries.data).itemCount : null;
-  // Everything due soon is already a card in Needs you.
-  const allInInbox = items !== null && items.length === 0 && (exclude?.size ?? 0) > 0;
-
-  return (
-    <section aria-labelledby="home-soon" className={cn("space-y-3", className)}>
-      <div className="flex items-center justify-between">
-        <h2 id="home-soon" className="text-lg font-bold tracking-tight">
-          Use soon
-        </h2>
-        <Link
-          href={items && items.length > 0 ? "/pantry?filter=soon" : "/pantry"}
-          className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          All pantries
-          <ChevronRight className="h-4 w-4" aria-hidden />
-        </Link>
-      </div>
-
-      {strip.loading ? (
-        <div className="flex gap-3" aria-hidden>
-          <Skeleton className="h-28 w-36 rounded-[18px]" />
-          <Skeleton className="h-28 w-36 rounded-[18px]" />
-          <Skeleton className="h-28 w-36 rounded-[18px]" />
-        </div>
-      ) : strip.error || !items ? (
-        <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load what to use soon. {strip.error?.message ?? ""}</p>
-          <Button variant="outline" className={K_BUTTON} onClick={strip.reload}>
-            Try again
-          </Button>
-        </KCard>
-      ) : allInInbox ? (
-        <KCard className="flex gap-4 p-5">
-          <IconBubble icon={Clock} tone="neutral" />
-          <p className="min-w-0 self-center text-sm text-muted-foreground">Everything due soon is in Needs you.</p>
-        </KCard>
-      ) : items.length === 0 ? (
-        <KCard className="flex gap-4 p-5">
-          <IconBubble icon={total === 0 ? Refrigerator : Clock} tone={total === 0 ? "green" : "neutral"} />
-          <div className="min-w-0 flex-1">
-            <h3 className="text-base font-bold tracking-tight">
-              {total === 0 ? "Add what you buy" : "Nothing to use up in the next few days"}
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {total === 0
-                ? "Put it in your own pantry or a group's, and Cookpool shows what to use first."
-                : "Items close to their use-by date show here first."}
-            </p>
-            {total === 0 ? (
-              <Button asChild className={cn(K_BUTTON, "mt-3")}>
-                <Link href="/pantry/new">
-                  <Plus aria-hidden />
-                  Add an item
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-        </KCard>
-      ) : (
-        <ul className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 min-[900px]:mx-0 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:overflow-visible min-[900px]:px-0 min-[900px]:pb-0">
-          {items.map((item) => {
-            const chip = expiryChip(item);
-            const expired = chip?.tone === "expired";
-            return (
-              <li key={item.id} className="w-36 shrink-0 snap-start min-[900px]:w-auto">
-                <Link
-                  {...pressIn(() => prefetch.item(itemRefOf(item)))}
-                  href={itemHref(item)}
-                  className="flex h-full min-h-28 flex-col gap-1.5 rounded-[18px] border bg-card p-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {chip ? <UseByPill chip={chip} className="self-start" /> : null}
-                  <span className={cn("line-clamp-2 text-[15px] font-bold leading-snug", expired && "text-muted-foreground line-through")}>
-                    {item.name}
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {leftText(item)} · {pantryLabel(item.pantry)}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
-  );
-}
 
 /** Items the group's Pantry tab lists before "Open the pantry". */
 const GROUP_TAB_ROWS = 6;

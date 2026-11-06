@@ -117,16 +117,14 @@ export function isWideKitchenPage(pathname: string | null | undefined): boolean 
 
 export interface AddAction {
   id: string;
+  /** The tile's one word or two (SM-10, the canvas): "Used", "Paid a bill". */
   label: string;
-  hint: string;
   /**
-   * Where it goes once the feature exists. With `pickGroup`, a template whose
-   * `[slug]` is the group the person picks first (`groupActionHref`).
+   * Where it goes. With `pickGroup`, a template whose `[slug]` is the group
+   * the person picks first (`groupActionHref`).
    */
   href: string;
   icon: string;
-  /** False until the feature ships: the tile shows "Soon" and does nothing. */
-  live: boolean;
   /** Pick a group first (in the sheet), then go to `href` for it. */
   pickGroup?: boolean;
 }
@@ -137,65 +135,15 @@ export function groupActionHref(action: Pick<AddAction, "href">, slug: string): 
 }
 
 /**
- * "What happened?" — the four big tiles. "I paid a bill" is live since the
- * ledger screens (CP-8): it asks which group, then opens Add expense there.
- * "I bought food" is live since the pantry screens (CP-12): Add an item picks
- * the pantry itself. "I used something" is live since quick use (CP-13):
- * /use searches every pantry. "I cooked" is live since the dish maker
- * (CP-15): /cook takes from any pantry.
+ * The + Add sheet (SM-10): the four things that happen, as big tiles, and
+ * nothing else — "Do it again" is Home's row of usuals and Use's recents,
+ * paying back is People's, inviting is the group's. Used opens /use (any
+ * pantry); Cooked, /cook; Bought, Add an item (it picks the pantry); Paid a
+ * bill asks which group, then opens Add expense there.
  */
 export const ADD_TILES: readonly AddAction[] = [
-  {
-    id: "use",
-    label: "I used something",
-    hint: "From any pantry you share",
-    href: "/use",
-    icon: "Utensils",
-    live: true,
-  },
-  {
-    id: "cook",
-    label: "I cooked",
-    hint: "Share a dish and its cost",
-    href: "/cook",
-    icon: "CookingPot",
-    live: true,
-  },
-  {
-    id: "buy",
-    label: "I bought food",
-    hint: "Add it to a pantry",
-    href: "/pantry/new",
-    icon: "ShoppingBasket",
-    live: true,
-  },
-  {
-    id: "bill",
-    label: "I paid a bill",
-    hint: "Split it in a group",
-    href: "/groups/[slug]/expense",
-    icon: "Receipt",
-    live: true,
-    pickGroup: true,
-  },
-];
-
-/** The two secondary actions under the tiles. */
-export const ADD_SECONDARY: readonly AddAction[] = [
-  {
-    id: "payment",
-    label: "Record a payment",
-    hint: "Someone paid you back",
-    href: "/settle",
-    icon: "Wallet",
-    live: true,
-  },
-  {
-    id: "invite",
-    label: "Invite to a group",
-    hint: "Share a group's join link",
-    href: "/groups",
-    icon: "UserPlus",
-    live: true,
-  },
+  { id: "use", label: "Used", href: "/use", icon: "Utensils" },
+  { id: "cook", label: "Cooked", href: "/cook", icon: "CookingPot" },
+  { id: "buy", label: "Bought", href: "/pantry/new", icon: "ShoppingBasket" },
+  { id: "bill", label: "Paid a bill", href: "/groups/[slug]/expense", icon: "Receipt", pickGroup: true },
 ];
