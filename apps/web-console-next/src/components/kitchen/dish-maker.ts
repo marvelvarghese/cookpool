@@ -23,6 +23,7 @@ import {
   type CookNewItemRequest,
   type DishSplitMode,
   type KitchenItem,
+  type KitchenMeasure,
   type MyGroupBalance,
   type SetDishSharesRequest,
 } from "@saas/contracts/kitchen";
@@ -35,6 +36,7 @@ import { ITEM_NAME_MAX, parseQuantity, perUnitLine } from "./item-form";
 import { countWords, itemHref, itemRefParam, joinNames, type ItemRef } from "./pantry";
 import { memberLabel, memberLabelInline, type MemberNames } from "./members";
 import { foldForSearch, roleFromKitchen, sortGroups } from "./groups";
+import { countDecimal, countText, evenCount, isApprox, maxCount, measureAmount, measuresOf, nearestCount, stepCount, takeOf } from "./measures";
 
 /** The most a dish takes: existing items and just-bought ones together (the server's limit). */
 export { MAX_DISH_INGREDIENTS };
@@ -75,8 +77,10 @@ export interface PantryLine {
   /** The item's `itm_…`. */
   key: string;
   item: KitchenItem;
-  /** How much goes in, in thousandths of the item's base unit. */
+  /** How much goes in, in thousandths of the item's base unit (in a measure: what it takes, `measureTakeMilli`). */
   qtyMilli: number;
+  /** Counted in one of the item's measures (SM-14): "3 onions" — sent as `measure`, kept as the ingredient's words. */
+  counted?: { measure: KitchenMeasure; quantity: number } | null;
 }
 
 /** Bought just now: it goes into your pantry, paid by you, and (some of) it into the dish. */
@@ -112,9 +116,10 @@ export function lineDimension(line: DishLine): Dimension {
   return line.kind === "pantry" ? line.item.dimension : line.dimension;
 }
 
-/** The same line with another amount. */
+/** The same line with another amount, in the unit. */
 export function withQty<T extends DishLine>(line: T, qtyMilli: number): T {
-  return line.kind === "pantry" ? { ...line, qtyMilli } : { ...line, useMilli: qtyMilli };
+  // An amount in the unit: a line counted in a measure goes back to the unit.
+  return line.kind === "pantry" ? { ...line, qtyMilli, counted: null } : { ...line, useMilli: qtyMilli };
 }
 
 /**
@@ -155,14 +160,68 @@ export function stepDishAmount(current: number, delta: 1 | -1, step: AmountStep,
   return Math.max(Math.ceil(current / stepMilli) * stepMilli - stepMilli, smallest);
 }
 
-/** A line for an item from a pantry, at its starting amount. */
+/**
+ * A line for an item from a pantry, at its starting amount: one of its first
+ * measure when it has one that fits ("1 onion"), else a few steps of its unit.
+ */
 export function pantryLine(item: KitchenItem, qtyMilli?: number): PantryLine {
+  const first = measuresOf(item)[0];
+  const one = qtyMilli === undefined && first ? measureAmount(item, first, 1) : null;
+  if (one) return { kind: "pantry", key: item.id, item, qtyMilli: one.qtyMilli, counted: { measure: first!, quantity: 1 } };
   return {
     kind: "pantry",
     key: item.id,
     item,
     qtyMilli: qtyMilli ?? startAmount(item.dimension, item.qtyBoughtMilli, item.qtyLeftMilli),
   };
+}
+
+// ── An ingredient in a measure (SM-14) ────────────────────────────
+
+/** The line counted in `quantity` of its measure; null when that doesn't fit what is left. */
+export function countLine(line: PantryLine, measure: KitchenMeasure, quantity: number): PantryLine | null {
+  const a = measureAmount(line.item, measure, quantity);
+  return a ? { ...line, qtyMilli: a.qtyMilli, counted: { measure, quantity } } : null;
+}
+
+/** One step of a counted line (½ ↔ 1, then whole ones); null when it steps below ½, which takes it out. */
+export function stepLineCount(line: PantryLine, delta: 1 | -1): PantryLine | null {
+  if (!line.counted) return line;
+  const { measure, quantity } = line.counted;
+  const next = stepCount(quantity, delta, maxCount(line.item, measure));
+  if (next <= 0) return null;
+  return countLine(line, measure, next) ?? line;
+}
+
+/**
+ * The line in the item's measure or its unit — the same amount, as near as
+ * the other side counts it: 450 g of onions at 150 g each is 3 onions, and 3
+ * onions back in grams is 450 g (onto the stepper's grid).
+ */
+export function switchLine(line: PantryLine, side: "measure" | "unit"): PantryLine {
+  const measure = measuresOf(line.item)[0];
+  if (side === "measure") {
+    if (!measure || line.counted) return line;
+    const max = maxCount(line.item, measure);
+    if (max <= 0) return line;
+    return countLine(line, measure, nearestCount(line.qtyMilli, measure, max)) ?? line;
+  }
+  if (!line.counted) return line;
+  const { stepMilli } = lineStep(line);
+  const left = line.item.qtyLeftMilli;
+  const qtyMilli = Math.min(Math.max(Math.round(line.qtyMilli / stepMilli) * stepMilli, Math.min(stepMilli, left)), left);
+  return { ...line, qtyMilli, counted: null };
+}
+
+/**
+ * An amount in the item's unit (a recipe's) in its measure when it divides
+ * evenly into halves of one ("300 g" of 150 g onions → 2 onions); else as it
+ * is, in the unit.
+ */
+export function lineInEvenMeasure(line: PantryLine): PantryLine {
+  if (line.counted) return line;
+  const even = evenCount(line.item, line.qtyMilli);
+  return even ? { ...line, counted: even } : line;
 }
 
 /** Add an item, once: a second Add of the same item leaves the dish as it is. */
@@ -301,6 +360,10 @@ export interface LineView {
   /** The item's page, for a pantry line. */
   href: string | null;
   dimension: Dimension;
+  /** Counted in the item's measure: the count ("3", "1½") and its word ("onions"); null in the unit. */
+  counted: { count: string; quantity: number; word: string; max: number } | null;
+  /** The [onions | g] switch, when the item has a measure; null otherwise. */
+  sides: { measure: string; unit: string; on: "measure" | "unit" } | null;
 }
 
 export function lineView(line: DishLine, ctx: { meId: string; names?: MemberNames | null; currency: string }): LineView {
@@ -321,7 +384,14 @@ export function lineView(line: DishLine, ctx: { meId: string; names?: MemberName
   } else {
     leftNote = rest <= 0 ? "uses it all" : `${formatQuantity(rest, dimension, line.unit)} stays in your pantry`;
   }
-  const atSmallest = qty <= Math.min(step.stepMilli, max);
+  const measure = line.kind === "pantry" ? (measuresOf(line.item)[0] ?? null) : null;
+  const counted = line.kind === "pantry" && line.counted ? line.counted : null;
+  if (counted) {
+    // The other side under a count: "≈ 450 g" (a weight or volume), "450 g" counted, nothing for slices of a pack.
+    const amount = formatQuantity(qty, dimension, step.unit);
+    leftNote = dimension === "pack" ? "" : isApprox(dimension) ? `≈ ${amount}` : amount;
+  }
+  const atSmallest = counted ? counted.quantity <= 0.5 : qty <= Math.min(step.stepMilli, max);
   return {
     key: line.key,
     name,
@@ -340,6 +410,16 @@ export function lineView(line: DishLine, ctx: { meId: string; names?: MemberName
     moreLabel: `More ${lower}`,
     href: line.kind === "pantry" ? itemHref(line.item) : null,
     dimension,
+    counted:
+      counted && line.kind === "pantry"
+        ? {
+            count: countText(counted.quantity),
+            quantity: counted.quantity,
+            word: counted.quantity <= 1 ? counted.measure.one : counted.measure.many,
+            max: maxCount(line.item, counted.measure),
+          }
+        : null,
+    sides: measure ? { measure: measure.many, unit: step.unit, on: counted ? "measure" : "unit" } : null,
   };
 }
 
@@ -827,7 +907,7 @@ export interface DishForm {
 
 /**
  * POST /v1/kitchen/me/dishes: each pantry ingredient in its base unit (as a
- * use is sent), then what was just bought — all of it unless less goes in;
+ * use is sent) or in its measure ("3" onions), then what was just bought — all of it unless less goes in;
  * a dish just for you is assigned (claims need a group).
  */
 export function cookRequest(form: DishForm): CookDishRequest {
@@ -837,7 +917,12 @@ export function cookRequest(form: DishForm): CookDishRequest {
   for (const line of form.lines) {
     if (line.kind === "pantry") {
       if (line.qtyMilli <= 0) continue;
-      ingredients.push({ itemId: line.item.id, quantity: milliToDecimal(line.qtyMilli), unit: AMOUNT_STEPS[line.item.dimension].unit });
+      // In a measure (SM-14): its count and word; the server takes what `measureTakeMilli` says and keeps "3 onions".
+      ingredients.push(
+        line.counted
+          ? { itemId: line.item.id, quantity: countDecimal(line.counted.quantity), measure: line.counted.measure.one }
+          : { itemId: line.item.id, quantity: milliToDecimal(line.qtyMilli), unit: AMOUNT_STEPS[line.item.dimension].unit },
+      );
     } else {
       if (line.useMilli <= 0) continue;
       newItems.push({
@@ -1006,11 +1091,21 @@ export function refreshLines(lines: readonly DishLine[], fresh: ReadonlyMap<stri
   const out = lines.map((line) => {
     if (line.kind !== "pantry") return line;
     const f = fresh.get(line.key);
-    if (!f || (f.version === line.item.version && f.qtyLeftMilli === line.item.qtyLeftMilli && f.worthMinor === line.item.worthMinor)) {
+    if (
+      !f ||
+      (f.version === line.item.version &&
+        f.qtyLeftMilli === line.item.qtyLeftMilli &&
+        f.worthMinor === line.item.worthMinor &&
+        JSON.stringify(measuresOf(f)) === JSON.stringify(measuresOf(line.item)))
+    ) {
       return line;
     }
     changed = true;
-    return { ...line, item: f, qtyMilli: Math.min(line.qtyMilli, f.qtyLeftMilli) };
+    // Counted in a measure: the same count, taking what it takes now — or, if the measure went or no longer fits, the unit.
+    const measure = line.counted ? measuresOf(f).find((m) => m.one === line.counted!.measure.one) : undefined;
+    const take = measure && line.counted ? takeOf(f, measure, line.counted.quantity) : null;
+    if (measure && line.counted && take !== null) return { ...line, item: f, qtyMilli: take, counted: { measure, quantity: line.counted.quantity } };
+    return { ...line, item: f, qtyMilli: Math.min(line.qtyMilli, f.qtyLeftMilli), counted: null };
   });
   return changed ? out : lines;
 }
@@ -1023,6 +1118,6 @@ export function refreshLines(lines: readonly DishLine[], fresh: ReadonlyMap<stri
  */
 export function withLeft(lines: readonly DishLine[], itemId: string, qtyLeftMilli: number): DishLine[] {
   return lines.map((line) =>
-    line.kind === "pantry" && line.key === itemId ? { ...line, qtyMilli: Math.min(line.qtyMilli, qtyLeftMilli) } : line,
+    line.kind === "pantry" && line.key === itemId ? { ...line, qtyMilli: Math.min(line.qtyMilli, qtyLeftMilli), counted: null } : line,
   );
 }

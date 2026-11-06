@@ -168,6 +168,8 @@ export function pendingMove(input: {
   change: StockChange;
   quantity: number;
   unit: string;
+  /** The words it was given in, in one of the item's measures ("2 onions", SM-14); null in a unit. */
+  label?: string | null;
   actor: string;
   consumers: readonly string[] | null;
   at: string;
@@ -180,6 +182,7 @@ export function pendingMove(input: {
     qtyMilli: input.change.qtyMilli,
     quantity: input.quantity,
     unit: input.unit,
+    label: input.label ?? null,
     costMinor: input.change.costMinor,
     actor: input.actor,
     consumers: input.consumers ? [...input.consumers] : null,

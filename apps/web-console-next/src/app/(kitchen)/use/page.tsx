@@ -4,15 +4,14 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Search, Utensils, X } from "lucide-react";
+import { ArrowLeft, Minus, Plus, Search } from "lucide-react";
 import type { KitchenItem, KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { qk } from "@/lib/query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "@/components/kitchen/data";
-import { IconBubble, KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON } from "@/components/kitchen/kit";
 import type { MemberNames } from "@/components/kitchen/members";
 import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
 import {
@@ -26,39 +25,54 @@ import {
 } from "@/components/kitchen/pantry-data";
 import { FaceRow, MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
 import { faceOrder, toggleFace, whoLine } from "@/components/kitchen/faces";
-import { itemRefParam, leftText, pantryLabel, parseItemRef, type ItemRef } from "@/components/kitchen/pantry";
-import { amountCost, amountStep, costPerText, orderConsumers, parseAmount, shareBreakdown } from "@/components/kitchen/item-use";
-import { formatMinor } from "@/components/kitchen/money";
+import { itemRefParam, pantryLabel, parseItemRef, type ItemRef } from "@/components/kitchen/pantry";
+import { amountCost, amountInput, orderConsumers, shareBreakdown } from "@/components/kitchen/item-use";
+import { askable, countInLabel, countText, firstAsk } from "@/components/kitchen/measures";
+import { MeasureSheet, UnitSwitch, type MeasureSheetMode } from "@/components/kitchen/measures-ui";
 import {
-  amountPresets,
   defaultConsumers,
-  defaultPreset,
-  leftAndPayer,
+  defaultTile,
+  leftWithMeasure,
   matchCard,
   matchesHeading,
+  otherAmount,
+  otherHint,
+  otherLine,
+  otherSides,
+  otherStart,
+  otherStep,
+  otherSwitch,
+  parseOther,
   qtyText,
   quickLogLabel,
   usableMatches,
+  useTiles,
   usualCard,
   usualFor,
   usualRef,
+  type OtherAmount,
   type PickCard,
+  type UseTile,
 } from "@/components/kitchen/quick-use";
 
-/** Usuals in the "Recent and usual" strip (their items are read ahead, so a tap opens the card at once). */
+/** Usuals in the item row (their items are read ahead, so a tap opens the item at once). */
 const STRIP_USUALS = 8;
 
 /**
- * Use something (CP-13) — "I used something" in two taps. A search across
- * every pantry you use from ("What did you use?"), and under it your recent
- * and usual items (or, while searching, the matches); choosing one shows the
- * item — how much is left and who paid, its pantry — then **How much?** as
- * four kitchen-sized presets with your usual amount marked and chosen,
- * **Who?** as the group's faces with the people of your last use chosen
- * (SM-7), and the Log button naming who it is for ("Log 1 glass · ₹17.00" /
- * "You + Anu · ₹8.50 each"), sticky above the tab bar on a phone. Logging ends in the ten-second Undo toast and a fresh screen for the
- * next thing. `/use?item=me:itm_…` (Use on a pantry row) opens with that item
- * chosen. Only items you may use are offered: a viewer's groups never appear.
+ * Use something (CP-13, rebuilt in SM-14 under the seven rules). A search
+ * ("What did you use?") beside Back, and under it your recent and usual
+ * items as one row of pills (while searching, the matches); choosing one
+ * shows it — its name, its pantry, what is left ("600 g left · ≈ 4 onions")
+ * — then **how much** as a 2×2 of tiles: your usual, the item's own measure
+ * ("1 onion · ≈ 150 g · ₹6.00", "2 onions"), plain amounts in its unit and
+ * "The rest"; with no measure yet, a dashed "Count in onions" tile asks one
+ * question once (the sheet) and the tiles switch to onions at once. Another
+ * amount steps in the measure or the unit ([onions | g]), with the other side
+ * under it ("≈ 450 g · ₹18.00"). **Who?** is the group's faces, and the one
+ * main button names amount, price and people ("Log 2 onions · ₹12.00" / "You
+ * + Anu · ₹6.00 each"). Logging ends in the one-line Undo toast and a fresh
+ * screen. `/use?item=me:itm_…` (the item page's "Use some", a pantry row's
+ * Use) opens with that item chosen. Only items you may use are offered.
  */
 export default function UsePage() {
   const searchParams = useSearchParams();
@@ -73,6 +87,13 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(t);
   }, [value, ms]);
   return current;
+}
+
+/** Pill words: the name, and its pantry when two pills share a name. */
+function pillLabels(cards: readonly PickCard[]): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const c of cards) counts.set(c.name.toLowerCase(), (counts.get(c.name.toLowerCase()) ?? 0) + 1);
+  return new Map(cards.map((c) => [c.key, (counts.get(c.name.toLowerCase()) ?? 0) > 1 ? `${c.name} · ${c.pantry}` : c.name] as const));
 }
 
 function QuickUse({ linked }: { linked: ItemRef | null }) {
@@ -116,15 +137,10 @@ function QuickUse({ linked }: { linked: ItemRef | null }) {
         : fallback.data
           ? usableMatches(fallback.data).map((m) => matchCard(m, ctx))
           : null;
-  const heading = searching
-    ? cards === null
-      ? "Searching…"
-      : matchesHeading(cards.length)
-    : noUsuals
-      ? "In your pantries"
-      : "Recent and usual";
+  const heading = searching ? (cards === null ? "Searching…" : matchesHeading(cards.length)) : noUsuals ? "In your pantries" : "Recent and usual";
   const stripLoading = cards === null && (searching ? !search.error : !usuals.error && !fallback.error);
   const stripError = searching ? search.error : (usuals.error ?? fallback.error);
+  const labels = cards ? pillLabels(cards) : new Map<string, string>();
 
   const pick = (card: PickCard) => {
     if (card.item) qc.setQueryData(qk.kitchenItem(itemRefParam(card.ref)), card.item);
@@ -153,87 +169,82 @@ function QuickUse({ linked }: { linked: ItemRef | null }) {
   };
 
   return (
-    <div className="space-y-5 min-[900px]:grid min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)] min-[900px]:items-start min-[900px]:gap-8 min-[900px]:space-y-0">
-      <div className="min-w-0 space-y-5">
-        <div>
+    <div className="space-y-[18px] min-[900px]:grid min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)] min-[900px]:items-start min-[900px]:gap-8 min-[900px]:space-y-0">
+      <div className="min-w-0 space-y-[18px]">
+        <h1 className="sr-only">Use something</h1>
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={back}
-            className="-ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Back"
+            className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-            Back
+            <ArrowLeft className="h-[22px] w-[22px]" aria-hidden />
           </button>
-          <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Use something</h1>
-          <p className="mt-1 text-sm text-muted-foreground">From any pantry you use. Whoever paid for it is paid back.</p>
-        </div>
-
-        <div className="relative">
-          <label htmlFor="use-search" className="sr-only">
-            What did you use?
+          <label className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 rounded-[14px] border border-input bg-card px-3.5 focus-within:ring-2 focus-within:ring-ring">
+            <Search className="h-[18px] w-[18px] shrink-0 text-muted-foreground" aria-hidden />
+            <span className="sr-only">What did you use?</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="What did you use?"
+              autoComplete="off"
+              enterKeyHint="search"
+              autoFocus={!linked}
+              className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+            />
           </label>
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input
-            id="use-search"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="What did you use?"
-            autoComplete="off"
-            enterKeyHint="search"
-            autoFocus={!linked}
-            className="h-14 rounded-2xl border-input bg-card pl-12 pr-4 text-base shadow-[0_1px_2px_rgba(23,32,27,0.04)] sm:h-14 sm:text-base"
-          />
         </div>
 
-        <section aria-labelledby="use-strip-heading" className="space-y-2.5">
-          <h2 id="use-strip-heading" aria-live="polite" className="text-sm font-bold text-muted-foreground">
+        <section aria-labelledby="use-strip-heading">
+          <h2 id="use-strip-heading" aria-live="polite" className="sr-only">
             {heading}
           </h2>
           {stripError && cards === null ? (
             <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <p className="text-sm text-muted-foreground">Couldn&apos;t load your items. {stripError.message}</p>
+              <p className="text-sm text-muted-foreground">Couldn&apos;t load your items.</p>
               <Button variant="outline" className={K_BUTTON} onClick={searching ? search.reload : usuals.error ? usuals.reload : fallback.reload}>
                 Try again
               </Button>
             </KCard>
           ) : stripLoading || cards === null ? (
-            <div className="flex gap-3" aria-hidden>
-              <Skeleton className="h-[104px] w-40 shrink-0 rounded-[18px]" />
-              <Skeleton className="h-[104px] w-40 shrink-0 rounded-[18px]" />
-              <Skeleton className="h-[104px] w-40 shrink-0 rounded-[18px]" />
+            <div className="flex gap-2" aria-hidden>
+              <Skeleton className="h-11 w-24 shrink-0 rounded-full" />
+              <Skeleton className="h-11 w-28 shrink-0 rounded-full" />
+              <Skeleton className="h-11 w-20 shrink-0 rounded-full" />
             </div>
           ) : cards.length === 0 ? (
-            searching ? (
-              <KCard className="p-4">
-                <p className="text-[15px] font-semibold">Nothing called &ldquo;{query.trim()}&rdquo; in a pantry you use from</p>
-                <p className="mt-1 text-sm text-muted-foreground">Check the spelling, or add it if you just bought it.</p>
-                <Button asChild variant="outline" className={cn(K_BUTTON, "mt-3")}>
-                  <Link href="/pantry/new">
-                    <Plus aria-hidden />
-                    Add an item
-                  </Link>
-                </Button>
-              </KCard>
-            ) : (
-              <KCard className="flex gap-4 p-5">
-                <IconBubble icon={Utensils} />
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-bold tracking-tight">Nothing to use yet</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Add what you buy — to your own pantry or a group&apos;s — and log what you use here.
-                  </p>
-                  <Button asChild className={cn(K_BUTTON, "mt-3")}>
-                    <Link href="/pantry/new">
-                      <Plus aria-hidden />
-                      Add an item
-                    </Link>
-                  </Button>
-                </div>
-              </KCard>
-            )
+            <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <p className="min-w-0 text-[15px] font-semibold">{searching ? `Nothing called “${query.trim()}”` : "Nothing to use yet"}</p>
+              <Button asChild variant="outline" className={K_BUTTON}>
+                <Link href="/pantry/new">
+                  <Plus aria-hidden />
+                  Add an item
+                </Link>
+              </Button>
+            </KCard>
           ) : (
-            <PickStrip cards={cards} selectedKey={selected?.itemId ?? null} onPick={pick} label={heading} />
+            <ul aria-label={heading} className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
+              {cards.map((card) => {
+                const on = card.key === selected?.itemId;
+                return (
+                  <li key={card.key} className="shrink-0">
+                    <button
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => pick(card)}
+                      className={cn(
+                        "min-h-11 whitespace-nowrap rounded-full border px-4 text-[15px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        on ? "border-foreground bg-foreground text-background" : "border-input bg-card hover:bg-accent",
+                      )}
+                    >
+                      {labels.get(card.key) ?? card.name}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
       </div>
@@ -248,61 +259,11 @@ function QuickUse({ linked }: { linked: ItemRef | null }) {
             onClear={clear}
             onLogged={logged}
           />
-        ) : (
-          <KCard className="p-5">
-            <h2 className="text-base font-bold tracking-tight">Pick what you used</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Tap one of your usuals or search. Then choose how much and who had it — the cost is worked out as you go.
-            </p>
-          </KCard>
-        )}
+        ) : cards && cards.length > 0 ? (
+          <p className="text-[15px] font-semibold text-muted-foreground">Pick what you used.</p>
+        ) : null}
       </div>
     </div>
-  );
-}
-
-/** The strip: a row of cards that scrolls sideways on a phone, a grid from 900px. */
-function PickStrip({
-  cards,
-  selectedKey,
-  onPick,
-  label,
-}: {
-  cards: readonly PickCard[];
-  selectedKey: string | null;
-  onPick: (card: PickCard) => void;
-  label: string;
-}) {
-  return (
-    <ul
-      aria-label={label}
-      className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 min-[900px]:mx-0 min-[900px]:grid min-[900px]:grid-cols-3 min-[900px]:overflow-visible min-[900px]:px-0 min-[900px]:pb-0"
-    >
-      {cards.map((card) => {
-        const on = card.key === selectedKey;
-        return (
-          <li key={card.key} className="w-40 shrink-0 snap-start min-[900px]:w-auto">
-            <button
-              type="button"
-              aria-pressed={on}
-              onClick={() => onPick(card)}
-              className={cn(
-                "flex h-full min-h-[104px] w-full flex-col items-start gap-1 rounded-[18px] border bg-card p-3 text-left transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                on ? "border-primary bg-accent ring-1 ring-primary" : "hover:bg-accent",
-              )}
-            >
-              <span className="max-w-full truncate rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
-                {card.pantry}
-              </span>
-              <span className="line-clamp-2 text-[15px] font-bold leading-snug">{card.name}</span>
-              <span className="max-w-full truncate text-xs text-muted-foreground">{card.sub}</span>
-              {card.meta ? <span className="max-w-full truncate text-xs text-muted-foreground">{card.meta}</span> : null}
-            </button>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -329,19 +290,11 @@ function ItemPanel({
   const roster = React.useMemo(() => (orgId && members.data ? members.data.map((m) => m.subjectId) : null), [orgId, members.data]);
 
   if (item.loading) return <Skeleton className="h-[420px] w-full rounded-[22px]" aria-hidden />;
-  if (item.error?.code === "not_found") {
-    return (
-      <PanelNote
-        title="This item isn't in a pantry you can use"
-        body="It may have been removed, used up, or moved to a group you're not in."
-        onClear={onClear}
-      />
-    );
-  }
+  if (item.error?.code === "not_found") return <PanelNote title="Not in a pantry you can use" onClear={onClear} />;
   if (item.error || !item.data) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load this item. {item.error?.message ?? ""}</p>
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load this item.</p>
         <Button variant="outline" className={K_BUTTON} onClick={item.reload}>
           Try again
         </Button>
@@ -349,18 +302,8 @@ function ItemPanel({
     );
   }
   const data = item.data;
-  if (orgId && roles.get(orgId) === "viewer") {
-    return (
-      <PanelNote
-        title={`You view ${pantryLabel(data.pantry)}`}
-        body="You see its pantry, but don't use from it. Pick something from a pantry you use."
-        onClear={onClear}
-      />
-    );
-  }
-  if (data.state !== "active" || data.qtyLeftMilli <= 0) {
-    return <PanelNote title={`Nothing left of ${data.name}`} body="Someone used the last of it. Pick something else." onClear={onClear} />;
-  }
+  if (orgId && roles.get(orgId) === "viewer") return <PanelNote title={`You only view ${pantryLabel(data.pantry)}`} onClear={onClear} />;
+  if (data.state !== "active" || data.qtyLeftMilli <= 0) return <PanelNote title={`Nothing left of ${data.name}`} onClear={onClear} />;
   return (
     <UseForm
       itemRef={itemRef}
@@ -370,23 +313,26 @@ function ItemPanel({
       names={names}
       roster={orgId ? roster : null}
       waitingForRoster={orgId !== null && roster === null && !members.error}
-      onClear={onClear}
       onLogged={onLogged}
     />
   );
 }
 
-function PanelNote({ title, body, onClear }: { title: string; body: string; onClear: () => void }) {
+function PanelNote({ title, onClear }: { title: string; onClear: () => void }) {
   return (
-    <KCard className="p-5">
-      <h2 className="text-base font-bold tracking-tight">{title}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-      <Button variant="outline" className={cn(K_BUTTON, "mt-3")} onClick={onClear}>
-        Pick something else
+    <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <p className="min-w-0 text-[15px] font-semibold">{title}</p>
+      <Button variant="outline" className={K_BUTTON} onClick={onClear}>
+        Pick another
       </Button>
     </KCard>
   );
 }
+
+const TILE =
+  "flex min-h-[84px] flex-col items-start justify-center gap-0.5 rounded-[18px] px-3.5 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const STEP =
+  "grid h-12 w-12 shrink-0 place-items-center rounded-[14px] border border-input bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 
 function UseForm({
   itemRef,
@@ -396,7 +342,6 @@ function UseForm({
   names,
   roster,
   waitingForRoster,
-  onClear,
   onLogged,
 }: {
   itemRef: ItemRef;
@@ -407,53 +352,65 @@ function UseForm({
   /** The group's members in its order; null for your own item, or while they load. */
   roster: readonly string[] | null;
   waitingForRoster: boolean;
-  onClear: () => void;
   onLogged: () => void;
 }) {
   const logUse = useLogUse();
   const personal = item.pantry.kind === "personal";
-  const presets = amountPresets(item, usual?.lastQtyMilli ?? null);
-  const [presetId, setPresetId] = React.useState<string | null>(() => defaultPreset(presets)?.id ?? null);
+  const tiles = useTiles(item, usual);
+  const [tileId, setTileId] = React.useState<string | null>(null);
+  const [other, setOther] = React.useState<OtherAmount | null>(null);
   const [typed, setTyped] = React.useState<string | null>(null);
+  const [sheet, setSheet] = React.useState<MeasureSheetMode | null>(null);
   const [chosenState, setChosen] = React.useState<ReadonlySet<string> | null>(null);
-  const otherRef = React.useRef<HTMLInputElement>(null);
-  const step = amountStep(item);
+  const ask = askable(item) ? firstAsk(item) : null;
 
-  // A tile that no longer fits (someone used some meanwhile) falls back to the first that does.
-  const preset = typed === null ? (presets.find((p) => p.id === presetId) ?? defaultPreset(presets)) : null;
-  const parsed = typed === null ? null : parseAmount(typed, item);
-  const qtyMilli = preset ? preset.qtyMilli : parsed?.ok ? parsed.milli : null;
-  const words = preset ? preset.words : qtyMilli !== null ? qtyText(qtyMilli, item.dimension) : null;
+  // A tile that no longer fits (someone used some meanwhile, a measure changed) falls back to the first.
+  const tile: UseTile | null = other ? null : (tiles.find((t) => t.id === tileId) ?? defaultTile(tiles));
+  const parsedOther = other && typed !== null ? parseOther(item, other.side, typed) : null;
+  const otherNow = parsedOther?.ok ? parsedOther.state : other;
+  const amount = tile ? tile.amount : otherNow && !(parsedOther && !parsedOther.ok) ? otherAmount(item, otherNow) : null;
+  const words = tile ? tile.words : amount ? (amount.kind === "measure" ? amount.label : qtyText(amount.qtyMilli, item.dimension)) : null;
   const chosen: ReadonlySet<string> = chosenState ?? new Set(defaultConsumers(usual, roster, meId));
   const consumers = personal ? [] : orderConsumers(chosen, roster ?? [], meId);
-  const cost = qtyMilli !== null ? amountCost(item, qtyMilli) : null;
-  const breakdown = !personal && qtyMilli !== null ? shareBreakdown({ item, qtyMilli, consumers, meId, names }) : null;
+  const cost = amount ? amountCost(item, amount.qtyMilli) : null;
+  const breakdown = !personal && amount ? shareBreakdown({ item, qtyMilli: amount.qtyMilli, consumers, meId, names }) : null;
   const label = quickLogLabel({ words, costMinor: cost, currency: item.currency, consumers: personal ? null : consumers });
-  const ready = qtyMilli !== null && words !== null && (personal || (!waitingForRoster && consumers.length > 0));
-
-  const choose = (id: string) => {
-    setTyped(null);
-    setPresetId(id);
-  };
-  const toggle = (id: string) => setChosen((cur) => toggleFace(cur ?? chosen, id));
+  const ready = amount !== null && words !== null && (personal || (!waitingForRoster && consumers.length > 0));
   // Named as the faces are ordered (you first); "each" is the engine's split of the cost.
   const who = personal
     ? null
     : whoLine({ ids: faceOrder(consumers, meId, names), meId, names, amounts: breakdown?.lines.map((l) => l.amountMinor) ?? null, currency: item.currency });
+  const sides = otherSides(item);
+
+  const choose = (id: string) => {
+    setOther(null);
+    setTyped(null);
+    setTileId(id);
+  };
+  const toggleOther = () => {
+    setTyped(null);
+    setOther((cur) => (cur ? null : otherStart(item, tile?.amount ?? null)));
+  };
+  const stepOther = (delta: 1 | -1) => {
+    if (!other) return;
+    setTyped(null);
+    setOther(otherStep(item, otherNow ?? other, delta));
+  };
+  const toggle = (id: string) => setChosen((cur) => toggleFace(cur ?? chosen, id));
 
   // Logged at once (SM-5): what is left drops wherever the item is listed,
   // the Undo toast is up and the screen is fresh for the next thing before
   // the server answers. A refusal is put back and the toast says why.
   const submit = () => {
-    if (!ready || qtyMilli === null || words === null) return;
+    if (!ready || !amount || words === null) return;
     void logUse({
       ref: itemRef,
       item,
-      qtyMilli,
+      qtyMilli: amount.qtyMilli,
       consumers,
       idempotencyKey: crypto.randomUUID(),
       what: words,
-      inPantry: true,
+      measure: amount.kind === "measure" ? { measure: amount.measure, quantity: amount.quantity } : null,
       meId,
       names,
     });
@@ -462,115 +419,121 @@ function UseForm({
 
   const headingId = "use-item-name";
   return (
-    <section aria-labelledby={headingId} className="space-y-4 rounded-[22px] border-2 border-primary bg-card p-5">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <h2 id={headingId} className="break-words text-xl font-extrabold leading-tight tracking-tight">
+    <section aria-labelledby={headingId} className="space-y-[18px]">
+      <div className="space-y-1">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h2 id={headingId} className="min-w-0 break-words text-[28px] font-extrabold leading-tight tracking-tight">
             {item.name}
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{leftAndPayer(item, meId, names)}</p>
+          <span className="max-w-[45%] shrink-0 truncate rounded-full bg-cp-owed-tint px-2.5 py-1 text-[13px] font-bold text-cp-owed">{pantryLabel(item.pantry)}</span>
         </div>
-        <span className="mt-0.5 max-w-[45%] shrink-0 truncate rounded-full bg-muted px-2.5 py-1 text-xs font-bold">
-          {pantryLabel(item.pantry)}
-        </span>
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label="Pick something else"
-          className="-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X className="h-5 w-5" aria-hidden />
-        </button>
+        <p className="text-sm font-semibold text-muted-foreground">{leftWithMeasure(item)}</p>
       </div>
 
-      <fieldset>
-        <legend className="mb-2 text-sm font-bold">How much?</legend>
-        <div className="grid grid-cols-2 gap-2.5">
-          {presets.map((p) => {
-            const on = typed === null && preset?.id === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => choose(p.id)}
-                className={cn(
-                  "relative flex min-h-[76px] flex-col items-start justify-center rounded-[16px] border px-3.5 py-2.5 text-left transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  on ? "border-primary bg-accent ring-1 ring-primary" : "border-input bg-card hover:bg-accent/60",
-                )}
-              >
-                {p.usual ? (
-                  <span className="mb-0.5 rounded-full bg-primary px-2 py-px text-[10px] font-bold uppercase tracking-wide text-primary-foreground">
-                    Your usual
-                  </span>
-                ) : null}
-                <span className="text-[17px] font-extrabold leading-tight">{p.label}</span>
-                <span className="text-[13px] tabular-nums text-muted-foreground">
-                  {p.amount} · {formatMinor(amountCost(item, p.qtyMilli), item.currency)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {typed === null ? (
+      <div role="group" aria-label="How much" className="grid grid-cols-2 gap-2.5">
+        {tiles.map((t) => {
+          const on = tile?.id === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => choose(t.id)}
+              className={cn(TILE, on ? "border-2 border-primary bg-accent" : "border border-input bg-card hover:bg-accent/60")}
+            >
+              {t.usual ? (
+                <span className="rounded-full bg-primary px-2 py-px text-[11px] font-extrabold uppercase tracking-wide text-primary-foreground">Usual</span>
+              ) : null}
+              <span className="text-lg font-extrabold leading-tight">{t.label}</span>
+              <span className="text-[13px] font-semibold tabular-nums text-muted-foreground">{t.sub}</span>
+            </button>
+          );
+        })}
+        {ask ? (
           <button
             type="button"
-            onClick={() => {
-              setTyped("");
-              window.requestAnimationFrame(() => otherRef.current?.focus());
-            }}
-            className="mt-1.5 min-h-11 rounded-xl px-2 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => setSheet({ kind: "first" })}
+            className={cn(TILE, "flex-row items-center justify-start gap-2.5 border-2 border-dashed border-[#9DB8A8] bg-transparent text-primary hover:bg-accent/60")}
           >
-            Another amount
+            <Plus className="h-[22px] w-[22px] shrink-0" aria-hidden />
+            <span className="text-[15px] font-extrabold leading-tight">{countInLabel(ask.many)}</span>
           </button>
-        ) : (
-          <div className="mt-2.5 space-y-1">
-            <label htmlFor="use-other" className="text-xs font-semibold text-muted-foreground">
-              Another amount, in {step.unit}
-            </label>
-            <div className="flex items-center gap-2">
-              <Input
-                ref={otherRef}
+        ) : null}
+      </div>
+      <MeasureSheet
+        item={item}
+        mode={sheet}
+        onOpenChange={(open) => !open && setSheet(null)}
+        onSaved={() => {
+          // The tiles are in the measure now: start from its first.
+          setOther(null);
+          setTyped(null);
+          setTileId(null);
+        }}
+      />
+
+      <section aria-label="Another amount" className={cn("rounded-[18px] bg-card px-3.5", other ? "border-2 border-primary pb-3" : "border border-input")}>
+        <button
+          type="button"
+          aria-expanded={other !== null}
+          onClick={toggleOther}
+          className="flex min-h-11 w-full items-center justify-between gap-3 text-[15px] font-extrabold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span>Another amount</span>
+          {other ? null : <span className="text-sm font-bold text-muted-foreground">{otherHint(item)}</span>}
+        </button>
+        {other ? (
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2.5">
+              <button type="button" aria-label="Less" className={STEP} onClick={() => stepOther(-1)}>
+                <Minus className="h-5 w-5" aria-hidden />
+              </button>
+              <label className="sr-only" htmlFor="use-other">
+                How much, in {other.side === "measure" && sides.measure ? sides.measure.many : sides.unit}
+              </label>
+              <input
                 id="use-other"
                 inputMode="decimal"
-                value={typed}
-                onChange={(e) => {
-                  setTyped(e.target.value);
+                autoComplete="off"
+                value={typed ?? (other.side === "measure" ? countText(other.quantity) : amountInput(other.qtyMilli))}
+                onChange={(e) => setTyped(e.target.value)}
+                onBlur={() => {
+                  if (parsedOther?.ok) {
+                    setOther(parsedOther.state);
+                    setTyped(null);
+                  }
                 }}
-                aria-invalid={parsed !== null && !parsed.ok && typed.trim() !== ""}
-                aria-describedby="use-other-note"
-                placeholder={step.unit === "g" || step.unit === "ml" ? "300" : "2"}
-                className="h-11 w-28 rounded-xl text-base sm:h-11 sm:text-base"
+                aria-invalid={parsedOther !== null && !parsedOther.ok}
+                aria-describedby="use-other-line"
+                className="h-12 w-[4.5rem] min-w-0 rounded-xl bg-background text-center text-2xl font-extrabold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:text-destructive"
               />
-              <span className="text-base font-bold text-muted-foreground">{step.unit}</span>
-              <button
-                type="button"
-                onClick={() => setTyped(null)}
-                className="ml-auto min-h-11 rounded-xl px-3 text-sm font-semibold text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                Back to presets
+              <button type="button" aria-label="More" className={STEP} onClick={() => stepOther(1)}>
+                <Plus className="h-5 w-5" aria-hidden />
               </button>
-            </div>
-            <p id="use-other-note" className="text-xs text-muted-foreground">
-              {parsed && !parsed.ok && typed.trim() !== "" ? (
-                <span className="font-medium text-destructive">{parsed.message}</span>
+              {sides.measure ? (
+                <UnitSwitch
+                  className="ml-auto"
+                  options={[
+                    { key: "measure", label: sides.measure.many, on: other.side === "measure" },
+                    { key: "unit", label: sides.unit, on: other.side === "unit" },
+                  ]}
+                  onPick={(key) => {
+                    setTyped(null);
+                    setOther(otherSwitch(item, otherNow ?? other, key === "measure" ? "measure" : "unit"));
+                  }}
+                />
               ) : (
-                `Up to ${leftText(item)}, what's left.`
+                <span className="ml-1 text-base font-bold text-muted-foreground">{sides.unit}</span>
               )}
+            </div>
+            <p id="use-other-line" role="status" className="text-sm font-bold text-foreground/80">
+              {parsedOther && !parsedOther.ok ? <span className="text-destructive">{parsedOther.message}</span> : otherLine(item, amount)}
             </p>
           </div>
-        )}
-      </fieldset>
+        ) : null}
+      </section>
 
-      {personal ? (
-        <p className="rounded-[14px] bg-background px-3.5 py-3 text-sm text-muted-foreground">
-          It&apos;s your own pantry, so nobody owes anyone — this just keeps count.
-          {cost !== null ? ` It cost you ${formatMinor(cost, item.currency)} (${costPerText(item)}).` : ""}
-        </p>
-      ) : (
-        <FaceRow legend="Who?" people={roster} chosen={chosen} onToggle={toggle} meId={meId} names={names} />
-      )}
+      {personal ? null : <FaceRow legend="Who?" people={roster} chosen={chosen} onToggle={toggle} meId={meId} names={names} />}
 
       <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static">
         <Button

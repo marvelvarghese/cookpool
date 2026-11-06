@@ -14,7 +14,7 @@ import { formatQuantity, isUnit, type Dimension, type UnitKey } from "@saas/kitc
 import { MAX_MINOR, formatMinor, minorToInput } from "./money";
 import { ITEM_CATEGORY_LABELS, PERSONAL_LABEL, PERSONAL_PANTRY, pantryKey, parseItemRef, type ItemRef } from "./pantry";
 import { MORE_UNITS, type ItemForm } from "./item-form";
-import { JUST_ME, MAX_PORTIONS, cookingGroups, portionsText, type DishLine, type NewItemDraft, type NewLine, type PantryLine } from "./dish-maker";
+import { JUST_ME, MAX_PORTIONS, cookingGroups, lineInEvenMeasure, portionsText, type DishLine, type NewItemDraft, type NewLine, type PantryLine } from "./dish-maker";
 
 /** How long the type-ahead waits after a keystroke before it asks. */
 export const FROM_BEFORE_DEBOUNCE_MS = 120;
@@ -380,7 +380,8 @@ export function recipeFill(
     portionsHalf: Math.min(Math.max(recipe.portionsHalf, 1), MAX_PORTIONS * 2),
     extrasMinor: Math.min(Math.max(recipe.extrasMinor, 0), MAX_MINOR),
     share,
-    lines,
+    // Amounts arrive in the item's unit: in its measure when they divide evenly to a half (SM-14).
+    lines: lines.map(lineInEvenMeasure),
     pending,
     missing,
   };
@@ -406,7 +407,7 @@ export function resolvePending(
       continue;
     }
     const line = item === null ? null : ingredientLine(p.ingredient, item);
-    if (line) lines.push(line);
+    if (line) lines.push(lineInEvenMeasure(line));
     else missing.push(missingOf(p.ingredient, p.index));
   }
   return { lines, pending: still, missing };

@@ -16,6 +16,7 @@ import { amountInput, parseAmount } from "./item-use";
 import { currencyPrefix, formatMinor } from "./money";
 import type { MemberNames } from "./members";
 import { pantryBadge } from "./pantry";
+import { UnitSwitch } from "./measures-ui";
 import { useItemSearch } from "./pantry-data";
 import { useCookableItems } from "./dish-maker-data";
 import {
@@ -62,11 +63,14 @@ export function AmountStepper({
   onChange,
   id,
   compact = false,
+  hideUnit = false,
 }: {
   view: LineView;
   onChange: (qtyMilli: number, delta?: 1 | -1) => void;
   id: string;
   compact?: boolean;
+  /** The unit is said by the switch beside it. */
+  hideUnit?: boolean;
 }) {
   const [typed, setTyped] = React.useState<string | null>(null);
   const parsed = typed === null ? null : parseAmount(typed, { dimension: view.dimension, qtyLeftMilli: view.max, displayUnit: view.step.unit });
@@ -105,7 +109,7 @@ export function AmountStepper({
             compact ? "h-9 w-12" : "h-10 w-16",
           )}
         />
-        <span className="text-sm font-semibold text-muted-foreground">{view.step.unit}</span>
+        {hideUnit ? null : <span className="text-sm font-semibold text-muted-foreground">{view.step.unit}</span>}
       </span>
       <button
         type="button"
@@ -135,15 +139,64 @@ function SourcePill({ view, className }: { view: LineView; className?: string })
   );
 }
 
-/** An ingredient on a phone: name and source, cost and who you owe, the stepper and what is left. */
+/** "− 3 +": a count of the item's measure (½ below one); a step down from ½ takes the ingredient out. */
+export function CountStepper({ view, onCount, compact = false }: { view: LineView; onCount: (delta: 1 | -1) => void; compact?: boolean }) {
+  const counted = view.counted;
+  if (!counted) return null;
+  return (
+    <div className={cn("flex items-center", compact ? "gap-1.5" : "gap-2")}>
+      <button type="button" className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")} aria-label={view.lessLabel} onClick={() => onCount(-1)}>
+        <Minus className="h-4 w-4" aria-hidden />
+      </button>
+      <span aria-live="polite" className={cn("text-center font-extrabold tabular-nums", compact ? "min-w-8 text-[15px]" : "min-w-10 text-lg")}>
+        <span className="sr-only">
+          {counted.count} {counted.word} of {view.name}
+        </span>
+        <span aria-hidden>{counted.count}</span>
+      </span>
+      <button
+        type="button"
+        className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")}
+        aria-label={view.moreLabel}
+        disabled={counted.quantity >= counted.max}
+        onClick={() => onCount(1)}
+      >
+        <Plus className="h-4 w-4" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/** The [onions | g] switch beside an ingredient's stepper, when its item has a measure. */
+function LineSides({ view, onSwitch }: { view: LineView; onSwitch?: ((side: "measure" | "unit") => void) | undefined }) {
+  if (!view.sides || !onSwitch) return null;
+  return (
+    <UnitSwitch
+      label={`Count ${view.name} in`}
+      options={[
+        { key: "measure", label: view.sides.measure, on: view.sides.on === "measure" },
+        { key: "unit", label: view.sides.unit, on: view.sides.on === "unit" },
+      ]}
+      onPick={(key) => onSwitch(key === "measure" ? "measure" : "unit")}
+    />
+  );
+}
+
+/** An ingredient on a phone: name and source, cost and who you owe, the stepper (in its measure or its unit) and what is left. */
 export function LineCard({
   view,
   currency,
   onChange,
+  onCount,
+  onSwitch,
 }: {
   view: LineView;
   currency: string;
   onChange: (qtyMilli: number, delta?: 1 | -1) => void;
+  /** A step of a line counted in its measure (SM-14). */
+  onCount?: (delta: 1 | -1) => void;
+  /** The [onions | g] switch (SM-14). */
+  onSwitch?: (side: "measure" | "unit") => void;
 }) {
   return (
     <li className="space-y-2.5 rounded-[18px] border bg-card py-3 pl-3.5 pr-3">
@@ -157,9 +210,14 @@ export function LineCard({
           <span className={cn("text-xs font-semibold", view.mine ? "text-muted-foreground" : "text-cp-owe")}>{view.owe}</span>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <AmountStepper view={view} onChange={onChange} id={`dish-line-${view.key}`} />
-        <span className="ml-auto text-[13px] text-muted-foreground">{view.leftNote}</span>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {view.counted && onCount ? (
+          <CountStepper view={view} onCount={onCount} />
+        ) : (
+          <AmountStepper view={view} onChange={onChange} id={`dish-line-${view.key}`} hideUnit={view.sides !== null && onSwitch !== undefined} />
+        )}
+        <LineSides view={view} onSwitch={onSwitch} />
+        <span className="ml-auto text-right text-[13px] font-semibold text-muted-foreground">{view.leftNote}</span>
       </div>
     </li>
   );
@@ -171,11 +229,15 @@ export function LineTable({
   currency,
   heading,
   onChange,
+  onCount,
+  onSwitch,
 }: {
   views: readonly LineView[];
   currency: string;
   heading: React.ReactNode;
   onChange: (key: string, qtyMilli: number, delta?: 1 | -1) => void;
+  onCount?: (key: string, delta: 1 | -1) => void;
+  onSwitch?: (key: string, side: "measure" | "unit") => void;
 }) {
   const th = "border-b px-3 pb-2 pt-1 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground";
   return (
@@ -212,7 +274,14 @@ export function LineTable({
                 <SourcePill view={v} className="max-w-[9.5rem] rounded-xl leading-snug" />
               </td>
               <td className="px-3 py-2">
-                <AmountStepper view={v} onChange={(q, d) => onChange(v.key, q, d)} id={`dish-row-${v.key}`} compact />
+                <div className="flex items-center gap-1.5">
+                  {v.counted && onCount ? (
+                    <CountStepper view={v} onCount={(d) => onCount(v.key, d)} compact />
+                  ) : (
+                    <AmountStepper view={v} onChange={(q, d) => onChange(v.key, q, d)} id={`dish-row-${v.key}`} compact hideUnit={v.sides !== null && onSwitch !== undefined} />
+                  )}
+                  <LineSides view={v} onSwitch={onSwitch ? (side) => onSwitch(v.key, side) : undefined} />
+                </div>
               </td>
               <td className="px-3 py-2 text-right font-bold">
                 <Money minor={v.costMinor} currency={currency} />

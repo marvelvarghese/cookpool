@@ -58,6 +58,8 @@ import {
   splitModes,
   startingHalves,
   stepDishAmount,
+  stepLineCount,
+  switchLine,
   withLeft,
   withQty,
   type DishForm,
@@ -265,6 +267,23 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
     }
     setLines((cur) => cur.map((l) => (l.key === key ? withQty(l, Math.min(next, lineMax(l))) : l)));
   };
+  // A line counted in its measure (SM-14): a step of the count, and the [onions | g] switch.
+  const stepCount = (key: string, delta: 1 | -1) => {
+    const line = lines.find((l) => l.key === key);
+    if (!line || line.kind !== "pantry") return;
+    setError(null);
+    const next = stepLineCount(line, delta);
+    if (!next) {
+      setLines((cur) => cur.filter((l) => l.key !== key));
+      window.requestAnimationFrame(() => ingredientsRef.current?.focus());
+      return;
+    }
+    setLines((cur) => cur.map((l) => (l.key === key ? next : l)));
+  };
+  const switchSide = (key: string, side: "measure" | "unit") => {
+    setError(null);
+    setLines((cur) => cur.map((l) => (l.key === key && l.kind === "pantry" ? switchLine(l, side) : l)));
+  };
   const addItem = (item: KitchenItem) => {
     setError(null);
     setShowProblem(false);
@@ -454,7 +473,14 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
               {/* Cards on a phone and while the dish's column is narrow; the table from 1200px. */}
               <ul aria-label="In the dish" className="space-y-2 min-[1200px]:hidden">
                 {views.map((v) => (
-                  <LineCard key={v.key} view={v} currency={currency} onChange={(q, d) => setQty(v.key, q, d)} />
+                  <LineCard
+                    key={v.key}
+                    view={v}
+                    currency={currency}
+                    onChange={(q, d) => setQty(v.key, q, d)}
+                    onCount={(d) => stepCount(v.key, d)}
+                    onSwitch={(side) => switchSide(v.key, side)}
+                  />
                 ))}
               </ul>
               <div className="hidden rounded-[22px] border bg-card min-[1200px]:block">
@@ -467,6 +493,8 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
                     </>
                   }
                   onChange={setQty}
+                  onCount={stepCount}
+                  onSwitch={switchSide}
                 />
               </div>
             </>

@@ -9,8 +9,8 @@ the code departed from `design.md`.
 | SM1 — fast | ✅ shipped 2026-11-04 | #37 (SM-3), #38 (SM-2), #41 (SM-4), #43 (SM-5) |
 | SM2 — for anyone | ✅ shipped 2026-11-05 | #39 (SM-6), #44 (SM-7) |
 | SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), #42 (SM-9) |
-| SM6 — your measures | in progress | #46 (SM-13), SM-14 |
-| SM4 — simpler screens | ✅ shipped 2026-11-05 | SM-10 (Use is rebuilt in SM-14) |
+| SM6 — your measures | ✅ shipped 2026-11-06 | #46 (SM-13), SM-14 |
+| SM4 — simpler screens | ✅ shipped 2026-11-05 | #47 (SM-10); Use rebuilt in SM-14 |
 | SM5 — the rest | | |
 
 ## Departures from the design
@@ -914,3 +914,170 @@ Cook, Add item and the desktop pages are SM-14's and SM-11's.
   `kitchen-nav.test.ts` (the four tiles and nothing else). Pinned words that
   changed on purpose were updated where they are tested.
 - **Nothing to redeploy beyond the console:** only web-console-next changed.
+
+### SM6 — your measures, in the app (SM-14)
+
+- **Use (`/use`), rebuilt under the seven rules.** Back and the search on one
+  row; the recent/usual items (or a search's matches) as one row of pills
+  (the 104 px cards with "Usually 1 glass · 750 ml left" are gone; two pills
+  with one name add the pantry); then the item — its name, its pantry chip,
+  "600 g left · ≈ 4 onions" — the tiles, Another amount, Who? and the one
+  main button ("Log 2 onions · ₹12.00" / "You + Anu · ₹6.00 each"), sticky
+  above the tab bar on a phone and in flow under the faces, so nothing covers
+  the tiles or the faces at 390×844 (measured: the faces end above the
+  button). Gone, as text (rule 2): the page title and its subtitle, the
+  "Pick what you used / Tap one of your usuals…" card (now one line, "Pick
+  what you used."), the item's "· Meera paid" (the canvas drops it; it is on
+  the item page), the personal pantry's "nobody owes anyone" paragraph, the
+  "Pick something else" ✕ (the pills switch items) and the empty states'
+  second sentences.
+- **The tiles (`useTiles`, quick-use.ts):** your usual first (in its measure
+  when the usual's `lastLabel` still names one of the item's measures —
+  "2 onions" takes what 2 onions take now; else its amount in the unit),
+  then 1 and 2 of the item's first measure, then plain amounts in its own
+  unit under what is left, then "The rest". **Beside a measure the plain
+  amounts go largest first** (onions: 1 onion · 2 onions · ½ kg · The rest,
+  as `MeasureUse` draws them), since the measure covers the small ones;
+  without one, smallest first (100 g · 250 g). An item with no measure whose
+  dimension is mass, volume or pack keeps the fourth slot for the dashed
+  "Count in onions" tile. Sub-lines: "≈ 150 g · ₹6.00" for a weight or
+  volume measure, the price alone for slices of a pack (the canvas), "250 ml
+  · ₹17.00" for the built-in glass, the price alone for a plain amount, "600 g
+  · ₹24.00" for the rest. Every amount is `measureTakeMilli`'s and every
+  price the engine's.
+- **Built-in amounts (`KITCHEN_MEASURES`):** mass is now 100 g · 250 g · ½ kg
+  (the guessed cup 200 g, ½ cup, spoon 20 g and teaspoon 5 g are gone);
+  volume keeps glass · ½ glass · splash · a spoon (15 ml — design §6 keeps
+  tsp/tbsp built in); pack is ½ pack · 1 pack (2 packs gone). "All" (things
+  you count) became "The rest" everywhere. **Home is touched by this:** its
+  use-soon card's one tap for a weighed item without a usual is now "I had
+  100 g" (was "I had a cup", 200 g) — `inbox.ts` reads `amountPresets`;
+  `kitchen-inbox.test.ts` pins it (one line changed, nothing else there).
+- **"Count in …", asked once (`MeasureSheet`, measures-ui.tsx):** one
+  question, four quick picks, Save — "1 onion weighs about" 50 · 100 · 150 ·
+  200 g; "1 bottle holds about" 200 · 250 · 500 · 1000 ml; "How many slices in
+  a pack?" 10 · 16 · 20 · 24 — and the canvas's one hint, "Saved for onions
+  in Flat 4B.". A pick saves exactly: 150 g is `{ count: 1, amountMilli:
+  150000 }`, 20 slices `{ count: 20, amountMilli: 1000 }`. **Nothing is
+  picked for you**, on Use or on the item page (the canvas preselects a size
+  when adding one there): a wrong guess accepted with one tap would move
+  money. The word: the item's name made singular by a small rule
+  (`wordsForName`: Onions → onion/onions, Tomatoes → tomato/tomatoes,
+  Strawberries → strawberry, Peaches → peach, a few irregulars — chillies,
+  loaves, cookies). When it is not sure (Rice, Onion, Hummus; a short list of
+  uncountable foods reads one = many) the sheet shows the word in a field,
+  prefilled, and Save uses what is typed (its plural by `pluralOf`).
+  **Departure: a volume starts at "bottle"** (in the field, to change), not
+  the item's name, unless the name is a plain plural — "1 milk holds about"
+  reads wrong, and the brief's question itself says "1 bottle". A pack picks
+  its word: slices · pieces · packets · type one (slices for bread, else
+  pieces). Save writes through `useSetMeasures` (measures-data.ts) at once
+  (SM-5's pattern): every cached read of that name in that pantry and
+  dimension — the item, every pantry list, search, usable, cookable, usuals —
+  reads the new measure before the server answers (`measuresPatches`), so
+  the tiles switch to "1 onion" in the same frame; the one Undo toast says
+  "Saved · now in onions" and Undo PUTs the old set back; a refusal rolls
+  back and says why in one line. A word kept keeps its `msr_` id meanwhile.
+- **Another amount:** a box with "onions or g" (or "in g") until opened; then
+  − value + and the [onions | g] switch (`UnitSwitch`), and under it the
+  other side and the price: "≈ 450 g · ₹18.00" in onions, "≈ 3 onions ·
+  ₹18.00" in grams. It opens on the chosen tile's amount, in the measure when
+  the item has one. A count steps by one, ½ below one (½ ↔ 1), never past
+  what `measureTakeMilli` allows; grams step 50 g as before. The value is
+  also a field: "1½", "1.5" and "2" read as counts; an amount over what is
+  left says so under it ("Only ≈ 4 onions left").
+- **The request:** an amount in a measure is sent as `{ quantity: "2",
+  measure: "onion" }`, anything else as `{ quantity, unit }` (`logRequest`,
+  `quickUseRequest`). The optimistic patch takes off the stock the tile's
+  amount, which is `measureTakeMilli`'s — so the last slice of a 16-slice
+  pack takes exactly what is left, as the server does — and the pending
+  history row carries the label (`pendingMove({ label })`).
+  `useLogUse({ measure })` is explicit; **left out, words that are one of
+  the item's measures and take exactly the amount ("2 onions") are sent in
+  it** (`countedWords`), so Home's usual row and Do it again — whose words now
+  come from the usual's `lastLabel` (`doItAgainRows`: "Onions · 2 onions",
+  with `measure`) — log in the measure without SM-10 changing its call. A
+  built-in "1 glass" (250 ml) beside a measure "glass" of another size stays
+  in ml.
+- **The toast after a use is one line** (added on the SM-10 review):
+  `loggedText` returns "Logged 2 onions · ₹12.00" for just you (and for your
+  own pantry), "Meera · 1 glass · ₹17.00" for one other person, and "You +
+  Anu · 1 glass · ₹8.50 each" for several (`forWhom`, `eachText`: "≈ ₹3.33
+  each" when the paisa do not divide, the engine's `buildUse` split) — the
+  measure's words when there are any. Before: "Logged 1 glass of Milk for you
+  and Anu in Flat 4B." plus "₹17.00 — it nets with everything else at
+  settle-up." The server's cost replaces the title's when it differs (someone
+  used some meanwhile). Same words on Use, the item page, Home and Pantry.
+  `LogUseInput.inPantry` stays, ignored, for the callers that pass it.
+- **The item page (`/pantry/[itemRef]`):** a "Counted as" block — each
+  measure "1 onion ≈ 150 g · Change" ("1 slice · 20 in a pack"), "Add a
+  measure" (at most three) — opening the same sheet: Change offers its sizes
+  (its own among them) and Remove; Add offers the item's own word first when
+  the rule is sure of it (onion · katori · cup · handful · Type a word; a
+  pack's slices · pieces · packets; a volume's cup · bottle · katori), each
+  with its sizes. The sheet's hint there: "Past uses stay as they were." Its
+  stock line adds "· ≈ 2 onions". **Its own Use control is gone: one "Use
+  some" main button opens `/use` on the item** (the simpler of the two the
+  brief offers, and the canvas's) — the audit's "two UIs for the same job".
+  Cook with it and Mark wasted stay. Viewers see the measures, without the
+  buttons ("You only view Flat 4B." replaces the longer sentence).
+- **Its uses read the label:** `historyRows` — "Anu · 2 onions" with "300 g ·
+  2 h ago" under it; a use without words "Dev · 100 g" (was "Dev used
+  100 g"), so the rows read one way; "You cooked with 3 onions"; "Anu undid a
+  use: 2 onions back".
+- **Activity wording:** the group's activity rows are the server's
+  transaction titles, which SM-13 already words "Onions (2 onions)"; the app
+  builds stock-move text in one place, the item's history (above), so that is
+  where the label is used. Nothing else assembles "had 300 g of" from a move.
+- **Cook (`/cook`):** an ingredient whose item has measures starts in the
+  first one ("1 onion", when it fits) with the [onions | g] switch beside its
+  stepper; a count steps by one (½ below one; below ½ takes it out), its
+  line reads "≈ 450 g" (no "≈" for slices of a pack, which are exact), and
+  the request sends `{ quantity: "3", measure: "onion" }` (`cookRequest`).
+  Switching keeps the amount (3 onions ⇄ 450 g, onto the gram grid). A dish
+  filled from before (SM-9) gets its amounts in the item's unit and shows them
+  in the measure when they divide evenly to a half (`lineInEvenMeasure`: 300 g
+  of 150 g onions → 2 onions; 250 g stays 250 g). A fresher read of the item
+  keeps the count and takes what it takes now; a measure removed meanwhile,
+  or a refusal's `qtyLeftMilli`, puts the line back in the unit.
+- **Tests** (`tests/web-console-next`): `kitchen-measures.test.ts` (38): the
+  singular rule and plurals, the question per dimension, the saved measure's
+  `count`/`amountMilli` per kind, adding/changing/removing (at most three, a
+  word once), the toast words, the tiles per dimension with and without
+  measures and as stock runs out, the usual in its measure, Another amount
+  (start, steps, switch, the line, typed counts, the most `measureTakeMilli`
+  allows), the request body for a measure and a unit, the stock patch by
+  `measureTakeMilli` and the engine's cost, the last slice, the pending row's
+  label, Do it again in a measure, the measures patch over every read (and
+  its exact rollback), Cook's lines, request, recipe fill and refresh, and
+  the history's words. Updated on purpose: the presets' weights, packs and
+  "The rest" (`kitchen-quick-use`), Home's "I had 100 g" (`kitchen-inbox`,
+  one line), the history's "You · 100 g" and the one-line toast
+  (`kitchen-item-use`).
+- **Browser check** (the production build under `wrangler dev` on 3175, the
+  SM-2 proxy on 3176 with SM-7's mock plus measures —
+  `scratchpad/sm14/build-mock.mjs`: `…/measures`, `measures` on items, uses
+  and ingredients in a measure with `label` — at 390×844): Onions with no
+  measure showed 100 g · 250 g · The rest · Count in onions; the sheet asked
+  "1 onion weighs about", 150 g, Save → the tiles read "1 onion ≈ 150 g ·
+  ₹6.00 · 2 onions ≈ 300 g · ₹12.00 · ½ kg · The rest", "600 g left · ≈ 4
+  onions" and the toast "Saved · now in onions"; the PUT sent `{ one: "onion",
+  many: "onions", count: 1, amountMilli: 150000 }`. "2 onions" for You + Anu
+  read "Log 2 onions · ₹12.00 / You + Anu · ₹6.00 each", sent `{ quantity:
+  "2", measure: "onion", consumers: [you, Anu] }` and toasted "You + Anu · 2
+  onions · ₹6.00 each"; the item page then read "300 g left of 1 kg · ≈ 2
+  onions", "Counted as 1 onion ≈ 150 g" and "You and Anu · 2 onions / 300 g ·
+  Just now". Bread asked "How many slices in a pack?" (20 → `{ count: 20,
+  amountMilli: 1000 }`) and offered 1 slice ₹2.25 · 2 slices ₹4.50. Cook
+  stepped Onions to "3 onions · ≈ 450 g · ₹18.00".
+- **Follow-ups for SM-10's screens** (not touched here): the Dish page's
+  ingredient line should read `ingredient.label` ("2 onions") before the
+  amount (`dish.ts` `ingredientQty`); the Pantry list's Use button words its
+  usual with `amountWords(usual.lastQtyMilli)` — `usual.lastLabel ?? …`
+  would show and log "2 onions" (`useLogUse` already sends words that name a
+  measure in it); Home's use-soon card can't offer a measure (the inbox's
+  `use_soon` item carries no `measures` — a server follow-up); Home's usuals
+  row may pass `measure: row.measure` explicitly. The shared toast still
+  sits over the main button on Use (audit item 14), as it does on every
+  screen. The contract fields stay optional (`packages/contracts` is outside
+  this task). Nothing to redeploy beyond the console.
