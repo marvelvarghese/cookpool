@@ -5,6 +5,8 @@ import { DEFAULT_APP_CONFIG, consoleTitle } from "@/lib/app-config";
 import { APPLE_SPLASH_SCREENS, APPLE_TOUCH_ICON } from "@/lib/manifest";
 import { appShellScript } from "@/lib/app-shell";
 import { rscFetchShim } from "@/lib/static-pages.mjs";
+import { OfflineBanner } from "@/components/shell/offline-banner";
+import { ServiceWorker } from "@/components/shell/service-worker";
 
 // Static (Cookpool SM-2): the layout reads nothing from the request, so every
 // page under it can be prerendered and served as a file. The product's
@@ -60,7 +62,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         {STATIC_RSC ? <script dangerouslySetInnerHTML={{ __html: rscFetchShim() }} /> : null}
-        <Providers>{children}</Providers>
+        <Providers>
+          {/*
+            No signal, clean updates (Cookpool PW-4): the offline banner above
+            every page, and the service worker (registered in production
+            builds only) with its "New version · Reload" offer.
+          */}
+          <OfflineBanner />
+          {children}
+          <ServiceWorker />
+        </Providers>
       </body>
     </html>
   );

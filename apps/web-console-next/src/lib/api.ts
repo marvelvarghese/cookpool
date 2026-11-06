@@ -19,6 +19,7 @@
 //     happens here — that all comes from the SDK.
 
 import { Cookpool, CookpoolError, type ClientOptions } from "@saas/sdk";
+import { OfflineError, connection, watchedFetch } from "./connection";
 import {
   DEPLOY_ENVIRONMENTS,
   apiEdgeWorkersDevUrl,
@@ -121,6 +122,12 @@ export type ApiResult<T> =
  * request that carried the token — the session has ended (expired, revoked).
  * Requests sent without a credential (the signed-out join preview) never
  * report.
+ *
+ * Every client's calls go through the connection (Cookpool PW-4,
+ * `lib/connection.ts`): while offline a write is refused before anything is
+ * sent (it comes back as a `network_error` with `reason: "offline"`), and
+ * each call's outcome — answered by the network, by the service worker's
+ * cache, or not at all — drives the offline banner.
  */
 export function createClient(
   target: ApiTarget,
@@ -128,21 +135,16 @@ export function createClient(
   onUnauthorized?: () => void,
 ): Cookpool {
   // OAuth's start stays on api-edge's own host, where its callback lands.
-  const opts: ClientOptions = { baseUrl: target.url, oauthBaseUrl: target.directUrl };
-  if (token) {
-    opts.auth = { kind: "bearer", token };
-    if (onUnauthorized) opts.fetch = reportingUnauthorized(onUnauthorized);
-  }
-  return new Cookpool(opts);
-}
-
-function reportingUnauthorized(onUnauthorized: () => void): typeof fetch {
-  return async (input, init) => {
-    // The platform fetch, looked up per call (not bound at construction).
-    const response = await globalThis.fetch(input, init);
-    if (response.status === 401 && new Headers(init?.headers).has("authorization")) onUnauthorized();
-    return response;
+  const report = token && onUnauthorized ? onUnauthorized : null;
+  const opts: ClientOptions = {
+    baseUrl: target.url,
+    oauthBaseUrl: target.directUrl,
+    fetch: watchedFetch(connection, (response, init) => {
+      if (report && response.status === 401 && new Headers(init?.headers).has("authorization")) report();
+    }),
   };
+  if (token) opts.auth = { kind: "bearer", token };
+  return new Cookpool(opts);
 }
 
 /**
@@ -167,6 +169,10 @@ export async function wrap<T>(fn: () => Promise<T>): Promise<ApiResult<T>> {
       const reason = e.details["reason"];
       if (typeof reason === "string") body.reason = reason;
       return { ok: false, status: e.status, error: body };
+    }
+    // A write held back offline (PW-4) says so in its one line.
+    if (e instanceof OfflineError) {
+      return { ok: false, status: 0, error: { code: "network_error", reason: "offline", message: e.message } };
     }
     return {
       ok: false,

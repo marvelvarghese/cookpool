@@ -2,7 +2,7 @@
 
 Milestones land in order. Each task is one pull request on an `orun/PW-<n>-<slug>` branch with an `Orun-Task` trailer, merged when every check is green, created in Orunbase under its milestone with its contract (`tasks/PW-<n>.TaskContract.yaml`). CI does not run the jest suites, so every PR runs its affected suites locally and lists them. Real-phone checks (an iPhone and an Android) are the owner's, from a short checklist in each PR.
 
-## PW0 — the spec
+## PW0 — the spec ✅
 
 This doc set, the canvas row "On your home screen", and the `PW-1` contract.
 
@@ -17,7 +17,7 @@ This doc set, the canvas row "On your home screen", and the `PW-1` contract.
 **Done when**
 - installed on an iPhone and an Android, Cookpool opens on Home without browser chrome, and every screen can be left without the browser
 
-## PW2 — no signal, clean updates
+## PW2 — no signal, clean updates ✅
 
 - **PW-4:** the service worker (build-generated precache list, the fetch rules, the per-account data cache cleared on sign-out); the offline banner and held-back writes; the update toast.
 

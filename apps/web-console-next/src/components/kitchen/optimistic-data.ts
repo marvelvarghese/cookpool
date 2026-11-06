@@ -10,6 +10,7 @@ import {
   type CachePatch,
   type PatchedEntry,
 } from "@/lib/optimistic";
+import { refuseIfOffline } from "@/lib/connection";
 
 /**
  * Writes that show at once (Cookpool SM-5), over the QueryClient: React
@@ -46,10 +47,29 @@ export interface OptimisticWrite {
 }
 
 /**
+ * A write held back offline (Cookpool PW-4): it changes nothing on screen,
+ * has nothing to roll back or restore, and is not counted as on its way —
+ * its request is refused by the API client before anything is sent.
+ */
+const HELD_BACK: OptimisticWrite = Object.freeze({
+  patch: () => undefined,
+  rollback: () => undefined,
+  restore: () => undefined,
+  track: <T,>(request: Promise<T>) => request,
+});
+
+/**
  * Stop a refresh already on its way to `patches`' reads from landing on top
  * of them, then patch them. A read with nothing in it yet is left loading.
+ *
+ * Offline (Cookpool PW-4) the write is held back at once: no patch, and the
+ * one-line toast "You're offline · nothing was logged" (`refuseIfOffline`).
+ * The handle it returns does nothing, the Undo toast offers nothing
+ * (`useUndoToast`), and the request is refused unsent (`lib/api.ts`).
+ * Nothing is queued.
  */
 export function beginWrite(qc: QueryClient, patches: readonly CachePatch[]): OptimisticWrite {
+  if (refuseIfOffline()) return HELD_BACK;
   const cache = queryCacheOf(qc);
   const entries: PatchedEntry[] = [];
   const apply = (list: readonly CachePatch[]) => {
