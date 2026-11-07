@@ -21,11 +21,6 @@ export interface GroupLike {
 
 export type GroupSort = "recent" | "az";
 
-export const GROUP_SORTS: readonly { id: GroupSort; label: string }[] = [
-  { id: "recent", label: "Recent" },
-  { id: "az", label: "A–Z" },
-];
-
 /** Lower-case, accents stripped, whitespace collapsed: the form names are matched in. */
 export function foldForSearch(value: string): string {
   return value
@@ -142,10 +137,6 @@ export function canWriteInGroup(role: GroupRole | null): boolean {
   return role !== null && role !== "viewer";
 }
 
-export function roleLabel(role: GroupRole): string {
-  return { owner: "Owner", admin: "Admin", member: "Member", viewer: "Viewer" }[role];
-}
-
 /** Owners and admins manage the join link and the group's rules. */
 export function canManageGroup(role: GroupRole | null): boolean {
   return role === "owner" || role === "admin";
@@ -158,7 +149,7 @@ export interface LeaveBalance {
   title: string;
   /** What to do about it, in one sentence. */
   body: string;
-  /** Settle up, on this group. */
+  /** Settle up, on this group: People filtered to it (SM-11). */
   settleHref: string;
 }
 
@@ -173,7 +164,7 @@ export function leaveBalance(
   group: { name: string; slug: string },
   balance: { balanceMinor?: unknown; currency?: unknown } | null | undefined,
 ): LeaveBalance {
-  const settleHref = `/settle?group=${encodeURIComponent(group.slug)}`;
+  const settleHref = `/people?group=${encodeURIComponent(group.slug)}`;
   const minor = typeof balance?.balanceMinor === "number" && Number.isInteger(balance.balanceMinor) ? balance.balanceMinor : null;
   const currency = typeof balance?.currency === "string" && balance.currency ? balance.currency : "INR";
   if (minor === null || minor === 0) {

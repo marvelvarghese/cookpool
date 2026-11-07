@@ -47,8 +47,8 @@ describe("activeKitchenTab", () => {
     expect(activeKitchenTab("/join/KTCH2345")).toBe("groups");
   });
 
-  it("treats Settle up as part of Groups (CP-8)", () => {
-    expect(activeKitchenTab("/settle")).toBe("groups");
+  it("treats Settle up as part of People (SM-11: one screen)", () => {
+    expect(activeKitchenTab("/settle")).toBe("people");
     expect(activeKitchenTab("/settlement")).toBeNull();
   });
 

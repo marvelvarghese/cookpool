@@ -18,6 +18,7 @@ import type {
   SettlementMethod,
 } from "@saas/contracts/kitchen";
 import { memberLabel, memberLabelInline, type MemberNames } from "./members";
+import { formatMinor } from "./money";
 
 export interface GroupRef {
   id: string;
@@ -174,14 +175,46 @@ export function mergeAllGroups(groups: readonly GroupPlan[], meId: string | null
   return { payments, totals, pending, failed };
 }
 
-/** The value of the "All groups" choice in the settle-up group picker. */
-export const ALL_GROUPS = "all";
+// ── People and Settle as one screen (SM-11) ───────────────────────
 
 /**
- * Which group /settle opens on: the `?group=` it was opened with, when that is
- * one of the person's groups, else All groups.
+ * The one-line toast once a payment is recorded, naming who paid whom, in
+ * the direction the money moved: "Paid Dev ₹25.00 · UPI" (you paid), "Dev
+ * paid you ₹90.00 · Cash", "Anu paid Dev ₹10.00 · Bank" (an owner or admin
+ * recording someone else's).
  */
-export function initialSettleChoice(groupParam: string | null | undefined, groups: readonly GroupRef[]): string {
-  if (groupParam && groups.some((g) => g.slug === groupParam)) return groupParam;
-  return ALL_GROUPS;
+export function paymentToast(
+  p: SettlePayment,
+  ctx: { currency: string; method: SettlementMethod; meId: string | null | undefined; names?: MemberNames | null },
+): string {
+  const amount = formatMinor(p.amountMinor, ctx.currency);
+  const how = SETTLE_METHODS.find((m) => m.id === ctx.method)?.label ?? "Other";
+  const to = memberLabelInline(p.toSubjectId, ctx.meId, ctx.names);
+  const who =
+    ctx.meId && p.fromSubjectId === ctx.meId ? `Paid ${to}` : `${memberLabel(p.fromSubjectId, ctx.meId, ctx.names)} paid ${to}`;
+  return `${who} ${amount} · ${how}`;
+}
+
+/**
+ * What a payment row offers: Record, or — when you can't — why, in two
+ * words: you only view that group ("View only"), or it is between two
+ * others and you don't manage the group ("Not involved").
+ */
+export function paymentAction(
+  p: SettlePayment,
+  ctx: { meId: string | null | undefined; canWrite: boolean; manager: boolean },
+): { record: true } | { record: false; why: string } {
+  if (!ctx.canWrite) return { record: false, why: "View only" };
+  const yours = !!ctx.meId && (p.fromSubjectId === ctx.meId || p.toSubjectId === ctx.meId);
+  if (!yours && !ctx.manager) return { record: false, why: "Not involved" };
+  return { record: true };
+}
+
+/** A group's plan as People lists it: what you pay, then what you get, then the rest; largest first in each. */
+export function paymentsYoursFirst<T extends SettlePayment>(payments: readonly T[], meId: string | null | undefined): T[] {
+  const rank = (p: SettlePayment) => {
+    const d = paymentDirection(p, meId);
+    return d === "you_pay" ? 0 : d === "you_receive" ? 1 : 2;
+  };
+  return [...payments].sort((a, b) => rank(a) - rank(b) || b.amountMinor - a.amountMinor);
 }

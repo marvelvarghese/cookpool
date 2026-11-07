@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-11
+  title: "The rest, part 1: groups, people, settle, bill"
+spec:
+  goal: Groups, a group, People merged with Settle, a person and Bill follow the seven rules, so the money screens read at a glance on a phone.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-11.TaskContract.yaml
+  doneWhen:
+    - a group page shows its money, activity and one main button, with settings behind one Settings entry
+    - People and Settle are one screen with one headline per currency and no zero cells
+    - Bill splits equally by default with the other modes behind More, and payments read in the direction money moved
+  gates: []

@@ -10,14 +10,14 @@ import { KCard, K_BUTTON } from "./kit";
 import { BalanceWords, PersonAvatar } from "./ledger-ui";
 import { memberLabel, type MemberNames } from "./members";
 import { useBalances, useSettlePlan } from "./ledger-data";
-import { SettleCard, SettleNote } from "./settle-card";
+import { SettleCard } from "./settle-card";
 import type { GroupRef } from "./settle";
 
 /**
  * One group's money (CP-8, shared since CP-23): everyone's balance, each
  * other person opening everything between you two, then the fewest payments
- * with Record. A group's Balances tab shows it, and so does the Groups page's
- * third column from 1280px.
+ * with Record. The Groups page shows it beside the list from 900px (its
+ * third column from 1280px).
  */
 export function GroupBalancesPanel({
   group,
@@ -65,7 +65,6 @@ export function GroupBalancesPanel({
         canRecordAny={manager}
         canWrite={canWrite}
       />
-      <SettleNote className="px-1" />
     </div>
   );
 }
