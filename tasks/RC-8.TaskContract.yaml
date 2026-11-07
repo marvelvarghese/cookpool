@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-8
+  title: "Recipes travel: sharing and explore"
+spec:
+  goal: In the new frame, a recipe can be kept to yourself, shown to your groups or shared by link; a link page saves a copy; a person's page lists their recipes; Explore and Cook now find what you can make; Always have and the food ask work.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-8.TaskContract.yaml
+  doneWhen:
+    - the share sheet sets Only me, My groups or the link, and copies the link
+    - /r/[code] shows the recipe and saves a copy that reads from Anu
+    - a person's page lists the recipes you may see
+    - Explore switches Cookpool and Your groups, filters by kind and Only what I can make
+    - Always have is edited at the bottom of Pantry and the food ask appears once per name
+  gates: []

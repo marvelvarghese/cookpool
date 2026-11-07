@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-7
+  title: "Cookpool's recipes and the food list"
+spec:
+  goal: About 300 foods with their names in several languages and about 40 Cookpool recipes are seeded by migration 360, each recipe complete and every line linked to a food.
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/kitchen-worker-tests
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-7.TaskContract.yaml
+  doneWhen:
+    - migration 360 seeds the foods, names and recipes under usr_cookpool
+    - a test checks every recipe has one main line, every line links to a food or is to taste, and every amount scales
+  gates: []

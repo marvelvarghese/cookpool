@@ -1,0 +1,26 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-4
+  title: "Recipes in the server"
+spec:
+  goal: Foods, recipes, scaling, the pantry match, Always have, sharing levels, links, copies and Cook now exist in kitchen-worker with their contracts and SDK, and a dish can be cooked from a recipe.
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/kitchen-engine
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-4.TaskContract.yaml
+  doneWhen:
+    - migrations 340 and 350 add foods, names, answers, Always have, recipes, lines, steps and the dish's recipe link, with about 60 seed foods
+    - scaleLine and scalePortions round by unit as design 3.2 says, covered by property tests
+    - every route in design 7 for RC-4 answers with the usual envelopes and refuses what visibility forbids
+    - the match marks each line have, short, missing or always and names the items it would take, preferring what expires soonest
+    - a dish cooked with recipeId keeps the recipe, its factor and each ingredient's line, and the recipe's lastCook returns it
+  gates: []

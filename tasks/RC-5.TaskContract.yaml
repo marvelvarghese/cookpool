@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-5
+  title: "The recipe screens"
+spec:
+  goal: In the new frame, the Cook hub, My recipes, the recipe page with scaling by the main item or portions and what you have, writing and editing a recipe, and saving a dish as a recipe work on stage.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-5.TaskContract.yaml
+  doneWhen:
+    - the Cook hub shows Start cooking, Cook now, My recipes and Explore as on the canvas
+    - the recipe page scales every line when the main item or portions change and shows have, short or missing per line
+    - Use all N you have sets the main item to the stock
+    - a recipe can be written and edited, and a dish saved as one
+    - Start cooking opens /cook/session?recipe=...&f=...
+  gates: []
