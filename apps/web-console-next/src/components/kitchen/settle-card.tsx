@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Route, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import type { SettlementMethod, SettlePayment, SettlePlan } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
@@ -11,12 +11,13 @@ import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KCard, K_BUTTON, GroupAvatar } from "./kit";
-import { Chip, Money, PersonAvatar } from "./ledger-ui";
+import { Face } from "./faces-ui";
+import { Chip, Money } from "./ledger-ui";
 import { memberLabel, memberLabelInline } from "./members";
 import { formatMinor } from "./money";
 import { debtsBehind } from "./debts";
 import { TXN_KIND_META } from "./activity";
-import { SETTLE_METHODS, paymentSentence, settlementRequest, workingLine, type GroupRef } from "./settle";
+import { SETTLE_METHODS, paymentAction, paymentSentence, paymentToast, settlementRequest, workingLine, type GroupRef } from "./settle";
 import { refreshLedger, useAllActivity } from "./ledger-data";
 import { useMemberNames } from "./people-data";
 import { useProfile } from "./data";
@@ -29,8 +30,8 @@ import { beginWrite } from "./optimistic-data";
  * "Fewest payments" for one group (CP-8): the working (debts → pairs →
  * payments), a disclosure with the pairwise debts behind it (computed here
  * from the whole feed with the engine's `pairLines`), and each payment of the
- * plan with Record (UPI · Cash · Bank). Used on the group's Balances tab and
- * on Settle up.
+ * plan with Record (UPI · Cash · Bank). The Groups page shows it beside the
+ * list from 900px; on a phone, People lists a group's payments (SM-11).
  */
 export function SettleCard({
   group,
@@ -104,19 +105,10 @@ export function SettleCard({
                     payment={p}
                     currency={plan.currency}
                     meId={meId}
-                    canRecord={canWrite && (canRecordAny || p.fromSubjectId === meId || p.toSubjectId === meId)}
+                    {...recordable(p, { meId, canWrite, manager: canRecordAny })}
                   />
                 ))}
               </ul>
-              {!canWrite ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  You view this group: the people in a payment, or an owner or admin, record it.
-                </p>
-              ) : !canRecordAny && plan.payments.some((p) => p.fromSubjectId !== meId && p.toSubjectId !== meId) ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  The two people in a payment, or an owner or admin, can record it.
-                </p>
-              ) : null}
             </>
           )}
         </>
@@ -212,8 +204,6 @@ function DebtsBehind({ orgId, meId, currency }: { orgId: string; meId: string | 
 
 // ── One payment, and recording it ─────────────────────────────────
 
-const METHOD_LABEL: Record<SettlementMethod, string> = { upi: "UPI", cash: "cash", bank: "bank transfer", other: "other" };
-
 /** Why a payment was refused, in one line (the messages Settle up and a person's page had, CP-8/CP-9). */
 export function paymentRefusal(error: { reason?: string | undefined; message: string }, opts: { leftText?: string } = {}): string {
   if (error.reason === "not_a_party") return "Only the two people in a payment, or an owner or admin, can record it.";
@@ -222,14 +212,15 @@ export function paymentRefusal(error: { reason?: string | undefined; message: st
 }
 
 /**
- * Record one payment of a group's plan (CP-8), shared by Settle up's rows,
- * Home's "I paid" (CP-23) and a person's Record payment (CP-9). It shows at
+ * Record one payment of a group's plan (CP-8), shared by People's rows,
+ * Home's "Paid" (CP-23) and a person's Record payment (CP-9). It shows at
  * once (Cookpool SM-5): the payment comes off the group's plan and off Home,
  * its row is at the top of the group's activity, and the one Undo toast is
  * up — before the server answers. Balances are the server's: they are read
  * again once it does. A refusal puts everything back exactly and the toast
  * says why in one line; Undo reverses it (at once on screen, on the server
- * once the payment has landed). Resolves true once recorded.
+ * once the payment has landed). Resolves true once recorded. The toast is
+ * one line naming who paid whom (SM-11): "Paid Dev ₹25.00 · UPI".
  */
 export function useRecordPayment() {
   const { client } = useSession();
@@ -237,15 +228,15 @@ export function useRecordPayment() {
   const offer = useUndoToast();
   const profile = useProfile();
   const meId = profile.data?.id ?? null;
+  const names = useMemberNames();
   return React.useCallback(
     (input: {
       orgId: string;
       payment: SettlePayment;
       currency: string;
       method: SettlementMethod;
-      sentence: string;
-      /** The toast's second line; "You paid Dev ₹45.00 by UPI." by default. */
-      description?: string;
+      /** Unused since SM-11 (the toast names who paid whom itself); kept for callers that pass it. */
+      sentence?: string;
       /** What a refusal says when one of the two has left the group. */
       leftText?: string;
       /** Undo was pressed: the screen's own "recorded" marks go too. */
@@ -265,8 +256,7 @@ export function useRecordPayment() {
       let undone = false;
       let posted: string | null = null;
       const toast = offer({
-        title: "Payment recorded",
-        description: input.description ?? `${input.sentence} ${formatMinor(payment.amountMinor, currency)} by ${METHOD_LABEL[method]}.`,
+        title: paymentToast(payment, { currency, method, meId, names }),
         undo: async (): Promise<UndoResult> => {
           const r = await request;
           if (!r.ok) return { ok: true, description: "Nothing was recorded." };
@@ -293,7 +283,7 @@ export function useRecordPayment() {
         return true;
       });
     },
-    [client, qc, offer, meId],
+    [client, qc, offer, meId, names],
   );
 }
 
@@ -316,8 +306,8 @@ export function PaymentMethodChips({
 }) {
   return (
     <div id={id} className={cn("flex flex-wrap items-center gap-2", className)}>
-      <span className="w-full text-xs font-medium text-muted-foreground" id={`${id}-label`}>
-        How was it paid? Cookpool records it; the money moves in your UPI, bank or cash.
+      <span className="sr-only" id={`${id}-label`}>
+        How was it paid?
       </span>
       <div role="group" aria-labelledby={`${id}-label`} className="flex flex-wrap gap-2">
         {SETTLE_METHODS.map((m) => (
@@ -346,23 +336,30 @@ export function PaymentMethodChips({
   );
 }
 
+/**
+ * One payment (SM-11): a face, who pays whom ("You pay Dev"), the amount —
+ * blue when it comes to you, orange when you pay — with the group under it,
+ * and its one action: Record → UPI · Cash · Bank. A payment you can't record
+ * says why in two words ("View only", "Not involved").
+ */
 export function PaymentRow({
   orgId,
   payment,
   currency,
   meId,
   canRecord,
+  why,
   groupName,
-  groupHref,
 }: {
   orgId: string;
   payment: SettlePayment;
   currency: string;
   meId: string | null;
   canRecord: boolean;
-  /** On "All groups": the group the payment is in. */
+  /** Why there is no Record, in two words. */
+  why?: string;
+  /** Across groups: the group the payment is in. */
   groupName?: string;
-  groupHref?: string;
 }) {
   const recordPayment = useRecordPayment();
   const [choosing, setChoosing] = React.useState(false);
@@ -375,68 +372,65 @@ export function PaymentRow({
   // Your own payments open the person: everything between you two, across groups.
   const involvesMe = !!meId && (payment.fromSubjectId === meId || payment.toSubjectId === meId);
 
-  // Recorded at once (SM-5): the row leaves the plan (or, on All groups, reads
+  // Recorded at once (SM-5): the row leaves the plan (or, across groups, reads
   // "Recorded" until the balances are read again) with the Undo toast up.
   const record = (method: SettlementMethod) => {
     if (recorded) return;
     setChoosing(false);
     setRecorded(true);
-    void recordPayment({ orgId, payment, currency, method, sentence, onRestore: () => setRecorded(false) }).then((ok) => {
+    void recordPayment({ orgId, payment, currency, method, onRestore: () => setRecorded(false) }).then((ok) => {
       if (!ok) setRecorded(false);
     });
   };
 
   return (
-    <li className="py-3">
-      {/* One line from 560px; on a phone, Record wraps under the amount. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <PersonAvatar subjectId={counterpart} meId={meId} names={names} />
-        <div className="min-w-[10rem] flex-1">
+    <li className="py-2.5">
+      <div className="flex min-h-11 items-center gap-3">
+        <Face subjectId={counterpart} meId={meId} names={names} />
+        <div className="min-w-0 flex-1">
           {involvesMe ? (
             <Link
               href={`/people/${encodeURIComponent(counterpart)}`}
-              className="block rounded text-[15px] font-semibold leading-snug underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="block truncate rounded text-[15px] font-bold leading-snug underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {sentence}
             </Link>
           ) : (
-            <p className="text-[15px] font-semibold leading-snug">{sentence}</p>
+            <p className="truncate text-[15px] font-bold leading-snug">{sentence}</p>
           )}
-          {groupName ? (
-            groupHref ? (
-              <Link href={groupHref} className="text-xs text-muted-foreground underline-offset-2 hover:underline">
-                {groupName}
-              </Link>
-            ) : (
-              <p className="text-xs text-muted-foreground">{groupName}</p>
-            )
-          ) : null}
+          <p className="truncate text-sm text-muted-foreground">
+            <Money
+              minor={payment.amountMinor}
+              currency={currency}
+              className={cn(
+                "font-bold",
+                payment.fromSubjectId === meId ? "text-cp-owe" : payment.toSubjectId === meId ? "text-cp-owed" : "text-foreground",
+              )}
+            />
+            {groupName ? ` · ${groupName}` : null}
+          </p>
         </div>
-        <Money
-          minor={payment.amountMinor}
-          currency={currency}
-          className={cn(
-            "shrink-0 text-[15px] font-bold",
-            payment.fromSubjectId === meId ? "text-cp-owe" : payment.toSubjectId === meId ? "text-cp-owed" : "",
-          )}
-        />
         {recorded ? (
-          <span role="status" className="ml-auto shrink-0 px-2 text-sm font-semibold text-muted-foreground">
+          <span role="status" className="shrink-0 px-2 text-sm font-semibold text-muted-foreground">
             Recorded
           </span>
-        ) : canRecord && !choosing ? (
-          <Button
-            variant="outline"
-            className={cn(K_BUTTON, "ml-auto shrink-0 px-4")}
-            aria-expanded={false}
-            aria-controls={chipsId}
-            onClick={() => setChoosing(true)}
-          >
-            Record
-            <span className="sr-only">
-              : {sentence} {formatMinor(payment.amountMinor, currency)}
-            </span>
-          </Button>
+        ) : canRecord ? (
+          choosing ? null : (
+            <Button
+              variant="outline"
+              className={cn(K_BUTTON, "shrink-0 px-4")}
+              aria-expanded={false}
+              aria-controls={chipsId}
+              onClick={() => setChoosing(true)}
+            >
+              Record
+              <span className="sr-only">
+                : {sentence} {formatMinor(payment.amountMinor, currency)}
+              </span>
+            </Button>
+          )
+        ) : why ? (
+          <span className="shrink-0 text-right text-[13px] font-semibold text-muted-foreground">{why}</span>
         ) : null}
       </div>
       {choosing && !recorded ? (
@@ -445,19 +439,18 @@ export function PaymentRow({
           busy={null}
           onPick={(m) => void record(m)}
           onCancel={() => setChoosing(false)}
-          className="mt-3 pl-12"
+          className="mt-2 pl-[52px]"
         />
       ) : null}
     </li>
   );
 }
 
-/** A small "how settling works" note, shared by the Balances tab and Settle up. */
-export function SettleNote({ className }: { className?: string }) {
-  return (
-    <p className={cn("flex items-start gap-2 text-sm text-muted-foreground", className)}>
-      <Route className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-      Cookpool records payments; the money moves in your UPI, bank or cash.
-    </p>
-  );
+/** A row's Record, or why there is none (`paymentAction`), as PaymentRow's props. */
+export function recordable(
+  p: SettlePayment,
+  ctx: { meId: string | null; canWrite: boolean; manager: boolean },
+): { canRecord: boolean; why?: string } {
+  const a = paymentAction(p, ctx);
+  return a.record ? { canRecord: true } : { canRecord: false, why: a.why };
 }

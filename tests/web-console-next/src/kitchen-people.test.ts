@@ -1,19 +1,19 @@
-import type { KitchenTxn, MyBalancesResponse, PersonGroupView, PersonLine, PersonViewResponse } from "@saas/contracts/kitchen";
+import type { KitchenTxn, MyBalancesResponse, PersonGroupView, PersonViewResponse } from "@saas/contracts/kitchen";
 import {
-  acrossGroups,
   betweenSentence,
-  filterLines,
-  homeBalance,
+  everyoneIn,
+  firstName,
   namesFromBalances,
   netsByCurrency,
   peopleRows,
+  peopleMoney,
   personHeadlines,
+  personMoney,
   planSentence,
   recordOptionSentence,
   recordOptions,
   recordRequest,
-  shortcutSentence,
-  totalLine,
+  shortcutPlain,
 } from "@web-console-next/components/kitchen/people";
 import { memberInitials, memberLabel, memberLabelInline, nameInitials, sortMembers } from "@web-console-next/components/kitchen/members";
 import { canWriteInGroup, roleFromKitchen } from "@web-console-next/components/kitchen/groups";
@@ -172,41 +172,32 @@ describe("the People list (CP-9)", () => {
     expect(peopleRows(null)).toEqual([]);
   });
 
-  it("states the totals per currency", () => {
-    expect(totalLine(balances.totals[0]!)).toMatchObject({
-      tone: "owed",
-      headline: "You're owed ₹62.50",
-      detail: "₹86.50 to you · ₹24.00 from you",
-    });
-    expect(totalLine(balances.totals[1]!)).toMatchObject({ tone: "owe", headline: "You owe $25.00" });
-    expect(totalLine({ currency: "INR", owedToYouMinor: 0, youOweMinor: 0, netMinor: 0 }).headline).toBe("You're settled up");
-    expect(acrossGroups(1)).toBe("Across 1 group");
-    expect(acrossGroups(3)).toBe("Across 3 groups");
-  });
 });
 
-describe("Home's balance card (CP-9)", () => {
-  it("says where you stand across your groups, per currency, with the people money is open with", () => {
-    const home = homeBalance(balances, 2);
-    expect(home.across).toBe("Across 3 groups");
-    expect(home.totals.map((t) => t.currency)).toEqual(["INR", "USD"]);
-    expect(home.people.map((p) => p.subjectId)).toEqual([DEV, ANU]);
-    expect(home.morePeople).toBe(1);
-    expect(home.settleUp).toBe(true);
+// SM-11: People and Settle are one screen.
+describe("People's headline: one per currency, no zero cells (SM-11)", () => {
+  it("says each currency with money open in plain words, yours first, never added across", () => {
+    expect(peopleMoney(balances).map((l) => l.text)).toEqual(["You get back ₹62.50", "You owe $25.00"]);
+    expect(peopleMoney(balances).map((l) => l.tone)).toEqual(["owed", "owe"]);
   });
 
-  it("offers no Settle up when nothing is open", () => {
-    const settled: MyBalancesResponse = {
-      ...balances,
-      people: [],
-      totals: [{ currency: "INR", owedToYouMinor: 0, youOweMinor: 0, netMinor: 0 }],
-    };
-    expect(homeBalance(settled)).toMatchObject({ people: [], morePeople: 0, settleUp: false });
+  it("drops a settled currency instead of showing a zero, and is one 'Settled up' when nothing is open", () => {
+    const usdSettled = { ...balances, totals: [balances.totals[0]!, { currency: "USD", owedToYouMinor: 0, youOweMinor: 0, netMinor: 0 }] };
+    expect(peopleMoney(usdSettled).map((l) => l.text)).toEqual(["You get back ₹62.50"]);
+    const allSettled = { ...balances, totals: balances.totals.map((t) => ({ ...t, owedToYouMinor: 0, youOweMinor: 0, netMinor: 0 })) };
+    expect(peopleMoney(allSettled)).toEqual([expect.objectContaining({ text: "Settled up", amount: null, tone: "settled" })]);
   });
-});
 
-const line = (txnId: string, kind: PersonLine["kind"], signedMinor: number, extra: Partial<PersonLine> = {}): PersonLine => ({
-  txnId, kind, title: txnId, occurredAt: "2026-11-02T08:00:00.000Z", signedMinor, reversed: false, reverses: null, ...extra,
+  it("filtered to a group, is your balance there, in its currency", () => {
+    expect(peopleMoney(balances, TRIP.orgId).map((l) => l.text)).toEqual(["You owe $25.00"]);
+    expect(peopleMoney(balances, FLAT.orgId).map((l) => l.text)).toEqual(["You get back ₹86.50"]);
+  });
+
+  it("lists everyone (or everyone in the group) by name, without repeating any amount", () => {
+    expect(everyoneIn(balances).map((r) => r.label)).toEqual(["Anu", "Dev Patel", "Member · c1c1", "Member · d2d2"]);
+    expect(everyoneIn(balances, LUNCH.orgId).map((r) => r.subjectId)).toEqual([ANU, KIRAN]);
+    expect(everyoneIn(null)).toEqual([]);
+  });
 });
 
 function group(overrides: Partial<PersonGroupView> = {}): PersonGroupView {
@@ -224,56 +215,35 @@ function group(overrides: Partial<PersonGroupView> = {}): PersonGroupView {
 }
 
 describe("the person view (CP-9)", () => {
-  it("filters the lines: Dishes, Items used (uses and waste), Bills; an undo goes with what it undoes", () => {
-    const lines = [
-      line("txn_r", "reversal", -500, { reverses: "txn_bill" }),
-      line("txn_pay", "settlement", -1_000),
-      line("txn_dish", "dish", 5_275),
-      line("txn_use", "use", 600),
-      line("txn_waste", "waste", 120),
-      line("txn_bill", "expense", 500, { reversed: true }),
-    ];
-    expect(filterLines(lines, "all")).toHaveLength(6);
-    expect(filterLines(lines, "dishes").map((l) => l.txnId)).toEqual(["txn_dish"]);
-    expect(filterLines(lines, "used").map((l) => l.txnId)).toEqual(["txn_use", "txn_waste"]);
-    expect(filterLines(lines, "bills").map((l) => l.txnId)).toEqual(["txn_r", "txn_bill"]);
-  });
-
-  it("explains the group shortcut in words, from either end of the chain", () => {
+  it("says the plan's other way in plain words: who pays whom directly instead of through whom (SM-11)", () => {
     const ctx = { meId: ME, otherId: DEV, otherName: "Dev" };
-    expect(shortcutSentence(group(), ctx)).toBe("Dev owes Anu ₹90.00 and Anu owes you, so Dev pays you directly");
-    // Seen from Anu: you are owed by Anu, but Dev pays you instead.
+    expect(shortcutPlain(group(), ctx)).toBe("Dev pays you directly instead of through Anu");
+    // Seen from Anu: Dev pays you instead of Anu.
     expect(
-      shortcutSentence(
-        group({ pairwiseMinor: 9_000, planMinor: 0, shortcutMinor: -9_000, shortcutVia: { fromSubjectId: DEV, viaSubjectId: ANU, toSubjectId: ME, amountMinor: 9_000, thirdDisplayName: "Dev" } }),
+      shortcutPlain(
+        group({ pairwiseMinor: 9_000, planMinor: 0, shortcutMinor: -9_000, shortcutVia: { fromSubjectId: DEV, viaSubjectId: ANU, toSubjectId: ME, amountMinor: 9_000, thirdDisplayName: "Dev Patel" } }),
         { meId: ME, otherId: ANU, otherName: "Anu" },
       ),
-    ).toBe("Dev owes Anu ₹90.00 and Anu owes you, so Dev pays you directly");
+    ).toBe("Dev pays you directly instead of through Anu");
     // You at the start: you pay across.
     expect(
-      shortcutSentence(
+      shortcutPlain(
         group({ planMinor: -5_000, shortcutMinor: -5_000, shortcutVia: { fromSubjectId: ME, viaSubjectId: ANU, toSubjectId: DEV, amountMinor: 5_000, thirdDisplayName: null } }),
         { ...ctx, names: new Map([[ANU, "Anu"]]) },
       ),
-    ).toBe("You owe Anu ₹50.00 and Anu owes Dev, so you pay Dev directly");
+    ).toBe("You pay Dev directly instead of through Anu");
     // You in the middle.
     expect(
-      shortcutSentence(
-        group({ shortcutVia: { fromSubjectId: KIRAN, viaSubjectId: ME, toSubjectId: DEV, amountMinor: 1_000, thirdDisplayName: "Kiran" } }),
-        ctx,
-      ),
-    ).toBe("Kiran owes you ₹10.00 and you owe Dev, so Kiran pays Dev directly");
+      shortcutPlain(group({ shortcutVia: { fromSubjectId: KIRAN, viaSubjectId: ME, toSubjectId: DEV, amountMinor: 1_000, thirdDisplayName: "Kiran" } }), ctx),
+    ).toBe("Kiran pays Dev directly instead of through you");
   });
 
-  it("says what the shortcut does when no one person explains it, and nothing when there is none", () => {
+  it("without one person who explains it, says how much is for others; nothing when the plan is just what you owe", () => {
     const ctx = { meId: ME, otherId: DEV, otherName: "Dev" };
-    expect(shortcutSentence(group({ shortcutVia: null }), ctx)).toBe(
-      "The group's plan routes ₹90.00 of other debts through Dev to you, so everyone makes fewer payments",
-    );
-    expect(shortcutSentence(group({ shortcutMinor: -900, shortcutVia: null }), ctx)).toBe(
-      "The group's plan routes ₹9.00 of other debts through you to Dev, so everyone makes fewer payments",
-    );
-    expect(shortcutSentence(group({ shortcutMinor: 0 }), ctx)).toBeNull();
+    expect(shortcutPlain(group({ shortcutVia: null }), ctx)).toBe("Dev also pays you ₹90.00 for others");
+    expect(shortcutPlain(group({ shortcutMinor: -900, shortcutVia: null }), ctx)).toBe("You also pay Dev ₹9.00 for others");
+    expect(shortcutPlain(group({ shortcutMinor: 0 }), ctx)).toBeNull();
+    for (const g of [group(), group({ shortcutVia: null })]) expect(shortcutPlain(g, ctx)).not.toMatch(/shortcut|route|netting/i);
   });
 
   it("states what you owe each other directly and what the plan asks", () => {
@@ -304,6 +274,21 @@ describe("the person view (CP-9)", () => {
       ["owe", "You pay Dev $25.00"],
     ]);
     expect(personHeadlines({ ...view, totals: [{ currency: "INR", netMinor: 0 }] }).map((h) => h.text)).toEqual(["Settled"]);
+  });
+
+  it("is one headline per currency between you two, by first name, with no zero cells (SM-11)", () => {
+    const dev = { ...view, displayName: "Dev Patel" };
+    expect(firstName(dev)).toBe("Dev");
+    expect(firstName({ subjectId: DEV, displayName: null })).toBe("Member · 3f9a");
+    expect(personMoney(dev)).toEqual([
+      { currency: "INR", tone: "owed", label: "Dev pays you", amount: "₹97.00" },
+      { currency: "USD", tone: "owe", label: "You pay Dev", amount: "$25.00" },
+    ]);
+    // A settled currency is left out; all settled is one "Settled up".
+    expect(personMoney({ ...dev, totals: [{ currency: "INR", netMinor: 9_700 }, { currency: "USD", netMinor: 0 }] }).map((m) => m.currency)).toEqual(["INR"]);
+    expect(personMoney({ ...dev, totals: [{ currency: "INR", netMinor: 0 }] })).toEqual([
+      { currency: "INR", tone: "settled", label: "Settled up", amount: null },
+    ]);
   });
 
   it("records a payment only in groups where the plan has one between you, and you're not a viewer", () => {

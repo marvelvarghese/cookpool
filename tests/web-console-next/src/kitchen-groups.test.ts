@@ -9,7 +9,6 @@ import {
   pushRecentSlug,
   recentGroups,
   roleFromAssignments,
-  roleLabel,
   sortGroups,
   validateGroupName,
 } from "@web-console-next/components/kitchen/groups";
@@ -120,8 +119,7 @@ describe("roles", () => {
     expect(roleFromAssignments([])).toBeNull();
   });
 
-  it("labels and permissions", () => {
-    expect(roleLabel("member")).toBe("Member");
+  it("permissions", () => {
     expect(canManageGroup("owner")).toBe(true);
     expect(canManageGroup("admin")).toBe(true);
     expect(canManageGroup("member")).toBe(false);

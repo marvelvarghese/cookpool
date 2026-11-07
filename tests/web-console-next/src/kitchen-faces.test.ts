@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { formatMinor } from "@saas/kitchen-engine/money";
 import { FACE_COLORS, ME_FACE, eachText, faceColor, faceOrder, forWhom, toggleFace, whoLine } from "@web-console-next/components/kitchen/faces";
 import { Face, FaceRow, MainButtonLabel } from "@web-console-next/components/kitchen/faces-ui";
-import { expenseAddedText, expenseButton, initialExpenseForm, previewExpense } from "@web-console-next/components/kitchen/expense-form";
+import { expenseButton, expenseToast, initialExpenseForm, previewExpense } from "@web-console-next/components/kitchen/expense-form";
 import { amountCost, shareBreakdown } from "@web-console-next/components/kitchen/item-use";
 import { ANU, DEV, FLAT, KIRAN, ME, MEERA, NAMES, groupRef, makeItem } from "./kitchen-pantry-fixtures";
 
@@ -118,7 +118,7 @@ describe("the main button says who it is for", () => {
     const start = initialExpenseForm(people, ME);
     // No amount yet: it says what it is; everyone is in.
     expect(expenseButton({ preview: previewExpense(start, people), mode: "equal", meId: ME, names: ALL_NAMES, currency: "INR" })).toEqual({
-      title: "Add expense",
+      title: "Add a bill",
       who: "You + Anu + 3 more",
     });
     const two = { ...start, title: "Vegetables", amount: "17", included: Object.fromEntries(people.map((id) => [id, id === ME || id === ANU])) };
@@ -143,10 +143,7 @@ describe("the main button says who it is for", () => {
     expect(renderToStaticMarkup(React.createElement(MainButtonLabel, { title: "Pick who had it", who: null }))).not.toContain("opacity-90");
   });
 
-  it("says the expense once in its toast: 'split equally', not 'split split equally'", () => {
-    expect(expenseAddedText({ totalMinor: 120000, mode: "equal" }, "INR")).toBe("₹1,200.00, split equally.");
-    expect(expenseAddedText({ totalMinor: 120000, mode: "exact" }, "INR")).toBe("₹1,200.00, exact amounts.");
-    expect(expenseAddedText({ totalMinor: 120000, mode: "percent" }, "INR")).toBe("₹1,200.00, by percentage.");
-    expect(expenseAddedText({ totalMinor: 120000, mode: "shares" }, "INR")).toBe("₹1,200.00, by shares.");
+  it("says the bill in one line once it is added (SM-11)", () => {
+    expect(expenseToast({ title: "Vegetables", totalMinor: 120000 }, "INR")).toBe("Added Vegetables · ₹1,200.00");
   });
 });

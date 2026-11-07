@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { Flag, MoreVertical, Plus, Receipt, Undo2 } from "lucide-react";
+import { Flag, MoreVertical, Undo2 } from "lucide-react";
 import type { ActivityPage, KitchenTxn } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
@@ -28,34 +27,39 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CLOSE_44, IconBubble, KCard, K_BUTTON } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON } from "./kit";
 import { KindBubble } from "./ledger-ui";
 import { activityRow, flattenActivity, withTxnReversed, type ActivityRow } from "./activity";
 import { refreshLedger, useActivityFeed, useOfferUndo } from "./ledger-data";
 import { useMemberNames } from "./people-data";
 
 /**
- * A group's Activity tab (CP-8): every entry newest first, a page at a time.
+ * A group's Activity (CP-8): every entry newest first, a page at a time.
  * Each row shows the kind, title, who logged it and when, and what it did to
- * *your* balance (blue +, orange −, neutral). Undone entries are struck
- * through. `?txn=txn_…` (Home's flag cards and Recent activity, CP-23) brings
- * that entry into view and marks it, reading a few more pages to find it.
- * The row menu offers Undo (its creator, or an owner or admin) and
- * Flag (someone it names); a viewer gets neither, and no Add expense.
+ * *your* balance (blue +, orange −, neutral) — a payment, the money that
+ * moved (SM-11: "Anu paid you" is +). Undone entries are struck through.
+ * `?txn=txn_…` (Home's flag cards and Recent activity, CP-23) brings that
+ * entry into view and marks it, reading a few more pages to find it. The row
+ * menu offers Undo (its creator, or an owner or admin) and Flag (someone it
+ * names); a viewer gets neither. With `limit` (the group's page), the first
+ * rows and "See all".
  */
 export function ActivityFeed({
   orgId,
-  slug,
   meId,
   canReverseAny,
   canWrite = true,
+  limit,
 }: {
   orgId: string;
-  slug: string;
+  /** Unused since SM-11 (the empty feed no longer repeats the page's Add a bill). */
+  slug?: string;
   meId: string | null;
   canReverseAny: boolean;
   /** False for a viewer (CP-9). */
   canWrite?: boolean;
+  /** Rows shown before "See all"; every row when left out. */
+  limit?: number;
 }) {
   const { client } = useSession();
   const qc = useQueryClient();
@@ -72,9 +76,12 @@ export function ActivityFeed({
   }, []);
 
   const txns = React.useMemo(() => flattenActivity(feed.data?.pages ?? []), [feed.data]);
+  const [expanded, setExpanded] = React.useState(false);
 
   // The entry a link points at (`?txn=`): into view once listed, else a few more pages.
   const focusTxn = useSearchParams()?.get("txn") ?? null;
+  const all = !limit || expanded || focusTxn !== null;
+  const shown = all ? txns : txns.slice(0, limit);
   const focusListed = focusTxn !== null && txns.some((t) => t.id === focusTxn);
   const pagesRead = feed.data?.pages.length ?? 0;
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = feed;
@@ -110,7 +117,7 @@ export function ActivityFeed({
       return;
     }
     refreshLedger(qc, orgId);
-    offerUndo(orgId, r.data.txn, `Undone: ${txn.title}`, "Its amounts are taken back out of the balances.");
+    offerUndo(orgId, r.data.txn, `Undone: ${txn.title}`);
   };
 
   if (feed.isLoading) {
@@ -133,29 +140,13 @@ export function ActivityFeed({
     );
   }
   if (txns.length === 0) {
-    return (
-      <KCard className="flex flex-col items-center px-6 py-10 text-center">
-        <IconBubble icon={Receipt} tone="blue" className="h-14 w-14" />
-        <h3 className="mt-4 text-lg font-bold tracking-tight">Nothing logged yet</h3>
-        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-          Bills, payments, and what people use and cook show up here, newest first.
-        </p>
-        {canWrite ? (
-          <Button asChild className={cn(K_BUTTON, "mt-5")}>
-            <Link href={`/groups/${slug}/expense`}>
-              <Plus aria-hidden />
-              Add expense
-            </Link>
-          </Button>
-        ) : null}
-      </KCard>
-    );
+    return <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">Nothing yet</p>;
   }
 
   return (
     <div className="space-y-3">
-      <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
-        {txns.map((txn) => {
+      <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
+        {shown.map((txn) => {
           const row = activityRow(txn, { meId, canReverseAny, now, names, canWrite });
           return (
             <ActivityItem
@@ -169,7 +160,11 @@ export function ActivityFeed({
         })}
       </ul>
 
-      {feed.hasNextPage ? (
+      {!all && txns.length > shown.length ? (
+        <Button variant="ghost" className={cn(K_BUTTON, "w-full text-primary")} onClick={() => setExpanded(true)}>
+          See all
+        </Button>
+      ) : feed.hasNextPage ? (
         <Button
           variant="outline"
           className={cn(K_BUTTON, "w-full bg-card")}
@@ -202,14 +197,14 @@ function ActivityItem({ row, focused, onUndo, onFlag }: { row: ActivityRow; focu
     <li
       id={`txn-${row.id}`}
       aria-current={focused ? "true" : undefined}
-      className={cn("flex min-h-[68px] scroll-mt-24 items-center gap-3 px-4 py-3", focused && "bg-cp-soon-tint/60")}
+      className={cn("flex min-h-[60px] scroll-mt-24 items-center gap-3 px-4 py-2", focused && "bg-cp-soon-tint/60")}
     >
-      <KindBubble glyph={row.glyph} label={row.kindLabel} tone={row.reversed ? "neutral" : row.kindTone} />
+      <KindBubble glyph={row.glyph} label={row.kindLabel} tone={row.reversed ? "neutral" : row.kindTone} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
-        <p className={cn("line-clamp-2 break-words text-[15px] font-semibold leading-snug", row.reversed && "text-muted-foreground line-through")}>
+        <p className={cn("truncate text-[15px] font-semibold leading-snug", row.reversed && "text-muted-foreground line-through")}>
           {row.title}
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="truncate text-sm text-muted-foreground">
           {row.reversed ? (
             <span className="mr-1.5 inline-block rounded-full bg-muted px-2 py-px align-[1px] text-[11px] font-semibold uppercase tracking-wide">
               Undone
