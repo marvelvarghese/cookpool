@@ -738,3 +738,47 @@ describe("the API on the app's address (SM-4)", () => {
     for (const envName of Object.keys(consoleConfig.env)) expect(consoleConfig.env[envName]?.placement).toBeUndefined();
   });
 });
+
+// ── notifications-worker's Web Push keys (Cookpool PW-5) ───────
+//
+// Each deployed environment has its own VAPID pair: the public key a plain
+// var in the template (an empty placeholder until the owner generates the
+// pair — push is then off, email unaffected), the private key a runtime
+// secret pushed from orun secrets at deploy, never in config.
+
+describe("notifications-worker Web Push keys", () => {
+  type Rendered = {
+    vars?: Record<string, string>;
+    env: Record<string, { vars?: Record<string, string> }>;
+  };
+  const templateRaw = fs.readFileSync(path.join(ROOT, "apps/notifications-worker/wrangler.template.jsonc"), "utf-8");
+  const template = parseJsoncStrings(templateRaw) as unknown as Rendered;
+  const rendered = renderFromFixture("apps/notifications-worker", parseJsoncStrings) as unknown as Rendered;
+  const component = readYaml("apps/notifications-worker/component.yaml");
+  // Empty until the pair exists; then base64url of a 65-byte uncompressed P-256 point.
+  const PUBLIC_KEY_RE = /^$|^B[A-Za-z0-9_-]{86}$/;
+
+  for (const envName of ["stage", "prod"]) {
+    test(`${envName} declares its VAPID public key as a var, and the subject's sender address`, () => {
+      const vars = rendered.env[envName]?.vars ?? {};
+      expect(vars).toHaveProperty("VAPID_PUBLIC_KEY");
+      expect(vars.VAPID_PUBLIC_KEY).toMatch(PUBLIC_KEY_RE);
+      expect(vars.EMAIL_FROM_ADDRESS).toMatch(/^[^@\s]+@[^@\s]+$/);
+      expect(template.env[envName]?.vars).not.toHaveProperty("VAPID_PRIVATE_KEY");
+    });
+  }
+
+  test("stage and prod never share a public key", () => {
+    const stage = rendered.env.stage?.vars?.VAPID_PUBLIC_KEY ?? "";
+    const prod = rendered.env.prod?.vars?.VAPID_PUBLIC_KEY ?? "";
+    if (stage || prod) expect(stage).not.toBe(prod);
+  });
+
+  test("the private key is only ever a secret reference, per environment, pushed as a runtime secret", () => {
+    expect(templateRaw).not.toMatch(/"VAPID_PRIVATE_KEY"\s*:/);
+    expect(component).toMatch(
+      /optionalSecretEnv:\n\s+VAPID_PRIVATE_KEY: "secret:\/\/ws_QX130J0D\/cookpool\/\{\{ \.environment \}\}\/VAPID_PRIVATE_KEY"/,
+    );
+    expect(component).toMatch(/runtimeSecrets: "VAPID_PRIVATE_KEY"/);
+  });
+});

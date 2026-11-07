@@ -162,3 +162,69 @@ As-built ≠ intent. This file records what actually shipped, and every place th
   navigate at once (SM-5), so offline the form is left and the toast says
   nothing was logged. Keeping the form when `isOffline()` is a line for the
   + Add rebuild (SM-10) and the expense page.
+
+### PW3 — push, in the server (PW-5)
+
+- **Push rides on the email's enqueue.** kitchen-worker asks for nothing new:
+  when notifications-worker creates a notification of one of the three kinds
+  (sent, or suppressed for email), it pushes to the recipient's devices after
+  the email path, in the same request (kitchen-worker already runs it after
+  its response, `ctx.defer`). An idempotent hit pushes nothing, so a retried
+  enqueue never pushes twice; a push that fails never touches the email.
+- **"A dish to claim" is `kitchen.dish_posted`.** The three kinds are
+  `kitchen.portion_set`, `kitchen.dish_posted` and the new `kitchen.paid_you`
+  (`NOTIFICATION_KINDS`). Push bodies: "Anu said you had 1 portion of Egg
+  fried rice", "Egg fried rice is ready to claim", "Dev paid you ₹400.00 ·
+  UPI" (amounts as every email formats them, with paise). Title "Cookpool";
+  `url` the path the email links to (`/dishes/dsh_…`, `/people/usr_…` for a
+  payment); `tag` the enqueue's idempotency key (what and for whom).
+- **Push preferences are the person's own, in every group.** Same table and
+  route as email preferences (no second model): a `channel: "push"` row
+  under the system organization, with a new `kinds` map; `orgId` is left
+  out. Push is opt-in per kind (only `true` sends); email stays per group,
+  opt-out. `kinds` merge key by key on PUT (`null` clears one); categories
+  still replace. `kinds` also work on email rows (an explicit `false` stops
+  that kind's email); nothing sets them yet.
+- **Two migrations, not one.** `310_notification_push_subscriptions` adds
+  `notifications_push_subscriptions` (design §4 said `notification_subscriptions`;
+  named for its context). It has no `org_id`, unlike every other
+  notifications table: push reaches a person from every group.
+  `320_notification_push_preferences` rebuilds the preferences table, because
+  SQLite cannot change its `channel IN ('email')` check in place. It keeps the
+  name, every row (kinds `{}`), the unique key and the org index, so the worker
+  from before it keeps working. A failure between its DROP and its RENAME
+  needs one statement run by hand (the worker's runbook).
+- **Subscriptions.** Upserted by endpoint: a device that changes hands moves,
+  starting afresh. At most ten a person, dropping the least recently
+  subscribed. Validation: an `https:` endpoint with no credentials, up to
+  2048 characters; `p256dh` a real P-256 point, `auth` 16 bytes. There is no
+  push-service host allow-list. The label comes from the User-Agent the edge
+  forwards ("Chrome on Android"). DELETE answers 200 `{ removed }`:
+  `removed: false` for a device that is not yours, never a 404.
+- **Sending.** WebCrypto only: RFC 8291 `aes128gcm`, reproducing Appendix A
+  byte for byte (tested); VAPID as an ES256 JWT, 12 h, `aud` the push
+  service's origin, `sub` `mailto:` EMAIL_FROM_ADDRESS, one token per origin
+  per fan-out. Each push has `TTL: 86400` and `Urgency: normal`, with a 10 s
+  timeout and no `Topic`.
+  - 2xx records `last_success_at`.
+  - 404 or 410 deletes the subscription.
+  - Anything else records `last_failure_at` and a bounded reason
+    (`push_service_429`). It is not retried, and it logs one line with counts.
+- **Keys.** `VAPID_PUBLIC_KEY` is a var per environment: an empty placeholder
+  with a `TODO(PW-5 keys)` in the template. `VAPID_PRIVATE_KEY` is an optional
+  runtime secret (`optionalSecretEnv` + `runtimeSecrets`), base64url PKCS#8.
+  The script is `apps/notifications-worker/scripts/vapid-keys.mjs`, not
+  `tooling/push/` (outside the contract); it prints to stdout only. Fail
+  closed: a missing or malformed key, or a private key that does not sign for
+  the public one, turns push off. `push-key` then answers `publicKey: null`
+  and one log line per isolate names the cause. Email is unaffected.
+- **Added: `POST /v1/notifications/push-test`.** It powers the canvas's "Send
+  me a test": a push to the caller's own devices, or to the one named. It
+  answers `{ devices, sent, gone, failed }`, or 503 `unsupported` while push
+  is off.
+- **Someone paid you.** POST …/kitchen/settlements, once committed, enqueues
+  `kitchen.paid_you` to the payee (`kitchen.paid_you:<txn>:<usr>`), whether
+  the payer or an owner or admin recorded it, but never when the payee did.
+  The email follows `kitchen.portion_set`'s style: "Dev paid you ₹400.00 ·
+  UPI". The method reads UPI, Cash or Bank transfer; "other" says nothing.
+  The link is the payer's page.

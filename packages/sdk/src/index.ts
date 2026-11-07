@@ -307,6 +307,26 @@ export type {
   NotificationSuppression,
   SuppressRecipientRequest,
   SuppressRecipientResponse,
+  // Web Push (Cookpool PW-5).
+  NotificationPreferenceChannel,
+  NotificationKind,
+  NotificationKindPreferences,
+  PushSubscriptionKeys,
+  PushSubscriptionRequest,
+  PushSubscriptionResponse,
+  PushDevice,
+  UnsubscribePushRequest,
+  UnsubscribePushResponse,
+  PushKeyResponse,
+  PushTestRequest,
+  PushTestResponse,
+  PushMessage,
+} from "@saas/contracts/notifications";
+
+export {
+  NOTIFICATION_KINDS,
+  PUSH_PREFERENCES_ORG_ID,
+  PUSH_SUBSCRIPTIONS_MAX_PER_PERSON,
 } from "@saas/contracts/notifications";
 
 export { ERROR_CODES, type ErrorCode } from "@saas/contracts/errors";

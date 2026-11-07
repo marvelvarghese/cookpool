@@ -9,9 +9,9 @@ the code departed from `design.md`.
 | SM1 — fast | ✅ shipped 2026-11-04 | #37 (SM-3), #38 (SM-2), #41 (SM-4), #43 (SM-5) |
 | SM2 — for anyone | ✅ shipped 2026-11-05 | #39 (SM-6), #44 (SM-7) |
 | SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), #42 (SM-9) |
-| SM6 — your measures | ✅ shipped 2026-11-06 | #46 (SM-13), SM-14 |
+| SM6 — your measures | ✅ shipped 2026-11-06 | #46 (SM-13), #49 (SM-14) |
 | SM4 — simpler screens | ✅ shipped 2026-11-05 | #47 (SM-10); Use rebuilt in SM-14 |
-| SM5 — the rest | | |
+| SM5 — the rest | ✅ shipped 2026-11-07 | #51 (SM-11), SM-15 |
 
 ## Departures from the design
 

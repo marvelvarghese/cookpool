@@ -5,6 +5,7 @@ import { handleGetNotification } from "./handlers/get-notification.js";
 import { handleGetPreferences } from "./handlers/get-preferences.js";
 import { handlePutPreferences } from "./handlers/put-preferences.js";
 import { handleCreateSuppression } from "./handlers/create-suppression.js";
+import { handleGetPushKey, handlePushTest, handleSubscribePush, handleUnsubscribePush } from "./handlers/push.js";
 import { errorResponse, notFound, methodNotAllowed } from "./http.js";
 import { generateRequestId } from "./ids.js";
 import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES } from "@saas/contracts/notifications";
@@ -20,6 +21,11 @@ const NOTIFICATIONS_LIST_PATH = "/v1/notifications";
 const PREFERENCES_PATH = "/v1/notifications/preferences";
 const NOTIFICATION_ID_RE = /^\/v1\/notifications\/([^/]+)$/;
 const SUPPRESS_RE = /^\/v1\/notifications\/recipients\/([^/]+)\/suppress$/;
+// Web Push (Cookpool PW-5).
+const PUSH_SUBSCRIPTIONS_PATH = "/v1/notifications/push-subscriptions";
+const PUSH_KEY_PATH = "/v1/notifications/push-key";
+const PUSH_TEST_PATH = "/v1/notifications/push-test";
+const PUSH_PATHS = new Set([PUSH_SUBSCRIPTIONS_PATH, PUSH_KEY_PATH, PUSH_TEST_PATH]);
 
 export interface InternalActor {
   subjectId: string;
@@ -64,6 +70,24 @@ export async function route(request: Request, env: Env): Promise<Response> {
         return handlePutPreferences(request, env, requestId, actor);
       }
       return methodNotAllowed(requestId);
+    }
+
+    // Web Push (PW-5): a person's own devices, the public key, a test push.
+    // Matched before the single-notification route, which would take them as ids.
+    if (PUSH_PATHS.has(url.pathname)) {
+      const actor = resolveInternalActor(request);
+      if (!actor) {
+        return errorResponse("forbidden", "Internal service-binding required", 403, requestId);
+      }
+      if (url.pathname === PUSH_SUBSCRIPTIONS_PATH) {
+        if (request.method === "POST") return handleSubscribePush(request, env, requestId, actor);
+        if (request.method === "DELETE") return handleUnsubscribePush(request, env, requestId, actor);
+        return methodNotAllowed(requestId);
+      }
+      if (url.pathname === PUSH_KEY_PATH) {
+        return request.method === "GET" ? handleGetPushKey(env, requestId) : methodNotAllowed(requestId);
+      }
+      return request.method === "POST" ? handlePushTest(request, env, requestId, actor) : methodNotAllowed(requestId);
     }
 
     // Suppression: POST /v1/notifications/recipients/:recipient/suppress

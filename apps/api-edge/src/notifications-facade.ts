@@ -5,20 +5,111 @@ import { resolveActor } from "./resolve-actor.js";
 import { createTimings } from "@saas/contracts/timing";
 
 /**
- * Public facade for end-user notification preferences (PX3).
+ * Public facade for end-user notification preferences (PX3) and Web Push
+ * (Cookpool PW-5).
  *
- * `GET` / `PUT /v1/notifications/preferences` forward to notifications-worker
- * over the service binding. The subject is **pinned to the resolved session
- * actor**: whatever `subjectKind` / `subjectId` the caller supplies is
- * replaced with `user` / the actor's own id, so a user can only ever read or
- * update their own preferences. Org-level (subjectKind=organization) defaults
- * remain internal-only — no public route exposes them.
+ * Every route forwards to notifications-worker over the service binding with
+ * the subject **pinned to the resolved session actor**:
+ *
+ *   GET / PUT  /v1/notifications/preferences
+ *       whatever `subjectKind` / `subjectId` the caller supplies is replaced
+ *       with `user` / the actor's own id, so a user can only ever read or
+ *       update their own preferences. Org-level (subjectKind=organization)
+ *       defaults remain internal-only — no public route exposes them. Push
+ *       preferences (`channel=push`, per kind) go through the same route.
+ *   POST / DELETE  /v1/notifications/push-subscriptions
+ *       the person is the actor headers, never the body: only `endpoint` and
+ *       `keys` are forwarded, with the browser's User-Agent (the device's
+ *       label). A caller adds and removes only their own devices.
+ *   GET   /v1/notifications/push-key    the VAPID public key the app subscribes with
+ *   POST  /v1/notifications/push-test   a test push to the caller's own devices
  */
 
 const PREFERENCES_PATH = "/v1/notifications/preferences";
+const PUSH_SUBSCRIPTIONS_PATH = "/v1/notifications/push-subscriptions";
+const PUSH_KEY_PATH = "/v1/notifications/push-key";
+const PUSH_TEST_PATH = "/v1/notifications/push-test";
+
+const METHODS: Record<string, readonly string[]> = {
+  [PREFERENCES_PATH]: ["GET", "PUT"],
+  [PUSH_SUBSCRIPTIONS_PATH]: ["POST", "DELETE"],
+  [PUSH_KEY_PATH]: ["GET"],
+  [PUSH_TEST_PATH]: ["POST"],
+};
 
 export function isNotificationsRoute(pathname: string): boolean {
-  return pathname === PREFERENCES_PATH;
+  return Object.hasOwn(METHODS, pathname);
+}
+
+type Built = { target: URL; init: RequestInit } | { error: Response };
+
+/** The JSON object body, or an error response. An empty body reads as `{}` where `emptyOk`. */
+async function readObject(request: Request, requestId: string, emptyOk = false): Promise<Record<string, unknown> | Response> {
+  let body: unknown;
+  try {
+    const text = await request.text();
+    if (!text.trim() && emptyOk) return {};
+    body = JSON.parse(text);
+  } catch {
+    return errorResponse("bad_request", "Invalid JSON body", 400, requestId);
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return errorResponse("bad_request", "Body must be a JSON object", 400, requestId);
+  }
+  return body as Record<string, unknown>;
+}
+
+/** Only these fields of the caller's body travel on: nothing can name another person. */
+function only(body: Record<string, unknown>, fields: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const field of fields) if (body[field] !== undefined) out[field] = body[field];
+  return out;
+}
+
+async function buildDownstream(
+  request: Request,
+  requestId: string,
+  pathname: string,
+  subjectId: string,
+  headers: Headers,
+): Promise<Built> {
+  const url = new URL(request.url);
+  const target = new URL(pathname, "https://notifications.internal");
+
+  if (pathname === PREFERENCES_PATH) {
+    if (request.method === "GET") {
+      // Rebuild the query with the subject pinned to the actor; pass through
+      // only orgId and the optional channel filter.
+      const orgId = url.searchParams.get("orgId");
+      if (orgId) target.searchParams.set("orgId", orgId);
+      const channel = url.searchParams.get("channel");
+      if (channel) target.searchParams.set("channel", channel);
+      target.searchParams.set("subjectKind", "user");
+      target.searchParams.set("subjectId", subjectId);
+      return { target, init: { method: "GET", headers } };
+    }
+    const body = await readObject(request, requestId);
+    if (body instanceof Response) return { error: body };
+    const pinned = { ...body, subjectKind: "user", subjectId };
+    headers.set("content-type", "application/json");
+    return { target, init: { method: "PUT", headers, body: JSON.stringify(pinned) } };
+  }
+
+  if (pathname === PUSH_KEY_PATH) return { target, init: { method: "GET", headers } };
+
+  // The push writes: the device's label comes from the browser's User-Agent.
+  const userAgent = request.headers.get("user-agent");
+  if (userAgent) headers.set("user-agent", userAgent.slice(0, 512));
+  headers.set("content-type", "application/json");
+  if (pathname === PUSH_TEST_PATH) {
+    const body = await readObject(request, requestId, true);
+    if (body instanceof Response) return { error: body };
+    return { target, init: { method: "POST", headers, body: JSON.stringify(only(body, ["endpoint"])) } };
+  }
+  const body = await readObject(request, requestId);
+  if (body instanceof Response) return { error: body };
+  const fields = request.method === "POST" ? ["endpoint", "keys"] : ["endpoint"];
+  return { target, init: { method: request.method, headers, body: JSON.stringify(only(body, fields)) } };
 }
 
 export async function handleNotificationsRoute(
@@ -27,7 +118,7 @@ export async function handleNotificationsRoute(
   requestId: string,
   pathname: string,
 ): Promise<Response> {
-  if (request.method !== "GET" && request.method !== "PUT") {
+  if (!METHODS[pathname]?.includes(request.method)) {
     return errorResponse("unsupported", "Method not allowed", 405, requestId);
   }
 
@@ -69,50 +160,12 @@ export async function handleNotificationsRoute(
   const traceparent = request.headers.get("traceparent");
   if (traceparent) headers.set("traceparent", traceparent);
 
-  const url = new URL(request.url);
-  let init: RequestInit;
-  let target: URL;
-
-  if (request.method === "GET") {
-    // Rebuild the query with the subject pinned to the actor; pass through
-    // only orgId and the optional channel filter.
-    target = new URL(pathname, "https://notifications.internal");
-    const orgId = url.searchParams.get("orgId");
-    if (orgId) target.searchParams.set("orgId", orgId);
-    const channel = url.searchParams.get("channel");
-    if (channel) target.searchParams.set("channel", channel);
-    target.searchParams.set("subjectKind", "user");
-    target.searchParams.set("subjectId", sessionResult.subjectId);
-    init = { method: "GET", headers };
-  } else {
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return mergeRateLimitHeaders(
-        errorResponse("bad_request", "Invalid JSON body", 400, requestId),
-        rateHeaders,
-      );
-    }
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      return mergeRateLimitHeaders(
-        errorResponse("bad_request", "Body must be a JSON object", 400, requestId),
-        rateHeaders,
-      );
-    }
-    const pinned = {
-      ...(body as Record<string, unknown>),
-      subjectKind: "user",
-      subjectId: sessionResult.subjectId,
-    };
-    headers.set("content-type", "application/json");
-    target = new URL(pathname, "https://notifications.internal");
-    init = { method: "PUT", headers, body: JSON.stringify(pinned) };
-  }
+  const built = await buildDownstream(request, requestId, pathname, sessionResult.subjectId, headers);
+  if ("error" in built) return mergeRateLimitHeaders(built.error, rateHeaders);
 
   try {
     const downstream = await timings.measure("edge_downstream", () =>
-      env.NOTIFICATIONS_WORKER!.fetch(target.toString(), init),
+      env.NOTIFICATIONS_WORKER!.fetch(built.target.toString(), built.init),
     );
     endTotal();
     return mergeRateLimitHeaders(

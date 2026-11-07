@@ -81,6 +81,7 @@ function mapPreference(row: Record<string, unknown>): StoredNotificationPreferen
     subjectId: row.subject_id as string,
     channel: row.channel as string,
     categories: parseCategoriesColumn(row.categories),
+    kinds: parseCategoriesColumn(row.kinds),
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -287,14 +288,17 @@ export function createNotificationsRepository(executor: SqlExecutor): Notificati
     async upsertPreference(input: UpsertNotificationPreferenceInput) {
       try {
         const result = await executor.execute<Record<string, unknown>>(
+          // categories replace what is stored; kinds merge into it (json_patch,
+          // RFC 7396: a null removes the key) — PW-5, migration 320.
           `INSERT INTO notifications_notification_preferences (
-            id, org_id, subject_kind, subject_id, channel, categories, created_at, updated_at
+            id, org_id, subject_kind, subject_id, channel, categories, kinds, created_at, updated_at
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $7
+            $1, $2, $3, $4, $5, $6, json_patch('{}', $8), $7, $7
           )
           ON CONFLICT (org_id, subject_kind, subject_id, channel)
           DO UPDATE SET
             categories = EXCLUDED.categories,
+            kinds = json_patch(kinds, $8),
             updated_at = EXCLUDED.updated_at
           RETURNING *`,
           [
@@ -305,6 +309,7 @@ export function createNotificationsRepository(executor: SqlExecutor): Notificati
             input.channel,
             JSON.stringify(input.categories),
             input.updatedAt.toISOString(),
+            JSON.stringify(input.kinds ?? {}),
           ],
         );
         if (result.rows.length === 0) {

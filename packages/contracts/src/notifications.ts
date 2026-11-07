@@ -155,6 +155,23 @@ export interface GetNotificationResponse {
 // ---------------------------------------------------------------------------
 
 /**
+ * The channels a preference row can be for (Cookpool PW-5).
+ *
+ *   - `email`: per subject and organization (a person's email in one group),
+ *     opt-out: only an explicit `false` stops a send.
+ *   - `push`: Web Push to the person's devices. A person's push preferences
+ *     are their own, in every group: the row lives under the system
+ *     organization (PUSH_PREFERENCES_ORG_ID), and a kind is pushed only when
+ *     it is explicitly `true` (opt-in, default off).
+ *
+ * Sends themselves stay email (`NotificationChannel`): push rides on the
+ * email's enqueue, with the same template and idempotency key.
+ */
+export type NotificationPreferenceChannel = "email" | "push";
+
+export const NOTIFICATION_PREFERENCE_CHANNELS: readonly NotificationPreferenceChannel[] = ["email", "push"];
+
+/**
  * Per-category preference toggles.
  *
  * `null` means "not configured" — call sites should treat that as the
@@ -169,28 +186,85 @@ export interface NotificationCategoryPreferences {
   product?: boolean | null;
 }
 
+/**
+ * The kinds a person turns on or off one by one (PW-5): template keys of the
+ * sends that can also go out as Web Push. `@saas/contracts/kitchen`'s
+ * KITCHEN_EMAILS names the same keys (tests/contracts pins them):
+ *
+ *   kitchen.portion_set   someone set my portion ("Anu said you had 1 portion of Egg fried rice")
+ *   kitchen.dish_posted   a dish to claim ("Egg fried rice is ready to claim")
+ *   kitchen.paid_you      someone paid me ("Dev paid you ₹400.00 · UPI")
+ */
+export const NOTIFICATION_KINDS = ["kitchen.portion_set", "kitchen.dish_posted", "kitchen.paid_you"] as const;
+
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+export function isNotificationKind(value: unknown): value is NotificationKind {
+  return typeof value === "string" && (NOTIFICATION_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * Per-kind toggles, on either channel. `null` or a missing key is "not
+ * configured": the channel's default — on for email (only `false` stops
+ * one), off for push (only `true` sends one). A PUT merges these into what is
+ * stored, key by key (`null` clears a key back to the default); categories
+ * are replaced whole, as before.
+ */
+export type NotificationKindPreferences = { [K in NotificationKind]?: boolean | null };
+
+/**
+ * The organization a person's push preferences are stored under: the system
+ * organization. Push is per person, not per group; callers leave `orgId` out
+ * for `channel: "push"` and the worker uses this.
+ */
+export const PUSH_PREFERENCES_ORG_ID = "00000000-0000-0000-0000-000000000000";
+
 export interface NotificationPreference {
   subjectKind: NotificationSubjectKind;
   subjectId: string;
+  /** The group's id for email; PUSH_PREFERENCES_ORG_ID for push. */
   orgId: string;
-  channel: NotificationChannel;
+  channel: NotificationPreferenceChannel;
   categories: NotificationCategoryPreferences;
+  /**
+   * Per-kind toggles (PW-5); `{}` when none is set. The worker returns it on
+   * every row; it is optional in the type so rows built by hand before PW-5
+   * still fit. Missing reads as `{}`: every kind at its channel's default.
+   */
+  kinds?: NotificationKindPreferences;
   updatedAt: string;
 }
 
+/**
+ * GET /v1/notifications/preferences. `orgId` is required for email (and when
+ * no channel is given), and left out for push. Through api-edge the subject
+ * is always the signed-in person, whatever is sent.
+ */
 export interface GetNotificationPreferencesQuery {
-  orgId: string;
-  subjectKind: NotificationSubjectKind;
-  subjectId: string;
-  channel?: NotificationChannel;
+  orgId?: string;
+  subjectKind?: NotificationSubjectKind;
+  subjectId?: string;
+  channel?: NotificationPreferenceChannel;
 }
 
+/**
+ * PUT /v1/notifications/preferences.
+ *
+ *   - email: `orgId` and `categories` are required, as before (categories
+ *     replace what is stored); `kinds` is optional and merges.
+ *   - push: `orgId` is left out (or is PUSH_PREFERENCES_ORG_ID), `kinds` is
+ *     required and merges, and there are no categories.
+ *
+ * `subjectKind` / `subjectId` are pinned by api-edge to the signed-in person;
+ * internal callers send them.
+ */
 export interface UpdateNotificationPreferencesRequest {
-  orgId: string;
-  subjectKind: NotificationSubjectKind;
-  subjectId: string;
-  channel: NotificationChannel;
-  categories: NotificationCategoryPreferences;
+  orgId?: string;
+  subjectKind?: NotificationSubjectKind;
+  subjectId?: string;
+  channel: NotificationPreferenceChannel;
+  categories?: NotificationCategoryPreferences;
+  kinds?: NotificationKindPreferences;
 }
 
 export interface GetNotificationPreferencesResponse {
@@ -228,6 +302,114 @@ export interface SuppressRecipientRequest {
 export interface SuppressRecipientResponse {
   suppression: NotificationSuppression;
 }
+
+// ---------------------------------------------------------------------------
+// Web Push (Cookpool PW-5)
+// ---------------------------------------------------------------------------
+//
+// One subscription per device (a browser's PushSubscription), stored for the
+// signed-in person. Every public route goes through api-edge, which pins the
+// subject to the session: a person adds, replaces and removes only their own
+// devices. The three kinds above are pushed to every device of a person who
+// turned that kind on, after the email, with the email's idempotency key.
+
+/** At most this many devices per person; subscribing one more drops the least recently subscribed. */
+export const PUSH_SUBSCRIPTIONS_MAX_PER_PERSON = 10;
+
+/** Longest endpoint accepted (push services' URLs are a few hundred characters). */
+export const PUSH_ENDPOINT_MAX_LENGTH = 2048;
+
+/** The browser's subscription keys, base64url: p256dh is a 65-byte P-256 point, auth 16 bytes. */
+export interface PushSubscriptionKeys {
+  p256dh: string;
+  auth: string;
+}
+
+/**
+ * POST /v1/notifications/push-subscriptions — `PushSubscription.toJSON()`
+ * fits as is. The endpoint must be `https:`. Upserted by endpoint: a device
+ * someone else had subscribed moves to the caller. Answers 200
+ * `PushSubscriptionResponse`.
+ */
+export interface PushSubscriptionRequest {
+  endpoint: string;
+  keys: PushSubscriptionKeys;
+  /** What `toJSON()` carries; ignored. */
+  expirationTime?: number | null;
+}
+
+/** One of the caller's devices, as stored (never its keys). */
+export interface PushDevice {
+  endpoint: string;
+  /** From the browser's User-Agent when it subscribed ("Chrome on Android"); null when unknown. */
+  label: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+}
+
+export interface PushSubscriptionResponse {
+  subscription: PushDevice;
+}
+
+/**
+ * DELETE /v1/notifications/push-subscriptions `{ endpoint }`: removes the
+ * caller's own subscription for that endpoint. Answers 200 `{ removed }` —
+ * false when the caller has none there (another person's device is never
+ * touched, and reads the same as no device).
+ */
+export interface UnsubscribePushRequest {
+  endpoint: string;
+}
+
+export interface UnsubscribePushResponse {
+  removed: boolean;
+}
+
+/**
+ * GET /v1/notifications/push-key: the VAPID public key the app subscribes
+ * with (`applicationServerKey`), base64url of the uncompressed P-256 point.
+ * null while the environment has no VAPID key pair: push is off there.
+ */
+export interface PushKeyResponse {
+  publicKey: string | null;
+}
+
+/**
+ * POST /v1/notifications/push-test (no body, or `{ endpoint }` for one
+ * device): a test push to the caller's own devices — "Send me a test".
+ */
+export interface PushTestRequest {
+  endpoint?: string;
+}
+
+export interface PushTestResponse {
+  /** The devices it was sent to. */
+  devices: number;
+  /** Accepted by the push service. */
+  sent: number;
+  /** The push service said the subscription is gone (404/410): deleted. */
+  gone: number;
+  /** Refused or failed otherwise (429, 5xx, …): recorded, not retried. */
+  failed: number;
+}
+
+/**
+ * What a push message decrypts to, for the service worker (PW-6): JSON,
+ * under PUSH_MESSAGE_MAX_BYTES. `url` is a path in the app ("/dishes/dsh_…");
+ * `tag` names what it is about and for whom, so a repeat replaces the one
+ * shown instead of stacking.
+ */
+export interface PushMessage {
+  kind: NotificationKind | "test";
+  title: string;
+  body: string;
+  url: string;
+  tag: string;
+}
+
+export const PUSH_MESSAGE_MAX_BYTES = 3072;
 
 // ---------------------------------------------------------------------------
 // Provider adapter seam

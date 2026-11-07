@@ -14,8 +14,8 @@
  * instead of delivering an empty message.
  *
  * Cookpool's kitchen emails (CP-18) — `kitchen.use_soon`,
- * `kitchen.dish_posted`, `kitchen.logged_for_you`, and from SM-6
- * `kitchen.portion_set` — are enqueued by
+ * `kitchen.dish_posted`, `kitchen.logged_for_you`, from SM-6
+ * `kitchen.portion_set` and from PW-5 `kitchen.paid_you` — are enqueued by
  * kitchen-worker with the shapes `@saas/contracts/kitchen` defines: amounts
  * already formatted, links absolute (a link that is not http(s) is left
  * out), the digest's items as numbered keys. They speak plainly and briefly,
@@ -51,7 +51,7 @@ function escapeHtml(value: string): string {
 }
 
 /** Stringify a templateData value; null/undefined render as "". */
-function str(data: TemplateData, key: string): string {
+export function str(data: TemplateData, key: string): string {
   const v = data[key];
   if (v === null || v === undefined) return "";
   return String(v);
@@ -182,7 +182,7 @@ const renderInvitationAccepted: TemplateRenderer = (data, opts) => {
 // ── Cookpool's kitchen emails (CP-18) ─────────────────────────
 
 /** A value fit for a subject line: one line, trimmed (no header injection through a name). */
-function oneLine(value: string): string {
+export function oneLine(value: string): string {
   return value.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
@@ -228,7 +228,7 @@ export function useByPhrase(useBy: string, today: string): string {
 }
 
 /** "1 portion", "½ portion", "2½ portions". */
-function portionsPhrase(portions: string): string {
+export function portionsPhrase(portions: string): string {
   return portions === "1" || portions === "½" ? `${portions} portion` : `${portions} portions`;
 }
 
@@ -379,6 +379,32 @@ const renderPortionSet: TemplateRenderer = (data, opts) => {
   return { subject, html, text };
 };
 
+// ── Someone paid you (PW-5) ───────────────────────────────────
+
+const renderPaidYou: TemplateRenderer = (data, opts) => {
+  const payer = oneLine(str(data, "payerName")) || "Someone";
+  const amount = oneLine(str(data, "amount"));
+  const method = oneLine(str(data, "method"));
+  const group = oneLine(str(data, "groupName")) || "your group";
+  const link = safeUrl(str(data, "personUrl"));
+  const brand = opts.brandName ?? "";
+  const paid = amount ? `${payer} paid you ${amount}` : `${payer} paid you`;
+  const subject = method ? `${paid} · ${method}` : paid;
+  const lead = `In ${group}: ${subject}.`;
+  const check = "Not right? Flag it in the group's activity.";
+  const why = `You get this when someone in ${group} records a payment to you.`;
+
+  const text = [lead, "", check, ...(link ? [link] : []), "", why].join("\n");
+
+  const html = htmlShell(
+    escapeHtml(paid),
+    [paragraphHtml(lead), paragraphHtml(check, true), link ? buttonHtml(link, `See what's between you and ${payer}`) : ""].join(""),
+    footerFor(brand, why),
+  );
+
+  return { subject, html, text };
+};
+
 const TEMPLATES: Record<string, TemplateRenderer> = {
   "auth.magic_link": renderMagicLink,
   "invitation.created": renderInvitationCreated,
@@ -389,6 +415,8 @@ const TEMPLATES: Record<string, TemplateRenderer> = {
   [KITCHEN_EMAILS.LOGGED_FOR_YOU]: renderLoggedForYou,
   // Cookpool (SM-6).
   [KITCHEN_EMAILS.PORTION_SET]: renderPortionSet,
+  // Cookpool (PW-5).
+  [KITCHEN_EMAILS.PAID_YOU]: renderPaidYou,
 };
 
 /**

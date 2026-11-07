@@ -1,0 +1,29 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-5
+  title: "Push, in the server"
+spec:
+  goal: Cookpool can send Web Push to a person's devices for "someone set your portion", "a dish to claim" and "someone paid you", each on or off per person, beside the email it already sends.
+  affects:
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-app/**
+    - tasks/PW-5.TaskContract.yaml
+  doneWhen:
+    - a signed-in person adds and removes their own device's push subscription through the API, never anyone else's
+    - each of the three kinds is on or off per person for push, independently of email
+    - the three events send Web Push (VAPID, aes128gcm) to every subscribed device; a gone subscription is deleted
+    - recording a payment notifies the person who was paid
+  gates: []

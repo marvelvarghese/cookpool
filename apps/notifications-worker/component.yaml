@@ -56,6 +56,15 @@ spec:
     WIRING_CLOUDFLARE_D1_STAGE: "secret://ws_QX130J0D/cookpool/stage/WIRING_CLOUDFLARE_D1"
     WIRING_CLOUDFLARE_D1_PROD: "secret://ws_QX130J0D/cookpool/prod/WIRING_CLOUDFLARE_D1"
 
+  # Runtime secrets, wire-now-seed-later: best-effort references — an
+  # unseeded key is skipped at resolve (and by secrets-live), so this block is
+  # inert until the value is stored in orun secrets. Cookpool PW-5: the VAPID
+  # private key that signs Web Push (base64url PKCS#8, one per environment;
+  # scripts/vapid-keys.mjs prints a pair). Until it is stored, push is off and
+  # email is unaffected.
+  optionalSecretEnv:
+    VAPID_PRIVATE_KEY: "secret://ws_QX130J0D/cookpool/{{ .environment }}/VAPID_PRIVATE_KEY"
+
   subscribe:
     environments:
       - name: dev
@@ -96,6 +105,9 @@ spec:
     owner: sourceplane
     repo: cookpool
 
+    # Runtime worker secrets, pushed by the secrets-live step from the
+    # values orun resolves for the optionalSecretEnv references above.
+    runtimeSecrets: "VAPID_PRIVATE_KEY"
     turboFilter: "@saas/notifications-worker"
     wranglerConfig: wrangler.jsonc
     wranglerTemplate: wrangler.template.jsonc
