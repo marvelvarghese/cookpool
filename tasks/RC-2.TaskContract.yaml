@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-2
+  title: "The new frame: five tabs, Home, Money, You"
+spec:
+  goal: On every environment but prod the app has five tabs (Home, Pantry, Cook, Money, You), a Home with To do, Cook now and what your groups cooked, Money with people and groups, and your own and a person's page; prod is unchanged.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/sdk
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-2.TaskContract.yaml
+  doneWhen:
+    - newFrame() is true everywhere but prod, read at runtime from the host
+    - the five tabs show on a phone and in the sidebar on desktop, and every old screen can still be reached
+    - Home has no money card; an open dish is a To do with claim chips; From your groups shows finished cooks
+    - Money lists people and groups with Settle up and Bill; You and a person's page follow the canvas
+    - with newFrame() false every page renders exactly what it rendered before, covered by tests
+  gates: []

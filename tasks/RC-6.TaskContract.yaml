@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-6
+  title: "Cooking sessions"
+spec:
+  goal: "In the new frame, cooking is a session kept on the device: from a recipe or blank, with last time, ticks and amounts, a bar on every tab, and Finish posting the dish and who ate through the existing writes."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-6.TaskContract.yaml
+  doneWhen:
+    - /cook/session opens blank or from ?recipe=&f= and keeps its draft in localStorage per account
+    - rows show last time, tick, amount steppers and the pantry they take from; missing lines are left out
+    - the bar shows on every tab while a session exists and survives a reload
+    - Finish asks about unticked lines and who ate, then cooks the dish with recipeId and factor and sets the shares
+    - Finish offline says so and keeps the session
+  gates: []

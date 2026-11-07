@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-1
+  title: "The recipes epic, the spec"
+spec:
+  goal: The cookpool-recipes doc set, the canvas row and the build contracts are in the repository, so the epic, its milestones and tasks can be built from them.
+  affects:
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-1.TaskContract.yaml
+    - tasks/RC-2.TaskContract.yaml
+    - tasks/RC-3.TaskContract.yaml
+    - tasks/RC-4.TaskContract.yaml
+    - tasks/RC-5.TaskContract.yaml
+    - tasks/RC-6.TaskContract.yaml
+    - tasks/RC-7.TaskContract.yaml
+    - tasks/RC-8.TaskContract.yaml
+  doneWhen:
+    - the README, design, plan, risks and status are merged
+    - RC-2 to RC-8 each have a contract in tasks/
+  gates: []

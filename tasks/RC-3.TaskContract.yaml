@@ -1,0 +1,26 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-3
+  title: "Item notes"
+spec:
+  goal: An item carries an optional note of at most 80 characters, set on Bought and on the item page and shown on its pantry row, seen by the pantry's people only.
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-3.TaskContract.yaml
+  doneWhen:
+    - migration 330 adds kitchen_items.note, at most 80 characters
+    - item create and update take note; every item read returns it
+    - Bought and the item page set it; the pantry row shows it
+    - a note never moves money and is visible only to people who can see the item
+  gates: []
