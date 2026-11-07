@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-12
+  title: "Close the simpler epic"
+spec:
+  goal: The cookpool-simpler epic reads shipped, with what it shipped as, where it departed from its design, and what comes after it.
+  affects:
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-12.TaskContract.yaml
+  doneWhen:
+    - the README status reads shipped and Shipped as lists every pull request
+    - every milestone in the plan and the status table reads shipped
+    - the follow-ups the tasks reported are listed after the epic
+  gates: []
