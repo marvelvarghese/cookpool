@@ -833,8 +833,11 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 ### The close (PW-11)
 
-- **Shipped 2026-11-08.** Every milestone reads shipped. PW3's "done when"
-  needs two real phones, so it is the first item on the owner's list in the
-  README's "After this epic", with the other follow-ups the tasks reported.
+- **Shipped 2026-11-08.** Every milestone reads shipped. A test push reached
+  the owner's installed iPhone on stage the same day. The first try had not
+  got as far as "Send me a test" (the switch did not stay on), and the screen
+  did not say why. PW-12 is declared to make each failed step say why. The
+  rest of the real-phone checks, and the other follow-ups the tasks reported,
+  are in the README's "After this epic".
 - **Push is on in stage and prod** since #59, and #60 showed the tests'
   failures came from the tests, not the worker.

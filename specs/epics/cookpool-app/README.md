@@ -39,7 +39,8 @@ It is for the same people: flatmates on phones, mostly iPhones and mid-range And
 
 What the tasks reported and left, for a later epic or a small fix:
 
-- **Real phones.** Each PR carries the owner's checklist for an iPhone (installed and in Safari) and an Android (installed): install (#50), back controls (#55), offline and Reload (#48), notifications and the badge (#56, #59), the gestures (#57, #58). PW3's "done when", a portion set by Anu reaching Dev's locked phone, is the one that matters most.
+- **Real phones.** Push is checked: a test push reached the owner's installed iPhone on stage (2026-11-08). The rest of each PR's checklist is still the owner's, on an iPhone (installed and in Safari) and an Android (installed): install (#50), back controls (#55), offline and Reload (#48), a portion set by someone else and the badge (#56, #59), the gestures (#57, #58).
+- **A switch that can't turn on doesn't say why** (PW-12, declared). A closed permission prompt puts the switch back silently, and every other failure shows only "Couldn't turn that on". The owner's first try on the iPhone never reached "Send me a test", and the second worked, so the cause is unknown. PW-12 makes each step say why (the phone's answer, the service worker, the subscription, the server) and logs a refused push with the push service's host and status.
 - **"You" is not cached offline.** The profile read is network-only, so offline Home has no name and a dish shows no claim controls. Caching the profile in the account's cache would restore them (PW-4).
 - **Data reads again on focus.** Coming back to the app after a minute re-reads the screen in the background (PW-7 turned `refetchOnWindowFocus` on as the pull's twin). Reverting it is one line, if fewer reads matter more.
 - **A new push key reaches a phone only when someone flips a switch.** Comparing the subscription's key at launch would re-subscribe at once (PW-6, PW-9).
