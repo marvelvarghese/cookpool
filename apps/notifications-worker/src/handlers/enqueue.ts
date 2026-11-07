@@ -1,11 +1,13 @@
 import type { Env } from "../env.js";
 import type { InternalActor } from "../router.js";
 import { createSqlExecutor } from "@saas/db/d1";
-import { createNotificationsRepository } from "@saas/db/notifications";
+import { createNotificationsRepository, createPushSubscriptionsRepository } from "@saas/db/notifications";
 import { successResponse, errorResponse, validationError } from "../http.js";
 import { resolveProvider } from "../providers/index.js";
 import { enqueueNotification, validateEnqueueRequest } from "../services/notifications.js";
 import type { NotificationsServiceDeps } from "../services/notifications.js";
+import { pushForTemplate } from "../push/deliver.js";
+import { loadVapidKeys } from "../push/vapid.js";
 
 export interface EnqueueDeps {
   /** Test-only override for the service deps. */
@@ -39,6 +41,30 @@ export async function handleEnqueueNotification(
   try {
     const repo = deps?.service?.repo ?? createNotificationsRepository(executor!);
     const provider = deps?.service?.provider ?? resolveProvider(env);
+    // Web Push beside the email (PW-5), over the same database.
+    const push =
+      deps?.service?.push ??
+      (executor
+        ? async (input: Parameters<typeof pushForTemplate>[1]) => {
+            const summary = await pushForTemplate(
+              {
+                prefs: repo,
+                subscriptions: createPushSubscriptionsRepository(executor),
+                keys: () => loadVapidKeys(env),
+                fetch: (resource, init) => fetch(resource, init),
+                now: deps?.service?.now ?? (() => new Date()),
+              },
+              input,
+            );
+            // A device gone or refused is worth a line. Counts only: never an endpoint, never a key.
+            if (summary && (summary.gone > 0 || summary.failed > 0)) {
+              console.warn(
+                `[notifications-worker] push ${input.templateKey} (${requestId}): ${summary.devices} device(s), ${summary.sent} sent, ${summary.gone} gone, ${summary.failed} failed`,
+              );
+            }
+            return summary;
+          }
+        : undefined);
 
     const result = await enqueueNotification(
       {
@@ -51,6 +77,7 @@ export async function handleEnqueueNotification(
         now: deps?.service?.now,
         generateUuid: deps?.service?.generateUuid,
         emit: deps?.service?.emit,
+        push,
       },
       validated.value!,
     );

@@ -10,6 +10,7 @@ import { requestIdempotencyKey } from "../idempotency.js";
 import { toPublicId } from "../ids.js";
 import { groupCurrency, ledgerAudit, postedTxnResponse } from "../ledger.js";
 import { notInGroup } from "../roster-client.js";
+import { emailPaidYou } from "../emails.js";
 import { Fields, minor, oneOf, subjectId, text, type FieldErrors } from "../validate.js";
 
 // POST /v1/organizations/{org}/kitchen/settlements   kitchen.settlement.create
@@ -18,7 +19,8 @@ import { Fields, minor, oneOf, subjectId, text, type FieldErrors } from "../vali
 // balance goes up and to's goes down. Either of the two records it, or an
 // owner or admin (the people who hold kitchen.txn.reverse_any, the grant to
 // correct anyone's entries). One batch writes it with
-// `kitchen.settlement.recorded`.
+// `kitchen.settlement.recorded`. Once it has committed, the person paid is
+// told (`kitchen.paid_you`, PW-5) — unless they recorded it themselves.
 
 export interface ParsedSettlement {
   fromSubjectId: string;
@@ -124,6 +126,13 @@ export async function handleCreateSettlement(ctx: OrgContext, request: Request):
         }),
       }),
     );
-    return postedTxnResponse(ctx, result, (txn) => txn.kind === "settlement" && txn.createdBy === actor);
+    const response = postedTxnResponse(ctx, result, (txn) => txn.kind === "settlement" && txn.createdBy === actor);
+    // Committed (or this very request again, which notifications-worker
+    // collapses into the first send by its key): tell the person paid.
+    if (result.ok && response.status === 201) {
+      const txn = result.value.txn;
+      await ctx.defer(() => emailPaidYou(ctx, txn));
+    }
+    return response;
   });
 }

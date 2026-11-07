@@ -1,4 +1,5 @@
-// Cookpool's emails (CP-18, and SM-6's portion set for you): the template
+// Cookpool's emails (CP-18, SM-6's portion set for you and PW-5's payment to
+// you): the template
 // keys kitchen-worker enqueues and notifications-worker renders, the digest's
 // window, and the digest's flat templateData — numbered item keys — written
 // and read back.
@@ -19,13 +20,15 @@ import {
 import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES } from "@saas/contracts/notifications";
 
 describe("kitchen emails", () => {
-  it("are four templates, sent as product email, from an allowed internal caller", () => {
+  it("are five templates, sent as product email, from an allowed internal caller", () => {
     expect(KITCHEN_EMAILS).toEqual({
       USE_SOON: "kitchen.use_soon",
       DISH_POSTED: "kitchen.dish_posted",
       LOGGED_FOR_YOU: "kitchen.logged_for_you",
       // SM-6: someone else set your portion of a dish.
       PORTION_SET: "kitchen.portion_set",
+      // PW-5: someone recorded a payment to you.
+      PAID_YOU: "kitchen.paid_you",
     });
     expect(KITCHEN_EMAIL_CATEGORY).toBe("product");
     expect(NOTIFICATIONS_INTERNAL_ACTOR_VALUES).toContain("kitchen-worker");

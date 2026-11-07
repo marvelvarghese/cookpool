@@ -835,6 +835,58 @@ describe("NotificationsClient", () => {
       client(fetch).notifications.get("missing"),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
+
+  // Web Push (Cookpool PW-5).
+  const body = (call: CapturedCall): unknown => JSON.parse(String(call.init.body));
+
+  it("pushKey reads the VAPID public key", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ publicKey: "BKey" })));
+    expect(await client(fetch).notifications.pushKey()).toEqual({ publicKey: "BKey" });
+    expect(calls[0]!.url).toBe("https://api.test/v1/notifications/push-key");
+    expect(calls[0]!.init.method).toBe("GET");
+  });
+
+  it("subscribePush sends a subscription's endpoint and keys, as toJSON() gives them", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ subscription: { endpoint: "https://push.test/1" } })));
+    await client(fetch).notifications.subscribePush({
+      endpoint: "https://push.test/1",
+      expirationTime: null,
+      keys: { p256dh: "BKey", auth: "secret" },
+    });
+    expect(calls[0]!.url).toBe("https://api.test/v1/notifications/push-subscriptions");
+    expect(calls[0]!.init.method).toBe("POST");
+    expect(body(calls[0]!)).toEqual({ endpoint: "https://push.test/1", keys: { p256dh: "BKey", auth: "secret" } });
+  });
+
+  it("unsubscribePush sends DELETE with the endpoint", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ removed: true })));
+    expect(await client(fetch).notifications.unsubscribePush("https://push.test/1")).toEqual({ removed: true });
+    expect(calls[0]!.url).toBe("https://api.test/v1/notifications/push-subscriptions");
+    expect(calls[0]!.init.method).toBe("DELETE");
+    expect(body(calls[0]!)).toEqual({ endpoint: "https://push.test/1" });
+  });
+
+  it("sendTestPush posts to push-test, for one device or all", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ devices: 1, sent: 1, gone: 0, failed: 0 })));
+    await client(fetch).notifications.sendTestPush();
+    await client(fetch).notifications.sendTestPush("https://push.test/1");
+    expect(calls.map((c) => [c.url, c.init.method])).toEqual([
+      ["https://api.test/v1/notifications/push-test", "POST"],
+      ["https://api.test/v1/notifications/push-test", "POST"],
+    ]);
+    expect(body(calls[0]!)).toEqual({});
+    expect(body(calls[1]!)).toEqual({ endpoint: "https://push.test/1" });
+  });
+
+  it("push preferences: read with channel=push and no orgId; setPushKinds merges kinds", async () => {
+    const { fetch, calls } = captureFetch(jsonResponse(envelope({ preferences: [] })));
+    await client(fetch).notifications.getPreferences({ channel: "push" });
+    expect(calls[0]!.url).toBe("https://api.test/v1/notifications/preferences?channel=push");
+    await client(fetch).notifications.setPushKinds({ "kitchen.portion_set": true, "kitchen.paid_you": null });
+    expect(calls[1]!.url).toBe("https://api.test/v1/notifications/preferences");
+    expect(calls[1]!.init.method).toBe("PUT");
+    expect(body(calls[1]!)).toEqual({ channel: "push", kinds: { "kitchen.portion_set": true, "kitchen.paid_you": null } });
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -17,6 +17,13 @@
 //                           — once per transaction
 //   kitchen.portion_set     a portion of an open dish someone else set for you
 //                           (SM-6) — once per dish and person
+//   kitchen.paid_you        a payment recorded to you, by the payer or an
+//                           owner or admin, never by you (PW-5) — once per
+//                           payment
+//
+// The portion, the dish and the payment also go out as Web Push to a person
+// who turned that kind on: notifications-worker sends it with the email's
+// enqueue, under the same key (PW-5) — nothing more to ask for here.
 //
 // Each email is sent to one person, tagged with their subject id so their
 // preferences apply, under the `product` category, and keyed
@@ -31,7 +38,9 @@ import {
   type KitchenEmail,
   type KitchenEmailData,
   type LoggedForYouEmail,
+  type PaidYouEmail,
   type PortionSetEmail,
+  type SettlementMethod,
 } from "@saas/contracts/kitchen";
 import type { Uuid } from "@saas/db/ids";
 import type { KitchenDishRecord, KitchenItemRecord, KitchenStockMoveRecord, KitchenTxnRecord } from "@saas/db/kitchen";
@@ -316,6 +325,52 @@ export async function emailPortionSet(ctx: RequestContext, dish: KitchenDishReco
   await sendKitchenMail(ctx.env, ctx, {
     orgId: toPublicId("org", dish.orgId),
     templateKey: KITCHEN_EMAILS.PORTION_SET,
+    templateData: data,
+    to,
+    idempotencyKey,
+  });
+}
+
+/** How a payment was made, as the notification says it; "other" says nothing. */
+export const PAYMENT_METHOD_WORDS: Record<SettlementMethod, string | null> = {
+  upi: "UPI",
+  cash: "Cash",
+  bank: "Bank transfer",
+  other: null,
+};
+
+/**
+ * `kitchen.paid_you` (PW-5): a payment was recorded to someone — "Dev paid
+ * you ₹400.00 · UPI". Emailed to the person paid, once per payment
+ * (`kitchen.paid_you:<txn>:<usr>`), so a retried request sends nothing more;
+ * never when they recorded it themselves (they know), and never for anything
+ * but a settlement. Links to the payer's page, where what is between the two
+ * of them is.
+ */
+export async function emailPaidYou(ctx: RequestContext, txn: KitchenTxnRecord): Promise<void> {
+  if (txn.kind !== "settlement") return;
+  // A settlement's splits: the payer paid, the payee is owed (buildSettlement).
+  const payer = txn.splits.find((s) => s.paidMinor > 0)?.subjectId;
+  const payee = txn.splits.find((s) => s.owedMinor > 0)?.subjectId;
+  if (!payer || !payee || payer === payee || txn.createdBy === payee) return;
+  const txnId = toPublicId("txn", txn.id);
+  const idempotencyKey = mailKey(KITCHEN_EMAILS.PAID_YOU, txnId, payee);
+  if (!idempotencyKey) return;
+
+  const [group, people] = await Promise.all([groupOf(ctx, txn.orgId), ctx.people.users([payer, payee])]);
+  const to = people.get(payee);
+  if (!to || !to.email.trim()) return;
+  const by = people.get(payer);
+  const data: PaidYouEmail = {
+    payerName: by ? displayNameOf(by) : null,
+    amount: formatMinor(txn.totalMinor, txn.currency),
+    method: txn.method ? PAYMENT_METHOD_WORDS[txn.method] : null,
+    groupName: group?.name ?? "your group",
+    personUrl: appLink(ctx.env, `/people/${encodeURIComponent(payer)}`),
+  };
+  await sendKitchenMail(ctx.env, ctx, {
+    orgId: toPublicId("org", txn.orgId),
+    templateKey: KITCHEN_EMAILS.PAID_YOU,
     templateData: data,
     to,
     idempotencyKey,

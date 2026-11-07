@@ -148,6 +148,10 @@ function createFakeRepo(): NotificationsRepository & { _store: FakeStore } {
         subjectId: input.subjectId,
         channel: input.channel,
         categories: input.categories,
+        // PW-5: kinds merge key by key (null clears one).
+        kinds: Object.fromEntries(
+          Object.entries({ ...(existing?.kinds ?? {}), ...(input.kinds ?? {}) }).filter(([, v]) => v !== null),
+        ),
         createdAt: existing?.createdAt ?? input.updatedAt,
         updatedAt: input.updatedAt,
       };
