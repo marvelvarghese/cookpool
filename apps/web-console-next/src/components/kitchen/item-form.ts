@@ -14,7 +14,6 @@ import { UNITS, UnitError, pricePerUnit, toMilli, type UnitKey } from "@saas/kit
 import { formatMinor, moneyInputMessage, parseMoney } from "./money";
 import { ITEM_CATEGORY_LABELS, PERSONAL_PANTRY } from "./pantry";
 import { memberLabel, sortMembers, type MemberNames } from "./members";
-import { wasteRuleLabel } from "./groups";
 
 /** The category chips, in order (ids are what the item stores). */
 export const ITEM_CATEGORIES: readonly { id: string; label: string }[] = Object.entries(ITEM_CATEGORY_LABELS).map(
@@ -77,7 +76,23 @@ export function initialItemForm(opts: { today: string; pantry?: string | null; m
 export type ItemField = "name" | "category" | "quantity" | "price" | "boughtOn" | "expiresOn" | "paidBy";
 
 /** Fields in the order the form shows them (the first with an error gets focus). */
-export const ITEM_FIELDS: readonly ItemField[] = ["name", "category", "quantity", "price", "boughtOn", "expiresOn", "paidBy"];
+export const ITEM_FIELDS: readonly ItemField[] = ["name", "quantity", "price", "category", "paidBy", "expiresOn", "boughtOn"];
+
+/** The parts of "Bought", top to bottom. */
+export type BoughtSection = "pantry" | "name" | "amount" | "category" | "paidBy" | "waste" | "useBy";
+
+/**
+ * "Bought" in order (SM-15, the audit's §5): **where it goes first** — it
+ * changes the form (a group asks who paid and who pays for waste) — then what,
+ * how much and the price, its category, the group's two questions, and when
+ * to use it by. When it was bought is a quiet "Bought today · Change" under
+ * the use-by, not a field.
+ */
+export function boughtSections(group: boolean): BoughtSection[] {
+  return group
+    ? ["pantry", "name", "amount", "category", "paidBy", "waste", "useBy"]
+    : ["pantry", "name", "amount", "category", "useBy"];
+}
 
 export type ItemRequest =
   | { kind: "personal"; body: CreatePersonalItemRequest }
@@ -252,51 +267,89 @@ export function chipWindow(
 // ── Group-only choices ────────────────────────────────────────────
 
 export interface WasteOption {
-  id: WasteChoice;
+  id: WastePolicy;
   label: string;
-  hint: string;
 }
 
 /**
- * "If some of it goes to waste": the group's rule (and what it is), split
- * equally, or the payer absorbs it.
+ * "If it goes to waste" in two choices (SM-15; the audit found "Use the group
+ * rule" and "Split it equally" were one choice twice): split equally, or the
+ * payer absorbs it. The group's own rule is picked to start with.
  */
-export function wasteOptions(opts: {
-  groupName: string;
-  groupRule: WastePolicy;
-  paidBy: string | null;
-  meId: string | null;
-  names?: MemberNames | null;
-}): WasteOption[] {
+export function wasteOptions(opts: { paidBy: string | null; meId: string | null; names?: MemberNames | null }): WasteOption[] {
   const payerIsMe = !!opts.paidBy && opts.paidBy === opts.meId;
   const payer = opts.paidBy ? memberLabel(opts.paidBy, opts.meId, opts.names) : "The buyer";
   return [
-    {
-      id: "group",
-      label: "Use the group rule",
-      hint: `${opts.groupName} says: ${wasteRuleLabel(opts.groupRule).toLowerCase()}.`,
-    },
-    {
-      id: "split_equally",
-      label: "Split it equally",
-      hint: "Whatever is thrown away is split across everyone in the group.",
-    },
-    {
-      id: "buyer_absorbs",
-      label: payerIsMe ? "I absorb it" : `${payer} absorbs it`,
-      hint: "Nobody else is charged for waste.",
-    },
+    { id: "split_equally", label: "Split equally" },
+    { id: "buyer_absorbs", label: payerIsMe ? "I absorb it" : `${payer} absorbs it` },
   ];
 }
 
-/** Under "Who paid?": nobody is charged until people use it. */
-export function payerHelp(paidBy: string | null, meId: string | null, names?: MemberNames | null): string {
-  if (!paidBy) return "Pick who paid for it.";
-  if (paidBy === meId) return "Nobody is charged yet. As people use it, you get paid back for what they use.";
-  return `Nobody is charged yet. As people use it, ${memberLabel(paidBy, meId, names)} gets paid back for what they use.`;
+/** Which of the two is on: the form's own choice, or — following the group — the group's rule. */
+export function wasteShown(choice: WasteChoice, groupRule: WastePolicy): WastePolicy {
+  return choice === "group" ? groupRule : choice;
 }
 
-/** The primary button: "Add to your pantry", "Add to Flat 4B". */
-export function addButtonLabel(pantryName: string | null): string {
-  return pantryName ? `Add to ${pantryName}` : "Add to your pantry";
+/** A tap on one of the two: the group's own rule follows the group (nothing sent), the other overrides it. */
+export function wastePick(id: WastePolicy, groupRule: WastePolicy): WasteChoice {
+  return id === groupRule ? "group" : id;
+}
+
+// ── Use by ─────────────────────────────────────────────────────────
+
+export type UseByChoice = "3d" | "5d" | "14d" | "none" | "date";
+
+/** The canvas's quick picks: 3 days · 5 days · 2 wks · None, and a date of your own. */
+export const USE_BY_CHOICES: readonly { id: UseByChoice; label: string; days: number | null }[] = [
+  { id: "3d", label: "3 days", days: 3 },
+  { id: "5d", label: "5 days", days: 5 },
+  { id: "14d", label: "2 wks", days: 14 },
+  { id: "none", label: "None", days: null },
+  { id: "date", label: "Date", days: null },
+];
+
+function plusDays(day: string, days: number): string {
+  const d = new Date(`${day}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Which pick a use-by is: a quick pick when it is that many days after buying, else a date (or none). */
+export function useByChoice(form: Pick<ItemForm, "boughtOn" | "expiresOn">): UseByChoice {
+  if (!form.expiresOn) return "none";
+  if (validDay(form.boughtOn)) {
+    for (const c of USE_BY_CHOICES) if (c.days !== null && plusDays(form.boughtOn, c.days) === form.expiresOn) return c.id;
+  }
+  return "date";
+}
+
+/** The use-by a quick pick sets (counted from the day it was bought); "date" keeps what is there. */
+export function useByFor(choice: UseByChoice, form: Pick<ItemForm, "boughtOn" | "expiresOn">): string {
+  const pick = USE_BY_CHOICES.find((c) => c.id === choice);
+  if (choice === "none") return "";
+  if (!pick || pick.days === null) return form.expiresOn;
+  return validDay(form.boughtOn) ? plusDays(form.boughtOn, pick.days) : form.expiresOn;
+}
+
+// ── The one main button ───────────────────────────────────────────
+
+/** "Filled from last time": the one hint once a name bought before is picked (the canvas). */
+export const FILLED_FROM_BEFORE = "Filled from last time · change anything";
+
+/**
+ * The button names what it adds and what it cost — "Add Milk · ₹68.00" (the
+ * canvas) — and, under it, where it goes ("to Flat 4B"); "Add" until a name
+ * is typed.
+ */
+export function addMainLabel(input: { name: string; priceMinor: number | null; currency: string; pantryName: string | null }): {
+  title: string;
+  who: string;
+} {
+  const name = input.name.trim().replace(/\s+/g, " ");
+  const short = name.length > 28 ? `${name.slice(0, 27)}…` : name;
+  const price = input.priceMinor !== null ? formatMinor(input.priceMinor, input.currency) : null;
+  return {
+    title: [short ? `Add ${short}` : "Add", price].filter(Boolean).join(" · "),
+    who: input.pantryName ? `to ${input.pantryName}` : "to your pantry",
+  };
 }

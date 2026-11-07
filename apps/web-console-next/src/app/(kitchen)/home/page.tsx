@@ -168,7 +168,7 @@ function QuickUse({ meId }: { meId: string | null }) {
       consumers: row.consumers,
       idempotencyKey: crypto.randomUUID(),
       what: row.words,
-      inPantry: true,
+      measure: row.measure,
       meId,
       names,
     });

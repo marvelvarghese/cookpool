@@ -5,6 +5,7 @@ import * as ToastPrimitive from "@radix-ui/react-toast";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { OFFLINE_WRITE_TEXT, isOfflineRefusal } from "@/lib/connection";
+import { TOAST_ABOVE_ATTR, toastLift } from "@/lib/toast-lift";
 
 type ToastKind = "default" | "success" | "warning" | "error";
 
@@ -89,6 +90,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setItems((cur) => cur.filter((x) => x.id !== id));
   }, []);
   const value = React.useMemo(() => ({ toast, update, dismiss }), [toast, update, dismiss]);
+  const viewportRef = React.useRef<HTMLOListElement>(null);
+  useLiftAboveBars(viewportRef, items.length > 0);
   return (
     <Ctx.Provider value={value}>
       <ToastPrimitive.Provider swipeDirection="right">
@@ -133,8 +136,58 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             </ToastPrimitive.Close>
           </ToastPrimitive.Root>
         ))}
-        <ToastPrimitive.Viewport className="toast-viewport fixed bottom-0 right-0 z-[100] flex max-h-dvh w-full flex-col-reverse gap-2 p-4 sm:bottom-4 sm:right-4 sm:max-w-sm" />
+        <ToastPrimitive.Viewport ref={viewportRef} className="toast-viewport fixed bottom-0 right-0 z-[100] flex max-h-dvh w-full flex-col-reverse gap-2 p-4 sm:bottom-4 sm:right-4 sm:max-w-sm" />
       </ToastPrimitive.Provider>
     </Ctx.Provider>
   );
+}
+
+/**
+ * While a toast is open, keep it clear of the bars at the bottom of the
+ * screen that are marked `data-toast-above` — the tab bar and a screen's
+ * sticky main button (Cookpool SM-15) — on scroll, resize, and as the page
+ * changes under it. Only fixed and sticky bars count: a button in the flow
+ * is part of the page. With nothing in the way the CSS place stands.
+ */
+function useLiftAboveBars(ref: React.RefObject<HTMLOListElement | null>, open: boolean): void {
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!open || !el) return;
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      el.style.removeProperty("bottom");
+      const style = getComputedStyle(el);
+      const padding = parseFloat(style.paddingBottom) || 0;
+      const obstacles = [...document.querySelectorAll<HTMLElement>(`[${TOAST_ABOVE_ATTR}]`)]
+        .filter((bar) => {
+          const position = getComputedStyle(bar).position;
+          return position === "fixed" || position === "sticky";
+        })
+        .map((bar) => bar.getBoundingClientRect());
+      const lift = toastLift({
+        viewportHeight: window.innerHeight,
+        baseBottom: parseFloat(style.bottom) || 0,
+        padding,
+        toastHeight: el.getBoundingClientRect().height - padding * 2,
+        obstacles,
+      });
+      if (lift !== null) el.style.bottom = `${lift}px`;
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(place);
+    };
+    place();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    // A navigation or a sheet can change the page under an open toast.
+    const timer = window.setInterval(schedule, 400);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      window.clearInterval(timer);
+      if (frame) window.cancelAnimationFrame(frame);
+      el.style.removeProperty("bottom");
+    };
+  }, [ref, open]);
 }

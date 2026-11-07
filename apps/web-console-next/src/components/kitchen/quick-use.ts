@@ -379,6 +379,32 @@ export function usualFor(itemId: string, usuals: readonly KitchenUsual[] | null 
   return usuals?.find((u) => u.itemId === itemId) ?? null;
 }
 
+/** Your usual amount of an item, ready to log again in one tap. */
+export interface RowUsual {
+  qtyMilli: number;
+  /** "2 onions", "1 glass", "200 g". */
+  words: string;
+  /** Given in one of the item's measures: logged in it again (`useLogUse({ measure })`). */
+  measure: { measure: KitchenMeasure; quantity: number } | null;
+}
+
+/**
+ * Pantry's one-tap Use (SM-15): your usual in its own words — "2 onions" when
+ * its `lastLabel` still names one of the item's measures, sent in that
+ * measure and taking what 2 onions take now — else its amount in the unit
+ * ("1 glass", "200 g"). Null when there is none, or it is more than is left.
+ */
+export function rowUsual(
+  usual: Pick<KitchenUsual, "lastQtyMilli" | "lastLabel"> | null,
+  item: Pick<KitchenItem, "dimension" | "qtyLeftMilli" | "qtyBoughtMilli"> & { measures?: readonly KitchenMeasure[] | undefined },
+): RowUsual | null {
+  const amount = usualAmount(usual, item);
+  if (!amount || amount.qtyMilli <= 0 || amount.qtyMilli > item.qtyLeftMilli) return null;
+  return amount.kind === "measure"
+    ? { qtyMilli: amount.qtyMilli, words: amount.label, measure: { measure: amount.measure, quantity: amount.quantity } }
+    : { qtyMilli: amount.qtyMilli, words: amountWords(amount.qtyMilli, item.dimension), measure: null };
+}
+
 /**
  * Who had it, to start with: the people of your last use of the item (your
  * usual people) who are still in the group (`roster`, once known), else just

@@ -22,10 +22,8 @@ import {
   CHANGE_NAME,
   HOW_YOU_SIGN_IN,
   LAST_USED,
-  NAME_NOTE,
   SIGN_OUT_DEVICE,
   SIGN_OUT_PHONE,
-  STAY_AS_THEY_ARE,
   YOU_TITLE,
   nameToSave,
   personInitials,
@@ -34,11 +32,12 @@ import {
 } from "@/components/kitchen/you";
 
 /**
- * You (Cookpool SI-6, design §7, the `Account` artboard): your initials, name
- * and email; "Change your name" in place (Save · Cancel), which every group
- * sees at once; "How you sign in"; and "Sign out of this phone", which ends
- * this device's session and opens the sign-in page. Your groups, pantry and
- * balances stay as they are.
+ * You (Cookpool SI-6, design §7, the `Account` artboard; SM-15 under the
+ * seven rules — no sentences under the name or under sign-out, "Last used"
+ * only when there is a choice): your initials, name and email; "Change your
+ * name" in place (Save · Cancel), which every group sees at once; "How you
+ * sign in"; and "Sign out of this phone", which ends this device's session
+ * and opens the sign-in page.
  *
  * Home's avatar opens it on a phone, the sidebar's "Me" from 900px; the
  * phone tab bar is unchanged. Sign out works even when the profile cannot be
@@ -141,7 +140,7 @@ function MeCard({ user }: { user: AuthUser }) {
       // The profile in place, and every read that carries names refreshed (CP-9).
       applyNewName(qc, r.data.user);
       close();
-      toast({ kind: "success", title: "Name saved", description: `Your groups see “${shownName(r.data.user)}”.` });
+      toast({ kind: "success", title: `Saved · ${shownName(r.data.user)}` });
       return;
     }
     const outcome = saveNameOutcome(r.error, r.status);
@@ -227,8 +226,6 @@ function MeCard({ user }: { user: AuthUser }) {
           {CHANGE_NAME}
         </Button>
       )}
-
-      <p className="text-[13px] text-muted-foreground">{NAME_NOTE}</p>
     </section>
   );
 }
@@ -298,7 +295,6 @@ function SignOut() {
         <span className="min-[900px]:hidden">{SIGN_OUT_PHONE}</span>
         <span className="hidden min-[900px]:inline">{SIGN_OUT_DEVICE}</span>
       </Button>
-      <p className="text-center text-[13px] text-muted-foreground">{STAY_AS_THEY_ARE}</p>
     </section>
   );
 }

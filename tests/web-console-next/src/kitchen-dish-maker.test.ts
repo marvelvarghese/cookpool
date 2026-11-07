@@ -9,6 +9,7 @@ import {
   cookRefusal,
   cookRequest,
   cookedText,
+  costLine,
   ctaLabel,
   currencyProblem,
   defaultShare,
@@ -29,12 +30,11 @@ import {
   portionsText,
   previewNewItem,
   refreshLines,
+  SPLIT_MODES,
   shareChoice,
-  shareNote,
   shareOptions,
   sharesRequest,
   sharesRefusal,
-  splitModes,
   startAmount,
   startingHalves,
   stepDishAmount,
@@ -176,50 +176,21 @@ describe("what you take on, by group and buyer (buildIngredientTake + pairLines)
   });
 });
 
-describe("the note under the split", () => {
-  it("nets what you owe in the shared group against what its eaters owe you, and leaves other groups alone", () => {
-    const note = shareNote({ share: FLAT.orgId, groupName: "Flat 4B", totals: totalsOf(worked()), meId: ME, names: NAMES });
-    expect(note).toEqual({
-      tone: "net",
-      text:
-        "Whoever eats owes you ₹52.75 a portion. Inside Flat 4B, that cancels against the ₹19.00 you owe Anu and Dev, " +
-        "so settle-up only shows what's left. What you owe Kiran in Lunch club stays in that group's balance.",
-    });
+describe("the cost, one line on the main button (SM-15)", () => {
+  it("says the total, the portions and a portion's price — the dark five-line card is gone", () => {
+    expect(costLine(totalsOf(worked()))).toBe("₹211.00 · 4 portions · ₹52.75 each");
+    expect(costLine(totalsOf(worked(), 1500, 2))).toBe("₹211.00 · 1 portion · ₹211.00 each");
+    expect(costLine(totalsOf(worked(), 1500, 1))).toBe("₹211.00 · ½ portion · ₹422.00 each");
   });
 
-  it("names the other side when the dish is shared with the Lunch club instead", () => {
-    const note = shareNote({ share: LUNCH.orgId, groupName: "Lunch club", totals: totalsOf(worked()), meId: ME, names: NAMES });
-    expect(note?.text).toBe(
-      "Whoever eats owes you ₹52.75 a portion. Inside Lunch club, that cancels against the ₹24.00 you owe Kiran, " +
-        "so settle-up only shows what's left. What you owe Anu and Dev in Flat 4B stays in that group's balance.",
-    );
+  it("says ≈ when a portion is not a whole number of paise, and nothing while the dish costs nothing", () => {
+    expect(costLine(totalsOf([pantryLine(paneer, 200_000)], 500, 6))).toBe("₹100.00 · 3 portions · ≈ ₹33.33 each");
+    expect(costLine(totalsOf([], 0))).toBeNull();
   });
 
-  it("omits the netting when there is nothing to net in the shared group", () => {
-    const mine = [pantryLine(paneer, 200_000), pantryLine(butter, 50_000)];
-    expect(shareNote({ share: FLAT.orgId, groupName: "Flat 4B", totals: totalsOf(mine), meId: ME, names: NAMES })?.text).toBe(
-      "Whoever eats owes you ₹34.50 a portion.",
-    );
-    const fromLunch = [pantryLine(paneer, 200_000), pantryLine(flour, 500_000)];
-    const text = shareNote({ share: FLAT.orgId, groupName: "Flat 4B", totals: totalsOf(fromLunch), meId: ME, names: NAMES })?.text;
-    expect(text).not.toContain("cancels");
-    expect(text).toContain("What you owe Kiran in Lunch club stays in that group's balance.");
-  });
-
-  it("just for you: says who you still owe, group by group, and that it stays in those groups' balances", () => {
-    const meeraLunch = makeItem({ name: "Coffee", pantry: groupRef(LUNCH), unit: "g", bought: "250", priceMinor: 1200, paidBy: MEERA });
-    const lines = [pantryLine(tomatoes, 100_000), pantryLine(flour, 500_000), pantryLine(meeraLunch, 50_000)];
-    const text = shareNote({ share: JUST_ME, groupName: null, totals: totalsOf(lines), meId: ME, names: NAMES })?.text;
-    expect(text).toBe(
-      "Just for you: nobody owes you for it. You still owe Anu in Flat 4B and Kiran and Meera in Lunch club for what you took; that stays in those groups' balances.",
-    );
-  });
-
-  it("just for you, from your own pantry: nobody owes anyone; nothing at all to say for a dish that cost nothing", () => {
-    expect(shareNote({ share: JUST_ME, groupName: null, totals: totalsOf([pantryLine(paneer, 200_000)]), meId: ME })?.text).toBe(
-      "Just for you: nobody owes anyone for it. You paid for everything in it.",
-    );
-    expect(shareNote({ share: JUST_ME, groupName: null, totals: totalsOf([], 0), meId: ME })).toBeNull();
+  it("each line still says whom you owe for it, so the button needs no list of buyers", () => {
+    const views = worked().map((l) => lineView(l, { meId: ME, names: NAMES, currency: "INR" }));
+    expect(views.filter((v) => !v.mine).map((v) => v.owe)).toEqual(["you owe Anu", "you owe Dev", "you owe Kiran"]);
   });
 });
 
@@ -331,10 +302,10 @@ describe("who ate what (buildDish, the cook's share first)", () => {
     expect([0, 1, 2, 3, 8].map(portionsText)).toEqual(["0", "½", "1", "1½", "4"]);
   });
 
-  it("offers claims or assign, in the group's name", () => {
-    expect(splitModes("Flat 4B").map((m) => [m.id, m.label])).toEqual([
-      ["claims", "Let Flat 4B claim portions"],
-      ["assign", "I'll say who ate what"],
+  it("offers claims or assign, in two words each (SM-15, the audit's Top 15 item 13)", () => {
+    expect(SPLIT_MODES.map((m) => [m.id, m.label])).toEqual([
+      ["claims", "Everyone claims"],
+      ["assign", "I'll assign"],
     ]);
   });
 });
@@ -461,7 +432,7 @@ describe("who to share it with", () => {
     expect(defaultShare(GROUPS, { recentSlugs: [TRIP.slug, FLAT.slug], currency: "INR" })).toBe(FLAT.orgId);
     expect(defaultShare(GROUPS, { linkedOrgId: "org_00000000000000000000000000000e0e" })).not.toBe("org_00000000000000000000000000000e0e");
     expect(defaultShare([GROUPS[3]!], {})).toBe(JUST_ME);
-    expect(shareChoice(FLAT.orgId, GROUPS)).toMatchObject({ name: "Flat 4B", meta: "5 people · they owe you for what they eat" });
+    expect(shareChoice(FLAT.orgId, GROUPS)).toMatchObject({ name: "Flat 4B", meta: "5 people" });
     expect(shareChoice(JUST_ME, GROUPS)).toMatchObject({ name: "Just me", meta: "Don't split it" });
   });
 
@@ -494,11 +465,11 @@ describe("the button, and what it says when it can't cook yet", () => {
   });
 
   it("toasts what was cooked, and links the dish page and Cook with it", () => {
+    // One line (SM-15): no "posted to Flat 4B to claim." under it.
     expect(cookedText({ name: "Dal", share: FLAT.orgId, groupName: "Flat 4B", mode: "claims", totalMinor: 21100, currency: "INR" })).toEqual({
-      title: "Cooked Dal",
-      description: "₹211.00 · posted to Flat 4B to claim.",
+      title: "Cooked Dal · ₹211.00 · Flat 4B",
     });
-    expect(cookedText({ name: "Dal", share: JUST_ME, groupName: null, mode: "assign", totalMinor: 900, currency: "INR" }).description).toBe("₹9.00, just for you.");
+    expect(cookedText({ name: "Dal", share: JUST_ME, groupName: null, mode: "assign", totalMinor: 900, currency: "INR" })).toEqual({ title: "Cooked Dal · ₹9.00" });
     expect(dishHref("dsh_abc")).toBe("/dishes/dsh_abc");
     expect(cookHref({ kind: "group", orgId: FLAT.orgId, itemId: tomatoes.id })).toBe(`/cook?item=org:${FLAT.orgId}:${tomatoes.id}`);
     expect(cookHref(null)).toBe("/cook");

@@ -154,9 +154,15 @@ export function ingredientsSummary(dish: Pick<KitchenDish, "ingredients" | "extr
   return dish.extrasMinor > 0 ? `${base} + ${formatMinor(dish.extrasMinor, dish.currency)} extras` : base;
 }
 
-/** How much went in, in a friendly unit: "200 g", "500 g" of a kilo bag, "2 pcs". */
-export function ingredientQty(i: Pick<KitchenDishIngredient, "qtyMilli" | "quantity" | "unit">): string {
-  return isUnit(i.unit) ? formatQuantity(i.qtyMilli, dimensionOf(i.unit), i.unit) : `${i.quantity} ${i.unit}`;
+/**
+ * How much went in, in a friendly unit: "200 g", "500 g" of a kilo bag, "2
+ * pcs" — and, given in a measure (SM-13's `label`), its words first: "2
+ * onions · 300 g" (SM-15, as the item's history reads a use).
+ */
+export function ingredientQty(i: Pick<KitchenDishIngredient, "qtyMilli" | "quantity" | "unit" | "label">): string {
+  const amount = isUnit(i.unit) ? formatQuantity(i.qtyMilli, dimensionOf(i.unit), i.unit) : `${i.quantity} ${i.unit}`;
+  const said = i.label?.trim();
+  return said ? `${said} · ${amount}` : amount;
 }
 
 export interface IngredientLine {

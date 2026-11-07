@@ -76,7 +76,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 **Done when**
 - Home fits one phone screen with three to-dos; no screen in SM4 has a sentence of explanation above its main button
 
-## SM5 — the rest
+## SM5 — the rest ✅
 
 - **SM-11** (web-console-next): Groups, People merged with Settle, Item,
   Bill, Add item, Cook and the desktop pages under the rules; the audit's

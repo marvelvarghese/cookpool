@@ -173,6 +173,19 @@ function FlowPart({ title, lines, empty, currency }: { title: string; lines: rea
   );
 }
 
+/** The money in at most two lines (`dishMoneySummary`): in the card, or with the cook's Finalize (SM-15). */
+export function MoneyLines({ summary, className }: { summary: readonly MoneySummaryLine[]; className?: string }) {
+  return (
+    <div className={cn("space-y-0.5", className)}>
+      {summary.map((l) => (
+        <p key={l.key} className={cn("text-[15px] font-bold leading-snug tabular-nums", FLOW_TONES[l.tone])}>
+          {l.text}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 /**
  * A dish's money (SM-10): at most two short lines — "Anu and Dev owe Meera
  * ₹93.60 · in Flat 4B", "Meera owes Anu ₹40.00 for ingredients" — and the
@@ -198,19 +211,13 @@ export function DishMoney({
   const lines = ingredientLines(dish, people);
   return (
     <section aria-label="Money" className="overflow-hidden rounded-[22px] border bg-card">
-      <div className="space-y-0.5 px-4 pb-2.5 pt-3">
-        {summary.map((l) => (
-          <p key={l.key} className={cn("text-[15px] font-bold leading-snug tabular-nums", FLOW_TONES[l.tone])}>
-            {l.text}
-          </p>
-        ))}
-      </div>
+      {summary.length > 0 ? <MoneyLines summary={summary} className="px-4 pb-2.5 pt-3" /> : null}
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
-        className="flex min-h-11 w-full items-center justify-between gap-2 border-t px-4 text-left text-sm font-bold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className={cn("flex min-h-11 w-full items-center justify-between gap-2 px-4", summary.length > 0 && "border-t", "text-left text-sm font-bold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
       >
         Details
         <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} aria-hidden />

@@ -51,7 +51,7 @@ export interface CookInput {
   idempotencyKey: string;
   lines: readonly DishLine[];
   /** The toast once it is cooked. */
-  text: (dish: KitchenDish) => { title: string; description: string };
+  text: (dish: KitchenDish) => { title: string; description?: string | undefined };
 }
 
 export type CookResult =

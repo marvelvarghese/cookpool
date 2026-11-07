@@ -28,7 +28,7 @@ import { boughtText, capitalize, countWords, dayMonth, joinNames, leftText } fro
 import { pricePer } from "./item-form";
 import type { GroupRole } from "./groups";
 import { isPendingId } from "@/lib/optimistic";
-import { countDecimal } from "./measures";
+import { countDecimal, leftInMeasure } from "./measures";
 import { faceOrder, forWhom, eachText } from "./faces";
 
 type StockFields = Pick<KitchenItem, "priceMinor" | "qtyBoughtMilli" | "qtyLeftMilli" | "worthMinor">;
@@ -255,6 +255,8 @@ export interface WastePreview {
   explain: string;
   /** Each member's share under "split equally" (empty otherwise). */
   lines: ShareLine[];
+  /** Who pays, in a few words, when there are no `lines` to say it (SM-15): "Anu absorbs it". */
+  short: string | null;
   /** True when a waste transaction would post. */
   posts: boolean;
 }
@@ -277,18 +279,19 @@ export function wastePreview(input: {
   const worth = formatMinor(item.worthMinor, item.currency);
   const question = `Throw away the ${left} left (${worth})?`;
   if (item.pantry.kind === "personal") {
-    return { question, explain: "It's your own, so nothing is split. The pantry just stops counting it.", lines: [], posts: false };
+    return { question, explain: "It's your own, so nothing is split. The pantry just stops counting it.", lines: [], short: "Nothing to split", posts: false };
   }
   const group = item.pantry.name;
   const buyer = memberLabel(item.paidBy, meId, names);
   const own = item.wastePolicyOverride !== null;
   if (item.worthMinor === 0) {
-    return { question, explain: "What's left cost nothing, so nobody is charged.", lines: [], posts: false };
+    return { question, explain: "What's left cost nothing, so nobody is charged.", lines: [], short: "Nobody is charged", posts: false };
   }
   if (item.wastePolicy === "buyer_absorbs" || input.members.length === 0) {
     const rule = own ? "This item's rule" : `${group}'s rule`;
     const who = item.paidBy === meId ? "You paid, so you absorb it" : `${buyer} paid and absorbs it`;
-    return { question, explain: `${rule}: the buyer absorbs waste. ${who}; nobody else is charged.`, lines: [], posts: false };
+    const short = item.paidBy === meId ? "You absorb it" : `${buyer} absorbs it`;
+    return { question, explain: `${rule}: the buyer absorbs waste. ${who}; nobody else is charged.`, lines: [], short, posts: false };
   }
   const splits = buildWaste({ unusedMinor: item.worthMinor, buyerId: item.paidBy, members: input.members });
   const owed = new Map(splits.map((s) => [s.subjectId, s.owedMinor] as const));
@@ -320,7 +323,7 @@ export function wastePreview(input: {
       ? `${rule} ${payer} paid, so ${who} each owe ${payerRef} ${even}.`
       : `${rule} ${payer} paid, so ${who} share it, a paisa apart.`;
   }
-  return { question, explain, lines, posts: others.length > 0 };
+  return { question, explain, lines, short: others.length === 0 ? "Nobody else is charged" : null, posts: others.length > 0 };
 }
 
 // ── History ───────────────────────────────────────────────────────
@@ -468,7 +471,50 @@ export function transferTargets(
 
 /** "Moving 1 kg of Tomatoes into Flat 4B makes it the group's, paid by you." */
 export function transferNote(item: Pick<KitchenItem, "name" | "qtyLeftMilli" | "dimension" | "displayUnit">, groupName: string): string {
-  return `${leftText(item)} of ${item.name} becomes ${groupName}'s, paid by you. Nobody is charged until they use some. This can't be undone.`;
+  return `${leftText(item)} becomes ${groupName}'s, paid by you · can't be undone`;
+}
+
+/**
+ * An amount never breaks between its number and its word — "300 g", "2
+ * onions", "½ onion" — however narrow the row (SM-15: the audit found "You
+ * and Dev Patel used 300 / g" with the unit on a line of its own).
+ */
+export function keepAmountsTogether(text: string): string {
+  return text.replace(/(\d[\d.,]*½?|½) (?=[^\s\d·])/g, "$1\u00a0");
+}
+
+// ── The item page's facts (SM-15) ─────────────────────────────────
+
+export interface ItemFacts {
+  /** The big number: "600 g". */
+  left: string;
+  /** Beside it: "left of 1 kg · ≈ 4 onions". */
+  of: string;
+  /**
+   * Everything else in one line (the audit's six-cell grid): what it is worth
+   * now, its price once, and who paid — "Worth ₹24.00 · ₹4.00 per 100 g ·
+   * Meera paid". Your own item has no "paid": nobody else is in it.
+   */
+  line: string;
+}
+
+export function itemFacts(
+  item: Pick<KitchenItem, "qtyLeftMilli" | "qtyBoughtMilli" | "dimension" | "displayUnit" | "worthMinor" | "priceMinor" | "currency" | "paidBy" | "pantry"> & {
+    measures?: readonly KitchenMeasure[] | undefined;
+  },
+  ctx: { meId: string | null; names?: MemberNames | null },
+): ItemFacts {
+  const counted = leftInMeasure(item);
+  const parts = [
+    item.qtyLeftMilli > 0 ? `Worth ${formatMinor(item.worthMinor, item.currency)}` : null,
+    costPerText(item),
+    item.pantry.kind === "group" ? `${memberLabel(item.paidBy, ctx.meId, ctx.names)} paid` : null,
+  ];
+  return {
+    left: leftText(item),
+    of: [`left of ${boughtText(item)}`, counted].filter(Boolean).join(" · "),
+    line: parts.filter(Boolean).join(" · "),
+  };
 }
 
 /** "3 people", for a member count. */

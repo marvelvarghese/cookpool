@@ -1,20 +1,27 @@
 import { formatMinor } from "@saas/kitchen-engine/money";
 import { pricePerUnit, toMilli } from "@saas/kitchen-engine/units";
 import {
+  FILLED_FROM_BEFORE,
   ITEM_CATEGORIES,
+  ITEM_FIELDS,
   MAIN_UNITS,
   MORE_UNITS,
-  addButtonLabel,
+  USE_BY_CHOICES,
+  addMainLabel,
+  boughtSections,
   chipWindow,
   firstItemError,
   initialItemForm,
   localIsoDay,
   normalizeQuantity,
   parseQuantity,
-  payerHelp,
   perUnitLine,
   previewItemForm,
+  useByChoice,
+  useByFor,
   wasteOptions,
+  wastePick,
+  wasteShown,
   type ItemForm,
 } from "@web-console-next/components/kitchen/item-form";
 import { ANU, DEV, FLAT, KIRAN, ME, MEERA, NAMES } from "./kitchen-pantry-fixtures";
@@ -216,29 +223,77 @@ describe("Who paid?", () => {
     expect(w.more).toBe(1);
     expect(chipWindow(roster, { meId: ME, names: NAMES, expanded: true, max: 5 }).shown).toHaveLength(7);
   });
+});
 
-  it("says nobody is charged until people use it", () => {
-    expect(payerHelp(ME, ME, NAMES)).toBe("Nobody is charged yet. As people use it, you get paid back for what they use.");
-    expect(payerHelp(ANU, ME, NAMES)).toBe("Nobody is charged yet. As people use it, Anu gets paid back for what they use.");
+describe("Bought, in order (SM-15)", () => {
+  it("asks where it goes first — it changes the form — and a group's two questions after the category", () => {
+    expect(boughtSections(false)).toEqual(["pantry", "name", "amount", "category", "useBy"]);
+    expect(boughtSections(true)).toEqual(["pantry", "name", "amount", "category", "paidBy", "waste", "useBy"]);
+    expect(boughtSections(true)[0]).toBe("pantry");
+  });
+
+  it("focuses the first problem in the order the form shows it", () => {
+    expect(ITEM_FIELDS).toEqual(["name", "quantity", "price", "category", "paidBy", "expiresOn", "boughtOn"]);
+    const p = previewItemForm(form({ category: "", expiresOn: "2026-11-01" }), { today: TODAY, meId: ME });
+    expect(firstItemError(p.errors)).toBe("category");
   });
 });
 
-describe("If some of it goes to waste", () => {
-  it("offers the group's rule (and says it), split equally, or the payer absorbs it", () => {
-    const options = wasteOptions({ groupName: "Flat 4B", groupRule: "split_equally", paidBy: ANU, meId: ME, names: NAMES });
-    expect(options.map((o) => [o.id, o.label])).toEqual([
-      ["group", "Use the group rule"],
-      ["split_equally", "Split it equally"],
-      ["buyer_absorbs", "Anu absorbs it"],
+describe("If it goes to waste: two choices, not three (SM-15)", () => {
+  it("offers split equally or the payer absorbs it — no \"Use the group rule\", which was one of the two again", () => {
+    expect(wasteOptions({ paidBy: ANU, meId: ME, names: NAMES })).toEqual([
+      { id: "split_equally", label: "Split equally" },
+      { id: "buyer_absorbs", label: "Anu absorbs it" },
     ]);
-    expect(options[0]!.hint).toBe("Flat 4B says: split equally.");
-    const mine = wasteOptions({ groupName: "Lunch club", groupRule: "buyer_absorbs", paidBy: ME, meId: ME, names: NAMES });
-    expect(mine[2]!.label).toBe("I absorb it");
-    expect(mine[0]!.hint).toBe("Lunch club says: the buyer absorbs it.");
+    expect(wasteOptions({ paidBy: ME, meId: ME, names: NAMES })[1]!.label).toBe("I absorb it");
+    expect(wasteOptions({ paidBy: null, meId: ME })[1]!.label).toBe("The buyer absorbs it");
   });
 
-  it("labels the button with the pantry", () => {
-    expect(addButtonLabel("Flat 4B")).toBe("Add to Flat 4B");
-    expect(addButtonLabel(null)).toBe("Add to your pantry");
+  it("starts on the group's own rule", () => {
+    expect(wasteShown("group", "split_equally")).toBe("split_equally");
+    expect(wasteShown("group", "buyer_absorbs")).toBe("buyer_absorbs");
+    expect(wasteShown("buyer_absorbs", "split_equally")).toBe("buyer_absorbs");
+  });
+
+  it("follows the group when its rule is picked, and sends the other only as the item's own", () => {
+    expect(wastePick("split_equally", "split_equally")).toBe("group");
+    expect(wastePick("buyer_absorbs", "split_equally")).toBe("buyer_absorbs");
+    const follows = previewItemForm(form({ pantry: FLAT.orgId, waste: wastePick("split_equally", "split_equally") }), { today: TODAY, meId: ME });
+    expect(follows.request?.body).not.toHaveProperty("wastePolicy");
+    const own = previewItemForm(form({ pantry: FLAT.orgId, waste: wastePick("buyer_absorbs", "split_equally") }), { today: TODAY, meId: ME });
+    expect(own.request?.kind === "group" ? own.request.body.wastePolicy : null).toBe("buyer_absorbs");
+  });
+});
+
+describe("Use by: quick picks (SM-15, the canvas)", () => {
+  it("offers 3 days · 5 days · 2 wks · None · a date", () => {
+    expect(USE_BY_CHOICES.map((c) => c.label)).toEqual(["3 days", "5 days", "2 wks", "None", "Date"]);
+  });
+
+  it("counts a pick from the day it was bought, and reads a use-by back as its pick", () => {
+    const f = form({ boughtOn: "2026-10-30" });
+    expect(useByFor("3d", f)).toBe("2026-11-02");
+    expect(useByFor("14d", f)).toBe("2026-11-13");
+    expect(useByFor("none", f)).toBe("");
+    expect(useByFor("date", { ...f, expiresOn: "2026-12-01" })).toBe("2026-12-01");
+    expect(useByChoice({ boughtOn: "2026-10-30", expiresOn: "" })).toBe("none");
+    expect(useByChoice({ boughtOn: "2026-10-30", expiresOn: "2026-11-04" })).toBe("5d");
+    expect(useByChoice({ boughtOn: "2026-10-30", expiresOn: "2026-11-05" })).toBe("date");
+  });
+});
+
+describe("the one main button, named (SM-15)", () => {
+  it("names what it adds and what it cost, and where it goes", () => {
+    expect(addMainLabel({ name: " Milk ", priceMinor: 6800, currency: "INR", pantryName: "Flat 4B" })).toEqual({
+      title: "Add Milk · ₹68.00",
+      who: "to Flat 4B",
+    });
+    expect(addMainLabel({ name: "Eggs", priceMinor: null, currency: "INR", pantryName: null })).toEqual({ title: "Add Eggs", who: "to your pantry" });
+    expect(addMainLabel({ name: "", priceMinor: null, currency: "INR", pantryName: null }).title).toBe("Add");
+    expect(addMainLabel({ name: "x".repeat(40), priceMinor: 100, currency: "USD", pantryName: null }).title).toBe(`Add ${"x".repeat(27)}… · $1.00`);
+  });
+
+  it("says once that the form was filled from last time", () => {
+    expect(FILLED_FROM_BEFORE).toBe("Filled from last time · change anything");
   });
 });

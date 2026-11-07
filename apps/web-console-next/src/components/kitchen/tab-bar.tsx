@@ -20,6 +20,7 @@ export function KitchenTabBar({ onAdd, addOpen }: { onAdd: () => void; addOpen: 
   return (
     <nav
       aria-label="Main"
+      data-toast-above=""
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 pb-safe backdrop-blur-md min-[900px]:hidden"
     >
       <ul className="mx-auto grid max-w-lg grid-cols-5">

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ChevronLeft, History } from "lucide-react";
 import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -16,42 +16,54 @@ import { Chip } from "@/components/kitchen/ledger-ui";
 import { memberLabel } from "@/components/kitchen/members";
 import { currencyPrefix } from "@/components/kitchen/money";
 import { canManageGroup, roleFromKitchen } from "@/components/kitchen/groups";
-import { useMemberNames, useMyBalances, useMyRoles } from "@/components/kitchen/people-data";
+import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
 import { useAddItem, useMembersOf, usePantries } from "@/components/kitchen/pantry-data";
-import { PantryPicker } from "@/components/kitchen/pantry-ui";
+import { MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
+import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { fromBeforeTerm, historyFill, historySuggestion, shownSuggestions } from "@/components/kitchen/from-before";
 import { useItemHistory } from "@/components/kitchen/from-before-data";
 import { SuggestionList, useTypeahead } from "@/components/kitchen/from-before-ui";
-import { ALL_PANTRIES, PERSONAL_PANTRY, pantryKey, parsePantryParam } from "@/components/kitchen/pantry";
+import { ALL_PANTRIES, PERSONAL_PANTRY, dayMonth, orderPantries, pantryChipLabel, pantryKey, parsePantryParam } from "@/components/kitchen/pantry";
 import {
+  FILLED_FROM_BEFORE,
   ITEM_CATEGORIES,
   ITEM_NAME_MAX,
   MAIN_UNITS,
   MORE_UNITS,
-  addButtonLabel,
+  USE_BY_CHOICES,
+  addMainLabel,
+  boughtSections,
   chipWindow,
   firstItemError,
   initialItemForm,
   localIsoDay,
-  payerHelp,
   previewItemForm,
+  useByChoice,
+  useByFor,
   wasteOptions,
+  wastePick,
+  wasteShown,
+  type BoughtSection,
   type ItemField,
   type ItemForm,
 } from "@/components/kitchen/item-form";
 
 /**
- * Add an item (CP-12): what it is, its category, how much (in units the
- * engine knows) and what was paid — with the price per kg and per 100 g
- * worked out live — when it was bought and when to use it by, and the pantry
- * it goes in: your own, or a group you add to (a searchable picker, recent
- * first). For a group: who paid, and who pays if some of it goes to waste.
- * Adding charges nobody; the toast can undo it for ten seconds.
+ * Bought (CP-12; SM-15 under the seven rules, the canvas's "Bought from
+ * before"): **where it goes first** — your own pantry or a group you add to,
+ * as one row of chips — since it changes the form; then what, how much and
+ * the price (the price per kg and per 100 g as numbers once both read), its
+ * category; for a group, who paid and who pays if it goes to waste (two
+ * choices, the group's rule on to start); when to use it by (3 days · 5 days
+ * · 2 wks · None · a date) and, quietly, when it was bought. One main button
+ * names it: "Add Milk · ₹68.00 / to Flat 4B". Adding charges nobody; the
+ * toast can undo it for ten seconds.
  *
  * From before (SM-9): as the name is typed, what was bought before shows
  * under it ("Milk · 1 L · Flat 4B · 6× · ₹68"; the most recent on an empty
- * field). Picking one fills the form from last time and moves to Add, so
- * buying milk again is: type "mi", tap Milk, tap Add.
+ * field). Picking one fills the form from last time — "Filled from last time
+ * · change anything" — and moves to Add, so buying milk again is: type "mi",
+ * tap Milk, tap Add.
  */
 export default function AddItemPage() {
   const searchParams = useSearchParams();
@@ -98,7 +110,7 @@ function AddItemForm({
   viewerOf: Pantry | null;
 }) {
   const router = useRouter();
-  const balances = useMyBalances();
+  const recentSlugs = useRecentGroupSlugs();
   const today = React.useMemo(() => localIsoDay(new Date()), []);
   const [form, setForm] = React.useState<ItemForm>(() => initialItemForm({ today, pantry: start, meId }));
   const [moreUnits, setMoreUnits] = React.useState(() => MORE_UNITS.includes(form.unit));
@@ -107,6 +119,10 @@ function AddItemForm({
   const [busy, setBusy] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [serverFields, setServerFields] = React.useState<Partial<Record<ItemField, string>>>({});
+  // "Filled from last time" shows from a pick until the name changes; the dates open on demand.
+  const [filled, setFilled] = React.useState(false);
+  const [dateOpen, setDateOpen] = React.useState(false);
+  const [boughtOpen, setBoughtOpen] = React.useState(false);
   // One key per item being added: a retry after a lost answer adds it once.
   const idemKey = React.useRef(crypto.randomUUID());
   const nameFieldRef = React.useRef<HTMLDivElement>(null);
@@ -126,21 +142,20 @@ function AddItemForm({
     setMorePayers(false);
     if (fill.moreUnits) setMoreUnits(true);
     setForm(fill.form);
+    setFilled(true);
+    setDateOpen(false);
     typeahead.close();
     // Everything stays editable; the next tap is Add.
     window.requestAnimationFrame(() => addRef.current?.focus());
   };
 
+  const ordered = React.useMemo(() => orderPantries(pantries, recentSlugs), [pantries, recentSlugs]);
   const chosen = pantries.find((p) => pantryKey(p) === form.pantry) ?? pantries.find((p) => p.kind === "personal") ?? null;
   const group = chosen?.kind === "group" ? chosen : null;
   // Reads the chosen pantry's list ahead, so the item is listed there the moment it is added.
   const addItem = useAddItem(chosen ? pantryKey(chosen) : null);
   const members = useMembersOf(group?.orgId ?? null);
   const names = useMemberNames(members.data);
-  const memberCounts = React.useMemo(
-    () => new Map((balances.data?.groups ?? []).map((g) => [g.orgId, g.memberCount] as const)),
-    [balances.data],
-  );
   const currency = chosen?.currency ?? "INR";
   const prefix = currencyPrefix(currency);
   const preview = previewItemForm(form, { today, currency, meId });
@@ -173,7 +188,11 @@ function AddItemForm({
     const request = preview.request;
     if (!request) {
       const first = firstItemError(preview.errors);
-      if (first) document.querySelector<HTMLElement>(`[data-field="${first}"] :is(input, button)`)?.focus();
+      if (first === "expiresOn") setDateOpen(true);
+      if (first === "boughtOn") setBoughtOpen(true);
+      window.requestAnimationFrame(() =>
+        document.querySelector<HTMLElement>(`[data-field="${first}"] :is(input, button)`)?.focus(),
+      );
       return;
     }
     setBusy(true);
@@ -194,280 +213,314 @@ function AddItemForm({
     router.push(`/pantry?pantry=${encodeURIComponent(group ? group.orgId : PERSONAL_PANTRY)}`);
   };
 
-  const wastes = group
-    ? wasteOptions({ groupName: group.name, groupRule: group.wastePolicy, paidBy: form.paidBy, meId, names })
-    : [];
+  const wastes = group ? wasteOptions({ paidBy: form.paidBy, meId, names }) : [];
+  const wasteOn = group ? wasteShown(form.waste, group.wastePolicy) : null;
+  const useBy = useByChoice(form);
+  const main = addMainLabel({ name: form.name, priceMinor: preview.priceMinor, currency, pantryName: group ? group.name : null });
+
+  const sections: Record<BoughtSection, React.ReactNode> = {
+    pantry: (
+      <fieldset key="pantry">
+        <legend className={LEGEND}>Put it in</legend>
+        <div className="flex flex-wrap gap-2">
+          {ordered.map((p) => {
+            const key = pantryKey(p);
+            const on = chosen ? pantryKey(chosen) === key : key === PERSONAL_PANTRY;
+            return (
+              <Chip
+                key={key}
+                aria-pressed={on}
+                selected={on}
+                onClick={() => {
+                  setMorePayers(false);
+                  update({ pantry: key });
+                }}
+              >
+                {pantryChipLabel(p)}
+              </Chip>
+            );
+          })}
+        </div>
+        {viewerOf && viewerOf.kind === "group" ? <p className="mt-2 text-[13px] text-muted-foreground">You only view {viewerOf.name}.</p> : null}
+      </fieldset>
+    ),
+    name: (
+      <div key="name" className="space-y-2" data-field="name">
+        <div ref={nameFieldRef} className="space-y-2">
+          <Label htmlFor="item-name" className={LEGEND}>
+            What?
+          </Label>
+          <Input
+            id="item-name"
+            value={form.name}
+            {...typeahead.inputProps({
+              count: suggestions.length,
+              onPick: pickSuggestion,
+              onChange: (e) => {
+                setFilled(false);
+                update({ name: e.target.value });
+              },
+            })}
+            placeholder="Milk, eggs, rice…"
+            maxLength={ITEM_NAME_MAX}
+            autoComplete="off"
+            autoFocus
+            aria-invalid={!!err("name")}
+            aria-describedby={err("name") ? "item-name-error" : undefined}
+            className={cn(K_INPUT, "h-[52px] text-[17px] font-bold sm:h-[52px]")}
+          />
+        </div>
+        <FieldError id="item-name-error" message={err("name")} />
+        <SuggestionList
+          id="item-name-suggestions"
+          label="From before"
+          views={suggestions.map(historySuggestion)}
+          active={typeahead.active}
+          onPick={pickSuggestion}
+          onHighlight={typeahead.highlight}
+          fieldRef={nameFieldRef}
+        />
+        {filled ? (
+          <p className="flex items-center gap-2 rounded-xl bg-cp-herb-tint px-3 py-2.5 text-[13px] font-bold text-[#165C3A]">
+            <History className="h-4 w-4 shrink-0" aria-hidden />
+            {FILLED_FROM_BEFORE}
+          </p>
+        ) : null}
+      </div>
+    ),
+    amount: (
+      <div key="amount" className="space-y-2">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2" data-field="quantity">
+            <Label htmlFor="item-qty" className={LEGEND}>
+              How much
+            </Label>
+            <Input
+              id="item-qty"
+              inputMode="decimal"
+              value={form.quantity}
+              onChange={(e) => update({ quantity: e.target.value })}
+              placeholder="1"
+              autoComplete="off"
+              aria-invalid={!!err("quantity")}
+              aria-describedby={err("quantity") ? "item-qty-error" : preview.perUnit ? "item-unit-line" : undefined}
+              className={cn(K_INPUT, "h-12 tabular-nums sm:h-12")}
+            />
+          </div>
+          <div className="space-y-2" data-field="price">
+            <Label htmlFor="item-price" className={LEGEND}>
+              Price
+            </Label>
+            <div className="relative">
+              <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                {prefix}
+              </span>
+              <Input
+                id="item-price"
+                inputMode="decimal"
+                value={form.price}
+                onChange={(e) => update({ price: e.target.value })}
+                placeholder="0.00"
+                autoComplete="off"
+                aria-invalid={!!err("price")}
+                aria-describedby={err("price") ? "item-price-error" : preview.perUnit ? "item-unit-line" : undefined}
+                className={cn(K_INPUT, "h-12 tabular-nums sm:h-12", prefix.length > 1 ? "pl-14" : "pl-8")}
+              />
+            </div>
+          </div>
+        </div>
+        <FieldError id="item-qty-error" message={err("quantity")} />
+        <FieldError id="item-price-error" message={err("price")} />
+        <div role="group" aria-label="Unit" className="flex flex-wrap gap-2">
+          {[...MAIN_UNITS, ...(moreUnits ? MORE_UNITS : [])].map((u) => (
+            <Chip key={u} aria-pressed={form.unit === u} selected={form.unit === u} onClick={() => update({ unit: u })} className="min-w-12 justify-center px-3">
+              {u}
+            </Chip>
+          ))}
+          {moreUnits ? null : (
+            <Chip onClick={() => setMoreUnits(true)} className="px-3 text-muted-foreground">
+              more
+            </Chip>
+          )}
+        </div>
+        {/* Numbers only, once they read (no "Enter a quantity and price…" before). */}
+        {preview.perUnit ? (
+          <p id="item-unit-line" role="status" aria-live="polite" className="text-sm font-bold tabular-nums text-primary">
+            {preview.perUnit}
+          </p>
+        ) : null}
+      </div>
+    ),
+    category: (
+      <fieldset key="category" data-field="category" aria-describedby={err("category") ? "item-category-error" : undefined}>
+        <legend className={LEGEND}>Category</legend>
+        <div className="flex flex-wrap gap-2">
+          {ITEM_CATEGORIES.map((c) => (
+            <Chip key={c.id} aria-pressed={form.category === c.id} selected={form.category === c.id} onClick={() => update({ category: c.id })}>
+              {c.label}
+            </Chip>
+          ))}
+        </div>
+        <FieldError id="item-category-error" message={err("category")} />
+      </fieldset>
+    ),
+    paidBy: (
+      <fieldset key="paidBy" data-field="paidBy">
+        <legend className={LEGEND}>Who paid?</legend>
+        {members.loading ? (
+          <div className="flex gap-2" aria-hidden>
+            <Skeleton className="h-11 w-20 rounded-full" />
+            <Skeleton className="h-11 w-24 rounded-full" />
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {(payerChips.shown.length > 0 ? payerChips.shown : meId ? [meId] : []).map((id) => (
+              <Chip key={id} aria-pressed={form.paidBy === id} selected={form.paidBy === id} onClick={() => update({ paidBy: id })}>
+                {memberLabel(id, meId, names)}
+              </Chip>
+            ))}
+            {payerChips.more > 0 ? (
+              <Chip onClick={() => setMorePayers(true)} className="text-muted-foreground">
+                {payerChips.more} more
+              </Chip>
+            ) : null}
+          </div>
+        )}
+        <FieldError id="item-payer-error" message={err("paidBy")} />
+      </fieldset>
+    ),
+    waste: group ? (
+      <fieldset key="waste">
+        <legend className={LEGEND}>If it goes to waste</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {wastes.map((w) => (
+            <Chip
+              key={w.id}
+              aria-pressed={wasteOn === w.id}
+              selected={wasteOn === w.id}
+              onClick={() => update({ waste: wastePick(w.id, group.wastePolicy) })}
+              className="justify-center px-3"
+            >
+              {w.label}
+            </Chip>
+          ))}
+        </div>
+      </fieldset>
+    ) : null,
+    useBy: (
+      <fieldset key="useBy" data-field="expiresOn" className="space-y-2">
+        <legend className={cn(LEGEND, "mb-0")}>Use by</legend>
+        <div className="flex flex-wrap gap-2">
+          {USE_BY_CHOICES.map((c) => {
+            const on = c.id === "date" ? useBy === "date" || dateOpen : useBy === c.id && !dateOpen;
+            return (
+              <Chip
+                key={c.id}
+                aria-pressed={on}
+                selected={on}
+                className="px-3.5"
+                onClick={() => {
+                  if (c.id === "date") {
+                    setDateOpen(true);
+                    window.requestAnimationFrame(() => document.getElementById("item-expires")?.focus());
+                    return;
+                  }
+                  setDateOpen(false);
+                  update({ expiresOn: useByFor(c.id, form) });
+                }}
+              >
+                {c.label}
+              </Chip>
+            );
+          })}
+        </div>
+        {useBy === "date" || dateOpen ? (
+          <Input
+            id="item-expires"
+            type="date"
+            aria-label="Use by"
+            value={form.expiresOn}
+            min={form.boughtOn || undefined}
+            onChange={(e) => update({ expiresOn: e.target.value })}
+            aria-invalid={!!err("expiresOn")}
+            aria-describedby={err("expiresOn") ? "item-expires-error" : undefined}
+            className={cn(K_INPUT, "h-12 w-full max-w-60 pr-3 sm:h-12")}
+          />
+        ) : null}
+        <FieldError id="item-expires-error" message={err("expiresOn")} />
+        <div data-field="boughtOn" className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+          {boughtOpen ? (
+            <Input
+              id="item-bought"
+              type="date"
+              aria-label="Bought on"
+              value={form.boughtOn}
+              max={today}
+              onChange={(e) => update({ boughtOn: e.target.value })}
+              aria-invalid={!!err("boughtOn")}
+              aria-describedby={err("boughtOn") ? "item-bought-error" : undefined}
+              className={cn(K_INPUT, "h-12 w-full max-w-60 pr-3 sm:h-12")}
+            />
+          ) : (
+            <>
+              <span>Bought {form.boughtOn === today ? "today" : dayMonth(form.boughtOn)}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setBoughtOpen(true);
+                  window.requestAnimationFrame(() => document.getElementById("item-bought")?.focus());
+                }}
+                className="min-h-11 rounded-lg px-1 font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Change
+              </button>
+            </>
+          )}
+        </div>
+        <FieldError id="item-bought-error" message={err("boughtOn")} />
+      </fieldset>
+    ),
+  };
 
   return (
-    <div className="space-y-5">
-      <Link
-        href="/pantry"
-        className="-ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        Pantry
-      </Link>
-      <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Add to pantry</h1>
-      {viewerOf && viewerOf.kind === "group" ? (
-        <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">
-          You view {viewerOf.name}, so you can&apos;t add to its pantry. This goes to your own — or pick another group.
-        </p>
-      ) : null}
+    <div className="space-y-4">
+      <header className="flex items-center gap-1">
+        <Link
+          href="/pantry"
+          aria-label="Back to Pantry"
+          className="-ml-2.5 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronLeft className="h-6 w-6" aria-hidden />
+        </Link>
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Bought</h1>
+      </header>
 
-      <form onSubmit={submit} noValidate className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
-        <KCard className="space-y-6 p-5">
-          <div className="space-y-2" data-field="name">
-            <div ref={nameFieldRef} className="space-y-2">
-              <Label htmlFor="item-name" className="text-sm font-bold">
-                What did you buy?
-              </Label>
-              <Input
-                id="item-name"
-                value={form.name}
-                {...typeahead.inputProps({
-                  count: suggestions.length,
-                  onPick: pickSuggestion,
-                  onChange: (e) => update({ name: e.target.value }),
-                })}
-                placeholder="e.g. Tomatoes"
-                maxLength={ITEM_NAME_MAX}
-                autoComplete="off"
-                autoFocus
-                aria-invalid={!!err("name")}
-                aria-describedby={err("name") ? "item-name-error" : undefined}
-                className={cn(K_INPUT, "h-12 sm:h-12")}
-              />
-            </div>
-            <FieldError id="item-name-error" message={err("name")} />
-            <SuggestionList
-              id="item-name-suggestions"
-              label="From before"
-              views={suggestions.map(historySuggestion)}
-              active={typeahead.active}
-              onPick={pickSuggestion}
-              onHighlight={typeahead.highlight}
-              fieldRef={nameFieldRef}
-            />
-          </div>
+      <form onSubmit={submit} noValidate className="max-w-xl space-y-6">
+        {boughtSections(group !== null).map((id) => sections[id])}
 
-          <fieldset data-field="category" aria-describedby={err("category") ? "item-category-error" : undefined}>
-            <legend className="mb-2 text-sm font-bold">Category</legend>
-            <div className="flex flex-wrap gap-2">
-              {ITEM_CATEGORIES.map((c) => (
-                <Chip key={c.id} aria-pressed={form.category === c.id} selected={form.category === c.id} onClick={() => update({ category: c.id })}>
-                  {c.label}
-                </Chip>
-              ))}
-            </div>
-            <FieldError id="item-category-error" message={err("category")} />
-          </fieldset>
+        {serverError ? (
+          <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
+            {serverError}
+          </p>
+        ) : null}
+        {showErrors && !preview.request && !serverError ? (
+          <p role="alert" className="sr-only">
+            {Object.values(preview.errors).join(". ")}
+          </p>
+        ) : null}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2" data-field="quantity">
-              <Label htmlFor="item-qty" className="text-sm font-bold">
-                Quantity
-              </Label>
-              <Input
-                id="item-qty"
-                inputMode="decimal"
-                value={form.quantity}
-                onChange={(e) => update({ quantity: e.target.value })}
-                placeholder="1"
-                autoComplete="off"
-                aria-invalid={!!err("quantity")}
-                aria-describedby={err("quantity") ? "item-qty-error" : "item-unit-line"}
-                className={cn(K_INPUT, "h-12 tabular-nums sm:h-12")}
-              />
-            </div>
-            <div className="space-y-2" data-field="price">
-              <Label htmlFor="item-price" className="text-sm font-bold">
-                Price paid
-              </Label>
-              <div className="relative">
-                <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  {prefix}
-                </span>
-                <Input
-                  id="item-price"
-                  inputMode="decimal"
-                  value={form.price}
-                  onChange={(e) => update({ price: e.target.value })}
-                  placeholder="0.00"
-                  autoComplete="off"
-                  aria-invalid={!!err("price")}
-                  aria-describedby={err("price") ? "item-price-error" : "item-unit-line"}
-                  className={cn(K_INPUT, "h-12 tabular-nums sm:h-12", prefix.length > 1 ? "pl-14" : "pl-8")}
-                />
-              </div>
-            </div>
-            <div className="col-span-2 -mt-1 space-y-1">
-              <FieldError id="item-qty-error" message={err("quantity")} />
-              <FieldError id="item-price-error" message={err("price")} />
-            </div>
-          </div>
-
-          <fieldset className="-mt-2">
-            <legend className="mb-2 text-sm font-bold">Unit</legend>
-            <div className="flex flex-wrap gap-2">
-              {[...MAIN_UNITS, ...(moreUnits ? MORE_UNITS : [])].map((u) => (
-                <Chip key={u} aria-pressed={form.unit === u} selected={form.unit === u} onClick={() => update({ unit: u })} className="min-w-14 justify-center">
-                  {u}
-                </Chip>
-              ))}
-              {moreUnits ? null : (
-                <Chip onClick={() => setMoreUnits(true)} className="text-muted-foreground">
-                  more
-                </Chip>
-              )}
-            </div>
-            <p id="item-unit-line" role="status" aria-live="polite" className="mt-2 text-sm font-bold tabular-nums text-primary">
-              {preview.perUnit ?? <span className="font-medium text-muted-foreground">Enter a quantity and price to see the price per unit.</span>}
-            </p>
-          </fieldset>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2" data-field="boughtOn">
-              <Label htmlFor="item-bought" className="text-sm font-bold">
-                Bought on
-              </Label>
-              <Input
-                id="item-bought"
-                type="date"
-                value={form.boughtOn}
-                max={today}
-                onChange={(e) => update({ boughtOn: e.target.value })}
-                aria-invalid={!!err("boughtOn")}
-                aria-describedby={err("boughtOn") ? "item-bought-error" : undefined}
-                className={cn(K_INPUT, "h-12 sm:h-12")}
-              />
-            </div>
-            <div className="space-y-2" data-field="expiresOn">
-              <Label htmlFor="item-expires" className="text-sm font-bold">
-                Use by <span className="font-medium text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="item-expires"
-                type="date"
-                value={form.expiresOn}
-                min={form.boughtOn || undefined}
-                onChange={(e) => update({ expiresOn: e.target.value })}
-                aria-invalid={!!err("expiresOn")}
-                aria-describedby={err("expiresOn") ? "item-expires-error" : undefined}
-                className={cn(K_INPUT, "h-12 sm:h-12")}
-              />
-            </div>
-            <div className="col-span-2 -mt-1 space-y-1">
-              <FieldError id="item-bought-error" message={err("boughtOn")} />
-              <FieldError id="item-expires-error" message={err("expiresOn")} />
-            </div>
-          </div>
-        </KCard>
-
-        <div className="space-y-4 min-[900px]:sticky min-[900px]:top-6">
-          <KCard className="space-y-2 p-5">
-            <h2 className="text-sm font-bold">Put it in</h2>
-            <PantryPicker
-              pantries={pantries}
-              value={chosen ? pantryKey(chosen) : PERSONAL_PANTRY}
-              onChange={(key) => {
-                setMorePayers(false);
-                update({ pantry: key });
-              }}
-              label={group ? "Group pantry" : "Your own pantry"}
-              idPrefix="add-item-pantry"
-              meta="who"
-              memberCounts={memberCounts}
-            />
-            <p className="text-[13px] text-muted-foreground">
-              {group
-                ? `Everyone in ${group.name} can see it and use it.`
-                : "Only you can see it. You can still cook with it for any group."}
-            </p>
-          </KCard>
-
-          {group ? (
-            <KCard className="space-y-6 p-5">
-              <fieldset data-field="paidBy">
-                <legend className="mb-2 text-sm font-bold">Who paid?</legend>
-                {members.loading ? (
-                  <div className="flex gap-2" aria-hidden>
-                    <Skeleton className="h-11 w-20 rounded-full" />
-                    <Skeleton className="h-11 w-24 rounded-full" />
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {(payerChips.shown.length > 0 ? payerChips.shown : meId ? [meId] : []).map((id) => (
-                      <Chip key={id} aria-pressed={form.paidBy === id} selected={form.paidBy === id} onClick={() => update({ paidBy: id })}>
-                        {memberLabel(id, meId, names)}
-                      </Chip>
-                    ))}
-                    {payerChips.more > 0 ? (
-                      <Chip onClick={() => setMorePayers(true)} className="text-muted-foreground">
-                        {payerChips.more} more
-                      </Chip>
-                    ) : null}
-                  </div>
-                )}
-                <p className="mt-2 text-[13px] text-muted-foreground">{payerHelp(form.paidBy, meId, names)}</p>
-                <FieldError id="item-payer-error" message={err("paidBy")} />
-              </fieldset>
-
-              <fieldset>
-                <legend className="mb-2 text-sm font-bold">If some of it goes to waste</legend>
-                <div className="space-y-2">
-                  {wastes.map((w) => {
-                    const on = form.waste === w.id;
-                    return (
-                      <label
-                        key={w.id}
-                        className={cn(
-                          "flex cursor-pointer items-start gap-3 rounded-2xl px-3.5 py-3 transition-colors",
-                          on ? "border-2 border-primary bg-accent/60" : "border border-input bg-card hover:bg-accent/40",
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          name="item-waste"
-                          checked={on}
-                          onChange={() => update({ waste: w.id })}
-                          className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-[15px] font-bold">{w.label}</span>
-                          <span className="block text-[13px] text-muted-foreground">{w.hint}</span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            </KCard>
-          ) : null}
-
-          {serverError ? (
-            <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
-              {serverError}
-            </p>
-          ) : null}
-          {showErrors && !preview.request && !serverError ? (
-            <p role="alert" className="sr-only">
-              {Object.values(preview.errors).join(". ")}
-            </p>
-          ) : null}
-
-          <div className="flex flex-col-reverse gap-2 min-[560px]:flex-row min-[560px]:justify-end">
-            <Button asChild variant="ghost" className={K_BUTTON}>
-              <Link href="/pantry">Cancel</Link>
-            </Button>
-            <Button ref={addRef} type="submit" className={cn(K_BUTTON, "h-12 min-[560px]:min-w-48")} loading={busy}>
-              {addButtonLabel(group ? group.name : null)}
-            </Button>
-          </div>
+        {/* The one main button, named, in thumb reach (SM-15): "Add Milk · ₹68.00 / to Flat 4B". */}
+        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:max-w-sm">
+          <Button ref={addRef} type="submit" className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")} loading={busy}>
+            <MainButtonLabel title={main.title} who={main.who} />
+          </Button>
         </div>
       </form>
     </div>
   );
 }
+
+const LEGEND = "mb-2 block text-sm font-extrabold";
 
 function FieldError({ id, message }: { id: string; message: string | undefined }) {
   if (!message) return null;

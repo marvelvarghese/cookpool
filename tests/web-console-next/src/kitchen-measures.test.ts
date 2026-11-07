@@ -36,6 +36,7 @@ import {
   otherSwitch,
   parseOther,
   quickUseRequest,
+  rowUsual,
   useTiles,
 } from "@web-console-next/components/kitchen/quick-use";
 import { historyRows, logRequest } from "@web-console-next/components/kitchen/item-use";
@@ -408,6 +409,30 @@ describe("Use: the request and what shows at once", () => {
     };
     const [row] = doItAgainRows([u], new Map([[item.id, item]]), { meId: ME, names: NAMES });
     expect(row).toMatchObject({ title: "Onions · 2 onions", words: "2 onions", qtyMilli: 300_000, measure: { measure: onion, quantity: 2 }, cost: money(1200) });
+  });
+});
+
+describe("Pantry's one-tap Use reads the usual's words (SM-15)", () => {
+  it("prefers the usual's label and sends it in the measure, taking what 2 onions take now", () => {
+    expect(rowUsual(usual({ lastQtyMilli: 300_000, lastLabel: "2 onions" }), onions())).toEqual({
+      qtyMilli: 300_000,
+      words: "2 onions",
+      measure: { measure: onion, quantity: 2 },
+    });
+    // A size changed since: still "2 onions", at what they take now.
+    const bigger = { ...onion, amountMilli: 200_000 };
+    expect(rowUsual(usual({ lastQtyMilli: 300_000, lastLabel: "2 onions" }), onions({}, [bigger]))).toMatchObject({ qtyMilli: 400_000, words: "2 onions" });
+  });
+
+  it("falls back to the amount in the unit (sent in the unit) when the words name no measure", () => {
+    expect(rowUsual(usual({ lastQtyMilli: 250_000, lastLabel: null }), milk())).toEqual({ qtyMilli: 250_000, words: "1 glass", measure: null });
+    expect(rowUsual(usual({ lastQtyMilli: 300_000, lastLabel: "2 onions" }), onions({}, []))).toEqual({ qtyMilli: 300_000, words: "300 g", measure: null });
+  });
+
+  it("offers nothing when there is no usual, or it is more than is left", () => {
+    expect(rowUsual(null, onions())).toBeNull();
+    expect(rowUsual(usual({ lastQtyMilli: 900_000 }), onions())).toBeNull();
+    expect(rowUsual(usual({ lastQtyMilli: 300_000, lastLabel: "5 onions" }), onions({ left: "0.6" }))).toBeNull();
   });
 });
 

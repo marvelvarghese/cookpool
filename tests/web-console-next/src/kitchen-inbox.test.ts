@@ -213,8 +213,9 @@ describe("Home's inbox: each card kind and its action (CP-23)", () => {
   it("a payment due: who, how much, I paid — and none for a viewer", () => {
     const card = inboxCard(pay, ctx)!;
     expect(card.title).toBe("You owe Dev ₹45.75");
-    expect(card.meta).toBe("Flat 4B · the fewest-payments plan");
-    expect(card.href).toBe("/settle?group=flat-4b-k3x9");
+    // No ledger words (SM-15), and People's place for settling up since SM-11 (no hop through /settle).
+    expect(card.meta).toBe("Flat 4B");
+    expect(card.href).toBe("/people?group=flat-4b-k3x9");
     expect(card.action).toEqual({
       kind: "pay",
       orgId: FLAT.orgId,

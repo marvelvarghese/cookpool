@@ -1,5 +1,5 @@
 /**
- * Settling up (Cookpool CP-8) as a pure model: the working line, who pays
+ * Settling up (Cookpool CP-8) as a pure model: who pays
  * whom, a person's net from a group's plan, the "All groups" merge of every
  * group's payments that involve you, and the settlement a Record posts.
  * Dependency-free (contract types only), so it is unit-testable.
@@ -24,15 +24,6 @@ export interface GroupRef {
   id: string;
   name: string;
   slug: string;
-}
-
-function plural(n: number, one: string, many = `${one}s`): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-/** "10 debts → 5 after pairs cancel → 3 payments" */
-export function workingLine(working: SettlePlan["working"]): string {
-  return `${plural(working.debts, "debt")} → ${working.pairs} after pairs cancel → ${plural(working.payments, "payment")}`;
 }
 
 /** The ways a payment can be recorded as made, in the order the chips show them. */

@@ -9,9 +9,9 @@ the code departed from `design.md`.
 | SM1 — fast | ✅ shipped 2026-11-04 | #37 (SM-3), #38 (SM-2), #41 (SM-4), #43 (SM-5) |
 | SM2 — for anyone | ✅ shipped 2026-11-05 | #39 (SM-6), #44 (SM-7) |
 | SM3 — from before | ✅ shipped 2026-11-04 | #40 (SM-8), #42 (SM-9) |
-| SM6 — your measures | ✅ shipped 2026-11-06 | #46 (SM-13), SM-14 |
+| SM6 — your measures | ✅ shipped 2026-11-06 | #46 (SM-13), #49 (SM-14) |
 | SM4 — simpler screens | ✅ shipped 2026-11-05 | #47 (SM-10); Use rebuilt in SM-14 |
-| SM5 — the rest | | |
+| SM5 — the rest | ✅ shipped 2026-11-07 | #51 (SM-11), SM-15 |
 
 ## Departures from the design
 
@@ -1265,3 +1265,320 @@ item page, Bought, Cook and the desktop pages are SM-15's.
   the shared toast still sits over a sticky main button (audit item 14);
   the item page, Bought, Cook and the desktop pages are SM-15's. Nothing to
   redeploy beyond the console.
+
+### SM5 — the rest, part 2 (SM-15)
+
+The item page, Bought, Cook, You and the desktop pages under design §4's
+seven rules, the cross-screen follow-ups the SM-10, SM-11 and SM-14 reviews
+left, and the audit's last bugs. The canvas artboards `SimpleAddItem`,
+`SimpleCook`, `MeasureItem` and `MeasureCook` are the reference; the desktop
+artboards (`WebHome`, `WebGroup`, `WebPantry`, `WebDishMaker`) are not in the
+canvas backup, so the shipped Simpler screens are the visual language there.
+This is the last screen task: with it every screen follows the rules, and the
+checklist at the end says what became of each of the audit's Top 15 and each
+item of its "broken at 390 px" list.
+
+- **The item page (`/pantry/[itemRef]`).** An icon Back ("Pantry"), the name
+  with its pantry as a chip ("Onions · Flat 4B"; "Used up" / "Wasted" as a
+  second chip), then the stock card: "600 g" big, "left of 1 kg · ≈ 4 onions"
+  beside it, the bar, and **one line** for the six-cell grid — "Worth ₹24.00
+  · ₹4.00 per 100 g · Meera paid" (`itemFacts`, item-use.ts): worth now, the
+  price **once** (the grid said "₹4.00 per 100 g" and "₹40.00/kg"), who paid
+  **once** (the subtitle and "₹40.00 by Anu" said it twice); your own item has
+  no "paid". Gone: the subtitle (pantry · category · who paid), "Price paid",
+  "If wasted", "Bought on" (the history's first row says who added what and
+  when; Wasted says who pays), the category. "Counted as" (SM-14) stays.
+  **Cook with it** and **Wasted** are quiet outline buttons (they were tomato
+  and red text); Wasted opens "Throw away the 400 g left (₹16.00)?" with the
+  share list, or — where there is none — a few words (`WastePreview.short`:
+  "Anu absorbs it", "Nothing to split", "Nobody is charged") instead of the
+  two-sentence explanation. **Move to a group** (your own item, none used) is
+  one quiet button → the groups → "Move to Flat 4B?" with one line ("1 kg
+  becomes Flat 4B's, paid by you · can't be undone", `transferNote`) and Back
+  · Move; it no longer shows at all once some is used or no group can take it
+  (the three sentences saying why are gone), and its toast is one line. The
+  viewer's card is one line ("You only view Flat 4B."), and the not-found
+  page lost its second sentence. **Use some** stays the one main button,
+  held above the tab bar (SM-14). History rows read the move's label (SM-14)
+  and never break an amount from its word (`keepAmountsTogether`: a no-break
+  space after the number, so "300 g", "2 onions", "½ onion" stay whole).
+- **Bought (`/pantry/new`).** Titled "Bought" (the canvas) with an icon Back,
+  in this order (`boughtSections`): **Put it in** first — one row of chips,
+  Me then your groups opened last first (no searchable picker: the audit found
+  a search box for two groups) — because it changes the form; **What?** with
+  SM-9's type-ahead under it and, after a pick, the canvas's card "↻ Filled
+  from last time · change anything" (`FILLED_FROM_BEFORE`; it goes when the
+  name is edited); **How much** and **Price** side by side, the unit chips,
+  and the price per kg and per 100 g as numbers once both read (the sentence
+  "Enter a quantity and price to see the price per unit." is gone);
+  **Category**; for a group, **Who paid?** (no "Nobody is charged yet…" line)
+  and **If it goes to waste** as **two** choices — "Split equally" · "Anu
+  absorbs it" / "I absorb it" (`wasteOptions`) — with the group's rule on to
+  start (`wasteShown`); picking the group's rule follows the group (nothing
+  sent), the other is sent as the item's own (`wastePick`) — the audit's "Use
+  the group rule" was the same choice as "Split it equally"; **Use by** as the
+  canvas's quick picks — 3 days · 5 days · 2 wks · None · Date
+  (`USE_BY_CHOICES`, counted from the day it was bought; Date opens the date
+  field) — and "Bought today · Change" as one quiet line instead of a second
+  date field. **One main button, named** (`addMainLabel`): "Add Milk · ₹68.00"
+  over "to Flat 4B" (the canvas's "Add Milk · ₹68"), held above the tab bar on
+  a phone. Cancel is gone (Back is there). Buying milk again is still: type
+  "mi", tap Milk (focus moves to Add), tap Add — checked in the browser.
+- **Cook (`/cook`).** Titled "Cook" (the canvas) with an icon Back; the
+  subtitle "From any pantry. Whoever paid for what you take is paid back." is
+  gone. **The dark five-line cost card is one line on the main button**
+  (`costLine`): "Cook & post to Flat 4B" over "₹156.00 · 4 portions · ₹39.00
+  each" ("≈ ₹33.33 each" when a portion is not whole paise), through SM-7's
+  `MainButtonLabel`. **Departure:** the brief writes it as one line, "Cook &
+  post · ₹156 · 4 portions · ₹39 each"; at 390 px that is too wide for one
+  line of the button, so it is the button's title and one line under it, as
+  Use's "Log 2 onions · ₹12.00 / You + Anu · ₹6.00 each". What "You take on,
+  for items from group pantries" listed is already on each ingredient line
+  ("you owe Anu", with its price), so it is not repeated. **The main button is
+  green** (`MAIN_BUTTON`; it was tomato, right above the green + Add). **The
+  ingredient picker is a sheet** on a phone: "Add from any pantry" opens it
+  over the page (88 % of the screen), its title and × never scroll away, the
+  search and the list are its one scroll region (no list scrolling inside the
+  page's scroll), a green "Done · 2 in the dish" closes it, and nothing sticky
+  sits over it (it is a modal; the page's button is under its overlay). From
+  900 px it stays the panel beside the dish. In the picker: "Not in a pantry"
+  + a green "Bought “x” just now" (it was black), "Nothing to cook with yet",
+  "Use soonest first", and the "Bought it just now?" form without its
+  sentence. **Who ate?** is two choices side by side, "Everyone claims" ·
+  "I'll assign" (`SPLIT_MODES`; the audit's Top 15 item 13), without the
+  paragraph under each; what nobody is down for reads "2 portions left over ·
+  yours · ₹5.10". "Share it with" says "Flat 4B / 5 people" (not "· they owe
+  you for what they eat"). The note under the split ("Whoever eats owes you…
+  that cancels against… settle-up only shows what's left") is gone with
+  `shareNote`, and so is the empty state's paragraph. The toast after cooking
+  is one line: "Cooked Onion pakoda · ₹4.00 · Flat 4B" (`cookedText`). SM-9
+  (cook again: a pick fills portions, extras, who it is for and the lines;
+  "Not in a pantry · add it" opens the picker's "Bought it just now?") and
+  SM-14 (a line counted in its measure, the [onions | g] switch) work as
+  before — checked in the browser. On the desktop table the "from 1 pantry"
+  beside the heading is not said twice.
+- **You (`/you`).** Audit §9: "Your groups see this name next to what you
+  buy, use and cook." and "Your groups, pantry and balances stay as they
+  are." are gone (`NAME_NOTE`, `STAY_AS_THEY_ARE`); "Last used" shows only
+  when there is a choice of ways (`signInRows`; it was on the only one); the
+  rename toast is one line ("Saved · Rahul Varghese"). Back stays an icon: SM-10 and
+  SM-11 made icon Backs the app's language, so You is no longer the odd one.
+  PW-2's "Install the app" row stays.
+- **The desktop pages (≥ 900 px).** Checked at 1280×800 and 1440×900:
+  - **The sidebar** has **one** green "Add" (the tab bar's + Add: Used ·
+    Cooked · Bought · Paid a bill); its "Cook a dish" was the same thing a
+    second way, in a second primary button.
+  - **Groups** is the list on its own (a row opens the group). The chosen
+    group beside the list — its activity again, "Everyone's balance" and the
+    "Fewest payments / 3 debts → 2 after pairs cancel → 1 payment" card — is
+    gone: each debt shows once (the group page and People have them). With it
+    went `GroupBalancesPanel` (group-balances.tsx), `SettleCard` and
+    `workingLine`.
+  - **Pantry** uses the phone's one row of chips (All · Soon · Expired, then
+    the pantries) beside a search, then the table; the picker, "16 items ·
+    worth ₹1,696.45 and $12.00" and "Your own items plus every group pantry
+    you're in. Worth is what's left of what was paid." are gone
+    (`PantryPicker`, `FilterChips` with them), and the table says "Me" as
+    the chips do.
+  - **Cook**: the button (green, with the cost line) in the title row, the
+    pantry panel beside the dish, no cost card, no note.
+  - **Home** and **a group** were already one primary action per pane
+    (SM-10, SM-11); the sidebar was their one duplicate.
+- **Toasts never cover the main button (audit item 14).** Anything fixed or
+  sticky at the bottom carries `data-toast-above` — the tab bar and every
+  held main button: Use, the item page, Bought, Bill, Cook and the dish
+  page's bar. While a toast is open, `ToastProvider` measures them (on scroll,
+  resize and every 400 ms, as the page can change under an open toast) and
+  lifts its viewport past whichever bar the toast would land on, by
+  `toastLift` (src/lib/toast-lift.ts, pure): a bar further up the page, in
+  the flow and out of the toast's way, is left alone, and with nothing in the
+  way the CSS place stands (above the tab bar on a phone, bottom right from
+  900 px). The admin console marks nothing, so it is unchanged.
+- **The cook's dish page: nothing covered.** The held bar is opaque now (it
+  faded from transparent, so half-covered rows showed through it — the
+  audit's "the unclaimed note peeks out") and, for the cook's open dish,
+  **the money line rides with Finalize** in the bar (`MoneyLines`, the same
+  two lines; the money card keeps only Details), so the bar never sits over
+  the line it acts on — **departure:** the brief says "reserve space"; the
+  bar is in the flow at the page's end (its space is reserved there), and
+  putting the line in it is what keeps it in sight at every scroll.
+- **The dish page's ingredient lines read the label** (`ingredientQty`):
+  "Onions 2 onions · 200 g · Flat 4B, Dev paid".
+- **Pantry's Use prefers the usual's words** (`rowUsual`, quick-use.ts): "2
+  onions" when the usual's `lastLabel` still names one of the item's
+  measures — logged in that measure (`useLogUse({ measure })`), taking what 2
+  onions take now — else its amount in the unit ("1 glass"), sent in the
+  unit. **Home's usuals row passes `measure: row.measure`** explicitly.
+- **Links.** The dish page's Back goes to `/groups/<slug>` (no `?tab=dishes`)
+  and its Settle up to `/people?group=`; Home's payment to-dos link
+  `/people?group=` (no hop through `/settle`), and their meta is the group's
+  name ("· the fewest-payments plan" is gone).
+- **No "SOON" anywhere; one primary colour.** `SoonBadge` and
+  `ComingSoonCard` are gone from the kit (the item page's state chip is a
+  plain chip); Cook's button, the picker's "just bought" button and the
+  sidebar are green. Red stays for destructive confirms (Mark wasted, Sign
+  out) — those are not the screen's main action.
+- **Hover only where there is hover** (tailwind `future.hoverOnlyWhenSupported`):
+  on a touch screen a tapped choice kept its hover tint, which is how both
+  "Who ate?" cards looked chosen (the broken list, item 7). This applies to
+  the whole console, admin pages included; a mouse sees no difference.
+- **Measured** (the production build under `wrangler dev` on 3215 behind
+  the SM-2 proxy on 3216 with SM-11's mock plus SM-9's two "from before"
+  reads and one ingredient given in a measure; visible words, counted the
+  same way before and after on the same mock):
+
+  | Screen, 390×844 | Before: words above the fold / in all, height | After |
+  |---|---|---|
+  | The item page (Onions) | 64 / 64, 917 px | 42 / 42, 844 px |
+  | The item page with its history (Tomatoes) | 85 / 110, 1,240 px | 81 / 88, 1,086 px |
+  | Bought, empty (the "From before" list open) | 66 / 114, 1,521 px | 74 / 87, 1,252 px |
+  | Bought for a group | 66 / 176, 2,024 px | 74 / 105, 1,496 px |
+  | Bought, Milk picked from before | 45 / 130, 1,697 px | 60 / 78, 1,264 px |
+  | Cook, empty | 92 / 156, 1,453 px | 35 / 35, 844 px |
+  | Cook, the picker open | 104 / 302, the page 2,059 px | the sheet: 138 / 183; the page stays 844 px and does not move |
+  | Cook with Onions, for Flat 4B | 83 / 164, 1,526 px | 56 / 56, 925 px |
+  | Cook again (Egg fried rice) | 78 / 196, 1,865 px | 74 / 88, 1,264 px |
+  | You | 51 / 51, 844 px | 29 / 29, 844 px |
+  | The cook's open dish | 61 / 61, 971 px | 61 / 61, 954 px (the money line in the bar) |
+
+  | Screen, desktop | 1280×800 before → after | 1440×900 before → after |
+  |---|---|---|
+  | Home | 113 words → 110 | 113 → 110 |
+  | Groups | 107 → 51 (the list on its own) | — |
+  | A group | 113 → 110 | 113 → 110 |
+  | Pantry | 178 / 233, 1,124 px → 192 / 210, 978 px | 202 / 233 → 210 / 210 |
+  | Cook (with Onions) | 199 / 347, 1,321 px → 174 / 230, 874 px | 230 / 347 → 200 / 230 |
+  | The item page | 87 → 62 | — |
+  | Bought (Flat 4B) | 169 / 199 → 90 / 125 | — |
+  | People · a dish · You | 86 · 84 · 80 → 83 · 81 · 55 | — |
+
+  (Above-the-fold counts on Bought and the desktop Pantry went up because
+  more of the page fits on the first screen: the form starts with its chips,
+  the table starts higher.) **Toasts and the main button** (top–bottom in
+  px): the cook's dish after stepping a portion, before 678–756 over
+  Finalize 692–752, after 542–620, above the bar (from 628, the money line in it); Cook → its new
+  dish, the same; Use, logging and picking Milk again, the toast lifts to
+  561–639 above "Log 1 glass · ₹17.00" at 648–708 (its CSS place, 678–756,
+  is where Use's button sits); Bill → the group page, 678–756 in both, its
+  "Add a bill" in the flow at 179–239, left alone. No page scrolls sideways
+  (`scrollWidth` 390 on Home, Pantry, the item, Bought, Cook, Use, Groups, a
+  group, People, a dish, You). The build serves the same 19 pages as files,
+  with 8 `_redirects` rules.
+- **Checked in the browser:** type "mi" on Bought, tap Milk → the form fills
+  (Flat 4B, 1 L, ₹68, Dairy), "Filled from last time · change anything",
+  focus on "Add Milk · ₹68.00 / to Flat 4B"; Bought for Flat 4B starts on
+  "Split equally" (the group's rule); Date opens a date field 256 px wide in
+  a 390 px page; Cook's "Add from any pantry" opens "Add from a pantry" with
+  one scroll region and the page at `scrollY` 0; "I'll assign" is the only
+  tinted choice (`aria-checked`, white beside it); Cook with Onions counted in
+  onions reads "1 onion … ≈ 150 g" and the button "₹6.00 · 4 portions · ₹1.50
+  each" (SM-14); cook again fills Egg fried rice and its "Spring onions · Not
+  in a pantry · add it" opens the sheet on "Bought it just now?" with the name
+  filled (SM-9); the item page reads "600 g left of 1 kg · ≈ 4 onions" and
+  "Worth ₹24.00 · ₹4.00 per 100 g · Meera paid"; the history keeps "300 g"
+  whole; the dish's Back is `/groups/flat-4b-k3x9`; Settings shows
+  "KTCH-2345" on one line.
+- **Tests** (tests/web-console-next): `kitchen-item-form.test.ts` — Bought's
+  order (where it goes first) and the focus order, the two waste choices
+  (the group's rule on; following it sends nothing, the other is the item's
+  own), the use-by picks and how a use-by reads back, the named button, the
+  "Filled from last time" hint; `kitchen-item-use.test.ts` — the item page's
+  one line (worth, the price once, who paid; "≈ 4 onions"; no "paid" on your
+  own; nothing worth when it is gone), the waste preview's few words, the
+  move's one-line confirm, an amount kept whole; `kitchen-dish-maker.test.ts`
+  — Cook's one-line cost (portions, ½ portion, "≈ … each", nothing while it
+  costs nothing; each line still says whom you owe), "Everyone claims" ·
+  "I'll assign", "5 people", the one-line cooked toast; `kitchen-dish.test.ts`
+  — an ingredient's label before its amount; `kitchen-measures.test.ts` —
+  Pantry's one tap in the usual's words and measure, else the unit;
+  `toast-lift.test.ts` (new, 8) — the toast stays put with only the tab bar,
+  lifts over a held button or a taller bar with its gap, leaves a button in
+  the flow alone, keeps climbing over stacked bars, ignores bars off screen,
+  works at the desktop place. Updated on purpose: the payment to-do's link
+  and meta (`kitchen-inbox`), "Last used" only with a choice and the sign-out
+  sentence gone (`kitchen-you`); gone with their code: the five `shareNote`
+  tests, `payerHelp`, the three-way `wasteOptions`, `addButtonLabel`,
+  `splitModes`' sentences and `workingLine`. 1,126 pass.
+- **Removed with what used them:** `CostCard`, `ShareNoteCard`, `shareNote`,
+  `oweLabel`; `splitModes` (now `SPLIT_MODES`); `SoonBadge`,
+  `ComingSoonCard`; `group-balances.tsx` (`GroupBalancesPanel`), `SettleCard`,
+  `workingLine`, the Groups page's `ChosenGroup`; `PantryPicker`,
+  `FilterChips`; `payerHelp`, `addButtonLabel`; `NAME_NOTE`,
+  `STAY_AS_THEY_ARE`. Left in place, unused by any screen now, with their
+  tests: `pantryChoice` / `pantryPickerList` (pantry.ts), `debtsBehind`
+  (debts.ts), `useAllActivity` (ledger-data.ts).
+- **Follow-ups:** Back is an arrow on Use, a group, its Settings, Bill and a person
+  and a chevron on the item page, Bought, Cook, a dish and You — one of the
+  two everywhere; the type-size sweep (Top 15, item 15, below); the
+  sidebar's "Me" and the person at its foot both open You (SI-6 pinned
+  "Me"); Home's use-soon to-do still can't offer a measure (the inbox's
+  `use_soon` item carries no `measures`, a server change — SM-14's note).
+  **Nothing to redeploy beyond the console:** only web-console-next changed.
+- **The audit's Top 15, item by item** (where each went; "SM-15" is this task):
+  1. Home's "Needs you" as a compact list, at most three and "See all" —
+     done (SM-10).
+  2. Home shows each debt once; no "By group", no subtitle — done (SM-10).
+  3. "Who had it?" impossible to miss; one Use control on /use and the item
+     page — done (SM-7 faces in the button, SM-14 Use rebuilt with the faces
+     above the button, the item page's Use some opens /use).
+  4. The dish's money in one plain line with Details — done (SM-10).
+  5. One claim control on the member's dish, one progress line — done
+     (SM-10).
+  6. "Set for others" without a text link at the bottom; no "Remind group ·
+     SOON" — done (SM-7: every row steps for anyone; SM-10: the "…" menu and a
+     full-width Finalize).
+  7. + Add as icons and verbs, its title and × pinned, no "Record a payment"
+     — done (SM-10).
+  8. Pantry as one-line rows, no sentence, short meta — done on phones
+     (SM-10) and from 900 px (SM-15: the chips row, no picker, no sentence).
+  9. The item page's stats grid trimmed, no duplicates, no "No dish needed…"
+     — done (SM-15; the paragraph went in SM-14).
+  10. Bought: "Put it in" first, Who paid after it, one waste choice from the
+      group's rule, no "Enter a quantity…", no search for two groups — done
+      (SM-15). **Departure:** two choices side by side ("Split equally" · "Anu
+      absorbs it", the group's rule on), not one toggle: a toggle's "off"
+      would not say who pays.
+  11. Group settings on their own page, the join code with Copy/Share, no
+      group search or sort below a handful — done (SM-11).
+  12. People and Settle as one screen, the working line behind "Why" — done
+      (SM-11); the last place that showed "3 debts → 2 after pairs cancel →
+      1 payment", the desktop Groups page, is gone too (SM-15).
+  13. Cook: the cost card as one line, two-word "Who ate?" choices, the
+      picker as a sheet, the green button — done (SM-15).
+  14. One-line toasts with Undo, above the sticky bar — one line: SM-10
+      (Home, Dish), SM-11 (payments, bills), SM-14 (uses), SM-15 (cooking,
+      a rename, a move); above the bar: SM-15 (`toastLift`, measured below).
+  15. Global: one primary colour — done (SM-10 for the tab bar and Dish,
+      SM-15 for Cook, the picker and the sidebar); no "SOON" — done (SM-10,
+      SM-11; SM-15 removed the badge from the kit); incoming payments in blue
+      — done (SM-10 Home, SM-11 every feed); plain role words — done (SM-11);
+      page subtitles that restate the title — gone (SM-10, SM-11, SM-15 on
+      Cook and Bought); **from 8 type sizes to 4 — not done as a sweep**:
+      the rebuilt screens use the canvas's sizes (a 26 px title, 17 px
+      sections, 15 px rows, 13 px meta, plus the money's big number), which
+      is five on most screens, not four. It is a visual-identity change the
+      design's §7 keeps out of scope; it is the one item left, and it is not
+      a bug.
+- **The "broken at 390 px" list, walked on the final build** (390×844, the
+  SM-2 proxy with the mock; `scratchpad/sm15/audit/`):
+  1. The join link wrapping mid-code — gone (SM-11): Settings shows
+     "KTCH-2345" on one line and no URL.
+  2. The sticky bar over content — (a) the cook's open dish: the bar is
+     opaque and carries the money line, nothing shows half-covered through
+     it (SM-15); (b) set-portions: the same bar, at the end of the page, every
+     row scrolls clear above it; (c) Use from Pantry: the faces end above the
+     button (SM-14; measured again below); (d) Cook's picker: a sheet over
+     everything (SM-15).
+  3. Cook's picker scrolling inside the page — gone (SM-15): the sheet has
+     one scroll region and the page does not move.
+  4. The + Add sheet losing its title — gone (SM-10): the title stays at the
+     top of the sheet with its list scrolled.
+  5. The grey scrollbar under Use's carousel — gone (SM-10/SM-14:
+     `scrollbar-none`, no scrollbar gap).
+  6. "300 / g" in the item's history — gone (SM-14 shortened the rows; SM-15
+     keeps an amount and its word together).
+  7. Both "Who ate?" options looking chosen — gone (SM-15): two choices, only
+     the chosen one tinted, and no hover tint on a touch screen.
+  8. The Use-by calendar icon clipped at the card's edge — gone (SM-15): Use
+     by is quick picks; "Date" opens a date field inside the page's width.
+  9. No page scrolls sideways — still true on every screen.

@@ -2,32 +2,19 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronDown, Search } from "lucide-react";
-import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
-import { Input } from "@/components/ui/input";
-import { useRecentGroupSlugs } from "@/lib/recent-groups";
-import { GroupAvatar, K_INPUT } from "./kit";
+import { GroupAvatar } from "./kit";
 import { Money } from "./ledger-ui";
 import type { ShareLine } from "./item-use";
-import {
-  pantryChoice,
-  pantryPickerList,
-  type BarTone,
-  type FilterChip,
-  type ItemFilter,
-  type ItemRowView,
-  type PantryListRow,
-  type PantryOption,
-  type ExpiryChip,
-} from "./pantry";
+import type { BarTone, ItemRowView, PantryListRow, PantryOption, ExpiryChip } from "./pantry";
 
 /**
  * The pantry screens' visual pieces (Cookpool CP-12): a pantry's badge, the
- * use-by chip, the remaining bar, the searchable pantry picker (an inline
- * panel, recent first), an item as a phone row (SM-10: one line) and as a
- * desktop table, and the filter chips. Colors come from the `.cookpool` tokens; the chip says
- * its date in words, so color is never the only cue.
+ * use-by chip, the remaining bar, an item as a phone row (SM-10: one line)
+ * and as a desktop table. (The pantry picker and the desktop filter chips
+ * went in SM-15: Pantry and Bought use one row of chips.) Colors come from
+ * the `.cookpool` tokens; the chip says its date in words, so color is never
+ * the only cue.
  */
 
 const BADGE = "grid h-9 w-9 shrink-0 place-items-center rounded-[10px] text-xs font-extrabold";
@@ -74,139 +61,6 @@ export function StockBar({ percent, tone, className, thick = false }: { percent:
   return (
     <div aria-hidden className={cn("overflow-hidden rounded-full bg-border", thick ? "h-2.5" : "h-1.5", className)}>
       <div className={cn("h-full rounded-full", BAR[tone])} style={{ width: `${percent}%` }} />
-    </div>
-  );
-}
-
-/**
- * Choosing a pantry: a button naming the choice that opens an inline panel
- * with a search field and the list — All pantries (optional), Personal, then
- * groups, the ones opened last first; past five groups, a search finds the
- * rest. No per-group tabs (design §7).
- */
-export function PantryPicker({
-  pantries,
-  value,
-  onChange,
-  label,
-  idPrefix,
-  includeAll = false,
-  meta = "stock",
-  memberCounts,
-  className,
-}: {
-  pantries: readonly Pantry[];
-  value: string;
-  onChange: (key: string) => void;
-  label: string;
-  idPrefix: string;
-  includeAll?: boolean;
-  meta?: "stock" | "who";
-  memberCounts?: ReadonlyMap<string, number>;
-  className?: string;
-}) {
-  const recentSlugs = useRecentGroupSlugs();
-  const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState("");
-  const buttonRef = React.useRef<HTMLButtonElement>(null);
-  const list = React.useMemo(
-    () => pantryPickerList(pantries, { query, recentSlugs, includeAll, meta, ...(memberCounts ? { memberCounts } : {}) }),
-    [pantries, query, recentSlugs, includeAll, meta, memberCounts],
-  );
-  const current = pantryChoice(pantries, value, { meta, ...(memberCounts ? { memberCounts } : {}) });
-  const currentMeta = meta === "who" ? current.meta : null;
-  const groupCount = pantries.filter((p) => p.kind === "group").length;
-
-  const close = (refocus: boolean) => {
-    setOpen(false);
-    setQuery("");
-    if (refocus) buttonRef.current?.focus();
-  };
-  const pick = (key: string) => {
-    onChange(key);
-    close(true);
-  };
-
-  return (
-    <div className={cn("space-y-2", className)}>
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-expanded={open}
-        aria-controls={`${idPrefix}-panel`}
-        onClick={() => (open ? close(false) : setOpen(true))}
-        className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-input bg-card px-3.5 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <PantryBadge kind={current.kind} label={current.label} badge={current.badge} />
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs font-semibold text-muted-foreground">{label}</span>
-          <span className="block truncate text-base font-extrabold">{current.label}</span>
-          {currentMeta ? <span className="block truncate text-xs text-muted-foreground">{currentMeta}</span> : null}
-        </span>
-        <ChevronDown className={cn("h-5 w-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
-      </button>
-
-      {open ? (
-        <div
-          id={`${idPrefix}-panel`}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.stopPropagation();
-              close(true);
-            }
-          }}
-          className="space-y-1.5 rounded-[18px] border border-input bg-card p-2.5 shadow-[0_12px_32px_rgba(23,32,27,0.14)]"
-        >
-          {groupCount > 0 ? (
-            <div className="relative">
-              <label htmlFor={`${idPrefix}-search`} className="sr-only">
-                Search pantries
-              </label>
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input
-                id={`${idPrefix}-search`}
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Search ${groupCount} ${groupCount === 1 ? "group" : "groups"}`}
-                autoComplete="off"
-                autoFocus
-                className={cn(K_INPUT, "border-transparent bg-background pl-10")}
-              />
-            </div>
-          ) : null}
-          {list.heading ? <p className="px-2 pt-1.5 text-xs font-bold text-muted-foreground">{list.heading}</p> : null}
-          <ul aria-label="Pantries" className="max-h-[360px] overflow-y-auto">
-            {list.options.map((o) => {
-              const selected = o.key === value;
-              return (
-                <li key={o.key}>
-                  <button
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => pick(o.key)}
-                    className={cn(
-                      "flex min-h-[54px] w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-accent",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                      selected && "bg-accent",
-                    )}
-                  >
-                    <PantryBadge kind={o.kind} label={o.label} badge={o.badge} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-bold">{o.label}</span>
-                      {o.meta ? <span className="block truncate text-xs text-muted-foreground">{o.meta}</span> : null}
-                    </span>
-                    {selected ? <Check className="h-5 w-5 shrink-0 text-primary" aria-hidden /> : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {list.options.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-muted-foreground">No pantry matches &ldquo;{query.trim()}&rdquo;.</p>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -334,7 +188,8 @@ export function ItemTable({ rows, showPantry }: { rows: readonly ItemRowView[]; 
               {showPantry ? (
                 <td className="px-4 py-2.5">
                   <span className="inline-flex max-w-44 truncate whitespace-nowrap rounded-full bg-muted px-2.5 py-1 text-xs font-bold">
-                    {r.pantryLabel}
+                    {/* The chips' word for your own (SM-15): "Me", as above the table. */}
+                    {r.pantryKey === "personal" ? "Me" : r.pantryLabel}
                   </span>
                 </td>
               ) : null}
@@ -365,31 +220,6 @@ export function ItemTable({ rows, showPantry }: { rows: readonly ItemRowView[]; 
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/** All items · Use soon · N (· Expired · N). */
-export function FilterChips({ chips, value, onChange }: { chips: readonly FilterChip[]; value: ItemFilter; onChange: (id: ItemFilter) => void }) {
-  return (
-    <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
-      {chips.map((c) => {
-        const on = c.id === value;
-        return (
-          <button
-            key={c.id}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onChange(c.id)}
-            className={cn(
-              "min-h-11 rounded-full border px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              on ? "border-foreground bg-foreground font-bold text-background" : "border-input bg-card font-semibold hover:bg-accent",
-            )}
-          >
-            {c.label}
-          </button>
-        );
-      })}
     </div>
   );
 }
