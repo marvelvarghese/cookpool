@@ -12,6 +12,7 @@ import { KitchenTabBar } from "@/components/kitchen/tab-bar";
 import { AddSheet } from "@/components/kitchen/add-sheet";
 import { AppNotify } from "@/components/kitchen/notify-device";
 import { BackTrailRecorder } from "@/components/kitchen/back-ui";
+import { EdgeSwipeBack, PullToRefresh } from "@/components/kitchen/gestures-ui";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import { isWideKitchenPage } from "@/components/kitchen/nav";
@@ -43,6 +44,11 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  * Signed in, `AppNotify` keeps the icon badge on Home's to-do count and
  * this device's push subscription on the server (cookpool-app PW-6).
  *
+ * The frame's gestures (PW-7, gestures-ui.tsx): the lists pull to refresh in
+ * `<main>`, and on the installed iPhone a swipe from the left edge goes back
+ * by the back control's rule, sliding `<main>` away. Sheets drag away by
+ * themselves (the shared sheet).
+ *
  * The palette and font are scoped to this tree (`.cookpool`, light only); the
  * classes also go on <body> while this layout is mounted, so portalled UI —
  * the Add sheet, dialogs, toasts — matches. The admin console is untouched.
@@ -53,11 +59,15 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
   useAskForNameOnce(ready);
   const [addOpen, setAddOpen] = React.useState(false);
   const openAdd = React.useCallback(() => setAddOpen(true), []);
+  const frame = React.useRef<HTMLDivElement>(null);
+  const main = React.useRef<HTMLElement>(null);
 
   useKitchenBodyTheme();
 
   return (
-    <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
+    // `overflow-x-clip`: nothing in the frame widens the page — not even `<main>` while
+    // the edge swipe slides it away, which would let the phone pan or zoom out (PW-7).
+    <div ref={frame} className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh overflow-x-clip bg-background text-foreground min-[900px]:flex")}>
       <a
         href="#kitchen-main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-card focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:shadow-lg"
@@ -72,6 +82,7 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
       )}
 
       <main
+        ref={main}
         id="kitchen-main"
         className={cn(
           "mx-auto w-full min-w-0 max-w-2xl px-4",
@@ -80,12 +91,15 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
           wide && "min-[1280px]:max-w-[90rem]",
         )}
       >
-        {ready ? children : <KitchenSkeleton />}
+        <PullToRefresh surface={main} enabled={ready}>
+          {ready ? children : <KitchenSkeleton />}
+        </PullToRefresh>
       </main>
 
       {ready ? <KitchenTabBar onAdd={openAdd} addOpen={addOpen} /> : null}
       {ready ? <AddSheet open={addOpen} onOpenChange={setAddOpen} /> : null}
       {ready ? <AppNotify /> : null}
+      {ready ? <EdgeSwipeBack frame={frame} page={main} /> : null}
       {/* What Back may go back to (PW-3): the screens this frame has shown. */}
       <BackTrailRecorder />
     </div>

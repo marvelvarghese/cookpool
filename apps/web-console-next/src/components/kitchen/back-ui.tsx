@@ -32,7 +32,7 @@ export function BackControl({ onClick, className }: { onClick: () => void; class
  * What Back does on this screen: back when one of the app's own screens is
  * behind it (the trail), otherwise this screen is replaced by its parent
  * (`backParent`, from the address and what the screen `known`s) — never out
- * of the app. (PW4's back gesture can use it too.)
+ * of the app. The iPhone's edge swipe (PW-7) runs the same action.
  */
 export function useBack(known?: BackKnown): () => void {
   const router = useRouter();
@@ -44,9 +44,24 @@ export function useBack(known?: BackKnown): () => void {
   }, [router, parent]);
 }
 
+// The back control on screen, so the edge swipe (PW-7) does exactly what it
+// does — with what the screen knows (a dish's group), not just its address.
+let shownBack: (() => void) | null = null;
+
+/** What the back control on screen does, or null while none is shown. */
+export function shownBackAction(): (() => void) | null {
+  return shownBack;
+}
+
 /** A screen's back control (`useBack`). */
 export function BackButton({ known, className }: { known?: BackKnown | undefined; className?: string | undefined }) {
   const back = useBack(known);
+  React.useEffect(() => {
+    shownBack = back;
+    return () => {
+      if (shownBack === back) shownBack = null;
+    };
+  }, [back]);
   return <BackControl onClick={back} className={className} />;
 }
 
