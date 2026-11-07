@@ -12,7 +12,7 @@ import {
 import { createSqlExecutor } from "@saas/db/d1";
 import { createNotificationsRepository, type NotificationsRepository } from "@saas/db/notifications";
 import type { Uuid } from "@saas/db/ids";
-import { successResponse, errorResponse, validationError } from "../http.js";
+import { successResponse, errorResponse, validationError, logUnexpected } from "../http.js";
 import { emitEvent } from "../events-client.js";
 import { CHANNEL_MESSAGE, PREFERENCE_CHANNELS, preferenceOrg, toPreference } from "./preference-shape.js";
 
@@ -162,7 +162,8 @@ export async function handlePutPreferences(
 
     const response: UpdateNotificationPreferencesResponse = { preference: toPreference(upsert.value) };
     return successResponse(response, requestId);
-  } catch {
+  } catch (err) {
+    logUnexpected("put-preferences", requestId, err);
     return errorResponse("internal_error", "An unexpected error occurred", 500, requestId);
   } finally {
     if (executor) await executor.dispose();

@@ -2,7 +2,7 @@ import type { Env } from "../env.js";
 import type { GetNotificationPreferencesResponse } from "@saas/contracts/notifications";
 import { createSqlExecutor } from "@saas/db/d1";
 import { createNotificationsRepository, type NotificationsRepository } from "@saas/db/notifications";
-import { successResponse, errorResponse, validationError } from "../http.js";
+import { successResponse, errorResponse, validationError, logUnexpected } from "../http.js";
 import { CHANNEL_MESSAGE, PREFERENCE_CHANNELS, preferenceOrg, toPreference } from "./preference-shape.js";
 
 export interface GetPreferencesDeps {
@@ -53,7 +53,8 @@ export async function handleGetPreferences(
       preferences: list.value.map(toPreference),
     };
     return successResponse(response, requestId);
-  } catch {
+  } catch (err) {
+    logUnexpected("get-preferences", requestId, err);
     return errorResponse("internal_error", "An unexpected error occurred", 500, requestId);
   } finally {
     if (executor) await executor.dispose();

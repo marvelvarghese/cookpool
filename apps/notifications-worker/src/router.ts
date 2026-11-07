@@ -6,7 +6,7 @@ import { handleGetPreferences } from "./handlers/get-preferences.js";
 import { handlePutPreferences } from "./handlers/put-preferences.js";
 import { handleCreateSuppression } from "./handlers/create-suppression.js";
 import { handleGetPushKey, handlePushTest, handleSubscribePush, handleUnsubscribePush } from "./handlers/push.js";
-import { errorResponse, notFound, methodNotAllowed } from "./http.js";
+import { errorResponse, notFound, methodNotAllowed, logUnexpected } from "./http.js";
 import { generateRequestId } from "./ids.js";
 import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES } from "@saas/contracts/notifications";
 
@@ -130,7 +130,8 @@ export async function route(request: Request, env: Env): Promise<Response> {
     }
 
     return notFound(requestId, url.pathname);
-  } catch {
+  } catch (err) {
+    logUnexpected("router", requestId, err);
     return errorResponse("internal_error", "An unexpected error occurred", 500, requestId);
   }
 }

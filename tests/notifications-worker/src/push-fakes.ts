@@ -125,6 +125,17 @@ export function pushService(): PushService {
   return { fetch: fake, requests, answer: (endpoint, status) => answers.set(endpoint, status) };
 }
 
+/**
+ * The body sent to one endpoint. A fan-out encrypts for every device at once,
+ * so requests reach the push service in whatever order their WebCrypto jobs
+ * finish (PW-10): find a device's body by its endpoint, never by position.
+ */
+export function bodyFor(service: PushService, endpoint: string): Uint8Array {
+  const sent = service.requests.filter((r) => r.endpoint === endpoint);
+  if (sent.length !== 1) throw new Error(`${sent.length} requests to ${endpoint}, not one`);
+  return sent[0]!.body;
+}
+
 /** The claims of a VAPID Authorization header, unverified (the tests verify separately). */
 export function vapidHeader(value: string | undefined): { jwt: string; k: string } {
   const m = /^vapid t=([^,]+), k=(.+)$/.exec(value ?? "");

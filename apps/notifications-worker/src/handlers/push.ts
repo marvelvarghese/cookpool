@@ -26,7 +26,7 @@ import {
   type PushSubscriptionsRepository,
   type StoredPushSubscription,
 } from "@saas/db/notifications";
-import { errorResponse, successResponse, validationError } from "../http.js";
+import { errorResponse, successResponse, validationError, logUnexpected } from "../http.js";
 import { base64urlDecode, importP256PublicKey, isUncompressedP256 } from "../push/crypto.js";
 import { pushToDevices } from "../push/deliver.js";
 import { loadVapidKeys, logPushOff, type VapidLoad } from "../push/vapid.js";
@@ -120,7 +120,8 @@ async function withSubscriptions(
   const executor = createSqlExecutor(env.PLATFORM_DB);
   try {
     return await fn(createPushSubscriptionsRepository(executor));
-  } catch {
+  } catch (err) {
+    logUnexpected("push", requestId, err);
     return errorResponse("internal_error", "An unexpected error occurred", 500, requestId);
   } finally {
     await executor.dispose();
