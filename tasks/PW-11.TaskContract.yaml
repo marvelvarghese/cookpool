@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-11
+  title: "Close the app epic"
+spec:
+  goal: The cookpool-app epic reads shipped, with what it shipped as, where it departed from its design, and what comes after it.
+  affects:
+    - specs/epics/cookpool-app/**
+    - tasks/PW-11.TaskContract.yaml
+  doneWhen:
+    - the README status reads shipped and Shipped as lists every pull request
+    - every milestone in the plan and the status table reads shipped, PW3 with push on
+    - the follow-ups the tasks reported are listed after the epic
+  gates: []
