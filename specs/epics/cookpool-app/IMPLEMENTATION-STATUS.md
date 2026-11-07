@@ -5,9 +5,9 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | Milestone | State | PR |
 |---|---|---|
 | PW0 — the spec | ✅ shipped 2026-11-05 | #45 (PW-1) |
-| PW1 — an app on your home screen | in progress | PW-2 |
+| PW1 — an app on your home screen | ✅ shipped 2026-11-07 | #50 (PW-2), #55 (PW-3) |
 | PW2 — no signal, clean updates | ✅ shipped 2026-11-06 | #48 (PW-4) |
-| PW3 — notifications | | |
+| PW3 — notifications | in progress (push off until the VAPID keys are stored) | #52 (PW-5), PW-6 |
 | PW4 — gestures | | |
 
 ## Departures from the design
@@ -25,6 +25,83 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **Splash screens are committed, not built.** `scripts/gen-icons.mjs` draws them from the icon on `#F6F7F4`, like the icons since CP-23. There are eleven, one for every iPhone screen on a current iOS: SE 2nd/3rd gen, XR/11, XS/11 Pro/12–13 mini, XS Max/11 Pro Max, 12–14 and 16e, 12–13 Pro Max/14 Plus, 14 Pro–16, 14 Pro Max–16 Plus, 16 Pro/17/17 Pro, Air, and 16–17 Pro Max. They are palette PNGs, about 99 KB for all eleven, and an iPhone fetches only its own. iPads are left out because they need both orientations and many sizes.
 - **Sheets close with ✕, "Got it" or a tap outside.** Dragging one down was not trivial with the Radix sheet and is PW4's.
 - **The app-like basics land here**, not in PW-3: no tap highlight, `touch-action: manipulation` on controls, no selection or link callout on buttons and tabs, `100dvh` for `100vh`, and the keyboard helper. Back controls stay PW-3's.
+
+### PW1 — back, everywhere (PW-3)
+
+- **One control: a chevron.** `BackButton` (`components/kitchen/back-ui.tsx`)
+  is lucide's `ChevronLeft` at 24 px in a 44 px round target. It sits
+  top-left in the header, pulled 10 px left so the glyph lines up with the
+  content edge, in the muted colour. SM-15 had found a mix: an arrow on Use,
+  a group, Settings, Add a bill and a person, and a chevron elsewhere. The
+  chevron matches iOS and Android's newer style.
+- **No word beside it.** The item page's "‹ Pantry" lost its word, and every
+  control is labelled "Back" for screen readers (it was "Back to People",
+  "Back to Flat 4B"…). When the app has history, Back returns where you came
+  from, which is not always the parent, so a named label would be wrong. The
+  screen's own title says where you are.
+- **Where it is.** Use, Cook, Bought, You (phone only: from 900 px You is
+  the sidebar's "Me", a destination like the tabs), an item, a dish, a group,
+  the group's Settings and Add a bill, a person, and the join page, which had
+  no back control before. `/settle` shows no screen (it replaces itself with
+  People), but it still has a parent in the map. The + Add sheet's "Which
+  group?" step uses the same chevron (`BackControl`) with its own action.
+  - Loading, not-found and error states are unchanged and have no back
+    control. Not-found states keep their own way out ("Your groups",
+    "People"), and the tab bar is on every screen.
+- **The parent map** is one pure function, `backParent` (`components/kitchen/back.ts`),
+  keyed by SM-2's page patterns. It is tested to cover every page in
+  `STATIC_PAGES`: a tab, a screen with a parent, or outside the app
+  (`/`, `/login`, `/auth/callback`). A new page with no parent fails the
+  test.
+  - An item goes back to its own pantry, `/pantry?pantry=personal|org_…`,
+    read from the address, as the old link did.
+  - A dish goes to its group once the dish and the group list are read;
+    before that, and for a dish of your own, it goes Home. The old link sent
+    a shared dish whose group was unknown to Groups; the brief's map says
+    Home.
+  - Bought goes Home (the old link went to Pantry), per the map. With
+    history it goes back, so to Pantry when it was opened from Pantry.
+- **"Has history" is an exact count, not a navigation counter.** A counter
+  of navigations breaks this case: a notification opens a dish, Back
+  replaces it with the group, and a second Back would then call
+  `history.back()` and leave the app. A `history.length` heuristic cannot
+  tell a push made after going back from a replace: Home → a dish → back →
+  an item → Back would land on Pantry instead of Home. So the trail
+  (`createTrail`) counts the app's own screens behind the current one.
+  - It wraps `history.pushState` and `replaceState` once, as Next itself
+    does, and passes every call through. While the kitchen frame is up, a
+    push adds one, a replace (Back's own included) keeps the count, and
+    the entry written carries the count as `cookpoolBack` beside Next's
+    state.
+  - A back or forward (`popstate`, read in the capture phase, before Next
+    restores the screen) or a reload reads the count back from the entry.
+  - The frame starts again from 0 whenever it mounts: opened from outside,
+    or back from sign-in. Entries written outside it carry no count. A
+    missing count is 0, and 0 means the parent. The count may be too low
+    but never too high, so Back never leaves the app.
+- **Browser check** (the production build under `wrangler dev`, behind the
+  SM-2 proxy with SM-11's mock, headless Chrome at 390×844).
+  - Direct opens: each of the twelve non-tab screens was opened straight in
+    a fresh tab, after `about:blank` as if from another site. Back landed on
+    its parent with `history.length` unchanged (a replace, still in the app).
+    A dish, Settings and Add a bill were followed with a second Back from
+    the group, which landed on Groups.
+  - Navigating in, Back returned where you were:
+    - Home → Pantry → an item: back to Pantry.
+    - Home → a dish: back to Home, not the dish's group.
+    - Home → + Add → Used: back to Home.
+    - Groups → Flat 4B → Settings: back to Flat 4B, then Groups.
+    - People → a person: back to People.
+    - Home → a dish → the browser's back → a dish: back to Home (a push
+      after going back still counts).
+    - Pantry → an item → reload: the count was kept (2), and Back went to
+      Pantry.
+  - The item, a group, Cook and a dish put the control at the same box
+    (x 6–50, y 20–64).
+- **For PW-6 and PW4.** A You → Notifications page needs `BackButton` and a
+  `PARENTS` entry (`/you/…` → `/you`), or the coverage test fails once the
+  page is in `STATIC_PAGES`. The iPhone back gesture (PW4) should use the
+  same rule through `useBack()`, which BackButton uses.
 
 ### PW2 — no signal, clean updates (PW-4)
 

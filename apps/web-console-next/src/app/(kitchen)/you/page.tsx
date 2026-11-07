@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, LogOut, Mail, Pencil } from "lucide-react";
+import { LogOut, Mail, Pencil } from "lucide-react";
 import type { AuthUser } from "@saas/contracts/auth";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
@@ -17,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { applyNewName, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { InstallRow } from "@/components/kitchen/install-ui";
 import { NotificationsRow } from "@/components/kitchen/notify-ui";
 import { GoogleMark, NoticeBox, PersonAvatar, SIGN_IN_INPUT } from "@/components/kitchen/sign-in-ui";
@@ -59,13 +59,8 @@ export default function YouPage() {
   return (
     <div className="flex w-full max-w-xl flex-col gap-4 min-[900px]:gap-5">
       <header className="flex items-center gap-2">
-        <Link
-          href="/home"
-          aria-label="Back to Home"
-          className="-ml-2.5 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-[900px]:hidden"
-        >
-          <ChevronLeft className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
-        </Link>
+        {/* From 900px You is the sidebar's "Me", a destination like the tabs: no Back there. */}
+        <BackButton className="min-[900px]:hidden" />
         <h1 className="text-2xl font-extrabold tracking-[-0.02em] min-[900px]:text-[26px]">{YOU_TITLE}</h1>
       </header>
 

@@ -9,7 +9,7 @@ This doc set, the canvas row "On your home screen", and the `PW-1` contract.
 **Done when**
 - the documents are on `main` under `specs/epics/cookpool-app`, and `PW-1` reads done
 
-## PW1 — an app on your home screen
+## PW1 — an app on your home screen ✅
 
 - **PW-2:** the install card and the iPhone sheet; You's "Install the app"; manifest shortcuts and screenshots; iPhone splash images.
 - **PW-3:** back controls on every non-tab screen and parent-aware back; overscroll, touch-action, selection, `100dvh`; the keyboard rule.

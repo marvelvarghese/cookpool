@@ -18,11 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { extractJoinCode, joinFailureKind, type JoinFailure } from "@/components/kitchen/join-code";
 import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 
 /**
  * Join from a link (CP-5): `/join/<code>`. Signing in is required — the
  * kitchen layout sends a signed-out person to sign-in and back here. The page
- * previews the group (name, member count), then joins in one tap.
+ * previews the group (name, member count), then joins in one tap. Back
+ * (PW-3) goes to Groups when the link opened the app.
  *
  * Arriving from sign-in (SI-5), where the person already saw the group's card
  * and signed in to join it, there is no second tap: the page joins at once and
@@ -33,9 +35,14 @@ import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/k
 export default function JoinPage() {
   const code = extractJoinCode(safeDecode(usePathParam("/join/:code", "code")));
   return (
-    <div className="mx-auto w-full max-w-md pt-2 min-[900px]:pt-8">
-      {code ? <JoinFlow code={code} /> : <LinkNotFound />}
-    </div>
+    <>
+      <header className="flex min-h-11 items-center">
+        <BackButton />
+      </header>
+      <div className="mx-auto w-full max-w-md pt-2 min-[900px]:pt-8">
+        {code ? <JoinFlow code={code} /> : <LinkNotFound />}
+      </div>
+    </>
   );
 }
 

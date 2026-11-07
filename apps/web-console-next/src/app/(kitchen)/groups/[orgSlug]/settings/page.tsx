@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronRight, Crown, DoorOpen, MoreVertical, RefreshCw, Share2, ShieldCheck } from "lucide-react";
+import { ChevronRight, Crown, DoorOpen, MoreVertical, RefreshCw, Share2, ShieldCheck } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import type {
   KitchenMember,
@@ -43,6 +43,7 @@ import {
 import { roleWords } from "@/components/kitchen/group-page";
 import { formatJoinCode, joinUrl } from "@/components/kitchen/join-code";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { refreshLedger, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { Face } from "@/components/kitchen/faces-ui";
 import { Segmented } from "@/components/kitchen/ledger-ui";
@@ -96,13 +97,7 @@ function SettingsView({ group, onLeft }: { group: PublicOrganization; onLeft: ()
   return (
     <div className="space-y-4">
       <header className="flex min-h-11 items-center gap-1">
-        <Link
-          href={`/groups/${group.slug}`}
-          aria-label={`Back to ${group.name}`}
-          className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden />
-        </Link>
+        <BackButton />
         <h1 className="min-w-0 flex-1 truncate text-[26px] font-extrabold leading-tight tracking-tight">Settings</h1>
       </header>
 

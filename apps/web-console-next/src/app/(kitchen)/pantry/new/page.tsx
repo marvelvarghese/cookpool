@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, History } from "lucide-react";
+import { History } from "lucide-react";
 import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { Chip } from "@/components/kitchen/ledger-ui";
 import { memberLabel } from "@/components/kitchen/members";
 import { currencyPrefix } from "@/components/kitchen/money";
@@ -485,13 +485,7 @@ function AddItemForm({
   return (
     <div className="space-y-4">
       <header className="flex items-center gap-1">
-        <Link
-          href="/pantry"
-          aria-label="Back to Pantry"
-          className="-ml-2.5 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ChevronLeft className="h-6 w-6" aria-hidden />
-        </Link>
+        <BackButton />
         <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Bought</h1>
       </header>
 
