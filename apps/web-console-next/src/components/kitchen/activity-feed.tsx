@@ -31,6 +31,7 @@ import { CLOSE_44, KCard, K_BUTTON } from "./kit";
 import { KindBubble } from "./ledger-ui";
 import { activityRow, flattenActivity, withTxnReversed, type ActivityRow } from "./activity";
 import { refreshLedger, useActivityFeed, useOfferUndo } from "./ledger-data";
+import { SwipeRow } from "./row-gestures-ui";
 import { useMemberNames } from "./people-data";
 
 /**
@@ -194,10 +195,13 @@ function ActivityItem({ row, focused, onUndo, onFlag }: { row: ActivityRow; focu
         ? "text-cp-owed"
         : "text-cp-owe";
   return (
-    <li
+    <SwipeRow
       id={`txn-${row.id}`}
       aria-current={focused ? "true" : undefined}
-      className={cn("flex min-h-[60px] scroll-mt-24 items-center gap-3 px-4 py-2", focused && "bg-cp-soon-tint/60")}
+      className="scroll-mt-24"
+      // Your own use, waste or bill swipes left to the menu's Undo (PW-8); payments and dishes don't.
+      action={row.canSwipeUndo ? { label: "Undo", tone: "undo", run: onUndo } : null}
+      frontClassName={cn("flex min-h-[60px] items-center gap-3 px-4 py-2", focused && "[background-image:linear-gradient(hsl(var(--cp-soon-tint)/0.6),hsl(var(--cp-soon-tint)/0.6))]")}
     >
       <KindBubble glyph={row.glyph} label={row.kindLabel} tone={row.reversed ? "neutral" : row.kindTone} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
@@ -253,7 +257,7 @@ function ActivityItem({ row, focused, onUndo, onFlag }: { row: ActivityRow; focu
       ) : (
         <span aria-hidden className="-mr-2 w-11 shrink-0" />
       )}
-    </li>
+    </SwipeRow>
   );
 }
 

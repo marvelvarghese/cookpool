@@ -429,3 +429,160 @@ As-built ≠ intent. This file records what actually shipped, and every place th
     Signed in again, every switch was off, though the person's kind was
     still on at the server.
   - A 401 that ended the session unsubscribed the browser before `/login`.
+
+### PW4 — gestures: rows, long-press, hold (PW-8)
+
+- **Small trackers, no library.** `src/lib/row-gestures.ts` holds the rules
+  and two trackers (pointer-like events in, decisions out, time from an
+  injected clock): `RowGestureTracker` (a row's swipe and press, one at a
+  time) and `HoldRepeatTracker`. `components/kitchen/row-gestures-ui.tsx`
+  forwards React pointer events to them: `SwipeRow` moves its front layer
+  with a CSS transform written straight to the element (no render per move),
+  and `RepeatButton` is the stepper's − or +. The numbers:
+  - **Swipe:** nothing is decided inside 10 px. A drag mostly to the left
+    (|dx| > |dy|) is the row's; mostly vertical is the list's scroll (the
+    row is `touch-action: pan-y`, so the browser still scrolls it); to the
+    right is not ours (PW-7's edge swipe back). The row follows the finger,
+    never right and never past its width. Let go past 40 % of the row's
+    width, or with a flick (≥ 0.6 px/ms over the last 100 ms, at least
+    48 px), and the action runs; otherwise it springs back (180 ms).
+  - **Press:** held 450 ms within 10 px opens the menu. Android's own
+    long-press (`contextmenu`) on such a row opens ours at once instead, and
+    is prevented; iOS's callout, text selection and link dragging are off on
+    swipe rows (CSS). After a swipe or a press, the click the browser sends
+    on release is swallowed for 400 ms (and while the menu is held), so the
+    row's link never opens as well. Neither the swipe nor the press answers a
+    mouse: the buttons are a mouse's way.
+  - **Hold:** a tap is still the button's own click (keyboards and screen
+    readers are unchanged). Held 400 ms, it steps every 150 ms, every 60 ms
+    from 1 s, until release, leaving the button (12 px of slack; a captured
+    touch is checked on move), the browser taking the touch, or the end. The
+    click that ends a hold that stepped is swallowed, however long the
+    finger stayed at the end. Each step calls the same `onStep` a tap does,
+    so the dish page's claims keep SM-5's burst: one PUT and one toast.
+  - **`prefers-reduced-motion`:** no spring and no fade; the row still
+    follows the finger (it is the person's own movement) and is back at once.
+  - **Android:** `navigator.vibrate(10)` at a completed swipe, where it
+    exists. Nothing depends on it.
+- **Swipe a pantry row left** (Pantry's phone list; Home's use-soon to-dos):
+  it runs the row's own Use — `useLogUse` with the same arguments, so the
+  same write, Undo toast, offline refusal and refusal words. It reveals the
+  button's words: "Use 1 glass" (`swipeUseLabel`). A row whose Use opens Use
+  reveals "Use" and opens `/use?item=…` (no write). A viewer's row, one with
+  nothing left and a pending row don't swipe. **Home's row runs its button,
+  which may not be a usual:** the use-soon card's one tap is its default
+  amount ("100 g" for a weighed item without a usual, SM-14), and the brief
+  says the swipe fires exactly the button. Its rare "Open" to-do (no amount
+  fits) reveals "Use" and opens Use. The button and the swipe share one hook
+  (`useSoonUse`), so they cannot drift.
+- **Swipe your own log left → Undo.**
+  - **Activity:** `ActivityRow.canSwipeUndo` (`swipeUndoable`). It needs the
+    row's ⋮ to offer Undo, the entry to be yours (`createdBy`), and its kind
+    to be a use or a waste (`SWIPE_UNDO_KINDS`). Never a bill, a payment
+    (even one you recorded) or a dish, never a reversal, and never someone
+    else's entry, even for an owner or admin whose ⋮ offers Undo: those stay
+    behind ⋮. **Bills are out** (reviewer's call): undoing a bill reverses it
+    for the whole group, which is a delete, and deletes stay buttons (README
+    decision 3). The swipe calls the menu's own `undo`, with its toasts.
+  - **An item's history:** `canSwipeUndoMove` is `canUndoMove` and you
+    logged it. A dish's take, a transfer and an admin's undo of someone
+    else's use keep their button alone. The swipe calls the row's `undo`,
+    with its toast ("Undone · It's back in the pantry."). The history card
+    clips its rows now (`overflow-hidden`), so a moving row stays inside its
+    rounded corners.
+  - The reveal is dark with the undo arrow; a use's is green with a tick.
+    The focused activity row (`?txn=`) keeps its tint, drawn opaque so the
+    reveal doesn't show through.
+- **Press and hold an item** (Pantry rows, Home's use-soon rows) opens
+  `ItemActionsSheet` on the shared bottom sheet, unchanged (PW-7's drag-down
+  will close it like any sheet). It lists Use [your usual] · Use some… ·
+  Cook with it · Wasted · Open (`itemActions`), as the canvas draws it.
+  - "Use 2 pcs" shows only when the row's button logs a usual, and runs the
+    same write.
+  - **Wasted turns the sheet into the item page's confirm.** It is the same
+    component, now shared (`WasteConfirm`): "Throw away the 7 pcs left
+    (₹49.00)?", who pays, Keep it · Mark wasted, then `useWasteItem` with
+    its Undo toast. The item page looks as it did.
+  - A viewer's item, one used up or wasted, or one not read yet offers Open
+    alone.
+- **Every stepper repeats while held:** the dish page's portions
+  (`PortionStepper`); Cook's amount, count, extras, portions and who-ate
+  steppers; Use's Another amount; a bill's shares.
+  - **A held − on a Cook ingredient stops at its smallest amount**
+    (`LineView.atSmallest`, `canRepeat={false}`). The next tap still takes
+    the ingredient out, but a hold never does.
+  - **Use's Another amount − and + are disabled at their ends** (they did
+    nothing there before), so a hold stops there.
+- **Not built, on purpose:** the canvas's hint card ("Swipe left to use your
+  usual · hold for more"). It is not in the brief, and every gesture has its
+  visible twin; it is one small component if the owner wants it. From
+  900 px the Pantry is the table, with no swipe; Home's to-do rows answer
+  touch at any width.
+- **Tests** (tests/web-console-next):
+  - `row-gestures.test.ts` (new, 28): the intent rule, the offset, the 40 %
+    threshold and the flick, the speed window. The row tracker, driven by
+    synthetic touch events and a fake clock: a long swipe fires once and
+    swallows its click; a short one springs back; a flick fires; a vertical
+    or rightward drag does nothing; a cancel springs back; a mouse and a
+    second finger are ignored. The press at 449/450 ms, a tap's click going
+    through, movement cancelling the press, Android's context menu, the
+    click guard's end. The repeat schedule (400, 550, 700, 850, 1000, 1060…)
+    and the hold tracker: a tap is one step, a hold adds nothing on release,
+    it stops at the max (no timer left) and on leaving, and it doesn't start
+    at the end or for another mouse button.
+  - `kitchen-gestures.test.ts` (new, 19): which activity rows swipe to Undo
+    (your use and waste; never a bill, a payment, a dish, someone else's — even
+    for an admin — an undone one, a reversal, a pending one or a viewer's);
+    which history rows; the swipe's words; the menu's entries and links per
+    item (usual, none, a viewer's, used up, wasted, not read); Home's item
+    from its address; `atSmallest`; and the components rendered
+    (react-dom/server): a swipe row is `pan-y` with no callout or selection,
+    a payment's row is a plain row, and a repeat button is a plain button.
+  - No existing test changed.
+- **Browser check.** The production build ran under `wrangler dev` on 3881,
+  behind the SM-2 proxy on 3882 with SM-11's mock. Headless Chrome ran at
+  390×844 with touch emulation, driven by CDP `Input.dispatchTouchEvent`.
+  All 15 checks passed:
+  - **Pantry, short swipe:** 60 px of 356 sprang back and wrote nothing.
+  - **Pantry, vertical drag:** a drag over the rows scrolled the page
+    (`scrollY` 0 → 429), with no swipe and no write.
+  - **Pantry, long swipe:** Milk revealed "Use 1 glass" and posted one
+    `…/uses` `{ quantity: "250", unit: "ml", consumers: [you] }`. The toast
+    read "Logged 1 glass · ₹17.00 · Undo", the row then read 750 ml, and
+    the page stayed on `/pantry`.
+  - **Pantry, no usual:** Paneer revealed "Use" and opened
+    `/use?item=me:itm_…6`, with no write.
+  - **Pantry, press:** holding Eggs opened "Eggs" with Use 2 pcs · Use some… ·
+    Cook with it · Wasted · Open. The release opened nothing else, and no
+    text was selected. Wasted showed "Throw away the 7 pcs left (₹49.00)? ·
+    Nothing to split · Keep it · Mark wasted".
+  - **Item history:** Milk's "You · 250 ml" revealed "Undo", posted
+    `…/txns/txn_mov_…/reverse` and toasted "Undone · It's back in the
+    pantry.".
+  - **Home:** holding Greek yogurt opened Use 100 g · Use some… · Cook with
+    it · Wasted · Open. Swiping it posted `…/uses` `{ quantity: "100",
+    unit: "g" }` and toasted "Logged 100 g · ₹30.00 · Undo".
+  - **Activity, rows that don't swipe:** a payment recorded from Home ("You
+    paid veena.k · UPI"), Anu's payment and Dev's dish neither moved nor
+    wrote.
+  - **Activity, your own use:** Tomatoes revealed "Undo", posted
+    `…/txns/txn_m3/reverse`, read "Undone" and toasted "Undone: Tomatoes ·
+    Undo".
+  - **Dish, hold +:** holding + on your portion of Egg fried rice stepped
+    at 414, 558, 712, 863, 1017, 1080, 1143 and 1206 ms (gaps 144–154, then
+    63). It stopped at 4 portions, the most free, with + disabled. The
+    burst sent one `PUT …/claims/me` `{ portionsHalf: 8 }` and showed one
+    toast, "You · 4 portions · ₹124.80 · Undo".
+  - **Reduced motion:** the row followed the finger and was back at once,
+    with no transition.
+  - **Cook, hold −:** holding − on Onions stepped 100 → 25 g and stopped on
+    "Take out onions"; the ingredient stayed.
+  - The production build serves the same 20 pages as files, every kitchen
+    page static.
+- **For the owner, on real phones** (an iPhone installed and in Safari, an
+  Android installed): the row swipe on Pantry and Home; Undo on your own
+  activity and history rows (a payment doesn't move); the press menu,
+  without iOS's link preview or Android's context menu; holding + and − on
+  a dish's portions and Cook's steppers. Also check that a swipe and the
+  page's own scroll, and PW-7's pull to refresh and edge swipe, don't take
+  each other's touches.

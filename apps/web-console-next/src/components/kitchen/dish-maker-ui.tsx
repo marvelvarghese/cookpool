@@ -17,6 +17,7 @@ import { currencyPrefix, formatMinor } from "./money";
 import type { MemberNames } from "./members";
 import { pantryBadge } from "./pantry";
 import { UnitSwitch } from "./measures-ui";
+import { RepeatButton } from "./row-gestures-ui";
 import { useItemSearch } from "./pantry-data";
 import { useCookableItems } from "./dish-maker-data";
 import {
@@ -77,9 +78,14 @@ export function AmountStepper({
   };
   return (
     <div className={cn("flex items-center", compact ? "gap-1.5" : "gap-2")}>
-      <button type="button" className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")} aria-label={view.lessLabel} onClick={() => onChange(view.qtyMilli, -1)}>
+      <RepeatButton
+        className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")}
+        aria-label={view.lessLabel}
+        canRepeat={!view.atSmallest}
+        onStep={() => onChange(view.qtyMilli, -1)}
+      >
         <Minus className="h-4 w-4" aria-hidden />
-      </button>
+      </RepeatButton>
       <span className="flex items-baseline gap-1">
         <label htmlFor={id} className="sr-only">
           How much {view.name}, in {view.step.unit}
@@ -108,15 +114,14 @@ export function AmountStepper({
         />
         {hideUnit ? null : <span className="text-sm font-semibold text-muted-foreground">{view.step.unit}</span>}
       </span>
-      <button
-        type="button"
+      <RepeatButton
         className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")}
         aria-label={view.moreLabel}
         disabled={view.qtyMilli >= view.max}
-        onClick={() => onChange(view.qtyMilli, 1)}
+        onStep={() => onChange(view.qtyMilli, 1)}
       >
         <Plus className="h-4 w-4" aria-hidden />
-      </button>
+      </RepeatButton>
     </div>
   );
 }
@@ -142,24 +147,23 @@ export function CountStepper({ view, onCount, compact = false }: { view: LineVie
   if (!counted) return null;
   return (
     <div className={cn("flex items-center", compact ? "gap-1.5" : "gap-2")}>
-      <button type="button" className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")} aria-label={view.lessLabel} onClick={() => onCount(-1)}>
+      <RepeatButton className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")} aria-label={view.lessLabel} canRepeat={!view.atSmallest} onStep={() => onCount(-1)}>
         <Minus className="h-4 w-4" aria-hidden />
-      </button>
+      </RepeatButton>
       <span aria-live="polite" className={cn("text-center font-extrabold tabular-nums", compact ? "min-w-8 text-[15px]" : "min-w-10 text-lg")}>
         <span className="sr-only">
           {counted.count} {counted.word} of {view.name}
         </span>
         <span aria-hidden>{counted.count}</span>
       </span>
-      <button
-        type="button"
+      <RepeatButton
         className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")}
         aria-label={view.moreLabel}
         disabled={counted.quantity >= counted.max}
-        onClick={() => onCount(1)}
+        onStep={() => onCount(1)}
       >
         <Plus className="h-4 w-4" aria-hidden />
-      </button>
+      </RepeatButton>
     </div>
   );
 }
@@ -334,15 +338,15 @@ export function ValueStepper({
         {hint ? <span className="font-medium text-muted-foreground"> {hint}</span> : null}
       </span>
       <div className="flex items-center justify-between gap-2">
-        <button type="button" className={STEP_BUTTON} aria-label={lessLabel} disabled={!canLess} onClick={onLess}>
+        <RepeatButton className={STEP_BUTTON} aria-label={lessLabel} disabled={!canLess} onStep={onLess}>
           <Minus className="h-4 w-4" aria-hidden />
-        </button>
+        </RepeatButton>
         <span aria-live="polite" className="text-base font-extrabold tabular-nums">
           {value}
         </span>
-        <button type="button" className={STEP_BUTTON} aria-label={moreLabel} disabled={!canMore} onClick={onMore}>
+        <RepeatButton className={STEP_BUTTON} aria-label={moreLabel} disabled={!canMore} onStep={onMore}>
           <Plus className="h-4 w-4" aria-hidden />
-        </button>
+        </RepeatButton>
       </div>
     </div>
   );
@@ -933,15 +937,15 @@ export function EaterList({
         {shown.map((r) => (
           <li key={r.subjectId} className="flex items-center gap-1.5 py-2 pl-3.5 pr-3">
             <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{r.label}</span>
-            <button type="button" className={btn} aria-label={`Half a portion less for ${r.label}`} disabled={!r.canLess} onClick={() => onStep(r.subjectId, -1)}>
+            <RepeatButton className={btn} aria-label={`Half a portion less for ${r.label}`} disabled={!r.canLess} onStep={() => onStep(r.subjectId, -1)}>
               <Minus className="h-4 w-4" aria-hidden />
-            </button>
+            </RepeatButton>
             <span className="min-w-[2.25rem] text-center text-[15px] font-extrabold tabular-nums" aria-label={`${r.portions} portions`}>
               {r.portions}
             </span>
-            <button type="button" className={btn} aria-label={`Half a portion more for ${r.label}`} disabled={!r.canMore} onClick={() => onStep(r.subjectId, 1)}>
+            <RepeatButton className={btn} aria-label={`Half a portion more for ${r.label}`} disabled={!r.canMore} onStep={() => onStep(r.subjectId, 1)}>
               <Plus className="h-4 w-4" aria-hidden />
-            </button>
+            </RepeatButton>
             <Money minor={r.amountMinor} currency={currency} className={cn("min-w-[4.75rem] text-right text-sm font-bold", r.half === 0 && "text-muted-foreground")} />
           </li>
         ))}

@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Clock, CookingPot, Flag, HandCoins, TriangleAlert, X, type LucideIcon } from "lucide-react";
-import type { InboxResponse, SettlementMethod } from "@saas/contracts/kitchen";
+import type { InboxResponse, KitchenItem, SettlementMethod } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +14,10 @@ import type { MemberNames } from "./members";
 import { formatMinor } from "./money";
 import { amountCost } from "./item-use";
 import { useItemsByRef, useLogUse } from "./pantry-data";
-import { quickUseHref } from "./pantry";
+import { itemRefParam, parseItemRef, quickUseHref, type ItemRef } from "./pantry";
+import { itemRefFromHref, swipeUseLabel } from "./item-actions";
+import { ItemActionsSheet, type ItemMenuTarget } from "./item-actions-ui";
+import { SwipeRow, type SwipeAction } from "./row-gestures-ui";
 import { useClaimer, useDish, useDishActions } from "./dish-data";
 import { CLAIM_CHOICES, claimableHalf, halfText, portionsText } from "./dish";
 import { useRecordPayment } from "./settle-card";
@@ -65,6 +69,8 @@ export function HomeTodoList({
   const [all, setAll] = React.useState(false);
   const todos = inbox.data ? homeTodos(inbox.data, { meId, names, now }, { all }) : null;
   const listId = React.useId();
+  // A held use-soon row's menu (PW-8).
+  const [menu, setMenu] = React.useState<ItemMenuTarget | null>(null);
 
   return (
     <section aria-labelledby="home-todo" className={cn("space-y-2", className)}>
@@ -107,20 +113,34 @@ export function HomeTodoList({
         <ul id={listId} className="divide-y overflow-hidden rounded-[22px] border bg-card">
           {todos.rows.map((todo) => (
             <li key={todo.key}>
-              <TodoRow todo={todo} meId={meId} names={names} />
+              <TodoRow todo={todo} meId={meId} names={names} onMenu={setMenu} />
             </li>
           ))}
         </ul>
       )}
+      <ItemActionsSheet target={menu} onClose={() => setMenu(null)} meId={meId} />
     </section>
   );
 }
 
-function TodoRow({ todo, meId, names }: { todo: HomeTodo; meId: string | null; names: MemberNames }) {
+function TodoRow({
+  todo,
+  meId,
+  names,
+  onMenu,
+}: {
+  todo: HomeTodo;
+  meId: string | null;
+  names: MemberNames;
+  onMenu: (target: ItemMenuTarget) => void;
+}) {
   const tone = TONES[todo.tone];
   const Icon = tone.icon;
   const prefetch = usePrefetchKitchen();
+  const router = useRouter();
   const { action } = todo;
+  // Food to use soon: its Use, shared by the button, the swipe and the held row's menu (PW-8).
+  const soon = useSoonUse(todo, meId, names);
   // What the row's page needs beyond what the row already read (SM-5): a
   // dish's group members now; the rest when the row is pressed.
   const claimGroup = action.kind === "claim" ? action.orgId : null;
@@ -156,10 +176,36 @@ function TodoRow({ todo, meId, names }: { todo: HomeTodo; meId: string | null; n
         </Link>
         <p className={cn("truncate text-[13px] tabular-nums", SUB_TONES[todo.subTone])}>{todo.sub}</p>
       </div>
-      <RowAction action={action} title={todo.title} meId={meId} names={names} paying={paying} onPay={() => setPaying(true)} />
+      <RowAction action={action} soon={soon} title={todo.title} meId={meId} names={names} paying={paying} onPay={() => setPaying(true)} />
     </div>
   );
 
+  if (soon) {
+    // Swipe left: what the row's button does — your amount logged with Undo, or Use opened. Hold: its menu.
+    const swipe: SwipeAction | null =
+      soon.kind === "log"
+        ? soon.run
+          ? { label: swipeUseLabel(soon.words), tone: "use", run: soon.run }
+          : null
+        : { label: swipeUseLabel(null), tone: "use", run: () => router.push(soon.href) };
+    return (
+      <SwipeRow
+        as="div"
+        action={swipe}
+        onLongPress={() =>
+          onMenu({
+            name: todo.title,
+            ref: soon.ref,
+            item: soon.item ?? null,
+            use: soon.kind === "log" && soon.run ? { words: soon.words, run: soon.run } : null,
+          })
+        }
+        frontClassName="px-4 py-3"
+      >
+        {head}
+      </SwipeRow>
+    );
+  }
   return (
     <div className="space-y-2.5 px-4 py-3">
       {head}
@@ -171,6 +217,7 @@ function TodoRow({ todo, meId, names }: { todo: HomeTodo; meId: string | null; n
 
 function RowAction({
   action,
+  soon,
   title,
   meId,
   names,
@@ -178,6 +225,7 @@ function RowAction({
   onPay,
 }: {
   action: InboxAction;
+  soon: SoonUse | null;
   title: string;
   meId: string | null;
   names: MemberNames;
@@ -199,7 +247,7 @@ function RowAction({
         </Button>
       );
     case "use":
-      return <UseButton action={action} meId={meId} names={names} />;
+      return soon ? <UseButton soon={soon} /> : null;
     case "pay":
       return action.canRecord && !paying ? (
         <Button
@@ -294,47 +342,75 @@ function FinalizeNow({
 
 // ── Use soon: your usual amount, for just you, in one tap ─────────
 
-function UseButton({ action, meId, names }: { action: Extract<InboxAction, { kind: "use" }>; meId: string | null; names: MemberNames }) {
-  const items = useItemsByRef([action.ref]);
-  const item = items.get(action.ref.itemId);
+/** What a use-soon row's Use does: log the amount at once (with Undo), or open Use when it can't. */
+type SoonUse =
+  | {
+      kind: "log";
+      ref: ItemRef;
+      /** Undefined while it loads. */
+      item: KitchenItem | undefined;
+      /** "1 glass": the button's words. */
+      words: string;
+      /** The button's name: "I had a glass, ₹17.00, for you". */
+      label: string;
+      /** Null until the item and you are read. */
+      run: (() => void) | null;
+    }
+  | { kind: "open"; ref: ItemRef; item: KitchenItem | null | undefined; href: string };
+
+/**
+ * A use-soon row's Use, once: its button, its swipe and its held menu's
+ * "Use" all run this (PW-8). At once (SM-5): what is left drops (the row
+ * goes with nothing left) and the Undo toast is up; a refusal is put back
+ * and says why. An item that can't be read, or with less left than the
+ * amount, opens Use instead. Null for every other to-do.
+ */
+function useSoonUse(todo: HomeTodo, meId: string | null, names: MemberNames): SoonUse | null {
+  const { action } = todo;
+  const ref = todo.kind === "use_soon" ? (action.kind === "use" ? action.ref : itemRefFromHref(todo.href)) : null;
+  const key = ref ? itemRefParam(ref) : null;
+  const refs = React.useMemo(() => {
+    const parsed = key ? parseItemRef(key) : null;
+    return parsed ? [parsed] : [];
+  }, [key]);
+  const items = useItemsByRef(refs);
   const logUse = useLogUse();
+  if (!ref) return null;
+  const item = items.get(ref.itemId);
+  if (action.kind !== "use") return { kind: "open", ref, item, href: quickUseHref(ref) };
   const fits = item ? item.state === "active" && action.qtyMilli <= item.qtyLeftMilli : true;
-  const cost = item && fits ? formatMinor(amountCost(item, action.qtyMilli), item.currency) : null;
+  // It can't be read, or less is left than that: Use says what is left.
+  if (item !== undefined && (item === null || !fits)) return { kind: "open", ref, item, href: quickUseHref(ref) };
+  const cost = item ? formatMinor(amountCost(item, action.qtyMilli), item.currency) : null;
+  const run =
+    item && meId
+      ? () =>
+          void logUse({
+            ref,
+            item,
+            qtyMilli: action.qtyMilli,
+            consumers: [meId],
+            idempotencyKey: crypto.randomUUID(),
+            what: action.words,
+            inPantry: true,
+            meId,
+            names,
+          })
+      : null;
+  return { kind: "log", ref, item, words: action.words, label: `${action.label}${cost ? `, ${cost}` : ""}, for you`, run };
+}
 
-  // At once (SM-5): what is left drops (the row goes with nothing left) and
-  // the Undo toast is up; a refusal is put back and says why.
-  const use = () => {
-    if (!item || !meId) return;
-    void logUse({
-      ref: action.ref,
-      item,
-      qtyMilli: action.qtyMilli,
-      consumers: [meId],
-      idempotencyKey: crypto.randomUUID(),
-      what: action.words,
-      inPantry: true,
-      meId,
-      names,
-    });
-  };
-
-  if (item !== undefined && (item === null || !fits)) {
-    // It can't be read, or less is left than that: its page says what is left.
+function UseButton({ soon }: { soon: SoonUse }) {
+  if (soon.kind === "open") {
     return (
       <Button asChild variant="outline" className={ROW_BUTTON}>
-        <Link href={quickUseHref(action.ref)}>Use</Link>
+        <Link href={soon.href}>Use</Link>
       </Button>
     );
   }
   return (
-    <Button
-      variant="outline"
-      className={ROW_BUTTON}
-      disabled={!item || !meId}
-      aria-label={`${action.label}${cost ? `, ${cost}` : ""}, for you`}
-      onClick={use}
-    >
-      {action.words}
+    <Button variant="outline" className={ROW_BUTTON} disabled={!soon.run} aria-label={soon.label} onClick={() => soon.run?.()}>
+      {soon.words}
     </Button>
   );
 }
