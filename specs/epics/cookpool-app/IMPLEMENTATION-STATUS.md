@@ -7,8 +7,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | PW0 — the spec | ✅ shipped 2026-11-05 | #45 (PW-1) |
 | PW1 — an app on your home screen | ✅ shipped 2026-11-07 | #50 (PW-2), #55 (PW-3) |
 | PW2 — no signal, clean updates | ✅ shipped 2026-11-06 | #48 (PW-4) |
-| PW3 — notifications | ✅ built 2026-11-07; push off until the VAPID keys are stored | #52 (PW-5), #56 (PW-6) |
-| PW4 — gestures | ✅ shipped 2026-11-07 | #57 (PW-8), PW-7 |
+| PW3 — notifications | ✅ shipped 2026-11-08; push on | #52 (PW-5), #56 (PW-6), #59 (PW-9), #60 (PW-10) |
+| PW4 — gestures | ✅ shipped 2026-11-07 | #58 (PW-7), #57 (PW-8) |
 
 ## Departures from the design
 
@@ -830,3 +830,11 @@ As-built ≠ intent. This file records what actually shipped, and every place th
   `console.error` with where, the request id and the error's name and
   message (cut to 300 characters), never the request body, a token, a key or
   an address. `log-unexpected.test.ts` pins it.
+
+### The close (PW-11)
+
+- **Shipped 2026-11-08.** Every milestone reads shipped. PW3's "done when"
+  needs two real phones, so it is the first item on the owner's list in the
+  README's "After this epic", with the other follow-ups the tasks reported.
+- **Push is on in stage and prod** since #59, and #60 showed the tests'
+  failures came from the tests, not the worker.

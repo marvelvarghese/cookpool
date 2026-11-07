@@ -25,7 +25,7 @@ This doc set, the canvas row "On your home screen", and the `PW-1` contract.
 - in airplane mode, an installed phone opens Home, Pantry and a dish with the last data, and a write says "You're offline"
 - a deploy shows "New version · Reload" and never during a write
 
-## PW3 — notifications
+## PW3 — notifications ✅
 
 - **PW-5:** subscriptions (migration, routes), the VAPID secret, notifications-worker sending Web Push.
 - **PW-6:** You's settings and the permission ask (only after the person turns a kind on), and the icon badge.
