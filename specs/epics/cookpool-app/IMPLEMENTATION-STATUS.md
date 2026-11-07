@@ -740,3 +740,17 @@ As-built ≠ intent. This file records what actually shipped, and every place th
   a dish's portions and Cook's steppers. Also check that a swipe and the
   page's own scroll, and PW-7's pull to refresh and edge swipe, don't take
   each other's touches.
+
+### PW3 — push on (PW-9)
+
+- **The keys, 2026-11-08.** The owner ran `vapid-keys.mjs` once per
+  environment and piped each private key straight into orun secrets
+  (`VAPID_PRIVATE_KEY`, version 1, env stage and env prod; never printed or
+  written to disk). The two public keys (65-byte uncompressed P-256 points)
+  are now `env.<env>.vars.VAPID_PUBLIC_KEY` in the notifications-worker
+  template, replacing PW-5's empty placeholders and TODOs. The next
+  notifications-worker deploy pushes the secret and the var together, and
+  the worker's own pair check (`keys_not_a_pair`) refuses a mismatch.
+- **Rotating** is the runbook's "Web Push keys" section, both halves
+  together; existing devices re-subscribe the next time someone flips a
+  switch (PW-6's follow-up: compare the subscription's key at launch).
