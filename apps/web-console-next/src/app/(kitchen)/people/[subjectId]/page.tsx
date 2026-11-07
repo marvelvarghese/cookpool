@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import type { PersonGroupView, PersonViewResponse, SettlementMethod } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { Face, MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
 import { Chip } from "@/components/kitchen/ledger-ui";
 import { relativeWhen } from "@/components/kitchen/activity";
@@ -93,13 +94,7 @@ function PersonView({ view, myId }: { view: PersonViewResponse; myId: string | n
   return (
     <div className="space-y-4">
       <header className="flex min-h-11 items-center gap-2">
-        <Link
-          href="/people"
-          aria-label="Back to People"
-          className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden />
-        </Link>
+        <BackButton />
         <Face subjectId={view.subjectId} meId={myId} names={names} />
         <h1 className="min-w-0 flex-1 truncate text-[26px] font-extrabold leading-tight tracking-tight">{name}</h1>
       </header>

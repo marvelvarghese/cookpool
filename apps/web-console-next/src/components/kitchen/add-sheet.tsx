@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +10,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ADD_TILES, groupActionHref, type AddAction } from "./nav";
 import { kitchenIcon } from "./icons";
 import { CLOSE_44, K_BUTTON } from "./kit";
+import { BackControl } from "./back-ui";
 import { useGroups } from "./data";
 import { GroupPickerList } from "./group-picker";
 import { useMyRoles } from "./people-data";
@@ -67,14 +67,7 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
         {picking ? (
           <>
             <div className="flex min-h-11 shrink-0 items-center gap-1 pr-12">
-              <button
-                type="button"
-                onClick={() => setPicking(null)}
-                aria-label="Back"
-                className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <ArrowLeft className="h-5 w-5" aria-hidden />
-              </button>
+              <BackControl onClick={() => setPicking(null)} />
               <SheetTitle className="text-[22px] font-extrabold">Which group?</SheetTitle>
             </div>
             <div className="-mx-4 mt-2 min-h-0 flex-1 overflow-y-auto px-4 pb-4">

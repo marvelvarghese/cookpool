@@ -1,0 +1,16 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-3
+  title: "Back, everywhere"
+spec:
+  goal: Every screen that is not a tab has the same back control in its header, and back goes to the screen's parent when the app was opened straight onto it, so the installed app never needs the browser to leave a screen.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-app/**
+    - tasks/PW-3.TaskContract.yaml
+  doneWhen:
+    - every non-tab screen shows one back control, the same icon and place everywhere
+    - a screen opened directly (a link, a shortcut, a notification) goes back to its parent, not out of the app
+  gates: []

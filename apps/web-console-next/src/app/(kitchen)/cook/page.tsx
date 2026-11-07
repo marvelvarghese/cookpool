@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { DishSplitMode, KitchenItem, MyGroupBalance } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useProfile } from "@/components/kitchen/data";
 import { CLOSE_44, KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
 import { useMinWidth } from "@/components/kitchen/use-min-width";
@@ -380,11 +381,6 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
     router.push(dishHref(r.dish.id));
   };
 
-  const back = () => {
-    if (window.history.length > 1) router.back();
-    else router.push("/home");
-  };
-
   const ctaDisabled = waiting || blocked;
   // The one main button, green like every other (SM-15; it was tomato, right above the + Add):
   // "Cook & post to Flat 4B" over "₹156.00 · 4 portions · ₹39.00 each".
@@ -425,14 +421,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
       <header className="min-[900px]:sticky min-[900px]:top-0 min-[900px]:z-20 min-[900px]:col-span-2 min-[900px]:-mx-1 min-[900px]:-mt-4 min-[900px]:bg-background min-[900px]:px-1 min-[900px]:py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={back}
-              aria-label="Back"
-              className="-ml-2.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ChevronLeft className="h-6 w-6" aria-hidden />
-            </button>
+            <BackButton />
             <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Cook</h1>
           </div>
           {cta("hidden w-auto min-w-72 min-[900px]:inline-flex")}

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Plus, Settings } from "lucide-react";
+import { ChevronRight, Plus, Settings } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { ActivityFeed } from "@/components/kitchen/activity-feed";
 import { Face, MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
@@ -91,9 +92,7 @@ function GroupView({ group }: { group: PublicOrganization }) {
   return (
     <div className="space-y-4">
       <header className="flex min-h-11 items-center gap-1">
-        <Link href="/groups" aria-label="Back to Groups" className={ICON_LINK}>
-          <ArrowLeft className="h-5 w-5" aria-hidden />
-        </Link>
+        <BackButton />
         <h1 className="min-w-0 flex-1 truncate text-[26px] font-extrabold leading-tight tracking-tight">{group.name}</h1>
         <Link href={`/groups/${group.slug}/settings`} aria-label="Settings" className={cn(ICON_LINK, "-mr-2")}>
           <Settings className="h-5 w-5" aria-hidden />

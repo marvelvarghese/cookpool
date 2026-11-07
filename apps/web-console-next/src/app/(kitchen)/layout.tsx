@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { KitchenSidebar } from "@/components/kitchen/sidebar";
 import { KitchenTabBar } from "@/components/kitchen/tab-bar";
 import { AddSheet } from "@/components/kitchen/add-sheet";
+import { BackTrailRecorder } from "@/components/kitchen/back-ui";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import { isWideKitchenPage } from "@/components/kitchen/nav";
@@ -29,6 +30,10 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  * the token is cleared and sign-in says "You were signed out" before bringing
  * the person back (SI-5). The frame paints at once; pages mount when the
  * session is ready.
+ *
+ * Every screen that is not a tab has one back control (PW-3, back-ui.tsx):
+ * the frame keeps count of the screens it has shown, so Back goes back to
+ * them, or to the screen's parent when it was opened straight from outside.
  *
  * Someone who signed in before the Name step existed (SI-6) and still has no
  * name is sent to it once, from whatever kitchen page they open, and comes
@@ -76,6 +81,8 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
 
       {ready ? <KitchenTabBar onAdd={openAdd} addOpen={addOpen} /> : null}
       {ready ? <AddSheet open={addOpen} onOpenChange={setAddOpen} /> : null}
+      {/* What Back may go back to (PW-3): the screens this frame has shown. */}
+      <BackTrailRecorder />
     </div>
   );
 }

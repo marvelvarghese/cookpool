@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, ChevronLeft, CookingPot, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, CookingPot, Trash2, X } from "lucide-react";
 import type { KitchenItem, KitchenStockMove } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
@@ -15,6 +15,7 @@ import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { useGroupRole } from "@/components/kitchen/ledger-data";
 import type { MemberNames } from "@/components/kitchen/members";
 import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
@@ -134,19 +135,12 @@ function ItemView(ctx: ItemCtx) {
   const { item, roleKnown, canWrite } = ctx;
   const personal = item.pantry.kind === "personal";
   const live = item.state === "active" && item.qtyLeftMilli > 0;
-  const back = `/pantry?pantry=${encodeURIComponent(item.pantry.kind === "personal" ? "personal" : item.pantry.orgId)}`;
   const stateLabel = STATE_LABEL[item.state];
   const canUseHere = live && roleKnown && canWrite;
 
   return (
     <div className="space-y-5">
-      <Link
-        href={back}
-        className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-xl pl-1 pr-2 text-[15px] font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ChevronLeft className="h-5 w-5" aria-hidden />
-        Pantry
-      </Link>
+      <BackButton />
       {/* The name and where it is (SM-15, the canvas's MeasureItem): category, who paid and the rest are one line below. */}
       <header className="flex min-w-0 flex-wrap items-center gap-2">
         <h1 className="min-w-0 break-words text-[26px] font-extrabold leading-tight tracking-tight">{item.name}</h1>

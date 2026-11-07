@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Minus, Plus, Search } from "lucide-react";
+import { Minus, Plus, Search } from "lucide-react";
 import type { KitchenItem, KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { qk } from "@/lib/query";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import type { MemberNames } from "@/components/kitchen/members";
 import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
 import {
@@ -163,24 +164,12 @@ function QuickUse({ linked }: { linked: ItemRef | null }) {
     setRound((r) => r + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  const back = () => {
-    if (window.history.length > 1) router.back();
-    else router.push("/home");
-  };
-
   return (
     <div className="space-y-[18px] min-[900px]:grid min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)] min-[900px]:items-start min-[900px]:gap-8 min-[900px]:space-y-0">
       <div className="min-w-0 space-y-[18px]">
         <h1 className="sr-only">Use something</h1>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={back}
-            aria-label="Back"
-            className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <ArrowLeft className="h-[22px] w-[22px]" aria-hidden />
-          </button>
+          <BackButton />
           <label className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 rounded-[14px] border border-input bg-card px-3.5 focus-within:ring-2 focus-within:ring-ring">
             <Search className="h-[18px] w-[18px] shrink-0 text-muted-foreground" aria-hidden />
             <span className="sr-only">What did you use?</span>

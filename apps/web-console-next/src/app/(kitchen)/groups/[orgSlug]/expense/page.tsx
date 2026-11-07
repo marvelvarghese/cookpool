@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, Minus, Plus } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Minus, Plus } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { useAddExpense, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { Money, Segmented } from "@/components/kitchen/ledger-ui";
 import { Face, FaceRow, MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
@@ -194,13 +195,7 @@ function ExpenseFormView({
   return (
     <div className="space-y-4">
       <header className="flex min-h-11 items-center gap-1">
-        <Link
-          href={`/groups/${group.slug}`}
-          aria-label={`Back to ${group.name}`}
-          className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden />
-        </Link>
+        <BackButton />
         <h1 className="min-w-0 flex-1 truncate text-[26px] font-extrabold leading-tight tracking-tight">Add a bill</h1>
         <span className="max-w-[40%] shrink-0 truncate text-sm font-semibold text-muted-foreground">{group.name}</span>
       </header>
