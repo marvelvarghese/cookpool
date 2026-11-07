@@ -1,5 +1,5 @@
 /**
- * The Add expense form (Cookpool CP-8) as a pure model: the form's state, the
+ * The Add a bill form (Cookpool CP-8; "Add expense" until SM-11) as a pure model: the form's state, the
  * live per-person preview, the validation messages and the request it posts.
  *
  * Every amount is minor units. Each person's share comes from
@@ -334,9 +334,9 @@ export function firstExpenseError(errors: Partial<Record<ExpenseField, string>>)
 }
 
 /**
- * The main button (SM-7): what it adds — "Add · ₹1,200.00", or "Add expense"
- * before there is an amount — and who it is for, you first: "You + Anu ·
- * ₹600.00 each" split equally, "You + Anu + Dev" any other way.
+ * The main button (SM-7): what it adds — "Add · ₹1,200.00", or "Add a bill"
+ * before there is an amount (SM-11) — and who it is for, you first: "You +
+ * Anu · ₹600.00 each" split equally, "You + Anu + Dev" any other way.
  */
 export function expenseButton(input: {
   preview: Pick<ExpensePreview, "totalMinor" | "people">;
@@ -346,7 +346,7 @@ export function expenseButton(input: {
   currency: string;
 }): { title: string; who: string | null } {
   const { preview, currency } = input;
-  const title = preview.totalMinor === null ? "Add expense" : `Add · ${formatMinor(preview.totalMinor, currency)}`;
+  const title = preview.totalMinor === null ? "Add a bill" : `Add · ${formatMinor(preview.totalMinor, currency)}`;
   const inSplit = preview.people.filter((p) => p.inSplit);
   const ids = faceOrder(
     inSplit.map((p) => p.subjectId),
@@ -357,8 +357,7 @@ export function expenseButton(input: {
   return { title, who: whoLine({ ids, meId: input.meId, names: input.names, amounts, currency }) };
 }
 
-/** The toast's second line once it is added: "₹1,200.00, split equally.", "₹1,200.00, by shares." */
-export function expenseAddedText(request: Pick<CreateExpenseRequest, "totalMinor" | "mode">, currency: string): string {
-  const how = SPLIT_MODE_OPTIONS.find((m) => m.id === request.mode)?.name.toLowerCase() ?? request.mode;
-  return `${formatMinor(request.totalMinor, currency)}, ${how}.`;
+/** The one-line toast once a bill is added (SM-11): "Added Groceries · ₹1,200.00". */
+export function expenseToast(request: Pick<CreateExpenseRequest, "title" | "totalMinor">, currency: string): string {
+  return `Added ${request.title} · ${formatMinor(request.totalMinor, currency)}`;
 }

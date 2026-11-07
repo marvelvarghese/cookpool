@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, CookingPot, Minus, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Minus, Plus } from "lucide-react";
 import type { KitchenDish } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { IconBubble, KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON } from "./kit";
 import { Money } from "./ledger-ui";
 import { Face } from "./faces-ui";
 import type { MemberNames } from "./members";
@@ -31,7 +31,7 @@ import {
 /**
  * The dish screens' pieces (Cookpool CP-17; SM-10 as the canvas's "Simpler —
  * Dish" draws them): the one status word, the ½-portion stepper, who had
- * some, the dish's money in two lines with Details, and a group's Dishes tab.
+ * some, the dish's money in two lines with Details, and a group's dishes.
  * Colors come from the `.cookpool` tokens; every amount says which way it
  * goes in words, not by color alone.
  */
@@ -260,34 +260,33 @@ export function DishMoney({
 
 // ── A group's Dishes tab ───────────────────────────────────────────
 
-const ROW_CHIP: Record<DishChip["tone"], string> = CHIP_TONES;
-
-/** The dishes shared with a group, newest first, each opening its page. */
+/**
+ * The dishes shared with a group, newest first, each one row opening its
+ * page: the name, "Meera · 1 of 5 had · ₹156.00" and its status word (SM-11:
+ * not "Finalize" / "Claim" / "Split", which looked like buttons). The group
+ * page shows `limit` of them and "See all" for the rest.
+ */
 export function GroupDishesPanel({
   orgId,
-  groupName,
   meId,
   names,
+  limit,
 }: {
   orgId: string;
-  groupName: string;
   meId: string | null;
   names: MemberNames;
+  limit?: number;
 }) {
   const dishes = useGroupDishes(orgId);
+  const [all, setAll] = React.useState(false);
   const now = React.useMemo(() => new Date(), []);
   if (dishes.isLoading) {
-    return (
-      <div className="space-y-2.5" aria-hidden>
-        <Skeleton className="h-[72px] w-full rounded-[18px]" />
-        <Skeleton className="h-[72px] w-full rounded-[18px]" />
-      </div>
-    );
+    return <Skeleton className="h-14 w-full rounded-[22px]" aria-hidden />;
   }
   if (dishes.error || !dishes.data) {
     return (
-      <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load the dishes. {dishes.error?.message ?? ""}</p>
+      <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load the dishes.</p>
         <Button variant="outline" className={K_BUTTON} onClick={() => void dishes.refetch()}>
           Try again
         </Button>
@@ -296,43 +295,38 @@ export function GroupDishesPanel({
   }
   const list = dishes.data.pages.flatMap((p) => p.dishes);
   if (list.length === 0) {
-    return (
-      <KCard className="flex gap-4 p-5">
-        <IconBubble icon={CookingPot} tone="tomato" />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-base font-bold tracking-tight">No dishes shared yet</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            When someone cooks and shares a dish with {groupName}, it shows here: who had how much, and what each of you owes for it.
-          </p>
-        </div>
-      </KCard>
-    );
+    return <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">No dishes yet</p>;
   }
+  const shown = limit && !all ? list.slice(0, limit) : list;
   return (
-    <div className="space-y-2.5">
-      <ul className="space-y-2.5">
-        {list.map((d) => {
+    <div className="space-y-2">
+      <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
+        {shown.map((d) => {
           const row = dishRow(d, { meId, names, now });
           return (
             <li key={row.id}>
               <Link
                 href={row.href}
-                className="flex min-h-[72px] items-center gap-3 rounded-[18px] border bg-card px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1">
                   <span className={cn("block truncate text-[15px] font-bold", d.state === "canceled" && "text-muted-foreground line-through")}>
                     {row.name}
                   </span>
-                  <span className="block text-[13px] text-muted-foreground">{row.sub}</span>
+                  <span className="block truncate text-[13px] text-muted-foreground">{row.sub}</span>
                 </span>
-                <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-bold", ROW_CHIP[row.chip.tone])}>{row.chip.label}</span>
+                <DishChipPill chip={row.chip} />
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               </Link>
             </li>
           );
         })}
       </ul>
-      {dishes.hasNextPage ? (
+      {limit && !all && list.length > limit ? (
+        <Button variant="ghost" className={cn(K_BUTTON, "w-full text-primary")} onClick={() => setAll(true)}>
+          See all {list.length}
+        </Button>
+      ) : dishes.hasNextPage && (all || !limit) ? (
         <Button variant="outline" className={cn(K_BUTTON, "w-full")} loading={dishes.isFetchingNextPage} onClick={() => void dishes.fetchNextPage()}>
           Show older dishes
         </Button>

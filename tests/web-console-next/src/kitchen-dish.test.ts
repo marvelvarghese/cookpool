@@ -796,25 +796,28 @@ describe("the dish's money in two lines (SM-10)", () => {
   });
 });
 
-describe("a group's Dishes tab", () => {
+describe("a group's dishes (SM-11: one row each, a status word, not a button-like chip)", () => {
   const now = new Date(2026, 10, 2, 21, 0);
 
-  it("asks the cook to finalize, a member to claim", () => {
+  it("says who cooked it, how much is had while open, and its total, with the dish page's status word", () => {
     expect(dishRow(paneer(), { ...people(), now })).toMatchObject({
       href: `/dishes/${DISH_ID}`,
       name: "Paneer butter masala with rotis",
-      sub: "You cooked · 4 of 4 claimed · ₹211.00",
-      chip: { label: "Finalize", tone: "ready" },
+      sub: "You · 4 of 4 had · ₹211.00",
+      chip: { label: "Open", tone: "open" },
     });
     expect(dishRow(eggRice(), { ...people(), now })).toMatchObject({
-      sub: "Meera cooked · 1 of 5 claimed · ₹156.00",
-      chip: { label: "Claim", tone: "open" },
+      sub: "Meera · 1 of 5 had · ₹156.00",
+      chip: { label: "Open", tone: "open" },
     });
-    expect(dishRow(eggRice(ANU), { ...people(ANU), now }).chip).toEqual({ label: "Open", tone: "open" });
     expect(dishRow(paneer({ state: "draft", splitMode: "assign" }), { ...people(ANU), now })).toMatchObject({
-      sub: "Rahul cooked · being split · ₹211.00",
-      chip: { label: "Being split", tone: "open" },
+      sub: "Rahul · ₹211.00",
+      chip: { label: "Draft", tone: "open" },
     });
+    for (const d of [paneer(), eggRice(), paneer({ state: "finalized" })]) {
+      expect(["Finalize", "Claim", "Split"]).not.toContain(dishRow(d, { ...people(), now }).chip.label);
+      expect(dishRow(d, { ...people(), now }).sub).not.toMatch(/claimed|cooked/);
+    }
   });
 
   it("says what you had of a finalized dish, and strikes a canceled one", () => {
@@ -826,8 +829,9 @@ describe("a group's Dishes tab", () => {
       cookedAt: new Date(2026, 9, 28, 20, 0).toISOString(),
       myClaimHalf: 2,
     });
-    expect(dishRow(curry, { ...people(), now })).toMatchObject({ sub: "Dev cooked · 28 Oct · you had 1 · ₹274.00", chip: { label: "Split", tone: "done" } });
+    expect(dishRow(curry, { ...people(), now })).toMatchObject({ sub: "Dev · 28 Oct · you had 1 · ₹274.00", chip: { label: "Finalized", tone: "ready" } });
     const gone = paneer({ state: "canceled", canceledAt: new Date(2026, 10, 2, 20, 30).toISOString() });
-    expect(dishRow(gone, { ...people(), now })).toMatchObject({ sub: "You cooked · canceled today · ₹211.00", chip: { label: "Canceled", tone: "muted" } });
+    expect(dishRow(gone, { ...people(), now })).toMatchObject({ sub: "You · ₹211.00", chip: { label: "Canceled", tone: "muted" } });
   });
 });
+

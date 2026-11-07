@@ -871,41 +871,31 @@ export function dishMoneySummary(
   return lines;
 }
 
-// ── A group's Dishes tab ──────────────────────────────────────────
+// ── A group's dishes (its page, SM-11) ────────────────────────────
 
 export interface DishRowView {
   id: string;
   href: string;
   name: string;
-  /** "You cooked · 4 of 4 claimed · ₹211.00" */
+  /** "Meera · 1 of 5 had · ₹156.00", "Dev · 28 Oct · you had 1 · ₹274.00" */
   sub: string;
+  /** Its one status word (`dishStateChip`): Open · Draft · Finalized · Canceled. */
   chip: DishChip;
 }
 
-/** One dish in a group's list: who cooked it, where its split stands, its total, and what it needs. */
+/**
+ * One dish in a group's list: who cooked it, how much is had while it is
+ * open (or when it was cooked, and your part, once final), its total, and
+ * its status word — the dish page's — not an action-looking chip.
+ */
 export function dishRow(dish: KitchenDish, p: DishPeople & { now: Date }): DishRowView {
   const mine = p.meId !== null && dish.cook === p.meId;
-  const parts = [`${memberLabel(dish.cook, p.meId, p.names)} cooked`];
-  let chip: DishChip;
-  switch (dish.state) {
-    case "open":
-      parts.push(`${halfText(dish.claimedHalf)} of ${halfText(dish.portionsHalf)} claimed`);
-      chip = mine ? { label: "Finalize", tone: "ready" } : dish.myClaimHalf === 0 ? { label: "Claim", tone: "open" } : { label: "Open", tone: "open" };
-      break;
-    case "draft":
-      parts.push(mine ? "not split yet" : "being split");
-      chip = mine ? { label: "Finalize", tone: "ready" } : { label: "Being split", tone: "open" };
-      break;
-    case "finalized":
-      parts.push(dishDay(dish.cookedAt, p.now));
-      if (!mine && dish.myClaimHalf > 0) parts.push(`you had ${halfText(dish.myClaimHalf)}`);
-      chip = { label: "Split", tone: "done" };
-      break;
-    case "canceled":
-      parts.push(`canceled ${dish.canceledAt ? dishDay(dish.canceledAt, p.now) : ""}`.trim());
-      chip = { label: "Canceled", tone: "muted" };
-      break;
+  const parts = [memberLabel(dish.cook, p.meId, p.names)];
+  if (dish.state === "open") parts.push(`${halfText(dish.claimedHalf)} of ${halfText(dish.portionsHalf)} had`);
+  if (dish.state === "finalized") {
+    parts.push(dishDay(dish.cookedAt, p.now));
+    if (!mine && dish.myClaimHalf > 0) parts.push(`you had ${halfText(dish.myClaimHalf)}`);
   }
   parts.push(formatMinor(dish.totalMinor, dish.currency));
-  return { id: dish.id, href: dishHref(dish.id), name: dish.name, sub: parts.filter(Boolean).join(" · "), chip };
+  return { id: dish.id, href: dishHref(dish.id), name: dish.name, sub: parts.join(" · "), chip: dishStateChip(dish) };
 }

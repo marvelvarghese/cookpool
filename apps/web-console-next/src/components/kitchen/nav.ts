@@ -39,10 +39,11 @@ export const KITCHEN_NAV_LINKS: readonly KitchenNavLink[] = KITCHEN_TABS.filter(
   (t): t is KitchenNavLink => t.kind === "link",
 );
 
-// Paths that belong to a tab besides its own: opening a join link and settling
-// up (a group's money, or every group's) are part of Groups.
+// Paths that belong to a tab besides its own: opening a join link is part of
+// Groups; settling up is People's since SM-11 (`/settle` opens People).
 const EXTRA_PREFIXES: Partial<Record<KitchenNavLink["id"], readonly string[]>> = {
-  groups: ["/join", "/settle"],
+  groups: ["/join"],
+  people: ["/settle"],
 };
 
 function underPrefix(prefix: string, pathname: string): boolean {
@@ -139,7 +140,7 @@ export function groupActionHref(action: Pick<AddAction, "href">, slug: string): 
  * nothing else — "Do it again" is Home's row of usuals and Use's recents,
  * paying back is People's, inviting is the group's. Used opens /use (any
  * pantry); Cooked, /cook; Bought, Add an item (it picks the pantry); Paid a
- * bill asks which group, then opens Add expense there.
+ * bill asks which group, then opens Add a bill there.
  */
 export const ADD_TILES: readonly AddAction[] = [
   { id: "use", label: "Used", href: "/use", icon: "Utensils" },

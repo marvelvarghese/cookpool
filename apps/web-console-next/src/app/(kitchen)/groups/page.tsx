@@ -3,17 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Plus, Search, Ticket, UsersRound } from "lucide-react";
+import { ChevronRight, Plus, Search, Ticket } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SkeletonRow } from "@/components/ui/skeleton";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { useGroups, useProfile } from "@/components/kitchen/data";
-import { GROUP_SORTS, filterGroups, roleFromKitchen, roleLabel, sortGroups, type GroupSort } from "@/components/kitchen/groups";
-import { GroupAvatar, IconBubble, KCard, K_BUTTON, K_INPUT, PageHeader, shortDate } from "@/components/kitchen/kit";
-import { Money } from "@/components/kitchen/ledger-ui";
+import { filterGroups, sortGroups } from "@/components/kitchen/groups";
+import { groupListRow, showGroupSearch } from "@/components/kitchen/group-page";
+import { CLOSE_44, GroupAvatar, KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
 import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data";
 import { useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { ActivityFeed } from "@/components/kitchen/activity-feed";
@@ -23,18 +24,17 @@ import { NewGroupDialog } from "@/components/kitchen/new-group-dialog";
 import { JoinGroupDialog } from "@/components/kitchen/join-group-dialog";
 
 /**
- * Groups (CP-5): every group the person is in, searchable by name and sorted
- * by Recent (opened on this device, then newest) or A–Z. One list however many
- * groups there are — no per-group tabs. Each row shows your role, how many
- * are in it and your balance there (from the cross-group read, CP-9). New
- * group and Join open dialogs; `?new=1` / `?join=1` open them from elsewhere
- * (Home's empty state).
+ * Groups (CP-5; SM-11 under the seven rules): one list, the groups you
+ * opened last first, each with how many are in it and your balance there as
+ * a number — "You get back ₹86.50", "You owe $25.00", coloured; nothing
+ * when settled, no role words. One round + opens New group or Join (a small
+ * sheet with the two); a search only past 8 groups, and no sort control.
+ * `?new=1` / `?join=1` open the two from elsewhere (Home's empty state).
  *
  * From 900px (CP-23, design §7's web page) the list sits beside the chosen
  * group's activity, then its balances and fewest payments — below the
  * activity up to 1280px, a third column from there. A row then chooses the
- * group (`?group=` keeps it); "Open group" opens its page. Phones keep the
- * list, each row opening the group.
+ * group (`?group=` keeps it); "Open group" opens its page.
  */
 export default function GroupsPage() {
   const router = useRouter();
@@ -49,7 +49,7 @@ export default function GroupsPage() {
   );
   const recentSlugs = useRecentGroupSlugs();
   const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState<GroupSort>("recent");
+  const [addOpen, setAddOpen] = React.useState(false);
   const [newOpen, setNewOpen] = React.useState(false);
   const [joinOpen, setJoinOpen] = React.useState(false);
 
@@ -67,9 +67,10 @@ export default function GroupsPage() {
   }, [router, pathname, searchParams]);
 
   const all = groups.data ?? [];
+  const searching = showGroupSearch(all.length);
   const shown = React.useMemo(
-    () => sortGroups(filterGroups(all, query), sort, recentSlugs),
-    [all, query, sort, recentSlugs],
+    () => sortGroups(filterGroups(all, searching ? query : ""), "recent", recentSlugs),
+    [all, query, searching, recentSlugs],
   );
   // The group beside the list: `?group=`, else the first one listed.
   const chosenSlug = searchParams?.get("group") ?? null;
@@ -81,118 +82,84 @@ export default function GroupsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Groups"
-        subtitle={
-          groups.data ? `${all.length} ${all.length === 1 ? "group" : "groups"}` : "The flats, clubs and families you cook with."
-        }
-        actions={
-          <>
-            <Button variant="outline" className={K_BUTTON} onClick={() => setJoinOpen(true)}>
-              <Ticket aria-hidden />
-              Join
-            </Button>
-            <Button className={K_BUTTON} onClick={() => setNewOpen(true)}>
-              <Plus aria-hidden />
-              New group
-            </Button>
-          </>
-        }
-      />
+    <div className="space-y-4">
+      <header className="flex items-center justify-between gap-3">
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Groups</h1>
+        <button
+          type="button"
+          aria-label="New group or join"
+          aria-haspopup="dialog"
+          onClick={() => setAddOpen(true)}
+          className="grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <Plus className="h-[22px] w-[22px]" strokeWidth={2.4} aria-hidden />
+        </button>
+      </header>
 
       <div
         className={cn(
-          "space-y-5",
+          "space-y-4",
           chosen &&
             "min-[900px]:grid min-[900px]:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] min-[900px]:items-start min-[900px]:gap-6 min-[900px]:space-y-0 min-[1280px]:grid-cols-[minmax(0,20rem)_minmax(0,1fr)_minmax(0,23rem)]",
         )}
       >
-      <div className="min-w-0 space-y-5">
-      {all.length > 0 ? (
-        <div className={cn("flex flex-col gap-3", !chosen && "min-[560px]:flex-row")}>
-          <div className="relative flex-1">
-            <label htmlFor="group-search" className="sr-only">
-              Search groups
-            </label>
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              id="group-search"
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search groups"
-              autoComplete="off"
-              className={cn(K_INPUT, "bg-card pl-11")}
-            />
-          </div>
-          <div role="group" aria-label="Sort groups" className="inline-flex h-11 shrink-0 self-start rounded-xl border border-input bg-card p-0.5">
-            {GROUP_SORTS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                aria-pressed={sort === s.id}
-                onClick={() => setSort(s.id)}
-                className={cn(
-                  "min-w-[72px] rounded-[10px] px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  sort === s.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+        <div className="min-w-0 space-y-4">
+          {searching ? (
+            <div className="relative">
+              <label htmlFor="group-search" className="sr-only">
+                Search groups
+              </label>
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                id="group-search"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search groups"
+                autoComplete="off"
+                className={cn(K_INPUT, "bg-card pl-11")}
+              />
+            </div>
+          ) : null}
 
-      {groups.loading ? (
-        <KCard className="px-4" aria-hidden>
-          <SkeletonRow />
-          <SkeletonRow />
-          <SkeletonRow />
-        </KCard>
-      ) : groups.error ? (
-        <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load your groups. {groups.error.message}</p>
-          <Button variant="outline" className={K_BUTTON} onClick={groups.reload}>
-            Try again
-          </Button>
-        </KCard>
-      ) : all.length === 0 ? (
-        <KCard className="flex flex-col items-center px-6 py-12 text-center">
-          <IconBubble icon={UsersRound} className="h-14 w-14" />
-          <h2 className="mt-4 text-lg font-bold tracking-tight">No groups yet</h2>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Start one for your flat or lunch club, or join one with a link someone sent you.
-          </p>
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
-            <Button className={K_BUTTON} onClick={() => setNewOpen(true)}>
-              <Plus aria-hidden />
-              New group
-            </Button>
-            <Button variant="outline" className={K_BUTTON} onClick={() => setJoinOpen(true)}>
-              <Ticket aria-hidden />
-              Join with a code
-            </Button>
-          </div>
-        </KCard>
-      ) : (
-        <>
-          <p aria-live="polite" className="sr-only">
-            {query ? `${shown.length} of ${all.length} groups shown` : ""}
-          </p>
-          {shown.length === 0 ? (
+          {groups.loading ? (
+            <KCard className="px-4" aria-hidden>
+              <SkeletonRow />
+              <SkeletonRow />
+              <SkeletonRow />
+            </KCard>
+          ) : groups.error ? (
+            <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
+              <p className="text-sm text-muted-foreground">Couldn&apos;t load your groups.</p>
+              <Button variant="outline" className={K_BUTTON} onClick={groups.reload}>
+                Try again
+              </Button>
+            </KCard>
+          ) : all.length === 0 ? (
             <KCard className="flex flex-col items-center px-6 py-10 text-center">
+              <h2 className="text-lg font-bold tracking-tight">No groups yet</h2>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Button className={K_BUTTON} onClick={() => setNewOpen(true)}>
+                  <Plus aria-hidden />
+                  New group
+                </Button>
+                <Button variant="outline" className={K_BUTTON} onClick={() => setJoinOpen(true)}>
+                  <Ticket aria-hidden />
+                  Join
+                </Button>
+              </div>
+            </KCard>
+          ) : shown.length === 0 ? (
+            <KCard className="flex flex-col items-center px-6 py-8 text-center">
               <p className="text-base font-semibold">No groups match &ldquo;{query.trim()}&rdquo;</p>
               <Button variant="ghost" className={cn(K_BUTTON, "mt-2 text-primary")} onClick={() => setQuery("")}>
                 Clear search
               </Button>
             </KCard>
           ) : (
-            <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
+            <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
               {shown.map((g) => {
-                const k = kitchen.get(g.id);
-                const role = roleFromKitchen(k?.role);
+                const row = groupListRow(g, kitchen.get(g.id));
                 const selected = chosen?.id === g.id;
                 return (
                   <li key={g.id}>
@@ -206,28 +173,19 @@ export default function GroupsPage() {
                       }}
                       aria-current={selected ? "true" : undefined}
                       className={cn(
-                        "flex min-h-[68px] items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        "flex min-h-[64px] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                         selected && "bg-accent",
                       )}
                     >
                       <GroupAvatar name={g.name} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-bold">{g.name}</span>
-                        <span className="block truncate text-sm text-muted-foreground">
-                          {k && role
-                            ? `${roleLabel(role)} · ${k.memberCount} ${k.memberCount === 1 ? "member" : "members"}`
-                            : `Started ${shortDate(g.createdAt)}`}
-                        </span>
+                        <span className="block truncate text-[15px] font-bold">{row.name}</span>
+                        {row.people ? <span className="block truncate text-sm text-muted-foreground">{row.people}</span> : null}
                       </span>
-                      {k && k.balanceMinor !== 0 ? (
-                        <span
-                          className={cn(
-                            "shrink-0 text-right text-xs font-medium leading-snug",
-                            k.balanceMinor > 0 ? "text-cp-owed" : "text-cp-owe",
-                          )}
-                        >
-                          {k.balanceMinor > 0 ? "you get back" : "you owe"}
-                          <Money minor={Math.abs(k.balanceMinor)} currency={k.currency} className="block text-[15px] font-bold" />
+                      {row.money ? (
+                        <span className={cn("shrink-0 text-right leading-tight", row.money.tone === "owed" ? "text-cp-owed" : "text-cp-owe")}>
+                          <span className="block text-xs font-semibold">{row.money.label}</span>
+                          <span className="block text-[15px] font-extrabold tabular-nums">{row.money.amount}</span>
                         </span>
                       ) : null}
                       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
@@ -237,12 +195,16 @@ export default function GroupsPage() {
               })}
             </ul>
           )}
-        </>
-      )}
-      </div>
-      {chosen ? <ChosenGroup group={chosen} /> : null}
+        </div>
+        {chosen ? <ChosenGroup group={chosen} /> : null}
       </div>
 
+      <AddGroupSheet
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onNew={() => setNewOpen(true)}
+        onJoin={() => setJoinOpen(true)}
+      />
       <NewGroupDialog
         open={newOpen}
         onOpenChange={(open) => {
@@ -258,6 +220,63 @@ export default function GroupsPage() {
         }}
       />
     </div>
+  );
+}
+
+/** The + : a small sheet with the two ways to a new group — start one, or join one with a code. */
+function AddGroupSheet({
+  open,
+  onOpenChange,
+  onNew,
+  onJoin,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onNew: () => void;
+  onJoin: () => void;
+}) {
+  const picked = React.useRef(false);
+  const pick = (then: () => void) => {
+    picked.current = true;
+    onOpenChange(false);
+    then();
+  };
+  const choice =
+    "flex min-h-[64px] w-full items-center gap-3 rounded-[18px] border bg-card px-4 text-left text-[17px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        aria-describedby={undefined}
+        // A choice opens its own dialog: focus goes there, not back to the +.
+        onCloseAutoFocus={(e) => {
+          if (picked.current) e.preventDefault();
+          picked.current = false;
+        }}
+        className={cn(
+          "mx-auto max-w-xl gap-0 rounded-t-[28px] border-x-0 bg-background px-4 pt-2.5 shadow-2xl focus:outline-none min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
+          CLOSE_44,
+        )}
+      >
+        <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
+        <SheetTitle className="flex min-h-11 items-center pr-12 text-[22px] font-extrabold">Add a group</SheetTitle>
+        {/* The bottom padding is inside: the sheet's own is the safe area's. */}
+        <div className="mt-3 space-y-2.5 pb-5">
+          <button type="button" className={choice} onClick={() => pick(onNew)}>
+            <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cp-herb-tint text-primary">
+              <Plus className="h-5 w-5" strokeWidth={2.4} />
+            </span>
+            New group
+          </button>
+          <button type="button" className={choice} onClick={() => pick(onJoin)}>
+            <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cp-owed-tint text-cp-owed">
+              <Ticket className="h-5 w-5" />
+            </span>
+            Join with a code
+          </button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -278,12 +297,9 @@ function ChosenGroup({ group }: { group: PublicOrganization }) {
       <section aria-labelledby="chosen-group-name" className="min-w-0 space-y-3">
         <div className="flex items-center gap-3">
           <GroupAvatar name={group.name} />
-          <div className="min-w-0 flex-1">
-            <h2 id="chosen-group-name" className="truncate text-lg font-bold tracking-tight">
-              {group.name}
-            </h2>
-            <p className="text-xs text-muted-foreground">Activity, newest first</p>
-          </div>
+          <h2 id="chosen-group-name" className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight">
+            {group.name}
+          </h2>
           <Button asChild variant="outline" className={cn(K_BUTTON, "shrink-0 px-4")}>
             <Link href={`/groups/${group.slug}`}>
               Open group
@@ -295,7 +311,7 @@ function ChosenGroup({ group }: { group: PublicOrganization }) {
       </section>
       <section aria-labelledby="chosen-group-money" className="min-w-0 space-y-3">
         <h2 id="chosen-group-money" className="text-lg font-bold tracking-tight">
-          Balances and fewest payments
+          Balances
         </h2>
         <GroupBalancesPanel key={group.id} group={ref} myId={myId} balances={balances} manager={manager} canWrite={canWrite} names={names} />
       </section>

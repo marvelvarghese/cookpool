@@ -61,7 +61,7 @@ export interface ActivityRow {
   /** Your part (paid − owed); null when it doesn't name you. */
   yourMinor: number | null;
   tone: RowTone;
-  /** "+₹40.75", "−₹24.00", "₹0.00"; null when it doesn't name you. */
+  /** "+₹40.75", "−₹24.00", "₹0.00" (a payment: the money that moved, + when it came to you); null when it doesn't name you. */
   amountText: string | null;
   /** The same for a screen reader, in words. */
   amountWords: string;
@@ -90,16 +90,25 @@ export function activityRow(
   const canWrite = ctx.canWrite ?? true;
   const meta = TXN_KIND_META[txn.kind];
   const yourMinor = yourPartMinor(txn, ctx.meId);
-  const tone: RowTone = yourMinor === null || yourMinor === 0 ? "neutral" : yourMinor > 0 ? "owed" : "owe";
-  const amount = yourMinor === null ? "" : formatMinor(Math.abs(yourMinor), txn.currency);
+  // A payment shows the money that moved (SM-11, as SM-10 did on Home): "Anu
+  // paid you" is +₹400 — money you received — though it takes your "get
+  // back" down. Every other entry shows what it did to your balance.
+  const cash = txn.kind === "settlement" && yourMinor !== null && yourMinor !== 0;
+  const shownMinor = cash ? -yourMinor : yourMinor;
+  const tone: RowTone = shownMinor === null || shownMinor === 0 ? "neutral" : shownMinor > 0 ? "owed" : "owe";
+  const amount = shownMinor === null ? "" : formatMinor(Math.abs(shownMinor), txn.currency);
   const amountWords =
-    yourMinor === null
+    shownMinor === null
       ? "Doesn't involve you"
-      : yourMinor > 0
-        ? `Adds ${amount} to your balance`
-        : yourMinor < 0
-          ? `Takes ${amount} off your balance`
-          : "No change to your balance";
+      : cash
+        ? shownMinor > 0
+          ? `You received ${amount}`
+          : `You paid ${amount}`
+        : shownMinor > 0
+          ? `Adds ${amount} to your balance`
+          : shownMinor < 0
+            ? `Takes ${amount} off your balance`
+            : "No change to your balance";
   const when = relativeWhen(txn.occurredAt, ctx.now);
   const mine = ctx.meId !== null && txn.createdBy === ctx.meId;
   const pending = isPendingId(txn.id);
@@ -113,7 +122,7 @@ export function activityRow(
     whoWhen: [memberLabel(txn.createdBy, ctx.meId, ctx.names), when].filter(Boolean).join(" · "),
     yourMinor,
     tone,
-    amountText: yourMinor === null ? null : formatSignedMinor(yourMinor, txn.currency),
+    amountText: shownMinor === null ? null : formatSignedMinor(shownMinor, txn.currency),
     amountWords,
     totalText: formatMinor(txn.totalMinor, txn.currency),
     reversed: txn.reversed,

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, CheckCircle2, CookingPot, Minus, Plus } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, Minus, Plus } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useGroups, useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON, K_INPUT, PageHeader } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
 import { useAddExpense, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { Money, Segmented } from "@/components/kitchen/ledger-ui";
 import { Face, FaceRow, MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
@@ -25,8 +25,8 @@ import {
   EXPENSE_TITLE_MAX,
   MAX_SHARES,
   SPLIT_MODE_OPTIONS,
-  expenseAddedText,
   expenseButton,
+  expenseToast,
   firstExpenseError,
   initialExpenseForm,
   previewExpense,
@@ -37,13 +37,14 @@ import {
 } from "@/components/kitchen/expense-form";
 
 /**
- * Add expense (CP-8): what for, how much, who paid (a face, or several people
- * with amounts that must add up), and how it is split — Equally (the faces
- * of who is in, SM-7), Exact, % or Shares — with every person's share
- * previewed live by `@saas/kitchen-engine`, the same maths the server splits
- * it with. The one main button says who it is for ("You + Anu · ₹600.00
- * each"). Saving posts the expense and goes back to the group's Activity,
- * with a toast that can undo it.
+ * Add a bill (CP-8; SM-11 under the seven rules): what for, how much, who
+ * paid (a face, or several people with amounts that must add up), and who it
+ * is for — equally, by the faces of who is in (SM-7); Exact, % and Shares
+ * are behind "Split another way". Every person's share is previewed live by
+ * `@saas/kitchen-engine`, the same maths the server splits it with. The one
+ * main button says who it is for ("You + Anu · ₹600.00 each"). Saving posts
+ * the bill and goes back to the group, with a one-line toast that can undo
+ * it. No explanations: the check line under a split adds it up.
  */
 export default function AddExpensePage() {
   const slug = usePathParam("/groups/:orgSlug/expense", "orgSlug");
@@ -59,7 +60,7 @@ export default function AddExpensePage() {
   if (groups.error) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load your groups. {groups.error.message}</p>
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load your groups.</p>
         <Button variant="outline" className={K_BUTTON} onClick={groups.reload}>
           Try again
         </Button>
@@ -70,10 +71,7 @@ export default function AddExpensePage() {
     return (
       <KCard className="flex flex-col items-center px-6 py-12 text-center">
         <h1 className="text-lg font-bold tracking-tight">You&apos;re not in this group</h1>
-        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-          Add the expense in one of your groups instead.
-        </p>
-        <Button asChild className={cn(K_BUTTON, "mt-5")}>
+        <Button asChild className={cn(K_BUTTON, "mt-4")}>
           <Link href="/groups">Your groups</Link>
         </Button>
       </KCard>
@@ -109,11 +107,8 @@ function ExpenseLoader({ group }: { group: PublicOrganization }) {
   if (!canWrite) {
     return (
       <KCard className="flex flex-col items-center px-6 py-12 text-center">
-        <h1 className="text-lg font-bold tracking-tight">You view {group.name}</h1>
-        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-          Viewers see the group&apos;s money but don&apos;t add to it. Ask an owner to make you a member.
-        </p>
-        <Button asChild className={cn(K_BUTTON, "mt-5")}>
+        <h1 className="text-lg font-bold tracking-tight">You only view {group.name}</h1>
+        <Button asChild className={cn(K_BUTTON, "mt-4")}>
           <Link href={`/groups/${group.slug}`}>Back to {group.name}</Link>
         </Button>
       </KCard>
@@ -122,9 +117,7 @@ function ExpenseLoader({ group }: { group: PublicOrganization }) {
   if (balances.error || !roster || !balances.data) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <p className="text-sm text-muted-foreground">
-          Couldn&apos;t load who&apos;s in {group.name}. {balances.error?.message ?? ""}
-        </p>
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load who&apos;s in {group.name}.</p>
         <Button variant="outline" className={K_BUTTON} onClick={balances.reload}>
           Try again
         </Button>
@@ -133,13 +126,6 @@ function ExpenseLoader({ group }: { group: PublicOrganization }) {
   }
   return <ExpenseFormView group={group} roster={roster} myId={myId} currency={balances.data.currency} names={names} />;
 }
-
-/** The why behind a mode other than Equally (whose faces need none). */
-const MODE_HINT: Record<Exclude<ExpenseForm["mode"], "equal">, string> = {
-  exact: "Type what each person owes. They must add up to the total.",
-  percent: "Give each person a percentage. They must add up to 100%.",
-  shares: "Two shares pays twice as much as one.",
-};
 
 function ExpenseFormView({
   group,
@@ -160,6 +146,8 @@ function ExpenseFormView({
   const [showErrors, setShowErrors] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
+  // Exact, % and Shares are one tap away, not on screen (SM-11).
+  const [otherWays, setOtherWays] = React.useState(false);
   const people = roster;
   const preview = React.useMemo(() => previewExpense(form, people, currency), [form, people, currency]);
   const prefix = currencyPrefix(currency);
@@ -194,8 +182,7 @@ function ExpenseFormView({
       currency,
       meId: myId,
       names,
-      title: `Added: ${request.title}`,
-      description: expenseAddedText(request, currency),
+      title: expenseToast(request, currency),
     });
     router.push(`/groups/${group.slug}`);
   };
@@ -205,15 +192,18 @@ function ExpenseFormView({
   const main = expenseButton({ preview, mode: form.mode, meId: myId, names, currency });
 
   return (
-    <div className="space-y-6">
-      <Link
-        href={`/groups/${group.slug}`}
-        className="-ml-2 inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
-        <span className="truncate">{group.name}</span>
-      </Link>
-      <PageHeader title="Add expense" subtitle={`A bill in ${group.name}, in ${currency}.`} />
+    <div className="space-y-4">
+      <header className="flex min-h-11 items-center gap-1">
+        <Link
+          href={`/groups/${group.slug}`}
+          aria-label={`Back to ${group.name}`}
+          className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ArrowLeft className="h-5 w-5" aria-hidden />
+        </Link>
+        <h1 className="min-w-0 flex-1 truncate text-[26px] font-extrabold leading-tight tracking-tight">Add a bill</h1>
+        <span className="max-w-[40%] shrink-0 truncate text-sm font-semibold text-muted-foreground">{group.name}</span>
+      </header>
 
       <form
         onSubmit={submit}
@@ -322,18 +312,22 @@ function ExpenseFormView({
         {/* How it's split, and Save */}
         <div className="space-y-4 min-[900px]:sticky min-[900px]:top-6 min-[900px]:col-start-2 min-[900px]:row-span-3 min-[900px]:row-start-1">
           <KCard className="p-5" data-field="split">
-            <h2 id="split-heading" className="text-base font-bold tracking-tight">
-              Split
-            </h2>
-            <Segmented
-              label="How to split it"
-              value={form.mode}
-              options={SPLIT_MODE_OPTIONS}
-              onChange={(mode) => update({ mode })}
-              className="mt-3"
-            />
+            {otherWays || form.mode !== "equal" ? (
+              <>
+                <h2 id="split-heading" className="text-[15px] font-extrabold">
+                  Split
+                </h2>
+                <Segmented
+                  label="How to split it"
+                  value={form.mode}
+                  options={SPLIT_MODE_OPTIONS}
+                  onChange={(mode) => update({ mode })}
+                  className="mb-4 mt-2.5"
+                />
+              </>
+            ) : null}
             {form.mode === "equal" ? (
-              <div className="relative mt-4">
+              <div className="relative">
                 <FaceRow
                   legend="For"
                   people={people}
@@ -351,11 +345,22 @@ function ExpenseFormView({
                 >
                   {allIn ? "No one" : "Everyone"}
                 </Button>
+                {!otherWays ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-expanded={false}
+                    className="-mx-2 mt-2 min-h-11 rounded-xl px-2 text-sm font-semibold text-primary"
+                    onClick={() => setOtherWays(true)}
+                  >
+                    Split another way
+                    <ChevronDown aria-hidden />
+                  </Button>
+                ) : null}
               </div>
             ) : (
               <>
-                <p className="mt-2 text-sm text-muted-foreground">{MODE_HINT[form.mode]}</p>
-                <ul aria-labelledby="split-heading" className="mt-2 divide-y">
+                <ul aria-labelledby="split-heading" className="divide-y">
                   {preview.people.map((p) => {
                     const name = memberLabel(p.subjectId, myId, names);
                     const owed =
@@ -444,22 +449,6 @@ function ExpenseFormView({
             </p>
           ) : null}
         </div>
-
-        {/* The dish maker does this by portions (CP-15). */}
-        <KCard className="flex gap-4 bg-cp-tomato-tint/40 p-5 min-[900px]:col-start-1">
-          <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-cp-tomato-tint text-cp-tomato">
-            <CookingPot className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-bold">Cooked something?</p>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Cook a dish takes the ingredients from your pantries and splits it by portions.
-            </p>
-            <Button asChild variant="outline" className={cn(K_BUTTON, "mt-3 bg-card px-4")}>
-              <Link href="/cook">Cook a dish</Link>
-            </Button>
-          </div>
-        </KCard>
 
         {/* The one main button, in thumb reach above the tab bar on a phone. */}
         <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:col-start-2">
@@ -558,9 +547,8 @@ function SharesStepper({ value, name, onStep }: { value: number; name: string; o
 
 function ExpenseSkeleton() {
   return (
-    <div className="space-y-6" aria-hidden>
-      <Skeleton className="h-5 w-24" />
-      <Skeleton className="h-8 w-48" />
+    <div className="space-y-4" aria-hidden>
+      <Skeleton className="h-11 w-48" />
       <div className="grid gap-5 min-[900px]:grid-cols-2">
         <Skeleton className="h-48 w-full rounded-[20px]" />
         <Skeleton className="h-72 w-full rounded-[20px]" />

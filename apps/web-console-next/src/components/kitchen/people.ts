@@ -1,10 +1,12 @@
 /**
  * People across groups (Cookpool CP-9) as pure view-models over the kitchen's
- * cross-group reads: the People list (search, largest amount first, per
- * currency), the totals Home and People show, the person view ("You and
- * Dev": its headline, the Why filters, the group shortcut in words, what
- * Record payment can post) and the names every screen labels people with.
- * Dependency-free (contract types only), so it is unit-testable.
+ * cross-group reads: the people you share a group with, and since SM-11
+ * People and Settle as one screen — the money headline per currency and
+ * everyone as faces — and a person: their headline per currency, the Why in
+ * plain lines (who pays whom directly instead of through whom), what Record
+ * payment can post, and the names every screen labels people with.
+ * Dependency-free (contract types and the app's pure helpers), so it is
+ * unit-testable.
  *
  * Amounts are integer minor units in each group's currency, and nothing is
  * ever added across currencies: a person or a total in two currencies shows
@@ -13,17 +15,15 @@
 
 import type {
   CreateSettlementRequest,
-  CurrencyTotal,
-  KitchenTxnKind,
   MyBalancesResponse,
   PersonGroupView,
-  PersonLine,
   PersonViewResponse,
   SettlementMethod,
 } from "@saas/contracts/kitchen";
 import { foldForSearch } from "./groups";
 import { formatMinor } from "./money";
 import { memberLabel, memberLabelInline, nameInitials, memberTag, type MemberNames } from "./members";
+import { homeMoney, moneyLine, type MoneyLine } from "./home";
 
 // ── Names ─────────────────────────────────────────────────────────
 
@@ -63,11 +63,6 @@ export function netSentence(name: string, net: CurrencyNet): string {
   if (net.netMinor > 0) return `${name} pays you ${formatMinor(net.netMinor, net.currency)}`;
   if (net.netMinor < 0) return `You pay ${name} ${formatMinor(-net.netMinor, net.currency)}`;
   return "Settled";
-}
-
-/** Short words for a list row: "pays you", "you pay", "settled". */
-export function netWords(minor: number): string {
-  return minor > 0 ? "pays you" : minor < 0 ? "you pay" : "settled";
 }
 
 // ── The People list ───────────────────────────────────────────────
@@ -135,95 +130,7 @@ export function peopleRows(data: Pick<MyBalancesResponse, "people"> | null | und
   );
 }
 
-// ── Totals (Home and People) ──────────────────────────────────────
-
-export interface TotalLine extends CurrencyTotal {
-  tone: NetTone;
-  /** "You're owed ₹1,600.00", "You owe ₹24.00", "You're settled up". */
-  headline: string;
-  /** "₹1,624.00 to you · ₹24.00 from you" */
-  detail: string;
-}
-
-export function totalLine(t: CurrencyTotal): TotalLine {
-  const tone = netTone(t.netMinor);
-  const headline =
-    tone === "owed"
-      ? `You're owed ${formatMinor(t.netMinor, t.currency)}`
-      : tone === "owe"
-        ? `You owe ${formatMinor(-t.netMinor, t.currency)}`
-        : "You're settled up";
-  return {
-    ...t,
-    tone,
-    headline,
-    detail: `${formatMinor(t.owedToYouMinor, t.currency)} to you · ${formatMinor(t.youOweMinor, t.currency)} from you`,
-  };
-}
-
-/** "Across 3 groups" */
-export function acrossGroups(count: number): string {
-  return `Across ${count} ${count === 1 ? "group" : "groups"}`;
-}
-
-export interface HomeBalance {
-  /** "Across 3 groups" */
-  across: string;
-  /** One line per currency your groups count in. */
-  totals: TotalLine[];
-  /** People with money open between you, largest first (at most `limit`). */
-  people: PeopleRow[];
-  /** How many more have money open. */
-  morePeople: number;
-  /** Some payment involves you: offer Settle up. */
-  settleUp: boolean;
-}
-
-/** Home's balance card, from the one cross-group read. */
-export function homeBalance(data: MyBalancesResponse, limit = 4): HomeBalance {
-  const open = peopleRows(data).filter((r) => !r.settled);
-  return {
-    across: acrossGroups(data.groups.length),
-    totals: data.totals.map(totalLine),
-    people: open.slice(0, limit),
-    morePeople: Math.max(0, open.length - limit),
-    settleUp: data.totals.some((t) => t.owedToYouMinor > 0 || t.youOweMinor > 0),
-  };
-}
-
 // ── The person view ───────────────────────────────────────────────
-
-export type LineFilter = "all" | "dishes" | "used" | "bills";
-
-/** The Why card's chips, in order. */
-export const LINE_FILTERS: readonly { id: LineFilter; label: string }[] = [
-  { id: "all", label: "Everything" },
-  { id: "dishes", label: "Dishes" },
-  { id: "used", label: "Items used" },
-  { id: "bills", label: "Bills" },
-];
-
-const FILTER_OF: Record<KitchenTxnKind, LineFilter | null> = {
-  dish: "dishes",
-  use: "used",
-  waste: "used",
-  expense: "bills",
-  settlement: null,
-  reversal: null,
-};
-
-/**
- * The lines a chip shows. An undo goes with what it undoes (a reversed bill
- * is under Bills along with its undo); payments only under Everything.
- */
-export function filterLines(lines: readonly PersonLine[], filter: LineFilter): PersonLine[] {
-  if (filter === "all") return [...lines];
-  const kindOf = new Map(lines.map((l) => [l.txnId, l.kind] as const));
-  return lines.filter((l) => {
-    const kind = l.kind === "reversal" && l.reverses ? (kindOf.get(l.reverses) ?? l.kind) : l.kind;
-    return FILTER_OF[kind] === filter;
-  });
-}
 
 /** The person's name as the view uses it: their name, else "Member · 3f9a". */
 export function personName(view: Pick<PersonViewResponse, "subjectId" | "displayName">): string {
@@ -251,47 +158,10 @@ export function betweenSentence(name: string, g: Pick<PersonGroupView, "pairwise
   return "Nothing either way";
 }
 
-/** The Why card's last line: what the group's plan asks of you two. */
+/** The Why's last line: what the group's plan asks of you two. */
 export function planSentence(name: string, g: Pick<PersonGroupView, "planMinor" | "currency" | "name">): string {
   if (g.planMinor === 0) return `Nothing to pay in ${g.name}`;
   return netSentence(name, { currency: g.currency, netMinor: g.planMinor });
-}
-
-/**
- * The group shortcut in words, or null when there is none. With a step
- * ("Dev owes Anu ₹90.00 and Anu owes you, so Dev pays you directly"), else
- * what it does in general.
- */
-export function shortcutSentence(
-  g: Pick<PersonGroupView, "shortcutMinor" | "shortcutVia" | "currency">,
-  ctx: { meId: string | null; otherId: string; otherName: string; names?: MemberNames | null },
-): string | null {
-  if (g.shortcutMinor === 0) return null;
-  const via = g.shortcutVia;
-  if (via) {
-    const name = (id: string, inline: boolean): string => {
-      if (ctx.meId && id === ctx.meId) return inline ? "you" : "You";
-      if (id === ctx.otherId) return ctx.otherName;
-      const third = via.thirdDisplayName?.trim();
-      if (third) return third;
-      return inline ? memberLabelInline(id, ctx.meId, ctx.names) : memberLabel(id, ctx.meId, ctx.names);
-    };
-    const you = (id: string) => !!ctx.meId && id === ctx.meId;
-    const from = name(via.fromSubjectId, false);
-    const fromInline = name(via.fromSubjectId, true);
-    const mid = name(via.viaSubjectId, true);
-    const midSubject = name(via.viaSubjectId, false);
-    const to = name(via.toSubjectId, true);
-    return (
-      `${from} ${you(via.fromSubjectId) ? "owe" : "owes"} ${mid} ${formatMinor(via.amountMinor, g.currency)} ` +
-      `and ${you(via.viaSubjectId) ? "you" : midSubject} ${you(via.viaSubjectId) ? "owe" : "owes"} ${to}, ` +
-      `so ${fromInline} ${you(via.fromSubjectId) ? "pay" : "pays"} ${to} directly`
-    );
-  }
-  const amount = formatMinor(Math.abs(g.shortcutMinor), g.currency);
-  return g.shortcutMinor > 0
-    ? `The group's plan routes ${amount} of other debts through ${ctx.otherName} to you, so everyone makes fewer payments`
-    : `The group's plan routes ${amount} of other debts through you to ${ctx.otherName}, so everyone makes fewer payments`;
 }
 
 // ── Record payment ────────────────────────────────────────────────
@@ -334,4 +204,90 @@ export function recordRequest(o: RecordOption, method: SettlementMethod): Create
 export function recordOptionSentence(o: RecordOption, name: string, meId: string | null): string {
   const net = o.toSubjectId === meId ? o.amountMinor : -o.amountMinor;
   return `${netSentence(name, { currency: o.currency, netMinor: net })} in ${o.groupName}`;
+}
+
+// ── People and Settle as one screen (SM-11) ───────────────────────
+
+/**
+ * People's headline: one line per currency with money open — "You get back
+ * ₹62.50", "You owe $25.00", your own currency first (Home's order) — and
+ * never a zero cell; "Settled up" when nothing is open anywhere. Filtered to
+ * one group (`orgId`): your balance there, in its currency.
+ */
+export function peopleMoney(data: Pick<MyBalancesResponse, "groups" | "totals">, orgId?: string | null): MoneyLine[] {
+  if (orgId) {
+    const g = data.groups.find((x) => x.orgId === orgId);
+    return [moneyLine({ currency: g?.currency ?? "INR", netMinor: g?.balanceMinor ?? 0 })];
+  }
+  const money = homeMoney(data);
+  return [money.main, ...money.others];
+}
+
+/**
+ * Everyone you share a group with (or, filtered, everyone in that group), by
+ * name: People's faces, each opening that person. Amounts are not repeated
+ * here — each debt shows once, in the payments above.
+ */
+export function everyoneIn(data: Pick<MyBalancesResponse, "people"> | null | undefined, orgId?: string | null): PeopleRow[] {
+  return peopleRows(data)
+    .filter((r) => !orgId || r.groups.some((g) => g.orgId === orgId))
+    .sort(
+      (a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true }) ||
+        (a.subjectId < b.subjectId ? -1 : a.subjectId > b.subjectId ? 1 : 0),
+    );
+}
+
+/** The first word of a person's name ("Dev Patel" → "Dev"); "Member · 3f9a" stays whole. */
+export function firstName(view: Pick<PersonViewResponse, "subjectId" | "displayName">): string {
+  const name = view.displayName?.trim();
+  return name ? name.split(/\s+/)[0]! : personName(view);
+}
+
+export interface PersonMoneyLine {
+  currency: string;
+  tone: NetTone;
+  /** "Dev pays you", "You pay Dev", "Settled up". */
+  label: string;
+  /** "₹90.00"; null when settled. */
+  amount: string | null;
+}
+
+/** A person's headline: one line per currency between you two ("Dev pays you ₹90.00"), no zero cells. */
+export function personMoney(view: PersonViewResponse): PersonMoneyLine[] {
+  const name = firstName(view);
+  return personHeadlines(view).map((h) => ({
+    currency: h.currency,
+    tone: h.tone,
+    label: h.tone === "owed" ? `${name} pays you` : h.tone === "owe" ? `You pay ${name}` : "Settled up",
+    amount: h.tone === "settled" ? null : formatMinor(Math.abs(h.netMinor), h.currency),
+  }));
+}
+
+/**
+ * Why a group's plan differs from what you two owe each other, in plain
+ * words (it was "Group shortcut"): "Dev pays you directly instead of through
+ * Anu"; without one person who explains it, "Dev also pays you ₹40.00 for
+ * others". Null when the plan is just what you owe each other.
+ */
+export function shortcutPlain(
+  g: Pick<PersonGroupView, "shortcutMinor" | "shortcutVia" | "currency">,
+  ctx: { meId: string | null; otherId: string; otherName: string; names?: MemberNames | null },
+): string | null {
+  if (g.shortcutMinor === 0) return null;
+  const via = g.shortcutVia;
+  if (via) {
+    const me = (id: string) => !!ctx.meId && id === ctx.meId;
+    const name = (id: string, inline: boolean): string => {
+      if (me(id)) return inline ? "you" : "You";
+      if (id === ctx.otherId) return ctx.otherName;
+      const third = via.thirdDisplayName?.trim();
+      if (third) return third.split(/\s+/)[0]!;
+      return inline ? memberLabelInline(id, ctx.meId, ctx.names) : memberLabel(id, ctx.meId, ctx.names);
+    };
+    const verb = me(via.fromSubjectId) ? "pay" : "pays";
+    return `${name(via.fromSubjectId, false)} ${verb} ${name(via.toSubjectId, true)} directly instead of through ${name(via.viaSubjectId, true)}`;
+  }
+  const amount = formatMinor(Math.abs(g.shortcutMinor), g.currency);
+  return g.shortcutMinor > 0 ? `${ctx.otherName} also pays you ${amount} for others` : `You also pay ${ctx.otherName} ${amount} for others`;
 }

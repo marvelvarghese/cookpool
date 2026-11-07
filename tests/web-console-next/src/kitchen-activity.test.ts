@@ -160,9 +160,17 @@ describe("a payment's row", () => {
     expect(settlementTitle({ ...paid, method: null }, "usr_x")).toBe("Member · b0b0 paid Member · aaaa");
   });
 
-  it("shows receiving money as − on your balance (you are owed less)", () => {
-    expect(activityRow(paid, ctx)).toMatchObject({ glyph: "✓", tone: "owe", amountText: "−₹500.00" });
-    expect(activityRow(paid, { ...ctx, meId: ANU })).toMatchObject({ tone: "owed", amountText: "+₹500.00" });
+  // SM-11: a group's feed shows a payment as the money that moved (SM-10 did it on Home).
+  it("shows money paid to you as + in blue, and money you paid as − in orange", () => {
+    expect(activityRow(paid, ctx)).toMatchObject({ glyph: "✓", tone: "owed", amountText: "+₹500.00", amountWords: "You received ₹500.00" });
+    expect(activityRow(paid, { ...ctx, meId: ANU })).toMatchObject({ tone: "owe", amountText: "−₹500.00", amountWords: "You paid ₹500.00" });
+    // What it did to your balance is unchanged underneath: you are owed ₹500 less.
+    expect(activityRow(paid, ctx).yourMinor).toBe(-50_000);
+  });
+
+  it("is not involved when it doesn't name you, and leaves other kinds as what they did to your balance", () => {
+    expect(activityRow(paid, { ...ctx, meId: DEV })).toMatchObject({ amountText: null, tone: "neutral" });
+    expect(activityRow(dinner, ctx)).toMatchObject({ tone: "owed", amountText: "+₹80.00" });
   });
 });
 

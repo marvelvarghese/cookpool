@@ -87,7 +87,8 @@ describe("_redirects: one file serves every value", () => {
   it("pins /pantry/new to itself before the item rule could catch it", () => {
     expect(rules[0]).toBe("/pantry/new /pantry/new 200");
     expect(rules.indexOf("/pantry/new /pantry/new 200")).toBeLessThan(rules.indexOf("/pantry/:itemRef /pantry/_ 200"));
-    expect(rules).toHaveLength(7);
+    // One rule per dynamic page (SM-11 added a group's settings), plus the pin.
+    expect(rules).toHaveLength(8);
   });
 });
 

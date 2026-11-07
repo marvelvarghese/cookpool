@@ -1081,3 +1081,187 @@ Cook, Add item and the desktop pages are SM-14's and SM-11's.
   sits over the main button on Use (audit item 14), as it does on every
   screen. The contract fields stay optional (`packages/contracts` is outside
   this task). Nothing to redeploy beyond the console.
+
+### SM5 — the rest, part 1 (SM-11)
+
+Groups, a group, People with Settle, a person and Bill under design §4's
+seven rules. There is no Simpler artboard for these: the shipped Simpler
+screens (Home, Dish, Pantry, Use) are the visual language — a title row
+with an icon Back, a money card ("You get back" over a big amount), one
+green main button, short sections in rounded lists, faces for people. The
+item page, Bought, Cook and the desktop pages are SM-15's.
+
+- **Groups (`/groups`).** "Groups" and one round + (no "Join" and "New
+  group" header buttons): it opens a small sheet with the two — New group,
+  Join with a code — each opening its dialog as before (`?new=1` /
+  `?join=1` still do). One list, the groups you opened last first; each row
+  is the group, "5 people" and your balance there as a number with its
+  words, coloured ("You owe / $25.00", "You get back / ₹86.50"); nothing
+  when settled; no role words (`groupListRow`, group-page.ts). The search
+  shows only from 9 groups (`showGroupSearch`); the Recent / A–Z control is
+  gone (`GROUP_SORTS` with it). The empty state is its heading and the two
+  buttons. From 900px the chosen group beside the list is as it was (SM-15).
+- **A group (`/groups/[orgSlug]`).** A title row — Back, the name, a gear
+  (Settings) — then the money card: "You get back ₹86.50" (or "Settled
+  up"), with **Settle up only when you owe or are owed** (`groupMoney`), as
+  a small secondary button in the card; then **one main button, "Add a
+  bill"** (a viewer has none); then sections, not tabs:
+  - **Activity**: five rows and "See all" (the paged feed with Load more
+    after it; a `?txn=` link shows everything so it can find its row). Rows
+    are one line each — title, who · when, your part and the total — and
+    **a payment shows the money that moved** ("Anu paid you · UPI"
+    +₹400.00 in blue; it was −₹400.00 in orange): `activityRow` does it
+    for every feed now (SM-10 did it on Home only; Home's `paymentAsCash`
+    gives the same answer applied again, so home.ts is unchanged). The
+    empty feed is "Nothing yet" (no second Add expense button), and Undo's
+    toast is one line.
+  - **Balances**: everyone else with money open, one line each ("Dev Patel
+    · owes ₹86.50"), largest first, opening that person — not you (your
+    money is the card above: each amount once) and nobody at zero
+    (`groupBalanceRows`). "Everyone is settled up" when no one is.
+  - **Dishes**: the newest three and "See all N" (`GroupDishesPanel`,
+    `limit`), each one row with **the dish page's status word** (Open ·
+    Draft · Finalized · Canceled, `dishStateChip`) instead of the audit's
+    button-like "Finalize" / "Claim" / "Split", and "Meera · 1 of 5 had ·
+    ₹156.00" ("had", not "claimed"; `dishRow`).
+  - **Pantry**: one row, "Pantry · 7 items", opening Pantry on the group.
+    The group's Pantry tab (`GroupPantryPanel`, pantry-cards.tsx) is gone.
+  The tabs and `?tab=` are gone; an old `?tab=` link opens the page at the
+  top.
+- **Settings (`/groups/[orgSlug]/settings`) — departure: a sub-page, not a
+  sheet.** The everyday page's other half moved behind the gear, as its
+  own page (the 19th served as a file: `STATIC_PAGES`, prerendered for
+  `_` under the group's layout): **Invite** (owners and admins) shows the
+  code in one line, "KTCH-2345" — never the URL, which wrapped mid-code —
+  with Copy link, Share (the phone's share sheet, where there is one) and
+  New (a one-line confirm); **Food that goes off** is a two-way switch
+  (Split equally · The buyer absorbs it) and **Currency** a select until
+  saved, with **Save shown only once something changed** and "Fixed once
+  saved" as the one hint (saving locks the currency, so the why stays);
+  **People · 5** with faces and roles in plain words — Owner, Admin, "Can
+  only view", nothing for a member (`roleWords`; `RoleBadge` and
+  `roleLabel` are gone) — and the owner's ⋮ (Make owner / Make admin, one
+  line in the dialog); then **Leave {group}** as one button: a refusal
+  says it in one line ("You're the last owner. Make someone else an owner
+  first.", "You owe ₹45.75 in Flat 4B" + Settle up). Gone, as text: "Anyone
+  with this link can join…", both waste hints, "Set it once…", "You'll stop
+  seeing…" (the leave confirm keeps "To come back you'll need its join
+  link."), "Owners and admins set the rules.", the "Joined 1 Oct" lines.
+- **People and Settle are one screen (`/people`, the People tab).** The
+  money card with **one headline per currency with money open**, side by
+  side ("You get back ₹62.50" · "You owe $25.00"; `peopleMoney`, Home's
+  order) — no 4-cell grid, no zero cells, "Settled up" when nothing is
+  open; then **Payments**, the fewest payments that involve you across
+  groups (what you pay first), each row a face, who pays whom ("You pay
+  Dev Patel"), the amount coloured with its group under it, and its one
+  action, **Record** → UPI · Cash · Bank (no sentence about where money
+  moves; "How was it paid?" is for screen readers); **a payment with no
+  Record says why in two words**: "View only" (a group you view) or "Not
+  involved" (two others', and you don't manage it) (`paymentAction`). Then
+  **Everyone**, as faces, each opening the person — no amounts there, so
+  each debt shows once. The search, the subtitle and "Across 3 groups" are
+  gone. **`?group=`** (a group's Settle up) shows a "Flat 4B ×" chip, your
+  balance in that group, **that group's whole plan** (`useSettlePlan`,
+  yours first: `paymentsYoursFirst`; an owner or admin records anyone's)
+  and the people in it; × goes back to all. The "Settle up in · All groups"
+  picker is gone (`GroupPickerButton`, the list's "All groups" row,
+  `initialSettleChoice`, `ALL_GROUPS`).
+- **`/settle` keeps working**: it opens `/people`, keeping `?group=`
+  (`router.replace`, so Back does not return to it). Home's payment to-dos,
+  a finalized dish's Settle up and old bookmarks still link there; the tab
+  bar counts `/settle` as People's now (nav.ts). `leaveBalance` links to
+  `/people?group=` directly.
+- **The payment toast is one line, naming who paid whom in the direction
+  the money moved** (`paymentToast`, settle.ts, through `useRecordPayment`):
+  "Paid Dev Patel $25.00 · UPI", "Dev paid you ₹90.00 · Cash", "Anu paid Dev
+  $10.00 · Bank" — with Undo. It was "Payment recorded" over "You paid Dev
+  $25.00 by UPI." The same hook serves Home's Paid, People's Record and a
+  person's Record payment, so Home's toast is one line too (SM-10 left it
+  here); Home's code is unchanged (`sentence` is still accepted, unused).
+- **A person (`/people/[subjectId]`).** Back, their face and name (not "You
+  and Dev"); the money card with **one headline per currency** in their
+  first name ("Dev pays you ₹90.00" · "You pay Dev $25.00"; `personMoney`;
+  no zero cells); **Record payment** as the main button (a group first when
+  there are several, then UPI · Cash · Bank), "View only" in two words when
+  the money is open only in groups you view, and no button when you are
+  settled. **"Why" is folded**; opened, each group you share is plain lines:
+  the entries between you two with their amounts, "You owe Dev ₹528.50",
+  **"Dev pays you directly instead of through Anu"** (`shortcutPlain`; it
+  was "Group shortcut +₹618.50" over a sentence about debts and routes) or,
+  when no one person explains it, "Dev also pays you ₹40.00 for others",
+  and the plan's line in bold ("Dev pays you ₹90.00"). Gone: "Remind ·
+  SOON" and "Reminders arrive soon.", the four filter chips
+  (`LINE_FILTERS`, `filterLines`), "Across the groups you share", the
+  "Group" links (the group's name links instead).
+- **Bill (`/groups/[orgSlug]/expense`).** "Add a bill" (it was "Add
+  expense"), with the group's name at the end of the title row instead of
+  "A bill in Flat 4B, in INR."; **Equally by default**, its faces under
+  "For" with Everyone / No one, and **Exact · % · Shares behind "Split
+  another way"** (the segmented control appears, Equally first, and stays
+  for the visit); the modes' hint lines are gone (the check line under a
+  split adds it up), and so is the "Cooked something?" card. The odd-paisa
+  line was already gone (SM-7). One main button, "Add a bill" then "Add ·
+  ₹1,200.00" with who it is for (SM-7). The toast once it is added is one
+  line, "Added Vegetables · ₹1,200.00" (`expenseToast`; `expenseAddedText`
+  is gone).
+- **Removed with what used them:** `pantry-cards.tsx`, `SettleNote` (and its
+  sentence on the Groups page's balances column), SettleCard's two caption
+  sentences (each row says why now), `GroupPickerButton`, `RoleBadge`,
+  `roleLabel`, `GROUP_SORTS`, `initialSettleChoice`, `ALL_GROUPS`,
+  `netWords`, `totalLine`, `acrossGroups`, `homeBalance` (unused since
+  SM-10), `LINE_FILTERS`, `filterLines`, `shortcutSentence`,
+  `expenseAddedText`; their tests went with them or now test what replaced
+  them.
+- **Measured** (the production build under `wrangler dev` on 3195 behind the
+  SM-2 proxy on 3196 with SM-14's mock, 390×844 at DPR 2; visible words,
+  counted the same way before and after on the same mock; the audit's own
+  counts in brackets):
+
+  | Screen | Before: words above the fold / in all, height | After |
+  |---|---|---|
+  | Groups | 41 / 41, 844 px (44) | 31 / 31, 844 px; the + sheet 9 words |
+  | A group | 78 / 181, 2,218 px (86 / 191) | 78 / 90, 1,104 px |
+  | Its settings | (on the group page) | 43 / 46, 996 px |
+  | Bill | 45 / 78, 1,478 px (49 / 96, 1,655) | 49 / 53, 1,157 px |
+  | People | 75 / 75, 844 px (78) | 63 / 63, 844 px — with Settle in it |
+  | Settle up | 86 / 87, 1,015 px (86 / 87) | opens People |
+  | A person | 62 / 114, 1,546 px (66 / 121) | 19 / 19, 844 px; Why open 68 / 68, 917 px |
+
+  No page scrolls sideways (`scrollWidth` 390); the join code is one line.
+  The build serves 19 pages as files (18 + Settings) with 8 `_redirects`
+  rules.
+- **Checked in the browser:** the + opens "Add a group" with its two
+  choices; the group page has no tabs, "Add a bill" and Settle up (to
+  `/people?group=flat-4b-k3x9`), "Anu paid you · UPI +₹400.00", the gear to
+  Settings and Pantry to `/pantry?pantry=org_…`; a group you view has no
+  Add a bill; Settings shows "KTCH-2345" with Copy link and no URL; Bill
+  shows no modes until "Split another way", then Equally (on) · Exact · % ·
+  Shares; People lists "You pay Dev Patel $25.00 · Goa trip — Record", "You
+  pay Kiran Rao ₹24.00 · Lunch club — View only"; Record → UPI turns the
+  row to "Recorded" at once and toasts "Paid Dev Patel $25.00 · UPI" with
+  Undo; `/settle?group=goa-trip-z9z9` lands on `/people?group=goa-trip-z9z9`;
+  a person shows "Dev pays you ₹90.00 · You pay Dev $25.00", Record payment
+  asks "Which group?", and Why opens to "Dev pays you directly instead of
+  through Anu". (The mock answers the same settle plan and group balances
+  for every group, so Goa trip's filtered plan reads "Dev pays you $86.50":
+  mock data, not the app.)
+- **Tests** (tests/web-console-next): `kitchen-group-page.test.ts` (new, 12):
+  a Groups row (balance as a number both ways, no role words, nothing when
+  settled), search from 9 groups, the group's money line and when Settle up
+  shows, its href, the Balances lines (not you, nobody at zero), payments
+  in the direction money moved on the group feed, Bill equally by default
+  and its named button, the role words. `kitchen-people.test.ts`: the
+  People headline per currency (no zero cells, settled, filtered to a
+  group), everyone as names, a person's headline per currency,
+  `shortcutPlain` from each end. `kitchen-settle.test.ts`: the toast both
+  ways and for others, the two-word reasons, the plan yours first.
+  Updated on purpose: a payment's row sign (`kitchen-activity`), the group
+  dishes rows (`kitchen-dish`), "Add a bill" and the bill toast
+  (`kitchen-faces`), `/settle` as People's (`kitchen-nav`), the leave
+  link (`kitchen-inbox`, one line), `roleLabel` gone (`kitchen-groups`),
+  the 8th `_redirects` rule (`static-pages`). 1,106 pass.
+- **Follow-ups:** the dish page's Back still adds `?tab=dishes` and Home's
+  payment to-dos link `/settle?group=` (both work; SM-10's files);
+  the shared toast still sits over a sticky main button (audit item 14);
+  the item page, Bought, Cook and the desktop pages are SM-15's. Nothing to
+  redeploy beyond the console.

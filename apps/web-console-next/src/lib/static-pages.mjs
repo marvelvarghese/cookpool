@@ -50,6 +50,7 @@ export const STATIC_PAGES = Object.freeze([
   "/groups",
   "/groups/:orgSlug",
   "/groups/:orgSlug/expense",
+  "/groups/:orgSlug/settings",
   "/join/:code",
 ]);
 

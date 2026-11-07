@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { groupInitials, roleLabel, type GroupRole } from "./groups";
+import { groupInitials } from "./groups";
 import { dayText } from "./when";
 
 /**
@@ -75,21 +75,6 @@ export function GroupAvatar({ name, size = "md", className }: { name: string; si
       )}
     >
       {groupInitials(name)}
-    </span>
-  );
-}
-
-export function RoleBadge({ role, className }: { role: GroupRole; className?: string }) {
-  const manager = role === "owner" || role === "admin";
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-        manager ? "bg-cp-herb-tint text-primary" : "bg-muted text-muted-foreground",
-        className,
-      )}
-    >
-      {roleLabel(role)}
     </span>
   );
 }

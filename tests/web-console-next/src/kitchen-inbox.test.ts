@@ -441,14 +441,14 @@ describe("Leaving with a balance (CP-23)", () => {
     expect(leaveBalance(group, { balanceMinor: -4575, currency: "INR" })).toEqual({
       title: "You owe ₹45.75 in Flat 4B",
       body: "Settle up first: once it's paid and recorded, you can leave.",
-      settleHref: "/settle?group=flat-4b-k3x9",
+      settleHref: "/people?group=flat-4b-k3x9",
     });
     expect(leaveBalance(group, { balanceMinor: 8650, currency: "INR" }).title).toBe("Flat 4B owes you ₹86.50");
   });
   it("without a usable amount, just that it isn't zero", () => {
     expect(leaveBalance(group, {}).title).toBe("Your balance in Flat 4B isn't zero");
     expect(leaveBalance(group, { balanceMinor: "12" }).title).toBe("Your balance in Flat 4B isn't zero");
-    expect(leaveBalance(group, null).settleHref).toBe("/settle?group=flat-4b-k3x9");
+    expect(leaveBalance(group, null).settleHref).toBe("/people?group=flat-4b-k3x9");
   });
 });
 

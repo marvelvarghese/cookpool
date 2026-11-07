@@ -1,13 +1,14 @@
 import type { MyBalancesResponse, SettlePlan } from "@saas/contracts/kitchen";
 import {
-  ALL_GROUPS,
   SETTLE_METHODS,
   groupPlansFromBalances,
-  initialSettleChoice,
   mergeAllGroups,
   netFromPlan,
+  paymentAction,
   paymentDirection,
   paymentSentence,
+  paymentToast,
+  paymentsYoursFirst,
   settlementRequest,
   workingLine,
   type GroupPlan,
@@ -179,10 +180,53 @@ describe("All groups from the cross-group read (CP-9)", () => {
   });
 });
 
-describe("which group Settle up opens on", () => {
-  it("the group you came from, else All groups", () => {
-    expect(initialSettleChoice("flat-4b-k3x9", [FLAT, LUNCH])).toBe("flat-4b-k3x9");
-    expect(initialSettleChoice("not-mine", [FLAT, LUNCH])).toBe(ALL_GROUPS);
-    expect(initialSettleChoice(null, [FLAT])).toBe(ALL_GROUPS);
+// SM-11: People and Settle are one screen; the toast is one line.
+describe("a recorded payment, in one line naming who paid whom", () => {
+  const names = new Map([[DEV, "Dev"], [ANU, "Anu"]]);
+  it("says it in the direction the money moved, both ways, with how", () => {
+    expect(paymentToast({ fromSubjectId: ME, toSubjectId: DEV, amountMinor: 2_500 }, { currency: "INR", method: "upi", meId: ME, names })).toBe(
+      "Paid Dev ₹25.00 · UPI",
+    );
+    expect(paymentToast({ fromSubjectId: DEV, toSubjectId: ME, amountMinor: 9_000 }, { currency: "INR", method: "cash", meId: ME, names })).toBe(
+      "Dev paid you ₹90.00 · Cash",
+    );
+    // An owner or admin recording two others' payment.
+    expect(paymentToast({ fromSubjectId: ANU, toSubjectId: DEV, amountMinor: 1_000 }, { currency: "USD", method: "bank", meId: ME, names })).toBe(
+      "Anu paid Dev $10.00 · Bank",
+    );
+    expect(paymentToast({ fromSubjectId: ME, toSubjectId: DEV, amountMinor: 1 }, { currency: "INR", method: "other", meId: ME, names })).toBe(
+      "Paid Dev ₹0.01 · Other",
+    );
+  });
+});
+
+describe("a payment's one action, or why there is none in two words", () => {
+  const mine = { fromSubjectId: ME, toSubjectId: DEV, amountMinor: 100 };
+  const theirs = { fromSubjectId: ANU, toSubjectId: DEV, amountMinor: 100 };
+  it("records yours; an owner or admin records anyone's", () => {
+    expect(paymentAction(mine, { meId: ME, canWrite: true, manager: false })).toEqual({ record: true });
+    expect(paymentAction(theirs, { meId: ME, canWrite: true, manager: true })).toEqual({ record: true });
+  });
+  it("says why when you can't: you only view the group, or it is between two others", () => {
+    expect(paymentAction(mine, { meId: ME, canWrite: false, manager: false })).toEqual({ record: false, why: "View only" });
+    expect(paymentAction(theirs, { meId: ME, canWrite: true, manager: false })).toEqual({ record: false, why: "Not involved" });
+    for (const p of [mine, theirs]) {
+      const a = paymentAction(p, { meId: ME, canWrite: false, manager: false });
+      if (!a.record) expect(a.why.split(" ")).toHaveLength(2);
+    }
+  });
+  it("lists a group's plan yours first: what you pay, then what you get, then the rest, largest first", () => {
+    const plan = [
+      { fromSubjectId: ANU, toSubjectId: DEV, amountMinor: 5_000 },
+      { fromSubjectId: DEV, toSubjectId: ME, amountMinor: 100 },
+      { fromSubjectId: ME, toSubjectId: KIRAN, amountMinor: 200 },
+      { fromSubjectId: KIRAN, toSubjectId: ME, amountMinor: 900 },
+    ];
+    expect(paymentsYoursFirst(plan, ME).map((p) => `${p.fromSubjectId.slice(-4)}>${p.toSubjectId.slice(-4)}`)).toEqual([
+      "aaaa>c1c1",
+      "c1c1>aaaa",
+      "3f9a>aaaa",
+      "b0b0>3f9a",
+    ]);
   });
 });
