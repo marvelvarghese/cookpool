@@ -33,7 +33,7 @@ This doc set, the canvas row "On your home screen", and the `PW-1` contract.
 **Done when**
 - a portion set by Anu reaches Dev's locked phone (Android in the browser or installed; iPhone installed)
 
-## PW4 — gestures
+## PW4 — gestures ✅
 
 - **PW-7:** pull to refresh, the edge swipe back (installed iPhone), dragging sheets away.
 - **PW-8:** row swipes (use my usual, Undo your log), long-press actions, hold-to-repeat steppers.

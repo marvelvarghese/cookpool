@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Refrigerator, Search } from "lucide-react";
 import type { KitchenUsual, Pantry, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -16,6 +16,9 @@ import type { MemberNames } from "@/components/kitchen/members";
 import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data";
 import { useLogUse, usePantries, usePantryItems, useUsuals } from "@/components/kitchen/pantry-data";
 import { ItemTable, PantryListRowView } from "@/components/kitchen/pantry-ui";
+import { ItemActionsSheet, type ItemMenuTarget } from "@/components/kitchen/item-actions-ui";
+import { swipeUseLabel } from "@/components/kitchen/item-actions";
+import type { SwipeAction } from "@/components/kitchen/row-gestures-ui";
 import { rowUsual, usualFor } from "@/components/kitchen/quick-use";
 import {
   ALL_PANTRIES,
@@ -353,7 +356,11 @@ function PhoneChips({
   );
 }
 
-/** The phone's list: one row per item; Use logs your usual of it for you, at once, with Undo. */
+/**
+ * The phone's list: one row per item; Use logs your usual of it for you, at
+ * once, with Undo. PW-8: swiping a row left does exactly what its Use does
+ * (logs the usual, or opens Use), and holding a row opens its menu.
+ */
 function PhoneList({
   rows,
   showPantry,
@@ -368,41 +375,64 @@ function PhoneList({
   names: MemberNames;
 }) {
   const logUse = useLogUse();
+  const router = useRouter();
+  const [menu, setMenu] = React.useState<ItemMenuTarget | null>(null);
   return (
-    <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
-      {rows.map((item) => {
-        // Your usual in its words ("2 onions"), logged in its measure (SM-15).
-        const usual = rowUsual(usualFor(item.id, usuals), item);
-        const row = pantryListRow(item, {
-          showPantry,
-          usualQtyMilli: usual?.qtyMilli ?? null,
-          usualWords: usual?.words ?? null,
-        });
-        const use = row.use;
-        return (
-          <PantryListRowView
-            key={item.id}
-            row={row}
-            onLog={
-              use?.kind === "log" && meId
-                ? () =>
-                    void logUse({
-                      ref: itemRefOf(item),
-                      item,
-                      qtyMilli: use.qtyMilli,
-                      consumers: [meId],
-                      idempotencyKey: crypto.randomUUID(),
-                      what: use.words,
-                      measure: usual?.measure ?? null,
-                      meId,
-                      names,
-                    })
+    <>
+      <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
+        {rows.map((item) => {
+          // Your usual in its words ("2 onions"), logged in its measure (SM-15).
+          const usual = rowUsual(usualFor(item.id, usuals), item);
+          const row = pantryListRow(item, {
+            showPantry,
+            usualQtyMilli: usual?.qtyMilli ?? null,
+            usualWords: usual?.words ?? null,
+          });
+          const use = row.use;
+          const onLog =
+            use?.kind === "log" && meId
+              ? () =>
+                  void logUse({
+                    ref: itemRefOf(item),
+                    item,
+                    qtyMilli: use.qtyMilli,
+                    consumers: [meId],
+                    idempotencyKey: crypto.randomUUID(),
+                    what: use.words,
+                    measure: usual?.measure ?? null,
+                    meId,
+                    names,
+                  })
+              : null;
+          // The swipe is the Use button's twin: the same write and Undo toast, or Use opened (no write).
+          const swipe: SwipeAction | null =
+            use?.kind === "log"
+              ? onLog
+                ? { label: swipeUseLabel(use.words), tone: "use", run: onLog }
                 : null
-            }
-          />
-        );
-      })}
-    </ul>
+              : use
+                ? { label: swipeUseLabel(null), tone: "use", run: () => router.push(use.href) }
+                : null;
+          return (
+            <PantryListRowView
+              key={item.id}
+              row={row}
+              onLog={onLog}
+              swipe={swipe}
+              onLongPress={() =>
+                setMenu({
+                  name: item.name,
+                  ref: itemRefOf(item),
+                  item,
+                  use: use?.kind === "log" && onLog ? { words: use.words, run: onLog } : null,
+                })
+              }
+            />
+          );
+        })}
+      </ul>
+      <ItemActionsSheet target={menu} onClose={() => setMenu(null)} meId={meId} />
+    </>
   );
 }
 

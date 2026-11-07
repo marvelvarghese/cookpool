@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useGroups, useProfile } from "@/components/kitchen/data";
+import { RepeatButton } from "@/components/kitchen/row-gestures-ui";
 import { KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { useAddExpense, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
@@ -520,22 +521,16 @@ function SharesStepper({ value, name, onStep }: { value: number; name: string; o
     "grid h-11 w-11 place-items-center rounded-full border border-input bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <div className="flex shrink-0 items-center gap-1" role="group" aria-label={`Shares for ${name}`}>
-      <button type="button" className={btn} aria-label={`One share fewer for ${name}`} disabled={value <= 0} onClick={() => onStep(-1)}>
+      <RepeatButton className={btn} aria-label={`One share fewer for ${name}`} disabled={value <= 0} onStep={() => onStep(-1)}>
         <Minus className="h-4 w-4" aria-hidden />
-      </button>
+      </RepeatButton>
       <span aria-live="polite" className="w-8 text-center text-[15px] font-bold tabular-nums">
         {value}
         <span className="sr-only"> {value === 1 ? "share" : "shares"}</span>
       </span>
-      <button
-        type="button"
-        className={btn}
-        aria-label={`One share more for ${name}`}
-        disabled={value >= MAX_SHARES}
-        onClick={() => onStep(1)}
-      >
+      <RepeatButton className={btn} aria-label={`One share more for ${name}`} disabled={value >= MAX_SHARES} onStep={() => onStep(1)}>
         <Plus className="h-4 w-4" aria-hidden />
-      </button>
+      </RepeatButton>
     </div>
   );
 }

@@ -430,6 +430,19 @@ export function canUndoMove(
   return ctx.personal || mine || manager;
 }
 
+/**
+ * Swiping a history row left undoes it (PW-8): the rows whose Undo shows
+ * today (`canUndoMove`, a use or a waste), and only the ones you logged —
+ * an owner's or admin's undo of someone else's keeps its button alone.
+ */
+export function canSwipeUndoMove(
+  move: KitchenStockMove,
+  moves: readonly KitchenStockMove[],
+  ctx: { meId: string | null; personal: boolean; role: GroupRole | null; canWrite: boolean },
+): boolean {
+  return ctx.meId !== null && move.actor === ctx.meId && canUndoMove(move, moves, ctx);
+}
+
 // ── Move a personal item to a group ───────────────────────────────
 
 /** Nothing used yet: all of it left and nothing charged (what transfer, edits and removal need). */
