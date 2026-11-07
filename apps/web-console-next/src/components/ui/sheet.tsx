@@ -4,11 +4,13 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useSheetDrag } from "./sheet-drag";
 
 /**
  * Sheet — a slide-out panel built on Radix Dialog (no new dependency). Used for
  * the mobile navigation drawer and any side-anchored surface. Shares the
- * Dialog a11y model (focus trap, escape, scroll lock).
+ * Dialog a11y model (focus trap, escape, scroll lock). A bottom sheet also
+ * drags down to close (Cookpool PW-7, `useSheetDrag`), as ✕ closes it.
  */
 export const Sheet = DialogPrimitive.Root;
 export const SheetTrigger = DialogPrimitive.Trigger;
@@ -51,27 +53,42 @@ const sideAnim: Record<Side, string> = {
 export const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { side?: Side }
->(({ className, children, side = "left", ...props }, ref) => (
-  <SheetPortal>
-    <SheetOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed z-50 flex flex-col gap-4 bg-card text-card-foreground p-4 shadow-xl will-change-transform",
-        sideClasses[side],
-        sideAnim[side],
-        className,
-      )}
-      {...props}
-    >
-      {children}
-      <DialogPrimitive.Close className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-md opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring">
-        <X className="h-5 w-5" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
-  </SheetPortal>
-));
+>(({ className, children, side = "left", ...props }, ref) => {
+  const drag = useSheetDrag(side === "bottom");
+  const { content } = drag;
+  const contentRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      content(node);
+      if (typeof ref === "function") ref(node);
+      else if (ref) ref.current = node;
+    },
+    [content, ref],
+  );
+  return (
+    <SheetPortal>
+      <SheetOverlay ref={drag.overlay} />
+      <DialogPrimitive.Content
+        ref={contentRef}
+        className={cn(
+          "fixed z-50 flex flex-col gap-4 bg-card text-card-foreground p-4 shadow-xl will-change-transform",
+          sideClasses[side],
+          sideAnim[side],
+          className,
+        )}
+        {...props}
+      >
+        {children}
+        <DialogPrimitive.Close
+          ref={drag.close}
+          className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-md opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <X className="h-5 w-5" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </SheetPortal>
+  );
+});
 SheetContent.displayName = "SheetContent";
 
 export function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

@@ -429,3 +429,157 @@ As-built ≠ intent. This file records what actually shipped, and every place th
     Signed in again, every switch was off, though the person's kind was
     still on at the server.
   - A 401 that ended the session unsubscribed the browser before `/login`.
+
+### PW4 — gestures: pull, edge, sheets (PW-7)
+
+- **Touch events, not pointer events.** A pull at the top of the page, or a
+  sheet's list at its top, starts where the browser would scroll, so the
+  gesture must stop the browser at the first move. Only a `touchmove` can be
+  cancelled: once the browser pans, pointer events end in `pointercancel`,
+  and `touch-action` cannot change mid-gesture. So one small listener
+  (`listenForDrags`, `lib/gestures.ts`) follows one finger. `touchmove` is
+  not passive, and it cancels only the moves of a drag the gesture takes, or
+  is about to take while it decides (the first 8 px). Everything moves with
+  CSS transforms; there is no gesture or animation library. Mouse and pen
+  are left alone: these are phone gestures, and each has its twin.
+- **One rule per gesture, tested as data.** Whose drag it is (`pullRule`,
+  `edgeSwipeRule`, `sheetDragRule`), the numbers, which screens pull
+  (`PULL_PAGES`) and where the edge swipe is on (`edgeSwipeBackOn`) are
+  pure. Every page in `STATIC_PAGES` either pulls or is listed as not
+  pulling, so a new page has to choose. Anything marked
+  `data-gestures="off"` keeps its drags from all three, as text fields do.
+- **Pull to refresh** (`PullToRefresh`, in the kitchen layout's `<main>`) on
+  Home, Pantry, Groups, a group, People, a person and a dish. It is not on
+  Use, Bought, Cook, Add a bill or Settings (forms), and not on You, an item,
+  a join link or `/settle`.
+  - It starts only when the page is at its very top, and so is any list the
+    finger is on. The drag must go down, more down than sideways.
+  - The screen follows at half the finger's speed, up to 96 px, with a
+    turning arrow in the gap. Let go from 64 px (a 128 px drag) and the
+    screen's active queries are read again (`refetchQueries({ type: "active" })`,
+    the reads it already uses, after SM-5's writes in flight). The arrow
+    spins at 56 px until they settle, and for at least 0.6 s. Short of 64 px,
+    it springs back.
+  - There is no "Up to date" toast, which the canvas showed. The spinner
+    going away is the answer, and the one toast slot belongs to Undo.
+  - Offline, the gap shows "Offline · showing what you saw last" for 1.8 s
+    instead of the spinner. The network is still tried quietly, as the
+    offline banner's own retry does.
+  - **In a browser tab too.** PW-2 left the browser's own pull-to-refresh to
+    browser tabs. On the pull screens ours now replaces it there as well (it
+    cancels the moves). There is one refresh, the same everywhere, and it is
+    not a full reload.
+- **The pull's twin was not there.** Design §5 says data "refreshes on
+  focus as today", but the app's QueryClient had `refetchOnWindowFocus:
+  false` (cookpool-kitchen's "no refetch on focus"). It is now `true`
+  (`app/providers.tsx`). Coming back to the app reads the screen's reads
+  again when they are over a minute old (the `staleTime`), in the
+  background, with no spinner. Within a minute nothing is read. Reverting
+  it is one line, if the owner prefers fewer reads.
+- **Swipe from the left edge** (`EdgeSwipeBack`) works only when the app is
+  installed (`display-mode` or `navigator.standalone`) on iOS, and never on
+  a tab.
+  - It runs on iPads too (`isIos`, including an iPad asking for desktop
+    sites). An installed iPad app has no back gesture either; design §5
+    names the iPhone.
+  - A drag that starts within 20 px of the left edge and goes right takes
+    `<main>` with the finger, with a soft shadow. The tab bar stays.
+  - Let go past 30% of the width, or flick (0.5 px/ms over at least
+    24 px), and the page slides away in 200 ms, then Back runs. Short of
+    that, it springs back.
+  - **Back is the back control's own action.** `BackButton` tells the frame
+    what it does (`shownBackAction`), so a dish goes to its group once the
+    group is known, as the chevron does. While a screen shows no control
+    (loading), the swipe uses `useBack()` with the address alone.
+  - The page is put back when the new screen's address arrives, or after
+    1.5 s if none does.
+  - A drag that turns vertical scrolls. One that starts elsewhere is not
+    captured. A row that scrolls sideways (the usuals, chips, Use's
+    recents) keeps its drags even at the edge, as do text fields. Sheets
+    and dialogs sit outside the frame, so an open one is never swiped
+    behind.
+  - **Reduced motion:** the page does not follow or slide. A chevron fades
+    in at the edge as the finger goes, and Back runs on release.
+- **Every bottom sheet drags down to close**, in the shared `SheetContent`
+  (`side="bottom"`, `components/ui/sheet-drag.ts`). That covers + Add and its
+  "Which group?" step, Groups' "Add a group", the measure question, the iPhone
+  install steps, Cook's ingredient picker, and PW-8's long-press menu if it
+  uses the same sheet. Side sheets and centred dialogs do not drag.
+  - A drag down that starts on the handle or the header moves the sheet,
+    and so does one on a list that is at its top (the sheet itself, where
+    it scrolls). A list scrolled down keeps scrolling, and sideways chip
+    rows keep their drags.
+  - The sheet follows the finger and the scrim lightens with it. Past
+    80 px, or on a flick, it closes; short of that, it springs back.
+  - **It closes by pressing the sheet's own ✕**, so every owner's
+    `onOpenChange` runs exactly as for ✕. If an owner keeps it open, it
+    springs back after 0.4 s.
+  - The finger moves the CSS `translate` property, not `transform`.
+    Radix's slide-out animates `transform`, so the sheet carries on down
+    from where the finger left it instead of jumping back first. The scrim
+    lightens by its colour, because Radix fades it out by opacity.
+  - **Reduced motion:** the sheet still follows the finger. The global rule
+    makes the spring and the slide-out instant.
+- **Reduced motion, the pull:** the screen still follows the finger (96 px
+  at most). The arrow does not spin, because the global rule stops
+  animations, and screen readers hear "Refreshing".
+- **The kitchen frame clips sideways overflow** (`overflow-x-clip` on the
+  layout's root). Without it, `<main>` sliding away made the page wider than
+  the phone. The browser check showed the mobile viewport growing and the
+  tab bar pushed off the bottom mid-swipe. `clip` does not make a scroll
+  container, so the page still scrolls and the sidebar stays sticky. Fixed
+  parts (the tab bar) are not clipped.
+- **Browser check** (the production build under `wrangler dev`, behind the
+  SM-2 proxy with SM-11's mock, headless Chrome at 390×844). Touches went
+  through Chrome's real input pipeline with CDP `Input.dispatchTouchEvent`,
+  so scrolling, taps and cancelled moves were Chrome's own. All 36 checks
+  passed.
+  - **Pull, 13 of 13.**
+    - Home: a 90 px drag (45 px) sprang back with no read. A 180 px drag
+      held the spinner at 56 px ("Refreshing"), read Home's 16 active reads
+      again, then let go.
+    - Scrolled down 300 px, the same drag scrolled the page and pulled
+      nothing. A sideways drag on the usuals row scrolled the row.
+    - Offline (CDP), the gap read "Offline · showing what you saw last".
+    - Use pulled nothing. Pantry, Groups, Flat 4B, People, Dev and a dish
+      each read their screen again.
+    - The twin: a `visibilitychange` within a minute read nothing; after
+      62 s it read Pantry's 6 reads.
+  - **Edge swipe, 12 of 12.**
+    - Headless Chrome as it is, and iPhone Safari not installed: nothing.
+    - Faked as the installed iPhone (its user agent and
+      `navigator.standalone`), Groups → Flat 4B → swipe went back to Groups.
+      `<main>` followed the finger (147 px, then 294 px), with the page
+      still 390 px wide and the tab bar in place. On Groups (a tab) the
+      swipe did nothing.
+    - A slow 74 px swipe sprang back. A vertical drag from the edge
+      scrolled. A swipe from 40 px in was not captured. An 84 px flick went
+      back.
+    - A dish opened straight from outside went to its group, as the
+      chevron does.
+    - On Use, the recents row kept a swipe from the edge, and the same
+      swipe below it went Home.
+    - With reduced motion, the page stayed put, the chevron showed, and
+      Back ran.
+  - **Sheets, 10 of 10.**
+    - + Add: closed by a drag of the handle (160 px) and by a drag from a
+      tile, which opened nothing. A 60 px flick closed it; a slow 40 px
+      nudge sprang back. ✕ and a tap outside still closed it.
+    - + Add at 390×300, where the tiles scroll: scrolled, a drag down
+      scrolled them back and the sheet stayed; at the top, it closed.
+    - Cook's picker (its list is 932 px in 570 px): it scrolled to 362 px,
+      and a drag down scrolled it back to 213 px with the sheet still open.
+      The handle closed it while the list was scrolled. At the list's top,
+      a drag on the list closed it.
+    - The iPhone install sheet closed when dragged by its title. With
+      reduced motion, + Add closed at once.
+  - With a sheet open, headless Chrome delivers a touch move every 33–50 ms,
+    against about 16 ms on a phone. So the flick checks use 60–84 px; the
+    unit tests cover the speed rule itself.
+- **For PW-8.** A long-press menu built on `SheetContent side="bottom"`
+  drags away with no extra code. Row swipes go left, so they never meet
+  the edge swipe (right, from the edge) or the pull (down). A row can opt
+  out of all three with `data-gestures="off"`.
+- **Not done here.** Mouse and pen drags, the item page and You (no pull,
+  per the brief's list), and real phones. The owner's checklist is in the
+  PR.

@@ -242,8 +242,8 @@ const SHEET_CLASS = cn(
 /**
  * iPhone and iPad: there is no prompt, so the sheet draws the two steps —
  * Share, then Add to Home Screen — with iOS's own icons, and "Got it". In
- * Safari on an iPhone an arrow points down to its toolbar. ✕ or tapping
- * outside closes it too (dragging it down comes with PW4's gestures).
+ * Safari on an iPhone an arrow points down to its toolbar. ✕, tapping
+ * outside or dragging it down closes it too (the shared sheet, PW-7).
  */
 export function IosInstallSheet({
   open,

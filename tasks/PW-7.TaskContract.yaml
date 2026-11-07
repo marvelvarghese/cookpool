@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-7
+  title: "Gestures: pull, edge, sheets"
+spec:
+  goal: Lists pull to refresh, an installed iPhone goes back with a swipe from the left edge, and every bottom sheet drags down to close, each with a visible twin and respecting reduced motion.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-app/**
+    - tasks/PW-7.TaskContract.yaml
+  doneWhen:
+    - pulling down at the top of Home, Pantry, Groups, a group, People, a person or a dish refreshes it
+    - on an installed iPhone a swipe from the left edge goes back by the same rule as the back control
+    - every bottom sheet closes when dragged down
+  gates: []

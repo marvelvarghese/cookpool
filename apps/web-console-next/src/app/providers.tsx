@@ -13,14 +13,17 @@ function makeQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         // Stale-while-revalidate: cached data paints instantly on navigation
-        // and revalidates in the background. Conservative focus refetch to
-        // avoid surprise spinners. Cookpool SM-5: every write patches what it
-        // changes and reads it again, so moving between tabs within a minute
-        // reads nothing again; what was read stays for half an hour, so a
-        // revisit paints from it instead of a skeleton.
+        // and revalidates in the background. Cookpool SM-5: every write
+        // patches what it changes and reads it again, so moving between tabs
+        // within a minute reads nothing again; what was read stays for half
+        // an hour, so a revisit paints from it instead of a skeleton.
         staleTime: 60_000,
         gcTime: 30 * 60_000,
-        refetchOnWindowFocus: false,
+        // Cookpool PW-7: coming back to the app reads the screen again when
+        // what it shows is over a minute old — the twin of pull to refresh
+        // (design §5). In the background, with no spinner: the screen keeps
+        // what it shows until the answer comes.
+        refetchOnWindowFocus: true,
         retry: 1,
         // Cookpool PW-4: a read is always tried, even when the browser says
         // it is offline, because the service worker may answer it with the
