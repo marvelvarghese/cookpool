@@ -7,7 +7,8 @@
 //   files and their payloads, every `/_next/static/**` file the build
 //   emitted, the icons;
 // - its caches named for the build id (`.next/BUILD_ID`);
-// - the worker's code: src/lib/static-pages.mjs and src/service-worker/*.mjs,
+// - the worker's code: src/lib/static-pages.mjs and src/service-worker/*.mjs
+//   (PW-6 adds push.mjs: showing a push and opening its page on a tap),
 //   bundled here into one classic script (each module in its own scope; the
 //   modules may only `import { … } from "./x.mjs"` each other and
 //   `export function|const|let|class`). No bundler, no dependencies.
@@ -37,6 +38,7 @@ export const WORKER_MODULES = Object.freeze([
   "src/service-worker/protocol.mjs",
   "src/service-worker/routes.mjs",
   "src/service-worker/precache.mjs",
+  "src/service-worker/push.mjs",
   "src/service-worker/runtime.mjs",
 ]);
 
@@ -96,6 +98,7 @@ export function bundleModules(modules) {
 /** The real worker for `buildId`. */
 export function workerSource({ buildId, precache, modules }) {
   const runtime = `__${"src/service-worker/runtime.mjs".replace(/[^A-Za-z0-9]/g, "_")}`;
+  const pushModule = `__${"src/service-worker/push.mjs".replace(/[^A-Za-z0-9]/g, "_")}`;
   return `// Cookpool's service worker for build ${buildId} (Cookpool PW-4).
 // Written by scripts/service-worker.mjs from src/service-worker/*.mjs; do not edit.
 (() => {
@@ -125,6 +128,15 @@ self.addEventListener("message", (event) => {
   const port = event.ports && event.ports[0];
   event.waitUntil(sw.message(event.data, port ? (answer) => port.postMessage(answer) : undefined));
 });
+
+const push = ${pushModule}.createPushHandlers({
+  origin: self.location.origin,
+  registration: self.registration,
+  clients: self.clients,
+});
+self.addEventListener("push", (event) => event.waitUntil(push.push(event.data ? event.data.text() : null)));
+self.addEventListener("notificationclick", (event) => event.waitUntil(push.click(event.notification)));
+self.addEventListener("pushsubscriptionchange", (event) => event.waitUntil(push.subscriptionChange(event)));
 })();
 `;
 }

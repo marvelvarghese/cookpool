@@ -14,6 +14,8 @@
 //   apple-touch-icon.png   180px, full-bleed (iOS rounds it itself)
 //   shortcut-*-96.png      PW-2: the manifest's shortcuts (Log a use, Bought
 //                          food, Cook), each its + Add tile's icon and colours
+//   badge-96.png           PW-6: a notification's small icon (Android's status
+//                          bar): the pot alone, white on transparent
 //   ../splash/iphone-*.png PW-2: iPhone splash screens, the "any" icon on
 //                          the kitchen background, one per screen in
 //                          src/lib/splash-screens.mjs
@@ -218,6 +220,28 @@ function draw(size, { radius, pot, bg: fill = GREEN, ink: stroke = WHITE, segmen
   return rgba;
 }
 
+/**
+ * A notification badge, `size` pixels square: the pot `pot` of the size
+ * across, white, on transparent (Android draws only its alpha). RGBA rows.
+ */
+function drawBadge(size, pot) {
+  const rgba = Buffer.alloc(size * size * 4);
+  const scale = (pot * size) / 24;
+  const half = size / 2;
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      const ux = (px + 0.5 - half) / scale + 12;
+      const uy = (py + 0.5 - half) / scale + 12;
+      let d = Infinity;
+      for (const s of SEGMENTS) d = Math.min(d, distToSegment(ux, uy, s));
+      const o = (py * size + px) * 4;
+      rgba.fill(255, o, o + 3);
+      rgba[o + 3] = Math.round(255 * cover(d - STROKE / 2, 1 / scale));
+    }
+  }
+  return rgba;
+}
+
 // ── PNG ──────────────────────────────────────────────────────────────
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
@@ -382,6 +406,7 @@ const files = [
   ["icon-maskable-512.png", png(512, draw(512, MASKABLE))],
   ["apple-touch-icon.png", png(180, draw(180, APPLE))],
   ["icon.svg", Buffer.from(svg(ANY))],
+  ["badge-96.png", png(96, drawBadge(96, 0.8))],
   ...SHORTCUTS.map(([name, paths, bg, ink]) => [
     `shortcut-${name}-96.png`,
     png(96, draw(96, { radius: 0, pot: 0.5, bg, ink, segments: segmentsOf(paths) })),

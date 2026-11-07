@@ -42,6 +42,11 @@ export const MESSAGE = Object.freeze({
    * without a reload.
    */
   adopt: "cookpool:adopt",
+  /**
+   * `{ type }`, from the worker to its pages (PW-6): the push service renewed
+   * this device's subscription; a signed-in page posts it to the server again.
+   */
+  pushRenewed: "cookpool:push-renewed",
 });
 
 /** The precache for one build. */

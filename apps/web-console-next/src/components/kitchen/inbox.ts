@@ -378,3 +378,8 @@ export function homeTodos(res: Pick<InboxResponse, "items">, ctx: InboxContext, 
   const rows = opts.all ? all : all.slice(0, limit);
   return { rows, total: all.length, more: all.length - rows.length };
 }
+
+/** How many to-dos Home has in all ("See all N"): the app icon's badge (cookpool-app PW-6). */
+export function homeTodoCount(res: Pick<InboxResponse, "items">, now: Date = new Date()): number {
+  return homeTodos(res, { meId: null, names: null, now }).total;
+}

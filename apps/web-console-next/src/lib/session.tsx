@@ -12,6 +12,7 @@ import {
 } from "./api";
 import { appConfig } from "./app-config";
 import { tellWorkerSignedOut } from "./sw-client";
+import { dropThisDevicePush } from "./push-device";
 
 // Keys are built per call, not at import: the storage prefix is part of the app
 // config (saas-console-artifact CA1), which the browser resolves on first use.
@@ -99,8 +100,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setTokenState(t);
     // Signed out (on purpose, or a 401 that ended the session): the service
     // worker deletes the account's last-seen data now, before the page leaves
-    // (Cookpool PW-4).
-    if (!t) tellWorkerSignedOut();
+    // (Cookpool PW-4), and this device stops getting the person's
+    // notifications and loses the icon's count (PW-6).
+    if (!t) {
+      tellWorkerSignedOut();
+      dropThisDevicePush();
+    }
     if (typeof window !== "undefined") {
       try {
         if (t) window.localStorage.setItem(tokenKey(), t);

@@ -10,12 +10,15 @@ import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { lastSignInMethod } from "@/lib/first-run";
 import { signOutOfThisDevice } from "@/lib/sign-out";
+import { isOffline } from "@/lib/connection";
+import { forgetThisDevicePush } from "@/lib/push-device";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { applyNewName, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { InstallRow } from "@/components/kitchen/install-ui";
+import { NotificationsRow } from "@/components/kitchen/notify-ui";
 import { GoogleMark, NoticeBox, PersonAvatar, SIGN_IN_INPUT } from "@/components/kitchen/sign-in-ui";
 import { NAME_LABEL, NAME_MAX, cleanDisplayName, namePrefill, saveNameOutcome, type SignInNotice } from "@/components/kitchen/sign-in";
 import {
@@ -45,6 +48,9 @@ import {
  *
  * "Install the app" (cookpool-app PW-2) sits above sign-out: the same flow
  * as Home's card, there any time, and gone in the installed app.
+ *
+ * "Notifications" (PW-6) opens You → Notifications; signing out removes this
+ * device's push subscription first (`forgetPush`).
  */
 export default function YouPage() {
   const profile = useProfile();
@@ -81,6 +87,8 @@ export default function YouPage() {
           </Button>
         </KCard>
       )}
+
+      <NotificationsRow />
 
       <InstallRow />
 
@@ -272,6 +280,7 @@ function SignOut() {
     if (busy) return;
     setBusy(true);
     void signOutOfThisDevice({
+      forgetPush: () => forgetThisDevicePush((endpoint) => client.notifications.unsubscribePush(endpoint), isOffline()),
       logout: () => client.auth.logout(),
       setToken,
       clearCache: () => qc.clear(),

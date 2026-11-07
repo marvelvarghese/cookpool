@@ -228,3 +228,127 @@ As-built ≠ intent. This file records what actually shipped, and every place th
   The email follows `kitchen.portion_set`'s style: "Dev paid you ₹400.00 ·
   UPI". The method reads UPI, Cash or Bank transfer; "other" says nothing.
   The link is the payer's page.
+
+### PW3 — notifications, in the app (PW-6)
+
+- **A switch is on for THIS device.** It shows on when the person has that
+  kind on (the server's `kinds`, the same on every device) and this device
+  has a push subscription with permission. A kind turned on from another
+  phone shows off here until this phone subscribes too; turning one on here
+  then also shows the kinds the person already had on. A new device starts
+  with everything off, as the canvas draws it.
+- **The ask comes only from turning a kind on.** `Notification.requestPermission()`
+  is the flow's first await, so it is still inside the tap, as Safari
+  requires. Denied (now or before): the switch goes back, with "Notifications
+  are blocked in your browser settings". A closed prompt goes back quietly.
+  Already granted: no prompt. Then this device subscribes with the server's
+  key (a subscription made with another key is replaced), `subscribePush`,
+  then `setPushKinds({ kind: true })`. Off is `setPushKinds({ kind: false })`
+  alone: the subscription stays, even when the last kind goes off.
+- **Optimistic, but not through `beginWrite`.** The switch moves at once and
+  goes back exactly as it was when the phone or the server says no (a
+  failure also gets a toast). The write is counted (`trackWrite`), so the
+  update offer waits for it, and offline it is held back
+  (`refuseIfOffline`). What a switch shows depends on the device as well as
+  the read, so the flip is the page's own state until the server answers;
+  then the server's row replaces the read.
+- **A subscribe that never finishes fails after 20 s** (and a service worker
+  that is not ready, after 10 s). The browser check found headless Chrome's
+  `pushManager.subscribe` never settles; a phone whose push service is
+  blocked would otherwise leave the switch spinning.
+- **Where push can't work** (`notifyDevice`, `pushView` in `lib/push.ts`,
+  tested):
+  - iPhone or iPad, not installed: one card, "Add Cookpool to your Home
+    Screen to get notifications", and How opens PW-2's sheet. The badge
+    switch goes too: iOS badges only the installed app.
+  - An app's own web view on iOS (Instagram) cannot install, and no
+    PushManager anywhere: "This browser can't show notifications from
+    Cookpool."
+  - `publicKey: null`, and also a build without the service worker (`next
+    dev`, or the kill switch off): the three switches are hidden and one
+    quiet line says "Notifications aren't available yet."
+  - The badge switch still shows in each of these where the browser can
+    badge.
+- **The badge switch shows only where `navigator.setAppBadge` exists.** That
+  is desktop Chrome and Edge and the installed iPhone app, but not, today,
+  Chrome on Android, whose icon shows a dot for unread notifications by
+  itself. The canvas's Android variant draws four switches; a phone without
+  the API shows three. The switch is per device (localStorage
+  `<prefix>.badge`), off until turned on. WebKit shows an icon badge only
+  with notification permission, so on an iPhone (and Safari) turning the
+  badge on asks too, after the choice like the kinds.
+- **The badge follows Home's inbox read.** `AppNotify`, in the kitchen
+  layout, reads `qk.kitchenInbox()` while the switch is on. It shares Home's
+  read, so an optimistic write moves the count too. It sets Home's to-do
+  total (the "See all N"), clears it at zero, and clears it when the switch
+  is off. With the switch on, every kitchen page reads the inbox (cached).
+  The row's example draws the "3" as a small badge, not plain text.
+- **The worker's push handler** (`src/service-worker/push.mjs`, bundled
+  before runtime.mjs) calls `showNotification(title, { body, tag, icon:
+  "/icons/icon-192.png", badge: "/icons/badge-96.png", renotify: false,
+  data: { url } })`.
+  - A missing or unreadable payload, or a title with no body, shows
+    "Cookpool · Something new for you" and opens Home.
+  - If the platform refuses the options, a plain notification still shows.
+  - `url` must be a path in the app; anything else opens `/home`.
+  - The badge icon is new: `public/icons/badge-96.png`, the pot in white on
+    transparent, drawn by `scripts/gen-icons.mjs` (every other icon is
+    byte-identical).
+- **A tap** focuses the Cookpool window the worker controls (the focused
+  one, else a visible one, else any) and navigates it to the push's page
+  unless it is already there. With no window, or one that cannot be moved,
+  it opens a new one.
+- **`pushsubscriptionchange` re-subscribes in the worker, but the page
+  re-posts.** The worker holds no token (PW-4). So it re-makes the
+  subscription with the old key and tells its pages
+  (`cookpool:push-renewed`), and a signed-in page posts it. Every signed-in
+  launch (a full page load) also re-posts this device's subscription when
+  it has one with permission, as the SDK suggests (`subscribePush` is an
+  upsert). A renewal with no page open therefore reaches the server at the
+  next launch.
+- **Signing out removes this device.** `DELETE …/push-subscriptions` and the
+  browser's `unsubscribe()` run together, before logout. The wait is capped
+  at 2.5 s, and a failure never stops sign-out. Offline, only the browser
+  unsubscribes. The badge switch and the badge are cleared too
+  (`clearDeviceRecords`).
+- **No session left, no subscription left.** A 401 that ends the session, a
+  sign-out from the admin console and any page loaded with no session
+  (`setToken(null)` and the worker's signed-out path) unsubscribe in the
+  browser only. The server cannot be told without a session, and
+  notifications-worker deletes the dead endpoint at its next push (410).
+  Signing in as someone else on that phone starts with nothing subscribed.
+- **"Send me a test"** shows once one of the three kinds is on for this
+  device (not for the badge alone). It sends `sendTestPush(endpoint)` and
+  says "Sent · it arrives in a moment", or "Couldn't send a test" when
+  nothing was sent.
+- **The header's back control is a plain link to You.** PW-3's shared
+  `BackButton` and the `/you/notifications` → `/you` parent entry come when
+  PW-3 is merged in. `/you/notifications` is a static page like the others
+  (20 pages served as files, 191 files precached).
+- **Browser check.** The production build ran under `wrangler dev` with a
+  copy of the SM-11 mock answering `/api` in Node. The copy adds the push
+  routes, with a throwaway P-256 key, or `null`. Headless Chrome, 390×844,
+  on `cookpool-web-console-next-stage.localhost`. Headless Chrome cannot
+  finish a real subscribe, so a fake `PushManager` in the page kept the
+  subscription; the worker's pushes were real (CDP).
+  - The four variants: Android, the installed iPhone, the iPhone in Safari
+    (How opens the two steps) and `publicKey: null`.
+  - Denied (CDP `Browser.setPermission`): the switch went back with the
+    line, and no request was sent.
+  - Granted (`Browser.grantPermissions`): the switch showed on at once, then
+    `POST push-subscriptions` and `PUT preferences`, and "Send me a test"
+    appeared. The test sent `POST push-test`, and its toast showed.
+  - The badge switch set the icon to 14, Home's "See all 14".
+  - `ServiceWorker.deliverPushMessage` with the portion payload showed
+    "Cookpool · Anu said you had 1 portion of Egg fried rice", with its tag,
+    `/dishes/dsh_…2`, the icon, the badge and `renotify: false`. An empty
+    push showed the generic one.
+  - A tap cannot be made headless: Chrome has no CDP command for it, and an
+    event dispatched in the worker carries no user activation, so Chrome
+    refused `focus()` and `openWindow()` there. The fakes and the bundled
+    worker's test cover the tap.
+  - Sign-out sent `DELETE push-subscriptions`, then `POST /v1/auth/logout`.
+    The browser unsubscribed, and the badge and its switch were cleared.
+    Signed in again, every switch was off, though the person's kind was
+    still on at the server.
+  - A 401 that ended the session unsubscribed the browser before `/login`.

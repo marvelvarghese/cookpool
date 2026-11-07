@@ -107,16 +107,27 @@ function boot(source: string, answer: (r: Request) => Response) {
   const listeners: Record<string, Listener> = {};
   const caches = new FakeCaches();
   const net = fakeNetwork(answer);
-  const calls = { skipWaiting: 0, unregistered: 0, navigated: [] as string[] };
+  const calls = { skipWaiting: 0, unregistered: 0, navigated: [] as string[], focused: 0, opened: [] as string[], shown: [] as unknown[][] };
   const self = {
     location: { origin: ORIGIN },
     caches,
     fetch: net.fetch,
     clients: {
       claim: async () => undefined,
-      matchAll: async () => [{ url: `${ORIGIN}/home`, navigate: async (url: string) => calls.navigated.push(url) }],
+      matchAll: async () => [
+        {
+          url: `${ORIGIN}/home`,
+          focus: async () => {
+            calls.focused += 1;
+            return undefined;
+          },
+          navigate: async (url: string) => calls.navigated.push(url),
+        },
+      ],
+      openWindow: async (url: string) => calls.opened.push(url),
     },
     registration: {
+      showNotification: async (...args: unknown[]) => void calls.shown.push(args),
       navigationPreload: { enable: async () => undefined },
       unregister: async () => {
         calls.unregistered += 1;
@@ -171,7 +182,7 @@ describe("the worker the build writes", () => {
 
   it("installs this build's shell into a cache named for the build, then opens a page with no signal", async () => {
     const w = boot(await built(), serve);
-    expect(Object.keys(w.listeners).sort()).toEqual(["activate", "fetch", "install", "message"]);
+    expect(Object.keys(w.listeners).sort()).toEqual(["activate", "fetch", "install", "message", "notificationclick", "push", "pushsubscriptionchange"]);
     await w.dispatch("install");
     const cache = w.caches.stores.get(`cookpool-static-${BUILD}`)!;
     expect(cache.entries.size).toBe(precacheUrls(Object.keys(assets)).length);
@@ -181,6 +192,23 @@ describe("the worker the build writes", () => {
     Object.defineProperty(request, "mode", { value: "navigate" });
     const answer = await w.dispatch("fetch", { request, preloadResponse: Promise.resolve(undefined) });
     expect(await (await answer!).text()).toBe(`<html>/dishes/:dishRef ${BUILD}</html>`);
+  });
+
+  it("shows a push, and a tap opens its page in the open window (PW-6)", async () => {
+    const w = boot(await built(), serve);
+    const body = JSON.stringify({ kind: "kitchen.paid_you", title: "Cookpool", body: "Dev paid you ₹400.00 · UPI", url: "/people/usr_dev", tag: "kitchen.paid_you:txn_1:usr_me" });
+    await w.dispatch("push", { data: { text: () => body } });
+    await w.dispatch("push", { data: null });
+    expect(w.calls.shown).toEqual([
+      ["Cookpool", { body: "Dev paid you ₹400.00 · UPI", icon: "/icons/icon-192.png", badge: "/icons/badge-96.png", renotify: false, tag: "kitchen.paid_you:txn_1:usr_me", data: { url: "/people/usr_dev" } }],
+      ["Cookpool", { body: "Something new for you", icon: "/icons/icon-192.png", badge: "/icons/badge-96.png", renotify: false, data: { url: "/home" } }],
+    ]);
+    let closed = 0;
+    await w.dispatch("notificationclick", { notification: { data: { url: "/people/usr_dev" }, close: () => (closed += 1) } });
+    expect(closed).toBe(1);
+    expect(w.calls.focused).toBe(1);
+    expect(w.calls.navigated).toEqual([`${ORIGIN}/people/usr_dev`]);
+    expect(w.calls.opened).toEqual([]);
   });
 
   it("refuses to install a page from another build (a deploy landed meanwhile)", async () => {
