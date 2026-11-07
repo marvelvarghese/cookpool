@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronLeft, CookingPot, MoreHorizontal } from "lucide-react";
+import { CookingPot, MoreHorizontal } from "lucide-react";
 import type { KitchenDish } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { canManageGroup, canWriteInGroup, roleFromKitchen } from "@/components/kitchen/groups";
 import { memberLabel, sortMembers } from "@/components/kitchen/members";
 import { useMembersOf } from "@/components/kitchen/pantry-data";
@@ -204,12 +205,6 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
     return null;
   };
 
-  const back = shared
-    ? group
-      ? { href: `/groups/${encodeURIComponent(group.slug)}`, label: group.name }
-      : { href: "/groups", label: "Groups" }
-    : { href: "/home", label: "Home" };
-
   const startAssigning = () => {
     setDraft(sharesOf(dish));
     setTouched(false);
@@ -255,13 +250,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <Link
-          href={back.href}
-          aria-label={`Back to ${back.label}`}
-          className="-ml-2 grid h-11 w-11 place-items-center rounded-xl text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ChevronLeft className="h-6 w-6" aria-hidden />
-        </Link>
+        <BackButton known={{ groupSlug: group?.slug ?? null }} />
         {menu.length > 0 ? (
           <DropdownMenu>
             <DropdownMenuTrigger
