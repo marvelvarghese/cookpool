@@ -9,6 +9,7 @@ import { writesInFlight } from "@/lib/optimistic";
 import { isOffline } from "@/lib/connection";
 import { undoOffersOpen } from "@/components/kitchen/undo-toast";
 import { SERVICE_WORKER } from "@/service-worker/switch.mjs";
+import { dropThisDevicePush } from "@/lib/push-device";
 import {
   SW_URL,
   activateWaiting,
@@ -44,7 +45,8 @@ const CHECK_EVERY_MS = 60_000;
  * - TELLS THE WORKER WHO IS SIGNED IN on every load and after sign-in (the
  *   profile's subject id, and a hash of the session's token), and that
  *   nobody is when there is no session (sign-out and a 401 also tell it,
- *   through the session's `setToken(null)`).
+ *   through the session's `setToken(null)`). With nobody signed in, this
+ *   device's push subscription goes too (PW-6).
  * - A NEW BUILD installs in the background and waits. If this page already
  *   is that build (the same build id: it came from the network while the old
  *   worker was in charge) the new worker takes over silently. Otherwise the shared toast
@@ -66,6 +68,8 @@ function useWorkerAccount(): void {
     if (!PRODUCTION || SERVICE_WORKER !== "on" || !workersSupported()) return;
     if (!token) {
       tellWorkerSignedOut();
+      // Nobody is signed in: no push subscription is left on this device (PW-6).
+      dropThisDevicePush();
       return;
     }
     let live = true;

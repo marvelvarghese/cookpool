@@ -13,6 +13,7 @@ export declare const MESSAGE: Readonly<{
   signedOut: "cookpool:signed-out";
   activate: "cookpool:activate";
   adopt: "cookpool:adopt";
+  pushRenewed: "cookpool:push-renewed";
 }>;
 export declare function staticCacheName(buildId: string): string;
 export declare function isSubjectId(value: unknown): value is string;

@@ -89,4 +89,8 @@ export const qk = {
   // `kitchenLedger(orgId)`, so a write in that group refreshes them.
   kitchenInbox: () => ["kitchenMe", "inbox"] as const,
   kitchenRecentActivity: (orgId: string) => ["kitchenLedger", orgId, "recent"] as const,
+  // Notifications (cookpool-app PW-6): the environment's VAPID public key
+  // (null while it has none) and the person's push kinds, in every group.
+  pushKey: () => ["push", "key"] as const,
+  pushPrefs: () => ["push", "prefs"] as const,
 };

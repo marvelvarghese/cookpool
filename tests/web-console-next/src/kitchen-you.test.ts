@@ -26,6 +26,7 @@ import {
 import { recordRecentGroup } from "@web-console-next/lib/recent-groups";
 import { readLastOrgSlug, writeLastOrgSlug } from "@web-console-next/lib/last-org";
 import { SIGNED_OUT_PATH, clearDeviceRecords, signOutOfThisDevice, signingOut } from "@web-console-next/lib/sign-out";
+import { badgeOn, setBadgeOn } from "@web-console-next/lib/push-device";
 
 // Cookpool SI-6: You (name, how you sign in, sign out) and what a device
 // remembers between sign-ins.
@@ -157,6 +158,7 @@ describe("what this device remembers, and signing out", () => {
     rememberSignInMethod("google");
     recordRecentGroup("flat-4b-k3x9");
     writeLastOrgSlug("flat-4b-k3x9");
+    setBadgeOn(true);
   };
 
   it("forgets everything it remembers for the person, keeping the device's API target", () => {
@@ -168,6 +170,8 @@ describe("what this device remembers, and signing out", () => {
     expect(nameAskedFor()).toBeNull();
     expect(lastSignInMethod()).toBeNull();
     expect(readLastOrgSlug()).toBeNull();
+    // PW-6: the next person starts with the icon badge off.
+    expect(badgeOn()).toBe(false);
     // The token is the session's to clear (setToken); the target is the device's.
     expect([...local.keys()].sort()).toEqual(["cookpool.next.target", "cookpool.next.token"]);
   });
@@ -212,5 +216,48 @@ describe("what this device remembers, and signing out", () => {
     });
     expect(steps).toEqual(["token", "cache", "go:/login"]);
     expect(joinAfterSignInPending("KTCH2345")).toBe(false);
+  });
+
+  it("removes this device's push subscription first, once, while the session still works (PW-6)", async () => {
+    seedSignedIn();
+    const steps: string[] = [];
+    await signOutOfThisDevice({
+      forgetPush: async () => {
+        expect(local.get("cookpool.next.token")).toBe("tok_si6");
+        steps.push("forget-push");
+      },
+      logout: async () => void steps.push("logout"),
+      setToken: () => steps.push("token"),
+      clearCache: () => steps.push("cache"),
+      go: (path) => steps.push(`go:${path}`),
+    });
+    expect(steps).toEqual(["forget-push", "logout", "token", "cache", "go:/login"]);
+  });
+
+  it("never waits long for that: a removal that hangs, fails or throws still signs out", async () => {
+    for (const forgetPush of [
+      () => new Promise<never>(() => undefined),
+      () => Promise.reject(new Error("offline")),
+      () => {
+        throw new Error("no worker");
+      },
+    ]) {
+      seedSignedIn();
+      const steps: string[] = [];
+      let calls = 0;
+      await signOutOfThisDevice({
+        forgetPush: () => {
+          calls += 1;
+          return forgetPush();
+        },
+        forgetPushMs: 20,
+        logout: async () => void steps.push("logout"),
+        setToken: () => steps.push("token"),
+        clearCache: () => steps.push("cache"),
+        go: (path) => steps.push(`go:${path}`),
+      });
+      expect(calls).toBe(1);
+      expect(steps).toEqual(["logout", "token", "cache", "go:/login"]);
+    }
   });
 });

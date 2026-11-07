@@ -15,9 +15,9 @@ import { RECENT_PER_GROUP } from "./home";
  * group's `kitchenLedger(orgId)`, so a write in that group refreshes them.
  */
 
-export function useInbox() {
+export function useInbox(opts: { enabled?: boolean } = {}) {
   const { client } = useSession();
-  return useApiQuery<InboxResponse>(qk.kitchenInbox(), () => wrap(() => client.kitchen.inbox()));
+  return useApiQuery<InboxResponse>(qk.kitchenInbox(), () => wrap(() => client.kitchen.inbox()), opts);
 }
 
 /** Read a group's newest entries for Home's Recent activity (read ahead from the group's remembered id, SM-5). */

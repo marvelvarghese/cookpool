@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-6
+  title: "Notifications, in the app"
+spec:
+  goal: You → Notifications turns each kind on or off, asks the phone for permission only after a choice, subscribes this device, and the service worker shows and opens the notifications; the icon shows the to-do count.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-app/**
+    - tasks/PW-6.TaskContract.yaml
+  doneWhen:
+    - turning a kind on asks for permission once, subscribes this device and saves the choice; an iPhone in Safari is told to install first
+    - the service worker shows a push and tapping it opens its page in the app
+    - signing out removes this device's subscription
+    - the app icon shows Home's to-do count where the phone supports it
+  gates: []

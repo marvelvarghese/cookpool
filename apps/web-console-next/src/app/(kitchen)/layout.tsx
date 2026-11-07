@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { KitchenSidebar } from "@/components/kitchen/sidebar";
 import { KitchenTabBar } from "@/components/kitchen/tab-bar";
 import { AddSheet } from "@/components/kitchen/add-sheet";
+import { AppNotify } from "@/components/kitchen/notify-device";
 import { BackTrailRecorder } from "@/components/kitchen/back-ui";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
@@ -38,6 +39,9 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  * Someone who signed in before the Name step existed (SI-6) and still has no
  * name is sent to it once, from whatever kitchen page they open, and comes
  * back there; see `useAskForNameOnce`.
+ *
+ * Signed in, `AppNotify` keeps the icon badge on Home's to-do count and
+ * this device's push subscription on the server (cookpool-app PW-6).
  *
  * The palette and font are scoped to this tree (`.cookpool`, light only); the
  * classes also go on <body> while this layout is mounted, so portalled UI —
@@ -81,6 +85,7 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
 
       {ready ? <KitchenTabBar onAdd={openAdd} addOpen={addOpen} /> : null}
       {ready ? <AddSheet open={addOpen} onOpenChange={setAddOpen} /> : null}
+      {ready ? <AppNotify /> : null}
       {/* What Back may go back to (PW-3): the screens this frame has shown. */}
       <BackTrailRecorder />
     </div>

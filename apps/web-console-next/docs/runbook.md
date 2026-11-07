@@ -53,10 +53,34 @@ serves pages, since the reverted build's worker replaces it; the switch also
 covers a worker that broke the page so badly that the "New version" offer
 never shows.
 
+The kill switch also ends notifications: unregistering the worker drops every
+push subscription it held, and You → Notifications says "Notifications aren't
+available yet" while it is off. People turn their kinds on again afterwards.
+
 **One phone, by hand:** in the browser's site settings, clear the site's data
 (Chrome: Settings → Site settings → the site → Clear & reset; iPhone:
 Settings → Apps → Safari → Advanced → Website Data, or delete and re-add the
 home-screen app).
+
+## Notifications (Cookpool PW-6)
+
+You → Notifications (`/you/notifications`) turns each push kind on for this
+device; the same worker shows the pushes (`src/service-worker/push.mjs`).
+
+- **No switches, "Notifications aren't available yet":** the environment has
+  no VAPID key, so `GET /api/v1/notifications/push-key` answers
+  `publicKey: null`. That is notifications-worker's configuration (its
+  runbook), not this app's; the page needs no deploy once the key is there.
+  The badge switch works either way.
+- **A switch goes back with "Couldn't turn that on":** the browser could not
+  subscribe (its push service did not answer within 20 s, or the service
+  worker was not ready within 10 s), or the API refused the subscription.
+  "Notifications are blocked in your browser settings" is the browser's own
+  permission: the person changes it in the site settings.
+- **Signing out** removes the device (`DELETE …/push-subscriptions`, then
+  the browser unsubscribes) before logging out; a session that ended with a
+  401 only unsubscribes in the browser, and notifications-worker deletes the
+  dead endpoint at its next push (410).
 
 ## Verify
 

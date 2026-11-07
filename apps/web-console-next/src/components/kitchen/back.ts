@@ -40,6 +40,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/pantry/new": () => "/home",
   // Home's avatar opens You.
   "/you": () => "/home",
+  // You → Notifications (PW-6): You.
+  "/you/notifications": () => "/you",
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // A dish: its group when it is shared (and the group is known), else Home.
