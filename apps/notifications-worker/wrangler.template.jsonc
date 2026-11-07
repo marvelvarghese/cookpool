@@ -42,16 +42,16 @@
       // key is the VAPID_PRIVATE_KEY secret, pushed at deploy from orun
       // secrets (component.yaml), never here. Each environment has its own
       // pair. With either missing, push is off and email is unaffected.
-      // TODO(PW-5 keys): run `node apps/notifications-worker/scripts/vapid-keys.mjs`,
-      // put its public key here, and store its private key with
-      // `orun secrets set VAPID_PRIVATE_KEY --workspace ws_QX130J0D --env stage`.
+      // Stage's pair was generated 2026-11-08 (PW-9); its private key is
+      // VAPID_PRIVATE_KEY version 1 in orun secrets (env stage). To rotate:
+      // the runbook's "Web Push keys" steps, both halves together.
       "vars": {
         "ENVIRONMENT": "stage",
         "NOTIFICATIONS_PROVIDER": "cloudflare-email",
         "DEBUG_DELIVERY": "true",
         "EMAIL_FROM_ADDRESS": "no-reply@mail.cookpool.store",
         "EMAIL_FROM_NAME": "cookpool",
-        "VAPID_PUBLIC_KEY": ""
+        "VAPID_PUBLIC_KEY": "BHAZBTs_XoXsiFhXVdPe5whFREpw4MGIrN-a7spI2vMg4VgvEGTGaLLqxcPZcub1PRGuDPjKpUQLfzarC5YFjgE"
       },
       "send_email": [
         {
@@ -75,16 +75,15 @@
     "prod": {
       "workers_dev": false,
       // Web Push (PW-5), as stage, with prod's own pair.
-      // TODO(PW-5 keys): run `node apps/notifications-worker/scripts/vapid-keys.mjs`,
-      // put its public key here, and store its private key with
-      // `orun secrets set VAPID_PRIVATE_KEY --workspace ws_QX130J0D --env prod`.
+      // Prod's pair was generated 2026-11-08 (PW-9); its private key is
+      // VAPID_PRIVATE_KEY version 1 in orun secrets (env prod).
       "vars": {
         "ENVIRONMENT": "prod",
         "NOTIFICATIONS_PROVIDER": "cloudflare-email",
         "DEBUG_DELIVERY": "false",
         "EMAIL_FROM_ADDRESS": "no-reply@mail.cookpool.store",
         "EMAIL_FROM_NAME": "cookpool",
-        "VAPID_PUBLIC_KEY": ""
+        "VAPID_PUBLIC_KEY": "BHhTwruauKwTLuHW_cNGDPCF35gxKBSIAEmDVcdlUpBy9qtiPqd5QQ2NUTN0ybBK96JBtp0_GfVM3eA5I4r7uTk"
       },
       "send_email": [
         {
