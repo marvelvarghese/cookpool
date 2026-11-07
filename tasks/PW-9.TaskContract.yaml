@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-9
+  title: "Push on: the VAPID public keys"
+spec:
+  goal: Stage and prod carry their VAPID public keys, matching the private keys stored in orun secrets, so the next notifications-worker deploy turns Web Push on.
+  affects:
+    - default/cookpool/notifications-worker
+    - specs/epics/cookpool-app/**
+    - tasks/PW-9.TaskContract.yaml
+  doneWhen:
+    - VAPID_PUBLIC_KEY holds each environment's public key in the notifications-worker template
+    - the push-key route returns a key on stage and prod after the deploy
+  gates: []
