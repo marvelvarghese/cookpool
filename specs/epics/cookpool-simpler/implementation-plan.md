@@ -81,7 +81,7 @@ This doc set, the canvas row "Simpler", and the `SM-1` contract.
 - **SM-11** (web-console-next): Groups, People merged with Settle, Item,
   Bill, Add item, Cook and the desktop pages under the rules; the audit's
   390 px bugs.
-- **SM-12**: close the epic.
+- **SM-12**: close the epic (README shipped, Shipped as, After this epic).
 
 **Done when**
 - every screen follows the seven rules, and the audit's bug list is empty
