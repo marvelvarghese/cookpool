@@ -30,6 +30,7 @@ import { itemRefParam, pantryLabel, parseItemRef, type ItemRef } from "@/compone
 import { amountCost, amountInput, orderConsumers, shareBreakdown } from "@/components/kitchen/item-use";
 import { askable, countInLabel, countText, firstAsk } from "@/components/kitchen/measures";
 import { MeasureSheet, UnitSwitch, type MeasureSheetMode } from "@/components/kitchen/measures-ui";
+import { RepeatButton } from "@/components/kitchen/row-gestures-ui";
 import {
   defaultConsumers,
   defaultTile,
@@ -385,6 +386,13 @@ function UseForm({
     setTyped(null);
     setOther(otherStep(item, otherNow ?? other, delta));
   };
+  // At the least or the most it can be (PW-8: a held − or + stops there).
+  const canStepOther = (delta: 1 | -1): boolean => {
+    const from = otherNow ?? other;
+    if (!from) return false;
+    const next = otherStep(item, from, delta);
+    return next.quantity !== from.quantity || next.qtyMilli !== from.qtyMilli;
+  };
   const toggle = (id: string) => setChosen((cur) => toggleFace(cur ?? chosen, id));
 
   // Logged at once (SM-5): what is left drops wherever the item is listed,
@@ -474,9 +482,9 @@ function UseForm({
         {other ? (
           <div className="space-y-2.5">
             <div className="flex items-center gap-2.5">
-              <button type="button" aria-label="Less" className={STEP} onClick={() => stepOther(-1)}>
+              <RepeatButton aria-label="Less" className={STEP} disabled={!canStepOther(-1)} onStep={() => stepOther(-1)}>
                 <Minus className="h-5 w-5" aria-hidden />
-              </button>
+              </RepeatButton>
               <label className="sr-only" htmlFor="use-other">
                 How much, in {other.side === "measure" && sides.measure ? sides.measure.many : sides.unit}
               </label>
@@ -496,9 +504,9 @@ function UseForm({
                 aria-describedby="use-other-line"
                 className="h-12 w-[4.5rem] min-w-0 rounded-xl bg-background text-center text-2xl font-extrabold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:text-destructive"
               />
-              <button type="button" aria-label="More" className={STEP} onClick={() => stepOther(1)}>
+              <RepeatButton aria-label="More" className={STEP} disabled={!canStepOther(1)} onStep={() => stepOther(1)}>
                 <Plus className="h-5 w-5" aria-hidden />
-              </button>
+              </RepeatButton>
               {sides.measure ? (
                 <UnitSwitch
                   className="ml-auto"

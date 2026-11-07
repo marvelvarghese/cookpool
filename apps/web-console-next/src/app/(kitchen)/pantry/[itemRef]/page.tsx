@@ -30,7 +30,9 @@ import {
   usePantries,
   useWasteItem,
 } from "@/components/kitchen/pantry-data";
-import { ShareList, StockBar, UseByPill } from "@/components/kitchen/pantry-ui";
+import { StockBar, UseByPill } from "@/components/kitchen/pantry-ui";
+import { WasteConfirm } from "@/components/kitchen/item-actions-ui";
+import { SwipeRow } from "@/components/kitchen/row-gestures-ui";
 import { MAIN_BUTTON } from "@/components/kitchen/faces-ui";
 import { CountedAs } from "@/components/kitchen/measures-ui";
 import {
@@ -47,7 +49,7 @@ import {
   expiryText,
   type ItemRef,
 } from "@/components/kitchen/pantry";
-import { canUndoMove, historyRows, isUnused, itemFacts, keepAmountsTogether, transferNote, transferTargets, wastePreview } from "@/components/kitchen/item-use";
+import { canSwipeUndoMove, canUndoMove, historyRows, isUnused, itemFacts, keepAmountsTogether, transferNote, transferTargets } from "@/components/kitchen/item-use";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookHref } from "@/components/kitchen/dish-maker";
 import { undoneToast } from "@/components/kitchen/undo";
@@ -205,8 +207,6 @@ function StockCard({ item, meId, names }: ItemCtx) {
 function ActionsCard({ itemRef, item, meId, names, roster }: ItemCtx) {
   const wasteItem = useWasteItem();
   const [open, setOpen] = React.useState(false);
-  const preview = wastePreview({ item, members: roster ?? [], meId, names });
-  const waiting = item.pantry.kind === "group" && roster === null;
 
   // At once (SM-5): nothing left on screen and the Undo toast up before the
   // server answers; a refusal is put back and the toast says why.
@@ -229,24 +229,7 @@ function ActionsCard({ itemRef, item, meId, names, roster }: ItemCtx) {
         </button>
       </div>
       {open ? (
-        <section id="waste-preview" aria-label="Waste preview" className="space-y-3 rounded-[22px] border bg-card p-5">
-          <p className="text-[15px] font-bold">{preview.question}</p>
-          {waiting ? (
-            <Skeleton className="h-10 w-full" />
-          ) : preview.lines.length > 0 && preview.lines.length <= 8 ? (
-            <ShareList lines={preview.lines} currency={item.currency} />
-          ) : (
-            <p className="text-sm font-semibold text-muted-foreground">{preview.short ?? preview.explain}</p>
-          )}
-          <div className="grid grid-cols-2 gap-2.5">
-            <Button type="button" variant="outline" className={K_BUTTON} onClick={() => setOpen(false)}>
-              Keep it
-            </Button>
-            <Button type="button" variant="destructive" className={K_BUTTON} disabled={waiting} onClick={waste}>
-              Mark wasted
-            </Button>
-          </div>
-        </section>
+        <WasteConfirm id="waste-preview" item={item} roster={roster} meId={meId} names={names} onKeep={() => setOpen(false)} onWaste={waste} />
       ) : null}
     </div>
   );
@@ -397,12 +380,19 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite }: ItemCtx) {
           </Button>
         </KCard>
       ) : (
-        <ul className="divide-y rounded-[18px] border bg-card">
+        <ul className="divide-y overflow-hidden rounded-[18px] border bg-card">
           {rows.map((row) => {
             const move = byId.get(row.id);
-            const undoable = move && moves.data ? canUndoMove(move, moves.data, { meId, personal, role, canWrite }) : false;
+            const can = { meId, personal, role, canWrite };
+            const undoable = move && moves.data ? canUndoMove(move, moves.data, can) : false;
+            // Your own use or waste swipes left to the same Undo (PW-8); the button stays.
+            const swipe = move && moves.data && pending !== move.id && canSwipeUndoMove(move, moves.data, can);
             return (
-              <li key={row.id} className="flex items-center gap-3 px-4 py-3">
+              <SwipeRow
+                key={row.id}
+                action={swipe && move ? { label: "Undo", tone: "undo", run: () => void undo(move) } : null}
+                frontClassName="flex items-center gap-3 px-4 py-3"
+              >
                 <div className="min-w-0 flex-1">
                   <p className={cn("text-sm font-semibold", row.undone && "text-muted-foreground line-through")}>{keepAmountsTogether(row.what)}</p>
                   <p className="text-[13px] text-muted-foreground">
@@ -431,7 +421,7 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite }: ItemCtx) {
                     Undo
                   </Button>
                 ) : null}
-              </li>
+              </SwipeRow>
             );
           })}
         </ul>

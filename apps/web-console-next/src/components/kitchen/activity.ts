@@ -73,6 +73,26 @@ export interface ActivityRow {
   canUndo: boolean;
   /** Someone it names may flag it (not once undone, and not a viewer). */
   canFlag: boolean;
+  /**
+   * Swiping it left undoes it (PW-8): only your own entry whose menu offers
+   * Undo, and never a payment or a dish — those stay behind ⋮ (`swipeUndoable`).
+   */
+  canSwipeUndo: boolean;
+}
+
+/**
+ * The kinds a swipe may undo (PW-8, design §5): your own use, waste or bill.
+ * Never a payment (Paid stays a button) or a dish (finalizing stays a
+ * button); their Undo stays behind the row's ⋮, as does an owner's or
+ * admin's undo of someone else's entry.
+ */
+// A bill is left out on purpose: undoing one reverses it for the whole group,
+// which is a delete, and deletes stay buttons (cookpool-app README decision 3).
+export const SWIPE_UNDO_KINDS: readonly KitchenTxnKind[] = ["use", "waste"];
+
+/** Whether swiping this entry left undoes it: its ⋮ offers Undo, you logged it, and it is a use or a waste (never a bill, a payment or a dish). */
+export function swipeUndoable(txn: Pick<KitchenTxn, "kind" | "createdBy">, ctx: { meId: string | null; canUndo: boolean }): boolean {
+  return ctx.canUndo && ctx.meId !== null && txn.createdBy === ctx.meId && SWIPE_UNDO_KINDS.includes(txn.kind);
 }
 
 export function activityRow(
@@ -112,6 +132,8 @@ export function activityRow(
   const when = relativeWhen(txn.occurredAt, ctx.now);
   const mine = ctx.meId !== null && txn.createdBy === ctx.meId;
   const pending = isPendingId(txn.id);
+  // A row the server has not posted yet (SM-5) is undone from its toast, not its menu.
+  const canUndo = canWrite && !pending && !txn.reversed && txn.kind !== "reversal" && (mine || ctx.canReverseAny);
   return {
     id: txn.id,
     kind: txn.kind,
@@ -126,9 +148,9 @@ export function activityRow(
     amountWords,
     totalText: formatMinor(txn.totalMinor, txn.currency),
     reversed: txn.reversed,
-    // A row the server has not posted yet (SM-5) is undone from its toast, not its menu.
-    canUndo: canWrite && !pending && !txn.reversed && txn.kind !== "reversal" && (mine || ctx.canReverseAny),
+    canUndo,
     canFlag: canWrite && !pending && !txn.reversed && yourMinor !== null,
+    canSwipeUndo: swipeUndoable(txn, { meId: ctx.meId, canUndo }),
   };
 }
 

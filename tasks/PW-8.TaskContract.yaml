@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PW-8
+  title: "Gestures: rows, long-press, hold"
+spec:
+  goal: A pantry row swipes left to use your usual, your own log swipes left to undo, an item long-presses to its actions, and a held stepper repeats, each with a visible twin, and nothing that moves money happens on a swipe alone beyond what Undo takes back.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-app/**
+    - tasks/PW-8.TaskContract.yaml
+  doneWhen:
+    - swiping a pantry row left logs your usual with the Undo toast, and swiping your own log left undoes it
+    - long-pressing an item opens Use, Cook with it, Wasted and Open
+    - holding minus or plus on any stepper repeats, faster after a second
+  gates: []

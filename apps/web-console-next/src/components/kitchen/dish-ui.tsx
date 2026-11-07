@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { KCard, K_BUTTON } from "./kit";
 import { Money } from "./ledger-ui";
 import { Face } from "./faces-ui";
+import { RepeatButton } from "./row-gestures-ui";
 import type { MemberNames } from "./members";
 import { useGroupDishes } from "./dish-data";
 import {
@@ -56,7 +57,8 @@ export function DishChipPill({ chip, className }: { chip: DishChip; className?: 
 /**
  * − ½ + : half a portion at a time, 44px tall targets. It reports steps, not
  * values, so two quick taps count twice (the owner adds them to its latest
- * value, not to what this render showed).
+ * value, not to what this render showed). Held, a button repeats (PW-8),
+ * each step the same as a tap, so a claim's burst stays one toast.
  */
 export function PortionStepper({
   value,
@@ -76,15 +78,15 @@ export function PortionStepper({
     "grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <div role="group" aria-label={`Portions for ${who}`} className="flex shrink-0 items-center gap-1">
-      <button type="button" className={cn(btn, "border-input bg-card text-foreground hover:bg-accent")} aria-label={`Half a portion less for ${who}`} disabled={disabled || value <= 0} onClick={() => onStep(-1)}>
+      <RepeatButton className={cn(btn, "border-input bg-card text-foreground hover:bg-accent")} aria-label={`Half a portion less for ${who}`} disabled={disabled || value <= 0} onStep={() => onStep(-1)}>
         <Minus className="h-4 w-4" aria-hidden />
-      </button>
+      </RepeatButton>
       <span className="min-w-[32px] text-center text-[17px] font-extrabold tabular-nums" aria-live="polite">
         {halfText(value)}
       </span>
-      <button type="button" className={cn(btn, "border-primary bg-accent text-primary hover:bg-cp-herb-tint/70")} aria-label={`Half a portion more for ${who}`} disabled={disabled || value >= max} onClick={() => onStep(1)}>
+      <RepeatButton className={cn(btn, "border-primary bg-accent text-primary hover:bg-cp-herb-tint/70")} aria-label={`Half a portion more for ${who}`} disabled={disabled || value >= max} onStep={() => onStep(1)}>
         <Plus className="h-4 w-4" aria-hidden />
-      </button>
+      </RepeatButton>
     </div>
   );
 }

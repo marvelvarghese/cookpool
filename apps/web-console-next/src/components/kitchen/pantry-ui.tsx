@@ -7,6 +7,7 @@ import { GroupAvatar } from "./kit";
 import { Money } from "./ledger-ui";
 import type { ShareLine } from "./item-use";
 import type { BarTone, ItemRowView, PantryListRow, PantryOption, ExpiryChip } from "./pantry";
+import { SwipeRow, type SwipeAction } from "./row-gestures-ui";
 
 /**
  * The pantry screens' visual pieces (Cookpool CP-12): a pantry's badge, the
@@ -71,9 +72,20 @@ export function StockBar({ percent, tone, className, thick = false }: { percent:
  * its date and its pantry's chip on All — the row opens the item — and Use at
  * the end: your usual amount logged at once ("1 glass"), or Use, which opens
  * the Use screen with it chosen. Just added (SM-5), it is listed at once and
- * opens once the server has it.
+ * opens once the server has it. PW-8: swiping the row left does what Use
+ * does (`swipe`), and holding it opens its menu (`onLongPress`); Use stays.
  */
-export function PantryListRowView({ row, onLog }: { row: PantryListRow; onLog: (() => void) | null }) {
+export function PantryListRowView({
+  row,
+  onLog,
+  swipe = null,
+  onLongPress,
+}: {
+  row: PantryListRow;
+  onLog: (() => void) | null;
+  swipe?: SwipeAction | null;
+  onLongPress?: (() => void) | undefined;
+}) {
   const body = (
     <>
       <span className="min-w-0 flex-1">
@@ -96,12 +108,18 @@ export function PantryListRowView({ row, onLog }: { row: PantryListRow; onLog: (
   const opens = "flex min-h-16 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 pr-1";
   const use = row.use;
   return (
-    <li className="flex items-center" aria-busy={row.pending || undefined}>
+    <SwipeRow
+      action={row.pending ? null : swipe}
+      onLongPress={row.pending ? undefined : onLongPress}
+      aria-busy={row.pending || undefined}
+      frontClassName="flex items-center"
+    >
       {row.pending ? (
         <span className={cn(opens, "cursor-default opacity-70")}>{body}</span>
       ) : (
         <Link
           href={row.href}
+          draggable={false}
           className={cn(opens, "transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
         >
           {body}
@@ -127,7 +145,7 @@ export function PantryListRowView({ row, onLog }: { row: PantryListRow; onLog: (
           </Link>
         ) : null}
       </span>
-    </li>
+    </SwipeRow>
   );
 }
 

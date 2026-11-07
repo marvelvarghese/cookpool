@@ -357,6 +357,8 @@ export interface LineView {
   /** Labels for the stepper's buttons: "Less tomatoes" / "Take out tomatoes", "More tomatoes". */
   lessLabel: string;
   moreLabel: string;
+  /** At the smallest amount: one more step down takes the ingredient out (a tap does; a held − stops here, PW-8). */
+  atSmallest: boolean;
   /** The item's page, for a pantry line. */
   href: string | null;
   dimension: Dimension;
@@ -408,6 +410,7 @@ export function lineView(line: DishLine, ctx: { meId: string; names?: MemberName
     max,
     lessLabel: atSmallest ? `Take out ${lower}` : `Less ${lower}`,
     moreLabel: `More ${lower}`,
+    atSmallest,
     href: line.kind === "pantry" ? itemHref(line.item) : null,
     dimension,
     counted:
