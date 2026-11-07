@@ -282,5 +282,23 @@ export const manifest: MigrationManifest = {
       description:
         "Your measures: kitchen_measures (up to three sizes per item name, pantry and dimension — count of a measure make amount_milli of the stock, exactly; one row per word and name; looked up by pantry, name and dimension in position order) and a nullable label (the words a use was given in, \"2 onions\") on kitchen_stock_moves and kitchen_dish_ingredients (Cookpool SM-13)",
     },
+    {
+      id: "310_notification_push_subscriptions",
+      context: "notifications",
+      path: "310_notification_push_subscriptions/up.sql",
+      checksum:
+        "1b89aa8a05fc9cfaf732f6a8d97c51388287a1ed6873c58138692096ab6afd7d",
+      description:
+        "Web Push subscriptions: notifications_push_subscriptions, one row per device (unique https endpoint, the browser's p256dh and auth keys, a user-agent label, created/updated and last success/failure times) for one person (subject_id, usr_…) — not org-scoped, at most ten per person (Cookpool PW-5)",
+    },
+    {
+      id: "320_notification_push_preferences",
+      context: "notifications",
+      path: "320_notification_push_preferences/up.sql",
+      checksum:
+        "771596cf75fdbd9e7b85c53f220d72ee776e17dae0cbef7e8290a555b713bb57",
+      description:
+        "Push as a preference channel: notifications_notification_preferences rebuilt (same name, rows and unique key) so channel may be 'email' or 'push', with a kinds map (kitchen.portion_set, kitchen.dish_posted, kitchen.paid_you) beside categories; existing rows keep their meaning with kinds '{}' (Cookpool PW-5)",
+    },
   ],
 };

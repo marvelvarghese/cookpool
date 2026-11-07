@@ -1,6 +1,7 @@
 // Cookpool's kitchen email templates (CP-18): kitchen.use_soon,
 // kitchen.dish_posted and kitchen.logged_for_you — and SM-6's
-// kitchen.portion_set — render a subject, text and HTML in the app's voice,
+// kitchen.portion_set, and PW-5's kitchen.paid_you — render a subject, text
+// and HTML in the app's voice,
 // link into the app only over http(s), escape everything they substitute,
 // and keep subjects to one line. And notifications-worker's internal-actor
 // gate lets kitchen-worker in.
@@ -15,6 +16,7 @@ import {
   useSoonEmailData,
   type DishPostedEmail,
   type LoggedForYouEmail,
+  type PaidYouEmail,
   type PortionSetEmail,
 } from "@saas/contracts/kitchen";
 import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES } from "@saas/contracts/notifications";
@@ -202,6 +204,49 @@ describe("kitchen.portion_set", () => {
     expect(email.html).toContain("&lt;img src=x onerror=alert(1)&gt;");
     expect(email.html).not.toContain("javascript:");
     expect(email.text).not.toContain("javascript:");
+  });
+});
+
+describe("kitchen.paid_you", () => {
+  const paid: PaidYouEmail = {
+    payerName: "Dev",
+    amount: "₹400.00",
+    method: "UPI",
+    groupName: "Flat 4B",
+    personUrl: "https://stage.cookpool.store/people/usr_dev",
+  };
+
+  it("says who paid you how much and how, briefly, and links to what is between you", () => {
+    const email = renderEmailTemplate(KITCHEN_EMAILS.PAID_YOU, paid, { brandName: "cookpool" })!;
+    expect(email.subject).toBe("Dev paid you ₹400.00 · UPI");
+    expect(email.text).toBe(
+      [
+        "In Flat 4B: Dev paid you ₹400.00 · UPI.",
+        "",
+        "Not right? Flag it in the group's activity.",
+        "https://stage.cookpool.store/people/usr_dev",
+        "",
+        "You get this when someone in Flat 4B records a payment to you.",
+      ].join("\n"),
+    );
+    expect(email.html).toContain('href="https://stage.cookpool.store/people/usr_dev"');
+    expect(email.html).toContain("See what&#39;s between you and Dev</a>");
+    expect(email.html).toContain("Sent by cookpool.");
+  });
+
+  it("leaves out what is missing, escapes what it substitutes and keeps the subject to one line", () => {
+    const bare = renderEmailTemplate(KITCHEN_EMAILS.PAID_YOU, { ...paid, payerName: null, method: null, personUrl: "" })!;
+    expect(bare.subject).toBe("Someone paid you ₹400.00");
+    expect(bare.html).not.toContain("href=");
+    const hostile = renderEmailTemplate(KITCHEN_EMAILS.PAID_YOU, {
+      ...paid,
+      payerName: "Dev\r\nBcc: everyone@example.com",
+      groupName: "<script>x</script>",
+      personUrl: "javascript:alert(1)",
+    })!;
+    expect(hostile.subject).not.toMatch(/[\r\n]/);
+    expect(hostile.html).not.toContain("<script>");
+    expect(hostile.html).not.toContain("javascript:");
   });
 });
 

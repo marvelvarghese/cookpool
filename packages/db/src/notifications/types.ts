@@ -58,6 +58,8 @@ export interface StoredNotificationPreference {
   subjectId: string;
   channel: string;
   categories: Record<string, boolean | null>;
+  /** Per-kind toggles (PW-5, migration 320): template key → on/off; `{}` when none is set. */
+  kinds: Record<string, boolean | null>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -119,7 +121,13 @@ export interface UpsertNotificationPreferenceInput {
   subjectKind: string;
   subjectId: string;
   channel: string;
+  /** Replaces what is stored. */
   categories: Record<string, boolean | null>;
+  /**
+   * Merged into what is stored, key by key (a JSON merge patch: `null`
+   * removes a key, back to the channel's default). Left out: unchanged.
+   */
+  kinds?: Record<string, boolean | null>;
   updatedAt: Date;
 }
 

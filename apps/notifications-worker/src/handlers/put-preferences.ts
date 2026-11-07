@@ -1,34 +1,23 @@
 import type { Env } from "../env.js";
 import type { InternalActor } from "../router.js";
-import type {
-  NotificationPreference,
-  UpdateNotificationPreferencesRequest,
-  UpdateNotificationPreferencesResponse,
-} from "@saas/contracts/notifications";
-import { NOTIFICATION_EVENT_TYPES } from "@saas/contracts/notifications";
-import { createSqlExecutor } from "@saas/db/d1";
 import {
-  createNotificationsRepository,
-  type NotificationsRepository,
-  type StoredNotificationPreference,
-} from "@saas/db/notifications";
+  NOTIFICATION_EVENT_TYPES,
+  isNotificationKind,
+  type NotificationCategoryPreferences,
+  type NotificationKindPreferences,
+  type NotificationPreferenceChannel,
+  type NotificationSubjectKind,
+  type UpdateNotificationPreferencesResponse,
+} from "@saas/contracts/notifications";
+import { createSqlExecutor } from "@saas/db/d1";
+import { createNotificationsRepository, type NotificationsRepository } from "@saas/db/notifications";
+import type { Uuid } from "@saas/db/ids";
 import { successResponse, errorResponse, validationError } from "../http.js";
-import { parseOrgIdInput } from "../ids.js";
 import { emitEvent } from "../events-client.js";
+import { CHANNEL_MESSAGE, PREFERENCE_CHANNELS, preferenceOrg, toPreference } from "./preference-shape.js";
 
 const ALLOWED_KIND = new Set(["user", "organization"]);
 const ALLOWED_CATEGORIES = new Set(["invitation", "billing", "security", "support", "product"]);
-
-function toPreference(p: StoredNotificationPreference): NotificationPreference {
-  return {
-    subjectKind: p.subjectKind as NotificationPreference["subjectKind"],
-    subjectId: p.subjectId,
-    orgId: p.orgId,
-    channel: p.channel as NotificationPreference["channel"],
-    categories: p.categories as NotificationPreference["categories"],
-    updatedAt: p.updatedAt.toISOString(),
-  };
-}
 
 export interface PutPreferencesDeps {
   repo?: NotificationsRepository;
@@ -37,24 +26,75 @@ export interface PutPreferencesDeps {
   emit?: typeof emitEvent;
 }
 
-function validate(body: unknown): { ok: true; value: UpdateNotificationPreferencesRequest } | { ok: false; errors: Record<string, string[]> } {
-  const errors: Record<string, string[]> = {};
-  if (!body || typeof body !== "object") return { ok: false, errors: { _root: ["Body must be a JSON object"] } };
-  const b = body as Record<string, unknown>;
-  if (typeof b.orgId !== "string" || !b.orgId) errors.orgId = ["Required"];
-  if (typeof b.subjectKind !== "string" || !ALLOWED_KIND.has(b.subjectKind)) errors.subjectKind = ['Must be "user" or "organization"'];
-  if (typeof b.subjectId !== "string" || !b.subjectId) errors.subjectId = ["Required"];
-  if (b.channel !== "email") errors.channel = ['Only "email" is supported in V1'];
-  if (!b.categories || typeof b.categories !== "object" || Array.isArray(b.categories)) {
-    errors.categories = ["Must be an object"];
-  } else {
-    for (const [k, v] of Object.entries(b.categories as Record<string, unknown>)) {
-      if (!ALLOWED_CATEGORIES.has(k)) errors[`categories.${k}`] = ["Unknown category"];
-      else if (v !== null && typeof v !== "boolean") errors[`categories.${k}`] = ["Must be boolean or null"];
-    }
+interface ValidPreferenceUpdate {
+  org: Uuid;
+  subjectKind: NotificationSubjectKind;
+  subjectId: string;
+  channel: NotificationPreferenceChannel;
+  /** Replaces what is stored ({} for push, which has none). */
+  categories: NotificationCategoryPreferences;
+  /** Merged into what is stored; left out, unchanged. */
+  kinds?: NotificationKindPreferences;
+}
+
+function toggles(
+  value: unknown,
+  field: string,
+  known: (key: string) => boolean,
+  unknownMessage: string,
+  errors: Record<string, string[]>,
+): Record<string, boolean | null> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    errors[field] = ["Must be an object"];
+    return null;
   }
-  if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, value: b as unknown as UpdateNotificationPreferencesRequest };
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (!known(k)) errors[`${field}.${k}`] = [unknownMessage];
+    else if (v !== null && typeof v !== "boolean") errors[`${field}.${k}`] = ["Must be boolean or null"];
+  }
+  return value as Record<string, boolean | null>;
+}
+
+/**
+ * Email (as before): `orgId` and `categories` required; `kinds` optional.
+ * Push (PW-5): no `orgId` (the system organization), no categories, `kinds`
+ * required, and only for a user.
+ */
+function validate(body: unknown): { ok: true; value: ValidPreferenceUpdate } | { ok: false; errors: Record<string, string[]> } {
+  const errors: Record<string, string[]> = {};
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, errors: { _root: ["Body must be a JSON object"] } };
+  const b = body as Record<string, unknown>;
+  const channel = typeof b.channel === "string" && PREFERENCE_CHANNELS.has(b.channel) ? (b.channel as NotificationPreferenceChannel) : null;
+  if (!channel) errors.channel = [CHANNEL_MESSAGE];
+  const org = preferenceOrg(channel, b.orgId);
+  if (!org.ok) errors.orgId = [org.message];
+  if (typeof b.subjectKind !== "string" || !ALLOWED_KIND.has(b.subjectKind)) errors.subjectKind = ['Must be "user" or "organization"'];
+  else if (channel === "push" && b.subjectKind !== "user") errors.subjectKind = ['Push is a person\'s: must be "user"'];
+  if (typeof b.subjectId !== "string" || !b.subjectId) errors.subjectId = ["Required"];
+
+  let categories: Record<string, boolean | null> | null = {};
+  if (channel === "push") {
+    if (b.categories !== undefined) errors.categories = ["Push has no categories: use kinds"];
+  } else {
+    categories = toggles(b.categories, "categories", (k) => ALLOWED_CATEGORIES.has(k), "Unknown category", errors);
+  }
+  let kinds: Record<string, boolean | null> | null | undefined;
+  if (b.kinds !== undefined || channel === "push") {
+    kinds = toggles(b.kinds, "kinds", isNotificationKind, "Unknown kind", errors);
+  }
+
+  if (Object.keys(errors).length > 0 || !channel || !org.ok || !categories || kinds === null) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      org: org.org,
+      subjectKind: b.subjectKind as NotificationSubjectKind,
+      subjectId: b.subjectId as string,
+      channel,
+      categories: categories as NotificationCategoryPreferences,
+      ...(kinds ? { kinds: kinds as NotificationKindPreferences } : {}),
+    },
+  };
 }
 
 export async function handlePutPreferences(
@@ -74,11 +114,6 @@ export async function handlePutPreferences(
   if (!validated.ok) return validationError(requestId, validated.errors);
   const input = validated.value;
 
-  // notification_preferences.org_id is a UUID column; decode the public
-  // `org_<hex>` form (or accept a bare UUID) before persistence.
-  const orgUuid = parseOrgIdInput(input.orgId);
-  if (!orgUuid) return validationError(requestId, { orgId: ["Invalid org id"] });
-
   if (!deps?.repo && !env.PLATFORM_DB) {
     return errorResponse("internal_error", "Database not configured", 503, requestId);
   }
@@ -91,11 +126,12 @@ export async function handlePutPreferences(
 
     const upsert = await repo.upsertPreference({
       id: genUuid(),
-      orgId: orgUuid,
+      orgId: input.org,
       subjectKind: input.subjectKind,
       subjectId: input.subjectId,
       channel: input.channel,
       categories: input.categories as Record<string, boolean | null>,
+      ...(input.kinds ? { kinds: input.kinds as Record<string, boolean | null> } : {}),
       updatedAt: now,
     });
     if (!upsert.ok) {
@@ -105,7 +141,7 @@ export async function handlePutPreferences(
     await emit(env, {
       type: NOTIFICATION_EVENT_TYPES.PREFERENCE_UPDATED,
       notificationId: upsert.value.id,
-      orgId: orgUuid,
+      orgId: input.org,
       subjectKind: input.subjectKind,
       subjectId: input.subjectId,
       actorType: actor.subjectType,
@@ -114,11 +150,12 @@ export async function handlePutPreferences(
       category: "notifications",
       description: `Notification preferences updated for ${input.subjectKind}:${input.subjectId}`,
       payload: {
-        orgId: orgUuid,
+        orgId: input.org,
         subjectKind: input.subjectKind,
         subjectId: input.subjectId,
         channel: input.channel,
         categories: input.categories,
+        ...(input.kinds ? { kinds: input.kinds } : {}),
       },
       occurredAt: now,
     });

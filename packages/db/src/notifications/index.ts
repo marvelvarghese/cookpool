@@ -14,3 +14,12 @@ export type {
 } from "./types.js";
 
 export { createNotificationsRepository } from "./repository.js";
+
+// Web Push subscriptions (Cookpool PW-5).
+export type {
+  StoredPushSubscription,
+  UpsertPushSubscriptionInput,
+  UpsertedPushSubscription,
+  PushSubscriptionsRepository,
+} from "./push-subscriptions.js";
+export { createPushSubscriptionsRepository } from "./push-subscriptions.js";

@@ -6,7 +6,7 @@ import type {
   NotificationDeliveryStatus,
   NotificationAttempt,
 } from "@saas/contracts/notifications";
-import { NOTIFICATION_EVENT_TYPES } from "@saas/contracts/notifications";
+import { NOTIFICATION_EVENT_TYPES, isNotificationKind } from "@saas/contracts/notifications";
 import type {
   NotificationsRepository,
   StoredNotification,
@@ -15,6 +15,7 @@ import type {
 import type { Env } from "../env.js";
 import { notificationPublicId, parseNotificationPublicId, parseOrgIdInput } from "../ids.js";
 import { emitEvent } from "../events-client.js";
+import type { TemplatePush } from "../push/deliver.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ALLOWED_CATEGORIES = new Set(["invitation", "billing", "security", "support", "product"]);
@@ -130,6 +131,12 @@ export interface NotificationsServiceDeps {
   now?: (() => Date) | undefined;
   generateUuid?: (() => string) | undefined;
   emit?: typeof emitEvent | undefined;
+  /**
+   * Web Push beside the email (PW-5): called once per new notification of one
+   * of the three kinds, after the email path, for a recipient tagged as a
+   * user. The handler wires pushForTemplate; absent, nothing is pushed.
+   */
+  push?: ((push: TemplatePush) => Promise<unknown>) | undefined;
   actorType: string;
   actorId: string;
   requestId: string;
@@ -145,8 +152,9 @@ export interface EnqueueOutcome {
  *
  * Only a recipient tagged with `subjectKind` + `subjectId` is looked up (the
  * contract's rule: untagged sends are system-level and skip preferences),
- * and only an explicit `false` opts out — a missing row, a missing key or
- * `null` is the default, opted in. A preference read that fails sends: a
+ * and only an explicit `false` opts out — of the request's category, or
+ * (PW-5) of its kind, the template key — while a missing row, a missing key
+ * or `null` is the default, opted in. A preference read that fails sends: a
  * transactional email is not dropped because a preference could not be read.
  */
 async function optedOut(
@@ -158,7 +166,35 @@ async function optedOut(
   if (!subjectKind || !subjectId) return false;
   const prefs = await repo.listPreferences(orgUuid, subjectKind, subjectId, channel);
   if (!prefs.ok) return false;
-  return prefs.value.some((p) => p.categories[request.category] === false);
+  return prefs.value.some(
+    (p) => p.categories[request.category] === false || p.kinds?.[request.templateKey] === false,
+  );
+}
+
+/**
+ * The push that goes with a new notification (PW-5): only for one of the
+ * kinds, only to a user, with the enqueue's idempotency key as its tag. It
+ * runs after the email path and is best-effort — whatever it does, the
+ * email's outcome stands. It is never called for an idempotent hit, so a
+ * retried enqueue pushes nothing more.
+ */
+async function pushAfterEmail(
+  deps: NotificationsServiceDeps,
+  request: EnqueueNotificationRequest,
+  notificationId: string,
+): Promise<void> {
+  const { subjectKind, subjectId } = request.recipient;
+  if (!deps.push || subjectKind !== "user" || !subjectId || !isNotificationKind(request.templateKey)) return;
+  try {
+    await deps.push({
+      subjectId,
+      templateKey: request.templateKey,
+      templateData: request.templateData ?? {},
+      tag: request.idempotencyKey ?? `${request.templateKey}:${notificationPublicId(notificationId)}`,
+    });
+  } catch {
+    // A push never fails the email.
+  }
 }
 
 /**
@@ -252,6 +288,8 @@ export async function enqueueNotification(
       },
       occurredAt: now,
     });
+    // The email is suppressed, not the person: push is its own channel.
+    await pushAfterEmail(deps, request, create.value.id);
     return {
       outcome: {
         status: "suppressed",
@@ -389,6 +427,8 @@ export async function enqueueNotification(
     },
     occurredAt: now,
   });
+
+  await pushAfterEmail(deps, request, finalRow.id);
 
   const attempts = await repo.listAttempts(finalRow.id);
   return {

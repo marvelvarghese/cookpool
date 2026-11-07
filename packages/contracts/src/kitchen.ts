@@ -1565,17 +1565,21 @@ export type SetPortionResponse = DishResponse;
 // ── Emails (CP-18) ──────────────────────────────────────────
 //
 // kitchen-worker asks notifications-worker to send Cookpool's emails — three
-// from CP-18, and the portion someone else set for you from SM-6 —
+// from CP-18, the portion someone else set for you from SM-6, and a payment
+// to you from PW-5 —
 // (POST /v1/notifications over its NOTIFICATIONS_WORKER binding, through
 // `@saas/notifications-client`), always after the write that causes them has
 // committed and never failing the request; notifications-worker's template
 // registry renders them. Each is sent to one person, tagged with their
 // subject id, under the `product` category: opting out of product email for
-// a group stops that group's dish, logged-for-you and portion emails, and opting out
+// a group stops that group's dish, logged-for-you, portion and payment emails, and opting out
 // under the system organization stops the daily digest. Every enqueue
 // carries an idempotency key that names what it is about (the day, the dish,
 // the transaction) and the recipient, so a re-run or a retried request
-// sends nothing twice.
+// sends nothing twice. Three of them — the portion, the dish to claim and the
+// payment — also go out as Web Push (PW-5) to each device of a person who
+// turned that kind on (`@saas/contracts/notifications` NOTIFICATION_KINDS):
+// notifications-worker sends it with the email's enqueue, under its key.
 //
 // templateData is a flat map of strings, numbers and null: amounts arrive
 // already formatted ("₹240.00"), links absolute, and the digest's items as
@@ -1590,6 +1594,8 @@ export const KITCHEN_EMAILS = {
   LOGGED_FOR_YOU: "kitchen.logged_for_you",
   /** Someone else said you had a portion of a dish (SM-6). */
   PORTION_SET: "kitchen.portion_set",
+  /** Someone recorded a payment to you (PW-5). */
+  PAID_YOU: "kitchen.paid_you",
 } as const;
 
 export type KitchenEmail = (typeof KITCHEN_EMAILS)[keyof typeof KITCHEN_EMAILS];
@@ -1723,6 +1729,24 @@ export interface PortionSetEmail extends KitchenEmailData {
   yourShare: string | null;
   /** The dish in the app, where you can change it. */
   dishUrl: string;
+}
+
+/**
+ * `kitchen.paid_you` (PW-5): someone recorded a payment to you —
+ * "Dev paid you ₹400.00 · UPI". Sent to the person paid, once per payment
+ * (`kitchen.paid_you:<txn>:<usr>`), after it is recorded; never when the
+ * person paid recorded it themselves.
+ */
+export interface PaidYouEmail extends KitchenEmailData {
+  /** Who paid; null when they have none to show. */
+  payerName: string | null;
+  /** The amount, formatted ("₹400.00"). */
+  amount: string;
+  /** How it was paid, as people say it ("UPI", "Cash", "Bank transfer"); null when not said. */
+  method: string | null;
+  groupName: string;
+  /** The payer's page in the app, where what is between you two is. */
+  personUrl: string;
 }
 
 // ── The Home inbox (CP-19) ──────────────────────────────────
