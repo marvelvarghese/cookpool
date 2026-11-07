@@ -10,6 +10,7 @@ import { loadVapidKeys } from "@notifications-worker/push/vapid";
 import { renderPushMessage, testPushMessage, appPath } from "@notifications-worker/templates/push";
 import { PUSH_MESSAGE_MAX_BYTES } from "@saas/contracts/notifications";
 import {
+  bodyFor,
   browser,
   jwtClaims,
   keysFor,
@@ -169,6 +170,31 @@ describe("pushing to a person's devices", () => {
     expect(devices.ipad.endpoint).toBe(APPLE);
   });
 
+  it("pairs each body with its own device, whatever order the push services are reached in", async () => {
+    const { service, devices, deps } = await setup();
+    // Hold every request until all three are in, then let them through iPad
+    // first, phone last: the reverse of the order the devices are listed in
+    // (PW-10 — the order a fan-out's requests leave in is not fixed).
+    const reversed = [APPLE, MOZ, FCM];
+    const held = new Map<string, () => void>();
+    const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      await new Promise<void>((go) => {
+        held.set(String(input), go);
+        if (held.size === reversed.length) queueMicrotask(() => reversed.forEach((e) => held.get(e)!()));
+      });
+      return service.fetch(input, init);
+    }) as typeof globalThis.fetch;
+
+    expect(await pushToDevices({ ...deps, fetch }, DEV, testPushMessage(DEV))).toEqual({ devices: 3, sent: 3, gone: 0, failed: 0 });
+    expect(service.requests.map((r) => r.endpoint)).toEqual(reversed);
+    const all = [devices.phone, devices.laptop, devices.ipad];
+    for (const device of all) {
+      const body = bodyFor(service, device.endpoint);
+      expect(await device.decrypt(body)).toMatchObject({ kind: "test", tag: `test:${DEV}` });
+      for (const other of all.filter((d) => d !== device)) await expect(other.decrypt(body)).rejects.toThrow();
+    }
+  });
+
   it("signs one VAPID token per push service origin per run", async () => {
     const { service, subscriptions, deps } = await setup();
     const second = await browser("https://fcm.googleapis.com/fcm/send/dev-tablet");
@@ -219,7 +245,11 @@ describe("the push that goes with an email", () => {
     // Not one of the kinds at all.
     expect(await pushForTemplate(deps, push("kitchen.logged_for_you"))).toBeNull();
     expect(service.requests).toHaveLength(3);
-    expect((await devices.ipad.decrypt(service.requests[2]!.body)).kind).toBe("kitchen.portion_set");
+    // Each device reads its own body, found by endpoint: the three go out at
+    // once, in no fixed order (PW-10).
+    for (const device of [devices.phone, devices.laptop, devices.ipad]) {
+      expect((await device.decrypt(bodyFor(service, device.endpoint))).kind).toBe("kitchen.portion_set");
+    }
   });
 
   it("is a person's own: someone else's push row turns nothing on for them", async () => {

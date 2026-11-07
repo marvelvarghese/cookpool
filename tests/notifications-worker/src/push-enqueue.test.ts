@@ -215,10 +215,16 @@ describe("the push beside an enqueue", () => {
 
 describe("preferences, per kind and per channel", () => {
   const actor = { subjectId: "api-edge", subjectType: "user", internalCaller: "api-edge" };
+  // Ids of our own, not node:crypto's default export: that is undefined when
+  // ts-jest compiles this file to CommonJS (jest run without
+  // --experimental-vm-modules; esModuleInterop is off), and a stub that throws
+  // inside the handler reads as its 500 (PW-10).
+  let ids = 0;
   const put = (repo: NotificationsRepository, body: unknown) =>
     handlePutPreferences(
       new Request("http://nf/v1/notifications/preferences", { method: "PUT", body: JSON.stringify(body) }),
-      env, "req_put", actor, { repo, now: () => NOW, generateUuid: () => crypto.randomUUID(), emit: async () => {} },
+      env, "req_put", actor,
+      { repo, now: () => NOW, generateUuid: () => `33333333-3333-4333-8333-${String(++ids).padStart(12, "0")}`, emit: async () => {} },
     );
   const get = (repo: NotificationsRepository, query: string) =>
     handleGetPreferences(env, "req_get", new URL(`http://nf/v1/notifications/preferences?${query}`), { repo });

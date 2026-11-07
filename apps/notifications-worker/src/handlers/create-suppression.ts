@@ -10,7 +10,7 @@ import {
   createNotificationsRepository,
   type NotificationsRepository,
 } from "@saas/db/notifications";
-import { successResponse, errorResponse, validationError } from "../http.js";
+import { successResponse, errorResponse, validationError, logUnexpected } from "../http.js";
 import { parseOrgIdInput } from "../ids.js";
 import { emitEvent } from "../events-client.js";
 
@@ -115,7 +115,8 @@ export async function handleCreateSuppression(
       },
     };
     return successResponse(response, requestId, 201);
-  } catch {
+  } catch (err) {
+    logUnexpected("create-suppression", requestId, err);
     return errorResponse("internal_error", "An unexpected error occurred", 500, requestId);
   } finally {
     if (executor) await executor.dispose();

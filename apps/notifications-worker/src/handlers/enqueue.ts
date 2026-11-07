@@ -2,7 +2,7 @@ import type { Env } from "../env.js";
 import type { InternalActor } from "../router.js";
 import { createSqlExecutor } from "@saas/db/d1";
 import { createNotificationsRepository, createPushSubscriptionsRepository } from "@saas/db/notifications";
-import { successResponse, errorResponse, validationError } from "../http.js";
+import { successResponse, errorResponse, validationError, logUnexpected } from "../http.js";
 import { resolveProvider } from "../providers/index.js";
 import { enqueueNotification, validateEnqueueRequest } from "../services/notifications.js";
 import type { NotificationsServiceDeps } from "../services/notifications.js";
@@ -87,7 +87,8 @@ export async function handleEnqueueNotification(
     }
     const httpStatus = result.outcome.status === "idempotent_hit" ? 200 : 201;
     return successResponse(result.outcome.response, requestId, httpStatus);
-  } catch {
+  } catch (err) {
+    logUnexpected("enqueue", requestId, err);
     return errorResponse("internal_error", "An unexpected error occurred", 500, requestId);
   } finally {
     if (executor) await executor.dispose();

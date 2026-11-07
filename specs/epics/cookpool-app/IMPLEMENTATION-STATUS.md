@@ -754,3 +754,79 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **Rotating** is the runbook's "Web Push keys" section, both halves
   together; existing devices re-subscribe the next time someone flips a
   switch (PW-6's follow-up: compare the subscription's key at launch).
+
+### PW3 — push tests that pass every time (PW-10)
+
+- **No production bug.** Both failures were in the tests. The worker's Web
+  Push and its preferences PUT behave the same for real requests as before.
+  - Every body the worker encrypts decrypts for the device it is addressed
+    to: 600 of 600 in a diagnostic run, with nothing changed in
+    `push/crypto.ts` or `push/deliver.ts`.
+  - The RFC 8291 Appendix A vector still passes.
+  - The PUT's only failure came from the test's own id stub.
+  - The public keys PW-9 stored are 65-byte uncompressed points on P-256.
+    The worker checks the private key against them at runtime.
+- **"Cipher job failed" (`push-delivery.test.ts`, "goes out per kind…").**
+  The cause was order. `pushToDevices` encrypts for every device at once
+  (`Promise.all`), so requests reach the push service in whatever order
+  their WebCrypto jobs finish. Node runs those jobs on its thread pool. The
+  test decrypted `requests[2]` with the iPad's key, assuming the iPad's
+  request came third.
+  - Unloaded, 1 fan-out in 200 left out of order.
+  - With six suites running beside it, 43 in 200 did, and 30 of those put
+    another device's body third. AES-GCM's tag check then failed:
+    `OperationError` / `Cipher job failed`.
+  - That's why the file passed alone and failed in a full or busy run.
+  - Fix: `bodyFor(service, endpoint)` in `push-fakes.ts`. Each device now
+    decrypts its own body, found by endpoint.
+  - New test, "pairs each body with its own device, whatever order the push
+    services are reached in": it holds the three requests and releases
+    them in reverse. It pins the order that used to fail, and checks that
+    each body opens for its own device and for no other.
+- **The preferences PUT's 500 (`push-enqueue.test.ts`, both PUT tests).**
+  The cause was how jest was run, not the date or the branch. The test's
+  stub was `generateUuid: () => crypto.randomUUID()`, with `crypto` the
+  *default import* of `node:crypto`.
+  - The package's `test` script runs jest with `--experimental-vm-modules`.
+    The file then stays ESM and the import works.
+  - Run jest without that flag and ts-jest compiles to CommonJS. Examples:
+    `pnpm --dir tests/notifications-worker exec jest …`, or an editor's
+    runner. `pnpm … test -- --runInBand` answers "No tests found", which
+    steers people there.
+  - In CommonJS, with `esModuleInterop: false`, the default import is
+    `undefined`. The stub throws a `TypeError` inside the handler's `try`,
+    and the catch-all answers 500. It fails every time in that mode: alone,
+    on main or PW-5's branch, on any date.
+  - The worker's own path is unaffected: it uses the global `crypto`.
+  - Fix: the PUT tests generate their own ids.
+- **"Only 110 tests ran."** This happened in the same CommonJS mode. ts-jest
+  type-checked `notifications-service.test.ts` and could not resolve
+  `@saas/db` (TS2307). That package has only `exports`, which this
+  resolution ignores. The suite failed to run, and its 16 tests went
+  uncounted.
+  - It showed only sometimes. It depends on what jest's transform cache,
+    shared by every checkout on the machine, already holds: it reproduces
+    after an ESM run on the same cache.
+  - Fix: `tests/notifications-worker/tsconfig.json` maps `@saas/db` and
+    `@saas/db/ids` to source, as jest's `moduleNameMapper` already does.
+- **Ruled out.**
+  - The date: the test realm's clock, and both realms', set to 2026-11-08,
+    -09, -10 and 2027-01-01: all pass.
+  - The VAPID caches, and order between files: each file run in band before
+    `push-enqueue`.
+  - Random key material.
+  - The suite now passes in both modes.
+- **Tests.**
+  - `tests/notifications-worker`: 127, one new.
+  - The package script: 10 runs in a row in parallel, 10 in band, and 24
+    runs under load (12 in band and 12 parallel at once; 9 of 24 failed
+    before).
+  - Each push file alone, in both modes.
+  - `exec jest --runInBand`: 3 runs, 127 each.
+- **A 500 now leaves a log line** (the reviewer's addition, since push is
+  live). The notifications-worker's seven catch-alls (router, enqueue, push,
+  get/put preferences, get notification, create suppression) call
+  `logUnexpected(where, requestId, err)` (`src/http.ts`): one
+  `console.error` with where, the request id and the error's name and
+  message (cut to 300 characters), never the request body, a token, a key or
+  an address. `log-unexpected.test.ts` pins it.
