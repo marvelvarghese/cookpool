@@ -4,7 +4,6 @@ import {
   HOW_YOU_SIGN_IN,
   NAME_READS,
   SIGN_OUT_PHONE,
-  STAY_AS_THEY_ARE,
   nameToSave,
   personInitials,
   shownName,
@@ -68,17 +67,16 @@ describe("You: the name your groups see", () => {
     expect(CHANGE_NAME).toBe("Change your name");
     expect(HOW_YOU_SIGN_IN).toBe("How you sign in");
     expect(SIGN_OUT_PHONE).toBe("Sign out of this phone");
-    expect(STAY_AS_THEY_ARE).toBe("Your groups, pantry and balances stay as they are.");
   });
 });
 
 describe("You: how you sign in", () => {
-  it("always lists a code to your address", () => {
+  it("always lists a code to your address, with no \"Last used\" when it is the only way (SM-15)", () => {
     expect(signInRows("rahul@example.com", null)).toEqual([
       { way: "code", label: "A code to rahul@example.com", lastUsed: false },
     ]);
     expect(signInRows("rahul@example.com", "code")).toEqual([
-      { way: "code", label: "A code to rahul@example.com", lastUsed: true },
+      { way: "code", label: "A code to rahul@example.com", lastUsed: false },
     ]);
   });
 

@@ -10,7 +10,6 @@ import {
   paymentToast,
   paymentsYoursFirst,
   settlementRequest,
-  workingLine,
   type GroupPlan,
 } from "@web-console-next/components/kitchen/settle";
 
@@ -45,14 +44,6 @@ const tripPlan: SettlePlan = {
 };
 
 const loaded = (group: GroupPlan["group"], plan: SettlePlan): GroupPlan => ({ group, plan, loading: false, failed: false });
-
-describe("the working line (CP-8)", () => {
-  it("reads debts → pairs → payments", () => {
-    expect(workingLine({ debts: 10, pairs: 5, payments: 3 })).toBe("10 debts → 5 after pairs cancel → 3 payments");
-    expect(workingLine({ debts: 1, pairs: 1, payments: 1 })).toBe("1 debt → 1 after pairs cancel → 1 payment");
-    expect(workingLine({ debts: 0, pairs: 0, payments: 0 })).toBe("0 debts → 0 after pairs cancel → 0 payments");
-  });
-});
 
 describe("one payment", () => {
   it("says who pays whom, from your side", () => {

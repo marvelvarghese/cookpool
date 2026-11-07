@@ -24,6 +24,7 @@ import {
   finalizedToast,
   halfText,
   ingredientLines,
+  ingredientQty,
   ingredientsSummary,
   eatersOweText,
   leftoverNote,
@@ -293,6 +294,17 @@ describe("the header and the cost card", () => {
     const lines = ingredientLines(paneer(), { meId: ANU, names: new Map(), groupNames: null });
     expect(lines[0]!.where).toBe("Member · 00aa's pantry");
     expect(lines.map((l) => l.where).join(" ")).not.toMatch(/usr_|org_/);
+  });
+
+  it("reads an ingredient given in a measure by its words first, then the amount (SM-15)", () => {
+    const dish = paneer();
+    const ingredients = dish.ingredients.map((i) => (i.name === "Onions" ? { ...i, label: "2 onions" } : i));
+    const lines = ingredientLines({ ...dish, ingredients }, people());
+    expect(lines.find((l) => l.name === "Onions")!.qty).toBe("2 onions · 200 g");
+    expect(lines.find((l) => l.name === "Tomatoes")!.qty).toBe("300 g");
+    expect(ingredientQty({ qtyMilli: 1_000, quantity: 1, unit: "pack", label: " 20 slices " })).toBe("20 slices · 1 pack");
+    expect(ingredientQty({ qtyMilli: 150_000, quantity: 150, unit: "g", label: null })).toBe("150 g");
+    expect(ingredientQty({ qtyMilli: 150_000, quantity: 150, unit: "g", label: "" })).toBe("150 g");
   });
 });
 

@@ -215,9 +215,10 @@ function paymentCard(entry: Extract<InboxItem, { kind: "payment_due" }>, ctx: In
     kind: "payment_due",
     tone: "money",
     title: `You owe ${to} ${formatMinor(entry.amountMinor, entry.currency)}`,
-    meta: `${entry.groupName} · the fewest-payments plan`,
+    meta: entry.groupName,
     note: null,
-    href: `/settle?group=${encodeURIComponent(entry.groupSlug)}`,
+    // People, filtered to the group: where settling up lives since SM-11 (`/settle` only redirects there).
+    href: `/people?group=${encodeURIComponent(entry.groupSlug)}`,
     action: {
       kind: "pay",
       orgId: entry.orgId,

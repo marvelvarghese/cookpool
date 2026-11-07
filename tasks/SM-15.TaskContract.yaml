@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SM-15
+  title: "The rest, part 2: item, bought, cook, desktop, the last audit bugs"
+spec:
+  goal: The item page, Bought, Cook and the desktop pages follow the seven rules, and the audit's remaining phone bugs are gone.
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-simpler/**
+    - tasks/SM-15.TaskContract.yaml
+  doneWhen:
+    - the item page, Bought and Cook each have one main button in thumb reach and no explanatory paragraph
+    - toasts never cover the main button, and no sticky bar covers what you are choosing
+    - the desktop pages follow the same rules, and the audit's bug list is empty
+  gates: []

@@ -30,8 +30,9 @@ const ROW =
   "flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
- * Cookpool's sidebar, from 900px (CP-5): the wordmark, "Cook a dish" (the
- * dish maker, CP-15) and "Add", the same destinations as the bottom tabs,
+ * Cookpool's sidebar, from 900px (CP-5): the wordmark, one green "Add" (the
+ * tab bar's + Add: Used · Cooked · Bought · Paid a bill — SM-15 dropped the
+ * separate "Cook a dish", the same thing twice), the same destinations as the bottom tabs,
  * the four most recent groups and a link to all of them, and the signed-in
  * person. "Me" and the person at the foot open You (SI-6); the gear beside
  * the person opens the admin console's account page, as before.
@@ -56,22 +57,14 @@ export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen:
         </Link>
       </div>
 
-      <div className="space-y-2 px-4">
-        {/* The dish maker (CP-15). */}
-        <Link
-          href="/cook"
-          aria-current={pathname === "/cook" ? "page" : undefined}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-[15px] font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <CookingPot className="h-5 w-5" aria-hidden />
-          Cook a dish
-        </Link>
+      <div className="px-4">
+        {/* One way in, as the tab bar's + Add (SM-15): Used · Cooked · Bought · Paid a bill. */}
         <button
           type="button"
           onClick={onAdd}
           aria-haspopup="dialog"
           aria-expanded={addOpen}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-input bg-card px-4 text-[15px] font-semibold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-[15px] font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Plus className="h-5 w-5" aria-hidden />
           Add

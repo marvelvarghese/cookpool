@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ChevronLeft, Plus } from "lucide-react";
 import type { DishSplitMode, KitchenItem, MyGroupBalance } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -10,19 +10,20 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { CLOSE_44, KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
+import { useMinWidth } from "@/components/kitchen/use-min-width";
 import { MAX_MINOR, formatMinor } from "@/components/kitchen/money";
 import { useMemberNames, useMyBalances, useMyRoles } from "@/components/kitchen/people-data";
 import { useItemsByRef, useKitchenItem, useMembersOf } from "@/components/kitchen/pantry-data";
 import { itemRefParam, parseItemRef, type ItemRef } from "@/components/kitchen/pantry";
 import { useCookDish, useCookableItems } from "@/components/kitchen/dish-maker-data";
 import {
-  CostCard,
   EaterList,
   LineCard,
   LineTable,
   PantryPanel,
-  ShareNoteCard,
   SharePicker,
   SplitModeCards,
   ValueStepper,
@@ -34,9 +35,11 @@ import {
   JUST_ME,
   MAX_DISH_INGREDIENTS,
   MAX_PORTIONS,
+  SPLIT_MODES,
   addPantryLine,
   cookRequest,
   cookedText,
+  costLine,
   ctaLabel,
   defaultShare,
   dishCurrency,
@@ -53,9 +56,7 @@ import {
   portionsText,
   refreshLines,
   shareChoice,
-  shareNote,
   sharesRequest,
-  splitModes,
   startingHalves,
   stepDishAmount,
   stepLineCount,
@@ -86,18 +87,21 @@ import { SuggestionList, useTypeahead } from "@/components/kitchen/from-before-u
 const NO_GROUPS: readonly MyGroupBalance[] = [];
 
 /**
- * Cook a dish (CP-15) — one dish from any mix of pantries and things just
- * bought. Phones: the dish's name, its ingredients (each with where it is
- * from, what it costs and whether it is yours or you owe its buyer, a stepper
- * and what is left), "Add from any pantry" (a search over every pantry you
- * cook from, and "Bought it just now?"), extras and portions, the dark cost
- * card (the total, each portion, what came from your own pantry, the extras,
- * and what you take on from each group), who to share it with — a group to
- * claim portions, a split you set now, or just you — and the note that says
- * what nets against what; the button stays above the tab bar. From 900px: two
- * panels, "Take from any pantry" and the dish as a table. Every number is the
- * engine's. `/cook?item=me:itm_…` (Cook with it) starts with that item in the
- * dish. Cooking opens the dish's page, with a ten-second Undo.
+ * Cook (CP-15; SM-15 under the seven rules, the canvas's "Cook again") — one
+ * dish from any mix of pantries and things just bought. Phones: the dish's
+ * name, its ingredients (each with where it is from, what it costs and
+ * whether it is yours or you owe its buyer, a stepper and what is left), "Add
+ * from any pantry" — a sheet over the page with its own one scroll (a search
+ * over every pantry you cook from, and "Bought it just now?") — extras and
+ * portions, who to share it with (a group, or just you) and, for a group, who
+ * ate: Everyone claims · I'll assign. One green main button stays above the
+ * tab bar and carries the cost in one line: "Cook & post to Flat 4B" over
+ * "₹156.00 · 4 portions · ₹39.00 each" (the dark cost card and the note
+ * about what nets against what are gone). From 900px: the pantry as a panel
+ * beside the dish, the dish as a table, the button in the title row. Every
+ * number is the engine's. `/cook?item=me:itm_…` (Cook with it) starts with
+ * that item in the dish. Cooking opens the dish's page, with a ten-second
+ * Undo.
  *
  * Cook again (SM-9): as the dish's name is typed, dishes cooked before show
  * under it ("Egg fried rice · 3× · 5 portions · ₹156"). Picking one fills the
@@ -151,6 +155,8 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
   const [mode, setMode] = React.useState<DishSplitMode>("claims");
   const [assigned, setAssigned] = React.useState<{ orgId: string; halves: Record<string, number> } | null>(null);
   const [panelOpen, setPanelOpen] = React.useState(false);
+  // From 900px the pantry is a panel beside the dish; on a phone it is a sheet over it (SM-15).
+  const wide = useMinWidth(900);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [linkNote, setLinkNote] = React.useState<string | null>(null);
@@ -175,16 +181,16 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
     if (!linked || linkedDone.current) return;
     if (linkedItem.error) {
       linkedDone.current = true;
-      setLinkNote("That item isn't in a pantry you cook from any more. Pick what goes in below.");
+      setLinkNote("That item isn't in a pantry you cook from.");
       return;
     }
     const item = linkedItem.data;
     if (!item || (linked.kind === "group" && rolesLoading)) return;
     linkedDone.current = true;
     if (item.state !== "active" || item.qtyLeftMilli <= 0) {
-      setLinkNote(`Nothing is left of ${item.name}. Pick what goes in below.`);
+      setLinkNote(`Nothing is left of ${item.name}.`);
     } else if (linked.kind === "group" && roles.get(linked.orgId) === "viewer") {
-      setLinkNote(`You view ${item.pantry.kind === "group" ? item.pantry.name : "that group"}, so you don't cook from its pantry.`);
+      setLinkNote(`You only view ${item.pantry.kind === "group" ? item.pantry.name : "that group"}.`);
     } else {
       setLines((cur) => addPantryLine(cur, item));
     }
@@ -246,7 +252,8 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
   const waiting = balances.loading || (assigning && roster === null && !members.error);
   const blocked = assigning && members.error !== null;
   const label = ctaLabel({ share: effectiveShare, groupName: shareGroup?.name ?? null, mode, problem });
-  const note = shareNote({ share: effectiveShare, groupName: shareGroup?.name ?? null, totals, meId, names });
+  // The cost card's five lines are one line on the button (SM-15).
+  const cost = costLine(totals);
   const views = lines.map((l) => lineView(l, { meId, names, currency }));
   const fromText = pantriesText(lines);
   const full = lines.length >= MAX_DISH_INGREDIENTS;
@@ -379,16 +386,32 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
   };
 
   const ctaDisabled = waiting || blocked;
+  // The one main button, green like every other (SM-15; it was tomato, right above the + Add):
+  // "Cook & post to Flat 4B" over "₹156.00 · 4 portions · ₹39.00 each".
   const cta = (className: string) => (
-    <Button
-      type="button"
-      className={cn(K_BUTTON, "bg-cp-tomato text-white hover:bg-cp-tomato/90", className)}
-      disabled={ctaDisabled}
-      loading={busy}
-      onClick={() => void submit()}
-    >
-      {label}
+    <Button type="button" className={cn(MAIN_BUTTON, className)} disabled={ctaDisabled} loading={busy} onClick={() => void submit()}>
+      <MainButtonLabel title={label} who={cost} />
     </Button>
+  );
+  const closePanel = () => {
+    setPanelOpen(false);
+    window.requestAnimationFrame(() => addRef.current?.focus());
+  };
+  const panel = (variant: "panel" | "sheet") => (
+    <PantryPanel
+      variant={variant}
+      idPrefix="dish-pantry"
+      dishLines={lines}
+      currency={addCurrency}
+      dishCurrency={currency}
+      full={full}
+      meId={meId}
+      names={names}
+      onAdd={addItem}
+      onAddNew={addNew}
+      buy={buy}
+      newKey={() => `new:${(seq.current += 1)}`}
+    />
   );
   const alertBox = (className: string) =>
     alert ? (
@@ -400,20 +423,19 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
   return (
     <div className="space-y-5 min-[900px]:grid min-[900px]:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] min-[900px]:grid-rows-[auto_auto_1fr] min-[900px]:gap-x-6 min-[900px]:gap-y-5 min-[900px]:space-y-0 min-[1200px]:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
       <header className="min-[900px]:sticky min-[900px]:top-0 min-[900px]:z-20 min-[900px]:col-span-2 min-[900px]:-mx-1 min-[900px]:-mt-4 min-[900px]:bg-background min-[900px]:px-1 min-[900px]:py-3">
-        <button
-          type="button"
-          onClick={back}
-          className="-ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden />
-          Back
-        </button>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Cook a dish</h1>
-            <p className="mt-1 text-sm text-muted-foreground">From any pantry. Whoever paid for what you take is paid back.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={back}
+              aria-label="Back"
+              className="-ml-2.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChevronLeft className="h-6 w-6" aria-hidden />
+            </button>
+            <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Cook</h1>
           </div>
-          {cta("hidden h-12 px-6 text-base font-extrabold min-[900px]:inline-flex")}
+          {cta("hidden w-auto min-w-72 min-[900px]:inline-flex")}
         </div>
         {alertBox("mt-3 hidden min-[900px]:block")}
       </header>
@@ -461,14 +483,10 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
             <h2 id="dish-ingredients" ref={ingredientsRef} tabIndex={-1} className="rounded text-[17px] font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               Ingredients
             </h2>
-            {fromText ? <span className="text-[13px] text-muted-foreground">{fromText}</span> : null}
+            {/* From 1200px the table's own heading says it (no duplicates). */}
+            {fromText ? <span className="text-[13px] text-muted-foreground min-[1200px]:hidden">{fromText}</span> : null}
           </div>
-          {lines.length === 0 && missing.length === 0 && pending.length === 0 ? (
-            <KCard className="p-4 text-sm text-muted-foreground">
-              Nothing in it yet. Take things from your own pantry or any group&apos;s you cook in — or add something you just bought.
-              <span className="hidden min-[900px]:inline"> Pick from the list on the left.</span>
-            </KCard>
-          ) : lines.length === 0 ? null : (
+          {lines.length === 0 ? null : (
             <>
               {/* Cards on a phone and while the dish's column is narrow; the table from 1200px. */}
               <ul aria-label="In the dish" className="space-y-2 min-[1200px]:hidden">
@@ -524,12 +542,12 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
               ))}
             </ul>
           ) : null}
-          {panelOpen ? null : (
+          {wide ? null : (
             <button
               ref={addRef}
               type="button"
-              aria-expanded={false}
-              aria-controls="dish-pantry"
+              aria-haspopup="dialog"
+              aria-expanded={panelOpen}
               onClick={openPanel}
               className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[14px] border border-dashed border-[#A9B2A6] text-[15px] font-bold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-[900px]:hidden"
             >
@@ -540,34 +558,26 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
         </section>
       </div>
 
-      {/* Take from any pantry: under the list on a phone (when opened), the left panel from 900px. */}
-      <div
-        id="dish-pantry"
-        className={cn(
-          "min-w-0 min-[900px]:sticky min-[900px]:top-32 min-[900px]:col-start-1 min-[900px]:row-span-2 min-[900px]:row-start-2 min-[900px]:block min-[900px]:self-start",
-          panelOpen ? "block" : "hidden",
-        )}
-      >
-        <PantryPanel
-          idPrefix="dish-pantry"
-          dishLines={lines}
-          currency={addCurrency}
-          dishCurrency={currency}
-          full={full}
-          meId={meId}
-          names={names}
-          onAdd={addItem}
-          onAddNew={addNew}
-          buy={buy}
-          newKey={() => `new:${(seq.current += 1)}`}
-          onClose={() => {
-            setPanelOpen(false);
-            window.requestAnimationFrame(() => addRef.current?.focus());
-          }}
-        />
-      </div>
+      {/* Take from any pantry: the left panel from 900px; on a phone, a sheet over the dish —
+          its own one scroll, its title and × in place, nothing sticky over it (SM-15). */}
+      {wide ? (
+        <div id="dish-pantry" className="min-w-0 min-[900px]:sticky min-[900px]:top-32 min-[900px]:col-start-1 min-[900px]:row-span-2 min-[900px]:row-start-2 min-[900px]:self-start">
+          {panel("panel")}
+        </div>
+      ) : (
+        <Sheet open={panelOpen} onOpenChange={(open) => (open ? setPanelOpen(true) : closePanel())}>
+          <SheetContent side="bottom" aria-describedby={undefined} className={cn(PICKER_SHEET, CLOSE_44)}>
+            <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border" />
+            <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-extrabold">Add from a pantry</SheetTitle>
+            {panel("sheet")}
+            <Button type="button" className={cn(K_BUTTON, "mb-[env(safe-area-inset-bottom)] h-12 w-full shrink-0 text-base font-extrabold")} onClick={closePanel}>
+              {lines.length > 0 ? `Done · ${lines.length} in the dish` : "Done"}
+            </Button>
+          </SheetContent>
+        </Sheet>
+      )}
 
-      {/* Extras, portions, the cost card, who it is for and who ate. */}
+      {/* Extras, portions, who it is for and who ate. */}
       <div className="min-w-0 space-y-5 min-[900px]:col-start-2 min-[900px]:row-start-3">
         <div className="grid grid-cols-2 gap-2.5 min-[900px]:max-[1099px]:grid-cols-1">
           <ValueStepper
@@ -593,8 +603,6 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
           />
         </div>
 
-        <CostCard totals={totals} meId={meId} names={names} />
-
         <SharePicker
           groups={groups}
           value={effectiveShare}
@@ -617,7 +625,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
 
         {shareGroup ? (
           <SplitModeCards
-            modes={splitModes(shareGroup.name)}
+            modes={SPLIT_MODES}
             value={mode}
             onChange={(m) => {
               setError(null);
@@ -644,15 +652,18 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
           )
         ) : null}
 
-        {note ? <ShareNoteCard note={note} /> : null}
-
         {alertBox("min-[900px]:hidden")}
       </div>
 
       {/* Phones: the button stays above the tab bar, however long the dish. */}
-      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:hidden">
-        {cta("h-[54px] w-full rounded-2xl text-base font-extrabold shadow-[0_8px_24px_rgba(23,32,27,0.18)]")}
+      <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:hidden">
+        {cta("shadow-[0_8px_24px_rgba(23,32,27,0.18)]")}
       </div>
     </div>
   );
 }
+
+// The picker sheet: tall enough to list plenty, its title and × never scroll away (only the list does).
+const PICKER_SHEET = cn(
+  "mx-auto h-[88dvh] max-w-xl gap-0 overflow-hidden rounded-t-[28px] border-x-0 bg-background px-4 pb-3 pt-2.5 shadow-2xl focus:outline-none",
+);

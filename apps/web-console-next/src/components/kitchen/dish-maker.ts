@@ -528,62 +528,17 @@ export function perPortionText(totals: Pick<DishTotals, "perPortionMinor" | "per
   return totals.perPortionExact ? money : `about ${money}`;
 }
 
-/** The cost card's line: "You owe Anu · Flat 4B". */
-export function oweLabel(o: OweLine, meId: string, names?: MemberNames | null): string {
-  return `You owe ${memberLabel(o.buyerId, meId, names)} · ${o.groupName}`;
-}
-
-/** "Anu and Dev in Flat 4B and Kiran in Lunch club". */
-function oweWho(takes: readonly GroupTake[], meId: string, names?: MemberNames | null): string {
-  return joinNames(
-    takes.map((t) => `${joinNames(t.owes.map((o) => memberLabel(o.buyerId, meId, names)), t.owes.length)} in ${t.groupName}`),
-    takes.length,
-  );
-}
-
 /**
- * The note under the split, every number from the engine. Shared with a
- * group: what a portion is worth to whoever eats it; then — only when the
- * cook owes buyers in that same group for what they took from its pantry —
- * that the two cancel inside the group, so settle-up shows only what is left;
- * then what stays in other groups' balances. Just for you: who you still owe.
- * Null when there is nothing to say (a dish just for you that cost nothing).
+ * The cost on the main button, in one line (SM-15: the dark five-line cost
+ * card is gone; each line already says whom you owe for it): "₹156.00 · 4
+ * portions · ₹39.00 each" ("≈ ₹33.33 each" when a portion is not a whole
+ * number of paise). Null while the dish costs nothing.
  */
-export function shareNote(input: {
-  share: string;
-  groupName: string | null;
-  totals: DishTotals;
-  meId: string;
-  names?: MemberNames | null;
-}): { tone: "net" | "plain"; text: string } | null {
-  const { totals, meId, names } = input;
-  const money = (minor: number) => formatMinor(minor, totals.currency);
-  const owing = totals.takes.filter((t) => t.owes.length > 0);
-  if (input.share === JUST_ME) {
-    if (owing.length > 0) {
-      const where = owing.length === 1 ? "that group's balance" : "those groups' balances";
-      return {
-        tone: "plain",
-        text: `Just for you: nobody owes you for it. You still owe ${oweWho(owing, meId, names)} for what you took; that stays in ${where}.`,
-      };
-    }
-    return totals.totalMinor > 0 ? { tone: "plain", text: "Just for you: nobody owes anyone for it. You paid for everything in it." } : null;
-  }
-  const group = input.groupName ?? "the group";
-  const parts = [`Whoever eats owes you ${perPortionText(totals)} a portion.`];
-  const here = owing.find((t) => t.orgId === input.share);
-  if (here) {
-    const owed = here.owes.reduce((a, o) => a + o.amountMinor, 0);
-    const who = joinNames(here.owes.map((o) => memberLabel(o.buyerId, meId, names)), here.owes.length);
-    parts.push(`Inside ${group}, that cancels against the ${money(owed)} you owe ${who}, so settle-up only shows what's left.`);
-  }
-  const elsewhere = owing.filter((t) => t.orgId !== input.share);
-  if (elsewhere.length > 0) {
-    parts.push(
-      `What you owe ${oweWho(elsewhere, meId, names)} stays in ${elsewhere.length === 1 ? "that group's balance" : "those groups' balances"}.`,
-    );
-  }
-  return { tone: "net", text: parts.join(" ") };
+export function costLine(totals: Pick<DishTotals, "totalMinor" | "portionsHalf" | "perPortionMinor" | "perPortionExact" | "currency">): string | null {
+  if (totals.totalMinor <= 0) return null;
+  const portions = portionsText(totals.portionsHalf);
+  const each = `${totals.perPortionExact ? "" : "≈ "}${formatMinor(totals.perPortionMinor, totals.currency)} each`;
+  return `${formatMinor(totals.totalMinor, totals.currency)} · ${portions} ${portions === "1" || portions === "½" ? "portion" : "portions"} · ${each}`;
 }
 
 // ── The dish's currency ───────────────────────────────────────────
@@ -769,11 +724,11 @@ export function shareOptions(
   };
 }
 
-/** The picker's button: the choice, and what it means. */
+/** The picker's button: the choice, and how many people are in it. */
 export function shareChoice(share: string, groups: readonly MyGroupBalance[]): { name: string; meta: string; group: MyGroupBalance | null } {
   const g = share === JUST_ME ? undefined : groups.find((x) => x.orgId === share);
   if (!g) return { name: JUST_ME_OPTION.name, meta: JUST_ME_OPTION.meta, group: null };
-  return { name: g.name, meta: `${countWords(g.memberCount, "person", "people")} · they owe you for what they eat`, group: g };
+  return { name: g.name, meta: countWords(g.memberCount, "person", "people"), group: g };
 }
 
 // ── Who ate? ──────────────────────────────────────────────────────
@@ -781,24 +736,13 @@ export function shareChoice(share: string, groups: readonly MyGroupBalance[]): {
 export interface SplitModeOption {
   id: DishSplitMode;
   label: string;
-  help: string;
 }
 
-/** The two ways a shared dish is split. */
-export function splitModes(groupName: string): SplitModeOption[] {
-  return [
-    {
-      id: "claims",
-      label: `Let ${groupName} claim portions`,
-      help: "People tap how much they had. You finalize once everyone has eaten.",
-    },
-    {
-      id: "assign",
-      label: "I'll say who ate what",
-      help: "Pick people and portions now. The split posts with the dish; you finalize it on the dish page.",
-    },
-  ];
-}
+/** The two ways a shared dish is split, in two words each (the audit's Top 15, item 13). */
+export const SPLIT_MODES: readonly SplitModeOption[] = [
+  { id: "claims", label: "Everyone claims" },
+  { id: "assign", label: "I'll assign" },
+];
 
 /** Half portions in words: 0 → "0", 1 → "½", 3 → "1½", 4 → "2". */
 export function portionsText(half: number): string {
@@ -989,7 +933,7 @@ export function ctaLabel(input: { share: string; groupName: string | null; mode:
   return input.mode === "claims" ? `Cook & post to ${input.groupName ?? "the group"}` : "Cook & post the split";
 }
 
-/** The toast after cooking: what was cooked, and where it went. */
+/** The toast after cooking, in one line: what was cooked, what it cost, and where it went. */
 export function cookedText(input: {
   name: string;
   share: string;
@@ -997,13 +941,10 @@ export function cookedText(input: {
   mode: DishSplitMode;
   totalMinor: number;
   currency: string;
-}): { title: string; description: string } {
+}): { title: string } {
   const total = formatMinor(input.totalMinor, input.currency);
-  if (input.share === JUST_ME) return { title: `Cooked ${input.name}`, description: `${total}, just for you.` };
-  const group = input.groupName ?? "the group";
-  return input.mode === "claims"
-    ? { title: `Cooked ${input.name}`, description: `${total} · posted to ${group} to claim.` }
-    : { title: `Cooked ${input.name}`, description: `${total} · the split is with the dish in ${group}. Finalize it there.` };
+  if (input.share === JUST_ME) return { title: `Cooked ${input.name} · ${total}` };
+  return { title: `Cooked ${input.name} · ${total} · ${input.groupName ?? "the group"}` };
 }
 
 export interface CookRefusal {

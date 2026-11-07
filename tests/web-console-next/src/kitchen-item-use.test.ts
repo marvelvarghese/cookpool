@@ -10,6 +10,8 @@ import {
   historyRows,
   initialAmount,
   isUnused,
+  itemFacts,
+  keepAmountsTogether,
   logButtonLabel,
   logRefusal,
   logRequest,
@@ -19,6 +21,7 @@ import {
   parseAmount,
   shareBreakdown,
   stepAmount,
+  transferNote,
   transferTargets,
   wastePreview,
 } from "@web-console-next/components/kitchen/item-use";
@@ -226,6 +229,47 @@ describe("Mark wasted: the preview", () => {
     const many = Array.from({ length: 8 }, (_, i) => `usr_${String(i).padStart(32, "0")}`);
     const big = wastePreview({ item: makeItem({ priceMinor: 4000, worthMinor: 1600, paidBy: many[0]! }), members: many, meId: ME });
     expect(big.explain).toMatch(/so the other 7 members share it, a paisa apart\.$|so the other 7 members each owe/);
+  });
+});
+
+describe("the item page: what is left, and one line of facts (SM-15)", () => {
+  it("says what is left of what, then worth now, the price once and who paid — the six-cell grid in one line", () => {
+    const facts = itemFacts(tomatoes(), { meId: ME, names: NAMES });
+    expect(facts).toEqual({ left: "400 g", of: "left of 1 kg", line: "Worth ₹16.00 · ₹4.00 per 100 g · Anu paid" });
+    // "₹4.00 per 100 g" and "₹40.00/kg" were the same fact twice; "Anu paid" was said twice too.
+    expect(facts.line.match(/per /g)).toHaveLength(1);
+    expect(facts.line).not.toMatch(/\/kg|by Anu/);
+  });
+
+  it("counts in the item's measure beside it, says you paid, and leaves who paid off your own item", () => {
+    const onions = { ...makeItem({ name: "Onions", unit: "kg", bought: "1", left: "0.6", priceMinor: 4000, paidBy: ME }), measures: [{ id: "msr_1", one: "onion", many: "onions", count: 1, amountMilli: 150_000 }] };
+    expect(itemFacts(onions, { meId: ME, names: NAMES })).toMatchObject({ of: "left of 1 kg · ≈ 4 onions", line: "Worth ₹24.00 · ₹4.00 per 100 g · You paid" });
+    const mine = makeItem({ pantry: PERSONAL_REF, unit: "L", bought: "1", left: "0.75", priceMinor: 6800, paidBy: ME });
+    expect(itemFacts(mine, { meId: ME, names: NAMES }).line).toBe("Worth ₹51.00 · ₹6.80 per 100 ml");
+    const gone = makeItem({ left: "0", worthMinor: 0, paidBy: DEV });
+    expect(itemFacts(gone, { meId: ME, names: NAMES }).line).toBe("₹4.00 per 100 g · Dev paid");
+  });
+
+  it("says who pays for waste in a few words where no share list says it", () => {
+    const roster = [ANU, ME, DEV, MEERA];
+    expect(wastePreview({ item: tomatoes(), members: roster, meId: ME, names: NAMES }).short).toBeNull();
+    expect(wastePreview({ item: makeItem({ wastePolicy: "buyer_absorbs", paidBy: ANU }), members: roster, meId: ME, names: NAMES }).short).toBe("Anu absorbs it");
+    expect(wastePreview({ item: makeItem({ wastePolicy: "buyer_absorbs", paidBy: ME }), members: roster, meId: ME }).short).toBe("You absorb it");
+    expect(wastePreview({ item: makeItem({ pantry: PERSONAL_REF, paidBy: ME }), members: [], meId: ME }).short).toBe("Nothing to split");
+    expect(wastePreview({ item: makeItem({ priceMinor: 0, worthMinor: 0 }), members: roster, meId: ME }).short).toBe("Nobody is charged");
+    expect(wastePreview({ item: tomatoes(), members: [ANU], meId: ME, names: NAMES }).short).toBe("Nobody else is charged");
+  });
+
+  it("never breaks an amount from its word in the history (the audit's \"300 / g\")", () => {
+    expect(keepAmountsTogether("You and Dev Patel · 300 g")).toBe("You and Dev Patel · 300\u00a0g");
+    expect(keepAmountsTogether("Anu undid a use: 2 onions back")).toBe("Anu undid a use: 2\u00a0onions back");
+    expect(keepAmountsTogether("Anu · ½ onion")).toBe("Anu · ½\u00a0onion");
+    expect(keepAmountsTogether("300 g · 2 h ago")).toBe("300\u00a0g · 2\u00a0h ago");
+    expect(keepAmountsTogether("Meera added 1.5 kg")).toBe("Meera added 1.5\u00a0kg");
+  });
+
+  it("confirms a move to a group in one line", () => {
+    expect(transferNote(makeItem({ pantry: PERSONAL_REF, unit: "kg", bought: "1", paidBy: ME }), "Flat 4B")).toBe("1 kg becomes Flat 4B's, paid by you · can't be undone");
   });
 });
 

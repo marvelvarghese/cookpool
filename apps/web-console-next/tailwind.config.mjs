@@ -1,6 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: "class",
+  // Hover styles only where there is a pointer that hovers (Cookpool SM-15): on a
+  // touch screen a tapped button kept its hover tint, so a choice looked picked
+  // after another was (the phone audit's broken list, item 7).
+  future: { hoverOnlyWhenSupported: true },
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     container: {

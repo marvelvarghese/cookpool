@@ -15,8 +15,8 @@ import { IconBubble, KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
 import type { MemberNames } from "@/components/kitchen/members";
 import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data";
 import { useLogUse, usePantries, usePantryItems, useUsuals } from "@/components/kitchen/pantry-data";
-import { FilterChips, ItemTable, PantryListRowView, PantryPicker } from "@/components/kitchen/pantry-ui";
-import { amountWords, usualFor } from "@/components/kitchen/quick-use";
+import { ItemTable, PantryListRowView } from "@/components/kitchen/pantry-ui";
+import { rowUsual, usualFor } from "@/components/kitchen/quick-use";
 import {
   ALL_PANTRIES,
   filterChips,
@@ -43,9 +43,10 @@ const TABLE_ROWS = 12;
  * soonest use-by first, each item one row: its name, what is left, one chip
  * when it is due soon or past its date, and its pantry's chip on All. The
  * row opens the item; Use logs your usual amount of it at once (with Undo),
- * or opens Use when you have none. From 900px, as before: the pantry picker,
- * a search, what it is worth and one table. `?pantry=` and `?filter=` keep
- * the choice in the address.
+ * or opens Use when you have none. From 900px (SM-15) the same row of chips
+ * and a search, then one table (its worth and price per row); the picker and
+ * "16 items · worth …" with its sentence are gone. `?pantry=` and `?filter=`
+ * keep the choice in the address.
  */
 export default function PantryPage() {
   const pathname = usePathname();
@@ -228,50 +229,43 @@ function PantryBody({
         )}
       </div>
 
-      {/* ── From 900px: the picker, a search, the worth and one table ── */}
-      <div className="hidden space-y-5 min-[900px]:block">
-        <div className="flex items-start gap-3">
-          <PantryPicker
-            pantries={list}
-            value={scope}
-            onChange={(key) => {
-              setShowAll(false);
-              onPantry(key);
-            }}
-            label="Showing"
-            idPrefix="pantry-picker"
-            includeAll
-            className="w-80 shrink-0"
-          />
-          {nothingAnywhere ? null : (
-            <div className="relative flex-1">
-              <label htmlFor="pantry-search" className="sr-only">
-                Search items
-              </label>
-              <Search className="pointer-events-none absolute left-3.5 top-7 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input
-                id="pantry-search"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search items"
-                autoComplete="off"
-                className={cn(K_INPUT, "h-14 rounded-2xl bg-card pl-11 sm:h-14")}
-              />
-            </div>
-          )}
-        </div>
-
-        <div>
-          <p className="text-[15px] font-bold tabular-nums">{summary.headline}</p>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">{summary.subline}</p>
-        </div>
-
+      {/* ── From 900px (SM-15): the phone's one row of chips and a search, then one table — no picker, no sentence ── */}
+      <div className="hidden space-y-4 min-[900px]:block">
         {nothingAnywhere ? (
           <EmptyPantries />
         ) : (
           <>
-            <FilterChips chips={filterChips(summary)} value={filter} onChange={onFilter} />
+            <div className="flex flex-wrap items-center gap-3">
+              <PhoneChips
+                filter={filter}
+                summary={summary}
+                pantries={pantryChips(list, recentSlugs)}
+                scope={scope}
+                onFilter={(next) => {
+                  setShowAll(false);
+                  onFilter(next);
+                }}
+                onPantry={(key) => {
+                  setShowAll(false);
+                  onPantry(key);
+                }}
+              />
+              <div className="relative min-w-60 flex-1">
+                <label htmlFor="pantry-search" className="sr-only">
+                  Search items
+                </label>
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <Input
+                  id="pantry-search"
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search items"
+                  autoComplete="off"
+                  className={cn(K_INPUT, "bg-card pl-11")}
+                />
+              </div>
+            </div>
             {loading ? (
               <div className="space-y-2" aria-hidden>
                 <Skeleton className="h-14 w-full rounded-2xl" />
@@ -335,7 +329,7 @@ function PhoneChips({
       on ? "border-foreground bg-foreground font-bold text-background" : "border-input bg-card font-semibold hover:bg-accent",
     );
   return (
-    <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4">
+    <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:overflow-visible min-[900px]:px-0">
       <div role="group" aria-label="Show" className="flex shrink-0 gap-2">
         {filterChips(summary).map((c) => (
           <button key={c.id} type="button" aria-pressed={c.id === filter} onClick={() => onFilter(c.id)} className={chip(c.id === filter)}>
@@ -377,11 +371,12 @@ function PhoneList({
   return (
     <ul className="divide-y overflow-hidden rounded-[20px] border bg-card">
       {rows.map((item) => {
-        const usual = usualFor(item.id, usuals);
+        // Your usual in its words ("2 onions"), logged in its measure (SM-15).
+        const usual = rowUsual(usualFor(item.id, usuals), item);
         const row = pantryListRow(item, {
           showPantry,
-          usualQtyMilli: usual?.lastQtyMilli ?? null,
-          usualWords: usual ? amountWords(usual.lastQtyMilli, item.dimension) : null,
+          usualQtyMilli: usual?.qtyMilli ?? null,
+          usualWords: usual?.words ?? null,
         });
         const use = row.use;
         return (
@@ -398,7 +393,7 @@ function PhoneList({
                       consumers: [meId],
                       idempotencyKey: crypto.randomUUID(),
                       what: use.words,
-                      inPantry: true,
+                      measure: usual?.measure ?? null,
                       meId,
                       names,
                     })

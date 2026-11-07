@@ -3,204 +3,24 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, X } from "lucide-react";
-import type { SettlementMethod, SettlePayment, SettlePlan } from "@saas/contracts/kitchen";
+import { X } from "lucide-react";
+import type { SettlementMethod, SettlePayment } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { KCard, K_BUTTON, GroupAvatar } from "./kit";
+import { K_BUTTON } from "./kit";
 import { Face } from "./faces-ui";
 import { Chip, Money } from "./ledger-ui";
-import { memberLabel, memberLabelInline } from "./members";
 import { formatMinor } from "./money";
-import { debtsBehind } from "./debts";
-import { TXN_KIND_META } from "./activity";
-import { SETTLE_METHODS, paymentAction, paymentSentence, paymentToast, settlementRequest, workingLine, type GroupRef } from "./settle";
-import { refreshLedger, useAllActivity } from "./ledger-data";
+import { SETTLE_METHODS, paymentAction, paymentSentence, paymentToast, settlementRequest } from "./settle";
+import { refreshLedger } from "./ledger-data";
 import { useMemberNames } from "./people-data";
 import { useProfile } from "./data";
 import { refusedToast, undoFailed, type UndoResult } from "./undo";
 import { useUndoToast } from "./undo-toast";
 import { paymentPatches, paymentTxn, txnReversedPatches } from "./cache-patches";
 import { beginWrite } from "./optimistic-data";
-
-/**
- * "Fewest payments" for one group (CP-8): the working (debts → pairs →
- * payments), a disclosure with the pairwise debts behind it (computed here
- * from the whole feed with the engine's `pairLines`), and each payment of the
- * plan with Record (UPI · Cash · Bank). The Groups page shows it beside the
- * list from 900px; on a phone, People lists a group's payments (SM-11).
- */
-export function SettleCard({
-  group,
-  plan,
-  loading,
-  error,
-  reload,
-  meId,
-  canRecordAny,
-  canWrite = true,
-  showGroup = false,
-  className,
-}: {
-  group: GroupRef;
-  plan: SettlePlan | null;
-  loading: boolean;
-  error: { message: string } | null;
-  reload: () => void;
-  meId: string | null;
-  /** Owners and admins may record anyone's payment. */
-  canRecordAny: boolean;
-  /** False for a viewer (CP-9): they record nothing, not even their own payments. */
-  canWrite?: boolean;
-  /** Name the group in the card's heading (Settle up). */
-  showGroup?: boolean;
-  className?: string;
-}) {
-  return (
-    <KCard className={cn("p-5", className)}>
-      <div className="flex items-center gap-3">
-        {showGroup ? <GroupAvatar name={group.name} size="sm" /> : null}
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-bold tracking-tight">
-            {showGroup ? group.name : "Fewest payments"}
-          </h3>
-          {showGroup ? <p className="text-xs text-muted-foreground">Fewest payments</p> : null}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="mt-4 space-y-2" aria-hidden>
-          <Skeleton className="h-4 w-64 max-w-full" />
-          <Skeleton className="h-12 w-full rounded-xl" />
-        </div>
-      ) : error || !plan ? (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load the plan. {error?.message ?? ""}</p>
-          <Button variant="outline" className={K_BUTTON} onClick={reload}>
-            Try again
-          </Button>
-        </div>
-      ) : (
-        <>
-          <p className="mt-3 rounded-xl bg-background px-3 py-2.5 text-sm font-semibold tabular-nums">
-            <span className="sr-only">The working: </span>
-            {workingLine(plan.working)}
-          </p>
-          {plan.working.debts > 0 ? <DebtsBehind orgId={group.id} meId={meId} currency={plan.currency} /> : null}
-
-          {plan.payments.length === 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              {plan.working.debts === 0 ? "Nothing to settle yet." : "Everyone is settled up."}
-            </p>
-          ) : (
-            <>
-              <ul className="mt-3 divide-y">
-                {plan.payments.map((p) => (
-                  <PaymentRow
-                    key={`${p.fromSubjectId}>${p.toSubjectId}`}
-                    orgId={group.id}
-                    payment={p}
-                    currency={plan.currency}
-                    meId={meId}
-                    {...recordable(p, { meId, canWrite, manager: canRecordAny })}
-                  />
-                ))}
-              </ul>
-            </>
-          )}
-        </>
-      )}
-    </KCard>
-  );
-}
-
-// ── The debts behind the plan ─────────────────────────────────────
-
-function DebtsBehind({ orgId, meId, currency }: { orgId: string; meId: string | null; currency: string }) {
-  const [open, setOpen] = React.useState(false);
-  const panelId = React.useId();
-  const all = useAllActivity(orgId, open);
-  const names = useMemberNames();
-  const debts = React.useMemo(() => (all.data ? debtsBehind(all.data.txns) : null), [all.data]);
-
-  return (
-    <div className="mt-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen((v) => !v)}
-        className="-mx-2 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} aria-hidden />
-        {open ? "Hide the debts behind this" : "Show the debts behind this"}
-      </button>
-      <div id={panelId} hidden={!open}>
-        {!open ? null : all.loading ? (
-          <div className="space-y-2 py-2" aria-hidden>
-            <Skeleton className="h-4 w-48" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-5/6" />
-          </div>
-        ) : all.error || !debts ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 py-2">
-            <p className="text-sm text-muted-foreground">Couldn&apos;t load the debts. {all.error?.message ?? ""}</p>
-            <Button variant="outline" className={K_BUTTON} onClick={all.reload}>
-              Try again
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3 pb-2">
-            <p className="text-xs text-muted-foreground">
-              Each entry makes the people in it owe whoever paid. Where two people owe each other, the
-              debts cancel; the plan then routes what&apos;s left through as few payments as it can.
-              {all.data?.truncated ? " Only the newest 5,000 entries are shown." : ""}
-            </p>
-            <ul className="space-y-3">
-              {debts.pairs.map((pair) => (
-                <li key={`${pair.a}|${pair.b}`} className="rounded-xl border bg-background p-3">
-                  <p className="text-sm font-semibold">
-                    {pair.debtorId && pair.creditorId ? (
-                      <>
-                        {memberLabel(pair.debtorId, meId, names)} {pair.debtorId === meId ? "owe" : "owes"}{" "}
-                        {memberLabelInline(pair.creditorId, meId, names)}{" "}
-                        <Money minor={pair.netMinor} currency={currency} className="font-bold" />
-                      </>
-                    ) : (
-                      <>
-                        {memberLabel(pair.a, meId, names)} and {memberLabelInline(pair.b, meId, names)}:{" "}
-                        <span className="font-normal text-muted-foreground">cancels out</span>
-                      </>
-                    )}
-                  </p>
-                  <ul className="mt-2 space-y-1.5">
-                    {pair.lines.map((line, i) => (
-                      <li key={`${line.txnId}-${i}`} className="flex items-start justify-between gap-3 text-xs">
-                        <span className="min-w-0">
-                          <span className={cn("block truncate font-medium", line.reversed && "line-through text-muted-foreground")}>
-                            {line.title}
-                          </span>
-                          <span className="block text-muted-foreground">
-                            {TXN_KIND_META[line.kind].label} · {memberLabel(line.debtorId, meId, names)}{" "}
-                            {line.debtorId === meId ? "owe" : "owes"} {memberLabelInline(line.creditorId, meId, names)}
-                          </span>
-                        </span>
-                        <Money minor={line.amountMinor} currency={currency} className="shrink-0 font-semibold" />
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ── One payment, and recording it ─────────────────────────────────
 

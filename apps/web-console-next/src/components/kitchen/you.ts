@@ -11,13 +11,11 @@ import { cleanDisplayName } from "./sign-in";
 import { nameInitials } from "./members";
 
 export const YOU_TITLE = "You";
-export const NAME_NOTE = "Your groups see this name next to what you buy, use and cook.";
 export const CHANGE_NAME = "Change your name";
 export const HOW_YOU_SIGN_IN = "How you sign in";
 /** Below 900px (the artboard); "this device" from 900px, where it is rarely a phone. */
 export const SIGN_OUT_PHONE = "Sign out of this phone";
 export const SIGN_OUT_DEVICE = "Sign out of this device";
-export const STAY_AS_THEY_ARE = "Your groups, pantry and balances stay as they are.";
 export const LAST_USED = "Last used";
 
 interface Person {
@@ -63,12 +61,14 @@ export interface SignInRow {
  * "How you sign in". identity-worker's profile does not say which providers
  * are linked to a person, so Google is listed only when this device's last
  * sign-in was Google (`lastSignInMethod`). A code to the address always
- * works: identity-worker signs anyone in by a code to their email.
+ * works: identity-worker signs anyone in by a code to their email. "Last
+ * used" only when there is a choice (SM-15: the audit found it on the only
+ * way there was).
  */
 export function signInRows(email: string, last: SignInWay | null): SignInRow[] {
   const rows: SignInRow[] = [];
   if (last === "google") rows.push({ way: "google", label: "Google", lastUsed: true });
-  rows.push({ way: "code", label: `A code to ${email}`, lastUsed: last === "code" });
+  rows.push({ way: "code", label: `A code to ${email}`, lastUsed: last === "code" && rows.length > 0 });
   return rows;
 }
 

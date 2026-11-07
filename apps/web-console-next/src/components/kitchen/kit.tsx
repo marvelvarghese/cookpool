@@ -8,7 +8,8 @@ import { dayText } from "./when";
 
 /**
  * Cookpool's small visual kit (CP-5), on top of the shared UI kit: rounded
- * cards, the "Soon" badge, group avatars, page titles and honest empty states.
+ * cards, group avatars and page titles. (No "Soon" badge or coming-soon card
+ * since SM-15: nothing in the app is a placeholder.)
  * Colors come from the `.cookpool` tokens, so these only make sense inside the
  * kitchen layout.
  */
@@ -20,20 +21,6 @@ export function KCard({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
       className={cn("rounded-[20px] border bg-card text-card-foreground shadow-[0_1px_2px_rgba(23,32,27,0.04)]", className)}
       {...props}
     />
-  );
-}
-
-/** "Soon": a feature that has not shipped yet. Neutral, 5.3:1. */
-export function SoonBadge({ className, label = "Soon" }: { className?: string; label?: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
-        className,
-      )}
-    >
-      {label}
-    </span>
   );
 }
 
@@ -99,42 +86,6 @@ export function IconBubble({
     <span aria-hidden className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full", tones[tone], className)}>
       <Icon className="h-5 w-5" strokeWidth={2} />
     </span>
-  );
-}
-
-/**
- * An honest empty state for a feature that arrives later: what it will do,
- * never a placeholder number.
- */
-export function ComingSoonCard({
-  icon,
-  title,
-  body,
-  tone = "neutral",
-  badge = "Coming soon",
-  className,
-  headingLevel = 2,
-}: {
-  icon: LucideIcon;
-  title: string;
-  body: string;
-  tone?: "green" | "tomato" | "blue" | "neutral";
-  badge?: string | null;
-  className?: string;
-  headingLevel?: 2 | 3;
-}) {
-  const Heading = headingLevel === 2 ? "h2" : "h3";
-  return (
-    <KCard className={cn("flex gap-4 p-5", className)}>
-      <IconBubble icon={icon} tone={tone} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-base font-bold tracking-tight">{title}</Heading>
-          {badge ? <SoonBadge label={badge} /> : null}
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-      </div>
-    </KCard>
   );
 }
 

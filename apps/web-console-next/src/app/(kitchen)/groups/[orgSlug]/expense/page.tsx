@@ -451,7 +451,7 @@ function ExpenseFormView({
         </div>
 
         {/* The one main button, in thumb reach above the tab bar on a phone. */}
-        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:col-start-2">
+        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:col-start-2">
           <Button type="submit" className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")} loading={busy}>
             <MainButtonLabel title={main.title} who={main.who} />
           </Button>

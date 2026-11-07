@@ -20,7 +20,8 @@ import { useMembersOf } from "@/components/kitchen/pantry-data";
 import { useMemberNames } from "@/components/kitchen/people-data";
 import { itemHref } from "@/components/kitchen/pantry";
 import { useDish, useDishActions, usePortions } from "@/components/kitchen/dish-data";
-import { DishChipPill, DishMoney, PortionStepper, WhoHadSomeList } from "@/components/kitchen/dish-ui";
+import { DishChipPill, DishMoney, MoneyLines, PortionStepper, WhoHadSomeList } from "@/components/kitchen/dish-ui";
+import { groupSettleHref } from "@/components/kitchen/group-page";
 import {
   OVER_CLAIMED,
   claimCount,
@@ -205,7 +206,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
 
   const back = shared
     ? group
-      ? { href: `/groups/${encodeURIComponent(group.slug)}?tab=dishes`, label: group.name }
+      ? { href: `/groups/${encodeURIComponent(group.slug)}`, label: group.name }
       : { href: "/groups", label: "Groups" }
     : { href: "/home", label: "Home" };
 
@@ -246,6 +247,10 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
       } else menu.push({ key: "correct", label: "Correct it", onSelect: startCorrecting });
     }
   }
+
+  // The cook's Finalize carries the money line with it (SM-15): held above the
+  // tab bar, it never sits over the line it acts on.
+  const finalizing = !editing && isSplitOpen(dish) && isCook;
 
   return (
     <div className="space-y-4">
@@ -337,7 +342,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
               />
             </div>
           ) : null}
-          <DishMoney dish={dish} summary={summary} flow={flow} people={people} now={now} />
+          <DishMoney dish={dish} summary={finalizing ? [] : summary} flow={flow} people={people} now={now} />
         </div>
       </div>
 
@@ -347,7 +352,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
         </p>
       ) : null}
 
-      <ActionBar>
+      <ActionBar above={finalizing && summary.length > 0 ? <MoneyLines summary={summary} /> : null}>
         {editing === "correct" || (editing === "assign" && (dish.state === "open" || !isCook)) ? (
           <>
             <Button variant="outline" className={cn(K_BUTTON, "h-[52px] flex-1 bg-card")} onClick={stopEditing} disabled={actions.busy !== null}>
@@ -380,7 +385,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
           </>
         ) : dish.state === "finalized" && shared ? (
           <Button asChild className={cn(K_BUTTON, "h-[60px] flex-1 rounded-[18px] text-[17px] font-extrabold")}>
-            <Link href={group ? `/settle?group=${encodeURIComponent(group.slug)}` : "/settle"}>Settle up</Link>
+            <Link href={group ? groupSettleHref(group.slug) : "/people"}>Settle up</Link>
           </Button>
         ) : null}
       </ActionBar>
@@ -425,12 +430,17 @@ function PortionBar({ half, of, over }: { half: number; of: number; over: boolea
  * while the page is longer than the screen. It comes after everything you
  * choose, so scrolling to the end always shows every row above it.
  */
-function ActionBar({ children }: { children: React.ReactNode }) {
+function ActionBar({ children, above }: { children: React.ReactNode; above?: React.ReactNode }) {
   const items = React.Children.toArray(children).filter(Boolean);
   if (items.length === 0) return null;
+  // Opaque, so nothing shows through it half-covered (the audit's rows peeking out under the old fade).
   return (
-    <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 flex gap-2.5 bg-gradient-to-t from-background from-70% to-transparent px-4 pb-2 pt-4 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:px-0">
-      {children}
+    <div
+      data-toast-above=""
+      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 space-y-2 border-t bg-background px-4 pb-2 pt-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px] min-[900px]:border min-[900px]:px-4"
+    >
+      {above}
+      <div className="flex gap-2.5">{children}</div>
     </div>
   );
 }

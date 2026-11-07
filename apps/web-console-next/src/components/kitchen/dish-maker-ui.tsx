@@ -22,13 +22,10 @@ import { useCookableItems } from "./dish-maker-data";
 import {
   JUST_ME,
   emptyNewItem,
-  oweLabel,
   pantryResults,
-  perPortionText,
   portionsText,
   previewNewItem,
   shareOptions,
-  type DishTotals,
   type EaterView,
   type LineView,
   type NewItemDraft,
@@ -351,64 +348,6 @@ export function ValueStepper({
   );
 }
 
-// ── The cost card ─────────────────────────────────────────────────
-
-/**
- * The dark card: the dish total and each portion, what came from your own
- * pantry, the extras you paid, and — for items from group pantries — what you
- * take on, buyer by buyer and group by group.
- */
-export function CostCard({ totals, meId, names }: { totals: DishTotals; meId: string; names?: MemberNames | null }) {
-  const money = (minor: number) => formatMinor(minor, totals.currency);
-  const portions = portionsText(totals.portionsHalf);
-  return (
-    <section aria-labelledby="dish-cost-heading" className="space-y-3.5 rounded-[22px] bg-[#17201B] p-[18px] text-white">
-      <h2 id="dish-cost-heading" className="sr-only">
-        What it costs
-      </h2>
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-[#C9D2CB]">Dish total</p>
-          <p className="text-[30px] font-extrabold leading-tight tracking-tight tabular-nums">{money(totals.totalMinor)}</p>
-        </div>
-        <div className="min-w-0 text-right">
-          <p className="text-[13px] font-semibold text-[#C9D2CB]">Each portion</p>
-          <p className="text-[22px] font-extrabold leading-tight tabular-nums text-[#8FD3AE]">{perPortionText(totals)}</p>
-          <p className="text-xs text-[#C9D2CB]">
-            ÷ {portions} {portions === "1" ? "portion" : "portions"}
-          </p>
-        </div>
-      </div>
-      <div aria-hidden className="h-px bg-[#33403A]" />
-      <dl className="space-y-1.5 text-sm">
-        <div className="flex justify-between gap-3">
-          <dt className="text-[#C9D2CB]">{totals.mineIsPantry ? "From your own pantry" : "Paid for by you"}</dt>
-          <dd className="font-bold tabular-nums">{money(totals.fromMineMinor)}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-[#C9D2CB]">Extras you paid</dt>
-          <dd className="font-bold tabular-nums">{money(totals.extrasMinor)}</dd>
-        </div>
-      </dl>
-      <div className="space-y-2">
-        <p className="text-[13px] font-bold text-[#C9D2CB]">You take on, for items from group pantries</p>
-        {totals.owes.length === 0 ? (
-          <p className="text-sm text-[#C9D2CB]">Nothing: no one else paid for anything in it.</p>
-        ) : (
-          <ul className="space-y-2">
-            {totals.owes.map((o) => (
-              <li key={`${o.orgId}:${o.buyerId}`} className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 text-[#C9D2CB]">{oweLabel(o, meId, names)}</span>
-                <span className="shrink-0 font-extrabold tabular-nums text-[#F7B48A]">{money(o.amountMinor)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
-  );
-}
-
 // ── Take from any pantry ──────────────────────────────────────────
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -447,7 +386,10 @@ export function PantryPanel({
   buy,
   autoFocus,
   className,
+  variant = "panel",
 }: {
+  /** "sheet": inside the phone's picker sheet (SM-15), one scroll region and no heading of its own. */
+  variant?: "panel" | "sheet";
   idPrefix: string;
   dishLines: Parameters<typeof pantryResults>[1]["lines"];
   /** The currency every new ingredient must count in, or null while nothing decides. */
@@ -492,10 +434,82 @@ export function PantryPanel({
     setSaid(`Added ${r.name}.`);
     setQuery("");
   };
+  const sheet = variant === "sheet";
+
+  const body = (
+    <>
+      {buying ? (
+        <NewItemForm
+          key={buyingKey}
+          idPrefix={`${idPrefix}-new`}
+          draft={buying}
+          onDraft={setBuying}
+          currency={dishCurrency}
+          disabled={full}
+          onCancel={() => setBuying(null)}
+          onAdd={(draft) => {
+            const preview = previewNewItem(draft, newKey(), dishCurrency);
+            if (!preview.line) return false;
+            onAddNew(preview.line);
+            setSaid(`Added ${preview.line.name}, just bought.`);
+            setBuying(null);
+            setQuery("");
+            return true;
+          }}
+        />
+      ) : error && results === null ? (
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load your pantries. {error.message}</p>
+      ) : results === null ? (
+        <div className="space-y-2" aria-hidden>
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </div>
+      ) : results.length === 0 ? (
+        searching ? (
+          <div className="space-y-2.5 px-1 py-1">
+            <p className="text-sm font-semibold text-muted-foreground">Not in a pantry</p>
+            <Button type="button" className={cn(K_BUTTON, "w-full")} onClick={() => setBuying(emptyNewItem(query.trim()))}>
+              Bought &ldquo;{query.trim()}&rdquo; just now
+            </Button>
+          </div>
+        ) : (
+          <p className="px-1 text-sm font-semibold text-muted-foreground">Nothing to cook with yet</p>
+        )
+      ) : (
+        <>
+          <p className="px-1 text-xs font-bold text-muted-foreground">{searching ? "Matches" : "Use soonest first"}</p>
+          <ul
+            aria-label="Items to cook with"
+            className={cn("-mx-1", !sheet && "max-h-[420px] overflow-y-auto min-[900px]:max-h-[min(560px,calc(100dvh-20rem))]")}
+          >
+            {results.map((r) => (
+              <ResultRow key={r.key} result={r} full={full} onAdd={() => add(r)} />
+            ))}
+          </ul>
+        </>
+      )}
+
+      {buying || (searching && results !== null && results.length === 0) ? null : (
+        <button
+          type="button"
+          onClick={() => setBuying(emptyNewItem(query.trim()))}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ShoppingBasket className="h-4 w-4" aria-hidden />
+          Bought something just now?
+        </button>
+      )}
+    </>
+  );
 
   return (
-    <section aria-labelledby={headingId} className={cn("space-y-3 rounded-[22px] border bg-card p-4", className)}>
-      <div className="flex items-center justify-between gap-2">
+    <section
+      aria-labelledby={sheet ? undefined : headingId}
+      aria-label={sheet ? "Take from any pantry" : undefined}
+      className={cn(sheet ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3 rounded-[22px] border bg-card p-4", className)}
+    >
+      <div className={cn("flex items-center justify-between gap-2", sheet && "hidden")}>
         <h2 id={headingId} className="text-base font-extrabold">
           Take from any pantry
         </h2>
@@ -533,67 +547,9 @@ export function PantryPanel({
       <p className="sr-only" aria-live="polite">
         {said}
       </p>
-      {full ? <p className="text-[13px] text-muted-foreground">The dish has 30 ingredients, the most one dish takes.</p> : null}
+      {full ? <p className="text-[13px] font-semibold text-muted-foreground">30 ingredients · the most a dish takes</p> : null}
 
-      {buying ? (
-        <NewItemForm
-          key={buyingKey}
-          idPrefix={`${idPrefix}-new`}
-          draft={buying}
-          onDraft={setBuying}
-          currency={dishCurrency}
-          disabled={full}
-          onCancel={() => setBuying(null)}
-          onAdd={(draft) => {
-            const preview = previewNewItem(draft, newKey(), dishCurrency);
-            if (!preview.line) return false;
-            onAddNew(preview.line);
-            setSaid(`Added ${preview.line.name}, just bought.`);
-            setBuying(null);
-            setQuery("");
-            return true;
-          }}
-        />
-      ) : error && results === null ? (
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load your pantries. {error.message}</p>
-      ) : results === null ? (
-        <div className="space-y-2" aria-hidden>
-          <Skeleton className="h-12 w-full rounded-xl" />
-          <Skeleton className="h-12 w-full rounded-xl" />
-          <Skeleton className="h-12 w-full rounded-xl" />
-        </div>
-      ) : results.length === 0 ? (
-        searching ? (
-          <div className="space-y-2.5 px-1 py-1">
-            <p className="text-sm text-muted-foreground">Not in any pantry. Bought it just now?</p>
-            <Button type="button" className={cn(K_BUTTON, "w-full bg-foreground text-background hover:bg-foreground/90")} onClick={() => setBuying(emptyNewItem(query.trim()))}>
-              Add &ldquo;{query.trim()}&rdquo; to your pantry and use it
-            </Button>
-          </div>
-        ) : (
-          <p className="px-1 text-sm text-muted-foreground">Nothing in your pantries to cook with yet. Bought something? Add it below.</p>
-        )
-      ) : (
-        <>
-          <p className="px-1 text-xs font-bold text-muted-foreground">{searching ? `Matches across your pantries` : "In your pantries · use soonest first"}</p>
-          <ul aria-label="Items to cook with" className="-mx-1 max-h-[420px] overflow-y-auto min-[900px]:max-h-[min(560px,calc(100dvh-20rem))]">
-            {results.map((r) => (
-              <ResultRow key={r.key} result={r} full={full} onAdd={() => add(r)} />
-            ))}
-          </ul>
-        </>
-      )}
-
-      {buying || (searching && results !== null && results.length === 0) ? null : (
-        <button
-          type="button"
-          onClick={() => setBuying(emptyNewItem(query.trim()))}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ShoppingBasket className="h-4 w-4" aria-hidden />
-          Bought something just now?
-        </button>
-      )}
+      {sheet ? <div className="-mx-4 min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-2">{body}</div> : body}
     </section>
   );
 }
@@ -681,10 +637,7 @@ function NewItemForm({
       }}
       className="space-y-3 rounded-[18px] bg-background p-3.5"
     >
-      <div>
-        <p className="text-[15px] font-bold">Bought it just now?</p>
-        <p className="text-xs text-muted-foreground">It goes into your pantry, paid by you. What the dish doesn&apos;t use stays there.</p>
-      </div>
+      <p className="text-[15px] font-bold">Bought it just now?</p>
       <div className={field}>
         <label htmlFor={`${idPrefix}-name`} className="text-xs font-semibold text-muted-foreground">
           What
@@ -902,7 +855,12 @@ export function SharePicker({
 
 // ── Who ate? ──────────────────────────────────────────────────────
 
-/** Claims or assign, as two radio cards. */
+/**
+ * Who ate? — Everyone claims · I'll assign, as two choices side by side (SM-15:
+ * no paragraph under each). Only the chosen one is tinted: no hover tint on a
+ * touch screen, which left the other one looking chosen too (the audit's
+ * broken list, item 7).
+ */
 export function SplitModeCards({
   modes,
   value,
@@ -913,34 +871,31 @@ export function SplitModeCards({
   onChange: (id: SplitModeOption["id"]) => void;
 }) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="mb-2 text-[17px] font-extrabold">Who ate?</legend>
-      {modes.map((m) => {
-        const on = m.id === value;
-        return (
-          <label
-            key={m.id}
-            className={cn(
-              "flex cursor-pointer items-start gap-3 rounded-2xl p-3.5 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
-              on ? "border-2 border-primary bg-accent" : "border border-input bg-card hover:bg-accent/50",
-            )}
-          >
-            <input
-              type="radio"
-              name="dish-split-mode"
-              value={m.id}
-              checked={on}
-              onChange={() => onChange(m.id)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))] focus-visible:outline-none"
-            />
-            <span className="min-w-0">
-              <span className="block text-[15px] font-bold">{m.label}</span>
-              <span className="block text-[13px] text-muted-foreground">{m.help}</span>
-            </span>
-          </label>
-        );
-      })}
-    </fieldset>
+    <div className="space-y-2">
+      <h2 id="dish-split-mode" className="text-[17px] font-extrabold">
+        Who ate?
+      </h2>
+      <div role="radiogroup" aria-labelledby="dish-split-mode" className="grid grid-cols-2 gap-2">
+        {modes.map((m) => {
+          const on = m.id === value;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onChange(m.id)}
+              className={cn(
+                "min-h-12 rounded-2xl px-3 text-[15px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                on ? "border-2 border-primary bg-accent text-primary" : "border border-input bg-card text-foreground",
+              )}
+            >
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1001,25 +956,10 @@ export function EaterList({
         </button>
       ) : null}
       {view.unclaimedHalf > 0 ? (
-        <p className="px-1 text-[13px] text-muted-foreground">
-          Nobody&apos;s down for {portionsText(view.unclaimedHalf)} {view.unclaimedHalf === 2 ? "portion" : "portions"} yet (
-          {formatMinor(view.unclaimedMinor, currency)}). They fall to you, and become leftovers in your pantry once you finalize.
+        <p className="px-1 text-sm font-semibold tabular-nums text-muted-foreground">
+          {portionsText(view.unclaimedHalf)} {view.unclaimedHalf <= 2 ? "portion" : "portions"} left over · yours · {formatMinor(view.unclaimedMinor, currency)}
         </p>
       ) : null}
     </div>
-  );
-}
-
-/** The green note: what nets against what (or, just for you, what you still owe). */
-export function ShareNoteCard({ note }: { note: { tone: "net" | "plain"; text: string } }) {
-  return (
-    <p
-      className={cn(
-        "rounded-2xl px-4 py-3.5 text-sm",
-        note.tone === "net" ? "bg-cp-herb-tint text-[#165C3A]" : "border bg-card text-muted-foreground",
-      )}
-    >
-      {note.text}
-    </p>
   );
 }
