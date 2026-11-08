@@ -49,7 +49,7 @@ function personOf(actor: InternalActor, requestId: string): string | Response {
   return actor.subjectId;
 }
 
-async function readBody(request: Request, requestId: string): Promise<Record<string, unknown> | Response> {
+export async function readBody(request: Request, requestId: string): Promise<Record<string, unknown> | Response> {
   let body: unknown;
   try {
     body = await request.json();
@@ -109,7 +109,7 @@ function toDevice(s: StoredPushSubscription): PushDevice {
 }
 
 /** Run `fn` with the subscriptions repository: the injected one, or D1's. */
-async function withSubscriptions(
+export async function withSubscriptions(
   env: Env,
   requestId: string,
   deps: PushRouteDeps | undefined,
