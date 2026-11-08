@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CM-5
+  title: "Profiles and following in the app"
+spec:
+  goal: "In the new frame: HandleSetup at /you/profile, profiles at /u/[handle], people search, follow, requests, remove, mute and block, the You tab's counts and lists, and Public in the recipe share sheet."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-community/**
+    - tasks/CM-5.TaskContract.yaml
+  doneWhen:
+    - "HandleSetup checks the handle as you type and saves name, handle, about and who can follow you"
+    - "/u/[handle] shows counts, Follow, Ask to follow or Following, cooks a week, Recipes, and the lock for a private profile"
+    - "people search shows from your groups, from your recipes and popular, and Follow works from the list with Undo"
+    - "the You tab shows your handle, followers and following, requests, and blocked people; block and mute live in the profile menu"
+    - "the recipe share sheet offers Public; with newFrame false nothing changes"
+  gates: []

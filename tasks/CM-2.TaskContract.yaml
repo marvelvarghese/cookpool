@@ -1,0 +1,29 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CM-2
+  title: "Profiles, follows, blocks and search in the server"
+spec:
+  goal: "Migration 430 adds profiles with handles and privacy, follows with requests, blocks, mutes and listed recipes; routes for your profile, someone's profile, following, requests, blocks, mutes, people search, suggestions and public recipes."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - specs/epics/cookpool-community/**
+    - tasks/CM-2.TaskContract.yaml
+  doneWhen:
+    - "migration 430 adds kitchen_profiles, kitchen_follows, kitchen_blocks, kitchen_mutes and kitchen_recipes.listed, registered with checksums"
+    - "PUT /me/profile enforces the handle shape, reserved words, uniqueness and once per 30 days; handle availability is readable"
+    - "a profile read gives counts, relationship and followedBy, never an email; a block either way is the opaque 404"
+    - "following a public profile is accepted at once and a private one is requested; requests can be accepted or declined and followers removed"
+    - "blocking deletes follows both ways and hides both people from each other in every read; muting is recorded"
+    - "search matches public profiles by handle prefix or name and private ones by exact handle; suggestions come from groups, recipes and popularity"
+    - "listed recipes are public: on the profile and in Explore source=public; the SDK covers every route; tests cover each rule"
+  gates: []

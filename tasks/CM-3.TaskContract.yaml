@@ -1,0 +1,31 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CM-3
+  title: "Posts, the feed, reactions, safety and activity in the server"
+spec:
+  goal: "Migration 440 adds posts from dishes with whitelisted stats, Yum, comments, reports and activity; the Following and Discover feeds with visibility rules, cooked-your-recipe activity and five preference pushes."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - specs/epics/cookpool-community/**
+    - tasks/CM-3.TaskContract.yaml
+  doneWhen:
+    - "migration 440 adds kitchen_posts, kitchen_post_yums, kitchen_post_comments, kitchen_reports and kitchen_activity, registered with checksums"
+    - "only a dish's cook posts it, once; the server computes only the chosen stats and no post read carries money, a group or people"
+    - "audience me, followers and public are enforced, a private author's posts reach followers only, and blocks hide posts both ways"
+    - "the Following feed is newest first from accepted follows plus your own; Discover is recent public posts with the Yum boost"
+    - "Yum, comments and their removal by the comment's or post's author work; reports are stored and 3 reporters hide a target from Discover"
+    - "activity rows for follows, requests, Yums, comments, cooked_yours and saved_yours are written with the event, and Yums group on read"
+    - "the five social kinds are preference pushes, email off, a Yum push at most hourly per post; the SDK covers every route"
+  gates: []
