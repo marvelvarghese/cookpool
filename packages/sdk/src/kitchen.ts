@@ -81,6 +81,8 @@ import type {
   SetFoodAnswerResponse,
   UpdateRecipeRequest,
 } from "@saas/contracts/kitchen";
+// Guided steps (GC-2).
+import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 // Timers that find you (GC-3).
 import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
 
@@ -905,10 +907,26 @@ export class KitchenClient {
     );
   }
 
-  /** PATCH /v1/kitchen/me/recipes/:recipeId — its owner; `lines` and `steps` replace the whole list. Copies never change. */
+  /**
+   * PATCH /v1/kitchen/me/recipes/:recipeId — its owner; `lines`, `steps` and
+   * `tools` replace the whole list (a step that sends its key keeps it).
+   * Copies never change.
+   */
   updateRecipe(recipeId: string, body: UpdateRecipeRequest, opts: RequestOptions = {}): Promise<RecipeResponse> {
     return this.transport.request<RecipeResponse>(
       { method: "PATCH", path: this.mePath(`recipes/${encodeURIComponent(recipeId)}`), body },
+      opts,
+    );
+  }
+
+  /**
+   * PATCH /v1/kitchen/me/recipes/:recipeId/step-times — its owner: "Use
+   * today's times" (GC-2). Sets these steps' ranges by key, at the recipe's
+   * own size; every other step stays as it is.
+   */
+  updateStepTimes(recipeId: string, body: UpdateStepTimesRequest, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>(
+      { method: "PATCH", path: this.mePath(`recipes/${encodeURIComponent(recipeId)}/step-times`), body },
       opts,
     );
   }

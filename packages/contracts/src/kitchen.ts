@@ -5,6 +5,8 @@
 // `/v1/kitchen/me/…` for the caller across every group). Money is integer
 // minor units (paise for INR) in the group's one currency.
 
+import type { StepLogEntry } from "./kitchen-recipes.js";
+
 // ── Policy actions ──────────────────────────────────────────
 
 /** Every kitchen policy action, in the order design.md §6 lists them. */
@@ -1328,6 +1330,15 @@ export interface CookDishRequest {
   recipeId?: string | null;
   /** The factor the recipe was scaled by, in thousandths (RECIPE_MIN_FACTOR_MILLI–RECIPE_MAX_FACTOR_MILLI); needs `recipeId`. */
   recipeFactorMilli?: number | null;
+  /**
+   * How long each step took in a guided session (GC-2), at most
+   * MAX_STEP_LOG entries; needs `recipeId`. One time is kept per step key of
+   * that recipe — with the factor and the recipe it was first copied from —
+   * for learned ranges (GC-7). A key the recipe does not have, a step ticked
+   * before it started or taking more than a day, and a key logged again are
+   * ignored. Money is worked out exactly as without it.
+   */
+  stepLog?: StepLogEntry[] | null;
 }
 
 export interface KitchenDishIngredient {

@@ -7,7 +7,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { Cookpool } from "../index.js";
+import { Cookpool, stepTimeAt } from "../index.js";
 import {
   ConflictError,
   ForbiddenError,
@@ -1507,6 +1507,7 @@ describe("KitchenClient — foods and recipes (Cookpool RC-4)", () => {
     await respond((c) => c.kitchen.stopRecipeLink("rcp_1"));
     await respond((c) => c.kitchen.recipeByLink("AbCdEfGhJk"));
     await respond((c) => c.kitchen.copyRecipe({ linkCode: "AbCdEfGhJk" }), 201);
+    await respond((c) => c.kitchen.updateStepTimes("rcp_1", { steps: [{ key: "k1", minSeconds: 420, maxSeconds: 540 }] }));
     expect(calls.map(([call]) => call)).toEqual([
       "POST https://api.test/v1/kitchen/me/recipes",
       "POST https://api.test/v1/kitchen/me/recipes",
@@ -1518,9 +1519,11 @@ describe("KitchenClient — foods and recipes (Cookpool RC-4)", () => {
       "DELETE https://api.test/v1/kitchen/me/recipes/rcp_1/link",
       "GET https://api.test/v1/kitchen/recipe-links/AbCdEfGhJk",
       "POST https://api.test/v1/kitchen/me/recipes/copies",
+      "PATCH https://api.test/v1/kitchen/me/recipes/rcp_1/step-times",
     ]);
     expect(JSON.parse(calls[1]![1]!)).toEqual({ fromDishId: "dsh_1" });
     expect(JSON.parse(calls[9]![1]!)).toEqual({ linkCode: "AbCdEfGhJk" });
+    expect(JSON.parse(calls[10]![1]!)).toEqual({ steps: [{ key: "k1", minSeconds: 420, maxSeconds: 540 }] });
   });
 
   it("reads lists, the match, a person's recipes, Explore and Cook now — and a refusal is a NotFoundError", async () => {
@@ -1564,5 +1567,27 @@ describe("KitchenClient — foods and recipes (Cookpool RC-4)", () => {
       ingredients: [{ itemId: "itm_1", quantity: "450", unit: "g", recipeLine: 0 }],
     });
     expect(JSON.parse(String(cooked.calls[0]!.init.body))).toMatchObject({ recipeId: "rcp_1", recipeFactorMilli: 450, ingredients: [{ recipeLine: 0 }] });
+  });
+
+  it("writes guided steps and tools, and sends the step log with the dish, as they are (GC-2)", async () => {
+    const written = captureFetch(jsonResponse(envelope({ recipe, lastCook: null }), { status: 201 }));
+    await client(written.fetch).kitchen.createRecipe({
+      name: "Rajma",
+      servesHalf: 8,
+      lines: [{ name: "Rajma", quantity: "250", unit: "g" }],
+      steps: [{ text: "Soak the rajma", phase: "prep", minSeconds: 28_800, handsOff: true }, "Pressure-cook"],
+      tools: ["Pressure cooker"],
+    });
+    expect(JSON.parse(String(written.calls[0]!.init.body))).toMatchObject({
+      steps: [{ text: "Soak the rajma", phase: "prep", minSeconds: 28_800, handsOff: true }, "Pressure-cook"],
+      tools: ["Pressure cooker"],
+    });
+    const log = [{ key: "k1", startedAt: "2026-11-08T12:00:00.000Z", doneAt: "2026-11-08T12:08:00.000Z" }];
+    const cooked = captureFetch(jsonResponse(envelope({ dish: { id: "dsh_1", recipeId: "rcp_1" } }), { status: 201 }));
+    await client(cooked.fetch).kitchen.cookDish({
+      name: "Rajma", portionsHalf: 4, splitMode: "assign", recipeId: "rcp_1", ingredients: [{ itemId: "itm_1", quantity: "100", unit: "g" }], stepLog: log,
+    });
+    expect(JSON.parse(String(cooked.calls[0]!.init.body))).toMatchObject({ stepLog: log });
+    expect(stepTimeAt({ minSeconds: 600, maxSeconds: 900, timeRule: "linear" }, 2_000)).toEqual({ minSeconds: 1_200, maxSeconds: 1_800 });
   });
 });

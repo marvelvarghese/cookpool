@@ -6,7 +6,7 @@ import {
   type KitchenDishState,
 } from "@saas/contracts/kitchen";
 import { asUuid, type Uuid } from "@saas/db/ids";
-import type { KitchenDishRecord, KitchenDishScope, KitchenDishesCursor, KitchenRepository } from "@saas/db/kitchen";
+import type { CookDishStepTimes, KitchenDishRecord, KitchenDishScope, KitchenDishesCursor, KitchenRepository } from "@saas/db/kitchen";
 import { formatMinor } from "@saas/kitchen-engine/money";
 import { requireGroupAction, requireOrgAction } from "../authz.js";
 import type { OrgContext, RequestContext } from "../context.js";
@@ -22,6 +22,7 @@ import {
   parseDish,
   planDish,
   stateParam,
+  stepTimesOf,
   toKitchenDish,
 } from "../dishes.js";
 import { canUseIn, type MemberGroup } from "../groups-client.js";
@@ -108,6 +109,7 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
     }
 
     // Cooked from a recipe (RC-4): one the cook may see (design §5.1), and lines it has.
+    let stepTimes: CookDishStepTimes | null = null;
     if (dish.recipeId) {
       const recipeId = dish.recipeId;
       const recipe = await ctx.timings.measure("db", () => repo.getRecipe(recipeId, cook));
@@ -124,6 +126,14 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
         if (i.recipeLine !== null && i.recipeLine >= count) lineFields.add(`newItems[${at}].recipeLine`, `The recipe has ${count} lines`);
       });
       if (!lineFields.ok) return validationError(ctx.requestId, lineFields.errors);
+
+      // How long each of its steps took (GC-2), pooled under the recipe its copies came from.
+      const steps = stepTimesOf(dish.stepLog, new Set(recipe.value.guidedSteps.map((s) => s.key)));
+      if (steps.length > 0) {
+        const root = await ctx.timings.measure("db", () => repo.recipeRootId(recipeId));
+        if (!root.ok) return unavailable(ctx.requestId);
+        stepTimes = { recipeRootId: root.value ?? recipeId, factorMilli: dish.recipeFactorMilli, steps };
+      }
     }
 
     let sharedWith: { orgId: Uuid; currency: string } | null = null;
@@ -159,7 +169,7 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
       }
       const plan = planDish(ctx, dish, { cook, dishId, idemKey: idem.key, now: ctx.now(), shared: sharedWith, items, measures });
       if (plan instanceof Response) return plan;
-      const result = await ctx.timings.measure("db", () => repo.cookDish(plan));
+      const result = await ctx.timings.measure("db", () => repo.cookDish({ ...plan, stepTimes }));
       if (result.ok) {
         // Committed: a dish posted for claims tells the group (CP-18).
         const cooked = result.value.dish;

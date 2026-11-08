@@ -74,6 +74,7 @@ import {
   handleRecipeByLink,
   handleRecipeMatch,
   handleUpdateRecipe,
+  handleUpdateStepTimes,
 } from "./handlers/recipes.js";
 // Timers that find you (GC-3).
 import { handleCancelTimer, handleCreateTimer, handleListTimers } from "./handlers/timers.js";
@@ -393,6 +394,12 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.recipe.link",
     pattern: /^\/v1\/kitchen\/me\/recipes\/([^/]+)\/link$/,
     methods: { POST: handleCreateRecipeLink, DELETE: handleDeleteRecipeLink },
+  },
+  // Use today's times (GC-2).
+  {
+    name: "kitchen.me.recipe.step_times",
+    pattern: /^\/v1\/kitchen\/me\/recipes\/([^/]+)\/step-times$/,
+    methods: { PATCH: handleUpdateStepTimes },
   },
   {
     name: "kitchen.me.cook_now",

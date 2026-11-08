@@ -43,7 +43,10 @@ import {
   callerGroups,
   canEdit,
   canSee,
+  checkStepLines,
+  checkStepTimes,
   coMembers,
+  keptStep,
   foodsOf,
   forPortionsHalf,
   matchRecipe,
@@ -53,8 +56,10 @@ import {
   parseFromDish,
   parseNewRecipe,
   parseRecipeEdit,
+  parseStepTimes,
   lineFoods,
   readStock,
+  resolveSteps,
   sharesGroup,
   summarize,
   matchLine,
@@ -81,6 +86,11 @@ import { foodNameKey } from "@saas/contracts/kitchen";
 //   GET    /v1/kitchen/recipe-links/{code}          anyone signed in with the code
 //   GET    /v1/kitchen/people/{usr}/recipes         someone you share a group with
 //   GET    /v1/kitchen/me/cook-now                  what you can make, best first
+//   PATCH  /v1/kitchen/me/recipes/{rcp}/step-times  its owner: "Use today's times" (GC-2)
+//
+// Guided steps (GC-2): every write and read carries the step fields, the
+// tools and long prep; copies keep their steps' keys, and an edit keeps the
+// key of each step it keeps (`resolveSteps`).
 //
 // A recipe moves no money and writes no audit event: an audit log is a
 // group's, and a recipe belongs to a person. Everything the caller may not
@@ -160,6 +170,7 @@ async function writeRecipe(
 function writeFailed(ctx: RequestContext, result: Exclude<KitchenResult<unknown>, { ok: true }>): Response {
   if (result.error.kind === "not_found") return notFound(ctx.requestId);
   if (result.error.kind === "invalid") {
+    if (result.error.reason === "duplicate_step_key") return validationError(ctx.requestId, { steps: ["Each step's key once"] });
     return validationError(ctx.requestId, { lines: [result.error.reason === "unknown_food" ? "Every food must be on the food list" : "A line is out of range"] });
   }
   return unavailable(ctx.requestId);
@@ -246,6 +257,10 @@ async function saveDishAsRecipe(ctx: RequestContext, repo: KitchenRepository, bo
     toTaste: false,
     isMain: i === heaviest,
   }));
+  // A step's lines point at the dish's ingredients, which become the lines in order.
+  const stepFields = new Fields();
+  checkStepLines(stepFields, parsed.value.steps, lines.length);
+  if (!stepFields.ok) return validationError(ctx.requestId, stepFields.errors);
   const written = await writeRecipe(ctx, repo, {
     id: asUuid(crypto.randomUUID()),
     ownerId: ctx.actor.subjectId,
@@ -256,7 +271,8 @@ async function saveDishAsRecipe(ctx: RequestContext, repo: KitchenRepository, bo
     visibility: parsed.value.visibility,
     source: null,
     lines,
-    steps: parsed.value.steps,
+    steps: resolveSteps(parsed.value.steps, null, lines.length),
+    tools: parsed.value.tools,
     now: ctx.now(),
   });
   if (!written.ok) return writeFailed(ctx, written);
@@ -283,7 +299,8 @@ export async function handleCreateRecipe(ctx: RequestContext, request: Request):
       visibility: recipe.visibility,
       source: null,
       lines: recipe.lines,
-      steps: recipe.steps,
+      steps: resolveSteps(recipe.steps, null, recipe.lines.length),
+      tools: recipe.tools,
       now: ctx.now(),
     });
     if (!written.ok) return writeFailed(ctx, written);
@@ -304,6 +321,17 @@ export async function handleUpdateRecipe(ctx: RequestContext, request: Request, 
       const refused = await checkFoods(ctx, repo, edit.lines);
       if (refused) return refused;
     }
+    // A step's lines are the recipe's lines after this edit: the new ones when it sends them.
+    const lineCount = edit.lines ? edit.lines.length : recipe.lines.length;
+    let steps = edit.steps ? resolveSteps(edit.steps, recipe.guidedSteps, lineCount) : undefined;
+    if (edit.steps) {
+      const stepFields = new Fields();
+      checkStepLines(stepFields, edit.steps, lineCount);
+      if (!stepFields.ok) return validationError(ctx.requestId, stepFields.errors);
+    } else if (edit.lines && recipe.guidedSteps.some((s) => s.lineRefs.some((ref) => ref >= lineCount))) {
+      // Fewer lines and the same steps: each keeps its key, without the lines that are gone.
+      steps = recipe.guidedSteps.map((s) => keptStep(s, lineCount));
+    }
     for (let attempt = 1; ; attempt += 1) {
       const updated = await ctx.timings.measure("db", () =>
         repo.updateRecipe({
@@ -315,9 +343,10 @@ export async function handleUpdateRecipe(ctx: RequestContext, request: Request, 
             ...(edit.minutes !== undefined ? { minutes: edit.minutes } : {}),
             ...(edit.kind !== undefined ? { kind: edit.kind } : {}),
             ...(edit.visibility !== undefined ? { visibility: edit.visibility, newLinkCode: mintLinkCode() } : {}),
+            ...(edit.tools !== undefined ? { tools: edit.tools } : {}),
           },
           ...(edit.lines ? { lines: edit.lines } : {}),
-          ...(edit.steps ? { steps: edit.steps } : {}),
+          ...(steps ? { steps } : {}),
           now: ctx.now(),
         }),
       );
@@ -325,6 +354,29 @@ export async function handleUpdateRecipe(ctx: RequestContext, request: Request, 
       if (updated.error.kind === "conflict" && attempt < LINK_ATTEMPTS) continue;
       return writeFailed(ctx, updated);
     }
+  });
+}
+
+/**
+ * PATCH /v1/kitchen/me/recipes/{rcp}/step-times — "Use today's times" (GC-2,
+ * cookpool-guided design §3.6, §5): its owner sets some steps' ranges, by
+ * key. Only those steps change; the pool of cooks' times does not.
+ */
+export async function handleUpdateStepTimes(ctx: RequestContext, request: Request, params: readonly string[]): Promise<Response> {
+  const body = await readJsonObject(request);
+  if (!body) return validationError(ctx.requestId, { body: ["Must be a JSON object"] });
+  const parsed = parseStepTimes(body);
+  if (!parsed.ok) return validationError(ctx.requestId, parsed.fields);
+  return withKitchenRepo(ctx, async (repo) => {
+    const recipe = await ownRecipe(ctx, repo, params[0]!);
+    if (recipe instanceof Response) return recipe;
+    const refused = checkStepTimes(parsed.value, recipe);
+    if (refused) return validationError(ctx.requestId, refused);
+    const updated = await ctx.timings.measure("db", () =>
+      repo.setRecipeStepTimes({ recipeId: recipe.id as Uuid, ownerId: ctx.actor.subjectId, steps: parsed.value, now: ctx.now() }),
+    );
+    if (!updated.ok) return writeFailed(ctx, updated);
+    return recipeResponse(ctx, repo, updated.value);
   });
 }
 
@@ -461,7 +513,7 @@ export async function handleCopyRecipe(ctx: RequestContext, request: Request): P
     }
     const names = await ownerNames(ctx, [source]);
     const ownerName = source.isSystem ? SYSTEM_RECIPE_OWNER_NAME : (names.get(source.ownerId) ?? null);
-    // A copy is its own: owned by the saver, Only me, the same lines and steps, and where it came from.
+    // A copy is its own: owned by the saver, Only me, the same lines, steps (their keys too) and tools, and where it came from.
     const written = await writeRecipe(ctx, repo, {
       id: asUuid(crypto.randomUUID()),
       ownerId: ctx.actor.subjectId,
@@ -472,7 +524,8 @@ export async function handleCopyRecipe(ctx: RequestContext, request: Request): P
       visibility: DEFAULT_COPY_VISIBILITY,
       source: { recipeId: source.id, ownerId: source.ownerId, ownerName },
       lines: source.lines.map(({ position: _position, ...line }) => line),
-      steps: source.steps,
+      steps: source.guidedSteps.map((step) => keptStep(step)),
+      tools: source.tools,
       now: ctx.now(),
     });
     if (!written.ok) return writeFailed(ctx, written);

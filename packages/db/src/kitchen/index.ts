@@ -56,6 +56,7 @@ export type {
   KitchenDishRecord,
   CookIngredient,
   CookDishInput,
+  CookDishStepTimes,
   CookedDish,
   KitchenDishScope,
   KitchenDishesCursor,
@@ -110,6 +111,12 @@ export type {
   KitchenFoodItemRecord,
   KitchenRecipeVisibility,
   KitchenRecipeLineRecord,
+  KitchenRecipeStepPhase,
+  KitchenRecipeStepTimeRule,
+  KitchenRecipeStepSense,
+  KitchenRecipeStepRecord,
+  NewKitchenRecipeStep,
+  SetRecipeStepTimesInput,
   KitchenRecipeTemplateRecord,
   KitchenRecipesScope,
   KitchenListRecipesQuery,
@@ -118,6 +125,7 @@ export type {
   KitchenRecipeLastCookRecord,
 } from "./types.js";
 export { KITCHEN_DEFAULT_ALWAYS_HAVE } from "./foods.js";
+export { MAX_RECIPE_ROOT_HOPS } from "./types.js";
 
 // Timers that find you (GC-3): their own repository, beside the kitchen's.
 export type {

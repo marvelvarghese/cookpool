@@ -786,6 +786,19 @@ export interface KitchenRepository {
   setRecipeLink(recipeId: Uuid, ownerId: string, code: string | null, now: Date): Promise<KitchenResult<KitchenRecipeTemplateRecord>>;
   /** The viewer's last dish of a recipe (not canceled), with its ingredients that named a line; null if none. */
   lastCook(viewer: string, recipeId: Uuid): Promise<KitchenResult<KitchenRecipeLastCookRecord | null>>;
+  /**
+   * Set some steps' time ranges on a recipe its owner may edit (GC-2, "Use
+   * today's times"), by step key, in ONE batch; other steps, and whistle
+   * steps, are left as they are. Anyone else's is `not_found`.
+   */
+  setRecipeStepTimes(input: SetRecipeStepTimesInput): Promise<KitchenResult<KitchenRecipeTemplateRecord>>;
+  /**
+   * A recipe's root (GC-2): the first recipe its copies came from, found by
+   * walking source_recipe_id — deleted recipes included — at most
+   * MAX_RECIPE_ROOT_HOPS links; the recipe itself when it is no copy. Null
+   * when there is no such recipe. ONE read.
+   */
+  recipeRootId(recipeId: Uuid): Promise<KitchenResult<Uuid | null>>;
 }
 
 // ── Your measures (SM-13) ───────────────────────────────────
@@ -1025,6 +1038,21 @@ export interface CookDishInput {
   txns: readonly { txn: NewKitchenTxn; splits: readonly KitchenSplit[] }[];
   /** The audit events, one per group the dish touches. */
   audits: readonly AppendEventWithAuditInput[];
+  /**
+   * How long each step took (GC-2, migration 370): one row per step key in
+   * kitchen_dish_step_times, in the same batch as the dish. Absent, null or
+   * with no steps, nothing is written.
+   */
+  stepTimes?: CookDishStepTimes | null;
+}
+
+/** A dish's step times, as the worker checked them: each key once, 0 to 86 400 seconds. */
+export interface CookDishStepTimes {
+  /** The first recipe the dish's recipe was copied from (itself when it is no copy). */
+  recipeRootId: Uuid;
+  /** The dish's factor; null when it said none. */
+  factorMilli: number | null;
+  steps: readonly { key: string; seconds: number }[];
 }
 
 export interface CookedDish {
@@ -1400,6 +1428,55 @@ export interface KitchenRecipeLineRecord {
   isMain: boolean;
 }
 
+export type KitchenRecipeStepPhase = "prep" | "cook";
+export type KitchenRecipeStepTimeRule = "fixed" | "partly" | "linear";
+export type KitchenRecipeStepSense = "look" | "smell" | "sound" | "feel" | "taste";
+
+/** One step of a recipe, as stored (RC-4; its guided fields GC-2, migration 370). */
+export interface KitchenRecipeStepRecord {
+  position: number;
+  /** Stable across edits and copies; unique per recipe. */
+  key: string;
+  text: string;
+  phase: KitchenRecipeStepPhase;
+  /** The recipe lines it uses, by position. */
+  lineRefs: number[];
+  /** 0 off, 1 low, 2 medium, 3 high; null for none. */
+  heat: number | null;
+  /** Both or neither; min ≤ max. */
+  minSeconds: number | null;
+  maxSeconds: number | null;
+  /** Never with seconds. */
+  whistles: number | null;
+  handsOff: boolean;
+  timeRule: KitchenRecipeStepTimeRule;
+  /** Only with a checkpoint. */
+  sense: KitchenRecipeStepSense | null;
+  checkpoint: string | null;
+  tip: string | null;
+}
+
+/**
+ * One step as a write gives it: its text alone (a cook step of text only),
+ * or every field, the guided ones defaulting as a step of text only reads.
+ * A step with no key is given a random one (32 hex characters).
+ */
+export type NewKitchenRecipeStep =
+  | string
+  | (Pick<KitchenRecipeStepRecord, "text"> & Partial<Omit<KitchenRecipeStepRecord, "position" | "text" | "key">> & { key?: string | null });
+
+/** The most source links a recipe's root is looked for through. */
+export const MAX_RECIPE_ROOT_HOPS = 8;
+
+export interface SetRecipeStepTimesInput {
+  recipeId: Uuid;
+  /** Only its owner's: anyone else's reads as not found. */
+  ownerId: string;
+  /** Each key once; min ≤ max, 0 to 86 400. */
+  steps: readonly { key: string; minSeconds: number; maxSeconds: number }[];
+  now: Date;
+}
+
 /** A recipe as stored, with its lines and steps in order. */
 export interface KitchenRecipeTemplateRecord {
   id: string;
@@ -1419,7 +1496,12 @@ export interface KitchenRecipeTemplateRecord {
   updatedAt: Date;
   deletedAt: Date | null;
   lines: KitchenRecipeLineRecord[];
+  /** Each step's text, in order (`guidedSteps[i].text`). */
   steps: string[];
+  /** The steps in full, in order (GC-2). */
+  guidedSteps: KitchenRecipeStepRecord[];
+  /** Its tools, in order (GC-2); [] for none. */
+  tools: string[];
   /** Live copies saved of it. */
   savedBy: number;
   /** When the viewer last cooked it (a dish with it, not canceled); null if never. */
@@ -1460,7 +1542,10 @@ export interface NewKitchenRecipe {
   source: { recipeId: string; ownerId: string; ownerName: string | null } | null;
   /** In order: each one's position is its index. */
   lines: readonly Omit<KitchenRecipeLineRecord, "position">[];
-  steps: readonly string[];
+  /** In order: each one's position is its index. */
+  steps: readonly NewKitchenRecipeStep[];
+  /** Default none. */
+  tools?: readonly string[];
   now: Date;
 }
 
@@ -1476,9 +1561,11 @@ export interface UpdateKitchenRecipeInput {
     /** With `link`, the recipe keeps its code, or takes `newLinkCode` when it has none; anything else drops it. */
     visibility?: KitchenRecipeVisibility;
     newLinkCode?: string;
+    /** Replaces the list (GC-2). */
+    tools?: readonly string[];
   };
   lines?: readonly Omit<KitchenRecipeLineRecord, "position">[];
-  steps?: readonly string[];
+  steps?: readonly NewKitchenRecipeStep[];
   now: Date;
 }
 

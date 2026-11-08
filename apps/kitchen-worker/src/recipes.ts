@@ -11,10 +11,29 @@
 //   link     plus anyone signed in who has the code.
 // Cookpool's own recipes (is_system, owner usr_cookpool) are seen by everyone
 // and edited by no one. A refusal is the kitchen's opaque 404.
+//
+// Guided steps (GC-2, cookpool-guided design §1): a step is its text alone
+// or every guided field, checked here; keys are the server's (`resolveSteps`):
+// a new step gets one, a PATCH keeps the key a step sends when the recipe
+// has it, and a plain-string step keeps the step with the same text — so a
+// client that writes texts only (RC-5's form) loses nothing it did not change.
 
 import {
   COOK_NOW_MISSING_NAMES,
   DEFAULT_RECIPE_VISIBILITY,
+  DEFAULT_STEP_PHASE,
+  DEFAULT_STEP_TIME_RULE,
+  MAX_RECIPE_TOOL,
+  MAX_RECIPE_TOOLS,
+  MAX_STEP_CHECKPOINT,
+  MAX_STEP_HEAT,
+  MAX_STEP_SECONDS,
+  MAX_STEP_TIP,
+  MAX_STEP_WHISTLES,
+  STEP_PHASES,
+  STEP_SENSES,
+  STEP_TIME_RULES,
+  longPrepOf,
   MAX_RECIPE_LINES,
   MAX_RECIPE_LINE_NAME,
   MAX_RECIPE_MINUTES,
@@ -40,6 +59,7 @@ import {
   type KitchenMeasure,
   type KitchenRecipe,
   type KitchenRecipeLine,
+  type KitchenRecipeStep,
   type PantryRef,
   type RecipeKind,
   type RecipeLastCook,
@@ -48,14 +68,20 @@ import {
   type RecipeMatchSummary,
   type RecipeSummary,
   type RecipeVisibility,
+  type StepHeat,
+  type StepPhase,
+  type StepSense,
+  type StepTimeRule,
 } from "@saas/contracts/kitchen";
 import type {
   KitchenFoodRecord,
   KitchenItemRecord,
   KitchenRecipeLastCookRecord,
   KitchenRecipeLineRecord,
+  KitchenRecipeStepRecord,
   KitchenRecipeTemplateRecord,
   KitchenRepository,
+  NewKitchenRecipeStep,
 } from "@saas/db/kitchen";
 import { displayQuantity } from "./pantry.js";
 import type { RequestContext } from "./context.js";
@@ -140,14 +166,37 @@ export function toRecipeSummary(record: KitchenRecipeTemplateRecord, viewer: str
   };
 }
 
+export function toRecipeStep(step: KitchenRecipeStepRecord): KitchenRecipeStep {
+  return {
+    position: step.position,
+    key: step.key,
+    text: step.text,
+    phase: step.phase,
+    lines: [...step.lineRefs],
+    heat: step.heat as StepHeat | null,
+    minSeconds: step.minSeconds,
+    maxSeconds: step.maxSeconds,
+    whistles: step.whistles,
+    handsOff: step.handsOff,
+    timeRule: step.timeRule,
+    sense: step.sense,
+    checkpoint: step.checkpoint,
+    tip: step.tip,
+  };
+}
+
 export function toKitchenRecipe(record: KitchenRecipeTemplateRecord, viewer: string, names: ReadonlyMap<string, DisplayName>): KitchenRecipe {
   const summary = toRecipeSummary(record, viewer, names);
+  const guidedSteps = record.guidedSteps.map(toRecipeStep);
   return {
     ...summary,
     lines: record.lines.map(toRecipeLine),
-    steps: [...record.steps],
+    steps: guidedSteps.map((s) => s.text),
     // The code is the owner's to share; nobody else learns it from a read.
     linkCode: summary.mine ? record.linkCode : null,
+    guidedSteps,
+    tools: [...record.tools],
+    longPrep: longPrepOf(guidedSteps),
   };
 }
 
@@ -339,17 +388,196 @@ export function parseLines(fields: Fields, value: unknown): ParsedLine[] | undef
   }));
 }
 
-/** `steps`: 0 to MAX_RECIPE_STEPS texts of 1 to MAX_RECIPE_STEP characters (trimmed). */
-export function parseSteps(fields: Fields, value: unknown): string[] | undefined {
+/** One step as a request wrote it, checked (GC-2). `plain`: it was sent as a string. `key`: the key it sent, if any. */
+export interface ParsedStep {
+  plain: boolean;
+  key: string | null;
+  text: string;
+  phase: StepPhase;
+  lineRefs: number[];
+  heat: StepHeat | null;
+  minSeconds: number | null;
+  maxSeconds: number | null;
+  whistles: number | null;
+  handsOff: boolean;
+  timeRule: StepTimeRule;
+  sense: StepSense | null;
+  checkpoint: string | null;
+  tip: string | null;
+}
+
+/** A whole number in [min, max], or null/absent for none. */
+function wholeOrNull(fields: Fields, at: string, value: unknown, min: number, max: number, what: string): number | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max) return value;
+  return fields.add(at, `Must be ${what}, a whole number from ${min} to ${max}, or null`);
+}
+
+/** Trimmed text of at most `max` characters; absent, null, empty or spaces are none. */
+function optionalText(fields: Fields, at: string, value: unknown, max: number): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") return fields.add(at, "Must be text, or null");
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > max) return fields.add(at, `Must be at most ${max} characters`);
+  return trimmed;
+}
+
+/** `lines` of a step: positions 0 to MAX_RECIPE_LINES − 1, each once (checked against the recipe's lines by `checkStepLines`). */
+function lineRefsValue(fields: Fields, at: string, value: unknown): number[] | undefined {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) return fields.add(at, "Must be a list of the recipe's line positions");
+  const refs: number[] = [];
+  for (const ref of value as unknown[]) {
+    if (typeof ref !== "number" || !Number.isSafeInteger(ref) || ref < 0 || ref >= MAX_RECIPE_LINES) {
+      return fields.add(at, `Must be a list of line positions, whole numbers from 0 to ${MAX_RECIPE_LINES - 1}`);
+    }
+    refs.push(ref);
+  }
+  if (new Set(refs).size !== refs.length) return fields.add(at, "Name each line once");
+  return refs;
+}
+
+/** One of `allowed`; absent or null is `fallback`. */
+function choice<T extends string>(fields: Fields, at: string, value: unknown, allowed: readonly T[], fallback: T | null): T | null | undefined {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "string" && (allowed as readonly string[]).includes(value)) return value as T;
+  return fields.add(at, `Must be one of: ${allowed.join(", ")}${fallback === null ? ", or null" : ""}`);
+}
+
+/** One step: a string (its text), or an object with every guided field (design §1). */
+function parseStep(fields: Fields, at: string, value: unknown): ParsedStep | undefined {
+  if (typeof value === "string" || value === null || value === undefined) {
+    const stepText = text(fields, at, value, MAX_RECIPE_STEP);
+    if (stepText === undefined) return undefined;
+    return {
+      plain: true, key: null, text: stepText, phase: DEFAULT_STEP_PHASE, lineRefs: [], heat: null, minSeconds: null, maxSeconds: null,
+      whistles: null, handsOff: false, timeRule: DEFAULT_STEP_TIME_RULE, sense: null, checkpoint: null, tip: null,
+    };
+  }
+  if (typeof value !== "object" || Array.isArray(value)) return fields.add(at, "Must be the step's text, or an object with its text");
+  const raw = value as Record<string, unknown>;
+  const errors = Object.keys(fields.errors).length;
+  let key: string | null = null;
+  if (raw.key !== undefined && raw.key !== null) {
+    if (typeof raw.key === "string") key = raw.key;
+    else fields.add(`${at}.key`, "Must be the step's key, or left out for a new step");
+  }
+  const stepText = text(fields, `${at}.text`, raw.text, MAX_RECIPE_STEP);
+  const phase = choice(fields, `${at}.phase`, raw.phase, STEP_PHASES, DEFAULT_STEP_PHASE);
+  const lineRefs = lineRefsValue(fields, `${at}.lines`, raw.lines);
+  const heat = wholeOrNull(fields, `${at}.heat`, raw.heat, 0, MAX_STEP_HEAT, "the flame (0 off, 1 low, 2 medium, 3 high)");
+  const minSeconds = wholeOrNull(fields, `${at}.minSeconds`, raw.minSeconds, 0, MAX_STEP_SECONDS, "seconds");
+  let maxSeconds = wholeOrNull(fields, `${at}.maxSeconds`, raw.maxSeconds, 0, MAX_STEP_SECONDS, "seconds");
+  const whistles = wholeOrNull(fields, `${at}.whistles`, raw.whistles, 1, MAX_STEP_WHISTLES, "whistles");
+  const handsOff = booleanValue(fields, `${at}.handsOff`, raw.handsOff);
+  const timeRule = choice(fields, `${at}.timeRule`, raw.timeRule, STEP_TIME_RULES, DEFAULT_STEP_TIME_RULE);
+  const sense = choice(fields, `${at}.sense`, raw.sense, STEP_SENSES, null);
+  const checkpoint = optionalText(fields, `${at}.checkpoint`, raw.checkpoint, MAX_STEP_CHECKPOINT);
+  const tip = optionalText(fields, `${at}.tip`, raw.tip, MAX_STEP_TIP);
+  // The rules between fields: a range is min alone (one time) or min ≤ max; whistles instead of seconds; a sense for a checkpoint.
+  if (minSeconds === null && typeof maxSeconds === "number") fields.add(`${at}.maxSeconds`, "Send minSeconds with it (equal for one time)");
+  if (typeof minSeconds === "number") {
+    if (maxSeconds === null) maxSeconds = minSeconds;
+    else if (typeof maxSeconds === "number" && maxSeconds < minSeconds) fields.add(`${at}.maxSeconds`, "Must be at least minSeconds");
+  }
+  if (typeof whistles === "number" && (typeof minSeconds === "number" || typeof maxSeconds === "number")) {
+    fields.add(`${at}.whistles`, "A step counts whistles or takes a time, not both");
+  }
+  if (typeof sense === "string" && checkpoint === null) fields.add(`${at}.sense`, "Say the checkpoint it is the sense of");
+  if (
+    Object.keys(fields.errors).length > errors || stepText === undefined || phase === undefined || phase === null || lineRefs === undefined ||
+    heat === undefined || minSeconds === undefined || maxSeconds === undefined || whistles === undefined || handsOff === undefined ||
+    timeRule === undefined || timeRule === null || sense === undefined || checkpoint === undefined || tip === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    plain: false, key, text: stepText, phase, lineRefs, heat: heat as StepHeat | null, minSeconds, maxSeconds, whistles, handsOff,
+    timeRule, sense, checkpoint, tip,
+  };
+}
+
+/** `steps`: 0 to MAX_RECIPE_STEPS, each its text (1 to MAX_RECIPE_STEP characters, trimmed) or a guided step. */
+export function parseSteps(fields: Fields, value: unknown): ParsedStep[] | undefined {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) return fields.add("steps", `Must be a list of at most ${MAX_RECIPE_STEPS} steps`);
   if (value.length > MAX_RECIPE_STEPS) return fields.add("steps", `At most ${MAX_RECIPE_STEPS} steps`);
-  const steps: string[] = [];
+  const steps: ParsedStep[] = [];
   value.forEach((raw: unknown, i) => {
-    const step = text(fields, `steps[${i}]`, raw, MAX_RECIPE_STEP);
+    const step = parseStep(fields, `steps[${i}]`, raw);
     if (step !== undefined) steps.push(step);
   });
   return steps.length === value.length ? steps : undefined;
+}
+
+/** Every line a step names must be one the recipe has (`lineCount` lines): field errors on `fields`. */
+export function checkStepLines(fields: Fields, steps: readonly ParsedStep[], lineCount: number): void {
+  steps.forEach((step, i) => {
+    if (step.lineRefs.some((ref) => ref >= lineCount)) {
+      fields.add(`steps[${i}].lines`, `The recipe has ${lineCount} line${lineCount === 1 ? "" : "s"}: positions 0 to ${lineCount - 1}`);
+    }
+  });
+}
+
+/** `tools`: 0 to MAX_RECIPE_TOOLS names of 1 to MAX_RECIPE_TOOL characters (trimmed), each once; null is none. */
+export function parseTools(fields: Fields, value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) return fields.add("tools", `Must be a list of at most ${MAX_RECIPE_TOOLS} names`);
+  if (value.length > MAX_RECIPE_TOOLS) return fields.add("tools", `At most ${MAX_RECIPE_TOOLS} tools`);
+  const tools: string[] = [];
+  value.forEach((raw: unknown, i) => {
+    const tool = text(fields, `tools[${i}]`, raw, MAX_RECIPE_TOOL);
+    if (tool !== undefined) tools.push(tool);
+  });
+  if (tools.length !== value.length) return undefined;
+  if (new Set(tools.map((t) => t.toLowerCase())).size !== tools.length) return fields.add("tools", "Name each tool once");
+  return tools;
+}
+
+/** A new step key: 32 hex characters, the form migration 370's backfill gave the steps before. */
+export function mintStepKey(): string {
+  return crypto.randomUUID().replace(/-/g, "");
+}
+
+/** A stored step as a write gives it again: the same key and every field, its lines past `lineCount` dropped. */
+export function keptStep({ position: _position, ...step }: KitchenRecipeStepRecord, lineCount = Infinity): NewKitchenRecipeStep {
+  return { ...step, lineRefs: step.lineRefs.filter((ref) => ref < lineCount) };
+}
+
+/**
+ * The steps to write, with their keys (design §1, §5). With no `existing`
+ * (a new recipe), every step gets a new key. On an edit of `existing`:
+ *   1. a step that sends the key of an existing step keeps it, with the fields
+ *      it sends — the first to send it, if two do;
+ *   2. a plain-string step keeps the first existing step left with exactly its
+ *      text — key and guided fields (its lines within `lineCount`);
+ *   3. any other step is new, with a new key.
+ */
+export function resolveSteps(
+  steps: readonly ParsedStep[],
+  existing: readonly KitchenRecipeStepRecord[] | null,
+  lineCount: number,
+): NewKitchenRecipeStep[] {
+  const byKey = new Map((existing ?? []).map((s) => [s.key, s]));
+  const claimed = new Set<string>();
+  const keys: Array<string | null> = steps.map((step) => {
+    if (step.plain || step.key === null || !byKey.has(step.key) || claimed.has(step.key)) return null;
+    claimed.add(step.key);
+    return step.key;
+  });
+  return steps.map(({ plain, key: _sent, ...fields }, i) => {
+    const kept = keys[i];
+    if (kept) return { ...fields, key: kept };
+    if (plain) {
+      const same = (existing ?? []).find((s) => s.text === fields.text && !claimed.has(s.key));
+      if (same) {
+        claimed.add(same.key);
+        return keptStep(same, lineCount);
+      }
+    }
+    return { ...fields, key: mintStepKey() };
+  });
 }
 
 function servesValue(fields: Fields, value: unknown): number | undefined {
@@ -381,7 +609,8 @@ export interface ParsedRecipe {
   kind: RecipeKind | null;
   visibility: RecipeVisibility;
   lines: ParsedLine[];
-  steps: string[];
+  steps: ParsedStep[];
+  tools: string[];
 }
 
 /** A POST /v1/kitchen/me/recipes body that writes a recipe. Unknown fields are ignored. */
@@ -394,13 +623,15 @@ export function parseNewRecipe(body: Record<string, unknown>): Parsed<ParsedReci
   const visibility = body.visibility === undefined ? DEFAULT_RECIPE_VISIBILITY : visibilityValue(fields, body.visibility);
   const lines = parseLines(fields, body.lines);
   const steps = parseSteps(fields, body.steps);
+  const tools = parseTools(fields, body.tools);
+  if (lines !== undefined && steps !== undefined) checkStepLines(fields, steps, lines.length);
   if (
     !fields.ok || name === undefined || servesHalf === undefined || minutes === undefined || kind === undefined ||
-    visibility === undefined || lines === undefined || steps === undefined
+    visibility === undefined || lines === undefined || steps === undefined || tools === undefined
   ) {
     return { ok: false, fields: fields.errors };
   }
-  return { ok: true, value: { name, servesHalf, minutes, kind, visibility, lines, steps } };
+  return { ok: true, value: { name, servesHalf, minutes, kind, visibility, lines, steps, tools } };
 }
 
 export interface ParsedFromDish {
@@ -409,7 +640,9 @@ export interface ParsedFromDish {
   minutes: number | null;
   kind: RecipeKind | null;
   visibility: RecipeVisibility;
-  steps: string[];
+  /** Their lines are checked against the dish's ingredients once it is read. */
+  steps: ParsedStep[];
+  tools: string[];
 }
 
 /** A POST /v1/kitchen/me/recipes body with `fromDishId`: save a dish as a recipe. */
@@ -421,11 +654,15 @@ export function parseFromDish(body: Record<string, unknown>): Parsed<ParsedFromD
   const kind = body.kind === undefined ? null : kindValue(fields, body.kind);
   const visibility = body.visibility === undefined ? DEFAULT_RECIPE_VISIBILITY : visibilityValue(fields, body.visibility);
   const steps = parseSteps(fields, body.steps);
+  const tools = parseTools(fields, body.tools);
   if (body.lines !== undefined) fields.add("lines", "A recipe saved from a dish takes its lines from the dish: leave lines out");
-  if (!fields.ok || dishId === undefined || name === undefined || minutes === undefined || kind === undefined || visibility === undefined || steps === undefined) {
+  if (
+    !fields.ok || dishId === undefined || name === undefined || minutes === undefined || kind === undefined || visibility === undefined ||
+    steps === undefined || tools === undefined
+  ) {
     return { ok: false, fields: fields.errors };
   }
-  return { ok: true, value: { dishId, name, minutes, kind, visibility, steps } };
+  return { ok: true, value: { dishId, name, minutes, kind, visibility, steps, tools } };
 }
 
 export type ParsedRecipeEdit = Partial<ParsedRecipe>;
@@ -438,7 +675,7 @@ export function parseRecipeEdit(body: Record<string, unknown>): Parsed<ParsedRec
     if (value !== undefined) edit[key] = value;
   };
   let asked = 0;
-  for (const key of ["name", "servesHalf", "minutes", "kind", "visibility", "lines", "steps"]) if (body[key] !== undefined) asked += 1;
+  for (const key of ["name", "servesHalf", "minutes", "kind", "visibility", "lines", "steps", "tools"]) if (body[key] !== undefined) asked += 1;
   if (body.name !== undefined) set("name", text(fields, "name", body.name, MAX_RECIPE_NAME));
   if (body.servesHalf !== undefined) set("servesHalf", servesValue(fields, body.servesHalf));
   if (body.minutes !== undefined) set("minutes", minutesValue(fields, body.minutes));
@@ -446,8 +683,64 @@ export function parseRecipeEdit(body: Record<string, unknown>): Parsed<ParsedRec
   if (body.visibility !== undefined) set("visibility", visibilityValue(fields, body.visibility));
   if (body.lines !== undefined) set("lines", parseLines(fields, body.lines));
   if (body.steps !== undefined) set("steps", parseSteps(fields, body.steps));
-  if (asked === 0) fields.add("body", "Change at least one of: name, servesHalf, minutes, kind, visibility, lines, steps");
+  if (body.tools !== undefined) set("tools", parseTools(fields, body.tools));
+  if (asked === 0) fields.add("body", "Change at least one of: name, servesHalf, minutes, kind, visibility, lines, steps, tools");
   return fields.ok ? { ok: true, value: edit } : { ok: false, fields: fields.errors };
+}
+
+/** One step's range for "Use today's times" (GC-2). */
+export interface ParsedStepTimes {
+  key: string;
+  minSeconds: number;
+  maxSeconds: number;
+}
+
+/**
+ * A PATCH /v1/kitchen/me/recipes/{rcp}/step-times body: `steps`, 1 to
+ * MAX_RECIPE_STEPS of `{ key, minSeconds, maxSeconds }` (0 to MAX_STEP_SECONDS,
+ * min ≤ max), each key once. Checked against the recipe by `checkStepTimes`.
+ */
+export function parseStepTimes(body: Record<string, unknown>): Parsed<ParsedStepTimes[]> {
+  const fields = new Fields();
+  const value = body.steps;
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_RECIPE_STEPS) {
+    fields.add("steps", `Must be a list of 1 to ${MAX_RECIPE_STEPS} steps, each { key, minSeconds, maxSeconds }`);
+    return { ok: false, fields: fields.errors };
+  }
+  const steps: ParsedStepTimes[] = [];
+  const seen = new Set<string>();
+  value.forEach((raw: unknown, i) => {
+    const at = `steps[${i}]`;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      fields.add(at, "Must be an object: { key, minSeconds, maxSeconds }");
+      return;
+    }
+    const step = raw as Record<string, unknown>;
+    const key = typeof step.key === "string" && step.key.length > 0 ? step.key : fields.add(`${at}.key`, "Must be the step's key");
+    if (key !== undefined && seen.has(key)) fields.add(`${at}.key`, "Name each step once");
+    if (key !== undefined) seen.add(key);
+    const seconds = (name: "minSeconds" | "maxSeconds") =>
+      step[name] === undefined || step[name] === null
+        ? fields.add(`${at}.${name}`, "Required")
+        : wholeOrNull(fields, `${at}.${name}`, step[name], 0, MAX_STEP_SECONDS, "seconds");
+    const min = seconds("minSeconds");
+    const max = seconds("maxSeconds");
+    if (typeof min === "number" && typeof max === "number" && max < min) fields.add(`${at}.maxSeconds`, "Must be at least minSeconds");
+    if (key !== undefined && typeof min === "number" && typeof max === "number") steps.push({ key, minSeconds: min, maxSeconds: max });
+  });
+  return fields.ok ? { ok: true, value: steps } : { ok: false, fields: fields.errors };
+}
+
+/** Every step named must be one of `recipe`'s that takes a time: the field errors, or none. */
+export function checkStepTimes(steps: readonly ParsedStepTimes[], recipe: KitchenRecipeTemplateRecord): FieldErrors | null {
+  const fields = new Fields();
+  const byKey = new Map(recipe.guidedSteps.map((s) => [s.key, s]));
+  steps.forEach((step, i) => {
+    const found = byKey.get(step.key);
+    if (!found) fields.add(`steps[${i}].key`, "Not a step of this recipe");
+    else if (found.whistles !== null) fields.add(`steps[${i}].key`, "This step counts whistles: it has no time to set");
+  });
+  return fields.ok ? null : fields.errors;
 }
 
 /** The food keys some lines name, by field (`lines[2].foodKey`), for `unknownFoods`. */

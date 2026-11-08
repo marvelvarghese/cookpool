@@ -27,6 +27,7 @@
 //   GET    /v1/kitchen/people/{usr}/recipes            someone you share a group with
 //   GET    /v1/kitchen/recipes?source=&q=&kind=        signed in: Explore
 //   GET    /v1/kitchen/me/cook-now                     self
+//   PATCH  /v1/kitchen/me/recipes/{rcp}/step-times     its owner: "Use today's times" (GC-2)
 //
 // Types are imported from `kitchen.ts` as types only; this module is
 // re-exported from there, so `@saas/contracts/kitchen` carries it all.
@@ -272,6 +273,209 @@ export interface KitchenRecipeLine {
   isMain: boolean;
 }
 
+// ── Guided steps (cookpool-guided GC-2, design §1, §2) ─────
+//
+// A step says everything a cook needs: its phase, the lines it uses (shown
+// as chips with scaled amounts — the text stays plain words), a flame, a
+// time range at the recipe's own size or a whistle count, whether it runs
+// hands off, how its time grows with the size, a checkpoint and a tip. All
+// optional: a step of text only is still a step. Every step has a stable
+// `key`, minted by the server, kept across edits and copies; the times cooks
+// record (`stepLog`) and learned ranges (GC-7) hang on it.
+
+/** prep steps are listed in Before you start; cook steps are the cooking. */
+export const STEP_PHASES = ["prep", "cook"] as const;
+export type StepPhase = (typeof STEP_PHASES)[number];
+export const DEFAULT_STEP_PHASE: StepPhase = "cook";
+
+/** How a step's time grows with the size factor f: × 1, × f^0.5, × f ("Same time", "A bit longer", "Longer"). */
+export const STEP_TIME_RULES = ["fixed", "partly", "linear"] as const;
+export type StepTimeRule = (typeof STEP_TIME_RULES)[number];
+export const DEFAULT_STEP_TIME_RULE: StepTimeRule = "fixed";
+
+/** The sense a checkpoint is watched for with: "Until it looks golden brown". */
+export const STEP_SENSES = ["look", "smell", "sound", "feel", "taste"] as const;
+export type StepSense = (typeof STEP_SENSES)[number];
+
+/** The flame: 0 off, 1 low, 2 medium, 3 high. */
+export type StepHeat = 0 | 1 | 2 | 3;
+export const MAX_STEP_HEAT = 3;
+
+/** A step's time, in seconds, is 0 to a day; a pressure cooker counts 1 to 10 whistles instead. */
+export const MAX_STEP_SECONDS = 86_400;
+export const MAX_STEP_WHISTLES = 10;
+export const MAX_STEP_CHECKPOINT = 80;
+export const MAX_STEP_TIP = 160;
+/** A step key: 1–64 letters, digits, `_` or `-` (the server mints 32 hex characters). */
+export const STEP_KEY_RE = /^[0-9A-Za-z_-]{1,64}$/;
+
+/** A recipe's tools: at most 10 short names ("Kadai with a lid", "Pressure cooker"). */
+export const MAX_RECIPE_TOOLS = 10;
+export const MAX_RECIPE_TOOL = 40;
+
+/** A hands-off prep step at least this long (its shortest time) is long prep: soaking, marinating overnight. */
+export const LONG_PREP_SECONDS = 3_600;
+
+/** One step as a recipe reads it, in order. */
+export interface KitchenRecipeStep {
+  /** Its place, 0-based. */
+  position: number;
+  /** Stable across edits and copies: what step times and learned ranges hang on. */
+  key: string;
+  /** Plain words, 1–MAX_RECIPE_STEP characters. */
+  text: string;
+  phase: StepPhase;
+  /** The recipe lines it uses (their positions), as the author attached them; [] for none. */
+  lines: number[];
+  /** Null when it says no flame. */
+  heat: StepHeat | null;
+  /**
+   * Its time range at the recipe's own size, in seconds ("8–10 min"): both
+   * or neither, min ≤ max; equal for one time. Null for an untimed step and
+   * for a whistle step. `stepTimeAt` gives it at another size.
+   */
+  minSeconds: number | null;
+  maxSeconds: number | null;
+  /** A pressure cooker's whistles (1–MAX_STEP_WHISTLES), instead of seconds; never scaled. */
+  whistles: number | null;
+  /** The cook can go on to other steps while it runs. */
+  handsOff: boolean;
+  timeRule: StepTimeRule;
+  /** The checkpoint's sense; null when none is said. */
+  sense: StepSense | null;
+  /** What to watch for ("golden brown"), at most MAX_STEP_CHECKPOINT characters; null for none. */
+  checkpoint: string | null;
+  /** One line under the step, at most MAX_STEP_TIP characters; null for none. */
+  tip: string | null;
+}
+
+/**
+ * One step as a create or PATCH writes it. A plain string is a step of text
+ * only. Everything but `text` is optional, with the defaults a step of text
+ * only reads with (cook, no lines, no flame, untimed, not hands off, fixed).
+ *
+ * Keys are the server's: a new step gets one. On a PATCH, a step that sends
+ * the key of one of the recipe's steps keeps it (its fields are replaced by
+ * what is sent); an unknown key, or a key sent twice, is a new step. A plain
+ * string keeps the key and guided fields of the recipe's step with exactly
+ * that text, when there is one — so a client that writes steps as strings
+ * (RC-5's form) loses nothing it did not change.
+ */
+export interface RecipeStepInput {
+  key?: string | null;
+  text: string;
+  /** Default DEFAULT_STEP_PHASE. */
+  phase?: StepPhase;
+  /** Positions of the recipe's lines (as written in the same request, or as stored when it sends no lines); each once. */
+  lines?: number[];
+  heat?: StepHeat | null;
+  /** 0–MAX_STEP_SECONDS; maxSeconds needs minSeconds, and defaults to it. Not with whistles. */
+  minSeconds?: number | null;
+  maxSeconds?: number | null;
+  /** 1–MAX_STEP_WHISTLES; not with seconds. */
+  whistles?: number | null;
+  handsOff?: boolean;
+  /** Default DEFAULT_STEP_TIME_RULE. */
+  timeRule?: StepTimeRule;
+  /** Needs a checkpoint. */
+  sense?: StepSense | null;
+  /** Trimmed; empty is none. */
+  checkpoint?: string | null;
+  /** Trimmed; empty is none. */
+  tip?: string | null;
+}
+
+/** A step as a write takes it: its text alone, or every field. */
+export type RecipeStepWrite = string | RecipeStepInput;
+
+/** A long prep step (design §1): what the recipe page and the session's prompt show first. */
+export interface LongPrepStep {
+  position: number;
+  key: string;
+  /** Its shortest time, at least LONG_PREP_SECONDS. */
+  seconds: number;
+  text: string;
+}
+
+/** Is this step long prep: a hands-off prep step whose shortest time is at least LONG_PREP_SECONDS? */
+export function isLongPrep(step: Pick<KitchenRecipeStep, "phase" | "handsOff" | "minSeconds">): boolean {
+  return step.phase === "prep" && step.handsOff && step.minSeconds !== null && step.minSeconds >= LONG_PREP_SECONDS;
+}
+
+/** A recipe's long prep, in step order. */
+export function longPrepOf(steps: readonly KitchenRecipeStep[]): LongPrepStep[] {
+  return steps.filter(isLongPrep).map((s) => ({ position: s.position, key: s.key, seconds: s.minSeconds!, text: s.text }));
+}
+
+/** A step's time at a size: a range in whole minutes, or its whistles. */
+export type StepTimeAt = { minSeconds: number; maxSeconds: number } | { whistles: number };
+
+/** What `stepTimeAt` reads of a step. */
+export type StepTiming = Partial<Pick<KitchenRecipeStep, "minSeconds" | "maxSeconds" | "whistles">> & {
+  timeRule?: StepTimeRule | null;
+};
+
+/** The time multiplier of `rule` at factor `factorMilli` (thousandths): 1, f^0.5 or f. */
+export function stepTimeMultiplier(rule: StepTimeRule | null | undefined, factorMilli: number): number {
+  const f = Number.isFinite(factorMilli) && factorMilli > 0 ? factorMilli / 1000 : 1;
+  if (rule === "linear") return f;
+  if (rule === "partly") return Math.sqrt(f);
+  return 1;
+}
+
+/**
+ * A step's time at size `factorMilli` (design §2): its range × 1 (fixed),
+ * × f^0.5 (partly) or × f (linear), each end rounded to whole minutes and
+ * never under one minute, so min ≤ max still holds. Whistles come back as
+ * they are — they never scale. Null for an untimed step.
+ */
+export function stepTimeAt(step: StepTiming, factorMilli: number): StepTimeAt | null {
+  if (step.whistles !== undefined && step.whistles !== null) return { whistles: step.whistles };
+  const lo = step.minSeconds ?? step.maxSeconds;
+  const hi = step.maxSeconds ?? step.minSeconds;
+  if (lo === undefined || lo === null || hi === undefined || hi === null) return null;
+  const m = stepTimeMultiplier(step.timeRule, factorMilli);
+  const minutes = (seconds: number) => Math.max(60, Math.round((seconds * m) / 60) * 60);
+  const minSeconds = minutes(Math.min(lo, hi));
+  return { minSeconds, maxSeconds: Math.max(minSeconds, minutes(Math.max(lo, hi))) };
+}
+
+/**
+ * One step's start and tick in a guided session, sent with the dish
+ * (`CookDishRequest.stepLog`): ISO 8601 times. The server keeps one per step
+ * key of the recipe cooked, with the dish's factor and the recipe root.
+ */
+export interface StepLogEntry {
+  key: string;
+  startedAt: string;
+  doneAt: string;
+}
+
+/** A dish's step log holds at most one entry per step. */
+export const MAX_STEP_LOG = MAX_RECIPE_STEPS;
+/** A logged step longer than this (a day) is ignored, as is one ticked before it started. */
+export const MAX_STEP_LOG_SECONDS = MAX_STEP_SECONDS;
+
+/**
+ * PATCH /v1/kitchen/me/recipes/{rcp}/step-times — "Use today's times" (design
+ * §3.6, §5): its owner (anyone else, and Cookpool's own: the opaque 404).
+ * Sets these steps' ranges, written at the recipe's own size (today's time ÷
+ * the size rule, done by the client). Each key once, a step of the recipe
+ * that counts time, not whistles; only those steps change. 200 `{ recipe,
+ * lastCook }`.
+ */
+export interface UpdateStepTimesRequest {
+  /** 1–MAX_RECIPE_STEPS. */
+  steps: StepTimesInput[];
+}
+
+export interface StepTimesInput {
+  key: string;
+  /** 0–MAX_STEP_SECONDS, min ≤ max. */
+  minSeconds: number;
+  maxSeconds: number;
+}
+
 /** Where a copy came from: "from Anu". */
 export interface RecipeSource {
   /** The recipe it was saved from (`rcp_…`); it may since have been changed or deleted. */
@@ -318,10 +522,21 @@ export interface RecipeSummary {
 /** One recipe in full. */
 export interface KitchenRecipe extends RecipeSummary {
   lines: KitchenRecipeLine[];
-  /** Up to MAX_RECIPE_STEPS short texts, in order. */
+  /** Up to MAX_RECIPE_STEPS short texts, in order: each step's `text` (`guidedSteps` has the rest). */
   steps: string[];
   /** The link code (`/r/<code>`) while visibility is link — only for its owner; null for anyone else. */
   linkCode: string | null;
+  /**
+   * The same steps in full (GC-2): key, phase, lines, flame, time, whistles,
+   * hands off, rule, checkpoint and tip; `guidedSteps[i].text` is `steps[i]`.
+   * Optional in the type, as `tools` and `longPrep` are, so recipes typed
+   * before GC-2 still check; the server always sends all three.
+   */
+  guidedSteps?: KitchenRecipeStep[];
+  /** Up to MAX_RECIPE_TOOLS names, in order; [] for none. */
+  tools?: string[];
+  /** Its long prep (`isLongPrep`), in step order; [] for none. */
+  longPrep?: LongPrepStep[];
 }
 
 /** One ingredient of the caller's last dish of a recipe, for the line it was for. */
@@ -375,7 +590,10 @@ export interface CreateRecipeRequest {
   kind?: RecipeKind | null;
   visibility?: RecipeVisibility;
   lines: RecipeLineInput[];
-  steps?: string[];
+  /** 0–MAX_RECIPE_STEPS: each its text alone, or a guided step (GC-2). */
+  steps?: RecipeStepWrite[];
+  /** 0–MAX_RECIPE_TOOLS names of 1–MAX_RECIPE_TOOL characters, each once (GC-2). */
+  tools?: string[];
 }
 
 /**
@@ -392,7 +610,9 @@ export interface SaveDishAsRecipeRequest {
   minutes?: number | null;
   kind?: RecipeKind | null;
   visibility?: RecipeVisibility;
-  steps?: string[];
+  /** As on CreateRecipeRequest; a step's `lines` point at the dish's ingredients, in order. */
+  steps?: RecipeStepWrite[];
+  tools?: string[];
 }
 
 export type CreateRecipeBody = CreateRecipeRequest | SaveDishAsRecipeRequest;
@@ -410,13 +630,20 @@ export interface UpdateRecipeRequest {
   kind?: RecipeKind | null;
   visibility?: RecipeVisibility;
   lines?: RecipeLineInput[];
-  steps?: string[];
+  /**
+   * Replaces every step (see RecipeStepInput for how keys are kept). Lines
+   * sent without steps keep the steps; a step's lines that are past the new
+   * last line are dropped from it.
+   */
+  steps?: RecipeStepWrite[];
+  tools?: string[];
 }
 
 /**
  * POST /v1/kitchen/me/recipes/copies — save your own copy of a recipe you may
  * see (by id), or of the one a link opens (by code): owned by you, Only me,
- * with the same lines and steps and where it came from. 201 `{ recipe }`.
+ * with the same lines, steps (their keys too: GC-2) and tools, and where it
+ * came from. 201 `{ recipe }`.
  */
 export type CopyRecipeRequest =
   | { recipeId: string; linkCode?: undefined }

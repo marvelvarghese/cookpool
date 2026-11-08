@@ -337,6 +337,15 @@ export const manifest: MigrationManifest = {
         "The full food list and Cookpool's own recipes: kitchen_foods.g_per_ml (grams per millilitre, nullable, so a spoon meets a weight), set on RC-4's foods measured by spoon or cup; 230 more foods (300 in all) and 1,850 more names in English, Hindi and regional words; 42 home-staple recipes under usr_cookpool (is_system, seen by everyone, edited by no one) with their lines and steps; and one backfill linking items still unlinked to the new names (Cookpool RC-7)",
     },
     {
+      id: "370_kitchen_guided_steps",
+      context: "kitchen",
+      path: "370_kitchen_guided_steps/up.sql",
+      checksum:
+        "ae869e23ff34bec5bde674727d7664c1415bc65c6885d8fa5900a708294fd26f",
+      description:
+        "Steps that guide: kitchen_recipe_steps gains a stable step_key (backfilled at random for every existing step, unique per recipe), phase (prep/cook), line_refs (JSON positions), heat 0–3, min/max seconds (both or neither, min ≤ max ≤ 86 400), whistles 1–10 (never with seconds), hands_off, time_rule (fixed/partly/linear), a checkpoint ≤ 80 and its sense, and a tip ≤ 160; kitchen_recipes.tools (a JSON array of up to 10); and kitchen_dish_step_times (one row per dish and step key: seconds, the dish's factor, the cook and the recipe root), indexed by root and key (Cookpool GC-2)",
+    },
+    {
       id: "380_kitchen_timers",
       context: "kitchen",
       path: "380_kitchen_timers/up.sql",
