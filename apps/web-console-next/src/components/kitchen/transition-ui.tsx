@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { POPSTATE_HOOK } from "@/lib/app-shell";
 import { newFrame } from "@/lib/features";
-import { transitions, type ShareSource, type TransitionKind } from "@/lib/transitions";
+import { normalizePath, transitions, type ShareSource, type TransitionKind } from "@/lib/transitions";
+import { trailStamp } from "./back";
 import { popDirection, transitionKind, type Direction } from "./transitions";
 
 /**
@@ -96,16 +98,35 @@ export function useKitchenRouter(): KitchenRouter {
   );
 }
 
+// ── The browser's back and forward ────────────────────────────────
+
+// Where each history entry this page load has shown was scrolled to. While
+// the frame animates the browser's back and forward, their scroll is the
+// frame's (`scrollRestoration` "manual"): the browser would restore it right
+// after the event, onto the old page, before the old page is captured.
+const scrolls = new Map<string, number>();
+let entryKey: string | null = null;
+let popped = false;
+let ownScroll = false;
+
+/** An entry, as the scroll memory keys it: the trail's count and the address. */
+function entryKeyOf(state: unknown): string {
+  return `${trailStamp(state) ?? "-"} ${window.location.pathname}${window.location.search}`;
+}
+
 /**
  * The frame's half of the transitions, mounted once by the kitchen layout in
  * the new frame (after `BackTrailRecorder`, whose counts it reads):
  *  - it hands the Link the router;
  *  - it says when a pathname has rendered (`committed`), which ends the wait
  *    of the step in flight;
- *  - it animates the browser's own back and forward (`popstate`, the system
- *    back on Android), unless the browser animates it itself — and holds the
- *    new page until the old one is captured (`gateFor`), since Next restores
- *    it right after the event.
+ *  - it animates the browser's own back and forward (`popstate`: the system
+ *    back on Android, a browser's back button), unless the browser animates
+ *    it itself. It sees the event first (the shell script's listener, before
+ *    Next's), and holds the new page until the old one is captured
+ *    (`gateFor`), since React renders Next's restore inside the event;
+ *  - where it animates them, it restores their scroll itself, before the new
+ *    page is captured; elsewhere (iOS in a tab) the browser's stays.
  */
 export function PageTransitions() {
   const router = useRouter();
@@ -121,6 +142,14 @@ export function PageTransitions() {
     };
   }, [router]);
 
+  // The entry shown, and after a back or forward its scroll, before anything paints it.
+  React.useLayoutEffect(() => {
+    entryKey = entryKeyOf(window.history.state);
+    if (!popped) return;
+    popped = false;
+    if (ownScroll) window.scrollTo(0, scrolls.get(entryKey) ?? 0);
+  }, [pathname]);
+
   // The history entry of the page shown: a pop compares its count with the one it lands on.
   const shownState = React.useRef<unknown>(null);
   React.useEffect(() => {
@@ -129,9 +158,10 @@ export function PageTransitions() {
   }, [pathname]);
 
   React.useEffect(() => {
-    // In the capture phase: before Next's own listener restores the screen.
+    const hooks = window as unknown as Record<string, unknown>;
     const onPop = (event: PopStateEvent) => {
       const from = transitions.shown() ?? window.location.pathname;
+      popped = normalizePath(from) !== normalizePath(window.location.pathname);
       const direction = popDirection(shownState.current, event.state);
       transitions.pop({
         kind: transitionKind(from, window.location.pathname, { newFrame: newFrame(), direction }),
@@ -139,8 +169,35 @@ export function PageTransitions() {
         uaTransition: event.hasUAVisualTransition === true,
       });
     };
-    window.addEventListener("popstate", onPop, { capture: true });
-    return () => window.removeEventListener("popstate", onPop, { capture: true });
+    hooks[POPSTATE_HOOK] = onPop;
+
+    const remember = () => {
+      if (entryKey !== null) scrolls.set(entryKey, window.scrollY);
+    };
+    window.addEventListener("scroll", remember, { passive: true });
+    const manual = () => {
+      window.history.scrollRestoration = "manual";
+    };
+    const auto = () => {
+      window.history.scrollRestoration = "auto";
+    };
+    ownScroll = transitions.ownsTraversals();
+    if (ownScroll) {
+      manual();
+      // A reload or a page from the back-forward cache keeps the browser's own.
+      window.addEventListener("pagehide", auto);
+      window.addEventListener("pageshow", manual);
+    }
+    return () => {
+      if (hooks[POPSTATE_HOOK] === onPop) delete hooks[POPSTATE_HOOK];
+      window.removeEventListener("scroll", remember);
+      if (ownScroll) {
+        auto();
+        window.removeEventListener("pagehide", auto);
+        window.removeEventListener("pageshow", manual);
+      }
+      ownScroll = false;
+    };
   }, []);
 
   return null;

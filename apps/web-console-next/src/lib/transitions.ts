@@ -29,7 +29,9 @@
  *    names go on the tapped card only, just before the capture, move to the
  *    new page's matching parts, and are cleared when it ends;
  *  - a second navigation while one runs (a double tap, a quick back) skips
- *    the first and clears its names: nothing throws, nothing stays named.
+ *    the first and clears its names: nothing throws, nothing stays named;
+ *  - the animation never holds a navigation: if the browser does not capture
+ *    the old page within 500 ms (no frame comes), it navigates without one.
  */
 
 import { INSTALLED_DISPLAY_MODES, isIos } from "./install";
@@ -60,6 +62,13 @@ export const TRANSITION_MS: Readonly<Record<TransitionStyle, number>> = {
 
 /** The longest the old page's screenshot waits for the new page (and its shared parts). */
 export const COMMIT_CAP_MS = 350;
+
+/**
+ * The longest a navigation waits for the browser to capture the old page (a
+ * frame). A page the browser does not paint — hidden in all but name — would
+ * otherwise never navigate: past this it navigates without the animation.
+ */
+export const CAPTURE_CAP_MS = 500;
 
 /** From this width the sidebar is up (the desktop): every kind is the plain fade. */
 export const WIDE_MIN_PX = 900;
@@ -212,6 +221,13 @@ export interface PopRequest {
 export interface Transitions {
   /** Whether the browser can animate (`startViewTransition` exists). */
   supported(): boolean;
+  /**
+   * Whether the frame animates the browser's back and forward itself (it can,
+   * and it is not iOS in a tab, whose own swipe animates them): then it also
+   * restores their scroll, which the browser would otherwise apply to the old
+   * page before it is captured.
+   */
+  ownsTraversals(): boolean;
   /** Runs a navigation, animated when it can be. */
   navigate(request: NavigationRequest): void;
   /** The browser's back or forward (`popstate`, in the capture phase): animated when it is not already. */
@@ -358,12 +374,23 @@ export function createTransitions(env: TransitionEnv): Transitions {
     }
     env.setStyle(style);
 
-    const update = async () => {
-      const deadline = env.now() + COMMIT_CAP_MS;
-      // Captured: the card gives up its names before the new page can take them.
+    // The router's call, once: from the update, or from the capture's cap.
+    let ran = false;
+    const runOnce = () => {
+      if (ran) return false;
+      ran = true;
       unname(running);
       if (request.pops) ownPop = true;
       request.run();
+      return true;
+    };
+    let captureCap: unknown = null;
+
+    const update = async () => {
+      env.clearTimeout(captureCap);
+      const deadline = env.now() + COMMIT_CAP_MS;
+      // Captured: the card gives up its names before the new page can take them.
+      if (!runOnce()) return;
       const ok = await waitForCommit(request.from, COMMIT_CAP_MS);
       if (current !== running) return;
       if (!ok) {
@@ -385,6 +412,15 @@ export function createTransitions(env: TransitionEnv): Transitions {
       return;
     }
     running.vt = vt;
+    captureCap = env.setTimeout(() => {
+      if (!runOnce()) return;
+      try {
+        vt.skipTransition();
+      } catch {
+        // Already over.
+      }
+      settle(running);
+    }, CAPTURE_CAP_MS);
     vt.ready.catch(quiet);
     vt.updateCallbackDone.catch(quiet);
     vt.finished.then(
@@ -395,6 +431,8 @@ export function createTransitions(env: TransitionEnv): Transitions {
 
   return {
     supported: () => env.supported(),
+
+    ownsTraversals: () => env.supported() && !env.iosTab(),
 
     navigate(request) {
       const style = request.kind && canAnimate() ? transitionStyle(request.kind, { wide: env.wide(), reducedMotion: env.reducedMotion(), swiped: swiping }) : null;
