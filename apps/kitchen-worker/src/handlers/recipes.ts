@@ -170,6 +170,7 @@ async function writeRecipe(
 function writeFailed(ctx: RequestContext, result: Exclude<KitchenResult<unknown>, { ok: true }>): Response {
   if (result.error.kind === "not_found") return notFound(ctx.requestId);
   if (result.error.kind === "invalid") {
+    if (result.error.reason === "duplicate_step_key") return validationError(ctx.requestId, { steps: ["Each step's key once"] });
     return validationError(ctx.requestId, { lines: [result.error.reason === "unknown_food" ? "Every food must be on the food list" : "A line is out of range"] });
   }
   return unavailable(ctx.requestId);

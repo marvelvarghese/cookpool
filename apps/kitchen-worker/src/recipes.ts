@@ -438,8 +438,9 @@ function lineRefsValue(fields: Fields, at: string, value: unknown): number[] | u
   return refs;
 }
 
+/** One of `allowed`; absent or null is `fallback`. */
 function choice<T extends string>(fields: Fields, at: string, value: unknown, allowed: readonly T[], fallback: T | null): T | null | undefined {
-  if (value === undefined || (value === null && fallback === null)) return fallback;
+  if (value === undefined || value === null) return fallback;
   if (typeof value === "string" && (allowed as readonly string[]).includes(value)) return value as T;
   return fields.add(at, `Must be one of: ${allowed.join(", ")}${fallback === null ? ", or null" : ""}`);
 }

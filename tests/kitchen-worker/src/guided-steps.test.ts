@@ -190,7 +190,12 @@ describe("guided steps on a recipe (GC-2, design §1)", () => {
     });
     expect(edge.status).toBe(201);
     expect((edge.body.data as RecipeResponse).recipe.guidedSteps![0]).toMatchObject({ heat: 0, minSeconds: 0, maxSeconds: 86_400, tip: null });
-    expect((await create({ text: "Count", whistles: 10, checkpoint: "" })).status).toBe(201);
+    // Null is the default: a cook step, fixed, no flame, no time.
+    const nulls = await create({ text: "Count", whistles: 10, checkpoint: "", phase: null, timeRule: null, heat: null, minSeconds: null, sense: null, lines: null });
+    expect(nulls.status).toBe(201);
+    expect((nulls.body.data as RecipeResponse).recipe.guidedSteps![0]).toMatchObject({
+      phase: "cook", timeRule: "fixed", heat: null, minSeconds: null, whistles: 10, checkpoint: null, sense: null, lines: [],
+    });
 
     // Tools: up to 10, 1–40 characters each, each once (in any case).
     for (const [tools, field] of [
