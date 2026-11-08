@@ -43,7 +43,8 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/recipes/new": "/home",
   "/recipes/:recipeId": "/home",
   "/recipes/:recipeId/edit": "/home",
-  // Recipes travel (RC-8): a recipe's link.
+  // Recipes travel (RC-8): Explore and a recipe's link.
+  "/explore": "/home",
   "/r/:code": "/home",
 };
 

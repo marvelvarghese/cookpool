@@ -42,6 +42,7 @@ export function CookHubView({
   recipesFailed,
   onReloadRecipes,
   prefetch,
+  extraAction,
 }: {
   cookNow: readonly CookNowEntry[] | null;
   cards: readonly MyRecipeCard[] | null;
@@ -49,6 +50,8 @@ export function CookHubView({
   recipesFailed: boolean;
   onReloadRecipes?: (() => void) | undefined;
   prefetch?: ((recipeId: string) => void) | undefined;
+  /** Beside New recipe (RC-8: Explore). */
+  extraAction?: React.ReactNode;
 }) {
   return (
     <div className="flex w-full max-w-xl flex-col gap-4">
@@ -57,7 +60,7 @@ export function CookHubView({
       </header>
       <StartCookingButton />
       {cookNow && showsCookNow(cookNow) ? <CookNowSection entries={cookNow} prefetch={prefetch} /> : null}
-      <MyRecipesSection cards={cards} loading={recipesLoading} failed={recipesFailed} onReload={onReloadRecipes} prefetch={prefetch} />
+      <MyRecipesSection cards={cards} loading={recipesLoading} failed={recipesFailed} onReload={onReloadRecipes} prefetch={prefetch} extraAction={extraAction} />
     </div>
   );
 }
