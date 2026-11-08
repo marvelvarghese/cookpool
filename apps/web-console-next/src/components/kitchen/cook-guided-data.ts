@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { CreateKitchenTimerRequest, KitchenTimerResponse, RecipeResponse, UpdateStepTimesRequest } from "@saas/contracts/kitchen";
+import type { RecipeResponse, UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 import { wrap } from "@/lib/api";
 import { qk } from "@/lib/query";
 import { useSession } from "@/lib/session";
 import { readDeviceState } from "@/lib/push-device";
 import { cookSessions } from "@/lib/cook-session-store";
 import type { CookSession, FinishAnswer } from "./cook-session";
-import { afterCancel, afterCreate, handOver, markRang, markShort, serverTimerIds, timerWork, type TimerWork } from "./cook-guided";
+import { runTimerWork, serverTimerIds, type TimerServer } from "./cook-guided";
 import { browserScreenLockEnv, createScreenLock, ringBell, type ScreenLockState } from "./cook-guided-device";
 
 /**
@@ -19,81 +19,6 @@ import { browserScreenLockEnv, createScreenLock, ringBell, type ScreenLockState 
  * (GC-2's `updateStepTimes`), whether this device can hear a push, and the
  * page's visibility and screen lock.
  */
-
-/** GC-3's timer routes, as the client answers them. */
-export interface TimerServer {
-  create(request: CreateKitchenTimerRequest): Promise<FinishAnswer<KitchenTimerResponse>>;
-  cancel(serverId: string): Promise<FinishAnswer<unknown>>;
-}
-
-/** A cancel that failed is tried again after this long. */
-export const CANCEL_RETRY_MS = 15_000;
-
-export interface TimerRun {
-  /** The draft now (the store's). */
-  read(): CookSession | null;
-  /** Change the draft in place (the store's `update`). */
-  save(change: (s: CookSession) => CookSession): void;
-  server: TimerServer;
-  now: Date;
-  visible: boolean;
-  /** Ring the page's bell (Web Audio and vibration). */
-  ring(): void;
-  /** Creates and cancels on their way, so a pass never asks twice. */
-  inFlight: Set<string>;
-  /** When each cancel last failed (ms). */
-  failedAt: Map<string, number>;
-}
-
-/**
- * One pass of the timers' work (`timerWork`), against the server: the
- * hand-overs, short timers and rings are written at once (and the bell
- * rung); then each server timer to set is created, and each to cancel is
- * cancelled, every answer written back as it comes (`afterCreate`,
- * `afterCancel`). Resolves when every call is answered.
- */
-export async function runTimerWork(run: TimerRun): Promise<TimerWork> {
-  const before = run.read();
-  if (!before?.guide) return { create: [], cancel: [], handOver: [], short: [], ring: [], quiet: [] };
-  const work = timerWork(before, run.now, run.visible);
-  if (work.handOver.length + work.short.length + work.ring.length + work.quiet.length > 0) {
-    run.save((s) => markRang(markShort(handOver(s, work.handOver), work.short), [...work.ring, ...work.quiet]));
-  }
-  if (work.ring.length > 0) run.ring();
-
-  const calls: Promise<void>[] = [];
-  for (const c of work.create) {
-    const tag = `create:${c.timerId}@${c.endsAt}`;
-    if (run.inFlight.has(tag)) continue;
-    run.inFlight.add(tag);
-    calls.push(
-      run.server
-        .create(c.request)
-        .then((answer) => run.save((s) => afterCreate(s, c, answer)))
-        .finally(() => run.inFlight.delete(tag)),
-    );
-  }
-  const cancels = run.read()?.guide?.cancels ?? [];
-  const nowMs = run.now.getTime();
-  for (const serverId of new Set(cancels)) {
-    const tag = `cancel:${serverId}`;
-    const failed = run.failedAt.get(serverId);
-    if (run.inFlight.has(tag) || (failed !== undefined && nowMs - failed < CANCEL_RETRY_MS)) continue;
-    run.inFlight.add(tag);
-    calls.push(
-      run.server
-        .cancel(serverId)
-        .then((answer) => {
-          if (answer.ok || answer.status === 404) run.failedAt.delete(serverId);
-          else run.failedAt.set(serverId, nowMs);
-          run.save((s) => afterCancel(s, serverId, answer));
-        })
-        .finally(() => run.inFlight.delete(tag)),
-    );
-  }
-  await Promise.all(calls);
-  return work;
-}
 
 /** The client's timer routes. */
 function useTimerServer(): TimerServer {
