@@ -47,6 +47,7 @@ import {
   checkStepTimes,
   coMembers,
   keptStep,
+  learnedSteps,
   foodsOf,
   forPortionsHalf,
   matchRecipe,
@@ -81,9 +82,9 @@ import { foodNameKey } from "@saas/contracts/kitchen";
 //   GET    /v1/kitchen/me/recipes/{rcp}/match?f=&code=   who may see it: what your pantries hold
 //   POST   /v1/kitchen/me/recipes/{rcp}/link        its owner: mint or rotate the link
 //   DELETE /v1/kitchen/me/recipes/{rcp}/link        its owner: turn it off
-//   GET    /v1/kitchen/recipes/{rcp}?code=          who may see it, with your last cook of it
+//   GET    /v1/kitchen/recipes/{rcp}?code=&f=       who may see it, with your last cook of it
 //   GET    /v1/kitchen/recipes?source=&q=&kind=     Explore: Cookpool's, or your groups'
-//   GET    /v1/kitchen/recipe-links/{code}          anyone signed in with the code
+//   GET    /v1/kitchen/recipe-links/{code}?f=       anyone signed in with the code
 //   GET    /v1/kitchen/people/{usr}/recipes         someone you share a group with
 //   GET    /v1/kitchen/me/cook-now                  what you can make, best first
 //   PATCH  /v1/kitchen/me/recipes/{rcp}/step-times  its owner: "Use today's times" (GC-2)
@@ -91,6 +92,11 @@ import { foodNameKey } from "@saas/contracts/kitchen";
 // Guided steps (GC-2): every write and read carries the step fields, the
 // tools and long prep; copies keep their steps' keys, and an edit keeps the
 // key of each step it keeps (`resolveSteps`).
+//
+// Learned ranges (GC-7): every `{ recipe, lastCook }` answer carries each
+// guided step's `learned` once cooks have taught it — at `?f=` on the two
+// reads (the match's bounds, default 1000), at the recipe as written on the
+// writes — from one extra storage read beside the last cook (`learnedSteps`).
 //
 // A recipe moves no money and writes no audit event: an audit log is a
 // group's, and a recipe belongs to a person. Everything the caller may not
@@ -102,20 +108,22 @@ const SUBJECT_ID_RE = /^[A-Za-z0-9][\w-]{0,127}$/;
 /** A taken link code is drawn again: this many times at most (58^10 codes make a clash all but impossible). */
 const LINK_ATTEMPTS = 3;
 
-/** `{ recipe, lastCook }` as the caller reads it. */
+/** `{ recipe, lastCook }` as the caller reads it, its steps' learned ranges at `factorMilli` (GC-7). */
 async function recipeResponse(
   ctx: RequestContext,
   repo: KitchenRepository,
   record: KitchenRecipeTemplateRecord,
   status = 200,
+  factorMilli = 1000,
 ): Promise<Response> {
-  const [names, last] = await Promise.all([
+  const [names, last, learned] = await Promise.all([
     ownerNames(ctx, [record]),
     ctx.timings.measure("db", () => repo.lastCook(ctx.actor.subjectId, record.id as Uuid)),
+    learnedSteps(ctx, repo, record, factorMilli),
   ]);
-  if (!last.ok) return unavailable(ctx.requestId);
+  if (!last.ok || !learned) return unavailable(ctx.requestId);
   return successResponse<RecipeResponse>(
-    { recipe: toKitchenRecipe(record, ctx.actor.subjectId, names), lastCook: last.value ? toLastCook(last.value) : null },
+    { recipe: toKitchenRecipe(record, ctx.actor.subjectId, names, learned), lastCook: last.value ? toLastCook(last.value) : null },
     ctx.requestId,
     status,
   );
@@ -418,28 +426,36 @@ export async function handleDeleteRecipeLink(ctx: RequestContext, _request: Requ
   });
 }
 
-export async function handleRecipeByLink(ctx: RequestContext, _request: Request, params: readonly string[]): Promise<Response> {
+export async function handleRecipeByLink(ctx: RequestContext, request: Request, params: readonly string[]): Promise<Response> {
   const code = params[0] ?? "";
   if (!RECIPE_LINK_CODE_RE.test(code)) return notFound(ctx.requestId);
+  const fields = new Fields();
+  const factorMilli = factorParam(fields, new URL(request.url));
+  if (!fields.ok) return validationError(ctx.requestId, fields.errors);
   return withKitchenRepo(ctx, async (repo) => {
     const found = await ctx.timings.measure("db", () => repo.getRecipeByLinkCode(code, ctx.actor.subjectId));
     if (!found.ok) return found.error.kind === "not_found" ? notFound(ctx.requestId) : unavailable(ctx.requestId);
-    return recipeResponse(ctx, repo, found.value);
+    return recipeResponse(ctx, repo, found.value, 200, factorMilli);
   });
 }
 
 // ── Reading one, and what you have ─────────────────────────
 
+/** GET /v1/kitchen/recipes/{rcp}?code=&f= — `f` is the size its steps' learned ranges are at (GC-7). */
 export async function handleGetRecipe(ctx: RequestContext, request: Request, params: readonly string[]): Promise<Response> {
-  const code = codeParam(new URL(request.url));
+  const url = new URL(request.url);
+  const fields = new Fields();
+  const factorMilli = factorParam(fields, url);
+  if (!fields.ok) return validationError(ctx.requestId, fields.errors);
+  const code = codeParam(url);
   return withKitchenRepo(ctx, async (repo) => {
     const recipe = await visibleRecipe(ctx, repo, params[0]!, code);
     if (recipe instanceof Response) return recipe;
-    return recipeResponse(ctx, repo, recipe);
+    return recipeResponse(ctx, repo, recipe, 200, factorMilli);
   });
 }
 
-/** `?f=`: the factor in thousandths, RECIPE_MIN_FACTOR_MILLI–RECIPE_MAX_FACTOR_MILLI (default 1000). */
+/** `?f=`: the factor in thousandths, RECIPE_MIN_FACTOR_MILLI–RECIPE_MAX_FACTOR_MILLI (default 1000); the match's, and the recipe read's (GC-7). */
 function factorParam(fields: Fields, url: URL): number {
   const raw = url.searchParams.get("f");
   if (raw === null || raw === "") return 1000;
