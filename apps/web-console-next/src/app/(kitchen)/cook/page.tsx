@@ -84,6 +84,9 @@ import {
 } from "@/components/kitchen/from-before";
 import { useRecipes } from "@/components/kitchen/from-before-data";
 import { SuggestionList, useTypeahead } from "@/components/kitchen/from-before-ui";
+import { newFrame } from "@/lib/features";
+import { cookPageShows } from "@/components/kitchen/cook-hub";
+import { CookHub } from "@/components/kitchen/cook-hub-ui";
 
 const NO_GROUPS: readonly MyGroupBalance[] = [];
 
@@ -109,10 +112,17 @@ const NO_GROUPS: readonly MyGroupBalance[] = [];
  * portions, the extras, who it is for and the ingredients, each from an item
  * usable now at last time's amount; one with nothing to take it from reads
  * "Not in a pantry · add it" and opens "Bought it just now?" for it.
+ *
+ * In the new frame (cookpool-recipes RC-5, everywhere but prod) `/cook` is
+ * the Cook hub instead — Start cooking, Cook now, My recipes (`CookHub`) —
+ * except for Cook with it (`?item=`), which still starts this dish maker
+ * with the item in it (`cookPageShows`).
  */
 export default function CookPage() {
   const searchParams = useSearchParams();
-  const linked = parseItemRef(searchParams?.get("item"));
+  const item = searchParams?.get("item") ?? null;
+  if (cookPageShows(newFrame(), item) === "hub") return <CookHub />;
+  const linked = parseItemRef(item);
   return <CookScreen key={linked ? itemRefParam(linked) : "new"} linked={linked} />;
 }
 
