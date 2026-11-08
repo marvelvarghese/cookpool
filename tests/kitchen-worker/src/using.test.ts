@@ -927,6 +927,10 @@ describe("GET /v1/kitchen/me/usuals", () => {
         lastUsedAt: new Date(lastMilk.getTime() - MINUTE).toISOString(),
         qtyLeftMilli: 5_000_000 - 550_000,
         measures: [],
+        // All three at 08:0x UTC, morning at the default tzOffset=0: three
+        // different amounts, so the most recent wins (PN-2).
+        now: { bucket: "morning", qtyMilli: 100_000, quantity: 100, unit: "ml", label: null, consumerIds: [ANU], count: 3 },
+        strip: true,
       },
       {
         itemId: myOats.id,
@@ -941,6 +945,9 @@ describe("GET /v1/kitchen/me/usuals", () => {
         lastUsedAt: new Date(NOW.getTime() + 3 * MINUTE).toISOString(),
         qtyLeftMilli: 370_000,
         measures: [],
+        // 50 g twice and 30 g once: the most frequent amount (PN-2).
+        now: { bucket: "morning", qtyMilli: 50_000, quantity: 50, unit: "g", label: null, consumerIds: [RAHUL], count: 3 },
+        strip: true,
       },
       expect.objectContaining({ itemId: rice.id, usedCount: 1, lastQuantity: 0.5, lastUnit: "kg" }),
     ]);

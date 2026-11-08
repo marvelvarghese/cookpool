@@ -6,6 +6,7 @@
 // minor units (paise for INR) in the group's one currency.
 
 import type { StepLogEntry } from "./kitchen-recipes.js";
+import type { UsualBucket, UsualNow } from "./kitchen-usuals.js";
 
 // ── Policy actions ──────────────────────────────────────────
 
@@ -911,7 +912,9 @@ export const USUALS_DAYS = 90;
 
 /**
  * One item the caller often uses: presets for quick use and "Do it again".
- * Only items with something left that the caller may still use.
+ * Only items with something left that the caller may still use. The last-use
+ * fields are the item's own last use, else (PN-2) its food's: the latest use
+ * of an item with the same name key and dimension in the same pantry.
  */
 export interface KitchenUsual {
   /** `itm_…` */
@@ -932,22 +935,44 @@ export interface KitchenUsual {
   measures?: KitchenMeasure[];
   /** Who had it the last time. */
   consumers: string[];
-  /** Uses in the last USUALS_DAYS days that the caller logged or was named in. */
+  /** Uses of the food (PN-2: this item and earlier packs of it) in the last USUALS_DAYS days that the caller logged or was named in. */
   usedCount: number;
   lastUsedAt: string;
   /** What is left now, so "Do it again" can tell whether there is enough. */
   qtyLeftMilli: number;
+  /**
+   * The usual for the current bucket (PN-2): the most frequent amount of the
+   * food in it, once the caller has USUAL_NOW_MIN_USES uses there in the last
+   * USUALS_NOW_DAYS; null without. Every answer carries it; optional here
+   * only so usuals typed before PN-2 still check.
+   */
+  now?: UsualNow | null;
+  /** USUAL_STRIP_MIN_USES uses of the food in the current bucket: the Now strip offers it (PN-2). Every answer carries it. */
+  strip?: boolean;
 }
 
-/** GET /v1/kitchen/me/usuals?limit= — most used first, then most recently used. */
+/**
+ * GET /v1/kitchen/me/usuals?tzOffset=&limit= — most used first, then most
+ * recently used. Usuals are kept per food (PN-2): an item with no uses of
+ * its own reads its food's (same name key and dimension, same pantry), so a
+ * new pack inherits them, and `usedCount` counts the food's uses. See
+ * ./kitchen-usuals.ts (`@saas/contracts/kitchen-usuals`) for the buckets,
+ * `suggestUse` and `isRunningLow`.
+ */
 export interface UsualsQuery {
-  /** 1–50, default 10. */
+  /** 1–100, default 10. */
   limit?: number;
+  /** Minutes east of UTC, TZ_OFFSET_MIN…TZ_OFFSET_MAX (−720…840); default 0 (PN-2). */
+  tzOffset?: number;
 }
 
 export interface UsualsResponse {
   usuals: KitchenUsual[];
+  /** The current bucket at `tzOffset` (PN-2). Every answer carries it. */
+  bucket?: UsualBucket;
 }
+
+export type { UsualBucket, UsualNow } from "./kitchen-usuals.js";
 
 // ── Your measures (SM-13) ───────────────────────────────────
 //

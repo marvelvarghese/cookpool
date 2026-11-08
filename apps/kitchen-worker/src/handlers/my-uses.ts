@@ -45,6 +45,7 @@ import {
   undoMove,
   useAmount,
 } from "../stock.js";
+import { tzOffsetParam, usualNow, usualsBucket } from "../usuals.js";
 import { Fields } from "../validate.js";
 
 // Using the caller's own pantry, and moving an item out of it:
@@ -54,7 +55,8 @@ import { Fields } from "../validate.js";
 //   POST /v1/kitchen/me/items/{itm}/transfer   move it into a group's pantry (kitchen.item.create there)
 //   GET  /v1/kitchen/me/items/{itm}/moves      its history, newest first
 //   POST /v1/kitchen/me/moves/{mov}/undo       put back the latest use or waste
-//   GET  /v1/kitchen/me/usuals                 what the caller often uses, across every pantry they may use
+//   GET  /v1/kitchen/me/usuals                 what the caller often uses, across every pantry they may use,
+//                                              by food and by time of day (?tzOffset=, PN-2)
 //
 // A personal pantry belongs to its owner (design.md §6): every read and write
 // is keyed by the caller's subject, so anyone else's item or move is the
@@ -326,8 +328,12 @@ const DAY_MS = 86_400_000;
 
 export async function handleUsuals(ctx: RequestContext, request: Request): Promise<Response> {
   const fields = new Fields();
-  const limit = limitParam(fields, new URL(request.url), DEFAULT_USUALS_LIMIT, MAX_USUALS_LIMIT);
+  const url = new URL(request.url);
+  const limit = limitParam(fields, url, DEFAULT_USUALS_LIMIT, MAX_USUALS_LIMIT);
+  // By time of day, in the caller's zone (PN-2).
+  const tzOffset = tzOffsetParam(fields, url);
   if (!fields.ok) return validationError(ctx.requestId, fields.errors);
+  const { bucket, query: inBucket } = usualsBucket(ctx.now(), tzOffset);
   const groups = await myGroups(ctx);
   if (!groups) return unavailable(ctx.requestId);
   // Only what the caller may still use: their own pantry, and groups where
@@ -343,6 +349,7 @@ export async function handleUsuals(ctx: RequestContext, request: Request): Promi
         orgIds: [...usable.keys()],
         since: new Date(ctx.now().getTime() - USUALS_DAYS * DAY_MS),
         limit,
+        bucket: inBucket,
       }),
     );
     if (!found.ok) return unavailable(ctx.requestId);
@@ -368,8 +375,9 @@ export async function handleUsuals(ctx: RequestContext, request: Request): Promi
         lastUsedAt: usual.lastUsedAt.toISOString(),
         qtyLeftMilli: item.qtyLeftMilli,
         measures: measures(item),
+        ...usualNow(usual, bucket, item, actor),
       });
     }
-    return successResponse<UsualsResponse>({ usuals }, ctx.requestId);
+    return successResponse<UsualsResponse>({ usuals, bucket }, ctx.requestId);
   });
 }

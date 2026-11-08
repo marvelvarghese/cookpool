@@ -532,27 +532,61 @@ export interface KitchenMoveRead {
   latestMoveId: string | null;
 }
 
-/** One item someone often uses, from their uses since `since`. */
+/**
+ * One item someone often uses, from their uses since `since` of its food
+ * (PN-2): every item in the same pantry with the same name key
+ * (`lower(trim(name))`) and dimension, this one included.
+ */
 export interface KitchenUsualRecord {
   item: KitchenItemRecord;
+  /** Uses of the food. */
   usedCount: number;
+  /** The last use: the item's own latest, else its food's. */
   lastQtyMilli: number;
   lastUnit: string | null;
   /** The words the last use was given in ("2 onions", SM-13); null for a unit. */
   lastLabel: string | null;
   lastConsumers: string[] | null;
   lastUsedAt: Date;
+  /** Whether the last use was another item's (a new pack inheriting its food's usual). */
+  inherited: boolean;
+  /** The food's uses in the query's bucket, or null when none fell in it (or no bucket was asked for). */
+  bucket: KitchenUsualBucketRecord | null;
+}
+
+/** A food's uses in one part of the day: the most frequent amount (ties: the most recent), as last logged, and how many. */
+export interface KitchenUsualBucketRecord {
+  qtyMilli: number;
+  unit: string | null;
+  label: string | null;
+  consumers: string[] | null;
+  /** Every use of the food in the bucket, whatever its amount. */
+  count: number;
 }
 
 /**
- * Uses since `since` that `subjectId` logged or was named in, of active items
- * with something left in the scope, one row per item: most used first, then
- * most recently used.
+ * Uses since `since` that `subjectId` logged or was named in (not reversed),
+ * of items in the scope, gathered per food; one row per active item with
+ * something left whose food has any: most used first, then most recently used.
  */
 export interface KitchenUsualsQuery extends KitchenPantryScope {
   subjectId: string;
   since: Date;
   limit: number;
+  /**
+   * A part of the day to read the food's usual for (PN-2): the uses since
+   * `since` (no earlier than the query's) whose local hour — `created_at`
+   * shifted by `tzOffsetMinutes` — is one of `hours`.
+   */
+  bucket?: KitchenUsualsBucketQuery | undefined;
+}
+
+export interface KitchenUsualsBucketQuery {
+  /** Local hours, 0–23. */
+  hours: readonly number[];
+  /** Minutes east of UTC. */
+  tzOffsetMinutes: number;
+  since: Date;
 }
 
 // ── Repository ──────────────────────────────────────────────
