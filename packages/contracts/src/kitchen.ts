@@ -1231,6 +1231,12 @@ export interface CookIngredientRequest {
   unit?: string;
   /** Instead of `unit` (both: 422): one of the item's measures, as on a use (SM-13). The ingredient keeps its words (`label`). */
   measure?: string;
+  /**
+   * The recipe line it is for (its `position`, RC-4), when the dish names a
+   * `recipeId`: kept on the ingredient, so the next session's "last time"
+   * finds it. Several ingredients may be for one line.
+   */
+  recipeLine?: number | null;
 }
 
 /**
@@ -1248,6 +1254,8 @@ export interface CookNewItemRequest {
   expiresOn?: string | null;
   useQuantity?: string | number;
   useUnit?: string;
+  /** The recipe line it is for, as on `CookIngredientRequest` (RC-4). */
+  recipeLine?: number | null;
 }
 
 /**
@@ -1272,6 +1280,14 @@ export interface CookDishRequest {
   splitMode: DishSplitMode;
   ingredients?: CookIngredientRequest[];
   newItems?: CookNewItemRequest[];
+  /**
+   * The recipe it was cooked from (`rcp_…`, RC-4): one the cook may see
+   * (design §5.1 — the opaque 404 otherwise). Kept on the dish; money is
+   * worked out exactly as without it.
+   */
+  recipeId?: string | null;
+  /** The factor the recipe was scaled by, in thousandths (RECIPE_MIN_FACTOR_MILLI–RECIPE_MAX_FACTOR_MILLI); needs `recipeId`. */
+  recipeFactorMilli?: number | null;
 }
 
 export interface KitchenDishIngredient {
@@ -1297,6 +1313,11 @@ export interface KitchenDishIngredient {
   costMinor: number;
   /** The `use` transaction (`txn_…`) that charged the cook for it; null when nobody else paid for it. */
   useTxnId: string | null;
+  /**
+   * The recipe line it was for (RC-4); null when it named none. Every answer
+   * carries it; optional here only so ingredients typed before RC-4 still check.
+   */
+  recipeLine?: number | null;
 }
 
 /** What the cook owes one buyer in one group for the ingredients they took. */
@@ -1338,6 +1359,13 @@ export interface KitchenDish {
   updatedAt: string;
   /** In the order the cook listed them (existing items, then the ones just bought). */
   ingredients: KitchenDishIngredient[];
+  /**
+   * The recipe it was cooked from (`rcp_…`, RC-4) and the factor it was
+   * scaled by; null when it named none. Every answer carries them; optional
+   * here only so dishes typed before RC-4 still check.
+   */
+  recipeId?: string | null;
+  recipeFactorMilli?: number | null;
   /** What the cook paid for themselves: their own pantry, and their own purchases in a group. */
   fromMineMinor: number;
   /** What the cook owes, per group and buyer, in the order the ingredients name them. fromMineMinor + Σ owes = ingredientsMinor. */
@@ -1945,3 +1973,10 @@ export interface SubjectBalanceResponse {
   /** The group's currency (INR until its settings are first saved). */
   currency: string;
 }
+
+// ── Foods and recipes (RC-4) ────────────────────────────────
+//
+// The food list, Always have, recipes, the match, sharing, copies, Explore
+// and Cook now: see ./kitchen-recipes.ts (also `@saas/contracts/kitchen-recipes`).
+
+export * from "./kitchen-recipes.js";
