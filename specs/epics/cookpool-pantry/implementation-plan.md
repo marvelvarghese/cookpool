@@ -2,14 +2,14 @@
 
 Each task is one pull request on `orun/PN-k-<slug>`, with its contract in `tasks/PN-k.TaskContract.yaml`. Everything in the console is behind `newFrame()`: it's on in stage and off in prod until cookpool-recipes RC5.
 
-## PN0 — the spec
+## PN0 — the spec ✅
 
 - **PN-1:** this doc set and the contracts for PN-2 to PN-10.
 
 **Done when**
 - merged
 
-## PN1 — one tap from the Pantry
+## PN1 — one tap from the Pantry ✅
 
 - **PN-2: usuals by time of day and by food, in the server** (design §2):
   - `?tzOffset=` and the buckets;
@@ -33,7 +33,7 @@ Each task is one pull request on `orun/PN-k-<slug>`, with its contract in `tasks
 - a new pack of milk in the same pantry shows the same suggestion
 - a row opens in place, steps to 2 glasses, picks Anu and logs; the toast's Undo reverses it
 
-## PN2 — restocking in one go
+## PN2 — restocking in one go ✅
 
 - **PN-3: restock and purchases, in the server** (design §6.4, migration 400): `GET /v1/kitchen/me/restock`, `POST`/`DELETE /v1/kitchen/me/purchases`, the SDK and tests.
 - **PN-6: restocking in the app** (design §6.1–§6.3):
@@ -48,7 +48,7 @@ Each task is one pull request on `orun/PN-k-<slug>`, with its contract in `tasks
 - on stage, bread finished on Tuesday shows in Finished this week, and Bought again adds it like last time
 - a shopping run adds bread, atta and milk to two pantries in one write, and Undo removes all three
 
-## PN3 — fixing stock honestly
+## PN3 — fixing stock honestly ✅
 
 - **PN-4: the stock check in the server** (design §7, migration 410):
   - the check route for personal and group items;
@@ -66,7 +66,7 @@ Each task is one pull request on `orun/PN-k-<slug>`, with its contract in `tasks
 - setting it to more than Cookpool thought moves no money
 - the item page reads "At this rate it runs out <day>" after two uses on two days
 
-## PN4 — ask before use
+## PN4 — ask before use ✅
 
 - **PN-8: asks in the server** (design §8.5, migration 420):
   - `askFirst` and `allowed` on group items;

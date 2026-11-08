@@ -8,6 +8,9 @@ spec:
   affects:
     - specs/epics/cookpool-pantry/**
     - tasks/PN-10.TaskContract.yaml
+    # Widened in PN-10's own PR: PN-8's contract had a doneWhen line over the
+    # 200-character limit, so it was never attached; the fix splits that line.
+    - tasks/PN-8.TaskContract.yaml
   doneWhen:
     - "the README status reads shipped on stage with Shipped as filled in"
     - "IMPLEMENTATION-STATUS has every milestone and PR"
