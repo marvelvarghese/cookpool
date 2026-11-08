@@ -4,6 +4,7 @@ import { cwd } from "node:process";
 import { renderToStaticMarkup } from "react-dom/server";
 import { newFrame } from "@web-console-next/lib/features";
 import {
+  CAPTURE_CAP_MS,
   COMMIT_CAP_MS,
   TRANSITION_MS,
   carriesShared,
@@ -205,14 +206,24 @@ async function flush(): Promise<void> {
   for (let i = 0; i < 20; i++) await Promise.resolve();
 }
 
-/** A fake `ViewTransition`: the update runs once the old page is "captured" (a microtask), the animation ends on `end()`. */
-function fakeTransition(update: () => Promise<void>) {
+/**
+ * A fake `ViewTransition`: the update runs once the old page is "captured"
+ * (a microtask, or `capture()` when the browser paints no frame), the
+ * animation ends on `end()`.
+ */
+function fakeTransition(update: () => Promise<void>, deferred = false) {
   let end: () => void = () => undefined;
   const animation = new Promise<void>((resolve) => {
     end = resolve;
   });
+  let capture: () => void = () => undefined;
+  const captured = deferred
+    ? new Promise<void>((resolve) => {
+        capture = resolve;
+      })
+    : Promise.resolve();
   const state = { skipped: false, updated: false, done: false };
-  const updateCallbackDone = Promise.resolve().then(async () => {
+  const updateCallbackDone = captured.then(async () => {
     state.updated = true;
     await update();
     state.done = true;
@@ -232,6 +243,7 @@ function fakeTransition(update: () => Promise<void>) {
       end();
     },
     end: () => end(),
+    capture: () => capture(),
   };
 }
 
@@ -278,6 +290,8 @@ interface HarnessOptions {
   startThrows?: boolean;
   /** The browser never calls the update (to prove nothing waits forever). */
   neverUpdates?: boolean;
+  /** The browser captures only on `capture()` (a page it does not paint). */
+  noFrames?: boolean;
 }
 
 function harness(opts: HarnessOptions = {}) {
@@ -292,7 +306,7 @@ function harness(opts: HarnessOptions = {}) {
     supported: () => opts.supported ?? true,
     start(update) {
       if (opts.startThrows) throw new Error("InvalidStateError");
-      const t = fakeTransition(opts.neverUpdates ? () => new Promise<void>(() => undefined) : update);
+      const t = fakeTransition(opts.neverUpdates ? () => new Promise<void>(() => undefined) : update, opts.noFrames ?? false);
       started.push(t);
       return t;
     },
@@ -422,6 +436,23 @@ describe("the helper animates a navigation with startViewTransition", () => {
     h.tx.committed("/recipes/rcp_1");
     await flush();
     expect(h.started).toHaveLength(1);
+    expect(run.calls).toBe(1);
+  });
+
+  it("never holds a navigation on the animation: with no frame to capture by 500 ms, it navigates without one", async () => {
+    const h = harness({ noFrames: true });
+    const run = spy();
+    h.tx.navigate({ kind: "forward", from: "/cook", run });
+    await h.advance(CAPTURE_CAP_MS - 1);
+    expect(run.calls).toBe(0);
+    await h.advance(1);
+    expect(run.calls).toBe(1);
+    expect(h.started[0]!.state.skipped).toBe(true);
+    expect(h.style()).toBeNull();
+    expect(h.tx.running()).toBe(false);
+    // The frame comes at last: the browser calls the update, which navigates no second time.
+    h.started[0]!.capture();
+    await flush();
     expect(run.calls).toBe(1);
   });
 
@@ -648,6 +679,12 @@ describe("the browser's own back and forward (popstate)", () => {
     expect(t.tx.gateFor("/cook")).not.toBeNull();
     await t.advance(COMMIT_CAP_MS);
     expect(t.tx.gateFor("/cook")).toBeNull();
+  });
+
+  it("owns the back and forward's scroll only where it animates them: not without the API, nor in iOS's tab", () => {
+    expect(harness().tx.ownsTraversals()).toBe(true);
+    expect(harness({ supported: false }).tx.ownsTraversals()).toBe(false);
+    expect(harness({ iosTab: true }).tx.ownsTraversals()).toBe(false);
   });
 
   it("does nothing without the API, or with no kind (outside the app, the same screen)", () => {
