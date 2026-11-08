@@ -229,6 +229,8 @@ export function useCopyRecipe() {
         undo: async (): Promise<UndoResult> => {
           const r = await sent;
           if (!r.ok) return { ok: true };
+          // Off My recipes at once, so nothing reads "Saved" while the delete is on its way.
+          applyPatches(queryCacheOf(qc), recipeRemovedPatches(r.data.recipe.id));
           const d = await trackWrite(qc, wrap(() => client.kitchen.deleteRecipe(r.data.recipe.id)));
           qc.removeQueries({ queryKey: qk.kitchenRecipe(r.data.recipe.id), exact: true });
           refreshAfter(qc, null);
