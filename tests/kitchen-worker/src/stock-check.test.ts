@@ -374,3 +374,345 @@ describe("undoing what a check took, on a group item", () => {
     expect(moves.filter((m) => m.kind === "reversal").every((m) => m.via === undefined)).toBe(true);
   });
 });
+
+describe("more than is left: an adjust that moves no money", () => {
+  it("raises what is left by the difference, with no transaction, whatever gone says", async () => {
+    const item = await groupItem(MEERA, flat);
+    await use(RAHUL, flat, item, { quantity: "500", unit: "ml" });
+    const owed = await balances(flat);
+    const before = written();
+    tick();
+    const res = await check(ANU, flat, item, { left: left("800", "ml"), gone: "split" });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({
+      txn: null,
+      move: { kind: "adjust", qtyMilli: 300_000, quantity: 300, unit: "ml", costMinor: 0, actor: ANU, consumers: null, txnId: null, via: "check" },
+      // What is left of the price stays what it was: the extra 300 ml is free.
+      item: { qtyLeftMilli: 800_000, worthMinor: 3000, state: "active", version: 3 },
+    });
+    expect(written()).toEqual(plus(before, { moves: 1, events: 1, audit: 1 }));
+    expect(await balances(flat)).toEqual(owed);
+    const [adjusted] = events("kitchen.item.adjusted");
+    expect(JSON.parse(adjusted!.payload as string)).toMatchObject({ qtyMilli: 300_000, unit: "ml", qtyLeftMilli: 800_000, via: "check" });
+    expect(adjusted!.actor_id).toBe(ANU);
+  });
+
+  it("is undone by whoever checked, or an owner or admin, taking the difference back off", async () => {
+    const item = await groupItem(MEERA, flat);
+    await use(RAHUL, flat, item, { quantity: "500", unit: "ml" });
+    tick();
+    const raised = await check(ANU, flat, item, { left: left("0.8") });
+    const byDev = await undoGroup(DEV, flat, raised.body.data.move.id);
+    expect(byDev.status).toBe(403);
+    expect(byDev.body.error.details).toEqual({ reason: "not_creator" });
+    expect((await undoGroup(VIEWER, flat, raised.body.data.move.id)).status).toBe(404);
+
+    tick();
+    const undone = await undoGroup(ANU, flat, raised.body.data.move.id);
+    expect(undone.status).toBe(201);
+    expect(undone.body.data).toMatchObject({
+      txn: null,
+      move: { kind: "reversal", reverses: raised.body.data.move.id, qtyMilli: 300_000, costMinor: 0, actor: ANU },
+      item: { qtyLeftMilli: 500_000, worthMinor: 3000, state: "active" },
+    });
+    expect(events("kitchen.move.undone")).toHaveLength(1);
+    const twice = await undoGroup(ANU, flat, raised.body.data.move.id);
+    expect(twice.body.error.details).toEqual({ reason: "already_reversed", undoneBy: undone.body.data.move.id });
+
+    tick();
+    const again = await check(DEV, flat, item, { left: left("0.6") });
+    expect((await undoGroup(ADMIN, flat, again.body.data.move.id)).status).toBe(201);
+    expect((await readItem(MEERA, flat, item)).qtyLeftMilli).toBe(500_000);
+  });
+
+  it("can be undone after later uses while the difference is still there, and not once it is gone", async () => {
+    const item = await groupItem(MEERA, flat);
+    await use(RAHUL, flat, item, { quantity: "500", unit: "ml" });
+    tick();
+    const raised = await check(ANU, flat, item, { left: left("800", "ml") });
+    tick();
+    const later = await use(DEV, flat, item, { quantity: "100", unit: "ml" });
+    tick();
+    const undone = await undoGroup(ANU, flat, raised.body.data.move.id);
+    expect(undone.status).toBe(201);
+    expect(undone.body.data.item).toMatchObject({ qtyLeftMilli: 400_000, state: "active" });
+    // Dev's use is still in effect, and still reversible.
+    expect((await reverse(DEV, flat, later.body.data.txn!.id)).status).toBe(201);
+    expect((await readItem(MEERA, flat, item)).qtyLeftMilli).toBe(500_000);
+
+    tick();
+    const second = await check(ANU, flat, item, { left: left("900", "ml") });
+    tick();
+    await use(DEV, flat, item, { quantity: "700", unit: "ml" });
+    const before = written();
+    const refused = await undoGroup(ANU, flat, second.body.data.move.id);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.details).toEqual({ reason: "insufficient_stock", qtyLeftMilli: 200_000 });
+    expect(written()).toEqual(before);
+  });
+
+  it("wakes a finished item, and its undo finishes it again as it was", async () => {
+    const usedUp = await groupItem(MEERA, flat);
+    await use(RAHUL, flat, usedUp, { quantity: "1", unit: "L" });
+    tick();
+    const found = await check(RAHUL, flat, usedUp, { left: left("200", "ml") });
+    expect(found.body.data.item).toMatchObject({ qtyLeftMilli: 200_000, state: "active", worthMinor: 0 });
+    // A use of it now costs nothing: the item has cost its whole price already.
+    tick();
+    const free = await use(ANU, flat, usedUp, { quantity: "100", unit: "ml" });
+    expect(free.body.data).toMatchObject({ move: { costMinor: 0 }, txn: null });
+    tick();
+    await undoGroup(ANU, flat, free.body.data.move.id);
+    tick();
+    const back = await undoGroup(RAHUL, flat, found.body.data.move.id);
+    expect(back.body.data.item).toMatchObject({ qtyLeftMilli: 0, state: "used_up" });
+
+    const wasted = await groupItem(MEERA, flat, { ...milk, wastePolicy: "buyer_absorbs" });
+    await waste(MEERA, flat, wasted);
+    tick();
+    const more = await check(MEERA, flat, wasted, { left: left("0.3") });
+    expect(more.body.data.item).toMatchObject({ qtyLeftMilli: 300_000, state: "active" });
+    tick();
+    const unwasted = await undoGroup(MEERA, flat, more.body.data.move.id);
+    expect(unwasted.body.data.item).toMatchObject({ qtyLeftMilli: 0, state: "wasted" });
+  });
+
+  it("never makes an item cost more than its price in total", async () => {
+    const item = await groupItem(MEERA, flat);
+    await use(RAHUL, flat, item, { quantity: "500", unit: "ml" }); // ₹30
+    tick();
+    await check(ANU, flat, item, { left: left("800", "ml") });
+    tick();
+    const third = await use(ANU, flat, item, { quantity: "400", unit: "ml" }); // ₹24, proportional
+    tick();
+    const last = await use(DEV, flat, item, { quantity: "400", unit: "ml" }); // the rest: ₹6
+    expect([third.body.data.move.costMinor, last.body.data.move.costMinor]).toEqual([2400, 600]);
+    expect(last.body.data.item).toMatchObject({ qtyLeftMilli: 0, state: "used_up", worthMinor: 0 });
+    const moves = await history(MEERA, flat, item);
+    expect(moves.filter((m) => !m.undone && m.kind !== "reversal").reduce((a, m) => a + m.costMinor, 0)).toBe(6000);
+    expect(await balances(flat)).toEqual({ [MEERA]: 6000, [RAHUL]: -3000, [ANU]: -2400, [DEV]: -600 });
+  });
+
+  it("puts a reversed use's stock back only up to what was bought", async () => {
+    const item = await groupItem(MEERA, flat);
+    const used = await use(RAHUL, flat, item, { quantity: "500", unit: "ml" });
+    tick();
+    await check(ANU, flat, item, { left: left("800", "ml") });
+    tick();
+    // The check already counted 300 ml of what Rahul logged: the reversal stops at full, and the money comes back exactly.
+    const reversal = await reverse(RAHUL, flat, used.body.data.txn!.id);
+    expect(reversal.status).toBe(201);
+    expect(await readItem(MEERA, flat, item)).toMatchObject({ qtyLeftMilli: 1_000_000, worthMinor: 6000, state: "active" });
+    expect(await balances(flat)).toEqual({});
+  });
+});
+
+describe("pure: costOfUse with the level raised", () => {
+  it("keeps every sequence of uses and raises inside the price, and at it once emptied", () => {
+    let seed = 7;
+    const random = (n: number) => {
+      seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+      return seed % n;
+    };
+    for (let run = 0; run < 500; run += 1) {
+      const item = { priceMinor: 1 + random(20_000), qtyBoughtMilli: 1_000 * (1 + random(2_000)), qtyLeftMilli: 0, costTakenMinor: 0 };
+      item.qtyLeftMilli = item.qtyBoughtMilli;
+      for (let step = 0; step < 12 && item.qtyLeftMilli > 0; step += 1) {
+        if (random(3) === 0 && item.qtyLeftMilli < item.qtyBoughtMilli) {
+          // A check found more: up by part of what is missing, never above what was bought.
+          item.qtyLeftMilli += 1 + random(item.qtyBoughtMilli - item.qtyLeftMilli);
+          continue;
+        }
+        const qty = 1 + random(item.qtyLeftMilli);
+        item.costTakenMinor += costOfUse(item, qty);
+        item.qtyLeftMilli -= qty;
+        expect(item.costTakenMinor).toBeLessThanOrEqual(item.priceMinor);
+      }
+      if (item.qtyLeftMilli > 0) {
+        item.costTakenMinor += costOfUse(item, item.qtyLeftMilli);
+        item.qtyLeftMilli = 0;
+      }
+      expect(item.costTakenMinor).toBe(item.priceMinor);
+    }
+  });
+});
+
+describe("what a check refuses, writing nothing", () => {
+  it("is 422 unchanged for the level that is left, in any unit", async () => {
+    const item = await groupItem(MEERA, flat);
+    await use(RAHUL, flat, item, { quantity: "250", unit: "ml" });
+    const before = written();
+    for (const level of [left("750", "ml"), left("0.75"), left(0.75, "L")]) {
+      const res = await check(ANU, flat, item, { left: level, gone: "me" });
+      expect(res.status).toBe(422);
+      expect(res.body.error).toMatchObject({ code: "validation_failed", details: { reason: "unchanged", qtyLeftMilli: 750_000 } });
+    }
+    expect(written()).toEqual(before);
+  });
+
+  it("is 422 more_than_bought above what was bought", async () => {
+    const item = await groupItem(MEERA, flat);
+    await use(RAHUL, flat, item, { quantity: "250", unit: "ml" });
+    const before = written();
+    const res = await check(ANU, flat, item, { left: left("1001", "ml") });
+    expect(res.status).toBe(422);
+    expect(res.body.error.details).toEqual({ reason: "more_than_bought", qtyBoughtMilli: 1_000_000 });
+    expect(written()).toEqual(before);
+    // Full is fine.
+    expect((await check(ANU, flat, item, { left: left("1") })).body.data.move).toMatchObject({ kind: "adjust", qtyMilli: 250_000 });
+  });
+
+  it("needs gone when less is left, and a level in a unit of the item's dimension", async () => {
+    const item = await groupItem(MEERA, flat);
+    const before = written();
+    const cases: Array<[unknown, string]> = [
+      [{ left: left("0.5") }, "gone"],
+      [{ left: left("0.5"), gone: "eaten" }, "gone"],
+      [{}, "left"],
+      [{ left: "0.5", gone: "me" }, "left"],
+      [{ left: { unit: "L" }, gone: "me" }, "left.quantity"],
+      [{ left: left("-1"), gone: "me" }, "left.quantity"],
+      [{ left: left(-0.5), gone: "me" }, "left.quantity"],
+      [{ left: left("half"), gone: "me" }, "left.quantity"],
+      [{ left: left("500", "g"), gone: "me" }, "left.unit"],
+      [{ left: left("500", "litres"), gone: "me" }, "left.unit"],
+      [{ left: { quantity: 2, measure: "glass" }, gone: "me" }, "left.measure"],
+    ];
+    for (const [body, field] of cases) {
+      const res = await check(ANU, flat, item, body);
+      expect([res.status, Object.keys(res.body.error.details.fields as object)]).toEqual([422, [field]]);
+    }
+    expect((await check(ANU, flat, item, undefined)).status).toBe(422);
+    expect(written()).toEqual(before);
+  });
+
+  it("lets anyone who may use the item check it: a viewer or an outsider gets the opaque 404", async () => {
+    const item = await groupItem(MEERA, flat);
+    const before = written();
+    expect((await check(VIEWER, flat, item, { left: left("0.5"), gone: "me" })).status).toBe(404);
+    expect((await check(OUTSIDER, flat, item, { left: left("0.5"), gone: "me" })).status).toBe(404);
+    expect((await check(MEERA, four, item, { left: left("0.5"), gone: "me" })).status).toBe(404);
+    expect((await call("POST", groupPath(flat, "items/itm_nope/check"), ANU, { left: left("0.5") })).status).toBe(404);
+    expect((await call("GET", groupPath(flat, `items/${item.id}/check`), ANU)).status).toBe(405);
+    expect((await h.call("POST", groupPath(flat, `items/${item.id}/check`), { as: null, body: {} })).status).toBe(401);
+    expect(written()).toEqual(before);
+    expect((await check(DEV, flat, item, { left: left("0.5"), gone: "me" })).status).toBe(201);
+  });
+});
+
+describe("retries and races", () => {
+  it("answers a retried check with the move it made, and refuses the key for anything else", async () => {
+    const item = await groupItem(MEERA, flat);
+    const headers = { "idempotency-key": "check-1" };
+    const first = await check(ANU, flat, item, { left: left("0.75"), gone: "me" }, headers);
+    const before = written();
+    // The level is now what the check said, yet the retry is answered, not refused as unchanged.
+    const again = await check(ANU, flat, item, { left: left("0.75"), gone: "me" }, headers);
+    expect(again.status).toBe(201);
+    expect(again.body.data.move.id).toBe(first.body.data.move.id);
+    expect(again.body.data.txn!.id).toBe(first.body.data.txn!.id);
+    expect(written()).toEqual(before);
+
+    const asUse = await use(ANU, flat, item, { quantity: "100", unit: "ml" }, headers);
+    expect(asUse.status).toBe(409);
+    expect(asUse.body.error.details).toEqual({ reason: "idempotency_key_reused" });
+    const used = await use(ANU, flat, item, { quantity: "100", unit: "ml" }, { "idempotency-key": "use-1" });
+    expect(used.status).toBe(201);
+    const asCheck = await check(ANU, flat, item, { left: left("0.5"), gone: "me" }, { "idempotency-key": "use-1" });
+    expect(asCheck.body.error.details).toEqual({ reason: "idempotency_key_reused" });
+    expect((await check(DEV, flat, item, { left: left("0.5"), gone: "me" }, headers)).body.error.details).toEqual({
+      reason: "idempotency_key_reused",
+    });
+  });
+
+  it("reads the level against the item as it is when it writes: a use landing first shrinks the difference", async () => {
+    const item = await groupItem(MEERA, flat);
+    // Dev takes 100 ml (₹6) after Anu's check read the item and before it writes.
+    h.beforeNextBatch((db) =>
+      db.prepare(
+        "UPDATE kitchen_items SET qty_left_milli = 900000, cost_taken_minor = 600, version = version + 1 WHERE id = ?",
+      ).run(uuidOf(item.id)),
+    );
+    const res = await check(ANU, flat, item, { left: left("750", "ml"), gone: "me" });
+    expect(res.status).toBe(201);
+    expect(res.body.data.move).toMatchObject({ qtyMilli: 150_000, costMinor: 900 });
+    expect(res.body.data.item).toMatchObject({ qtyLeftMilli: 750_000 });
+  });
+});
+
+describe("the history says which moves a check wrote", () => {
+  it("marks the check's moves via check, and nothing else", async () => {
+    const item = await groupItem(MEERA, flat);
+    await use(RAHUL, flat, item, { quantity: "250", unit: "ml" });
+    tick();
+    const less = await check(ANU, flat, item, { left: left("500", "ml"), gone: "split" });
+    tick();
+    await check(ANU, flat, item, { left: left("600", "ml") });
+    tick();
+    await reverse(ANU, flat, less.body.data.txn!.id);
+    const moves = await history(DEV, flat, item);
+    expect(moves.map((m) => [m.kind, m.via ?? null])).toEqual([
+      ["reversal", null],
+      ["adjust", "check"],
+      ["use", "check"],
+      ["use", null],
+    ]);
+    expect(moves.filter((m) => m.via === undefined).every((m) => !("via" in m))).toBe(true);
+  });
+});
+
+describe("a stock check on a personal item", () => {
+  it("logs the difference as the owner's use, a move only, and Undo puts it back exactly", async () => {
+    const item = await myItem(RAHUL);
+    const res = await checkMine(RAHUL, item, { left: left("300", "g"), gone: "me" });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({
+      txn: null,
+      move: { kind: "use", qtyMilli: 200_000, unit: "g", costMinor: 3960, actor: RAHUL, consumers: [RAHUL], via: "check" },
+      item: { qtyLeftMilli: 300_000, worthMinor: 5940, pantry: { kind: "personal" } },
+    });
+    // No ledger, no audit event, no policy hop: a personal pantry is its owner's.
+    expect([count("kitchen_txns"), count("events_event_log"), h.decisions.length]).toEqual([0, 0, 0]);
+    const direct = await useMine(RAHUL, await myItem(RAHUL), { quantity: "200", unit: "g" });
+    expect(shape(direct.body.data.move)).toEqual(shape(res.body.data.move, "via"));
+
+    const undone = await undoMine(RAHUL, res.body.data.move.id);
+    expect(undone.body.data.item).toMatchObject({ qtyLeftMilli: 500_000, worthMinor: 9900, state: "active" });
+  });
+
+  it("wastes it, or raises the level with an adjust, and Undo puts either back", async () => {
+    const item = await myItem(RAHUL);
+    const wasted = await checkMine(RAHUL, item, { left: left("0.1", "kg"), gone: "waste" });
+    expect(wasted.body.data).toMatchObject({
+      move: { kind: "waste", qtyMilli: 400_000, unit: "kg", costMinor: 7920, via: "check" },
+      item: { qtyLeftMilli: 100_000, worthMinor: 1980 },
+    });
+    tick();
+    const raised = await checkMine(RAHUL, item, { left: left("250", "g") });
+    expect(raised.body.data).toMatchObject({
+      txn: null,
+      move: { kind: "adjust", qtyMilli: 150_000, costMinor: 0, via: "check" },
+      item: { qtyLeftMilli: 250_000, worthMinor: 1980 },
+    });
+    tick();
+    expect((await undoMine(RAHUL, raised.body.data.move.id)).body.data.item).toMatchObject({ qtyLeftMilli: 100_000 });
+    tick();
+    expect((await undoMine(RAHUL, wasted.body.data.move.id)).body.data.item).toMatchObject({ qtyLeftMilli: 500_000, worthMinor: 9900 });
+  });
+
+  it("refuses split, the level that is left, more than was bought, and another person's item", async () => {
+    const item = await myItem(RAHUL);
+    await wasteMine(RAHUL, item, { quantity: "100", unit: "g" });
+    const before = written();
+    const split = await checkMine(RAHUL, item, { left: left("300", "g"), gone: "split" });
+    expect([split.status, split.body.error.details.fields]).toEqual([422, { gone: ["A personal item is yours alone: say me or waste"] }]);
+    expect((await checkMine(RAHUL, item, { left: left("400", "g") })).body.error.details).toEqual({ reason: "unchanged", qtyLeftMilli: 400_000 });
+    expect((await checkMine(RAHUL, item, { left: left("0.6", "kg") })).body.error.details).toEqual({
+      reason: "more_than_bought",
+      qtyBoughtMilli: 500_000,
+    });
+    expect((await checkMine(RAHUL, item, { left: left("300", "g") })).body.error.details.fields).toHaveProperty(["gone"]);
+    expect((await checkMine(ANU, item, { left: left("300", "g"), gone: "me" })).status).toBe(404);
+    expect(written()).toEqual(before);
+  });
+});
