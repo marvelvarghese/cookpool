@@ -15,7 +15,8 @@ import { savedCopyOf } from "./cook-hub";
 import { WRITTEN_FACTOR, canEditRecipe, clampFactor, ingredientRows, parseRecipeRef, recipeEditHref, recipeHref, sessionHref, startLine } from "./recipes";
 import { useCopyRecipe, useMyRecipes, useRecipe, useRecipeMatch, useSaveDishAsRecipe } from "./recipes-data";
 import { canShareRecipe } from "./recipe-share";
-import { ShareIconButton, ShareSheet } from "./recipe-share-ui";
+import { ShareSheet } from "./recipe-share-ui";
+import { ShareIconButton } from "./recipe-share-views";
 import { FoodAsks } from "./food-ask-ui";
 import {
   HowMuchCard,

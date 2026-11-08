@@ -22,8 +22,8 @@ import {
   RECIPE_LINK_CODE_RE,
   type CopyRecipeRequest,
   type KitchenRecipe,
+  type RecipeLineMatch,
   type RecipeLineStatus,
-  type RecipeMatchResponse,
   type RecipeResponse,
   type RecipeSummary,
   type RecipeVisibility,
@@ -241,10 +241,15 @@ export interface LinkLine {
   tone: "have" | "short" | "missing" | null;
 }
 
+/** What the link page reads of a match: each line's status. */
+export interface LineStatuses {
+  lines: readonly Pick<RecipeLineMatch, "position" | "status">[];
+}
+
 const TONE_OF: Record<RecipeLineStatus, LinkLine["tone"]> = { have: "have", always: "have", short: "short", missing: "missing" };
 
 /** The recipe's lines as written, each with a dot from the match (`?code=`). */
-export function linkLines(recipe: Pick<KitchenRecipe, "lines">, match: Pick<RecipeMatchResponse, "lines"> | null): LinkLine[] {
+export function linkLines(recipe: Pick<KitchenRecipe, "lines">, match: LineStatuses | null): LinkLine[] {
   const byPosition = new Map((match?.lines ?? []).map((l) => [l.position, l.status] as const));
   return recipe.lines.map((l) => {
     const status = byPosition.get(l.position);
@@ -257,7 +262,7 @@ export function linkLines(recipe: Pick<KitchenRecipe, "lines">, match: Pick<Reci
  * of 6 · short of rice", or "You have all 6" (green). Always have and to-taste
  * lines count as had.
  */
-export function linkHaveText(recipe: Pick<KitchenRecipe, "lines">, match: Pick<RecipeMatchResponse, "lines"> | null): { text: string; complete: boolean } | null {
+export function linkHaveText(recipe: Pick<KitchenRecipe, "lines">, match: LineStatuses | null): { text: string; complete: boolean } | null {
   if (!match) return null;
   const names = new Map(recipe.lines.map((l) => [l.position, lowerFirst(l.name)] as const));
   const total = match.lines.length;

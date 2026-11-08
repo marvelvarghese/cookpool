@@ -4,7 +4,7 @@ import * as React from "react";
 import { myRecipeCards } from "./cook-hub";
 import { CookHubView } from "./cook-hub-views";
 import { useCookNow, useMyRecipes, usePrefetchRecipe, useRecipesInFull } from "./recipes-data";
-import { ExploreButton } from "./explore-ui";
+import { ExploreButton } from "./explore-views";
 
 /**
  * The Cook hub (cookpool-recipes RC-5, design §1.2, §5.4, the canvas's
