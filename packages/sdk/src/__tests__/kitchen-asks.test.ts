@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ASK_LAPSE_HOURS, Cookpool, KITCHEN_ASK_ERROR_REASONS, KITCHEN_ASK_PUSH_KIND, askPushUrl } from "../index.js";
 import { ConflictError, ForbiddenError } from "../errors.js";
+import type { AskToUseRequest } from "@saas/contracts/kitchen";
 
 interface CapturedCall {
   url: string;
@@ -40,7 +41,7 @@ const ask = { id: ASK, state: "pending", amount: "1 pinch" };
 describe("KitchenClient — ask before use (Cookpool PN-8)", () => {
   it("asks at the item's path, with the body as given and the idempotency key", async () => {
     const f = capture(ok({ ask }, 201));
-    const body = { quantity: 1, measure: "pinch", consumers: ["usr_dev", "usr_anu"], source: "cook" } as const;
+    const body: AskToUseRequest = { quantity: 1, measure: "pinch", consumers: ["usr_dev", "usr_anu"], source: "cook" };
     expect(await client(f.fetch).kitchen.askToUse(ORG, ITEM, body, { idempotencyKey: "ikey_ask_1" })).toEqual({ ask });
     expect(f.calls[0]!.url).toBe(`https://api.test/v1/organizations/${ORG}/kitchen/items/${ITEM}/asks`);
     expect(f.calls[0]!.init.method).toBe("POST");

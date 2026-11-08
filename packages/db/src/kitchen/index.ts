@@ -175,3 +175,29 @@ export type {
   AsksRepository,
 } from "./asks.js";
 export { askIsLive } from "./asks.js";
+
+// Profiles, follows, blocks and mutes (CM-2): part of KitchenRepository.
+export type {
+  KitchenProfilePrivacy,
+  KitchenProfileRecord,
+  KitchenFollowState,
+  KitchenFollowRecord,
+  SaveProfileInput,
+  SaveProfileResult,
+  FollowInput,
+  FollowResult,
+  BlockInput,
+  BlockResult,
+  KitchenPeopleCursor,
+  KitchenPeopleQuery,
+  KitchenPersonAt,
+  KitchenPeoplePage,
+  KitchenProfileCounts,
+  SearchProfilesQuery,
+  SuggestQuery,
+  KitchenRecipeOwnerSuggestion,
+  KitchenPopularProfile,
+  KitchenBlockRecord,
+  CommunityRepository,
+} from "./community.js";
+export { createCommunityRepository } from "./community.js";

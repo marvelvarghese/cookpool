@@ -32,6 +32,7 @@ import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executo
 import type { Uuid } from "../ids/index.js";
 import { isCheckViolation, isForeignKeyViolation, isUniqueViolation } from "../d1/errors.js";
 import { mapDishIngredient } from "./dishes.js";
+import { notBlockedSql } from "./community.js";
 import { Params, likeEscape } from "./pantry.js";
 import {
   MAX_RECIPE_ROOT_HOPS,
@@ -64,7 +65,7 @@ export type RecipesRepository = Pick<
 >;
 
 const RECIPE_COLUMNS = `r.id, r.owner_id, r.name, r.serves_half, r.minutes, r.visibility, r.link_code, r.source_recipe_id,
-  r.source_owner_id, r.source_owner_name, r.is_system, r.kind, r.tools, r.created_at, r.updated_at, r.deleted_at`;
+  r.source_owner_id, r.source_owner_name, r.is_system, r.kind, r.tools, r.created_at, r.updated_at, r.deleted_at, r.listed`;
 
 const STEP_COLUMNS = `recipe_id, position, text, step_key, phase, line_refs, heat, min_seconds, max_seconds, whistles, hands_off,
   time_rule, checkpoint, sense, tip`;
@@ -173,6 +174,7 @@ function mapRecipe(row: Row, lines: KitchenRecipeLineRecord[], steps: KitchenRec
     tools: jsonArray(row.tools, isString),
     savedBy: Number(row.saved_by ?? 0),
     lastCookedAt: row.last_cooked_at ? new Date(row.last_cooked_at as string) : null,
+    listed: Number(row.listed ?? 0) === 1,
   };
 }
 
@@ -323,8 +325,24 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
             AND r.visibility IN ('groups', 'link') AND r.is_system = 0)`,
         );
       }
+      // Public recipes (CM-2): a link recipe its owner listed.
+      const listed = "r.visibility = 'link' AND r.listed = 1 AND r.is_system = 0";
+      if (query.listedBy && query.listedBy.length > 0) {
+        any.push(`(r.owner_id IN (SELECT value FROM json_each(${params.add(JSON.stringify(query.listedBy))})) AND ${listed})`);
+      }
+      if (query.publicListed) {
+        any.push(
+          `(${listed} AND r.owner_id <> ${viewer}
+            AND EXISTS (SELECT 1 FROM kitchen_profiles pp WHERE pp.user_id = r.owner_id AND pp.privacy = 'public')
+            AND ${notBlockedSql(viewer, "r.owner_id")})`,
+        );
+      }
       if (any.length === 0) return { ok: true, value: [] };
       const where = [`r.deleted_at IS NULL`, `(${any.join(" OR ")})`];
+      if (query.before) {
+        const at = params.add(query.before.createdAt);
+        where.push(`(r.created_at < ${at} OR (r.created_at = ${at} AND r.id < ${params.add(query.before.id)}))`);
+      }
       if (query.q) where.push(`lower(r.name) LIKE lower(${params.add(`%${likeEscape(query.q)}%`)}) ESCAPE '\\'`);
       if (query.kind) where.push(`r.kind = ${params.add(query.kind)}`);
       try {
@@ -384,6 +402,16 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
         const visibility = params.add(changes.visibility);
         sets.push(`visibility = ${visibility}`);
         sets.push(`link_code = CASE WHEN ${visibility} = 'link' THEN COALESCE(link_code, ${params.add(changes.newLinkCode ?? null)}) ELSE NULL END`);
+        // Anything but a link unlists (CM-2); a link keeps its listing unless this edit says otherwise.
+        const keep = changes.listed === undefined ? "listed" : changes.listed ? "1" : "0";
+        sets.push(`listed = CASE WHEN ${visibility} = 'link' THEN ${keep} ELSE 0 END`);
+      } else if (changes.listed === true) {
+        // Listing a recipe makes it a link recipe: it keeps its code, or takes the new one.
+        sets.push("visibility = 'link'");
+        sets.push(`link_code = COALESCE(link_code, ${params.add(changes.newLinkCode ?? null)})`);
+        sets.push("listed = 1");
+      } else if (changes.listed === false) {
+        sets.push("listed = 0");
       }
       const statements: SqlStatement[] = [
         { text: `UPDATE kitchen_recipes SET ${sets.join(", ")} WHERE ${OWNED} RETURNING id`, params: params.values },
@@ -434,7 +462,7 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
           code
             ? `UPDATE kitchen_recipes SET visibility = 'link', link_code = $4, updated_at = $3 WHERE ${OWNED} RETURNING id`
             : `UPDATE kitchen_recipes
-               SET visibility = CASE WHEN visibility = 'link' THEN 'groups' ELSE visibility END, link_code = NULL, updated_at = $3
+               SET visibility = CASE WHEN visibility = 'link' THEN 'groups' ELSE visibility END, link_code = NULL, listed = 0, updated_at = $3
                WHERE ${OWNED} RETURNING id`,
           code ? [recipeId, ownerId, now, code] : [recipeId, ownerId, now],
         );

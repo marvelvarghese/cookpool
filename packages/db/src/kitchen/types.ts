@@ -1,4 +1,5 @@
 import type { AsksRepository } from "./asks.js";
+import type { CommunityRepository } from "./community.js";
 import type { AppendEventWithAuditInput } from "../events/types.js";
 import type { Uuid } from "../ids/index.js";
 
@@ -653,7 +654,7 @@ export interface KitchenUsualsBucketQuery {
  * dish and check of a group item reads its guard — but its storage is its own
  * file: ./asks.ts.
  */
-export interface KitchenRepository extends AsksRepository {
+export interface KitchenRepository extends AsksRepository, CommunityRepository {
   /** The group's settings row, or `null` when it has none (it uses the defaults). */
   getGroupSettings(orgId: Uuid): Promise<KitchenResult<KitchenGroupSettings | null>>;
   /**
@@ -1616,6 +1617,8 @@ export interface KitchenRecipeTemplateRecord {
   savedBy: number;
   /** When the viewer last cooked it (a dish with it, not canceled); null if never. */
   lastCookedAt: Date | null;
+  /** Listed by its owner (CM-2): with visibility link, a public recipe. */
+  listed: boolean;
 }
 
 /**
@@ -1627,6 +1630,14 @@ export interface KitchenRecipesScope {
   ownerId?: string | null;
   system?: boolean;
   sharedBy?: readonly string[];
+  /** These owners' public recipes (listed link recipes, CM-2): a profile's. */
+  listedBy?: readonly string[];
+  /**
+   * Explore's Public (CM-2): every public recipe whose owner has a public
+   * profile, without the viewer's own or anyone with a block between them
+   * and the viewer.
+   */
+  publicListed?: boolean;
 }
 
 export interface KitchenListRecipesQuery extends KitchenRecipesScope {
@@ -1636,6 +1647,8 @@ export interface KitchenListRecipesQuery extends KitchenRecipesScope {
   q: string | null;
   kind: string | null;
   limit: number;
+  /** Keyset: only recipes created before this one (newest-first paging, CM-2). */
+  before?: { createdAt: string; id: string } | null;
 }
 
 export interface NewKitchenRecipe {
@@ -1671,6 +1684,12 @@ export interface UpdateKitchenRecipeInput {
     /** With `link`, the recipe keeps its code, or takes `newLinkCode` when it has none; anything else drops it. */
     visibility?: KitchenRecipeVisibility;
     newLinkCode?: string;
+    /**
+     * Listed (CM-2). True makes it a link recipe (keeping its code, or taking
+     * `newLinkCode`) and lists it; false unlists it. A visibility other than
+     * link always unlists.
+     */
+    listed?: boolean;
     /** Replaces the list (GC-2). */
     tools?: readonly string[];
   };

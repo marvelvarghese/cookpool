@@ -92,6 +92,23 @@ import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResp
 import type { PurchaseLine, PurchaseResponse, RestockResponse, UndoPurchaseResponse } from "@saas/contracts/kitchen";
 // Ask before use (PN-8).
 import type { ApproveAskRequest, ApproveAskResponse, AskResponse, AsksResponse, AskToUseRequest } from "@saas/contracts/kitchen";
+// Profiles and following (CM-2).
+import type {
+  BlockResponse,
+  BlocksResponse,
+  FollowResponse,
+  HandleAvailabilityResponse,
+  MuteResponse,
+  MyProfileResponse,
+  PeoplePage,
+  PeoplePageQuery,
+  PeopleSearchResponse,
+  PeopleSuggestionsResponse,
+  PersonProfileResponse,
+  ProfileRecipesResponse,
+  RemoveFollowerResponse,
+  SaveMyProfileRequest,
+} from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -1202,5 +1219,156 @@ export class KitchenClient {
       { method: "POST", path: this.groupPath(orgId, `asks/${encodeURIComponent(askId)}/${verb}`), body: {} },
       opts,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Profiles and following (CM-2)
+  //
+  // A handle, a chosen name and privacy; follows (a private profile accepts
+  // each), blocks and mutes; people search and suggestions. Names here are
+  // profiles' own — never an email or an identity name. Refusals carry
+  // `details.reason` (KITCHEN_COMMUNITY_ERROR_REASONS): a handle's shape or
+  // reserved word is a `ValidationError`, a taken handle or one changed in
+  // the last 30 days a `ConflictError`, following without a profile or a
+  // private profile's lists a `ForbiddenError`, and a day's follows or blocks
+  // past the limit a `RateLimitError`. Across a block a person is a
+  // `NotFoundError`.
+  // -------------------------------------------------------------------------
+
+  /** GET /v1/kitchen/me/profile — yours, or `{ profile: null }` before you choose a handle. */
+  myProfile(opts: RequestOptions = {}): Promise<MyProfileResponse> {
+    return this.transport.request<MyProfileResponse>({ method: "GET", path: this.mePath("profile") }, opts);
+  }
+
+  /** PUT /v1/kitchen/me/profile — make or edit yours. */
+  saveMyProfile(body: SaveMyProfileRequest, opts: RequestOptions = {}): Promise<MyProfileResponse> {
+    return this.transport.request<MyProfileResponse>({ method: "PUT", path: this.mePath("profile"), body }, opts);
+  }
+
+  /** GET /v1/kitchen/handles/:handle — `{ handle, available, reason? }`; your own handle is available to you. */
+  handleAvailable(handle: string, opts: RequestOptions = {}): Promise<HandleAvailabilityResponse> {
+    return this.transport.request<HandleAvailabilityResponse>(
+      { method: "GET", path: `/v1/kitchen/handles/${encodeURIComponent(handle)}` },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/profiles/:handle — the profile, counts, your relationship, who you follow that follows them, and `canSee`. */
+  profile(handle: string, opts: RequestOptions = {}): Promise<PersonProfileResponse> {
+    return this.transport.request<PersonProfileResponse>({ method: "GET", path: this.profilePath(handle, "") }, opts);
+  }
+
+  /** GET /v1/kitchen/profiles/:handle/recipes — their public recipes, newest first (`ForbiddenError` `private` when you can't see them). */
+  profileRecipes(handle: string, query: PeoplePageQuery = {}, opts: RequestOptions = {}): Promise<ProfileRecipesResponse> {
+    return this.transport.request<ProfileRecipesResponse>(
+      { method: "GET", path: this.profilePath(handle, "/recipes"), query: { cursor: query.cursor || undefined } },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/profiles/:handle/followers — under the same `canSee` rule. */
+  followers(handle: string, query: PeoplePageQuery = {}, opts: RequestOptions = {}): Promise<PeoplePage> {
+    return this.transport.request<PeoplePage>(
+      { method: "GET", path: this.profilePath(handle, "/followers"), query: { cursor: query.cursor || undefined } },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/profiles/:handle/following — under the same `canSee` rule. */
+  following(handle: string, query: PeoplePageQuery = {}, opts: RequestOptions = {}): Promise<PeoplePage> {
+    return this.transport.request<PeoplePage>(
+      { method: "GET", path: this.profilePath(handle, "/following"), query: { cursor: query.cursor || undefined } },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/follows/:handle — `{ state }`: accepted for a public profile, requested for a private one. */
+  follow(handle: string, opts: RequestOptions = {}): Promise<FollowResponse> {
+    return this.transport.request<FollowResponse>(
+      { method: "POST", path: this.mePath(`follows/${encodeURIComponent(handle)}`), body: {} },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/kitchen/me/follows/:handle — unfollow, or take back a request. */
+  unfollow(handle: string, opts: RequestOptions = {}): Promise<FollowResponse> {
+    return this.transport.request<FollowResponse>({ method: "DELETE", path: this.mePath(`follows/${encodeURIComponent(handle)}`) }, opts);
+  }
+
+  /** GET /v1/kitchen/me/follow-requests — the requests waiting on you, newest first. */
+  followRequests(query: PeoplePageQuery = {}, opts: RequestOptions = {}): Promise<PeoplePage> {
+    return this.transport.request<PeoplePage>(
+      { method: "GET", path: this.mePath("follow-requests"), query: { cursor: query.cursor || undefined } },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/follow-requests/:subjectId/accept */
+  acceptFollow(subjectId: string, opts: RequestOptions = {}): Promise<FollowResponse> {
+    return this.transport.request<FollowResponse>(
+      { method: "POST", path: this.mePath(`follow-requests/${encodeURIComponent(subjectId)}/accept`), body: {} },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/follow-requests/:subjectId/decline */
+  declineFollow(subjectId: string, opts: RequestOptions = {}): Promise<FollowResponse> {
+    return this.transport.request<FollowResponse>(
+      { method: "POST", path: this.mePath(`follow-requests/${encodeURIComponent(subjectId)}/decline`), body: {} },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/kitchen/me/followers/:subjectId — they no longer follow you. */
+  removeFollower(subjectId: string, opts: RequestOptions = {}): Promise<RemoveFollowerResponse> {
+    return this.transport.request<RemoveFollowerResponse>(
+      { method: "DELETE", path: this.mePath(`followers/${encodeURIComponent(subjectId)}`) },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/blocks/:subjectId — hides you from each other everywhere and ends the follows both ways. */
+  block(subjectId: string, opts: RequestOptions = {}): Promise<BlockResponse> {
+    return this.transport.request<BlockResponse>(
+      { method: "POST", path: this.mePath(`blocks/${encodeURIComponent(subjectId)}`), body: {} },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/kitchen/me/blocks/:subjectId — follows are not restored. */
+  unblock(subjectId: string, opts: RequestOptions = {}): Promise<BlockResponse> {
+    return this.transport.request<BlockResponse>({ method: "DELETE", path: this.mePath(`blocks/${encodeURIComponent(subjectId)}`) }, opts);
+  }
+
+  /** GET /v1/kitchen/me/blocks — whom you blocked, newest first. */
+  blocks(opts: RequestOptions = {}): Promise<BlocksResponse> {
+    return this.transport.request<BlocksResponse>({ method: "GET", path: this.mePath("blocks") }, opts);
+  }
+
+  /** POST /v1/kitchen/me/mutes/:subjectId — their posts leave your Following feed. */
+  mute(subjectId: string, opts: RequestOptions = {}): Promise<MuteResponse> {
+    return this.transport.request<MuteResponse>(
+      { method: "POST", path: this.mePath(`mutes/${encodeURIComponent(subjectId)}`), body: {} },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/kitchen/me/mutes/:subjectId */
+  unmute(subjectId: string, opts: RequestOptions = {}): Promise<MuteResponse> {
+    return this.transport.request<MuteResponse>({ method: "DELETE", path: this.mePath(`mutes/${encodeURIComponent(subjectId)}`) }, opts);
+  }
+
+  /** GET /v1/kitchen/people/search?q= — at most 20; a private profile only by its exact handle. */
+  searchPeople(q: string, opts: RequestOptions = {}): Promise<PeopleSearchResponse> {
+    return this.transport.request<PeopleSearchResponse>({ method: "GET", path: "/v1/kitchen/people/search", query: { q } }, opts);
+  }
+
+  /** GET /v1/kitchen/me/people/suggestions — `{ fromGroups, fromRecipes, popular }`, each with a `why`. */
+  peopleSuggestions(opts: RequestOptions = {}): Promise<PeopleSuggestionsResponse> {
+    return this.transport.request<PeopleSuggestionsResponse>({ method: "GET", path: this.mePath("people/suggestions") }, opts);
+  }
+
+  private profilePath(handle: string, rest: string): string {
+    return `/v1/kitchen/profiles/${encodeURIComponent(handle)}${rest}`;
   }
 }

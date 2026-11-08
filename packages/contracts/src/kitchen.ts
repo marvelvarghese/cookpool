@@ -2124,3 +2124,8 @@ export * from "./kitchen-stock-check.js";
 // Ask before use (cookpool-pantry PN-8): a group item its buyer guards, asks
 // and their answers — ./kitchen-asks.ts (also through `@saas/contracts/kitchen`).
 export * from "./kitchen-asks.js";
+
+// Profiles and following (cookpool-community CM-2): handles, privacy,
+// follows and requests, blocks and mutes, people search and suggestions —
+// ./kitchen-community.ts (also through `@saas/contracts/kitchen`).
+export * from "./kitchen-community.js";

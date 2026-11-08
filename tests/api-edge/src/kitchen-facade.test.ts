@@ -84,6 +84,11 @@ describe("kitchen route matching", () => {
     `/v1/organizations/${ORG}/kitchen`,
     SETTINGS,
     `/v1/organizations/${ORG}/kitchen/dishes/dsh_1/claims/me`,
+    // Profiles and following (CM-2): forwarded with no edge change.
+    "/v1/kitchen/handles/meeracooks",
+    "/v1/kitchen/profiles/meeracooks/followers",
+    "/v1/kitchen/people/search",
+    "/v1/kitchen/me/follows/meeracooks",
   ])("%s is a kitchen route, and no other facade's", (path) => {
     expect(isKitchenRoute(path)).toBe(true);
     expect(isOrgRoute(path)).toBe(false);

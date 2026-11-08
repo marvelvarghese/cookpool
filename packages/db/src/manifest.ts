@@ -390,5 +390,14 @@ export const manifest: MigrationManifest = {
       description:
         "Ask before use: kitchen_items.ask_first (0 or 1, default 0 — the buyer of a group item asks to be asked first); kitchen_item_allowed (item_id, member_id, created_at; primary key item and member — who never needs to ask); and kitchen_asks (ask_ id, org_id, item_id, asker_id, qty_milli, unit, the measure's label, consumers as a JSON array, weights or NULL, source pantry or cook, state pending/approved/declined/canceled, created_at, expires_at 24 h on, answered_at and answered_by, the move_id and txn_id an approval posted, granted when it also let the asker, and an idem_key unique per item), indexed by item and state and by asker and time. Lapsing is read-side (Cookpool PN-8)",
     },
+    {
+      id: "430_kitchen_community",
+      context: "kitchen",
+      path: "430_kitchen_community/up.sql",
+      checksum:
+        "5079266cb6904503fb75ffea4bf0a5af44098d4b5225afa7bed5c5db49033caa",
+      description:
+        "Profiles and following: kitchen_profiles (user_id primary key; a lowercase unique handle of 3–20 a–z, 0–9, _ and . with no leading, trailing or doubled dot; name 1–40; about up to 160 or NULL; privacy public/private, default public; handle_changed_at NULL until the first change, which is free; created_at, updated_at); kitchen_follows (follower_id, followee_id primary key, state accepted/requested, created_at, accepted_at set exactly when accepted, never oneself), indexed by followee, state and acceptance and by state and acceptance; kitchen_blocks (blocker_id, blocked_id primary key, created_at), indexed by the blocked person; kitchen_mutes (muter_id, muted_id primary key, created_at); and kitchen_recipes.listed (0 or 1, default 0, 1 only on a link recipe — a public recipe), with an index of listed live recipes by time (Cookpool CM-2)",
+    },
   ],
 };

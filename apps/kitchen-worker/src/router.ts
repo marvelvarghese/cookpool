@@ -94,6 +94,9 @@ import {
   handleReopenAsk,
 } from "./handlers/asks.js";
 
+// Profiles and following (CM-2).
+import { COMMUNITY_ROUTES } from "./community-routes.js";
+
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
 type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
@@ -118,7 +121,7 @@ interface OrgRoute {
  */
 export type MeHandler = (ctx: RequestContext, request: Request, params: readonly string[]) => Promise<Response>;
 
-interface MeRoute {
+export interface MeRoute {
   name: string;
   /** Matches the whole path. */
   pattern: RegExp;
@@ -291,6 +294,8 @@ const ORG_ROUTES: readonly OrgRoute[] = [
 // engine (design.md §6); a route that writes to a group authorizes in that
 // group (requireOrgAction). Same order as a group route: 405, then 401.
 const ME_ROUTES: readonly MeRoute[] = [
+  // Profiles and following (CM-2): ahead of the rest (see community-routes.ts).
+  ...COMMUNITY_ROUTES,
   {
     name: "kitchen.me.pantries",
     pattern: /^\/v1\/kitchen\/me\/pantries$/,

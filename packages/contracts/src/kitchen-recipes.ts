@@ -657,6 +657,12 @@ export interface RecipeSummary {
   lastCookedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Listed by its owner (CM-2): a link recipe that is also listed is public —
+   * on their profile and in Explore's Public. Optional in the type so
+   * summaries typed before CM-2 still check; the server always sends it.
+   */
+  listed?: boolean;
 }
 
 /** One recipe in full. */
@@ -776,7 +782,13 @@ export type CreateRecipeBody = CreateRecipeRequest | SaveDishAsRecipeRequest;
  * PATCH /v1/kitchen/me/recipes/{rcp} — its owner (anyone else, and
  * Cookpool's own: the opaque 404). At least one field; `lines` and `steps`
  * replace the whole list. Copies of it never change. Setting visibility to
- * `link` mints a code when it has none; anything else turns the link off.
+ * `link` mints a code when it has none; anything else turns the link off —
+ * and unlists it.
+ *
+ * `listed` (CM-2): true lists it — public, on your profile and in Explore's
+ * Public — making it a link recipe (minting a code when it has none); false
+ * unlists it and keeps the link. `listed: true` beside a visibility other than
+ * link is a 422.
  */
 export interface UpdateRecipeRequest {
   name?: string;
@@ -792,6 +804,7 @@ export interface UpdateRecipeRequest {
    */
   steps?: RecipeStepWrite[];
   tools?: string[];
+  listed?: boolean;
 }
 
 /**
@@ -921,14 +934,17 @@ export interface RecipeMatchResponse {
 
 // ── Explore (design §5.3) and Cook now (§5.4) ───────────────
 
-export const EXPLORE_SOURCES = ["cookpool", "groups"] as const;
+export const EXPLORE_SOURCES = ["cookpool", "groups", "public"] as const;
 export type ExploreSource = (typeof EXPLORE_SOURCES)[number];
 
 /**
  * GET /v1/kitchen/recipes?source=&q=&kind= — any signed-in person. cookpool
  * (the default): Cookpool's own; groups: everyone else's recipes the caller
- * sees through their groups now (My groups or Anyone with the link). Newest
- * first, at most 50; `q` matches the name (case-insensitively), `kind` the chip.
+ * sees through their groups now (My groups or Anyone with the link); public
+ * (CM-2): listed recipes of people with a public profile, not the caller's own
+ * and nobody with a block between them, each owner named by their profile.
+ * Newest first, at most 50; `q` matches the name (case-insensitively), `kind`
+ * the chip.
  */
 export interface ExploreRecipesQuery {
   source?: ExploreSource;

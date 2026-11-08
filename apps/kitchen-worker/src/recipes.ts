@@ -174,6 +174,7 @@ export function toRecipeSummary(record: KitchenRecipeTemplateRecord, viewer: str
     lastCookedAt: record.lastCookedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
+    listed: record.listed,
   };
 }
 
@@ -313,15 +314,41 @@ export async function coMembers(ctx: RequestContext, groups: readonly MemberGrou
 /**
  * May the caller see `recipe`? Cookpool's own and their own always; only_me
  * nobody else; a link recipe anyone with its code; groups and link anyone who
- * shares a group with its owner now. Null when membership could not be read.
+ * shares a group with its owner now; and — given the storage to read it from
+ * — a public recipe anyone `seenInPublic` lets in (CM-2). Null when
+ * membership or storage could not be read.
  */
-export async function canSee(ctx: RequestContext, recipe: KitchenRecipeTemplateRecord, code: string | null = null): Promise<boolean | null> {
+export async function canSee(
+  ctx: RequestContext,
+  recipe: KitchenRecipeTemplateRecord,
+  code: string | null = null,
+  repo?: KitchenRepository,
+): Promise<boolean | null> {
   if (recipe.deletedAt) return false;
   if (recipe.isSystem) return true;
   if (recipe.ownerId === ctx.actor.subjectId) return true;
   if (recipe.visibility === "only_me") return false;
   if (recipe.visibility === "link" && code !== null && recipe.linkCode === code) return true;
-  return sharesGroup(ctx, recipe.ownerId);
+  const shared = await sharesGroup(ctx, recipe.ownerId);
+  if (shared !== false || !repo) return shared;
+  return seenInPublic(ctx, repo, recipe);
+}
+
+/**
+ * A public recipe (CM-2: a live link recipe its owner listed) as a stranger
+ * sees it: when its owner has a profile, there is no block between them, and
+ * the profile is public or the caller follows it (accepted). Null when
+ * storage could not be read.
+ */
+export async function seenInPublic(ctx: RequestContext, repo: KitchenRepository, recipe: KitchenRecipeTemplateRecord): Promise<boolean | null> {
+  if (recipe.deletedAt || recipe.isSystem || recipe.visibility !== "link" || !recipe.listed) return false;
+  const me = ctx.actor.subjectId;
+  const [profile, blocked, follow] = await ctx.timings.measure("db", () =>
+    Promise.all([repo.getProfile(recipe.ownerId), repo.isBlockedEither(me, recipe.ownerId), repo.getFollow(me, recipe.ownerId)]),
+  );
+  if (!profile.ok || !blocked.ok || !follow.ok) return null;
+  if (!profile.value || blocked.value) return false;
+  return profile.value.privacy === "public" || follow.value?.state === "accepted";
 }
 
 /** May the caller change `recipe`? Its owner, while it is live and not Cookpool's. */
@@ -724,7 +751,7 @@ export function parseFromDish(body: Record<string, unknown>): Parsed<ParsedFromD
   return { ok: true, value: { dishId, name, minutes, kind, visibility, steps, tools } };
 }
 
-export type ParsedRecipeEdit = Partial<ParsedRecipe>;
+export type ParsedRecipeEdit = Partial<ParsedRecipe> & { listed?: boolean };
 
 /** A PATCH /v1/kitchen/me/recipes/{rcp} body: at least one field. */
 export function parseRecipeEdit(body: Record<string, unknown>): Parsed<ParsedRecipeEdit> {
@@ -734,7 +761,7 @@ export function parseRecipeEdit(body: Record<string, unknown>): Parsed<ParsedRec
     if (value !== undefined) edit[key] = value;
   };
   let asked = 0;
-  for (const key of ["name", "servesHalf", "minutes", "kind", "visibility", "lines", "steps", "tools"]) if (body[key] !== undefined) asked += 1;
+  for (const key of ["name", "servesHalf", "minutes", "kind", "visibility", "lines", "steps", "tools", "listed"]) if (body[key] !== undefined) asked += 1;
   if (body.name !== undefined) set("name", text(fields, "name", body.name, MAX_RECIPE_NAME));
   if (body.servesHalf !== undefined) set("servesHalf", servesValue(fields, body.servesHalf));
   if (body.minutes !== undefined) set("minutes", minutesValue(fields, body.minutes));
@@ -743,6 +770,12 @@ export function parseRecipeEdit(body: Record<string, unknown>): Parsed<ParsedRec
   if (body.lines !== undefined) set("lines", parseLines(fields, body.lines));
   if (body.steps !== undefined) set("steps", parseSteps(fields, body.steps));
   if (body.tools !== undefined) set("tools", parseTools(fields, body.tools));
+  // Listed (CM-2): public on the owner's profile and in Explore's Public; it needs the link.
+  if (body.listed !== undefined) {
+    if (typeof body.listed !== "boolean") fields.add("listed", "Must be true or false");
+    else if (body.listed && edit.visibility !== undefined && edit.visibility !== "link") fields.add("listed", "Only a link recipe can be listed: leave visibility out, or send link");
+    else edit.listed = body.listed;
+  }
   if (asked === 0) fields.add("body", "Change at least one of: name, servesHalf, minutes, kind, visibility, lines, steps, tools");
   return fields.ok ? { ok: true, value: edit } : { ok: false, fields: fields.errors };
 }

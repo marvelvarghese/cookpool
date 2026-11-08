@@ -19,6 +19,7 @@ import { createMeasuresRepository } from "./measures.js";
 import { createFoodsRepository } from "./foods.js";
 import { createRecipesRepository } from "./recipes.js";
 import { createAsksRepository } from "./asks.js";
+import { createCommunityRepository } from "./community.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -127,5 +128,7 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     ...createRecipesRepository(executor),
     // Ask before use (PN-8).
     ...createAsksRepository(executor),
+    // Profiles, follows, blocks and mutes (CM-2).
+    ...createCommunityRepository(executor),
   };
 }
