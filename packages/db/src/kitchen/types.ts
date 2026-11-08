@@ -414,6 +414,12 @@ export interface KitchenPantryTotalsQuery extends KitchenPantryScope {
 
 export type KitchenStockMoveKind = "use" | "dish" | "waste" | "transfer" | "adjust" | "reversal";
 
+/**
+ * What wrote a move when it was not logged directly (migration 410): `check`
+ * — a stock check (PN-4) — or `ask`, the use an approved ask posts (PN-8).
+ */
+export type KitchenStockMoveVia = "check" | "ask";
+
 /** One change to an item's stock, as stored. */
 export interface KitchenStockMoveRecord {
   id: string;
@@ -443,6 +449,12 @@ export interface KitchenStockMoveRecord {
   undoneBy: string | null;
   idemKey: string | null;
   createdAt: Date;
+  /**
+   * What wrote it (migration 410): `check` on every use, waste and adjust a
+   * stock check wrote (PN-4); null for a move logged directly, every
+   * reversal, and every move written before.
+   */
+  via: KitchenStockMoveVia | null;
 }
 
 /** What every move a request writes carries. */
@@ -478,6 +490,8 @@ export interface TakeStockInput {
     consumers: readonly string[] | null;
     /** The words a use in a measure was given in ("2 onions", SM-13); absent or null for a unit. */
     label?: string | null;
+    /** What wrote it (`check`: a stock check, PN-4); absent or null when it was logged directly. */
+    via?: KitchenStockMoveVia | null;
   };
   /** The transaction the move posts: a group use, or waste split equally. Its id becomes the move's txn_id. */
   txn?: { txn: NewKitchenTxn; splits: readonly KitchenSplit[] } | null;
@@ -513,10 +527,39 @@ export interface TransferItemInput {
 }
 
 /**
+ * Raise what is left of an item — the stock check's "more than Cookpool
+ * thought" (PN-4) — in ONE batch: an `adjust` move of `qtyMilli` (it costs
+ * nothing and posts no transaction), the item's update (what is left goes up
+ * by it; a used-up or wasted item is active again) and the audit event. Only
+ * while the item is still at `expectedVersion` (`stale`); raising it above
+ * what was bought fails the stock CHECK (`invalid`, reason
+ * `more_than_bought`). Nothing moves money, so `costOfUse` keeps every later
+ * use inside the price. A repeated idempotency key on the item writes nothing
+ * and answers the move it made (`replayed: true`).
+ */
+export interface AdjustStockInput {
+  owner: KitchenPantryOwner;
+  itemId: Uuid;
+  expectedVersion: number;
+  move: NewStockMove & {
+    kind: "adjust";
+    qtyMilli: number;
+    unit: string;
+    via: KitchenStockMoveVia | null;
+  };
+  audit?: AppendEventWithAuditInput;
+}
+
+/**
  * Put back a move that posted no transaction, in ONE batch: a `reversal`
  * move and the item's restore (what was taken, and what it cost, come back;
  * a used-up or wasted item is active again). Only at `expectedVersion` — the
  * version the caller saw the move as the item's latest at (`stale`).
+ *
+ * An `adjust` (PN-4) is put back the other way: what it added comes off
+ * again, which needs that much still there (`insufficient_stock` otherwise),
+ * and an item it empties is finished as its last take left it — wasted
+ * after a waste, used up otherwise.
  */
 export interface UndoMoveInput {
   owner: KitchenPantryOwner;
@@ -686,6 +729,8 @@ export interface KitchenRepository {
 
   /** Use or waste some of an item, with the transaction it posts, in ONE batch (see `TakeStockInput`). */
   takeStock(input: TakeStockInput): Promise<KitchenResult<StockMoved>>;
+  /** Raise what is left of an item with an `adjust` move, in ONE batch (see `AdjustStockInput`; PN-4). */
+  adjustStock(input: AdjustStockInput): Promise<KitchenResult<StockMoved>>;
   /** Move an unused personal item into a group's pantry, in ONE batch (see `TransferItemInput`). */
   transferItem(input: TransferItemInput): Promise<KitchenResult<StockMoved>>;
   /**

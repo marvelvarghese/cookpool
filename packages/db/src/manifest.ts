@@ -372,5 +372,14 @@ export const manifest: MigrationManifest = {
       description:
         "Shopping runs: kitchen_items.purchase_id (nullable, no default — a UUID, pur_ in the API) shared by every item one run added in one batch with one payer, null for an item added on its own; indexed on purchase_id over the items in a purchase, for the run's Undo and the replay of a retried run. No purchases table and no name index: the restock read groups by name through the existing owner and group indexes (Cookpool PN-3)",
     },
+    {
+      id: "410_kitchen_moves_via",
+      context: "kitchen",
+      path: "410_kitchen_moves_via/up.sql",
+      checksum:
+        "858d68fa7595f7e82420e158bf935eefa01ed2dce546d1b24d34655d8d1180c8",
+      description:
+        "What wrote a stock move: a nullable kitchen_stock_moves.via, CHECK in ('check', 'ask') — check on every use, waste and adjust a stock check writes (PN-4), ask reserved for the use an approved ask posts (PN-8); NULL for every move logged directly, every reversal, and every move written before (Cookpool PN-4)",
+    },
   ],
 };

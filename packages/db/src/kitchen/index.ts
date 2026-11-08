@@ -151,3 +151,6 @@ export type {
   PurchasesRepository,
 } from "./purchases.js";
 export { createPurchasesRepository } from "./purchases.js";
+
+// The stock check (PN-4): what wrote a move, and raising what is left.
+export type { KitchenStockMoveVia, AdjustStockInput } from "./types.js";

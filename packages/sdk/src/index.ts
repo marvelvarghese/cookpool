@@ -597,6 +597,19 @@ export {
   LEARNED_MIN_COOKS,
 } from "@saas/contracts/kitchen";
 
+// The stock check (Cookpool PN-4).
+export type {
+  StockMoveVia,
+  StockCheckGone,
+  StockCheckLevel,
+  CheckGroupItemRequest,
+  CheckPersonalItemRequest,
+  CheckItemResponse,
+  KitchenCheckErrorReason,
+} from "@saas/contracts/kitchen";
+
+export { STOCK_MOVE_VIAS, STOCK_CHECK_GONE, KITCHEN_CHECK_ERROR_REASONS } from "@saas/contracts/kitchen";
+
 // Timers that find you (Cookpool GC-3).
 export type {
   KitchenTimer,

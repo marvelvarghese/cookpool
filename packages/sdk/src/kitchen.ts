@@ -82,6 +82,8 @@ import type {
   SetFoodAnswerResponse,
   UpdateRecipeRequest,
 } from "@saas/contracts/kitchen";
+// The stock check (PN-4).
+import type { CheckGroupItemRequest, CheckItemResponse, CheckPersonalItemRequest } from "@saas/contracts/kitchen";
 // Guided steps (GC-2).
 import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 // Timers that find you (GC-3).
@@ -482,6 +484,44 @@ export class KitchenClient {
   undoGroupMove(orgId: string, moveId: string, opts: RequestOptions = {}): Promise<StockMoveResponse> {
     return this.transport.request<StockMoveResponse>(
       { method: "POST", path: this.groupPath(orgId, `moves/${encodeURIComponent(moveId)}/undo`), body: {} },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // The stock check (PN-4)
+  //
+  // Set what is really left (`left`, 0 for empty) and say where the rest went
+  // (`gone`, required when it is less). Less is written as the use or waste
+  // it was — so it is undone as they are: `reverseTxn` when it posted a
+  // transaction, else `undo…Move`. More is an `adjust` that moves no money,
+  // undone with `undo…Move` while the difference is still there. Every move
+  // carries `via: "check"`. The same level is a `ValidationError` with
+  // `reason: "unchanged"`; above what was bought, `reason: "more_than_bought"`.
+  // POSTs take `opts.idempotencyKey`: the same key twice checks once.
+  // -------------------------------------------------------------------------
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/items/:itemId/check — anyone who may
+   * use the item. `gone: "split"` charges every current member an equal
+   * share; `"me"` the caller; `"waste"` follows the item's waste rule.
+   */
+  checkGroupItem(
+    orgId: string,
+    itemId: string,
+    body: CheckGroupItemRequest,
+    opts: RequestOptions = {},
+  ): Promise<CheckItemResponse> {
+    return this.transport.request<CheckItemResponse>(
+      { method: "POST", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}/check`), body },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/items/:itemId/check — the caller's own item: `gone` is `"me"` or `"waste"`. */
+  checkPersonalItem(itemId: string, body: CheckPersonalItemRequest, opts: RequestOptions = {}): Promise<CheckItemResponse> {
+    return this.transport.request<CheckItemResponse>(
+      { method: "POST", path: this.mePath(`items/${encodeURIComponent(itemId)}/check`), body },
       opts,
     );
   }

@@ -7,8 +7,15 @@ import {
   type StockMoveResponse,
   type UsualsResponse,
 } from "@saas/contracts/kitchen";
-import { asUuid } from "@saas/db/ids";
-import type { KitchenItemRecord, KitchenPantryOwner, KitchenRepository, StockMoved } from "@saas/db/kitchen";
+import { asUuid, type Uuid } from "@saas/db/ids";
+import type {
+  KitchenItemRecord,
+  KitchenPantryOwner,
+  KitchenRepository,
+  KitchenStockMoveVia,
+  StockMoved,
+  TakeStockInput,
+} from "@saas/db/kitchen";
 import { costOfUse, formatMinor } from "@saas/kitchen-engine/money";
 import { formatQuantity, isUnit } from "@saas/kitchen-engine/units";
 import { requireOrgAction } from "../authz.js";
@@ -71,8 +78,9 @@ function owner(ctx: RequestContext): KitchenPantryOwner {
 /**
  * 201 with the item as it is now (in the caller's pantry, with its measures —
  * `known` when the write read them already, else read here), and the move.
+ * The stock check (PN-4) answers with it too.
  */
-async function moved(
+export async function moved(
   ctx: RequestContext,
   repo: KitchenRepository,
   result: StockMoved,
@@ -91,6 +99,74 @@ async function moved(
   );
 }
 
+/** A use or waste of a personal item to write, from the item as just read. */
+export interface PersonalTake {
+  qtyMilli: number;
+  unit: string;
+  idemKey: string;
+  /** `check` when a stock check writes it (PN-4); absent when it is logged directly. */
+  via?: KitchenStockMoveVia | null;
+}
+
+/**
+ * The write a use of the caller's own item makes (CP-11): a move only — a
+ * personal pantry has no ledger — that still charges the item's price
+ * (`cost_taken`). …/uses and the stock check's `me` (PN-4) write it.
+ */
+export function planPersonalUse(
+  ctx: RequestContext,
+  item: KitchenItemRecord,
+  take: PersonalTake & { label: string | null },
+): TakeStockInput {
+  const actor = ctx.actor.subjectId;
+  return {
+    owner: owner(ctx),
+    itemId: item.id as Uuid,
+    expectedVersion: item.version,
+    move: {
+      id: asUuid(crypto.randomUUID()),
+      kind: "use",
+      qtyMilli: take.qtyMilli,
+      // A measure only decides how much is taken; the cost is any use's.
+      costMinor: costOfUse(item, take.qtyMilli),
+      unit: take.unit,
+      label: take.label,
+      consumers: [actor],
+      actor,
+      idemKey: take.idemKey,
+      now: ctx.now(),
+      via: take.via ?? null,
+    },
+  };
+}
+
+/**
+ * The write wasting some of the caller's own item makes (CP-11): a move
+ * only — its owner absorbs the loss. Nothing (or more than is left) is 409
+ * `insufficient_stock`. …/waste and the stock check's `waste` (PN-4) write it.
+ */
+export function planPersonalWaste(ctx: RequestContext, item: KitchenItemRecord, take: PersonalTake): TakeStockInput | Response {
+  const { qtyMilli, unit } = take;
+  if (qtyMilli === 0 || qtyMilli > item.qtyLeftMilli) return insufficientStock(ctx.requestId, item.qtyLeftMilli);
+  return {
+    owner: owner(ctx),
+    itemId: item.id as Uuid,
+    expectedVersion: item.version,
+    move: {
+      id: asUuid(crypto.randomUUID()),
+      kind: "waste",
+      qtyMilli,
+      costMinor: costOfUse(item, qtyMilli),
+      unit,
+      consumers: null,
+      actor: ctx.actor.subjectId,
+      idemKey: take.idemKey,
+      now: ctx.now(),
+      via: take.via ?? null,
+    },
+  };
+}
+
 export async function handleUseMyItem(ctx: RequestContext, request: Request, params: readonly string[]): Promise<Response> {
   const itemId = parsePublicId("itm", params[0]!);
   if (!itemId) return notFound(ctx.requestId);
@@ -101,7 +177,6 @@ export async function handleUseMyItem(ctx: RequestContext, request: Request, par
   const parsed = parseUse(body, { group: false });
   if (!parsed.ok) return validationError(ctx.requestId, parsed.fields);
   const use = parsed.value;
-  const actor = ctx.actor.subjectId;
 
   return withKitchenRepo(ctx, async (repo) => {
     // A use in a measure (SM-13) reads the item's measures to know how much it takes.
@@ -109,24 +184,7 @@ export async function handleUseMyItem(ctx: RequestContext, request: Request, par
     const result = await takeStock(ctx, repo, { owner: owner(ctx), itemId, kind: "use", idemKey: idem.key }, async (item) => {
       const qty = await useAmount(ctx.requestId, item, use, async () => (measures = await readMeasures(ctx, repo, [item])));
       if (qty instanceof Response) return qty;
-      return {
-        owner: owner(ctx),
-        itemId,
-        expectedVersion: item.version,
-        move: {
-          id: asUuid(crypto.randomUUID()),
-          kind: "use",
-          qtyMilli: qty.qtyMilli,
-          // A measure only decides how much is taken; the cost is any use's.
-          costMinor: costOfUse(item, qty.qtyMilli),
-          unit: qty.unit,
-          label: qty.label,
-          consumers: [actor],
-          actor,
-          idemKey: idem.key,
-          now: ctx.now(),
-        },
-      };
+      return planPersonalUse(ctx, item, { ...qty, idemKey: idem.key });
     });
     return result instanceof Response ? result : moved(ctx, repo, result, measures);
   });
@@ -152,24 +210,7 @@ export async function handleWasteMyItem(ctx: RequestContext, request: Request, p
         if (!qty.ok) return validationError(ctx.requestId, qty.fields);
         ({ qtyMilli, unit } = qty.value);
       }
-      if (qtyMilli === 0 || qtyMilli > item.qtyLeftMilli) return insufficientStock(ctx.requestId, item.qtyLeftMilli);
-      // A personal pantry has no ledger: its owner absorbs the loss.
-      return {
-        owner: owner(ctx),
-        itemId,
-        expectedVersion: item.version,
-        move: {
-          id: asUuid(crypto.randomUUID()),
-          kind: "waste",
-          qtyMilli,
-          costMinor: costOfUse(item, qtyMilli),
-          unit,
-          consumers: null,
-          actor: ctx.actor.subjectId,
-          idemKey: idem.key,
-          now: ctx.now(),
-        },
-      };
+      return planPersonalWaste(ctx, item, { qtyMilli, unit, idemKey: idem.key });
     });
     return result instanceof Response ? result : moved(ctx, repo, result);
   });

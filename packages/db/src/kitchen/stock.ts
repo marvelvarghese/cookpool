@@ -21,7 +21,15 @@ import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executo
 import { isCheckViolation, isForeignKeyViolation, isUniqueViolation } from "../d1/errors.js";
 import { eventWithAuditStatements } from "../events/repository.js";
 import { createLedgerRepository, pinGroupCurrencyStatement, splitsProblem, txnRecordOf, txnStatements } from "./ledger.js";
-import { MOVE_COLUMNS, MOVE_ORDER_DESC, latestLiveMoveSql, mapMove, restockStatements, reversalRecord } from "./moves.js";
+import {
+  MOVE_COLUMNS,
+  MOVE_ORDER_DESC,
+  latestLiveMoveSql,
+  mapMove,
+  restockStatements,
+  reversalRecord,
+  unadjustStatements,
+} from "./moves.js";
 import { ITEM_COLUMNS, Params, createPantryRepository, mapItem, ownerClause } from "./pantry.js";
 import { readUsuals } from "./usuals.js";
 import type { Uuid } from "../ids/index.js";
@@ -37,7 +45,7 @@ import type {
 /** The stock part of the kitchen repository. */
 export type StockRepository = Pick<
   KitchenRepository,
-  "takeStock" | "transferItem" | "undoMove" | "getMove" | "getMoveByIdemKey" | "listMoves" | "usuals"
+  "takeStock" | "adjustStock" | "transferItem" | "undoMove" | "getMove" | "getMoveByIdemKey" | "listMoves" | "usuals"
 >;
 
 function internal(err: unknown): KitchenResult<never> {
@@ -73,7 +81,7 @@ export function takeStockStatements(
   const m = new Params();
   const insert: SqlStatement = {
     text: `INSERT INTO kitchen_stock_moves (
-             id, item_id, kind, qty_milli, cost_minor, actor, txn_id, dish_id, consumers, unit, label, idem_key, created_at
+             id, item_id, kind, qty_milli, cost_minor, actor, txn_id, dish_id, consumers, unit, label, idem_key, created_at, via
            ) VALUES (
              ${m.add(move.id)},
              (SELECT id FROM kitchen_items
@@ -81,7 +89,8 @@ export function takeStockStatements(
                 AND ${ownerClause(m, owner)}),
              ${m.add(move.kind)}, ${m.add(move.qtyMilli)}, ${m.add(move.costMinor)}, ${m.add(move.actor)},
              ${m.add(move.txnId)}, ${m.add(move.dishId)}, ${m.add(move.consumers ? JSON.stringify(move.consumers) : null)},
-             ${m.add(move.unit)}, ${m.add(move.label)}, ${m.add(move.idemKey)}, ${m.add(move.createdAt)}
+             ${m.add(move.unit)}, ${m.add(move.label)}, ${m.add(move.idemKey)}, ${m.add(move.createdAt)},
+             ${m.add(move.via)}
            )`,
     params: m.values,
   };
@@ -92,6 +101,49 @@ export function takeStockStatements(
              qty_left_milli = qty_left_milli - ${qty},
              cost_taken_minor = cost_taken_minor + ${u.add(move.costMinor)},
              state = CASE WHEN qty_left_milli = ${qty} THEN ${u.add(move.kind === "waste" ? "wasted" : "used_up")} ELSE state END,
+             version = version + 1,
+             updated_at = ${u.add(move.createdAt)}
+           WHERE id = ${u.add(move.itemId)} AND version = ${u.add(expectedVersion)}
+           RETURNING ${ITEM_COLUMNS}`,
+    params: u.values,
+  };
+  return [insert, update];
+}
+
+/**
+ * Raise what is left of an item by `move` (an `adjust`, PN-4), as two
+ * statements of a batch: the move — its item_id read from the item only
+ * while it is at `expectedVersion` and in `owner`'s pantry (used up and
+ * wasted included: a check can find more of a finished item), else NULL,
+ * which the NOT NULL constraint refuses — then the item's update, which adds
+ * the quantity (above what was bought fails the stock CHECK) and makes it
+ * active. An adjust costs nothing: the cost taken stays. The update returns
+ * the item's columns.
+ */
+export function adjustStockStatements(
+  owner: KitchenPantryOwner,
+  expectedVersion: number,
+  move: KitchenStockMoveRecord,
+): SqlStatement[] {
+  const m = new Params();
+  const insert: SqlStatement = {
+    text: `INSERT INTO kitchen_stock_moves (
+             id, item_id, kind, qty_milli, cost_minor, actor, txn_id, dish_id, consumers, unit, label, idem_key, created_at, via
+           ) VALUES (
+             ${m.add(move.id)},
+             (SELECT id FROM kitchen_items
+              WHERE id = ${m.add(move.itemId)} AND version = ${m.add(expectedVersion)} AND state <> 'removed'
+                AND ${ownerClause(m, owner)}),
+             'adjust', ${m.add(move.qtyMilli)}, 0, ${m.add(move.actor)}, NULL, NULL, NULL,
+             ${m.add(move.unit)}, NULL, ${m.add(move.idemKey)}, ${m.add(move.createdAt)}, ${m.add(move.via)}
+           )`,
+    params: m.values,
+  };
+  const u = new Params();
+  const update: SqlStatement = {
+    text: `UPDATE kitchen_items SET
+             qty_left_milli = qty_left_milli + ${u.add(move.qtyMilli)},
+             state = 'active',
              version = version + 1,
              updated_at = ${u.add(move.createdAt)}
            WHERE id = ${u.add(move.itemId)} AND version = ${u.add(expectedVersion)}
@@ -182,6 +234,7 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
         undoneBy: null,
         idemKey: move.idemKey,
         createdAt: move.now,
+        via: move.via ?? null,
       };
 
       // The transaction and its splits first: the move's txn_id references it.
@@ -220,6 +273,55 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
       }
     },
 
+    async adjustStock({ owner, itemId, expectedVersion, move, audit }) {
+      const record: KitchenStockMoveRecord = {
+        id: move.id,
+        itemId,
+        kind: "adjust",
+        qtyMilli: move.qtyMilli,
+        costMinor: 0,
+        actor: move.actor,
+        txnId: null,
+        dishId: null,
+        consumers: null,
+        unit: move.unit,
+        label: null,
+        reverses: null,
+        undoneBy: null,
+        idemKey: move.idemKey,
+        createdAt: move.now,
+        via: move.via,
+      };
+      const statements = adjustStockStatements(owner, expectedVersion, record);
+      if (audit) statements.push(...eventWithAuditStatements(audit));
+
+      try {
+        const results = await executeBatch(executor, statements);
+        const row = results[1]?.rows[0];
+        if (!row) return internal("kitchen: adjust update returned no row");
+        return { ok: true, value: { item: mapItem(row), move: record, txn: null, replayed: false } };
+      } catch (err) {
+        try {
+          if (isUniqueViolation(err)) {
+            const existing = await findMoveByIdem(owner, itemId, move.idemKey);
+            if (existing) return await replay(owner, existing);
+            return fail({ kind: "conflict", entity: "kitchen_stock_move" });
+          }
+          if (isCheckViolation(err)) {
+            // The item moved on (the guard read NULL), or the level would
+            // have gone above what was bought.
+            const current = await findItem(owner, itemId);
+            if (!current) return NOT_FOUND;
+            if (current.version !== expectedVersion) return fail({ kind: "stale" });
+            return fail({ kind: "invalid", reason: "more_than_bought" });
+          }
+        } catch (followUp) {
+          return internal(followUp);
+        }
+        return internal(err);
+      }
+    },
+
     async transferItem({ item, orgId, currency, move, audit }) {
       const buyer = item.ownerSubjectId;
       if (item.ownerKind !== "user" || !buyer) return NOT_FOUND;
@@ -241,6 +343,7 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
         undoneBy: null,
         idemKey: move.idemKey,
         createdAt: move.now,
+        via: null,
       };
 
       const m = new Params();
@@ -314,7 +417,11 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
         idemKey: reversal.idemKey,
         now: reversal.now,
       });
-      const statements = restockStatements(move, record, ITEM_COLUMNS, expectedVersion);
+      // An adjust added stock: its undo takes it off again (PN-4).
+      const statements =
+        move.kind === "adjust"
+          ? unadjustStatements(move, record, ITEM_COLUMNS, expectedVersion)
+          : restockStatements(move, record, ITEM_COLUMNS, expectedVersion);
       if (audit) statements.push(...eventWithAuditStatements(audit));
 
       try {
@@ -336,6 +443,8 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
             const current = await findItem(owner, move.itemId);
             if (!current) return NOT_FOUND;
             if (current.version !== expectedVersion) return fail({ kind: "stale" });
+            // What an adjust added is no longer all there.
+            if (move.kind === "adjust") return fail({ kind: "insufficient_stock", qtyLeftMilli: current.qtyLeftMilli });
             return fail({ kind: "invalid", reason: "restock_out_of_range" });
           }
         } catch (followUp) {
