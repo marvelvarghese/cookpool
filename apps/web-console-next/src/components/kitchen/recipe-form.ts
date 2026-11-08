@@ -5,10 +5,16 @@
  * line, chosen with a radio (by default the first line with a weight, never a
  * to-taste one); lines move up and down and come out; steps, up to 20.
  *
+ * cookpool-guided GC-6: the recipe's tools (up to 10 short names), and each
+ * step a guided one (`StepDraft`, step-editor.ts) — its phase, lines,
+ * flame, minutes or whistles, hands off, rule, checkpoint and tip — sent
+ * with the key it was read with, so keys survive edits. A step of text
+ * only is still sent as its words.
+ *
  * The form is data, and every edit is a pure function of it, so what the
  * form sends — and which line is main — is unit-tested. The server checks it
- * all again: its 422 field errors (`lines[2].quantity`) land on the line they
- * name (`errorsFromDetails`).
+ * all again: its 422 field errors (`lines[2].quantity`, `steps[1].minSeconds`,
+ * `tools[0]`) land on the line, step or tool they name (`errorsFromDetails`).
  *
  * Dependency-free (contract types and constants), so unit-testable.
  */
@@ -21,6 +27,8 @@ import {
   MAX_RECIPE_SERVES_HALF,
   MAX_RECIPE_STEP,
   MAX_RECIPE_STEPS,
+  MAX_RECIPE_TOOL,
+  MAX_RECIPE_TOOLS,
   MAX_RECIPE_UNIT_WORD,
   RECIPE_UNIT_KEYS,
   foodNameKey,
@@ -31,7 +39,10 @@ import {
   type FoodMatch,
   type KitchenRecipe,
   type RecipeLineInput,
+  type RecipeStepWrite,
 } from "@saas/contracts/kitchen";
+import { lineChipText } from "./guided-steps";
+import { blankStep, isPlainDraft, stepFromRecipe, stepProblems, stepWrite, type StepDraft, type StepFieldErrors } from "./step-editor";
 
 /** A new recipe serves 4, as a new dish does. */
 export const DEFAULT_SERVES_HALF = 8;
@@ -61,7 +72,10 @@ export interface RecipeForm {
   lines: LineDraft[];
   /** The line marked main; null for the default (the first line with a weight, else the first with an amount). */
   mainKey: string | null;
-  steps: string[];
+  /** In order; each a guided step (GC-6), text only by default. */
+  steps: StepDraft[];
+  /** The tools, in order (GC-6): short names, each once. */
+  tools: string[];
 }
 
 /** A blank line. */
@@ -69,9 +83,9 @@ export function emptyLine(key: string): LineDraft {
   return { key, foodKey: null, foodName: null, countWord: null, name: "", quantity: "", unit: "g", toTaste: false };
 }
 
-/** A new recipe: serves 4, one blank line, no steps. */
+/** A new recipe: serves 4, one blank line, no steps, no tools. */
 export function initialRecipeForm(newKey: () => string): RecipeForm {
-  return { name: "", servesHalf: DEFAULT_SERVES_HALF, minutes: "", lines: [emptyLine(newKey())], mainKey: null, steps: [] };
+  return { name: "", servesHalf: DEFAULT_SERVES_HALF, minutes: "", lines: [emptyLine(newKey())], mainKey: null, steps: [], tools: [] };
 }
 
 /** A decimal as the form shows it ("1.5", "450"). */
@@ -79,11 +93,20 @@ function quantityText(q: number | null): string {
   return q === null ? "" : String(Number(q.toFixed(3)));
 }
 
-/** A recipe as its edit form starts: every line, its main marked, its steps. */
-export function formFromRecipe(recipe: Pick<KitchenRecipe, "name" | "servesHalf" | "minutes" | "lines" | "steps">, newKey: () => string): RecipeForm {
+/**
+ * A recipe as its edit form starts: every line, its main marked, its steps
+ * (in full from `guidedSteps`, with their keys and their lines as the form's
+ * line keys; as texts when the read has none) and its tools.
+ */
+export function formFromRecipe(
+  recipe: Pick<KitchenRecipe, "name" | "servesHalf" | "minutes" | "lines" | "steps" | "guidedSteps" | "tools">,
+  newKey: () => string,
+): RecipeForm {
   let mainKey: string | null = null;
+  const keyAt = new Map<number, string>();
   const lines = recipe.lines.map((l) => {
     const key = newKey();
+    keyAt.set(l.position, key);
     if (l.isMain) mainKey = key;
     const unit = l.unit ?? "g";
     return {
@@ -103,7 +126,11 @@ export function formFromRecipe(recipe: Pick<KitchenRecipe, "name" | "servesHalf"
     minutes: recipe.minutes === null ? "" : String(recipe.minutes),
     lines: lines.length > 0 ? lines : [emptyLine(newKey())],
     mainKey,
-    steps: [...recipe.steps],
+    steps:
+      recipe.guidedSteps && recipe.guidedSteps.length === recipe.steps.length
+        ? recipe.guidedSteps.map((s) => stepFromRecipe(s, newKey(), (p) => keyAt.get(p)))
+        : recipe.steps.map((text) => blankStep(newKey(), text)),
+    tools: [...(recipe.tools ?? [])],
   };
 }
 
@@ -233,17 +260,73 @@ export function stepServes(form: RecipeForm, direction: -1 | 1): RecipeForm {
   return servesHalf === form.servesHalf ? form : { ...form, servesHalf };
 }
 
-/** Another step (up to MAX_RECIPE_STEPS). */
-export function addStep(form: RecipeForm): RecipeForm {
-  return form.steps.length >= MAX_RECIPE_STEPS ? form : { ...form, steps: [...form.steps, ""] };
+/** An id for a new step that no step of the form has (`step_N`). */
+export function nextStepId(form: Pick<RecipeForm, "steps">): string {
+  let n = form.steps.length;
+  const ids = new Set(form.steps.map((s) => s.id));
+  while (ids.has(`step_${n + 1}`)) n += 1;
+  return `step_${n + 1}`;
 }
 
+/** Another step, text only (up to MAX_RECIPE_STEPS); `id` is the form's own for it. */
+export function addStep(form: RecipeForm, id: string = nextStepId(form)): RecipeForm {
+  return form.steps.length >= MAX_RECIPE_STEPS ? form : { ...form, steps: [...form.steps, blankStep(id)] };
+}
+
+/** Type a step's words. */
 export function setStep(form: RecipeForm, index: number, text: string): RecipeForm {
-  return { ...form, steps: form.steps.map((s, i) => (i === index ? text : s)) };
+  return { ...form, steps: form.steps.map((s, i) => (i === index ? { ...s, text } : s)) };
+}
+
+/** Change a step (by the form's id for it) in any other way: step-editor.ts's edits. */
+export function updateStep(form: RecipeForm, id: string, change: (d: StepDraft) => StepDraft): RecipeForm {
+  return { ...form, steps: form.steps.map((s) => (s.id === id ? change(s) : s)) };
 }
 
 export function removeStep(form: RecipeForm, index: number): RecipeForm {
   return { ...form, steps: form.steps.filter((_, i) => i !== index) };
+}
+
+// ── Tools (GC-6) ──────────────────────────────────────────────────
+
+/** Why a tool can't be added ("Already on the list"), or null when it can. */
+export function toolProblem(tools: readonly string[], name: string): string | null {
+  const t = name.trim();
+  if (!t) return "Name the tool";
+  if (t.length > MAX_RECIPE_TOOL) return `Keep it to ${MAX_RECIPE_TOOL} characters`;
+  if (tools.some((x) => x.trim().toLowerCase() === t.toLowerCase())) return "Already on the list";
+  if (tools.length >= MAX_RECIPE_TOOLS) return `At most ${MAX_RECIPE_TOOLS} tools`;
+  return null;
+}
+
+/** Add a tool at the end (trimmed); the same form when it can't be (`toolProblem`). */
+export function addTool(form: RecipeForm, name: string): RecipeForm {
+  if (toolProblem(form.tools, name)) return form;
+  return { ...form, tools: [...form.tools, name.trim()] };
+}
+
+export function removeTool(form: RecipeForm, index: number): RecipeForm {
+  return { ...form, tools: form.tools.filter((_, i) => i !== index) };
+}
+
+// ── The lines a step can name ─────────────────────────────────────
+
+/** A line as a step's chip names it, as written: "3 onions", "2 tbsp ginger-garlic paste", "Salt"; null for a blank line. */
+export function lineChip(line: LineDraft): string | null {
+  const name = line.name.trim();
+  if (!name || isBlankLine(line)) return null;
+  const quantity = line.toTaste ? null : parseQuantity(line.quantity);
+  if (quantity === null) return name;
+  const qtyMilli = Math.round(Number(quantity) * recipeUnitOf(line.unit).factor * 1000);
+  return lineChipText({ name, qtyMilli, unit: line.unit, toTaste: false }, 1000);
+}
+
+/** The lines a step can name (every line with words), with their chips, in the form's order. */
+export function stepLineChoices(form: Pick<RecipeForm, "lines">): { key: string; name: string; chip: string }[] {
+  return form.lines.flatMap((l) => {
+    const chip = lineChip(l);
+    return chip === null ? [] : [{ key: l.key, name: l.name.trim(), chip }];
+  });
 }
 
 // ── What the form sends ───────────────────────────────────────────
@@ -256,21 +339,35 @@ export interface RecipeFormErrors {
   /** About the lines as a whole ("Add an ingredient"). */
   lines?: string;
   steps?: string;
+  /** About the tools as a whole ("At most 10 tools"). */
+  tools?: string;
   /** By line key. */
   line: Record<string, { name?: string; quantity?: string; unit?: string; main?: string }>;
-  /** By step index. */
+  /** A step's words, by step index. */
   step: Record<number, string>;
+  /** A step's other fields (its flame, time, lines, checkpoint…), by step index (GC-6). */
+  stepField: Record<number, Omit<StepFieldErrors, "text">>;
+  /** By tool index. */
+  tool: Record<number, string>;
   /** Anything the server said that names no field the form shows. */
   other?: string;
 }
 
 export function noErrors(): RecipeFormErrors {
-  return { line: {}, step: {} };
+  return { line: {}, step: {}, stepField: {}, tool: {} };
 }
 
 /** Whether there is anything to show. */
 export function hasErrors(e: RecipeFormErrors): boolean {
-  return !!(e.name || e.servesHalf || e.minutes || e.lines || e.steps || e.other || Object.keys(e.line).length > 0 || Object.keys(e.step).length > 0);
+  return !!(
+    e.name || e.servesHalf || e.minutes || e.lines || e.steps || e.tools || e.other ||
+    Object.keys(e.line).length > 0 || Object.keys(e.step).length > 0 || Object.keys(e.stepField).length > 0 || Object.keys(e.tool).length > 0
+  );
+}
+
+/** Whether a step (by index) has anything wrong: it opens, so the error shows. */
+export function stepHasErrors(e: RecipeFormErrors, index: number): boolean {
+  return e.step[index] !== undefined || Object.keys(e.stepField[index] ?? {}).length > 0;
 }
 
 export interface RecipeRequest {
@@ -281,12 +378,16 @@ export interface RecipeRequest {
   lineKeys: string[];
   /** The form's step index for each step sent, in order. */
   stepIndexes: number[];
+  /** The form's tool index for each tool sent, in order. */
+  toolIndexes: number[];
 }
 
 /**
- * The form as the API takes it, or why not. Blank lines and blank steps are
- * left out. Exactly one line says it is main (`mainKeyOf`); to-taste lines
- * send no amount.
+ * The form as the API takes it, or why not. Blank lines, blank steps of
+ * text only and blank tools are left out. Exactly one line says it is main
+ * (`mainKeyOf`); to-taste lines send no amount. A step names its lines by
+ * their positions in the lines sent; it is its words alone when it is text
+ * only and new, else every field with its key (`stepWrite`).
  */
 export function recipeRequest(form: RecipeForm): RecipeRequest {
   const errors = noErrors();
@@ -324,33 +425,66 @@ export function recipeRequest(form: RecipeForm): RecipeRequest {
   else if (sent.length > MAX_RECIPE_LINES) errors.lines = `At most ${MAX_RECIPE_LINES} ingredients`;
   else if (!mainKey) errors.lines = "One ingredient needs an amount: it scales the rest";
 
-  const steps: string[] = [];
+  const lineKeys = sent.map((l) => l.key);
+  const positionOf = new Map(lineKeys.map((k, i) => [k, i] as const));
+  const steps: RecipeStepWrite[] = [];
   const stepIndexes: number[] = [];
   form.steps.forEach((s, i) => {
-    const text = s.trim();
-    if (!text) return;
-    if (text.length > MAX_RECIPE_STEP) errors.step[i] = `Keep it to ${MAX_RECIPE_STEP} characters`;
-    steps.push(text);
+    if (!s.text.trim() && isPlainDraft(s)) return;
+    const { text: textError, ...fieldErrors } = stepProblems(s, MAX_RECIPE_STEP);
+    if (textError) errors.step[i] = textError;
+    if (Object.keys(fieldErrors).length > 0) errors.stepField[i] = fieldErrors;
+    steps.push(stepWrite(s, (k) => positionOf.get(k)));
     stepIndexes.push(i);
   });
   if (steps.length > MAX_RECIPE_STEPS) errors.steps = `At most ${MAX_RECIPE_STEPS} steps`;
 
-  const lineKeys = sent.map((l) => l.key);
-  if (hasErrors(errors)) return { body: null, errors, lineKeys, stepIndexes };
-  return { body: { name, servesHalf: form.servesHalf, minutes, lines, steps }, errors, lineKeys, stepIndexes };
+  const tools: string[] = [];
+  const toolIndexes: number[] = [];
+  form.tools.forEach((t, i) => {
+    const tool = t.trim();
+    if (!tool) return;
+    if (tool.length > MAX_RECIPE_TOOL) errors.tool[i] = `Keep it to ${MAX_RECIPE_TOOL} characters`;
+    else if (tools.some((x) => x.toLowerCase() === tool.toLowerCase())) errors.tool[i] = "Already on the list";
+    tools.push(tool);
+    toolIndexes.push(i);
+  });
+  if (tools.length > MAX_RECIPE_TOOLS) errors.tools = `At most ${MAX_RECIPE_TOOLS} tools`;
+
+  if (hasErrors(errors)) return { body: null, errors, lineKeys, stepIndexes, toolIndexes };
+  return { body: { name, servesHalf: form.servesHalf, minutes, lines, steps, tools }, errors, lineKeys, stepIndexes, toolIndexes };
 }
 
 const LINE_FIELD = /^lines\[(\d+)\]\.(\w+)$/;
-const STEP_FIELD = /^steps\[(\d+)\]$/;
+const STEP_FIELD = /^steps\[(\d+)\](?:\.(\w+))?$/;
+const TOOL_FIELD = /^tools\[(\d+)\]$/;
+
+/** The part of the step editor a server field names (`steps[1].minSeconds` → time); null for the step's words. */
+const STEP_PART: Readonly<Record<string, keyof Omit<StepFieldErrors, "text"> | null>> = {
+  text: null,
+  key: null,
+  phase: "phase",
+  lines: "lines",
+  heat: "heat",
+  minSeconds: "time",
+  maxSeconds: "time",
+  whistles: "time",
+  handsOff: "handsOff",
+  timeRule: "timeRule",
+  sense: "checkpoint",
+  checkpoint: "checkpoint",
+  tip: "tip",
+};
 
 /**
  * The server's 422 (`details.fields`: `{ "lines[2].quantity": ["…"] }`) on
- * the form: each message on the line or step it names, by the order the
- * request sent them in (`lineKeys`, `stepIndexes`).
+ * the form: each message on the line, step (and the step's part: its time
+ * for `steps[1].minSeconds`) or tool it names, by the order the request
+ * sent them in (`lineKeys`, `stepIndexes`, `toolIndexes`).
  */
 export function errorsFromDetails(
   details: Record<string, unknown> | undefined,
-  sent: Pick<RecipeRequest, "lineKeys" | "stepIndexes">,
+  sent: Pick<RecipeRequest, "lineKeys" | "stepIndexes"> & Partial<Pick<RecipeRequest, "toolIndexes">>,
   fallback: string,
 ): RecipeFormErrors {
   const errors = noErrors();
@@ -363,6 +497,7 @@ export function errorsFromDetails(
     const message = Array.isArray(raw) && typeof raw[0] === "string" ? raw[0] : typeof raw === "string" ? raw : fallback;
     const line = LINE_FIELD.exec(field);
     const step = STEP_FIELD.exec(field);
+    const tool = TOOL_FIELD.exec(field);
     if (line) {
       const key = sent.lineKeys[Number(line[1])];
       const part = line[2] === "quantity" || line[2] === "unit" || line[2] === "name" ? line[2] : line[2] === "isMain" ? "main" : "name";
@@ -370,9 +505,15 @@ export function errorsFromDetails(
       else errors.lines = message;
     } else if (step) {
       const index = sent.stepIndexes[Number(step[1])];
-      if (index !== undefined) errors.step[index] = message;
-      else errors.steps = message;
-    } else if (field === "name" || field === "servesHalf" || field === "minutes" || field === "lines" || field === "steps") {
+      const part = step[2] === undefined ? null : (STEP_PART[step[2]] ?? null);
+      if (index === undefined) errors.steps = message;
+      else if (part) errors.stepField[index] = { ...errors.stepField[index], [part]: message };
+      else errors.step[index] = message;
+    } else if (tool) {
+      const index = sent.toolIndexes?.[Number(tool[1])];
+      if (index !== undefined) errors.tool[index] = message;
+      else errors.tools = message;
+    } else if (field === "name" || field === "servesHalf" || field === "minutes" || field === "lines" || field === "steps" || field === "tools") {
       errors[field] = message;
     } else {
       errors.other = message;

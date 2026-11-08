@@ -308,3 +308,60 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 Totals are for the tree with main merged in, after GC-7 (#74): its 805 and 654, plus GC-4's 10 and 47. GC-7's suites pass unchanged over 390's steps.
 
 `pnpm typecheck` and `pnpm lint` pass for every touched package (`packages/db`, `tests/db`, `tests/kitchen-worker`). `orun task check GC-4 --base origin/main` passes: 4 changed components, all inside the contract.
+
+### GC1 — writing guided steps, and the plan (GC-6)
+
+**Built** (design §1, §2, §3.5, §8; the canvas's `GuideEditor` and `GuideTimeline`). The console only: `apps/web-console-next` and its tests. Everything renders only when `newFrame()` is true; no server, SDK or `/cook/session` file changed.
+
+- **The step editor** (`/recipes/new`, `/recipes/[id]/edit`; `step-editor.ts` pure, `step-editor-ui.tsx`):
+  - each step is a draft (`StepDraft`): the server's `key` it was read with, Prep | Cook, What to do, the lines that go in now (held by the form's line keys, so they follow the lines as they move or go, and turned into positions in the lines sent only on Save), the flame, None | Minutes | Whistles with the range (Shortest and Longest steppers) or the count, Hands off ("The cook can do the next steps meanwhile"), More food takes (Same time · A bit longer · Longer → fixed / partly / linear), Done when (Look · Smell · Sound · Feel · Taste and the checkpoint) and the Tip;
+  - each step is a row — its number (tinted when hands off), its words and what is set ("Medium flame · 10–12 min · Until it looks golden brown") — that opens into the editor; a step with an error is held open;
+  - **the live preview** shows what the cook sees at the recipe's own size: "THE COOK SEES · SERVES 4", the flame and time in words ("MEDIUM FLAME · 8–10 MIN · HANDS OFF"), the text, the chips with the amounts as written ("3 onions", "2 tbsp ginger-garlic paste", "Salt"), "Until it looks golden brown" and the tip;
+  - **Save** sends every step with a key, or any guided field, as a `RecipeStepInput` with all its fields and its key (`stepWrite`), so keys survive edits, removals and line moves; a new step of text only is still its words (a string), so RC-5's plain steps stay valid; `formFromRecipe` reads `guidedSteps` (texts when the read has none);
+  - **Tools** sit under the name: chips with ×, and a field with Add (up to 10, 1–40 characters, each once in any case); always sent, so a PATCH replaces the list;
+  - **422s** land on the part they name (`errorsFromDetails`): `steps[i].text`/`steps[i]` on the words, `minSeconds`/`maxSeconds`/`whistles` on the time, `lines`, `heat`, `phase`, `handsOff`, `timeRule`, `sense`/`checkpoint` on Done when, `tip`; `tools[i]` on that tool; blanks left out are counted (`stepIndexes`, `toolIndexes`).
+- **The recipe page** (`/recipes/[id]`):
+  - **Long prep first** (`long-prep.ts`, `long-prep-ui.tsx`, `lib/long-prep-store.ts`): an amber card under the title, one row per long-prep step (`longPrep`, else `longPrepOf(guidedSteps)`) with its words and time ("· 8 h"), **Soak now · ping me** and **Already done**. Soak now calls `createTimer` with `{ label: <recipe name>, body: "Time's up: <step>", url: /recipes/<id> (+ ?code=), endsAt: now + its shortest time }`; once set the row reads "Started · we'll ping you at 8:00 pm". Ten timers running reads "You have 10 timers running. Cancel one to set this."
+  - **The Steps list** (`stepRows`): each guided step's flames and "Medium flame", its range at the page's size by `stepTimeAt`, Prep, Hands off, "Until it looks golden brown" with the sense's icon, the learned badge ("Usually 7–9 min · 23 cooks", blue) when the read has `learned`, and the tip. A text-only step is its words alone.
+  - **The plan** link sits beside Steps (`recipePlanHref(id, f, code)`: `/recipes/<id>/plan?f=450`).
+- **The plan** (`/recipes/[id]/plan`; `planOf` in `guided-steps.ts`, `plan-views.tsx`, `plan-ui.tsx`): the recipe's own static shell (`/recipes/_/plan`), added to `STATIC_PAGES` (a 13th `_redirects` rule), `NEW_FRAME_ONLY` (prod → Home) and Back's parents (→ the recipe); no pull to refresh. It has:
+  - the size switch, "450 g · about 2" | "1 kg · 4" (`?f=` and the recipe's own), or the own size alone;
+  - In all · Hands on · Waiting;
+  - one row per step: its number (tinted when hands off), words, range at this size ("7–8 min · hands off"), learned badge, rule in words (Same at any size · Partly follows the amount · Follows the amount) and a bar;
+  - the Meanwhile line under a hands-off step;
+  - **Start step by step** → `/cook/session?recipe=<id>&f=<f>` (GC-5's seam).
+
+  The recipe is read at the size on screen (`getRecipe(id, { code, f })`, GC-7) under `qk.kitchenRecipeAt(id, f)`, which sits under `qk.kitchenRecipe(id)` so writes and patches reach it.
+
+**Departures**
+
+1. **Time has a third choice, None**, beside Minutes | Whistles: an untimed step must be writable. The range is two steppers (Shortest, Longest), not the canvas's one "8–10 min" with only − on the low end and + on the high. They step 1 min under 10 min, 5 under an hour, 15 under 3 h, then an hour (a soak of 8 h is a few taps), from 1 min to a day. Either end pushes the other. A step's seconds that are off the minute grid stay as read until touched. Switching kinds keeps the other kind's numbers.
+2. **No per-step Save.** The canvas's "Save step" is the form's own Save; a step only opens and folds.
+3. **Picking the lit flame again clears it** to "no flame" (null), which is not Off (0). A sense picked with no checkpoint is not sent (the server needs one), and a lit sense picked again clears it. A guided step with no words is "Say what to do", not left out.
+4. **The checkpoint's words.** "Until it looks golden brown" takes the sense's verb (looks, smells, sounds, feels, tastes). Words that are a sentence already ("the raw smell goes", "it stops sizzling": they start with the, a, it, they, no…) read "Until the raw smell goes", and a leading "until" is not said twice. Without a sense: "Until golden brown".
+5. **The preview is at the recipe's own size** ("serves 4", amounts as written), as the task says; the canvas shows "for about 2".
+6. **The learned badge.** The recipe page reads without a size, so every stepper tap shares one cache entry. Its ranges come at × 1 and are scaled to the page's size by the step's rule (`learnedAt`, `wholeStepMinutes`), the arithmetic GC-7 does. The plan reads at its size and shows them as sent. Until that read answers, it paints from the last size's answer or the recipe page's, scaled from the size it was read at. Whistle steps show theirs too: the usual time the count takes (GC-7 departure 8).
+7. **Long prep:**
+   - the card sits under the title, above How much;
+   - the button's verb is the step's first word when it is a long-prep verb (Soak, Marinate, Rest, Rise, Proof, Chill, Ferment, Brine, Steep, Thaw, Defrost, Set), else "Start now · ping me";
+   - **Already done** is kept in localStorage (`<prefix>.long-prep`, by recipe and step key) for 24 h; a started timer counts as done once it ends, for a day more;
+   - Already done on a started row also cancels its timer (best effort);
+   - a row that is done leaves the card, and the card goes when all are;
+   - the record is forgotten on sign-out (`clearDeviceRecords`, the one line added to `lib/sign-out.ts`);
+   - "Turn on notifications to hear timers" (§4) is not shown here.
+8. **The plan's totals** add each timed step's middle at the size, rounded to minutes. Hands on is the steps that are not hands off; Waiting is the rest. Time saved by doing steps meanwhile is not taken off, as on the canvas. **Long prep and whistle steps stay outside the totals**, and a line says so: "Long prep (8 h) comes first and isn't counted. Whistle steps aren't counted: their time is the cooker's." Bars are against the longest step of the cooking, so the soak has none. A long prep row reads "Long prep · do it first", with no Meanwhile.
+9. **Meanwhile** names the steps after a hands-off step up to the next hands-off one, without numbers: "Meanwhile: Chop the coriander · Flame off, coriander, taste", and "· +N more" past three. It is empty when the next step waits too, and for long prep.
+10. **The plan link shows only when some step has a time** (a plan of texts says nothing). It carries `?f=` (left out at × 1) and the link code.
+11. **The Steps list shows Prep and the tip too**, beyond the flame, range, checkpoint, Hands off and learned badge asked for. It does not show the line chips: the ingredients are listed just above.
+
+**Not verified yet:** nothing ran in a browser. The console has no local API, and this task does not call stage. It is covered by rendering every view in tests, by `next build` (which prerenders `/recipes/_/plan`), and by GC-2's and GC-7's server tests for the write and read shapes. The milestone's Chicken curry check waits for GC-4's 390.
+
+**Tests** (`tests/web-console-next`, 84 suites, 1674 tests)
+
+| File | New | What |
+|---|---|---|
+| `kitchen-step-editor.test.ts` | 33 | A guided recipe's edit form: keys and lines as line keys, sent back exactly; texts when there are no `guidedSteps`; whistles. Each field into the write body: phase, words, lines, flame (and cleared), minutes and whistles never both, hands off, the three rules, sense only with a checkpoint, tip, a new step without a key. Keys kept across edits, a removed step and moved or removed lines; blank plain steps left out, wordless guided ones refused. The 422 mapping, every part and tools, blanks counted, and the fallbacks. The stepper's grid and bounds, min ≤ max, whistles 1–10. The preview's words (flame, time, Hands off, chips, the checkpoint by sense and as a sentence, prep, serves), drawn. The folded summary. The editor drawn folded and opened on an error. Tools: once, ≤ 10, ≤ 40, sent always, a repeat refused, drawn. |
+| `kitchen-guided-recipe.test.ts` | 26 | The Steps list at 450, 1000 and 2000 by `stepTimeAt`; flames, checkpoints, Hands off, Prep. Learned when present, at the page's size by rule, or as read at the read's size, and absent otherwise; whistle steps; garbage refused. Texts only; chips. Drawn, with The plan's link. Long prep: listed or derived; the verb and duration; the `createTimer` body (url back to the recipe, `?code=`, clipped label and body); `createTimer` called once and remembered; ten timers, the server's words, offline; done for a day, started until its end, then done; the memory parsed and pruned; the card drawn idle, started and empty. The plan: its address and `?f=`; the sizes and labels; the totals at 450 and 1000, and against `stepTimeAt` at five sizes; each row's range, learned, rule words and bar; Meanwhile and +N more; long prep and whistles outside the totals, and the note; drawn with the switch, the tinted number and Start's link; the sized read's query and key. Prod: redirected Home, shown on stage, the static shell, Back. |
+| changed | — | `kitchen-recipe-form.test.ts`: steps as drafts, `tools: []` in the body. `static-pages.test.ts`: 13 rules, the plan's. `gestures.test.ts`: the plan does not pull. `kitchen-cook-hub.test.ts`: the plan among the new-frame-only pages, and its Back. |
+
+`next build` passes (it prerenders `/recipes/_/plan`). `pnpm typecheck` passes repo-wide (52 tasks), and lint passes for `apps/web-console-next` and `tests/web-console-next`. `orun task check GC-6 --base origin/main` passes: 2 changed components, all inside the contract.

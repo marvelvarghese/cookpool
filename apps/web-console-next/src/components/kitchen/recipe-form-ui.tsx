@@ -3,8 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Plus, Trash2, X } from "lucide-react";
-import { MAX_RECIPE_LINES, MAX_RECIPE_STEPS, type KitchenRecipe } from "@saas/contracts/kitchen";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { MAX_RECIPE_LINES, type KitchenRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { halvesText, parseRecipeRef, recipeHref, canEditRecipe } from "./recipes
 import {
   addLine,
   addStep,
+  addTool,
   chooseMain,
   errorsFromDetails,
   foodSuggestionViews,
@@ -33,17 +34,21 @@ import {
   recipeRequest,
   removeLine,
   removeStep,
+  removeTool,
   setLine,
   setStep,
+  stepLineChoices,
   stepServes,
   typeLineName,
   unitOptions,
+  updateStep,
   type LineDraft,
   type RecipeForm,
   type RecipeFormErrors,
 } from "./recipe-form";
 import { useDeleteRecipe, useFoods, useRecipe, useSaveRecipe } from "./recipes-data";
 import { RecipeNotFound } from "./recipe-views";
+import { StepsEditor, ToolsEditor } from "./step-editor-ui";
 
 /**
  * Writing a recipe and editing yours (cookpool-recipes RC-5, design §3.1,
@@ -54,6 +59,10 @@ import { RecipeNotFound } from "./recipe-views";
  * each moved up or down or taken out; its steps, up to 20; then Save, which
  * opens the recipe. The server's 422 lands on the line it names. Editing
  * adds Delete, with Undo instead of a confirm.
+ *
+ * cookpool-guided GC-6: Tools under the name, and each step a row that
+ * opens into the step editor (`StepsEditor`, the canvas's `GuideEditor`),
+ * saved with its key so its times stay its own.
  */
 export function NewRecipeScreen() {
   return <RecipeFormScreen recipe={null} />;
@@ -212,6 +221,14 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
           </div>
         </div>
 
+        <ToolsEditor
+          tools={form.tools}
+          errors={errors.tool}
+          error={errors.tools}
+          onAdd={(name) => setForm((f) => addTool(f, name))}
+          onRemove={(i) => setForm((f) => removeTool(f, i))}
+        />
+
         <section aria-labelledby="recipe-lines-h" className="flex flex-col gap-2.5" data-field="lines">
           <div className="flex items-baseline justify-between gap-3">
             <h2 id="recipe-lines-h" className="text-lg font-extrabold tracking-tight">
@@ -258,14 +275,18 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
 
         <StepsEditor
           steps={form.steps}
-          errors={errors.step}
-          error={errors.steps}
+          choices={stepLineChoices(form)}
+          servesHalf={form.servesHalf}
+          errors={errors}
           onAdd={() => {
-            const index = form.steps.length;
-            setForm(addStep);
-            window.requestAnimationFrame(() => document.getElementById(`recipe-step-${index}`)?.focus());
+            const id = newKey();
+            const next = addStep(form, id);
+            if (next === form) return null;
+            setForm((f) => addStep(f, id));
+            return id;
           }}
-          onChange={(i, text) => setForm((f) => setStep(f, i, text))}
+          onText={(i, text) => setForm((f) => setStep(f, i, text))}
+          onChange={(id, change) => setForm((f) => updateStep(f, id, change))}
           onRemove={(i) => setForm((f) => removeStep(f, i))}
         />
 
@@ -298,10 +319,14 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
   );
 }
 
-/** Put the focus on the first field that says what is wrong. */
+/** Put the focus on the first field that says what is wrong; else bring the first error into view (a step's flame or time). */
 function focusFirstError(form: HTMLFormElement | null) {
   const el = form?.querySelector<HTMLElement>('[aria-invalid="true"]');
-  el?.focus();
+  if (el) {
+    el.focus();
+    return;
+  }
+  form?.querySelector<HTMLElement>("p.text-destructive")?.scrollIntoView({ block: "center" });
 }
 
 const STEP_BUTTON =
@@ -463,74 +488,6 @@ function LineEditor({
       </div>
       <FieldError id={`${id}-main-error`} message={errors?.main} />
     </div>
-  );
-}
-
-/** Steps: short texts, numbered, up to 20; each comes out with its ×. */
-function StepsEditor({
-  steps,
-  errors,
-  error,
-  onAdd,
-  onChange,
-  onRemove,
-}: {
-  steps: readonly string[];
-  errors: Record<number, string>;
-  error: string | undefined;
-  onAdd: () => void;
-  onChange: (index: number, text: string) => void;
-  onRemove: (index: number) => void;
-}) {
-  return (
-    <section aria-labelledby="recipe-steps-h" className="flex flex-col gap-2.5" data-field="steps">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="recipe-steps-h" className="text-lg font-extrabold tracking-tight">
-          Steps{steps.length > 0 ? ` · ${steps.length}` : ""}
-        </h2>
-        <span className="text-[13px] font-bold tabular-nums text-muted-foreground">
-          {steps.length} of {MAX_RECIPE_STEPS}
-        </span>
-      </div>
-      {steps.length > 0 ? (
-        <ol className="flex flex-col gap-2">
-          {steps.map((text, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span aria-hidden className="mt-2.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-foreground text-xs font-extrabold text-background">
-                {i + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <Label htmlFor={`recipe-step-${i}`} className="sr-only">
-                  Step {i + 1}
-                </Label>
-                <textarea
-                  id={`recipe-step-${i}`}
-                  value={text}
-                  rows={2}
-                  maxLength={200}
-                  placeholder={i === 0 ? "Brown the onions in the oil, about 8 min." : ""}
-                  onChange={(e) => onChange(i, e.target.value)}
-                  aria-invalid={!!errors[i]}
-                  aria-describedby={errors[i] ? `recipe-step-${i}-error` : undefined}
-                  className="min-h-11 w-full resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-base leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-[15px]"
-                />
-                <FieldError id={`recipe-step-${i}-error`} message={errors[i]} />
-              </div>
-              <button type="button" aria-label={`Remove step ${i + 1}`} onClick={() => onRemove(i)} className={ICON_BUTTON}>
-                <X className="h-5 w-5" aria-hidden />
-              </button>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      <FieldError id="recipe-steps-error" message={error} />
-      {steps.length < MAX_RECIPE_STEPS ? (
-        <Button type="button" variant="outline" className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-[#C9CFC6] bg-card font-extrabold")} onClick={onAdd}>
-          <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
-          Add a step
-        </Button>
-      ) : null}
-    </section>
   );
 }
 

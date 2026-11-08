@@ -25,6 +25,7 @@ import {
   unitOptions,
   type RecipeForm,
 } from "@web-console-next/components/kitchen/recipe-form";
+import { blankStep } from "@web-console-next/components/kitchen/step-editor";
 import { recipe } from "./kitchen-recipe-fixtures";
 
 // cookpool-recipes RC-5 (design §3.1, §3.5): writing and editing a recipe —
@@ -59,6 +60,9 @@ function formWith(lines: [string, string, string, boolean?][], patch: Partial<Re
 
 const sent = (f: RecipeForm) => recipeRequest(f).body;
 
+/** Steps of text only, as the form holds them (GC-6: each a draft). */
+const texts = (...words: string[]) => words.map((w, i) => blankStep(`s${i + 1}`, w));
+
 describe("a new recipe", () => {
   it("starts serving 4, with one blank line and no steps", () => {
     const f = initialRecipeForm(keys());
@@ -83,7 +87,7 @@ describe("a new recipe", () => {
         ["Salt", "", "g", true],
         ["", "", "g"],
       ],
-      { servesHalf: 5, minutes: "45", steps: ["  Brown the onions. ", "", "Add the chicken."] },
+      { servesHalf: 5, minutes: "45", steps: texts("  Brown the onions. ", "", "Add the chicken.") },
     );
     expect(sent(f)).toEqual({
       name: "Chicken curry",
@@ -95,6 +99,7 @@ describe("a new recipe", () => {
         { foodKey: null, name: "Salt", toTaste: true, isMain: false },
       ],
       steps: ["Brown the onions.", "Add the chicken."],
+      tools: [],
     });
   });
 
@@ -199,7 +204,7 @@ describe("what is wrong, before sending", () => {
   });
 
   it("checks minutes and the length of a step", () => {
-    const f = formWith([["Rice", "200", "g"]], { minutes: "two", steps: ["x".repeat(201)] });
+    const f = formWith([["Rice", "200", "g"]], { minutes: "two", steps: texts("x".repeat(201)) });
     const r = recipeRequest(f);
     expect(r.errors.minutes).toBe("Minutes, 1 to 1440");
     expect(r.errors.step[0]).toBe("Keep it to 200 characters");
@@ -211,7 +216,7 @@ describe("the server's 422, on the form", () => {
     ["Chicken", "1", "kg"],
     ["", "", "g"],
     ["Onions", "3", "onion"],
-  ], { steps: ["", "Simmer."] });
+  ], { steps: texts("", "Simmer.") });
   const request = recipeRequest(f);
 
   it("lands each field error on the line or step it names, blanks left out counted", () => {

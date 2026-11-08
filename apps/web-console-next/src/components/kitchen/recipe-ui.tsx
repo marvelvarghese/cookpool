@@ -18,6 +18,8 @@ import { canShareRecipe } from "./recipe-share";
 import { ShareSheet } from "./recipe-share-ui";
 import { ShareIconButton } from "./recipe-share-views";
 import { FoodAsks } from "./food-ask-ui";
+import { hasTimedSteps, recipePlanHref, stepRows } from "./guided-steps";
+import { LongPrepCard } from "./long-prep-ui";
 import {
   HowMuchCard,
   IngredientsSection,
@@ -52,6 +54,11 @@ import {
  * RC-8: the owner's Share icon, beside Edit, opens "Who can see it" (Only
  * me · My groups · Anyone with the link); and under the ingredients, "Is
  * Kanda onion onion?" for an unlinked item that may be a missing line's.
+ *
+ * cookpool-guided GC-6: long prep first, in an amber card under the title
+ * (Soak now · ping me, Already done); each step with its flame, its range at
+ * this size (`stepTimeAt`), what to watch for, Hands off and what cooks
+ * learned (GC-7); and The plan beside Steps, at this size.
  */
 export function RecipeScreen() {
   const recipeId = parseRecipeRef(usePathParam("/recipes/:recipeId", "recipeId"));
@@ -125,13 +132,21 @@ function RecipeView({ recipe, code, initialFactor }: { recipe: KitchenRecipe; co
 
       <RecipeHeader recipe={recipe} meId={meId} />
 
+      <LongPrepCard recipe={recipe} code={code} />
+
       <HowMuchCard recipe={recipe} factorMilli={factor} match={match.data} onFactor={setFactor} />
 
       <IngredientsSection rows={rows} match={match.data} failed={!!match.error && !match.data} onRetry={match.reload} />
 
       <FoodAsks recipe={recipe} match={match.data} />
 
-      {recipe.steps.length > 0 ? <StepsSection steps={recipe.steps} /> : null}
+      {recipe.steps.length > 0 ? (
+        <StepsSection
+          steps={recipe.steps}
+          rows={stepRows(recipe, factor)}
+          planHref={hasTimedSteps(recipe) ? recipePlanHref(recipe.id, factor, code) : null}
+        />
+      ) : null}
 
       <StartCookingBar href={sessionHref(recipe.id, factor)} line={startLine(recipe, factor)} />
 
