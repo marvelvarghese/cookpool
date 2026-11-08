@@ -250,7 +250,9 @@ export function NewPerson() {
 const TONE: Record<MoneyLine["tone"], string> = { owed: "text-cp-owed", owe: "text-cp-owe", settled: "text-foreground" };
 
 function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string | null }) {
-  const names = useMemberNames();
+  // Their own name from their read, so their face has its initials before the cross-group read answers.
+  const own = React.useMemo(() => [{ subjectId: view.subjectId, displayName: view.displayName }], [view.subjectId, view.displayName]);
+  const names = useMemberNames(own);
   const groups = useGroups();
   const dishes = useMyDishes(PROFILE_DISH_DAYS);
   const [now] = React.useState(() => new Date());
@@ -272,13 +274,10 @@ function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string 
 
   return (
     <div className="space-y-4">
-      <header className="flex min-h-11 items-center">
-        <BackButton />
-      </header>
-
       <div className="grid gap-4 min-[900px]:grid-cols-[minmax(0,340px)_minmax(0,1fr)] min-[900px]:items-start min-[900px]:gap-6">
         <div className="space-y-3 min-[900px]:sticky min-[900px]:top-6">
-          <section aria-labelledby="person-name" className="flex items-center gap-3.5">
+          <header aria-labelledby="person-name" className="flex items-center gap-2.5">
+            <BackButton />
             <Face subjectId={view.subjectId} meId={myId} names={names} className="h-16 w-16 text-xl" />
             <div className="min-w-0 flex-1">
               <h1 id="person-name" className="truncate text-2xl font-extrabold tracking-[-0.02em] min-[900px]:text-[26px]">
@@ -286,7 +285,7 @@ function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string 
               </h1>
               {sharedGroupsLine(view.groups) ? <p className="truncate text-sm text-muted-foreground">{sharedGroupsLine(view.groups)}</p> : null}
             </div>
-          </section>
+          </header>
 
           <section aria-label="Between you two" className={cn("grid gap-3 rounded-[22px] border bg-card px-[18px] py-3", balance.length > 1 && "grid-cols-2")}>
             {balance.map((l) => (
