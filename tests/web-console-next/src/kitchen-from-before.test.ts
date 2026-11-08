@@ -370,6 +370,8 @@ describe("picking a name bought before (historyFill)", () => {
       pantry: FLAT.orgId,
       paidBy: MEERA,
       waste: "group",
+      // A note is never filled from last time (RC-3): what was typed stays.
+      note: "",
     });
     expect(fill.pantryFellBack).toBe(false);
     expect(fill.moreUnits).toBe(false);
@@ -380,6 +382,13 @@ describe("picking a name bought before (historyFill)", () => {
       orgId: FLAT.orgId,
       body: { name: "Milk", category: "dairy", quantity: "1", unit: "L", priceMinor: 6800, boughtOn: TODAY, expiresOn: "2026-11-09", paidBy: MEERA },
     });
+  });
+
+  it("keeps a note typed before the pick, and sends it (RC-3)", () => {
+    const fill = historyFill(entry(), { ...blank(), note: "For Sunday's curry" }, fillCtx());
+    expect(fill.form.note).toBe("For Sunday's curry");
+    const preview = previewItemForm(fill.form, { today: TODAY, currency: "INR", meId: ME });
+    expect(preview.request?.body).toMatchObject({ name: "Milk", note: "For Sunday's curry" });
   });
 
   it("last time's own waste rule, your own pantry, no use-by", () => {
