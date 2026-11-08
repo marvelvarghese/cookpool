@@ -22,12 +22,14 @@
     // Where the app is: the links in Cookpool's emails (CP-18) start here.
     "APP_URL": "http://localhost:3000"
   },
-  // The daily use-soon sweep (CP-18): scheduled() at 02:30 UTC, 08:00 IST.
-  // Declared once, at the top level, so every environment inherits it — the
-  // rendered stage and prod configs carry it (tests/config-worker asserts so).
+  // Two jobs, picked by scheduled() from controller.cron: the daily use-soon
+  // sweep (CP-18) at 02:30 UTC, 08:00 IST, and the timer sweep (GC-3) every
+  // minute — a timer reaches a locked phone within a minute of its end.
+  // Declared once, at the top level, so every environment inherits both — the
+  // rendered stage and prod configs carry them (tests/config-worker asserts so).
   // A scheduled() without a trigger never runs, and fails silently (risks CP-N).
   "triggers": {
-    "crons": ["30 2 * * *"]
+    "crons": ["30 2 * * *", "* * * * *"]
   },
   "env": {
     "dev": {

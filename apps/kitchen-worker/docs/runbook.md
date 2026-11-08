@@ -21,6 +21,14 @@ exercised through `api-edge` (this Worker has no public URL).
 
 ## Common failures
 
+- **Timers never reach a phone**: look for the per-minute
+  `[scheduled] timer sweep:` line in the Worker's logs. None at all means the
+  `* * * * *` trigger is missing from the deployed config. `failed=` above 0
+  means notifications-worker refused or could not be reached (the line before
+  names the reason per timer, `[kitchen-worker] push-to-subject tmr_…`);
+  `unheard=` means the person has no subscribed device, or push is off in that
+  environment (notifications-worker's VAPID keys). Either way the timer is not
+  retried.
 - **Missing `WIRING_*` secret at deploy**: the infrastructure terraform
   upstream has not applied — check that lane first; within one
   convergence run the DAG guarantees order.
