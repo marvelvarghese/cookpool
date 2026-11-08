@@ -37,6 +37,7 @@ export type FoodsRepository = Pick<
   | "searchFoods"
   | "getFoods"
   | "matchFood"
+  | "matchFoods"
   | "setFoodAnswer"
   | "getAlwaysHave"
   | "setAlwaysHave"
@@ -153,6 +154,22 @@ export function createFoodsRepository(executor: SqlExecutor): FoodsRepository {
         );
         const row = result.rows[0];
         return { ok: true, value: row ? mapFood(row) : null };
+      } catch (err) {
+        return internal(err);
+      }
+    },
+
+    async matchFoods(names) {
+      const unique = [...new Set(names.filter((n) => n.trim() !== ""))];
+      if (unique.length === 0) return { ok: true, value: new Map() };
+      try {
+        const result = await executor.execute(
+          `SELECT j.value AS asked, ${FOOD_COLUMNS}
+           FROM json_each($1) j
+           JOIN kitchen_foods f ON f.key = ${nameMatchSql("lower(trim(j.value))")}`,
+          [JSON.stringify(unique)],
+        );
+        return { ok: true, value: new Map(result.rows.map((row) => [row.asked as string, mapFood(row)])) };
       } catch (err) {
         return internal(err);
       }

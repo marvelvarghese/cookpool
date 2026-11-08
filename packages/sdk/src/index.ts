@@ -840,6 +840,11 @@ export type {
   AiUseFlag,
   AiItemRef,
   KitchenAiErrorReason,
+  // Receipts (AI-3).
+  AiReceiptRequest,
+  AiReceiptResponse,
+  AiReceiptLine,
+  AiReceiptImageType,
 } from "@saas/contracts/kitchen";
 export {
   AI_DAILY_ACTIONS,
@@ -848,4 +853,8 @@ export {
   AI_FEATURE_KEYS,
   AI_USE_FLAGS,
   KITCHEN_AI_ERROR_REASONS,
+  AI_RECEIPT_MAX_BYTES,
+  AI_RECEIPT_IMAGE_TYPES,
+  AI_RECEIPT_MAX_LINES,
+  AI_RECEIPT_NOT_FOOD,
 } from "@saas/contracts/kitchen";

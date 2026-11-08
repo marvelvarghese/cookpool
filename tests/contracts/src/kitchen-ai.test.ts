@@ -20,6 +20,12 @@ import {
   type AiUseProposal,
   type AiUsesRequest,
   type AiUsesResponse,
+  AI_RECEIPT_IMAGE_TYPES,
+  AI_RECEIPT_MAX_BYTES,
+  AI_RECEIPT_MAX_LINES,
+  AI_RECEIPT_NOT_FOOD,
+  type AiReceiptRequest,
+  type AiReceiptResponse,
 } from "@saas/contracts";
 import * as ai from "@saas/contracts/kitchen-ai";
 
@@ -90,5 +96,42 @@ describe("contracts: Cookpool AI (AI-2)", () => {
     };
     const response: AiUsesResponse = { lines: [line, rest], unsure: ["Ravi"] };
     expect(response.lines).toHaveLength(2);
+  });
+});
+
+describe("contracts: receipts (AI-3)", () => {
+  it("takes a JPEG or WebP of at most 1.5 MB, and up to 60 lines", () => {
+    expect(AI_RECEIPT_MAX_BYTES).toBe(1.5 * 1024 * 1024);
+    expect(AI_RECEIPT_IMAGE_TYPES).toEqual(["image/jpeg", "image/webp"]);
+    expect(AI_RECEIPT_MAX_LINES).toBe(60);
+    expect(AI_RECEIPT_NOT_FOOD).toBe("not_food");
+    expect(ai.AI_RECEIPT_MAX_BYTES).toBe(AI_RECEIPT_MAX_BYTES);
+  });
+
+  it("shapes the request and the response (design §3, plus currency, sumMinor and totalMatches)", () => {
+    const request: AiReceiptRequest = { image: "/9j/4AAQ" };
+    const response: AiReceiptResponse = {
+      store: "DMart",
+      total: 23600,
+      currency: "INR",
+      sumMinor: 9000,
+      totalMatches: true,
+      lines: [
+        {
+          text: "MLK PNR 200G",
+          name: "Paneer",
+          foodId: "paneer",
+          quantity: 200,
+          unit: "g",
+          priceMinor: 9000,
+          pantry: { kind: "personal", name: "Mine" },
+          fromItemId: "itm_1",
+          confidence: "sure",
+        },
+        { text: "SURF EXCEL 1KG", priceMinor: 14600, confidence: "check", reason: AI_RECEIPT_NOT_FOOD },
+      ],
+    };
+    expect(request.image).toBeTruthy();
+    expect(response.lines.map((l) => l.confidence)).toEqual(["sure", "check"]);
   });
 });

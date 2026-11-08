@@ -89,7 +89,7 @@ import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 // Timers that find you (GC-3).
 import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
 // Cookpool AI (AI-2).
-import type { AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
+import type { AiReceiptResponse, AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
 // Restocking and shopping runs (PN-3).
 import type { PurchaseLine, PurchaseResponse, RestockResponse, UndoPurchaseResponse } from "@saas/contracts/kitchen";
 // Ask before use (PN-8).
@@ -1158,6 +1158,17 @@ export class KitchenClient {
    */
   aiUses(text: string, opts: RequestOptions = {}): Promise<AiUsesResponse> {
     return this.transport.request<AiUsesResponse>({ method: "POST", path: this.mePath("ai/uses"), body: { text } }, opts);
+  }
+
+  /**
+   * POST /v1/kitchen/me/ai/receipt — read one receipt photo (`image`: base64
+   * JPEG or WebP, ≤ AI_RECEIPT_MAX_BYTES decoded) into lines matched to the
+   * caller's history and the food list, each `sure` or `check`, and the total
+   * checked against them. Nothing is stored; add the confirmed lines with
+   * `buy`. A bad photo is a `ValidationError` on field `image`.
+   */
+  aiReceipt(image: string, opts: RequestOptions = {}): Promise<AiReceiptResponse> {
+    return this.transport.request<AiReceiptResponse>({ method: "POST", path: this.mePath("ai/receipt"), body: { image } }, opts);
   }
 
   // -------------------------------------------------------------------------

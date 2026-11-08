@@ -7,10 +7,12 @@ import { createSqlExecutor } from "@saas/db/d1";
 import {
   createAiUsageRepository,
   createKitchenRepository,
+  createPurchasesRepository,
   type AiUsageRepository,
   type KitchenAiUsageFeature,
   type KitchenAiUsageTotals,
   type KitchenRepository,
+  type PurchasesRepository,
 } from "@saas/db/kitchen";
 import type { RequestContext } from "../context.js";
 import { errorResponse, unavailable } from "../http.js";
@@ -105,6 +107,8 @@ export async function recordAiAction(
 export interface AiRepos {
   usage: AiUsageRepository;
   kitchen: KitchenRepository;
+  /** The restock read (AI-3's receipt matching). */
+  purchases: PurchasesRepository;
 }
 
 /** Run `fn` with the usage and kitchen repositories over one executor. A missing binding or a throw is a 503. */
@@ -112,7 +116,11 @@ export async function withAiRepos(ctx: RequestContext, fn: (repos: AiRepos) => P
   if (!ctx.env.PLATFORM_DB) return unavailable(ctx.requestId);
   const executor = createSqlExecutor(ctx.env.PLATFORM_DB);
   try {
-    return await fn({ usage: createAiUsageRepository(executor), kitchen: createKitchenRepository(executor) });
+    return await fn({
+      usage: createAiUsageRepository(executor),
+      kitchen: createKitchenRepository(executor),
+      purchases: createPurchasesRepository(executor),
+    });
   } catch {
     return unavailable(ctx.requestId);
   } finally {
