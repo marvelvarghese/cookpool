@@ -116,16 +116,19 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  large = false,
   className,
 }: {
   label: string;
   options: readonly { id: T; label: string }[];
   value: T;
   onChange: (id: T) => void;
+  /** Full width, in 15 px (a page's list switch, as Money's People | Groups). */
+  large?: boolean;
   className?: string;
 }) {
   return (
-    <div role="group" aria-label={label} className={cn("flex rounded-xl bg-[#ECEEE9] p-[3px]", className)}>
+    <div role="group" aria-label={label} className={cn("flex rounded-xl bg-[#ECEEE9] p-[3px]", large && "w-full rounded-[14px]", className)}>
       {options.map((o) => (
         <button
           key={o.id}
@@ -134,6 +137,7 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.id)}
           className={cn(
             "min-h-11 flex-1 whitespace-nowrap rounded-[9px] px-2.5 text-[13px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            large && "rounded-[11px] text-[15px]",
             value === o.id ? "bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]" : "text-muted-foreground hover:text-foreground",
           )}
         >
