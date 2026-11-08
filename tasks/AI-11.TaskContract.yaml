@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-11
+  title: "Swaps and ideas in Cook now"
+spec:
+  goal: "In the new frame, Cook now shows swaps on recipes missing one or two lines and a quick idea from use-soon items that opens as a draft."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-11.TaskContract.yaml
+  doneWhen:
+    - "Cook now shows a swap under recipes missing one or two lines and Cook with the swap"
+    - "a use-soon idea card opens its draft in the recipe form; with newFrame false or AI unavailable nothing changes"
+  gates: []

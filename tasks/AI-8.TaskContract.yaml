@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-8
+  title: "Receipt scanning in the shopping run"
+spec:
+  goal: "In the new frame, Scan a receipt on the shopping run: camera or photo, resize, then the run prefilled with sure lines ticked and check lines waiting."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-8.TaskContract.yaml
+  doneWhen:
+    - "the shopping run offers Scan a receipt; the photo is resized to 1200 px before sending"
+    - "the run opens prefilled: sure lines ticked, check lines unticked under CHECK THESE, the total compared; Add works as today"
+    - "with newFrame false or AI unavailable nothing changes"
+  gates: []
