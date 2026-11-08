@@ -97,6 +97,8 @@ import {
 
 // Profiles and following (CM-2).
 import { COMMUNITY_ROUTES } from "./community-routes.js";
+// Cookpool AI (AI-2).
+import { AI_ROUTES } from "./ai-routes.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -297,6 +299,8 @@ const ORG_ROUTES: readonly OrgRoute[] = [
 const ME_ROUTES: readonly MeRoute[] = [
   // Profiles and following (CM-2): ahead of the rest (see community-routes.ts).
   ...COMMUNITY_ROUTES,
+  // Cookpool AI (AI-2): the status read and say what you used (see ai-routes.ts).
+  ...AI_ROUTES,
   {
     name: "kitchen.me.pantries",
     pattern: /^\/v1\/kitchen\/me\/pantries$/,
@@ -568,6 +572,7 @@ function requestContext(env: Env, requestId: string, actor: RequestContext["acto
     groups: createGroups(env.MEMBERSHIP_WORKER, requestId),
     people: createPeople(env.IDENTITY_WORKER, requestId),
     defer: deferrer(deps),
+    ...(deps.aiProvider ? { aiProvider: deps.aiProvider } : {}),
   };
 }
 

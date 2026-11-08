@@ -829,3 +829,23 @@ export {
   SPLIT_REMINDERS_MAX,
   SPLIT_SUGGEST_REASONS,
 } from "@saas/contracts/kitchen";
+
+// Cookpool AI (AI-2): the status read, say what you used, the limits and the AI refusal reasons.
+export type {
+  AiStatus,
+  AiFeatureKey,
+  AiUsesRequest,
+  AiUsesResponse,
+  AiUseProposal,
+  AiUseFlag,
+  AiItemRef,
+  KitchenAiErrorReason,
+} from "@saas/contracts/kitchen";
+export {
+  AI_DAILY_ACTIONS,
+  AI_DAILY_VOICE_SECONDS,
+  AI_USES_TEXT_MAX,
+  AI_FEATURE_KEYS,
+  AI_USE_FLAGS,
+  KITCHEN_AI_ERROR_REASONS,
+} from "@saas/contracts/kitchen";

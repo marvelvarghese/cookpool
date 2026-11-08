@@ -417,5 +417,14 @@ export const manifest: MigrationManifest = {
       description:
         "Cooked, then split later: kitchen_dishes.split_at (when a dish cooked as its cook's own was split with a group — set once with org_id, and only on a dish that has one, by CHECK) and kitchen_dishes.split_dismissed_at (when its cook dismissed Home's reminder to split it; NULL while it would remind). Both nullable, no default (Cookpool CM-8)",
     },
+    {
+      id: "470_kitchen_ai",
+      context: "kitchen",
+      path: "470_kitchen_ai/up.sql",
+      checksum:
+        "4b2162bfc73edb7aa314f63bd167aa30496a699d18c3da0d64a370e602efec35",
+      description:
+        "AI usage: kitchen_ai_usage (id, user_id usr_…, feature uses/receipt/recipe_import/transcribe/ask_step/swaps/idea, model — the last model called, input_tokens uncached, cached_tokens read from the prompt cache, output_tokens, audio_seconds, ok 0 or 1, created_at), one row per AI action with a Sonnet retry's tokens summed into its action's row, indexed by user and time for the daily limits of 50 actions and 30 voice minutes per person per UTC day. Counts only: no group, item, price or text (Cookpool AI-2)",
+    },
   ],
 };

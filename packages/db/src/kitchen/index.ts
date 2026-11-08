@@ -236,3 +236,13 @@ export { activityStatement } from "./activity-write.js";
 // Cooked, then split later, and Home's split reminder (CM-8): part of KitchenRepository.
 export type { SplitDishLaterInput, UnsplitDishesQuery, SplitLaterRepository } from "./split-later.js";
 export { createSplitLaterRepository } from "./split-later.js";
+
+// Cookpool AI (AI-2): what each person's AI actions used, for the daily limits.
+export type {
+  KitchenAiUsageFeature,
+  NewKitchenAiUsage,
+  KitchenAiUsageRecord,
+  KitchenAiUsageTotals,
+  AiUsageRepository,
+} from "./ai.js";
+export { KITCHEN_AI_USAGE_FEATURES, KITCHEN_AI_VOICE_FEATURE, createAiUsageRepository } from "./ai.js";

@@ -101,6 +101,9 @@ describe("kitchen route matching", () => {
     "/v1/kitchen/me/dishes/dsh_1/split",
     "/v1/kitchen/me/dishes/dsh_1/split-reminder/dismiss",
     "/v1/kitchen/me/dishes/dsh_1/split-reminder/restore",
+    // Cookpool AI (AI-2): the status read and sentence parsing, with no edge change.
+    "/v1/kitchen/me/ai",
+    "/v1/kitchen/me/ai/uses",
   ])("%s is a kitchen route, and no other facade's", (path) => {
     expect(isKitchenRoute(path)).toBe(true);
     expect(isOrgRoute(path)).toBe(false);

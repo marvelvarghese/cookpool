@@ -17,6 +17,10 @@
   // service-binding fetches); the cron sweep runs where Cloudflare
   // schedules it, as before.
   "placement": { "mode": "smart" },
+  // Cookpool AI (AI-2): ANTHROPIC_API_KEY is a runtime secret, pushed at
+  // deploy from orun secrets (component.yaml: optionalSecretEnv and
+  // runtimeSecrets), one per environment — never a var here. Without it every
+  // AI route answers 503 ai_unavailable (tests/config-worker asserts so).
   "vars": {
     "ENVIRONMENT": "local",
     // Where the app is: the links in Cookpool's emails (CP-18) start here.

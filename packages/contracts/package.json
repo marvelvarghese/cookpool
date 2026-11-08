@@ -27,7 +27,8 @@
     "./kitchen": "./src/kitchen.ts",
     "./kitchen-usuals": "./src/kitchen-usuals.ts",
     "./kitchen-recipes": "./src/kitchen-recipes.ts",
-    "./kitchen-timers": "./src/kitchen-timers.ts"
+    "./kitchen-timers": "./src/kitchen-timers.ts",
+    "./kitchen-ai": "./src/kitchen-ai.ts"
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
