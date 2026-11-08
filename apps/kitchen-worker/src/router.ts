@@ -78,6 +78,8 @@ import {
 } from "./handlers/recipes.js";
 // Timers that find you (GC-3).
 import { handleCancelTimer, handleCreateTimer, handleListTimers } from "./handlers/timers.js";
+// The stock check (PN-4).
+import { handleCheckGroupItem, handleCheckMyItem } from "./handlers/stock-check.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -188,6 +190,12 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     name: "kitchen.item.moves",
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)\/moves$/,
     methods: { GET: handleGroupItemMoves },
+  },
+  // The stock check (PN-4): set what is really left, and say where the rest went.
+  {
+    name: "kitchen.item.check",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)\/check$/,
+    methods: { POST: handleCheckGroupItem },
   },
   // Your measures (SM-13).
   {
@@ -307,6 +315,12 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.item.moves",
     pattern: /^\/v1\/kitchen\/me\/items\/([^/]+)\/moves$/,
     methods: { GET: handleMyItemMoves },
+  },
+  // The stock check (PN-4), for the caller's own item.
+  {
+    name: "kitchen.me.item.check",
+    pattern: /^\/v1\/kitchen\/me\/items\/([^/]+)\/check$/,
+    methods: { POST: handleCheckMyItem },
   },
   // Your measures (SM-13).
   {
