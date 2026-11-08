@@ -36,9 +36,8 @@ import {
 import { PersonSkeleton, RecordPayment, WhyGroup, safeDecode } from "./person-ui";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import { useMyRecipes, usePrefetchRecipe } from "./recipes-data";
-import { profileHref, profileListFrom, profileRecipeRows, recipeStats, type ProfileList, type ProfileRecipeRow } from "./cook-hub";
-import { Segmented } from "./cook-hub-ui";
-import { NEW_RECIPE_HREF } from "./recipes";
+import { profileHref, profileListFrom, profileRecipeRows, recipeStats, type ProfileList } from "./cook-hub";
+import { Segmented, YourRecipes } from "./cook-hub-views";
 
 /**
  * Your page and a person's in the new frame (cookpool-recipes RC-2, design
@@ -205,67 +204,6 @@ function ProfileListSwitch({ list }: { list: ProfileList }) {
         { id: "cooks", label: "Cooks" },
       ]}
     />
-  );
-}
-
-/** Your recipes and copies, last cooked first, each with who can see it: each opens its page. */
-export function YourRecipes({
-  rows,
-  loading,
-  failed,
-  onReload,
-  prefetch,
-}: {
-  rows: readonly ProfileRecipeRow[];
-  loading: boolean;
-  failed: boolean;
-  onReload?: (() => void) | undefined;
-  /** Warm a recipe's page on press. */
-  prefetch?: ((recipeId: string) => void) | undefined;
-}) {
-  return (
-    <section aria-label="Your recipes" className="min-w-0">
-      {loading ? (
-        <div className="space-y-px overflow-hidden rounded-[22px] border bg-card" aria-hidden>
-          <Skeleton className="h-16 w-full rounded-none" />
-          <Skeleton className="h-16 w-full rounded-none" />
-        </div>
-      ) : failed ? (
-        <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load your recipes.</p>
-          {onReload ? (
-            <Button variant="outline" className={K_BUTTON} onClick={onReload}>
-              Try again
-            </Button>
-          ) : null}
-        </KCard>
-      ) : rows.length === 0 ? (
-        <div className="flex min-h-14 items-center justify-between gap-3 rounded-[22px] border bg-card px-4 py-2">
-          <p className="text-sm text-muted-foreground">No recipes yet</p>
-          <Link href={NEW_RECIPE_HREF} className="flex min-h-11 items-center rounded-lg px-1 text-sm font-extrabold text-primary hover:underline">
-            New recipe
-          </Link>
-        </div>
-      ) : (
-        <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <Link
-                {...pressIn(() => prefetch?.(row.id))}
-                href={row.href}
-                className="flex min-h-16 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-base font-extrabold">{row.name}</span>
-                  <span className="block truncate text-[13px] font-semibold text-muted-foreground">{row.meta}</span>
-                </span>
-                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 

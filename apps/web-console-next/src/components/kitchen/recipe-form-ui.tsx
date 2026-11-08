@@ -43,7 +43,7 @@ import {
   type RecipeFormErrors,
 } from "./recipe-form";
 import { useDeleteRecipe, useFoods, useRecipe, useSaveRecipe } from "./recipes-data";
-import { RecipeNotFound } from "./recipe-ui";
+import { RecipeNotFound } from "./recipe-views";
 
 /**
  * Writing a recipe and editing yours (cookpool-recipes RC-5, design §3.1,

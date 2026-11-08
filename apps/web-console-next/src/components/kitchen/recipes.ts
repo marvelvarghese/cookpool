@@ -369,10 +369,22 @@ function pantriesText(items: readonly Pick<RecipeMatchItem, "pantry">[]): string
   return names.length === 1 ? names[0]! : `${names[0]} +${names.length - 1}`;
 }
 
+/**
+ * What your pantries hold for a line, in its dimension's own words: grams
+ * (kg from 1000) for a weight, millilitres (L) for a volume — a spoon line's
+ * stock reads "400 ml", not "26.7 tbsp" — and the line's pieces for a count.
+ */
+export function availableText(milli: number, unit: string): string {
+  const dimension = recipeUnitOf(unit).dimension;
+  if (dimension === "mass") return amountText(milli, "g");
+  if (dimension === "volume") return amountText(milli, "ml");
+  return amountText(milli, unit);
+}
+
 /** What a line's status says: "✓ Flat 4B · 600 g", "Short · you have 450 g", "Missing", "Always have". */
 export function lineStatusText(line: Pick<KitchenRecipeLine, "unit">, match: Pick<RecipeLineMatch, "status" | "availableMilli" | "items">): string {
   const unit = line.unit;
-  const have = unit ? amountText(match.availableMilli, unit) : null;
+  const have = unit ? availableText(match.availableMilli, unit) : null;
   switch (match.status) {
     case "have": {
       const where = pantriesText(match.items);
