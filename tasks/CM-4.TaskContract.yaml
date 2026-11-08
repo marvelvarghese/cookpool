@@ -1,0 +1,30 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CM-4
+  title: "Photos"
+spec:
+  goal: "An R2 bucket per environment bound to kitchen-worker, upload, serve with visibility and sweep, photo_key on posts and avatar_key on profiles, and the photo in Share this cook, the post and the profile."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - infra/terraform/**
+    - specs/epics/cookpool-community/**
+    - tasks/CM-4.TaskContract.yaml
+  doneWhen:
+    - "an R2 bucket per environment is managed in terraform and bound to kitchen-worker as PHOTOS"
+    - "POST /me/photos stores a resized image and returns a key; reads follow the visibility of what the photo is attached to"
+    - "unattached photos older than 24 hours are swept"
+    - "Share this cook can add a photo, and the post card and profile show it; with newFrame false nothing changes"
+  gates: []

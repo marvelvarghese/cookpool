@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CM-6
+  title: "The feed, sharing, posts and activity in the app"
+spec:
+  goal: "In the new frame: Share this cook after Who ate and on the dish page, /community with Following and Discover, post cards and /p/[postId] with Yum and comments, report, mute and block menus, Activity with requests, and the notification list."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-community/**
+    - tasks/CM-6.TaskContract.yaml
+  doneWhen:
+    - "after Who ate, Share this cook offers caption, stats, audience, Post and Not now; the dish page can share later"
+    - "/community shows Following and Discover with post cards: author, stats, caption, Yum, comments and Cook this"
+    - "/p/[postId] shows the post, Yum with names, comments with send, removal and report"
+    - "Activity shows requests to accept or decline and grouped items that open their post or profile; the bell shows the unread count"
+    - "the five social kinds appear in notification settings; with newFrame false nothing changes"
+  gates: []

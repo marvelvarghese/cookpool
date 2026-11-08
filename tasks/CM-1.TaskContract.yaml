@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CM-1
+  title: "The cookpool-community spec"
+spec:
+  goal: "Land the cookpool-community doc set and the contracts for CM-2 to CM-7, from the canvas row Community."
+  affects:
+    - specs/epics/cookpool-community/**
+    - tasks/CM-1.TaskContract.yaml
+    - tasks/CM-2.TaskContract.yaml
+    - tasks/CM-3.TaskContract.yaml
+    - tasks/CM-4.TaskContract.yaml
+    - tasks/CM-5.TaskContract.yaml
+    - tasks/CM-6.TaskContract.yaml
+    - tasks/CM-7.TaskContract.yaml
+  doneWhen:
+    - "the doc set is merged under specs/epics/cookpool-community"
+    - "each of CM-2 to CM-7 has a contract in tasks/"
+  gates: []
