@@ -2,14 +2,14 @@
 
 Each task is one pull request on `orun/RC-k-<slug>`, carrying its contract in `tasks/RC-k.TaskContract.yaml`. Everything new in the console is behind `newFrame()` (design §1.1): on in dev and stage, off in prod until RC5.
 
-## RC0 — the spec
+## RC0 — the spec ✅
 
 - **RC-1:** this doc set, the canvas row, and the contracts for RC-2 to RC-8.
 
 **Done when**
 - merged; the epic, its milestones and RC-1 read in Orunbase
 
-## RC1 — the new frame (stage)
+## RC1 — the new frame (stage) ✅
 
 - **RC-2:** the frame (design §1). It covers:
   - `features.ts`;
@@ -30,7 +30,7 @@ Each task is one pull request on `orun/RC-k-<slug>`, carrying its contract in `t
 - on prod nothing has changed
 - a note set on Bought shows on its pantry row, to the pantry's people only
 
-## RC2 — recipes
+## RC2 — recipes ✅
 
 - **RC-4:** recipes in the server (design §2, §3, §5.1, §5.2, §5.4, §6, §7). It covers:
   - migrations 340 and 350, and the ~60 seed foods;
@@ -53,7 +53,7 @@ Each task is one pull request on `orun/RC-k-<slug>`, carrying its contract in `t
 - "Use all 450 g you have" works
 - a finished dish saves as a recipe
 
-## RC3 — cooking sessions
+## RC3 — cooking sessions ✅
 
 - **RC-6:** the session (design §4). It covers:
   - `/cook/session` and the draft store;
@@ -69,7 +69,7 @@ Each task is one pull request on `orun/RC-k-<slug>`, carrying its contract in `t
 - the bar survives a tab switch, a reload and closing the app
 - Finish offline says so and keeps the session
 
-## RC4 — recipes travel
+## RC4 — recipes travel ✅
 
 - **RC-7:** Cookpool's content (design §2, §5.5): the full food list (~300 with names) and ~40 recipes in migration 360. It is checked by a test that every line links to a food, every recipe has one main line, and every amount scales.
 - **RC-8:** sharing and explore in the console (design §5). It covers:

@@ -18,6 +18,7 @@ import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data"
 import { useLogUse, usePantries, usePantryItems, useUsuals } from "@/components/kitchen/pantry-data";
 import { ItemTable, PantryListRowView } from "@/components/kitchen/pantry-ui";
 import { ItemActionsSheet, type ItemMenuTarget } from "@/components/kitchen/item-actions-ui";
+import { AlwaysHaveCard } from "@/components/kitchen/always-have-ui";
 import { swipeUseLabel } from "@/components/kitchen/item-actions";
 import type { SwipeAction } from "@/components/kitchen/row-gestures-ui";
 import { rowUsual, usualFor } from "@/components/kitchen/quick-use";
@@ -51,6 +52,9 @@ const TABLE_ROWS = 12;
  * and a search, then one table (its worth and price per row); the picker and
  * "16 items · worth …" with its sentence are gone. `?pantry=` and `?filter=`
  * keep the choice in the address.
+ *
+ * In the new frame (cookpool-recipes RC-8) Always have closes the page: the
+ * foods that count as there in Cook now, each with ✕, and + Add.
  */
 export default function PantryPage() {
   const pathname = usePathname();
@@ -144,6 +148,9 @@ export default function PantryPage() {
           }}
         />
       )}
+
+      {/* The new frame (cookpool-recipes RC-8): what you always have, at the bottom. */}
+      {newFrame() ? <AlwaysHaveCard /> : null}
     </div>
   );
 }

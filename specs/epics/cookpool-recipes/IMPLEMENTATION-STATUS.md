@@ -4,12 +4,12 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 | Milestone | State | PR |
 |---|---|---|
-| RC0 — the spec | landing | RC-1 |
-| RC1 — the new frame (stage) | | |
-| RC2 — recipes | | |
-| RC3 — cooking sessions | | |
-| RC4 — recipes travel | | |
-| RC5 — prod | | |
+| RC0 — the spec | ✅ shipped 2026-11-08 | #62 (RC-1) |
+| RC1 — the new frame (stage) | ✅ shipped on stage 2026-11-08 | #64 (RC-2), #63 (RC-3) |
+| RC2 — recipes | ✅ shipped on stage 2026-11-08 | #65 (RC-4), #68 (RC-5) |
+| RC3 — cooking sessions | ✅ shipped on stage 2026-11-08 | #66 (RC-6) |
+| RC4 — recipes travel | ✅ shipped on stage 2026-11-08 | #67 (RC-7), #70 (RC-8), RC-9 |
+| RC5 — prod | waits for the owner | |
 
 ## Departures from the design
 
@@ -470,3 +470,124 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | `tests/web-console-next` | 95: `kitchen-recipe-page` 35 (hrefs and the session's address, amounts, every line by `scaleLine` over nine factors, main and portions linked, the chip, Use all on the grid and never past the stock, statuses and the have line, bylines, Save/Saved, the views, Save as recipe in both frames); `kitchen-cook-hub` 30 (`/cook` in both frames, the hub's order, Cook now's filter, counts, rows and Start factors, Home's strip, My recipes' order and cards, You's stats, rows and list, delete and Undo on the cache, the cache keys, prod redirects and Back); `kitchen-recipe-form` 24 (the request, amounts, the single main line under every edit, never to taste, validation, 422 mapping, foods and links, moves, serves, steps, the edit round trip); `static-pages` 1, `sw-routes` 5 | 1532 (80 suites, after merging RC-6) |
 
 `pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, and `orun task check RC-5 --base origin/main` passes: 2 changed components, all inside the contract.
+
+### RC4 — recipes travel (RC-8)
+
+**What shipped.** The console only; no server, contract, SDK or migration change. RC-4's `KitchenClient` already had every call this needed. Everything new shows only where `newFrame()` is true. With it false, every page renders and requests what it did.
+
+- **The share sheet** (`recipe-share.ts`, `recipe-share-views.tsx`, `recipe-share-ui.tsx`). On your own recipe's page (not Cookpool's), a 44 px Share icon sits beside Edit at the top right. It opens a bottom sheet titled "Who can see it":
+  - three radio rows, each with its icon in a 40 px box:
+    - **Only me** (lock): "In your recipes, nowhere else";
+    - **My groups** (people): "On your page for Flat 4B and Lunch club";
+    - **Anyone with the link** (link): "They can see it and save a copy";
+  - the chosen row is tinted `#E4F2EA` with a 1.5 px herb-green border, and its icon box is filled green;
+  - choosing a row is one `PATCH /v1/kitchen/me/recipes/{id}` with `{ visibility }`. It is an SM-5 instant write: the recipe's page and its My recipes row change at once, the toast ("Only you can see it", "Your groups can see it", "Anyone with the link can see it") offers Undo, and a refusal puts the row back and says why. Once it lands, the server's recipe (and its code) is cached, and the recipe and My recipes are read again;
+  - with the link on, a box holds the whole address, `${window.location.origin}/r/<code>`, with a dark **Copy** that writes it to the clipboard and reads "Copied" for 2.5 s. Under it are **New link** (`POST …/link`) and **Turn off** (`DELETE …/link`, back to My groups). While a code is being minted the box reads "Making a link…" and Copy waits;
+  - "Saved by N", then **Done**.
+- **`/r/<code>`** (`recipe-link-ui.tsx` over `recipe-link-views.tsx`). It is one static file for `_` (`ParamShell`, `generateStaticParams`, `usePathParam`), as `dishes/[id]` and `recipes/[id]` are.
+  - A code that can't be one (not 10 base-58 characters) asks nothing and shows the dead link.
+  - Signed out, the kitchen layout's `returnHere` sends you to `/login?next=%2Fr%2F<code>`, and sign-in brings you back.
+  - Signed in, it reads `GET /v1/kitchen/recipe-links/{code}` and the match at × 1 with `?code=`. The page has:
+    - Back, the sharer's face, "Anu shared a recipe" over "From a link";
+    - the name, and "Serves 2 · 20 min";
+    - each line with its amount and a dot: green for have, Always have and to taste; amber for short; red for missing;
+    - "You have 5 of 6 · missing paneer" in amber, or "You have all 6" in green;
+    - Steps, folded.
+  - **Save to my recipes** (`POST …/copies` with `{ linkCode }`) is the main button, held above the tab bar. It reads **Saved · Undo** at once, and that button is the Undo: it deletes the copy once the save has landed. Under it, "You get your own copy. Anu's edits won't change it." becomes "Open your copy · from Anu", linking to your copy.
+  - A 404 (turned off, rotated, deleted) shows "This link no longer works" with Cook.
+- **A person's page** (`/people/[id]` in the new frame, `profile-ui.tsx`):
+  - three numbers: Cooks, Recipes and Saved by. The last two come from `GET /v1/kitchen/people/{usr}/recipes` and read "–" if it fails;
+  - a **Recipes | Cooks** switch under them, kept in the address (`?list=cooks`), Recipes first;
+  - Recipes lists theirs you may see, each row with its name, "Serves 4 · 45 min" and **Save** (your copy, with the Undo toast), which reads **Saved** and opens your copy once you have one;
+  - Cooks is RC-2's list.
+- **Explore** (`/explore`, `explore.ts`, `explore-views.tsx`, `explore-ui.tsx`). An **Explore** button fills RC-5's `extraAction` beside New recipe. The page has:
+  - Back, "Explore", and "By Cookpool · 42 recipes" (the count from Cookpool's whole list) or "Shared in Flat 4B and Lunch club";
+  - a **Cookpool | Your groups** switch, kept in the address (`?source=groups`);
+  - a search field, read 250 ms after the last key (`q`);
+  - **Only what I can make**: a switch on a card, tinted green when on, keeping rows with nothing missing;
+  - kind chips: All · Breakfast · Dal & curry · Rice · Roti · Snacks · Sweet · Drinks (`kind`);
+  - rows, fewest missing first: a 48 px tile, the name, "by Anu · Serves 4 · 30 min", and "✓ You have everything" in green or "Missing yogurt, coriander" in amber;
+  - a 44 px bookmark on each row that saves your copy, filled once you have it (then it opens your copy);
+  - "Nothing here yet" when the list is empty.
+- **Always have** (`always-have.ts`, `always-have-views.tsx`, `always-have-ui.tsx`), at the bottom of Pantry in the new frame:
+  - "Always have", "Count as there in Cook now";
+  - a 44 px chip per food from `GET /v1/kitchen/me/always-have`, each with ✕;
+  - **+ Add**, which opens a food search (`GET /v1/kitchen/foods?q=`) in a bottom sheet, marking the foods already on the list "Added".
+  - Every edit PUTs the whole list (`PUT …/always-have`) with Undo ("Added turmeric", "Removed salt"). Then every match, Cook now and Explore are read again.
+- **The food ask** (`FoodAsks` in `food-ask-ui.tsx`), on the recipe page under the ingredients. For each name among the match's `unlinked` items that fits a missing line, one small card asks "Use Kanda onion for Onions?" with **Yes** and **No**. Both send `PUT /v1/kitchen/me/food-answers`, one per pantry holding that name, each with its `orgId` (none for your own); No sends `foodKey: null`. Then every match, Cook now and Explore are read again. An answered name goes at once and is not asked again.
+- **From your groups** (`new-home-ui.tsx`): a card whose dish has a `recipeId` reads that recipe (`useRecipesInFull`, no retry). Once the read succeeds, a row under the card says "Anu's recipe" (or "Cookpool's recipe", or "Your recipe"), linking to `/recipes/<id>`, with **Save** (a bookmark and the word, "Saved" once you have a copy; none on your own). A recipe you may not see answers 404, and the card stays as RC-2 drew it.
+- **Routes**: `/explore` and `/r/:code` are in `static-pages.mjs` (`/r/:code /r/_ 200`) and `NEW_FRAME_ONLY`, so a prod visitor goes Home. Both are Cook's tab, and Back goes to Cook. Neither pulls to refresh. The session bar stays off `/r/<code>`, whose Save sits where it would.
+- **Offline**: `API_READS` gains `/v1/kitchen/recipes` (Explore, per source, search and kind), `/v1/kitchen/people/:subjectId/recipes` and `/v1/kitchen/me/always-have`.
+- **Cache**: `qk.kitchenExplore(source, q, kind)` and `qk.kitchenAllRecipeMatches()` sit under `kitchenPantry()`, so a stock write refreshes Explore's matches too. `qk.kitchenPersonRecipes(usr)` and `qk.kitchenRecipeLink(code)` sit under `kitchenRecipeBook()`. `qk.kitchenAlwaysHave()` stands alone.
+
+**Departures.**
+
+- **No SDK change.** The contract lists `sdk`, but RC-4's client already sends every route here (`updateRecipe`, `shareRecipeLink`, `stopRecipeLink`, `recipeByLink`, `copyRecipe`, `personRecipes`, `exploreRecipes`, `alwaysHave`, `setAlwaysHave`, `foods`, `setFoodAnswer`).
+- **Undo and the link code.**
+  - **New link** has no Undo: the server ends the old code the moment it rotates, so nothing can bring it back. Its toast says "New link · The old one no longer works". There is no confirm either; you share the new one.
+  - Undo of a level that left the link, Turn off included, sets the link again with a **new** code, for the same reason.
+  - Turn off is `DELETE …/link`; choosing My groups is a PATCH. Both land on My groups.
+- **The link box wraps** the whole address over two lines rather than cutting it short, so the code is always readable.
+- **Saved by N** is a number only. The canvas draws savers' faces, but no read names them.
+- **The link page**:
+  - Short lines get the recipe page's amber dot; the brief said green or red.
+  - "You have 5 of 6" counts Always have and to-taste lines as had, and adds "· short of rice" when something is short.
+  - It shows the steps, folded, and has a Back control (PW-3).
+  - Your own link reads "You shared this recipe" with **Open your recipe**. A copy you saved before reads **Open your copy**, "You saved it before".
+  - **Saved · Undo** is the Undo itself, with no toast. Leaving the page and coming back shows Open your copy.
+  - `/v1/kitchen/recipe-links/{code}` is not in `API_READS`: a link needs signal.
+- **A person's numbers** are new on that page. RC-2 drew none, so Cooks (their cooks in the groups you share, from the dishes read, "400+" past it) sits beside Recipes and Saved by, three across.
+- **Explore**:
+  - Only what I can make keeps rows with nothing **missing**, as Cook now's Can make does. A short row stays, saying "Short of 1" in amber.
+  - "Missing a, b, c +1" when more lines are missing than the server names (three).
+  - Rows sort by missing, then short, then the server's newest-first order.
+  - The 42 is the length of Cookpool's list with nothing chosen (the server returns at most 50).
+  - Switching source puts the kind back to All and keeps the search.
+  - A filled bookmark opens your copy. It never unsaves: deleting a copy is the recipe's own Delete.
+  - "by Anu" names the recipe's owner. It shows in Your groups only, never on Cookpool's own.
+- **The food ask**:
+  - **When it asks.** The match lists unlinked items but not which line they might be, so the console pairs them. An item fits a **missing** line when they share a word: lower-cased, a plural dropped, three letters or more. General words don't count (paste, masala, powder, fresh, green, chopped, …), so "Tomato paste" is never asked about ginger-garlic paste. Each name takes the line it fits best, and the cards are in line order.
+  - **The question** is "Use Kanda onion for Onions?": the item's name, then the recipe line's own name as the recipe page shows it, rather than the brief's "Is <item name> <food name>?". The match carries no food names, and the food's key in words read "Is Kanda onion onion?".
+  - **One card per name**, even when the name is in several pantries. Its answer is one PUT per pantry. A refused answer keeps the card and says why.
+  - **Once.** The server leaves answered names out of `unlinked`. The console also remembers them for the visit, so a card doesn't come back before the match is read again.
+- **Always have**:
+  - + Add closes the sheet on a pick: one edit, one Undo.
+  - PUTs go one after another, so two quick edits land in order. Undo is the other edit (take the food off, or put it back) on the list as it is then, so undoing one edit never undoes another.
+  - The default list (salt and water) becomes your own on the first edit.
+- **Feed links**:
+  - The words name the recipe's owner ("Anu's recipe"), falling back to the cook's name.
+  - Your own recipe reads "Your recipe", without Save.
+  - A card with a recipe is an article: the card's link, then the recipe row under a hairline. A card without one is drawn exactly as before.
+- **Views apart from reads**, as RC-5's are: `recipe-share-views.tsx`, `recipe-link-views.tsx`, `explore-views.tsx`, `always-have-views.tsx` and `cook-hub-views.tsx`'s `SaveCopyChip`, `PersonRecipesView` and `FeedRecipeRowView` hold no reads, so tests render them. A Back control comes in as a prop. The writes that matter run over plain calls (`sendShare`, `saveFromLink`, `undoSave`, `answerFood`), so tests see each request.
+- **Edits outside the new files**:
+  - `recipe-ui.tsx` (Share and the ask);
+  - `cook-hub-ui.tsx` and `cook-hub-views.tsx` (`extraAction` through `CookHubView`);
+  - `profile-ui.tsx`;
+  - `new-home-ui.tsx`;
+  - `pantry/page.tsx`;
+  - `features.ts`, `static-pages.mjs`, `back.ts`, `query-keys.ts`, `routes.mjs`;
+  - `cook-session.ts` (`BAR_HIDDEN_PAGES` gains `/r/…`).
+- **Existing tests touched**, because a new page must choose:
+  - `gestures.test.ts`: `/explore` and `/r/:code` don't pull;
+  - `static-pages.test.ts`: 12 rules, and the `/r` rule;
+  - `sw-routes.test.ts`: the three reads, and RC-8's writes and the link read kept off the cache.
+
+  No assertion about today's frame changed.
+- **Not checked on stage** (nothing deployed). The new parts were looked at locally at 375 px through a temporary fixture page that rendered the views with made-up data and no API. It found no sideways scroll and no target under 44 px, and the page was removed and never committed. `next build` prerenders `/explore` and `/r/_`.
+
+**Tests.**
+
+| Package | New | Total |
+|---|---|---|
+| `tests/web-console-next` | 83: `kitchen-recipe-share` 29 (the three levels and their words, the chosen row, each level's PATCH, the cache at once, Undo's call, the toast, the link's address, Copy and its failure, New link's POST, Turn off's DELETE, Saved by; `/r/<code>`'s code, sharer, serves, dots, "You have 5 of 6", Save by `{ linkCode }`, Saved · Undo's delete, the button's states, the note, the page drawn, the dead link); `kitchen-recipes-travel` 51 (Explore's switch, subtitle, search, kinds, sort, match words, Only what I can make, rows drawn, the bookmark, Explore in the hub; a person's list, rows, numbers, Save and Saved; Always have's add, remove, PUT body, two quick edits and Undo, refreshes, the card, full list, the food search; the food ask's pairing, general words, once per name across pantries, answered names, Yes and No bodies, refusal, the cards; feed recipe ids, 404 left out, whose recipe, the row; prod redirects for `/explore` and `/r/*`, files and the rule, tab and Back, the session bar, signed-out return, offline reads, cache keys); `sw-routes` 3 | 1615 (82 suites) |
+
+`pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, `next build` passes, and `orun task check RC-8 --base origin/main` passes: 2 changed components, all inside the contract.
+
+### The stage close (RC-9)
+
+- **Every build task is merged and deployed:** RC-2 to RC-8.
+  - Migrations 330–360 are applied on stage and prod.
+  - The new frame is on wherever the app isn't prod.
+- **One deploy needed a rerun.** RC-3's migrate job hit D1's 401 (the token blip seen after SM-3); kitchen-worker waited for it and didn't deploy until the rerun applied 330.
+- **RC-7 also needed a PR check rerun.**
+- **The builds ran as local agents.** The Claude cloud sessions asked for were never created, and local sessions in `cookpool` were refused because the folder isn't trusted on this Mac.

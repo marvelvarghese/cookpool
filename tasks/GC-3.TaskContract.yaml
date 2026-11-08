@@ -16,6 +16,10 @@ spec:
     - default/cookpool/kitchen-worker-tests
     - default/cookpool/notifications-worker
     - default/cookpool/notifications-worker-tests
+    # Widened in GC-3's own PR: tests/config-worker pins kitchen-worker's
+    # rendered cron triggers to exactly the daily sweep's, so the per-minute
+    # trigger has to be added there too.
+    - default/cookpool/config-worker-tests
     - specs/epics/cookpool-guided/**
     - tasks/GC-3.TaskContract.yaml
   doneWhen:

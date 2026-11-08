@@ -126,3 +126,13 @@ export type {
 } from "./types.js";
 export { KITCHEN_DEFAULT_ALWAYS_HAVE } from "./foods.js";
 export { MAX_RECIPE_ROOT_HOPS } from "./types.js";
+
+// Timers that find you (GC-3): their own repository, beside the kitchen's.
+export type {
+  KitchenTimerRecord,
+  NewKitchenTimer,
+  CancelKitchenTimerInput,
+  ClaimDueTimersInput,
+  TimersRepository,
+} from "./timers.js";
+export { createTimersRepository } from "./timers.js";

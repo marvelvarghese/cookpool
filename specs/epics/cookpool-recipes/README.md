@@ -8,7 +8,7 @@ It is for the same people: flatmates on phones, cooking for each other and split
 
 | Field | Value |
 |-------|-------|
-| Status | In progress — RC0 landing |
+| Status | ✅ Shipped on stage 2026-11-08 · prod waits for the owner (RC5) |
 | Cluster | **RC** (RC0–RC5) |
 | Owner(s) | `apps/web-console-next`: the five tabs, the recipe screens, the cooking session. `apps/kitchen-worker`, `packages/db`, `packages/contracts`, `packages/sdk`: foods, recipes, sharing, notes, Always have, Cook now. |
 | Builds on | `cookpool-kitchen` (dishes, the ledger), `cookpool-simpler` (SM-3 from before, SM-5 instant writes, SM-6 measures, the seven rules) and `cookpool-app` (PW-4's service worker, PW-7/PW-8 gestures) |
@@ -16,7 +16,7 @@ It is for the same people: flatmates on phones, cooking for each other and split
 | Decisions locked | (1) **Stage first.** The new layout and everything in it turns on wherever the app is not prod (`src/lib/features.ts`, read at runtime from the environment the host names). Prod keeps today's app until the owner says so (RC5). (2) **A recipe never moves money.** A dish, a use, a bill and a payment do, as today. (3) **Saving someone's recipe makes your own copy**, marked "from Anu". Their later edits don't change yours. (4) **No public profiles, followers, likes, comments or search of strangers.** Recipes reach other people through your groups or a link. (5) **One main item per recipe.** It and the portions scale every line. "To taste" lines never scale. (6) **One shared food list** links items to recipe lines, asked once per item name like measures. (7) **The session is a draft on the device.** It survives tab switches and closing the app. Finish needs signal, and nothing is queued (PW decision 5). (8) **Each thing lives in one place.** Money is only in Money, except a debt that needs you, which is a To do. (9) **Photos come later**, not in this epic. |
 | Design | Claude Design canvas, row "Cook with recipes — the new layout" and "Architecture — how it fits together": https://claude.ai/artifact/TwmkN2cAmebQPkL2QEQZVv (`NewHome`, `CookTab`, `Recipe`, `LiveCook`, `Explore`, `ShareRecipe`, `Profile`, `Money`, `ItemNote`, `Architecture`) |
 | Gate | RC1 is the day the app has its new frame on stage. RC3 is the day cooking feels like an app. RC4 is the day recipes travel. RC5 is the owner's call. |
-| Shipped as | |
+| Shipped as | RC0 #62 · RC1 #64 #63 · RC2 #65 #68 · RC3 #66 · RC4 #67 #70 · close RC-9. On stage: the five tabs (Home, Pantry, Cook, Money, You), item notes, recipes with scaling by the main item and what you have, cooking sessions with Last time and the bar on every tab, Cookpool's 42 recipes and 300 foods with densities, sharing by groups or link with copies, Explore, Always have, and Cook now. Prod still shows the old frame. |
 
 ## Read order
 
@@ -35,3 +35,22 @@ It is for the same people: flatmates on phones, cooking for each other and split
 | RC3 — cooking sessions | Start cooking, blank or from a recipe; the session (Last time, ticks, amounts); the bar on every tab; Finish → who ate → the dish | a dish cooked from a recipe on stage posts with the right costs and portions; the bar survives a tab switch and a reload |
 | RC4 — recipes travel | Only me · My groups · link; `/r/<code>` and Save a copy; recipes on a person's page; Explore (Cookpool, your groups); about 40 Cookpool recipes; Cook now | Anu shares a link, Dev saves a copy that reads "from Anu"; Cook now lists what Rahul can make on stage |
 | RC5 — prod | the switch on in prod, the old screens deleted | the owner says go; prod shows the five tabs |
+
+## After this epic
+
+These are what the tasks reported and left for later, or for a small fix:
+
+- **RC5, prod.** When the owner says go: turn `newFrame()` on in prod, delete the old Home, the + sheet, the Groups and People tabs and the old cook screen, and update the home-screen shortcuts there.
+- **Owner checks on real phones.** Each PR lists what to try on stage (#63, #64, #65, #66, #67, #68, #70). The ones that need a person:
+  - Finish from a recipe, then Undo;
+  - the session bar after a reload;
+  - a share link opened while signed out;
+  - Cook now with Always have.
+- **Undelete.** The server can't undelete a recipe, so Delete waits for Undo's 10 seconds before it calls the server (RC-5). An undelete route would let the console delete at once.
+- **The food ask guesses its line.** The match's `unlinked` list doesn't say which line an item could be, so the console pairs them by shared words (RC-8). The server could name the line.
+- **No katori unit.** Recipes use cups (RC-7); a katori unit would read more naturally.
+- **The desktop session is a page**, not the right-hand panel in the design (RC-6).
+- **The feed is read from your dishes**, 100 at a time, up to 4 pages (RC-2). A dish started more than 14 days ago that finished this week doesn't show, and Cooks caps at "400+". A server feed read would fix both.
+- **The Cook hub reads each recipe in full** to list its ingredient names (RC-5). A summary that includes the names would save the reads.
+- **"Saved by N" is a count only.** No read says who saved a recipe.
+- **"Your groups" in Explore shows at most 50 recipes** (RC-4).

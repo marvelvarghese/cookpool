@@ -345,5 +345,14 @@ export const manifest: MigrationManifest = {
       description:
         "Steps that guide: kitchen_recipe_steps gains a stable step_key (backfilled at random for every existing step, unique per recipe), phase (prep/cook), line_refs (JSON positions), heat 0–3, min/max seconds (both or neither, min ≤ max ≤ 86 400), whistles 1–10 (never with seconds), hands_off, time_rule (fixed/partly/linear), a checkpoint ≤ 80 and its sense, and a tip ≤ 160; kitchen_recipes.tools (a JSON array of up to 10); and kitchen_dish_step_times (one row per dish and step key: seconds, the dish's factor, the cook and the recipe root), indexed by root and key (Cookpool GC-2)",
     },
+    {
+      id: "380_kitchen_timers",
+      context: "kitchen",
+      path: "380_kitchen_timers/up.sql",
+      checksum:
+        "4484c14ac6225b88c6ce14817d700ac20459e9a6ec6ab3caadbe8b146bbcb073",
+      description:
+        "Timers that find you: kitchen_timers (tmr_ id, one person's usr_… user_id, a 1–60 character label, an optional 1–120 character body, the app path it opens, ends_at after created_at — kitchen-worker keeps it 30 s to 24 h ahead — sent_at once the per-minute sweep has claimed it and asked for its push, canceled_at once its person cancelled it), at most ten active per person; indexed on ends_at over active rows (the sweep), on (user_id, ends_at) over active rows (a person's list and the limit) and on ends_at over every row (the purge of rows that ended more than a day ago) (Cookpool GC-3)",
+    },
   ],
 };

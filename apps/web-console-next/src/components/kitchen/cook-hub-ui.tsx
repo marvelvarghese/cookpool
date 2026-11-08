@@ -4,6 +4,7 @@ import * as React from "react";
 import { myRecipeCards } from "./cook-hub";
 import { CookHubView } from "./cook-hub-views";
 import { useCookNow, useMyRecipes, usePrefetchRecipe, useRecipesInFull } from "./recipes-data";
+import { ExploreButton } from "./explore-views";
 
 /**
  * The Cook hub (cookpool-recipes RC-5, design §1.2, §5.4, the canvas's
@@ -11,8 +12,8 @@ import { useCookNow, useMyRecipes, usePrefetchRecipe, useRecipesInFull } from ".
  * (the one main button, in the cook colour: a blank session); Cook now — what
  * you can make with what you have, "Can make N" | "Missing 1 · N", each row
  * with Start, hidden when there is nothing; My recipes — how many, New recipe
- * (and room beside it for Explore, RC-8), and a card per recipe, last cooked
- * first, with a tinted Start cooking.
+ * and Explore beside it (RC-8), and a card per recipe, last cooked first,
+ * with a tinted Start cooking.
  */
 export function CookHub() {
   const cookNow = useCookNow();
@@ -32,6 +33,7 @@ export function CookHub() {
       recipesFailed={!!recipes.error && !recipes.data}
       onReloadRecipes={recipes.reload}
       prefetch={prefetch}
+      extraAction={<ExploreButton />}
     />
   );
 }

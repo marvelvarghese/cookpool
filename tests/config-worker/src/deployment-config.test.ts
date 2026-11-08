@@ -234,12 +234,15 @@ describe("kitchen-worker deployment config", () => {
   ) as unknown as Rendered;
   const rendered = renderFromFixture("apps/kitchen-worker", parseJsoncStrings) as unknown as Rendered;
 
-  // The daily use-soon sweep (CP-18, risks CP-N): scheduled() never runs
-  // without a cron trigger, and fails silently. `triggers` is inheritable in
-  // wrangler: declared at the top level, an environment carries it unless it
-  // declares its own — so each deployed environment's effective crons are
-  // its own `triggers`, else the top level's.
+  // The daily use-soon sweep (CP-18, risks CP-N) and the per-minute timer
+  // sweep (GC-3): scheduled() never runs without a cron trigger, and fails
+  // silently. `triggers` is inheritable in wrangler: declared at the top
+  // level, an environment carries it unless it declares its own — so each
+  // deployed environment's effective crons are its own `triggers`, else the
+  // top level's.
   const SWEEP_CRON = "30 2 * * *";
+  const TIMER_CRON = "* * * * *";
+  const CRONS = [SWEEP_CRON, TIMER_CRON];
   const cronsOf = (envName: string): string[] =>
     (rendered.env[envName]?.triggers ?? rendered.triggers)?.crons ?? [];
   const edge = (HAS_API_EDGE ? renderFromFixture("apps/api-edge") : { env: {} }) as unknown as Rendered;
@@ -269,8 +272,8 @@ describe("kitchen-worker deployment config", () => {
       });
     });
 
-    test(`${envName} runs the daily sweep: its rendered config carries the ${SWEEP_CRON} cron trigger`, () => {
-      expect(cronsOf(envName)).toEqual([SWEEP_CRON]);
+    test(`${envName} runs the daily sweep and the timer sweep: its rendered config carries the ${SWEEP_CRON} and ${TIMER_CRON} cron triggers`, () => {
+      expect(cronsOf(envName)).toEqual(CRONS);
     });
 
     test(`${envName} links emails to the ${envName} app over https`, () => {
@@ -317,8 +320,8 @@ describe("kitchen-worker deployment config", () => {
     expect(holders).toEqual(HAS_API_EDGE ? ["api-edge", "membership-worker"] : ["membership-worker"]);
   });
 
-  test("the sweep's trigger is declared once, at the top level, and no environment overrides it", () => {
-    expect(template.triggers?.crons).toEqual([SWEEP_CRON]);
+  test("the sweeps' triggers are declared once, at the top level, and no environment overrides them", () => {
+    expect(template.triggers?.crons).toEqual(CRONS);
     for (const envName of Object.keys(template.env)) expect(template.env[envName]?.triggers).toBeUndefined();
   });
 

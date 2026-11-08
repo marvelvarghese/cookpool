@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Settings } from "lucide-react";
-import type { PersonViewResponse } from "@saas/contracts/kitchen";
+import type { PersonViewResponse, RecipeSummary } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,9 @@ import { PersonSkeleton, RecordPayment, WhyGroup, safeDecode } from "./person-ui
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import { useMyRecipes, usePrefetchRecipe } from "./recipes-data";
 import { profileHref, profileListFrom, profileRecipeRows, recipeStats, type ProfileList } from "./cook-hub";
-import { Segmented, YourRecipes } from "./cook-hub-views";
+import { PersonRecipesView, SaveCopyChip, Segmented, YourRecipes } from "./cook-hub-views";
+import { personHref, personListFrom, personRecipeRows, type PersonList, type PersonRecipeRow } from "./explore";
+import { usePersonRecipes, useSaveCopy } from "./recipe-travel-data";
 
 /**
  * Your page and a person's in the new frame (cookpool-recipes RC-2, design
@@ -50,9 +52,10 @@ import { Segmented, YourRecipes } from "./cook-hub-views";
  *   the choice kept in the address (`?list=cooks`). The gear opens settings —
  *   today's You rows.
  * - **A person** (`/people/[id]`): their face and name, "In Flat 4B with you";
- *   what is between you two ("You get back ₹40.00") with Settle up; their
- *   recent cooks in the groups you share; and the Why, open, under its
- *   heading.
+ *   what is between you two ("You get back ₹40.00") with Settle up; Cooks,
+ *   Recipes and Saved by; Recipes | Cooks (RC-8; `?list=cooks`) — the
+ *   recipes of theirs you may see, each with Save, or their recent cooks in
+ *   the groups you share; and the Why, open, under its heading.
  */
 
 // ── You ───────────────────────────────────────────────────────────
@@ -207,6 +210,31 @@ function ProfileListSwitch({ list }: { list: ProfileList }) {
   );
 }
 
+/** A person's Recipes | Cooks (RC-8), as You's: the choice stays in the address. */
+function PersonListSwitch({ subjectId, list }: { subjectId: string; list: PersonList }) {
+  const router = useRouter();
+  return (
+    <Segmented
+      label="Show"
+      large
+      value={list}
+      onChange={(next) => {
+        if (next !== list) router.replace(personHref(subjectId, next), { scroll: false });
+      }}
+      options={[
+        { id: "recipes", label: "Recipes" },
+        { id: "cooks", label: "Cooks" },
+      ]}
+    />
+  );
+}
+
+/** Save on one of their recipes: your own copy, Saved once you have it. */
+function PersonRecipeSave({ row, recipe }: { row: PersonRecipeRow; recipe: RecipeSummary }) {
+  const copy = useSaveCopy(recipe);
+  return <SaveCopyChip name={row.name} savedId={copy.savedId} saving={copy.saving} onSave={copy.save} />;
+}
+
 /** A list of cooks, newest first: each opens its dish. */
 function CookList({
   title,
@@ -321,6 +349,19 @@ function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string 
     () => recentCooks(dishes.dishes, view.subjectId, { groupNames, now, inGroups: shared }),
     [dishes.dishes, view.subjectId, groupNames, now, shared],
   );
+  // Their cooks in the groups you share, as the list shows them.
+  const cookTotal = React.useMemo(
+    () => cookCount(dishes.dishes.filter((d) => !!d.orgId && shared.has(d.orgId)), view.subjectId),
+    [dishes.dishes, shared, view.subjectId],
+  );
+  const theirRecipes = usePersonRecipes(view.subjectId);
+  const recipeList = theirRecipes.data?.recipes ?? null;
+  const stats = recipeList ? recipeStats(recipeList) : null;
+  const recipeRows = React.useMemo(() => (recipeList ? personRecipeRows(recipeList) : []), [recipeList]);
+  const byId = React.useMemo(() => new Map((recipeList ?? []).map((r) => [r.id, r] as const)), [recipeList]);
+  const searchParams = useSearchParams();
+  const list = personListFrom(searchParams?.get("list"));
+  const prefetchRecipe = usePrefetchRecipe();
 
   return (
     <div className="space-y-4">
@@ -355,16 +396,36 @@ function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string 
         </div>
 
         <div className="min-w-0 space-y-5">
-          {dishes.failed ? (
-            <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <p className="text-sm text-muted-foreground">Couldn&apos;t load {first}&apos;s cooks.</p>
-              <Button variant="outline" className={K_BUTTON} onClick={dishes.reload}>
-                Try again
-              </Button>
-            </KCard>
-          ) : (
-            <CookList title={`${first}'s cooks`} rows={cooks} loading={dishes.loading} empty="No cooks in your groups yet" />
-          )}
+          <div className="space-y-3">
+            <dl className="grid grid-cols-3 gap-2">
+              <Stat label="Cooks" value={dishes.loading ? null : cookCountText(cookTotal, dishes.complete)} />
+              <Stat label="Recipes" value={theirRecipes.loading ? null : stats ? String(stats.recipes) : "–"} />
+              <Stat label="Saved by" value={theirRecipes.loading ? null : stats ? String(stats.savedBy) : "–"} />
+            </dl>
+            <PersonListSwitch subjectId={view.subjectId} list={list} />
+            {list === "recipes" ? (
+              <PersonRecipesView
+                rows={recipeRows}
+                loading={theirRecipes.loading}
+                failed={!!theirRecipes.error && !theirRecipes.data}
+                onReload={theirRecipes.reload}
+                prefetch={prefetchRecipe}
+                renderSave={(row) => {
+                  const recipe = byId.get(row.id);
+                  return recipe ? <PersonRecipeSave row={row} recipe={recipe} /> : null;
+                }}
+              />
+            ) : dishes.failed ? (
+              <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <p className="text-sm text-muted-foreground">Couldn&apos;t load {first}&apos;s cooks.</p>
+                <Button variant="outline" className={K_BUTTON} onClick={dishes.reload}>
+                  Try again
+                </Button>
+              </KCard>
+            ) : (
+              <CookList title={`${first}'s cooks`} hideTitle rows={cooks} loading={dishes.loading} empty="No cooks in your groups yet" />
+            )}
+          </div>
 
           <section aria-labelledby="person-why" className="min-w-0 space-y-3">
             <h2 id="person-why" className="text-lg font-extrabold tracking-tight">
