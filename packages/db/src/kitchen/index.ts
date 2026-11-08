@@ -123,6 +123,8 @@ export type {
   NewKitchenRecipe,
   UpdateKitchenRecipeInput,
   KitchenRecipeLastCookRecord,
+  PooledStepTimesQuery,
+  KitchenPooledStepTime,
 } from "./types.js";
 export { KITCHEN_DEFAULT_ALWAYS_HAVE } from "./foods.js";
 export { MAX_RECIPE_ROOT_HOPS } from "./types.js";

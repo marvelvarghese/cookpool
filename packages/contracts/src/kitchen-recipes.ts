@@ -16,13 +16,13 @@
 //   PUT    /v1/kitchen/me/always-have                  self
 //   GET    /v1/kitchen/me/recipes                      self: yours and your copies, last cooked first
 //   POST   /v1/kitchen/me/recipes                      self: write one, or save a dish as one (`fromDishId`)
-//   GET    /v1/kitchen/recipes/{rcp}?code=             who may see it, with the caller's last cook
+//   GET    /v1/kitchen/recipes/{rcp}?code=&f=          who may see it, with the caller's last cook (and learned times at f: GC-7)
 //   PATCH  /v1/kitchen/me/recipes/{rcp}                its owner
 //   DELETE /v1/kitchen/me/recipes/{rcp}                its owner (soft; copies stay)
 //   GET    /v1/kitchen/me/recipes/{rcp}/match?f=&code= who may see it: what the caller's pantries have
 //   POST   /v1/kitchen/me/recipes/{rcp}/link           its owner: mint or rotate the link
 //   DELETE /v1/kitchen/me/recipes/{rcp}/link           its owner: turn the link off
-//   GET    /v1/kitchen/recipe-links/{code}             signed in
+//   GET    /v1/kitchen/recipe-links/{code}?f=          signed in
 //   POST   /v1/kitchen/me/recipes/copies               who may see it: save your own copy
 //   GET    /v1/kitchen/people/{usr}/recipes            someone you share a group with
 //   GET    /v1/kitchen/recipes?source=&q=&kind=        signed in: Explore
@@ -347,6 +347,14 @@ export interface KitchenRecipeStep {
   checkpoint: string | null;
   /** One line under the step, at most MAX_STEP_TIP characters; null for none. */
   tip: string | null;
+  /**
+   * What cooks really took (GC-7, design §5), at the size the read asked for
+   * (`?f=`, default the recipe as written): present only once the step's key
+   * has LEARNED_MIN_SAMPLES times from LEARNED_MIN_COOKS people, across the
+   * recipe root and its copies. Absent otherwise — and on every write's
+   * answer that has not learned it. Counts and a range only: never who.
+   */
+  learned?: LearnedStepRange;
 }
 
 /**
@@ -435,9 +443,141 @@ export function stepTimeAt(step: StepTiming, factorMilli: number): StepTimeAt | 
   const hi = step.maxSeconds ?? step.minSeconds;
   if (lo === undefined || lo === null || hi === undefined || hi === null) return null;
   const m = stepTimeMultiplier(step.timeRule, factorMilli);
-  const minutes = (seconds: number) => Math.max(60, Math.round((seconds * m) / 60) * 60);
+  const minutes = (seconds: number) => wholeStepMinutes(seconds * m);
   const minSeconds = minutes(Math.min(lo, hi));
   return { minSeconds, maxSeconds: Math.max(minSeconds, minutes(Math.max(lo, hi))) };
+}
+
+/** A time as a step shows it: to the nearest whole minute (halves up), never under one minute. */
+export function wholeStepMinutes(seconds: number): number {
+  return Math.max(60, Math.round(seconds / 60) * 60);
+}
+
+// ── Learned ranges (cookpool-guided GC-7, design §5) ───────
+//
+// Every guided cook keeps each step's real time with the size it was cooked
+// at (GC-2's `stepLog`), under the recipe root and the step's key, so the
+// root and all its copies share one pool. A read turns a step's pool into
+// "usually 7–9 min at this size · 23 cooks":
+//   1. drop the times that say nothing: a canceled dish's, a step ticked in
+//      under LEARNED_MIN_SECONDS (skipped, not timed), one over
+//      LEARNED_ABANDONED_TIMES × the author's longest time at the size it was
+//      cooked at (or over LEARNED_UNTIMED_MAX_SECONDS for a step with no
+//      time: left open, abandoned), and one whose size is not known;
+//   2. normalise each to the recipe as written (f = 1) by the step's rule:
+//      seconds ÷ stepTimeMultiplier(rule, f);
+//   3. with at least LEARNED_MIN_SAMPLES times from LEARNED_MIN_COOKS people,
+//      take the 25th and 75th percentiles (linear interpolation) — not the
+//      mean, so one odd cook moves nothing much (risks GC-C);
+//   4. scale both back to the size asked for by the same rule, in whole
+//      minutes, at least one.
+// The storage read does the first step's dish-side drops (canceled, skipped,
+// no size) in SQL; `learnedStepTime` applies every rule again, so it is the
+// whole definition on its own.
+
+/** A step's time from cooks, at one size. */
+export interface LearnedStepRange {
+  /** The 25th percentile of cooks' times at this size, in whole minutes (at least 60 s). */
+  lowSeconds: number;
+  /** The 75th percentile, the same way; never under `lowSeconds`. */
+  highSeconds: number;
+  /** How many different people the times came from: at least LEARNED_MIN_COOKS. */
+  cooks: number;
+  /** How many times it was learned from: at least LEARNED_MIN_SAMPLES. */
+  samples: number;
+}
+
+/** A step is learned from at least this many times… */
+export const LEARNED_MIN_SAMPLES = 5;
+/** …from at least this many different people. */
+export const LEARNED_MIN_COOKS = 3;
+/** A step ticked in less than this (seconds) was skipped, not timed. */
+export const LEARNED_MIN_SECONDS = 10;
+/** A time over this many × the author's longest (at the size cooked) was abandoned: the app left open. */
+export const LEARNED_ABANDONED_TIMES = 4;
+/** …and for a step with no time written, a time over 4 h was. */
+export const LEARNED_UNTIMED_MAX_SECONDS = 4 * 3_600;
+/** The range is these percentiles of the times. */
+export const LEARNED_LOW_PERCENTILE = 0.25;
+export const LEARNED_HIGH_PERCENTILE = 0.75;
+
+/** One time a cook took over a step, as the pool keeps it. */
+export interface StepTimeSample {
+  /** From the step's start to its tick, in seconds, at the size it was cooked at. */
+  seconds: number;
+  /** That size, in thousandths; null (or not a positive number) when it is not known — such a time is left out. */
+  factorMilli: number | null;
+  /** Who cooked it, as any token that tells people apart: counted, never returned. */
+  cook: string | number;
+}
+
+/** `seconds` at size `factorMilli`, normalised to the recipe as written (f = 1) by the step's rule. */
+export function normalizeStepSeconds(seconds: number, rule: StepTimeRule | null | undefined, factorMilli: number): number {
+  return seconds / stepTimeMultiplier(rule, factorMilli);
+}
+
+/** `seconds` at the recipe as written (f = 1), at size `factorMilli` by the step's rule: `normalizeStepSeconds` undone. */
+export function scaleStepSeconds(seconds: number, rule: StepTimeRule | null | undefined, factorMilli: number): number {
+  return seconds * stepTimeMultiplier(rule, factorMilli);
+}
+
+/**
+ * The `p`-th quantile (0–1) of `values`, by linear interpolation between the
+ * two nearest ranks (Hyndman–Fan type 7, as spreadsheets and NumPy compute
+ * it): rank h = (n − 1) · p, then x[⌊h⌋] + (h − ⌊h⌋) · (x[⌊h⌋ + 1] − x[⌊h⌋]).
+ * `values` need not be sorted (a sorted copy is used). NaN for no values or a
+ * `p` that is not a number; `p` outside 0–1 is clamped.
+ */
+export function percentile(values: readonly number[], p: number): number {
+  return percentileOfSorted([...values].sort((a, b) => a - b), p);
+}
+
+function percentileOfSorted(sorted: readonly number[], p: number): number {
+  if (sorted.length === 0 || Number.isNaN(p)) return Number.NaN;
+  const h = (sorted.length - 1) * Math.min(1, Math.max(0, p));
+  const below = Math.floor(h);
+  const lo = sorted[below]!;
+  const hi = sorted[Math.min(sorted.length - 1, below + 1)]!;
+  return lo + (h - below) * (hi - lo);
+}
+
+/**
+ * The longest a cook can plausibly have taken over `step` at size
+ * `factorMilli`: LEARNED_ABANDONED_TIMES × the author's longest time (its
+ * max, else its min) at that size; LEARNED_UNTIMED_MAX_SECONDS for a step
+ * with no time — or a time of 0 s — written.
+ */
+export function abandonedAfterSeconds(step: StepTiming, factorMilli: number): number {
+  const longest = step.maxSeconds ?? step.minSeconds ?? null;
+  if (longest === null || !(longest > 0)) return LEARNED_UNTIMED_MAX_SECONDS;
+  return LEARNED_ABANDONED_TIMES * scaleStepSeconds(longest, step.timeRule, factorMilli);
+}
+
+/** Does this time count towards `step`'s learned range: its size known, not skipped, not abandoned? */
+export function keepsStepTime(step: StepTiming, sample: StepTimeSample): boolean {
+  const f = sample.factorMilli;
+  if (f === null || !Number.isFinite(f) || f <= 0) return false;
+  if (!Number.isFinite(sample.seconds) || sample.seconds < LEARNED_MIN_SECONDS) return false;
+  return sample.seconds <= abandonedAfterSeconds(step, f);
+}
+
+/**
+ * A step's learned range at size `factorMilli` from its pool (see above):
+ * null until the times that count number LEARNED_MIN_SAMPLES from
+ * LEARNED_MIN_COOKS people.
+ */
+export function learnedStepTime(step: StepTiming, samples: readonly StepTimeSample[], factorMilli: number): LearnedStepRange | null {
+  const normalised: number[] = [];
+  const cooks = new Set<string | number>();
+  for (const sample of samples) {
+    if (!keepsStepTime(step, sample)) continue;
+    normalised.push(normalizeStepSeconds(sample.seconds, step.timeRule, sample.factorMilli!));
+    cooks.add(sample.cook);
+  }
+  if (normalised.length < LEARNED_MIN_SAMPLES || cooks.size < LEARNED_MIN_COOKS) return null;
+  normalised.sort((a, b) => a - b);
+  const at = (p: number) => wholeStepMinutes(scaleStepSeconds(percentileOfSorted(normalised, p), step.timeRule, factorMilli));
+  return { lowSeconds: at(LEARNED_LOW_PERCENTILE), highSeconds: at(LEARNED_HIGH_PERCENTILE), cooks: cooks.size, samples: normalised.length };
 }
 
 /**
@@ -569,12 +709,27 @@ export interface RecipeLastCook {
 /**
  * 200 from GET /v1/kitchen/recipes/{rcp} and GET /v1/kitchen/recipe-links/{code};
  * 201 from POST /v1/kitchen/me/recipes and …/copies; 200 from PATCH, DELETE and
- * both …/link routes.
+ * both …/link routes (and from PATCH …/step-times). Each guided step carries
+ * `learned` once cooks have taught it (GC-7): at `?f=` on the two reads, and
+ * at the recipe as written on every other answer.
  */
 export interface RecipeResponse {
   recipe: KitchenRecipe;
   /** The caller's last dish of it; null if they never cooked it. */
   lastCook: RecipeLastCook | null;
+}
+
+/**
+ * GET /v1/kitchen/recipes/{rcp}?code=&f= and GET /v1/kitchen/recipe-links/{code}?f=
+ * (GC-7). `f` is the size the steps' `learned` ranges are at, in thousandths
+ * — the match's bounds, RECIPE_MIN_FACTOR_MILLI–RECIPE_MAX_FACTOR_MILLI, a
+ * whole number (422 `f` otherwise) — default 1000, the recipe as written. It
+ * changes nothing else in the read: lines and steps are as written.
+ */
+export interface RecipeQuery {
+  /** Lets a link holder in (by id only). */
+  code?: string;
+  f?: number;
 }
 
 /**
