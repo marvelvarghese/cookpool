@@ -73,17 +73,15 @@ export function useCancelServerTimers(): (session: CookSession | null) => void {
   );
 }
 
-/** Use today's times next time: GC-2's PATCH of the steps' times; the recipe's reads are refreshed. */
+/** Use today's times next time: GC-2's PATCH of the steps' times; the recipe's reads (the page's and the session's) are refreshed. */
 export function useSaveStepTimes(): (recipeId: string, body: UpdateStepTimesRequest) => Promise<FinishAnswer<RecipeResponse>> {
   const { client } = useSession();
   const qc = useQueryClient();
   return React.useCallback(
     async (recipeId, body) => {
       const r = await wrap(() => client.kitchen.updateStepTimes(recipeId, body, { idempotencyKey: crypto.randomUUID() }));
-      if (r.ok) {
-        qc.setQueryData(qk.kitchenRecipe(recipeId), r.data);
-        void qc.invalidateQueries({ queryKey: qk.kitchenRecipeBook() });
-      }
+      // Read again rather than kept: a write's answer carries no learned ranges (GC-7).
+      if (r.ok) void qc.invalidateQueries({ queryKey: qk.kitchenRecipeBook() });
       return r;
     },
     [client, qc],

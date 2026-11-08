@@ -247,6 +247,7 @@ export function ringBell(env: BellEnv = browserBell()): boolean {
     audio ??= env.makeAudio?.() ?? null;
     const ctx = audio;
     if (ctx) {
+      if (ctx.state === "suspended") void ctx.resume?.().catch(() => undefined);
       const t0 = ctx.currentTime;
       for (const beep of BEEPS) {
         const osc = ctx.createOscillator();
