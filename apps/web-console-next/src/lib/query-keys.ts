@@ -84,6 +84,12 @@ export const qk = {
   kitchenCookNow: () => ["kitchenPantry", "cookNow"] as const,
   kitchenRecipeMatches: (recipeId: string) => ["kitchenPantry", "recipeMatch", recipeId] as const,
   kitchenRecipeMatch: (recipeId: string, factorMilli: number) => ["kitchenPantry", "recipeMatch", recipeId, factorMilli] as const,
+  // Every recipe's match at once (RC-8: an Always have edit or a food answer
+  // changes what every recipe finds), and Explore per source, search and
+  // kind, its rows carrying their match, so it sits under the pantry too.
+  kitchenAllRecipeMatches: () => ["kitchenPantry", "recipeMatch"] as const,
+  kitchenExploreAll: () => ["kitchenPantry", "explore"] as const,
+  kitchenExplore: (source: string, q: string, kind: string) => ["kitchenPantry", "explore", source, q, kind] as const,
   // Recipes themselves: yours and your copies (My recipes, You), and one
   // recipe in full with the caller's last cook of it (its page, the session).
   // Both start with `kitchenRecipeBook()`, so one invalidation after a write,
@@ -92,6 +98,12 @@ export const qk = {
   kitchenRecipeBook: () => ["kitchenRecipeBook"] as const,
   kitchenMyRecipes: () => ["kitchenRecipeBook", "mine"] as const,
   kitchenRecipe: (recipeId: string) => ["kitchenRecipeBook", "recipe", recipeId] as const,
+  // RC-8: a person's recipes (their page) and the recipe a link opens, under
+  // the book too, so a copy refreshes their "saved by".
+  kitchenPersonRecipes: (subjectId: string) => ["kitchenRecipeBook", "person", subjectId] as const,
+  kitchenRecipeLink: (code: string) => ["kitchenRecipeBook", "link", code] as const,
+  // Always have (RC-8): the foods you count as there.
+  kitchenAlwaysHave: () => ["kitchenAlwaysHave"] as const,
   kitchenFoods: (q: string) => ["kitchenFoods", q] as const,
   // Cookpool's dishes (CP-17): one dish (its page) and a group's dishes (the
   // group's Dishes tab). Both start with `kitchenDishes()`, so one
