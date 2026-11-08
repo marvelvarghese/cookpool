@@ -67,6 +67,13 @@ import { CURRY, CURRY_ID, CURRY_MATCH, ITEMS, NOW, RAJMA, RAJMA_MATCH, at, curry
 // dish. "Just tick what I use" is RC-6's screen, unchanged.
 
 const none = () => undefined;
+
+/** A copy of `o` without `keys`. */
+function without<T extends object, K extends keyof T>(o: T, ...keys: K[]): Omit<T, K> {
+  const copy = { ...o };
+  for (const k of keys) delete copy[k];
+  return copy;
+}
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 
@@ -145,14 +152,13 @@ describe("the draft (design §3)", () => {
     // GC-7's learned range comes along with its step.
     expect(g.steps.find((s) => s.key === "c-onions")!.learned).toEqual({ lowSeconds: 420, highSeconds: 540, cooks: 23, samples: 40 });
     // RC-6's session is all there, as before.
-    const { guide: _guide, ...rc6 } = curry();
+    const rc6 = without(curry(), "guide");
     expect(rc6).toEqual(refreshTakes(sessionFromRecipe(CURRY, null, CURRY_MATCH, NOW), ITEMS));
   });
 
   it("has none for a recipe without guided steps: it skips the prompt and cooks as RC-6's session", () => {
     // A recipe read before GC-2 has no guided steps at all.
-    const { guidedSteps: _steps, tools: _tools, longPrep: _long, ...rest } = CURRY;
-    const plain: KitchenRecipe = rest;
+    const plain: KitchenRecipe = without(CURRY, "guidedSteps", "tools", "longPrep");
     expect(guideFromRecipe(plain)).toBeNull();
     expect(guideFromRecipe({ ...CURRY, guidedSteps: [] })).toBeNull();
     const s = guidedSessionFromRecipe(plain, null, CURRY_MATCH, NOW);
@@ -207,7 +213,7 @@ describe("the draft (design §3)", () => {
     expect("guide" in bad).toBe(false);
     expect(bad.lines).toEqual(s.lines);
     expect(parseSession(JSON.stringify({ ...s, guide: { ...s.guide, timers: [{ id: 1 }] } }))!.guide).toBeUndefined();
-    const { guide: _guide, ...old } = s;
+    const old = without(s, "guide");
     expect(parseSession(JSON.stringify(old))).toEqual(old);
     expect(parseSession(JSON.stringify(s))).toEqual(s);
   });
