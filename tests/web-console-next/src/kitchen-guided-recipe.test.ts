@@ -344,6 +344,8 @@ describe("the plan: totals, each step at the size, the rule in words, Meanwhile"
     expect(plan.totals).toEqual({ allSeconds: 28 * MIN, handsOnSeconds: 11 * MIN, waitingSeconds: 17 * MIN });
     expect(plan.rows[0]).toMatchObject({ longPrep: true, time: "8–10 h" });
     expect(plan.rows[2]).toMatchObject({ time: "3 whistles", rule: "Same at any size", bar: 0 });
+    // Bars are against the cooking's longest step (the simmer), not the soak.
+    expect(plan.rows.map((r) => r.bar)).toEqual([0, 20, 0, 40, 100]);
     expect(planNote(plan)).toBe("Long prep (8 h) comes first and isn't counted. Whistle steps aren't counted: their time is the cooker's.");
     expect(planNote(planOf(CURRY, 1000))).toBeNull();
   });

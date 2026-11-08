@@ -346,7 +346,7 @@ export interface PlanRow {
   learned: string | null;
   /** "Same at any size", "Partly follows the amount", "Follows the amount"; null when untimed. */
   rule: string | null;
-  /** The bar's length against the longest step, 4–100; 0 when it has no time in minutes. */
+  /** The bar's length against the longest step of the cooking, 4–100; 0 when it has no time in minutes, and for long prep (outside the cooking). */
   bar: number;
   /** "Meanwhile: Chop the coriander · Check the thickest piece" under a hands-off step; null otherwise. */
   meanwhile: string | null;
@@ -409,7 +409,8 @@ export function planOf(recipe: Pick<KitchenRecipe, "steps" | "guidedSteps">, fac
     const at = stepTimeAt(s, f);
     return at && !("whistles" in at) ? (at.minSeconds + at.maxSeconds) / 2 : 0;
   });
-  const longest = Math.max(0, ...timed);
+  // Long prep is planned before the cooking: its hours would flatten every other bar.
+  const longest = Math.max(0, ...timed.filter((_, i) => !isLongPrep(steps[i]!)));
   let all = 0;
   let handsOn = 0;
   const longPrep: Plan["longPrep"] = [];
@@ -433,7 +434,7 @@ export function planOf(recipe: Pick<KitchenRecipe, "steps" | "guidedSteps">, fac
       seconds,
       learned: learnedBadge(s, f, readAtMilli),
       rule: at ? RULE_WORDS["whistles" in at ? "fixed" : s.timeRule] : null,
-      bar: seconds > 0 && longest > 0 ? Math.max(4, Math.round((seconds / longest) * 100)) : 0,
+      bar: !long && seconds > 0 && longest > 0 ? Math.max(4, Math.round((seconds / longest) * 100)) : 0,
       meanwhile: meanwhileOf(steps, i),
     };
   });
