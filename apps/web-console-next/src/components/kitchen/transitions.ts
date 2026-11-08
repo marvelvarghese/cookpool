@@ -21,7 +21,7 @@
  */
 
 import { NEW_FRAME_TABS, activeNewFrameTab } from "./nav";
-import { NEW_FRAME_TAB_PAGES, SCREENS_WITH_PARENT, backParent, trailStamp } from "./back";
+import { NEW_FRAME_TAB_PAGES, SCREENS_WITH_PARENT, TAB_PAGES, backParent, trailStamp } from "./back";
 import { SESSION_PATH } from "./cook-session";
 import { normalizePath, type TransitionKind } from "@/lib/transitions";
 import { staticPageFor } from "@/lib/static-pages.mjs";
@@ -37,10 +37,13 @@ export function isTabRoot(pathname: string): boolean {
   return TAB_ROOTS.includes(normalizePath(pathname));
 }
 
-/** One of the app's own screens in the new frame: a tab, or a screen with a parent. */
+/**
+ * One of the app's own screens: a tab, or a screen with a parent — today's
+ * Groups and People included, which the new frame reaches from Money.
+ */
 export function isAppScreen(pathname: string): boolean {
   const page = staticPageFor(normalizePath(pathname));
-  return page !== null && (NEW_FRAME_TAB_PAGES.includes(page) || SCREENS_WITH_PARENT.includes(page));
+  return page !== null && (NEW_FRAME_TAB_PAGES.includes(page) || TAB_PAGES.includes(page) || SCREENS_WITH_PARENT.includes(page));
 }
 
 /**

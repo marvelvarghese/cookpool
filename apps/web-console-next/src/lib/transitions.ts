@@ -290,9 +290,14 @@ export function createTransitions(env: TransitionEnv): Transitions {
 
   const canAnimate = () => env.supported() && !env.hidden();
 
-  // The new page rendered (true), or the cap passed (false).
+  // The new page rendered (true), or the cap passed (false). A page that
+  // changed already, before this step's update ran (one it overtook), counts.
   const waitForCommit = (from: string, ms: number) =>
     new Promise<boolean>((resolve) => {
+      if (shownPath !== null && !samePath(shownPath, from)) {
+        resolve(true);
+        return;
+      }
       let timer: unknown = null;
       const waiter = {
         from,
