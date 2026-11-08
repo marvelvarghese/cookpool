@@ -57,6 +57,34 @@ The PWA's manifest shortcuts (PW-2) become **What did you use?** and **Start coo
 
 An item has an optional `note` of at most 80 characters, set on Bought and on the item page, and shown as a third line on its pantry row with a pencil glyph. In your own pantry only you see it; in a group's pantry everyone in the group does. Changing a note writes nothing to the ledger.
 
+### 1.6 Page transitions
+
+In the new frame, moving between screens on a phone animates with the View Transitions API (`document.startViewTransition`), with no animation library. The kind of each step comes from the route model: the five tab roots (`nav.ts`), the session path, and how deep a screen sits under its tab (`backParent`).
+
+| Kind | When | What moves | Time |
+|---|---|---|---|
+| **tab** | between two tab roots, or from a screen to another tab's root | a cross-fade, no slide (tabs are peers; no swiping between them) | 150 ms |
+| **forward** | deeper (list → recipe, recipe → plan or edit), or across at the same depth | the new page slides in from the right; the old one shifts left 25% and dims | 280 ms |
+| **back** | Back controls, `router.back()`, the system back on Android, a save that returns to its parent | the reverse | 280 ms |
+| **up** | into `/cook/session` | the session rises from the bottom like a sheet | 280 ms |
+| **down** | out of the session (minimize, Finish, Discard) | it slides down | 240 ms |
+
+The ease is iOS-like, `cubic-bezier(0.32, 0.72, 0, 1)`.
+
+- **What stays put.** The tab bar, the sidebar and the session bar have their own `view-transition-name` and no animation. The page is the root group.
+- **A tapped card travels.** A recipe card's title and tile glide into the recipe page's header, and a dish card's title into the dish page's. The names go only on the tapped card, just before the capture (Home can show the same recipe twice, and a duplicate name aborts a transition). The page's matching parts take them, and all are cleared when the step ends.
+- **Progressive and safe.**
+  - With no `startViewTransition` (iOS before 18), navigation is instant.
+  - With reduced motion, every step is a plain 100 ms fade.
+  - From 900 px, every step is a subtle 120 ms fade.
+  - The wait for the new page is capped at 350 ms. A page that is slower switches without an animation when it comes.
+  - The animation never holds a navigation. If the browser has not captured the old page within 500 ms, the app navigates without it.
+  - Safari's own back swipe in a browser tab (iOS, not installed) is never animated twice, and neither is any back the browser animated itself.
+  - Where the app animates the browser's back and forward, it also restores their scroll itself, so the old page doesn't jump before it is captured. On iOS in a tab the browser keeps its own.
+  - After the installed iPhone's edge swipe has slid the page away, back only fades the new page in.
+  - A second step while one runs skips the first. Nothing throws, and nothing stays named.
+- With `newFrame()` false, navigation is exactly as before.
+
 ## 2. Foods
 
 One shared list of foods, `kitchen_foods`, links what people buy to what recipes call for.
