@@ -81,6 +81,7 @@ describe("_redirects: one file serves every value", () => {
       "/join/:code /join/_ 200",
       "/recipes/:recipeId /recipes/_ 200",
       "/recipes/:recipeId/edit /recipes/_/edit 200",
+      "/recipes/:recipeId/plan /recipes/_/plan 200",
       "/r/:code /r/_ 200",
     ]) {
       expect(rules).toContain(rule);
@@ -90,8 +91,8 @@ describe("_redirects: one file serves every value", () => {
   it("pins /pantry/new to itself before the item rule could catch it", () => {
     expect(rules[0]).toBe("/pantry/new /pantry/new 200");
     expect(rules.indexOf("/pantry/new /pantry/new 200")).toBeLessThan(rules.indexOf("/pantry/:itemRef /pantry/_ 200"));
-    // One rule per dynamic page (SM-11 added a group's settings, RC-5 a recipe and its edit page, RC-8 a recipe's link), plus the two pins.
-    expect(rules).toHaveLength(12);
+    // One rule per dynamic page (SM-11 added a group's settings, RC-5 a recipe and its edit page, RC-8 a recipe's link, GC-6 a recipe's plan), plus the two pins.
+    expect(rules).toHaveLength(13);
   });
 
   it("pins /recipes/new to itself before the recipe rule could catch it (RC-5)", () => {

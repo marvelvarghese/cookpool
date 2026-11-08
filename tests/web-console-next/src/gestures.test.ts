@@ -53,6 +53,8 @@ describe("which screens pull to refresh", () => {
     "/recipes/new",
     "/recipes/:recipeId",
     "/recipes/:recipeId/edit",
+    // The plan (cookpool-guided GC-6): as its recipe's page, a size switch a pull would throw away.
+    "/recipes/:recipeId/plan",
     // Recipes travel (cookpool-recipes RC-8): Explore's search and sideways chips, and a link's Save.
     "/explore",
     "/r/:code",
