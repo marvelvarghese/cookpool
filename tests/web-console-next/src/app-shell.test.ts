@@ -1,4 +1,4 @@
-import { appShellScript } from "@web-console-next/lib/app-shell";
+import { POPSTATE_HOOK, appShellScript } from "@web-console-next/lib/app-shell";
 import { INSTALLED_KEY, INSTALL_CHANGE, PROMPT_KEY } from "@web-console-next/lib/install";
 
 // Cookpool PW-2: the root layout's inline script, run against a fake window.
@@ -8,9 +8,14 @@ type Handler = (e: FakeEvent) => void;
 
 function target() {
   const handlers = new Map<string, Handler[]>();
+  const captures: string[] = [];
   return {
     handlers,
-    addEventListener: (type: string, fn: Handler) => void handlers.set(type, [...(handlers.get(type) ?? []), fn]),
+    captures,
+    addEventListener: (type: string, fn: Handler, capture?: boolean) => {
+      if (capture === true) captures.push(type);
+      handlers.set(type, [...(handlers.get(type) ?? []), fn]);
+    },
     dispatchEvent: (e: FakeEvent) => {
       for (const fn of handlers.get(e.type) ?? []) fn(e);
       return true;
@@ -123,5 +128,24 @@ describe("the app shell script: a focused field stays above the keyboard", () =>
     viewport.offsetTop = 0;
     viewport.dispatchEvent({ type: "resize" });
     expect(input.scrolled).toHaveLength(1);
+  });
+});
+
+describe("the app shell script: the first look at a back or forward (RC-11)", () => {
+  it("hands every popstate to the kitchen frame, from the first listener of all, in the capture phase", () => {
+    const { win } = run();
+    expect(win.captures).toEqual(["popstate"]);
+    const seen: FakeEvent[] = [];
+    win[POPSTATE_HOOK] = (e: FakeEvent) => void seen.push(e);
+    const pop = { type: "popstate" };
+    win.dispatchEvent(pop);
+    expect(seen).toEqual([pop]);
+  });
+
+  it("does nothing while no frame is up, and installs the listener once", () => {
+    const { win } = run();
+    expect(() => win.dispatchEvent({ type: "popstate" })).not.toThrow();
+    new Function("window", appShellScript())(win);
+    expect(win.handlers.get("popstate")).toHaveLength(1);
   });
 });

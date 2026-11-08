@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/kitchen/link";
 import { AlertCircle, CheckCircle2, ChevronDown, Minus, Plus } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { usePathParam } from "@/lib/page-param";
@@ -37,6 +36,7 @@ import {
   type ExpenseCheck,
   type ExpenseForm,
 } from "@/components/kitchen/expense-form";
+import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 
 /**
  * Add a bill (CP-8; SM-11 under the seven rules): what for, how much, who
@@ -142,7 +142,7 @@ function ExpenseFormView({
   currency: string;
   names: MemberNames;
 }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const addExpense = useAddExpense();
   const [form, setForm] = React.useState<ExpenseForm>(() => initialExpenseForm(roster, myId));
   const [showErrors, setShowErrors] = React.useState(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -25,6 +25,8 @@ export function KitchenTabBar({ onAdd, addOpen, newFrame = false }: { onAdd: () 
     <nav
       aria-label="Main"
       data-toast-above=""
+      // It stays put while the page moves (RC-11's page transitions, new frame only).
+      data-vt-keep={newFrame ? "tabs" : undefined}
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 pb-safe backdrop-blur-md min-[900px]:hidden"
     >
       <ul className="mx-auto grid max-w-lg grid-cols-5">

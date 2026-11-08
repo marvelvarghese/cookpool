@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Plus, Receipt, Ticket } from "lucide-react";
 import type { MyBalancesResponse } from "@saas/contracts/kitchen";
@@ -29,6 +29,7 @@ import {
   type MoneyList,
   type MoneyPersonRow,
 } from "./money-page";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * Money (cookpool-recipes RC-2, design §1.4, the canvas's `Money`): the new
@@ -289,7 +290,7 @@ function NoGroups() {
  * "Paid a bill", now Money's.
  */
 function BillSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const allGroups = useGroups();
   const { roles } = useMyRoles();
   const groups = React.useMemo(() => allGroups.data?.filter((g) => roles.get(g.id) !== "viewer") ?? null, [allGroups.data, roles]);

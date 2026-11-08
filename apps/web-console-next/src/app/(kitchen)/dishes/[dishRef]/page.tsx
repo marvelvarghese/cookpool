@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "@/components/kitchen/link";
 import { CookingPot, MoreHorizontal } from "lucide-react";
 import type { KitchenDish } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { cn } from "@/lib/cn";
+import { shareKey, shareTarget } from "@/lib/transitions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -279,7 +280,10 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
       </div>
 
       <header className="min-w-0 space-y-1">
-        <h1 className="break-words text-[28px] font-extrabold leading-tight tracking-tight">{dish.name}</h1>
+        {/* Where a tapped dish card's title lands (RC-11's page transitions). */}
+        <h1 {...shareTarget(shareKey("dish", dish.id), "title")} className="break-words text-[28px] font-extrabold leading-tight tracking-tight">
+          {dish.name}
+        </h1>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold text-muted-foreground">
           <span className="tabular-nums">{dishByline(dish, people)}</span>
           <DishChipPill chip={dishStateChip(dish)} />

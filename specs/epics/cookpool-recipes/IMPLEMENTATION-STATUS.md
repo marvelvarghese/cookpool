@@ -591,3 +591,74 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **One deploy needed a rerun.** RC-3's migrate job hit D1's 401 (the token blip seen after SM-3); kitchen-worker waited for it and didn't deploy until the rerun applied 330.
 - **RC-7 also needed a PR check rerun.**
 - **The builds ran as local agents.** The Claude cloud sessions asked for were never created, and local sessions in `cookpool` were refused because the folder isn't trusted on this Mac.
+
+### RC5 — page transitions (RC-11)
+
+**What shipped.** The console only; no server, contract, SDK or migration change. Everything is behind `newFrame()`: with it off, every Link is next/link, every router call is the router's, and nothing is named or animated (tested).
+
+- **The mechanics** (`lib/transitions.ts`, no React or Next, over an injected environment):
+  - `document.startViewTransition(async () => { router.push(href); await committed })`. The router runs inside the update, after the old page is captured.
+  - `committed` resolves when the frame's pathname effect says the new page has rendered.
+  - The style goes on `<html data-vt>`: the kind, or `fade` (from 900 px), `reduced` (reduced motion) or `swiped` (after the edge swipe). It is cleared when the step ends.
+  - A second step while one runs skips the first and clears its names.
+- **The kind of a step** (`components/kitchen/transitions.ts`, `transitionKind`), from the route model:
+  - **tab**: between two of `nav.ts`'s five roots, or from a screen to *another* tab's root (the tab bar). A screen to its *own* tab's root is back.
+  - **up** into `/cook/session`, **down** out of it.
+  - A known direction wins: a Back control, or the trail's counts on a pop (`popDirection`).
+  - Otherwise depth by `backParent` (`routeDepth`): deeper or the same depth is forward, shallower is back.
+  - None for the same screen (a query that changes), a page outside the app (sign-in, the admin console), or the old frame. A test gives every app page of `STATIC_PAGES` a kind from Home.
+- **The kitchen `Link`** (`components/kitchen/link.tsx`): next/link with its API and markup. A plain primary click on a link to another app screen, in the new frame, where the API exists, becomes `navigate(href)`. Everything else stays next/link's own (`linkTransition`): modifier and middle clicks, `target`, `download`, another origin, the same screen, no API, the frame not up. All 34 kitchen files that imported next/link import it; the admin console's `(app)` is untouched.
+- **Programmatic steps** go through `useKitchenRouter()` (transition-ui.tsx):
+  - Back controls and minimize (`useBack`): `router.back()` is `back`, or `down` out of the session; "replace with the parent" is `back`.
+  - The pushes after a save: Add a bill, Bought, leaving a group, joining, a new group, a recipe saved, edited, deleted or copied, Finish and Discard (down), and the swipe-to-Use rows.
+  - Kept on the plain router: query-only replaces (Money's list, Explore's filters, You's tabs), redirects (`/settle`, the frame redirects, the name ask), the item page's Move (it replaces the item with itself in another pantry), and the old frame's Add sheet.
+- **What stays put:** the tab bar, the sidebar and the phone's session bar carry `data-vt-keep`, which takes a `view-transition-name` only while a step runs (`html[data-vt] …`). Their groups and images don't animate: the new bar shows at once, so the active tab switches instantly. The page is the root group.
+- **The CSS** (end of `globals.css`, outside any `@layer` so Tailwind keeps it):
+  - tab 150 ms cross-fade;
+  - forward and back 280 ms slides (new in from 100%; old to −25% at `brightness(0.92)`), on `cubic-bezier(0.32, 0.72, 0, 1)`;
+  - up 280 ms from below over a dimming page, down 240 ms;
+  - fade 120 ms, reduced 100 ms, swiped 150 ms, all the browser's own cross-fade.
+
+  The page on top gets a soft edge shadow. A test checks every style's rule and duration.
+- **Shared parts:**
+  - A recipe card's title (`sharePart("title")`) and tile (`sharePart("tile")`), on Cook now (the hub and Home's strip), My recipes, You's recipes, a person's recipes and Explore, carry into the recipe page's header (`shareTarget`). The names go on the tapped card only, just before the capture: Home and the hub can show the same recipe twice. They move to the header as it appears (a MutationObserver, within the 350 ms cap) and are cleared when the step ends.
+  - **A dish card too:** From your groups' card title carries into the dish page's `h1`.
+- **The browser's own back and forward** (`PageTransitions`, mounted by the kitchen layout in the new frame): the system back on Android and a browser's back button animate by kind.
+  - The new page is held until the old one is captured. The frame suspends on a gate (`gateFor`, React's `use`), because React renders Next's restore inside the event.
+  - Our own `router.back()` is not animated twice (`ownPop`).
+  - iOS in a tab (Safari's own swipe) and any back the browser animated itself (`hasUAVisualTransition`) are not animated at all.
+
+**Departures.**
+
+- **The recipe page's header gains the recipe's tile** (48 px, left of the name), so the card's tile has somewhere to land. Cards with no tile (My recipes, You's recipes, a person's) carry the title alone. A part the card did not have is never named on the page, so nothing fades in place.
+- **Forward only.** Nothing glides back from a header into a card. Dish rows in To do don't carry their title; From your groups' card does.
+- **A slow page is not animated at all.** Past the 350 ms cap the step is skipped, rather than animating the old screenshot into itself. It switches when the page comes. In `next dev` this is every first visit to a route (compiling it on demand). A production build's prefetched static pages arrive well inside the cap.
+- **A second cap, 500 ms, for the capture itself** (`CAPTURE_CAP_MS`). The browser check found a page that paints no frames while saying it is visible (a hidden pane). There the browser never captures the old page, and a navigation inside `startViewTransition` would never run. Past 500 ms it navigates without the animation, and the update the browser calls later does nothing.
+- **The `popstate` is seen through the shell script.** A capture-phase listener on `window` was not enough. Next registers its own listener long before the kitchen frame mounts, and React 19 renders a transition started during `popstate` synchronously (`shouldAttemptEagerTransition`). The browser check saw the restored page committed before the frame's listener ran. So the root layout's inline script (`app-shell.ts`, item 3) registers the first `popstate` listener of all, which hands the event to the frame (`window.__cookpoolPopstate`) while it is up. PW-3's `BackTrailRecorder` is unchanged.
+- **The frame owns the scroll of the backs and forwards it animates.** The browser restores scroll right after `popstate`. With the new page held, it would scroll the *old* page (clamped to its height) before the capture, so the old frame jumps and the list comes back wrong. Where the frame animates traversals (`ownsTraversals`: the API exists, and not iOS in a tab), `history.scrollRestoration` is `manual` while the frame is up. Each entry's scroll is remembered for the page load, by the trail's count and the address, and put back in a layout effect before the new page is captured.
+  - A reload and the back-forward cache keep the browser's own (`pagehide`/`pageshow`).
+  - iOS in a tab keeps the browser's own throughout.
+  - A pop between two addresses of the same screen (Pantry's pantries) keeps the scroll it has.
+- **Reduced motion is a 100 ms fade, not nothing**, and no part travels. The global reduced-motion rule does not reach the `::view-transition-*` pseudo-elements, so the helper picks the style itself.
+- **After the edge swipe** (PW-7, the installed iPhone), back is `swiped`: a 150 ms cross-fade with no slide. The page has already slid away under the finger. `EdgeSwipeBack` runs the back control's action inside `transitions.swiped(…)`.
+- **During up and down the tab bar stays above the sheet.** It stays put, and the session page shows it too, as RC-6 built it. The session bar has no counterpart on the session, so it goes at once as the sheet rises.
+- **Today's Groups and People count as app screens** (the new frame reaches them from Money): a step to or from them animates.
+- **Not checked on a phone or on stage** (nothing deployed). The local check is below.
+
+**Browser check** (`next dev` at 375×812 and 1280×800 in the desktop app's browser pane, Chromium 152 with an Android user agent). A temporary in-page mock answered every API call, and the network log shows only `localhost`. The mock and the debug lines were removed and never committed.
+
+- **Cook now → Dal tadka (forward).** Mid-step, with animations slowed to 4 s: the new page came in from the right over the shifted, dimmed hub, the tapped card's "D" tile and title travelled to the header, and the tab bar stayed. Only the tapped card was named (Dal tadka is on the hub twice). The header's tile and `h1` took the names; update 34 ms; all names and `data-vt` cleared at the end.
+- **My recipes → Poha (forward, title only):** the old page was captured at its scroll (300) and the new one at the top.
+- **The recipe's Back control (back):** `router.back()`, update 7 ms.
+- **The system back (`history.back()`, back).** At capture the old page was still on screen (`Poha`, at its own scroll). The Cook list came back at 300. Mid-step the recipe slid out to the right over the list. This failed before the two fixes above.
+- **Money → Cook in the tab bar (tab):** 24 ms. **Cook → session (up)** 17 ms. **Minimize (down)** 6 ms.
+- **At 1280 px:** the sidebar → Cook and a recipe both `fade`, with no shared names, the pages cross-fading while the sidebar stayed crisp.
+- First visits in `next dev` hit the 350 ms cap and switched without an animation, as designed. The console showed no errors or warnings.
+
+**Tests.**
+
+| Package | New | Total |
+|---|---|---|
+| `tests/web-console-next` | 53. `kitchen-transitions` 51: the kinds (tabs, list → detail, detail → plan and edit, same depth, back, the tab bar, up and down, none, today's frame, every page, depth), `popDirection`, the styles (phone, desktop, reduced, swiped, durations). The helper over a fake browser: inside the transition; no API; nothing to animate; reduced and desktop; the 350 ms cap; the 500 ms capture cap; a throwing start; swiped. Shared names: the tapped card only, handed to the header, cleared, a late header, none by the cap, none with the fades. Interruptions: a fast back, a double tap, a plain step. `popstate`: the gate, iOS in a tab, the UA's own, our own back, the gate's cap, no API; `ownsTraversals`. The Link: plain clicks, modifier and middle clicks, `target`, `download`, external, the same screen, no API, not ready, today's frame, the markup. The stylesheet and the tab bar's mark. `app-shell` 2 (the first `popstate` listener) | 1797 (88 suites) |
+
+`pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, and `next build` passes, every page still prerendered.

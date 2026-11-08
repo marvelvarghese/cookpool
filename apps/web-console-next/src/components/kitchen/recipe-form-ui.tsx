@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "./link";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { MAX_RECIPE_LINES, type KitchenRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -49,6 +48,7 @@ import {
 import { useDeleteRecipe, useFoods, useRecipe, useSaveRecipe } from "./recipes-data";
 import { RecipeNotFound } from "./recipe-views";
 import { StepsEditor, ToolsEditor } from "./step-editor-ui";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * Writing a recipe and editing yours (cookpool-recipes RC-5, design §3.1,
@@ -110,7 +110,7 @@ function FieldError({ id, message }: { id: string; message: string | undefined }
 
 /** The form itself: a new recipe (`recipe` null) or yours to change. */
 export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const back = useBack();
   const save = useSaveRecipe();
   const remove = useDeleteRecipe();

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { usePathname } from "next/navigation";
 import { CookingPot, Plus, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -55,6 +55,8 @@ export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: ()
   return (
     <aside
       aria-label="Cookpool"
+      // It stays put while the page moves (RC-11's page transitions, new frame only).
+      data-vt-keep={newFrame ? "sidebar" : undefined}
       className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r bg-card min-[900px]:flex"
     >
       <div className="px-5 pb-5 pt-6">

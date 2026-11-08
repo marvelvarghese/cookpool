@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/kitchen/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, Link2Off, UsersRound } from "lucide-react";
 import type { JoinPreview } from "@saas/contracts/membership";
@@ -19,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { extractJoinCode, joinFailureKind, type JoinFailure } from "@/components/kitchen/join-code";
 import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
+import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 
 /**
  * Join from a link (CP-5): `/join/<code>`. Signing in is required — the
@@ -60,7 +60,7 @@ type Outcome =
 
 function JoinFlow({ code }: { code: string }) {
   const { client } = useSession();
-  const router = useRouter();
+  const router = useKitchenRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
   const preview = useApiQuery(qk.joinPreview(code), () => wrap(() => client.memberships.previewJoin(code)));

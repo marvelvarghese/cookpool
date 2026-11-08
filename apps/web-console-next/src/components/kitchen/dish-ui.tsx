@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { ChevronDown, ChevronRight, Minus, Plus } from "lucide-react";
 import type { KitchenDish } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";

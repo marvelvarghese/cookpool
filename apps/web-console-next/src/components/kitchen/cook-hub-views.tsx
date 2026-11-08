@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { BookOpen, Bookmark, ChevronRight, CookingPot, Plus } from "lucide-react";
 import type { CookNowEntry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
+import { shareKey, sharePart } from "@/lib/transitions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KCard, K_BUTTON } from "./kit";
@@ -83,11 +84,20 @@ export function StartCookingButton() {
   );
 }
 
-/** A recipe's tile: its initial on its colour. */
-export function RecipeTileView({ tile, className }: { tile: { initial: string; bg: string; fg: string }; className?: string }) {
+/** A recipe's tile: its initial on its colour. `part`: what lets it travel into the recipe's page (RC-11). */
+export function RecipeTileView({
+  tile,
+  className,
+  part,
+}: {
+  tile: { initial: string; bg: string; fg: string };
+  className?: string;
+  part?: Record<string, string> | undefined;
+}) {
   return (
     <span
       aria-hidden
+      {...part}
       style={{ backgroundColor: tile.bg, color: tile.fg }}
       className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[17px] font-extrabold", className)}
     >
@@ -168,14 +178,15 @@ export function CookNowSection({
       ) : (
         <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[22px] border bg-card">
           {rows.map((r) => (
-            <li key={r.id} className="flex items-center gap-3 py-2.5 pl-3.5 pr-3">
-              <RecipeTileView tile={r.tile} />
+            <li key={r.id} data-vt-card="" className="flex items-center gap-3 py-2.5 pl-3.5 pr-3">
+              <RecipeTileView tile={r.tile} part={sharePart("tile")} />
               <Link
                 {...pressIn(() => prefetch(r.id))}
                 href={r.href}
+                share={shareKey("recipe", r.id)}
                 className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="truncate text-base font-extrabold">{r.name}</span>
+                <span {...sharePart("title")} className="truncate text-base font-extrabold">{r.name}</span>
                 <span className={cn("truncate text-[13px] font-bold tabular-nums", r.tone === "have" ? "text-[#165C3A]" : "text-muted-foreground")}>
                   {r.meta}
                 </span>
@@ -256,9 +267,10 @@ export function MyRecipesSection({
                 <Link
                   {...pressIn(() => prefetch(c.id))}
                   href={c.href}
+                  share={shareKey("recipe", c.id)}
                   className="flex min-w-0 flex-col gap-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <span className="truncate text-[17px] font-extrabold">{c.name}</span>
+                  <span {...sharePart("title")} className="truncate text-[17px] font-extrabold">{c.name}</span>
                   <span className="truncate text-[13px] font-semibold text-muted-foreground">{c.items}</span>
                 </Link>
                 <p className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] font-bold tabular-nums text-[#3F4842]">
@@ -307,10 +319,11 @@ export function CookNowStrip({ cards, prefetch }: { cards: readonly CookNowCard[
             <Link
               {...pressIn(() => prefetch?.(c.id))}
               href={c.href}
+              share={shareKey("recipe", c.id)}
               className="flex h-full flex-col gap-2 rounded-[18px] border bg-card p-3 shadow-[0_1px_2px_rgba(23,32,27,0.04)] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <RecipeTileView tile={c.tile} />
-              <span className="line-clamp-2 text-[15px] font-extrabold leading-tight">{c.name}</span>
+              <RecipeTileView tile={c.tile} part={sharePart("tile")} />
+              <span {...sharePart("title")} className="line-clamp-2 text-[15px] font-extrabold leading-tight">{c.name}</span>
               <span className={cn("truncate text-[13px] font-bold tabular-nums", c.tone === "have" ? "text-[#165C3A]" : "text-muted-foreground")}>{c.text}</span>
             </Link>
           </li>
@@ -365,10 +378,11 @@ export function YourRecipes({
               <Link
                 {...pressIn(() => prefetch?.(row.id))}
                 href={row.href}
+                share={shareKey("recipe", row.id)}
                 className="flex min-h-16 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-base font-extrabold">{row.name}</span>
+                  <span {...sharePart("title")} className="block truncate text-base font-extrabold">{row.name}</span>
                   <span className="block truncate text-[13px] font-semibold text-muted-foreground">{row.meta}</span>
                 </span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
@@ -470,9 +484,10 @@ export function PersonRecipesView({
               <Link
                 {...pressIn(() => prefetch?.(row.id))}
                 href={row.href}
+                share={shareKey("recipe", row.id)}
                 className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="truncate text-base font-extrabold">{row.name}</span>
+                <span {...sharePart("title")} className="truncate text-base font-extrabold">{row.name}</span>
                 <span className="truncate text-[13px] font-semibold tabular-nums text-muted-foreground">{row.meta}</span>
               </Link>
               {renderSave ? renderSave(row) : null}
