@@ -385,6 +385,27 @@ export interface PantriesResponse {
   pantries: Pantry[];
 }
 
+/** The longest item note (RC-3), in characters. */
+export const ITEM_NOTE_MAX = 80;
+
+/**
+ * An item's note as it is stored (RC-3): trimmed, and null when nothing is
+ * left of it — so a note is never blank. `null` and `undefined` are none.
+ */
+export function normalizeItemNote(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
+ * A note's length as the database counts it (SQLite's `length()`):
+ * characters, not UTF-16 units, so "é" and "🍛" are one each.
+ */
+export function itemNoteLength(note: string): number {
+  return Array.from(note).length;
+}
+
 export interface KitchenItem {
   /** `itm_…` */
   id: string;
@@ -432,6 +453,14 @@ export interface KitchenItem {
    * so items typed before SM-13 still check.
    */
   measures?: KitchenMeasure[];
+  /**
+   * One line about it (RC-3): "For Sunday's curry", at most ITEM_NOTE_MAX
+   * characters; null when it has none. Whoever can read the item reads its
+   * note — only you in your own pantry, everyone in the group in a group's.
+   * Every answer that carries an item carries it; the field is optional here
+   * only so items typed before RC-3 still check.
+   */
+  note?: string | null;
 }
 
 /**
@@ -512,6 +541,12 @@ export interface CreatePersonalItemRequest {
   /** ISO date; defaults to today. */
   boughtOn?: string;
   expiresOn?: string | null;
+  /**
+   * One line about it (RC-3), trimmed; empty or null is none. More than
+   * ITEM_NOTE_MAX characters is 422 `validation_failed` on `note`. Words
+   * only: it moves no money.
+   */
+  note?: string | null;
 }
 
 /**
@@ -539,6 +574,11 @@ export interface UpdatePersonalItemRequest {
   quantity?: string | number;
   unit?: string;
   priceMinor?: number;
+  /**
+   * The note (RC-3): trimmed; empty or null clears it. Changes at any time,
+   * however much is used, and writes nothing to the ledger.
+   */
+  note?: string | null;
   version?: number;
 }
 

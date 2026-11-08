@@ -229,4 +229,20 @@ describe("kitchen migrations", () => {
     expect(sql.match(/\bALTER\b/gi)).toHaveLength(2);
     expect(sql).not.toMatch(/\b(DROP|UPDATE|DELETE)\b/i);
   });
+
+  it("adds item notes as 330_kitchen_item_notes, the next kitchen migration after 300 (RC-3)", () => {
+    const ids = manifest.migrations.map((m) => m.id);
+    expect(kitchen.map((m) => m.id).slice(8, 10)).toEqual(["300_kitchen_measures", "330_kitchen_item_notes"]);
+    // 310 and 320 are notifications' (PW-5): 330 follows them in the manifest.
+    expect(ids.indexOf("330_kitchen_item_notes")).toBe(ids.indexOf("320_notification_push_preferences") + 1);
+    expect(manifest.migrations.find((m) => m.id === "330_kitchen_item_notes")).toMatchObject({
+      context: "kitchen",
+      path: "330_kitchen_item_notes/up.sql",
+    });
+
+    const sql = readFileSync(resolve(MIGRATIONS_ROOT, "330_kitchen_item_notes/up.sql"), "utf8").replace(/--.*$/gm, "");
+    // Additive: one nullable column with no default, at most 80 characters, so items written before read as NULL.
+    expect(sql.trim()).toBe("ALTER TABLE kitchen_items ADD COLUMN note TEXT\n  CHECK (note IS NULL OR length(note) <= 80);");
+    expect(sql).not.toMatch(/\b(CREATE|DROP|UPDATE|DELETE|DEFAULT|NOT NULL)\b/i);
+  });
 });

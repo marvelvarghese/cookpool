@@ -88,6 +88,8 @@ export function makeItem(o: {
   boughtOn?: string;
   createdAt?: string;
   id?: string;
+  /** Its note (RC-3); left out unless given, as an item read before RC-3. */
+  note?: string | null;
 }): ReachableItem {
   const unit = o.unit ?? "kg";
   const bought = toMilli(o.bought ?? "1", unit);
@@ -121,6 +123,7 @@ export function makeItem(o: {
     createdBy: o.createdBy ?? o.paidBy ?? ANU,
     createdAt: o.createdAt ?? "2026-10-28T08:00:00.000Z",
     updatedAt: o.createdAt ?? "2026-10-28T08:00:00.000Z",
+    ...(o.note !== undefined ? { note: o.note } : {}),
     canUse: o.canUse ?? true,
   };
 }
