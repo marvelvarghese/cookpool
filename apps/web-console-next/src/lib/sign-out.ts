@@ -17,8 +17,9 @@
  * 4. The token, the React Query cache, and everything this device remembers
  *    for the person: SI-5's join record and `next` stash, the OAuth provider
  *    stash, the Name step marker, how they signed in, their recent groups,
- *    the admin console's last org and the icon badge's switch (and count).
- *    The API target is the device's, not the person's, and stays.
+ *    the admin console's last org, the icon badge's switch (and count) and
+ *    the cooking session's draft (cookpool-recipes RC-6). The API target is
+ *    the device's, not the person's, and stays.
  * 5. A full navigation to `/login` (replacing You in history), so nothing
  *    in memory — and no Cookpool theme on <body> — outlives the session.
  */
@@ -29,6 +30,7 @@ import { clearRecentGroups } from "./recent-groups";
 import { clearLastOrgSlug } from "./last-org";
 import { clearBadgeRecord } from "./push-device";
 import { FORGET_PUSH_MS } from "./push";
+import { clearCookSessions } from "./cook-session-store";
 
 /** Where signing out lands. */
 export const SIGNED_OUT_PATH = "/login";
@@ -50,6 +52,7 @@ export function clearDeviceRecords(): void {
   clearRecentGroups();
   clearLastOrgSlug();
   clearBadgeRecord();
+  clearCookSessions();
 }
 
 export interface SignOutDeps {
