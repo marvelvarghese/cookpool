@@ -14,6 +14,8 @@
  */
 
 import { factorForPortions, type CookNowEntry, type KitchenRecipe, type RecipeSummary } from "@saas/contracts/kitchen";
+import type { CachePatch } from "@/lib/optimistic";
+import { qk } from "@/lib/query-keys";
 import { dayText } from "./when";
 import {
   VISIBILITY_WORDS,
@@ -262,4 +264,33 @@ export function profileRecipeRows(recipes: readonly RecipeSummary[]): ProfileRec
     const extra = fromText(r) ?? (r.savedBy > 0 ? `saved by ${r.savedBy}` : null);
     return { id: r.id, name: r.name, href: recipeHref(r.id), meta: [VISIBILITY_WORDS[r.visibility], extra].filter(Boolean).join(" · ") };
   });
+}
+
+// ── Writes that show at once (SM-5) ───────────────────────────────
+
+const isArray = (d: unknown): d is unknown[] => Array.isArray(d);
+
+/** A recipe off My recipes and Cook now the moment it is deleted (Undo puts them back). */
+export function recipeRemovedPatches(recipeId: string): CachePatch[] {
+  return [
+    {
+      prefix: qk.kitchenMyRecipes(),
+      update: (d) => (isArray(d) && (d as RecipeSummary[]).some((r) => r.id === recipeId) ? (d as RecipeSummary[]).filter((r) => r.id !== recipeId) : d),
+    },
+    {
+      prefix: qk.kitchenCookNow(),
+      update: (d) =>
+        isArray(d) && (d as CookNowEntry[]).some((e) => e.recipe.id === recipeId) ? (d as CookNowEntry[]).filter((e) => e.recipe.id !== recipeId) : d,
+    },
+  ];
+}
+
+/** A recipe at the top of My recipes once the server has written it (a copy, a dish saved as one), until My recipes is read again. */
+export function recipeAddedPatches(recipe: RecipeSummary): CachePatch[] {
+  return [
+    {
+      prefix: qk.kitchenMyRecipes(),
+      update: (d) => (isArray(d) && !(d as RecipeSummary[]).some((r) => r.id === recipe.id) ? [recipe, ...(d as RecipeSummary[])] : d),
+    },
+  ];
 }
