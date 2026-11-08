@@ -509,6 +509,20 @@ export type {
   CookNowEntry,
   CookNowResponse,
   ScaledPortions,
+  // Guided steps (GC-2).
+  StepPhase,
+  StepTimeRule,
+  StepSense,
+  StepHeat,
+  KitchenRecipeStep,
+  RecipeStepInput,
+  RecipeStepWrite,
+  LongPrepStep,
+  StepTimeAt,
+  StepTiming,
+  StepLogEntry,
+  UpdateStepTimesRequest,
+  StepTimesInput,
 } from "@saas/contracts/kitchen";
 
 export {
@@ -529,4 +543,20 @@ export {
   factorForMain,
   factorForPortions,
   lineQuantity,
+  // Guided steps (GC-2).
+  STEP_PHASES,
+  STEP_TIME_RULES,
+  STEP_SENSES,
+  MAX_STEP_SECONDS,
+  MAX_STEP_WHISTLES,
+  MAX_STEP_CHECKPOINT,
+  MAX_STEP_TIP,
+  MAX_RECIPE_TOOLS,
+  MAX_RECIPE_TOOL,
+  LONG_PREP_SECONDS,
+  MAX_STEP_LOG,
+  stepTimeAt,
+  stepTimeMultiplier,
+  isLongPrep,
+  longPrepOf,
 } from "@saas/contracts/kitchen";
