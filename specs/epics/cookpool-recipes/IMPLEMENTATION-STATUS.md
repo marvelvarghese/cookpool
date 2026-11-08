@@ -4,12 +4,12 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 | Milestone | State | PR |
 |---|---|---|
-| RC0 — the spec | landing | RC-1 |
-| RC1 — the new frame (stage) | | |
-| RC2 — recipes | | |
-| RC3 — cooking sessions | | |
-| RC4 — recipes travel | | |
-| RC5 — prod | | |
+| RC0 — the spec | ✅ shipped 2026-11-08 | #62 (RC-1) |
+| RC1 — the new frame (stage) | ✅ shipped on stage 2026-11-08 | #64 (RC-2), #63 (RC-3) |
+| RC2 — recipes | ✅ shipped on stage 2026-11-08 | #65 (RC-4), #68 (RC-5) |
+| RC3 — cooking sessions | ✅ shipped on stage 2026-11-08 | #66 (RC-6) |
+| RC4 — recipes travel | ✅ shipped on stage 2026-11-08 | #67 (RC-7), #70 (RC-8), RC-9 |
+| RC5 — prod | waits for the owner | |
 
 ## Departures from the design
 
@@ -582,3 +582,12 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | `tests/web-console-next` | 83: `kitchen-recipe-share` 29 (the three levels and their words, the chosen row, each level's PATCH, the cache at once, Undo's call, the toast, the link's address, Copy and its failure, New link's POST, Turn off's DELETE, Saved by; `/r/<code>`'s code, sharer, serves, dots, "You have 5 of 6", Save by `{ linkCode }`, Saved · Undo's delete, the button's states, the note, the page drawn, the dead link); `kitchen-recipes-travel` 51 (Explore's switch, subtitle, search, kinds, sort, match words, Only what I can make, rows drawn, the bookmark, Explore in the hub; a person's list, rows, numbers, Save and Saved; Always have's add, remove, PUT body, two quick edits and Undo, refreshes, the card, full list, the food search; the food ask's pairing, general words, once per name across pantries, answered names, Yes and No bodies, refusal, the cards; feed recipe ids, 404 left out, whose recipe, the row; prod redirects for `/explore` and `/r/*`, files and the rule, tab and Back, the session bar, signed-out return, offline reads, cache keys); `sw-routes` 3 | 1615 (82 suites) |
 
 `pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, `next build` passes, and `orun task check RC-8 --base origin/main` passes: 2 changed components, all inside the contract.
+
+### The stage close (RC-9)
+
+- **Every build task is merged and deployed:** RC-2 to RC-8.
+  - Migrations 330–360 are applied on stage and prod.
+  - The new frame is on wherever the app isn't prod.
+- **One deploy needed a rerun.** RC-3's migrate job hit D1's 401 (the token blip seen after SM-3); kitchen-worker waited for it and didn't deploy until the rerun applied 330.
+- **RC-7 also needed a PR check rerun.**
+- **The builds ran as local agents.** The Claude cloud sessions asked for were never created, and local sessions in `cookpool` were refused because the folder isn't trusted on this Mac.
