@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import type { SettlementMethod, SettlePayment } from "@saas/contracts/kitchen";

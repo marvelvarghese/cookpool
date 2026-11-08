@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import type { MyGroupBalance } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { isOffline } from "@/lib/connection";
@@ -59,6 +59,7 @@ import {
   type CookSession,
   type FinishOutcome,
 } from "./cook-session";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * The cooking session's screen (cookpool-recipes RC-6, design §4.2, the
@@ -95,7 +96,7 @@ export function CookSessionScreen() {
 
 /** One session at a time: resume the one here, start one, or ask first. */
 function SessionGate({ meId, wanted }: { meId: string; wanted: { recipeId: string; f: number } | null }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const session = useCookSession(meId);
   const cancelTimers = useCancelServerTimers();
   // Finishing or discarding clears the draft on the way out: nothing new starts behind it.
@@ -128,7 +129,7 @@ function SessionGate({ meId, wanted }: { meId: string; wanted: { recipeId: strin
 
 /** From a recipe: read it and the match at `f`, then the draft is made from them, and the address drops its query. */
 function StartFromRecipe({ meId, recipeId, f }: { meId: string; recipeId: string; f: number }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const recipe = useRecipe(recipeId, f);
   const match = useRecipeMatch(recipeId, f);
   const made = React.useRef(false);
@@ -202,7 +203,7 @@ const NO_GROUPS: readonly MyGroupBalance[] = [];
 
 /** The session itself. */
 function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSession; onLeave: () => void }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const minimize = useBack();
   const now = useNow(1000);
   const balances = useMyBalances();

@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-11
+  title: "Page transitions on phones"
+spec:
+  goal: "In the new frame, moving between screens on a phone animates with the View Transitions API: deeper screens slide in from the right and back slides them out, tabs cross-fade, the cooking session rises from the bottom, and a tapped recipe's title and tile carry into its page; reduced motion and browsers without the API stay instant."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-11.TaskContract.yaml
+  doneWhen:
+    - "a navigation is classed as forward, back, tab, up or down, and each runs its own transition under 300 ms"
+    - "the tab bar and the session bar stay still while the page moves"
+    - "a tapped recipe card's title and tile carry into the recipe page, named only on the tapped element"
+    - "prefers-reduced-motion and browsers without startViewTransition switch instantly; Safari's own back swipe is not animated twice"
+    - "with newFrame() false nothing changes"
+  gates: []
