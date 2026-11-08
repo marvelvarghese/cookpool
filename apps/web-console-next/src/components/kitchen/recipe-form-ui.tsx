@@ -99,7 +99,8 @@ function FieldError({ id, message }: { id: string; message: string | undefined }
   );
 }
 
-function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
+/** The form itself: a new recipe (`recipe` null) or yours to change. */
+export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
   const router = useRouter();
   const back = useBack();
   const save = useSaveRecipe();
@@ -125,7 +126,8 @@ function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
     e.preventDefault();
     setTried(true);
     if (!request.body) {
-      focusFirstError(formRef.current);
+      // Once the errors are drawn.
+      window.requestAnimationFrame(() => focusFirstError(formRef.current));
       return;
     }
     setBusy(true);
@@ -449,7 +451,6 @@ function LineEditor({
           />
           Main
         </label>
-        <FieldError id={`${id}-main-error`} message={errors?.main} />
         <button type="button" aria-label={`Move ${line.name.trim() || position} up`} disabled={index === 0} onClick={() => onMove(-1)} className={ICON_BUTTON}>
           <ArrowUp className="h-5 w-5" aria-hidden />
         </button>
@@ -460,6 +461,7 @@ function LineEditor({
           <Trash2 className="h-5 w-5" aria-hidden />
         </button>
       </div>
+      <FieldError id={`${id}-main-error`} message={errors?.main} />
     </div>
   );
 }

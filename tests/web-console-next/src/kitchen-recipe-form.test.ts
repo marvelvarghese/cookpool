@@ -263,7 +263,8 @@ describe("a line's food", () => {
   });
 
   it("shows under the field what it is linked to", () => {
-    expect(lineLinkText({ name: "Onion", foodKey: "onion", foodName: "Onion" })).toEqual({ text: "✓ Onion", linked: true });
+    expect(lineLinkText({ name: "Onion", foodKey: "onion", foodName: "Onion" })).toEqual({ text: "✓ On the food list", linked: true });
+    expect(lineLinkText({ name: "Onions, sliced", foodKey: "onion", foodName: "Onion" })).toEqual({ text: "✓ Onion", linked: true });
     expect(lineLinkText({ name: "Grandma's masala", foodKey: null, foodName: null })?.linked).toBe(false);
     expect(lineLinkText({ name: " ", foodKey: null, foodName: null })).toBeNull();
     expect(foodSuggestionViews([food("onion", "Onion", "count", "pyaz"), food("rice", "Rice", "mass")]).map((v) => v.label)).toEqual(["Onion · pyaz", "Rice"]);

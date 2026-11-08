@@ -400,9 +400,16 @@ export function foodSuggestionViews(foods: readonly FoodMatch[]): FoodSuggestion
   });
 }
 
-/** Under a named line: linked to a food (so it can match a pantry), or the person's own words. */
+/**
+ * Under a named line: linked to a food (so it can match a pantry) — "✓ On
+ * the food list", or "✓ Onion" when the words say more ("Onions, sliced") —
+ * or the person's own words.
+ */
 export function lineLinkText(line: Pick<LineDraft, "name" | "foodKey" | "foodName">): { text: string; linked: boolean } | null {
   if (!line.name.trim()) return null;
-  if (line.foodKey) return { text: `✓ ${line.foodName ?? line.name}`, linked: true };
+  if (line.foodKey) {
+    const same = !line.foodName || foodNameKey(line.foodName) === foodNameKey(line.name);
+    return { text: same ? "✓ On the food list" : `✓ ${line.foodName}`, linked: true };
+  }
   return { text: "Not on the food list · won't match a pantry", linked: false };
 }
