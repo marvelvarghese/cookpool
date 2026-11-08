@@ -364,6 +364,15 @@ export const manifest: MigrationManifest = {
         "Cookpool's 42 recipes with guided steps: for each of 360's recipes under usr_cookpool, its tools (a JSON array) set by UPDATE, and its step rows replaced — DELETE, then one plain INSERT — by guided steps with fixed keys c00c0390-<recipe>-<step>: prep (chopping, soaking, marinating, resting) before cook, every cook step with a flame, its lines, a time range and rule or a whistle count, hands off where it waits, a checkpoint and a tip where useful; the rajma and chole soaks, sabudana's soak and fried rice's cooled rice are long prep. Lines, names and every other recipe are untouched (Cookpool GC-4)",
     },
     {
+      id: "400_kitchen_purchases",
+      context: "kitchen",
+      path: "400_kitchen_purchases/up.sql",
+      checksum:
+        "44b8b8abe901dc64d1f94a4991be67d2f85bc6f1e29106c28fa59732787219b4",
+      description:
+        "Shopping runs: kitchen_items.purchase_id (nullable, no default — a UUID, pur_ in the API) shared by every item one run added in one batch with one payer, null for an item added on its own; indexed on purchase_id over the items in a purchase, for the run's Undo and the replay of a retried run. No purchases table and no name index: the restock read groups by name through the existing owner and group indexes (Cookpool PN-3)",
+    },
+    {
       id: "410_kitchen_moves_via",
       context: "kitchen",
       path: "410_kitchen_moves_via/up.sql",

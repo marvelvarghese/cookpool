@@ -2071,6 +2071,13 @@ export * from "./kitchen-recipes.js";
 
 export * from "./kitchen-timers.js";
 
+// ── Restocking (PN-3) ───────────────────────────────────────
+//
+// What to buy again (finished, running low, usually bought) and the shopping
+// run that buys it in one write: see ./kitchen-restock.ts.
+
+export * from "./kitchen-restock.js";
+
 // The stock check (cookpool-pantry PN-4): setting what is really left of an
 // item — ./kitchen-stock-check.ts (also through `@saas/contracts/kitchen`).
 export * from "./kitchen-stock-check.js";

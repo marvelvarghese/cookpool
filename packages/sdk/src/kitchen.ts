@@ -88,6 +88,8 @@ import type { CheckGroupItemRequest, CheckItemResponse, CheckPersonalItemRequest
 import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 // Timers that find you (GC-3).
 import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
+// Restocking and shopping runs (PN-3).
+import type { PurchaseLine, PurchaseResponse, RestockResponse, UndoPurchaseResponse } from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -1084,6 +1086,49 @@ export class KitchenClient {
   cancelTimer(timerId: string, opts: RequestOptions = {}): Promise<KitchenTimerResponse> {
     return this.transport.request<KitchenTimerResponse>(
       { method: "DELETE", path: this.mePath(`timers/${encodeURIComponent(timerId)}`) },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Restocking (PN-3)
+  //
+  // What to buy again across every pantry the caller can reach, and the
+  // shopping run that buys it in one write paid by the caller. `buy` takes
+  // `opts.idempotencyKey`: the same key twice buys once. A line whose pantry
+  // is out of reach refuses the whole run (`ValidationError`, field
+  // `lines[i].pantry`); a group line in another currency is a
+  // `ValidationError` with `reason: "currency_mismatch"`.
+  // -------------------------------------------------------------------------
+
+  /**
+   * GET /v1/kitchen/me/restock — `{ finished, runningLow, usual }`: each name
+   * and pantry once, with its reason, why, and the last purchase to fill a
+   * line from.
+   */
+  restock(opts: RequestOptions = {}): Promise<RestockResponse> {
+    return this.transport.request<RestockResponse>({ method: "GET", path: this.mePath("restock") }, opts);
+  }
+
+  /**
+   * POST /v1/kitchen/me/purchases — add 1 to 30 lines, each to its own
+   * pantry, in one write under one purchase (`pur_…`), paid by the caller.
+   */
+  buy(lines: readonly PurchaseLine[], opts: RequestOptions = {}): Promise<PurchaseResponse> {
+    return this.transport.request<PurchaseResponse>(
+      { method: "POST", path: this.mePath("purchases"), body: { lines } },
+      opts,
+    );
+  }
+
+  /**
+   * DELETE /v1/kitchen/me/purchases/:purchaseId — the run's Undo: removes
+   * its items still unused and lists the ones kept. Someone else's purchase
+   * is a `NotFoundError`.
+   */
+  undoPurchase(purchaseId: string, opts: RequestOptions = {}): Promise<UndoPurchaseResponse> {
+    return this.transport.request<UndoPurchaseResponse>(
+      { method: "DELETE", path: this.mePath(`purchases/${encodeURIComponent(purchaseId)}`) },
       opts,
     );
   }
