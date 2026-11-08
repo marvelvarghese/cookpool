@@ -74,6 +74,17 @@ export const MANIFEST_SHORTCUTS: readonly ManifestShortcut[] = [
   { name: "Cook", url: "/cook", icons: [shortcutIcon("cook")] },
 ];
 
+/**
+ * The new frame's shortcuts (cookpool-recipes RC-2, design §1.2): the two
+ * things people do most from the home screen — "What did you use?" and
+ * "Start cooking" (today's cook screen until RC-6's session). Bought is on
+ * Pantry's top, so it is not a shortcut any more.
+ */
+export const NEW_FRAME_SHORTCUTS: readonly ManifestShortcut[] = [
+  { name: "What did you use?", url: "/use", icons: [shortcutIcon("use")] },
+  { name: "Start cooking", url: "/cook", icons: [shortcutIcon("cook")] },
+];
+
 export interface ManifestScreenshot {
   src: string;
   sizes: string;
@@ -101,8 +112,10 @@ export function appName(productName: string): string {
   return productName.charAt(0).toUpperCase() + productName.slice(1);
 }
 
-export function buildManifest(productName: string) {
+/** The manifest; with `newFrame` (everywhere but prod, RC-2), the new frame's shortcuts. */
+export function buildManifest(productName: string, opts: { newFrame?: boolean } = {}) {
   const name = appName(productName);
+  const shortcuts = opts.newFrame ? NEW_FRAME_SHORTCUTS : MANIFEST_SHORTCUTS;
   return {
     id: "/home",
     name,
@@ -117,7 +130,7 @@ export function buildManifest(productName: string) {
     orientation: "portrait-primary",
     categories: ["food", "lifestyle"],
     icons: MANIFEST_ICONS.map((icon) => ({ ...icon })),
-    shortcuts: MANIFEST_SHORTCUTS.map((s) => ({ ...s, icons: s.icons.map((icon) => ({ ...icon })) })),
+    shortcuts: shortcuts.map((s) => ({ ...s, icons: s.icons.map((icon) => ({ ...icon })) })),
     screenshots: MANIFEST_SCREENSHOTS.map((shot) => ({ ...shot })),
   };
 }

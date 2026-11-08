@@ -46,6 +46,7 @@ export const API_READS = Object.freeze([
   "/v1/kitchen/me/items/:itemId/moves", // its history
   "/v1/organizations/:orgId/kitchen/items/:itemId", // an item in a group's pantry
   "/v1/organizations/:orgId/kitchen/items/:itemId/moves", // its history
+  "/v1/kitchen/me/dishes", // your dishes and your groups' (the new frame's Home, You and a person, RC-2)
   "/v1/kitchen/me/dishes/:dishId", // a dish
   "/v1/organizations/:orgId/kitchen/dishes", // a group's dishes
   "/v1/organizations/:orgId/kitchen/members", // a group's people

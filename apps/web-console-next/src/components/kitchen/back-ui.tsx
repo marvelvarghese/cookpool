@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { newFrame } from "@/lib/features";
 import { DEFAULT_PARENT, backParent, createTrail, type BackKnown, type Trail } from "./back";
 
 /**
@@ -37,7 +38,7 @@ export function BackControl({ onClick, className }: { onClick: () => void; class
 export function useBack(known?: BackKnown): () => void {
   const router = useRouter();
   const pathname = usePathname();
-  const parent = backParent(pathname, known) ?? DEFAULT_PARENT;
+  const parent = backParent(pathname, known, { newFrame: newFrame() }) ?? DEFAULT_PARENT;
   return React.useCallback(() => {
     if (trail?.canGoBack()) router.back();
     else router.replace(parent);

@@ -7,7 +7,7 @@ import { CookingPot, Plus, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
-import { KITCHEN_SIDEBAR_LINKS, isSidebarLinkActive } from "./nav";
+import { isSidebarLinkActive, isTabActiveIn, sidebarLinks } from "./nav";
 import { recentGroups } from "./groups";
 import { kitchenIcon } from "./icons";
 import { GroupAvatar } from "./kit";
@@ -36,8 +36,12 @@ const ROW =
  * the four most recent groups and a link to all of them, and the signed-in
  * person. "Me" and the person at the foot open You (SI-6); the gear beside
  * the person opens the admin console's account page, as before.
+ *
+ * In the new frame (`newFrame`, cookpool-recipes RC-2) it lists the same five
+ * as the phone's bar — Home · Pantry · Cook · Money · You, Cook's icon in a
+ * filled green square — and has no Add: each tab's main action is at its top.
  */
-export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen: boolean }) {
+export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: () => void; addOpen: boolean; newFrame?: boolean }) {
   const pathname = usePathname();
   const groups = useGroups();
   const recentSlugs = useRecentGroupSlugs();
@@ -57,24 +61,26 @@ export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen:
         </Link>
       </div>
 
-      <div className="px-4">
-        {/* One way in, as the tab bar's + Add (SM-15): Used · Cooked · Bought · Paid a bill. */}
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-haspopup="dialog"
-          aria-expanded={addOpen}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-[15px] font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <Plus className="h-5 w-5" aria-hidden />
-          Add
-        </button>
-      </div>
+      {newFrame ? null : (
+        <div className="px-4">
+          {/* One way in, as the tab bar's + Add (SM-15): Used · Cooked · Bought · Paid a bill. */}
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-haspopup="dialog"
+            aria-expanded={addOpen}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-[15px] font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Plus className="h-5 w-5" aria-hidden />
+            Add
+          </button>
+        </div>
+      )}
 
-      <nav aria-label="Main" className="mt-5 px-3">
+      <nav aria-label="Main" className={cn(newFrame ? "mt-1" : "mt-5", "px-3")}>
         <ul className="space-y-0.5">
-          {KITCHEN_SIDEBAR_LINKS.map((link) => {
-            const active = isSidebarLinkActive(link.id, pathname);
+          {sidebarLinks(newFrame).map((link) => {
+            const active = newFrame ? isTabActiveIn(true, link.id, pathname) : isSidebarLinkActive(link.id, pathname);
             const Icon = kitchenIcon(link.icon);
             return (
               <li key={link.id}>
@@ -86,7 +92,13 @@ export function KitchenSidebar({ onAdd, addOpen }: { onAdd: () => void; addOpen:
                     active ? "bg-accent font-bold text-primary" : "font-medium text-foreground hover:bg-accent",
                   )}
                 >
-                  <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 1.9} aria-hidden />
+                  {link.featured ? (
+                    <span aria-hidden className="-ml-1 grid h-8 w-8 place-items-center rounded-[10px] bg-primary text-primary-foreground">
+                      <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} />
+                    </span>
+                  ) : (
+                    <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 1.9} aria-hidden />
+                  )}
                   {link.label}
                 </Link>
               </li>

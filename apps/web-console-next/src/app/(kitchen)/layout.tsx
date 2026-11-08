@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
+import { newFrame } from "@/lib/features";
 import { useRequireAuth } from "@/lib/use-async";
 import { markNameAsked, nameAskedFor } from "@/lib/first-run";
 import { signingOut } from "@/lib/sign-out";
@@ -10,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { KitchenSidebar } from "@/components/kitchen/sidebar";
 import { KitchenTabBar } from "@/components/kitchen/tab-bar";
 import { AddSheet } from "@/components/kitchen/add-sheet";
+import { SessionBar } from "@/components/kitchen/session-bar";
 import { AppNotify } from "@/components/kitchen/notify-device";
 import { BackTrailRecorder } from "@/components/kitchen/back-ui";
 import { EdgeSwipeBack, PullToRefresh } from "@/components/kitchen/gestures-ui";
@@ -52,9 +54,18 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  * The palette and font are scoped to this tree (`.cookpool`, light only); the
  * classes also go on <body> while this layout is mounted, so portalled UI —
  * the Add sheet, dialogs, toasts — matches. The admin console is untouched.
+ *
+ * THE NEW FRAME (cookpool-recipes RC-2, `newFrame()`: everywhere but prod):
+ * the tab bar and the sidebar list Home · Pantry · Cook · Money · You, with
+ * no + Add (and no Add sheet), and the cooking session's bar has its slot
+ * above the tab bar (`SessionBar`, empty until RC-6). It is decided in the
+ * browser once the session is ready, so the prerendered frame is the same
+ * for both.
  */
 export default function KitchenLayout({ children }: { children: React.ReactNode }) {
   const ready = useRequireAuth({ returnHere: true, signOutOnUnauthorized: true });
+  // Read only where `ready` (the browser, after hydration): the host names the environment.
+  const frameNew = ready && newFrame();
   const wide = isWideKitchenPage(usePathname());
   useAskForNameOnce(ready);
   const [addOpen, setAddOpen] = React.useState(false);
@@ -76,7 +87,7 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
       </a>
 
       {ready ? (
-        <KitchenSidebar onAdd={openAdd} addOpen={addOpen} />
+        <KitchenSidebar onAdd={openAdd} addOpen={addOpen} newFrame={frameNew} />
       ) : (
         <aside aria-hidden className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r bg-card min-[900px]:block" />
       )}
@@ -96,8 +107,9 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
         </PullToRefresh>
       </main>
 
-      {ready ? <KitchenTabBar onAdd={openAdd} addOpen={addOpen} /> : null}
-      {ready ? <AddSheet open={addOpen} onOpenChange={setAddOpen} /> : null}
+      {frameNew ? <SessionBar /> : null}
+      {ready ? <KitchenTabBar onAdd={openAdd} addOpen={addOpen} newFrame={frameNew} /> : null}
+      {ready && !frameNew ? <AddSheet open={addOpen} onOpenChange={setAddOpen} /> : null}
       {ready ? <AppNotify /> : null}
       {ready ? <EdgeSwipeBack frame={frame} page={main} /> : null}
       {/* What Back may go back to (PW-3): the screens this frame has shown. */}

@@ -40,6 +40,7 @@ describe("which screens pull to refresh", () => {
     "/cook",
     "/settle",
     "/you",
+    "/you/settings",
     "/you/notifications",
     "/pantry/new",
     "/pantry/:itemRef",
@@ -50,7 +51,7 @@ describe("which screens pull to refresh", () => {
 
   it("decides for every page: a new page must choose", () => {
     expect([...PULL_PAGES, ...NO_PULL].sort()).toEqual([...STATIC_PAGES].sort());
-    expect(PULL_PAGES).toEqual(["/home", "/pantry", "/groups", "/groups/:orgSlug", "/people", "/people/:subjectId", "/dishes/:dishRef"]);
+    expect(PULL_PAGES).toEqual(["/home", "/pantry", "/groups", "/groups/:orgSlug", "/people", "/people/:subjectId", "/dishes/:dishRef", "/money"]);
   });
 
   it.each([
