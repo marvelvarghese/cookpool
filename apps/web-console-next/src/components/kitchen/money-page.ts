@@ -13,7 +13,7 @@
  */
 
 import type { MyBalancesResponse, MyGroupBalance } from "@saas/contracts/kitchen";
-import type { MoneyLine } from "./home";
+import { moneyLine, type MoneyLine } from "./home";
 import { formatMinor } from "./money";
 import { peopleMoney, peopleRows, type NetTone } from "./people";
 import { groupListRow } from "./group-page";
@@ -120,3 +120,14 @@ export function moneyGroups<T extends GroupLike>(
 
 /** Where Settle up goes: today's settle screen, People (since SM-11 `/settle` only leads there). */
 export const SETTLE_UP_HREF = "/people";
+
+/**
+ * A person's page in the new frame (RC-2): what is between you two, in your
+ * words — "You get back ₹40.00", "You owe $12.00" — one line per currency
+ * with money open; "Settled up" when none is.
+ */
+export function personBalance(view: { totals: readonly { currency: string; netMinor: number }[] }): MoneyLine[] {
+  const open = view.totals.filter((t) => t.netMinor !== 0);
+  const lines = open.length > 0 ? open : [{ currency: view.totals[0]?.currency ?? "INR", netMinor: 0 }];
+  return lines.map(moneyLine);
+}

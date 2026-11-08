@@ -170,6 +170,18 @@ export function cooksAWeekText(counts: readonly number[]): string {
   return `${counts[counts.length - 1] ?? 0} this week · ${total} in ${counts.length} weeks`;
 }
 
+/** A week of the chart, for its tooltip: "this week", "last week", "3 weeks ago". */
+export function weekLabel(weeksAgo: number): string {
+  if (weeksAgo <= 0) return "this week";
+  if (weeksAgo === 1) return "last week";
+  return `${weeksAgo} weeks ago`;
+}
+
+/** "1 cook", "3 cooks". */
+export function cooksText(n: number): string {
+  return `${n} ${n === 1 ? "cook" : "cooks"}`;
+}
+
 export interface CookRow {
   dishId: string;
   href: string;
