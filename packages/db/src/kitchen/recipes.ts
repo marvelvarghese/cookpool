@@ -23,6 +23,10 @@
 // a key gets a random one in SQL, as 370's backfill gave the steps before.
 // "Use today's times" sets some steps' ranges by key; a recipe's root is
 // found by walking its copies' source links, deleted recipes included.
+//
+// Learned ranges (GC-7): a recipe's pool of step times — its root's, shared
+// by every copy — is ONE read: the root walk and the times for the recipe's
+// step keys in the same statement, through kitchen_dish_step_times_root_idx.
 
 import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executor.js";
 import type { Uuid } from "../ids/index.js";
@@ -56,6 +60,7 @@ export type RecipesRepository = Pick<
   | "lastCook"
   | "setRecipeStepTimes"
   | "recipeRootId"
+  | "pooledStepTimes"
 >;
 
 const RECIPE_COLUMNS = `r.id, r.owner_id, r.name, r.serves_half, r.minutes, r.visibility, r.link_code, r.source_recipe_id,
@@ -69,6 +74,21 @@ function extrasSql(viewer: string): string {
   return `(SELECT COUNT(*) FROM kitchen_recipes c WHERE c.source_recipe_id = r.id AND c.deleted_at IS NULL) AS saved_by,
     (SELECT MAX(d.cooked_at) FROM kitchen_dishes d
       WHERE d.cook = ${viewer} AND d.recipe_id = r.id AND d.state <> 'canceled') AS last_cooked_at`;
+}
+
+/**
+ * `chain`: recipe `recipe` and the recipes its copies came from, walking
+ * source_recipe_id — deleted ones included — at most `hops` links. Its row of
+ * the most hops is the root.
+ */
+function rootChainSql(recipe: string, hops: string): string {
+  return `WITH RECURSIVE chain (id, source_id, hops) AS (
+             SELECT id, source_recipe_id, 0 FROM kitchen_recipes WHERE id = ${recipe}
+             UNION ALL
+             SELECT r.id, r.source_recipe_id, chain.hops + 1
+             FROM chain JOIN kitchen_recipes r ON r.id = chain.source_id
+             WHERE chain.hops < ${hops}
+           )`;
 }
 
 /** Who may change a recipe: its owner, while it is live and not Cookpool's ($1 the recipe, $2 the owner). */
@@ -461,19 +481,48 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
 
     async recipeRootId(recipeId) {
       try {
-        const result = await executor.execute(
-          `WITH RECURSIVE chain (id, source_id, hops) AS (
-             SELECT id, source_recipe_id, 0 FROM kitchen_recipes WHERE id = $1
-             UNION ALL
-             SELECT r.id, r.source_recipe_id, chain.hops + 1
-             FROM chain JOIN kitchen_recipes r ON r.id = chain.source_id
-             WHERE chain.hops < $2
-           )
-           SELECT id FROM chain ORDER BY hops DESC LIMIT 1`,
-          [recipeId, MAX_RECIPE_ROOT_HOPS],
-        );
+        const result = await executor.execute(`${rootChainSql("$1", "$2")} SELECT id FROM chain ORDER BY hops DESC LIMIT 1`, [
+          recipeId,
+          MAX_RECIPE_ROOT_HOPS,
+        ]);
         const row = result.rows[0];
         return { ok: true, value: row ? (row.id as Uuid) : null };
+      } catch (err) {
+        return internal(err);
+      }
+    },
+
+    async pooledStepTimes({ recipeId, stepKeys, minSeconds }) {
+      if (stepKeys.length === 0) return { ok: true, value: [] };
+      try {
+        // The root once (a constant subquery), then the index's (root, key)
+        // ranges for the recipe's keys, each time's dish by its primary key.
+        const result = await executor.execute(
+          `${rootChainSql("$1", "$2")}
+           SELECT t.step_key, t.seconds, COALESCE(t.factor_milli, d.recipe_factor_milli) AS factor_milli, t.cook_id
+           FROM kitchen_dish_step_times t
+           JOIN kitchen_dishes d ON d.id = t.dish_id
+           WHERE t.recipe_root_id = (SELECT id FROM chain ORDER BY hops DESC LIMIT 1)
+             AND t.step_key IN (SELECT value FROM json_each($3))
+             AND t.seconds >= $4
+             AND d.state <> 'canceled'
+             AND COALESCE(t.factor_milli, d.recipe_factor_milli) IS NOT NULL`,
+          [recipeId, MAX_RECIPE_ROOT_HOPS, JSON.stringify(stepKeys), minSeconds],
+        );
+        // Who cooked stays here: the worker only tells cooks apart.
+        const cooks = new Map<string, number>();
+        return {
+          ok: true,
+          value: result.rows.map((row) => {
+            const cookId = String(row.cook_id);
+            let cook = cooks.get(cookId);
+            if (cook === undefined) {
+              cook = cooks.size + 1;
+              cooks.set(cookId, cook);
+            }
+            return { stepKey: String(row.step_key), seconds: Number(row.seconds), factorMilli: Number(row.factor_milli), cook };
+          }),
+        };
       } catch (err) {
         return internal(err);
       }

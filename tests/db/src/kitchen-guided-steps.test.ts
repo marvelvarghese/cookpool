@@ -321,3 +321,117 @@ describe("a recipe's root and a dish's step times (GC-2)", () => {
     expect(times()).toEqual([expect.objectContaining({ step_key: "k", seconds: 0, factor_milli: null })]);
   });
 });
+
+describe("a recipe's pool of step times (GC-7)", () => {
+  /** A dish straight into the table: `cook` cooked recipe `recipeId` at `factorMilli` (null: not said). */
+  function dish(cook: string, recipeId: string, factorMilli: number | null = 1_000, state: "open" | "canceled" = "open"): string {
+    const id = randomUUID();
+    db.prepare(
+      `INSERT INTO kitchen_dishes (id, cook, name, portions_half, ingredients_minor, total_minor, currency, split_mode, state, cooked_at,
+                                   canceled_at, idem_key, recipe_id, recipe_factor_milli)
+       VALUES (?, ?, 'Rajma', 4, 0, 0, 'INR', 'assign', ?, ?, ?, ?, ?, ?)`,
+    ).run(id, cook, state, now.toISOString(), state === "canceled" ? now.toISOString() : null, `idem-${id}`, recipeId, factorMilli);
+    return id;
+  }
+  /** One step's time for a dish, under root `rootId`. */
+  function time(dishId: string, key: string, rootId: string, seconds: number, factorMilli: number | null, cook: string): void {
+    db.prepare(
+      "INSERT INTO kitchen_dish_step_times (dish_id, step_key, recipe_root_id, seconds, factor_milli, cook_id) VALUES (?, ?, ?, ?, ?, ?)",
+    ).run(dishId, key, rootId, seconds, factorMilli, cook);
+  }
+  /** Cooked once by `cook` from `recipeId` (pooled under `rootId`), with these step times at `factorMilli`. */
+  function cooked(cook: string, recipeId: string, rootId: string, steps: Record<string, number>, factorMilli: number | null = 1_000): string {
+    const id = dish(cook, recipeId, factorMilli);
+    for (const [key, seconds] of Object.entries(steps)) time(id, key, rootId, seconds, factorMilli, cook);
+    return id;
+  }
+  const pool = async (recipeId: string, stepKeys: string[]) => {
+    const read = await repo.pooledStepTimes({ recipeId: asUuid(recipeId), stepKeys, minSeconds: 10 });
+    if (!read.ok) throw new Error(JSON.stringify(read.error));
+    return read.value;
+  };
+  const bySeconds = <T extends { stepKey: string; seconds: number }>(rows: T[]) =>
+    [...rows].sort((a, b) => a.stepKey.localeCompare(b.stepKey) || a.seconds - b.seconds);
+
+  it("reads the root's times for the recipe's keys in ONE statement — the same from the root, a copy and a copy of a copy", async () => {
+    const original = await create();
+    const copy = await create({ ownerId: RAHUL, visibility: "only_me", source: { recipeId: original.id, ownerId: ANU, ownerName: "Anu" } });
+    const copyOfCopy = await create({ ownerId: "usr_dev", visibility: "only_me", source: { recipeId: copy.id, ownerId: RAHUL, ownerName: "Rahul" } });
+    const elsewhere = await create({ ownerId: "usr_olu" }); // a recipe of its own: its own pool
+    const root = original.id;
+    cooked(ANU, original.id, root, { fry: 500, soak: 30_000 });
+    cooked(RAHUL, copy.id, root, { fry: 540 }, 2_000);
+    cooked("usr_dev", copyOfCopy.id, root, { fry: 480, cook: 1_200 }, 450);
+    cooked("usr_olu", elsewhere.id, elsewhere.id, { fry: 9_999 });
+    // A copy deleted since still pools.
+    await repo.deleteRecipe(asUuid(copy.id), RAHUL, later);
+
+    const before = sent.length;
+    const fromCopyOfCopy = await pool(copyOfCopy.id, ["fry", "soak"]);
+    expect(sent.length - before).toBe(1);
+    expect(bySeconds(fromCopyOfCopy).map((t) => [t.stepKey, t.seconds, t.factorMilli])).toEqual([
+      ["fry", 480, 450],
+      ["fry", 500, 1_000],
+      ["fry", 540, 2_000],
+      ["soak", 30_000, 1_000],
+    ]);
+    for (const from of [original.id, copy.id]) {
+      expect(bySeconds(await pool(from, ["fry", "soak"])).map((t) => [t.stepKey, t.seconds])).toEqual(
+        bySeconds(fromCopyOfCopy).map((t) => [t.stepKey, t.seconds]),
+      );
+    }
+    // Only the keys asked for; a recipe of its own reads only its own pool; no keys read nothing.
+    expect((await pool(original.id, ["cook"])).map((t) => t.seconds)).toEqual([1_200]);
+    expect((await pool(elsewhere.id, ["fry", "soak", "cook"])).map((t) => t.seconds)).toEqual([9_999]);
+    const quiet = sent.length;
+    expect(await pool(original.id, [])).toEqual([]);
+    expect(sent.length).toBe(quiet);
+    expect(await pool(randomUUID(), ["fry"])).toEqual([]);
+  });
+
+  it("leaves out a canceled dish's times, skipped ones and those of no size — taking the dish's size when the time has none", async () => {
+    const r = await create();
+    const root = r.id;
+    cooked(ANU, r.id, root, { fry: 500 });
+    const canceled = dish(RAHUL, r.id, 1_000, "canceled");
+    time(canceled, "fry", root, 520, 1_000, RAHUL);
+    cooked("usr_dev", r.id, root, { fry: 9 }); // skipped: under 10 s
+    cooked("usr_dev", r.id, root, { fry: 10 });
+    cooked("usr_vik", r.id, root, { fry: 530 }, null); // no size, on the time or the dish
+    const sized = dish("usr_vik", r.id, 450);
+    time(sized, "fry", root, 540, null, "usr_vik"); // the dish says its size
+    expect(bySeconds(await pool(r.id, ["fry"])).map((t) => [t.seconds, t.factorMilli])).toEqual([
+      [10, 1_000],
+      [500, 1_000],
+      [540, 450],
+    ]);
+  });
+
+  it("tells cooks apart by a number, the same for one cook within a read, and never says who", async () => {
+    const r = await create();
+    for (const [cook, seconds] of [[ANU, 500], [RAHUL, 510], [ANU, 520], ["usr_dev", 530], [RAHUL, 540]] as const) {
+      cooked(cook, r.id, r.id, { fry: seconds });
+    }
+    const rows = await pool(r.id, ["fry"]);
+    expect(rows).toHaveLength(5);
+    const cookOf = new Map(rows.map((t) => [t.seconds, t.cook]));
+    expect(cookOf.get(500)).toBe(cookOf.get(520));
+    expect(cookOf.get(510)).toBe(cookOf.get(540));
+    expect(new Set(rows.map((t) => t.cook)).size).toBe(3);
+    for (const t of rows) expect(Object.keys(t).sort()).toEqual(["cook", "factorMilli", "seconds", "stepKey"]);
+    expect(JSON.stringify(rows)).not.toMatch(/usr_/);
+  });
+
+  it("walks the root index for the times and the dishes' primary key, never the whole table", async () => {
+    const r = await create();
+    cooked(ANU, r.id, r.id, { fry: 500 });
+    const before = sent.length;
+    await pool(r.id, ["fry", "soak"]);
+    const [query] = sent.slice(before);
+    const plan = (db.prepare(`EXPLAIN QUERY PLAN ${query!}`).all() as Array<{ detail: string }>).map((row) => row.detail).join(" | ");
+    expect(plan).toMatch(/SEARCH t USING INDEX kitchen_dish_step_times_root_idx \(recipe_root_id=\? AND step_key=\?\)/);
+    expect(plan).toMatch(/SEARCH d USING INDEX sqlite_autoindex_kitchen_dishes_1 \(id=\?\)/);
+    expect(plan).not.toMatch(/SCAN t\b/);
+    expect(plan).not.toMatch(/SCAN d\b/);
+  });
+});
