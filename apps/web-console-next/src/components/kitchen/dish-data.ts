@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { DishesPage, KitchenDish } from "@saas/contracts/kitchen";
 import { wrap, type ApiErrorBody, type ApiResult } from "@/lib/api";
@@ -30,6 +29,7 @@ import {
   type ShareDraft,
 } from "./dish";
 import type { MemberNames } from "./members";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * Cookpool's dish reads and writes (CP-17), through the CP-14/CP-16 SDK. Every
@@ -465,7 +465,7 @@ export function useDishActions(input: {
   const writes = useDishWrites();
   const { toast } = useToast();
   const offerUndo = useUndoToast();
-  const router = useRouter();
+  const router = useKitchenRouter();
   const qc = useQueryClient();
   const { update } = useToast();
   const keys = React.useRef({ finalize: crypto.randomUUID(), correct: crypto.randomUUID(), cancel: crypto.randomUUID() });

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import type { DishSplitMode, KitchenItem, MyGroupBalance } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -87,6 +87,7 @@ import { SuggestionList, useTypeahead } from "@/components/kitchen/from-before-u
 import { newFrame } from "@/lib/features";
 import { cookPageShows } from "@/components/kitchen/cook-hub";
 import { CookHub } from "@/components/kitchen/cook-hub-ui";
+import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 
 const NO_GROUPS: readonly MyGroupBalance[] = [];
 
@@ -151,7 +152,7 @@ function CookScreen({ linked }: { linked: ItemRef | null }) {
 }
 
 function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const balances = useMyBalances();
   const groups = balances.data?.groups ?? NO_GROUPS;
   const { roles, loading: rolesLoading } = useMyRoles();

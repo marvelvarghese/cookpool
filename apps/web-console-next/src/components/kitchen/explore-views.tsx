@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { Bookmark, Compass, Search } from "lucide-react";
 import type { ExploreSource } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";

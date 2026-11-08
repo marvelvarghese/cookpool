@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { Check, ChevronDown, CookingPot, Minus, Plus, Timer } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatMinor } from "./money";
@@ -432,6 +432,8 @@ export function SessionBarCard({ view, placement }: { view: SessionBarView; plac
     <section
       aria-label="Cooking now"
       data-toast-above=""
+      // It stays put while the page moves (RC-11's page transitions).
+      data-vt-keep="session-bar"
       className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-40 mx-auto max-w-lg rounded-[18px] py-2 pl-2 pr-2 text-white shadow-[0_8px_24px_rgba(23,32,27,0.28)] min-[900px]:hidden"
       style={{ backgroundColor: INK }}
     >

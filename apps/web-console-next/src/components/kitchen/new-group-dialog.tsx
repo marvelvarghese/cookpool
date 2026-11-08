@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { DEFAULT_KITCHEN_CURRENCY, DEFAULT_WASTE_POLICY, type WastePolicy } from "@saas/contracts/kitchen";
@@ -17,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GROUP_CURRENCIES, GROUP_NAME_MAX, WASTE_RULES, groupSlug, validateGroupName } from "./groups";
 import { CLOSE_44, K_BUTTON, K_INPUT } from "./kit";
+import { useKitchenRouter } from "./transition-ui";
 
 /** Six random base-36 characters for a new group's slug. */
 function slugSuffix(): string {
@@ -32,7 +32,7 @@ function slugSuffix(): string {
  * person is told, and can set the rules on the group page.
  */
 export function NewGroupDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const qc = useQueryClient();
   const { client } = useSession();
   const { toast } = useToast();

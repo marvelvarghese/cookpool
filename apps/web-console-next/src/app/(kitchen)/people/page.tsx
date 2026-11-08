@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "@/components/kitchen/link";
 import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import type { MyBalancesResponse } from "@saas/contracts/kitchen";

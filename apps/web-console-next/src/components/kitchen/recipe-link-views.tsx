@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { Link2Off } from "lucide-react";
 import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";

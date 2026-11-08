@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { cn } from "@/lib/cn";
 import { GroupAvatar } from "./kit";
 import { NoteLine } from "./item-note-ui";

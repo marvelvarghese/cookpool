@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { Bookmark, BookOpen, ChevronDown, ListOrdered } from "lucide-react";
 import type { KitchenRecipe, RecipeMatchResponse } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";

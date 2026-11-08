@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "@/components/kitchen/link";
 import { CookingPot, MoreHorizontal } from "lucide-react";
 import type { KitchenDish } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";

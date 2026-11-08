@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { newFrame } from "@/lib/features";
 import { DEFAULT_PARENT, backParent, createTrail, type BackKnown, type Trail } from "./back";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * The one back control (cookpool-app PW-3): a chevron, top-left in the
@@ -36,12 +37,14 @@ export function BackControl({ onClick, className }: { onClick: () => void; class
  * of the app. The iPhone's edge swipe (PW-7) runs the same action.
  */
 export function useBack(known?: BackKnown): () => void {
-  const router = useRouter();
+  // Through the page transitions (RC-11): in the new frame Back slides back
+  // (down, out of the cooking session); elsewhere it is the router's.
+  const router = useKitchenRouter();
   const pathname = usePathname();
   const parent = backParent(pathname, known, { newFrame: newFrame() }) ?? DEFAULT_PARENT;
   return React.useCallback(() => {
     if (trail?.canGoBack()) router.back();
-    else router.replace(parent);
+    else router.replace(parent, { direction: "back" });
   }, [router, parent]);
 }
 
