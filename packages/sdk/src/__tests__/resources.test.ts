@@ -1223,6 +1223,14 @@ describe("KitchenClient — using things (Cookpool CP-11)", () => {
     const read = captureFetch(jsonResponse(envelope(usuals)));
     expect(await client(read.fetch).kitchen.usuals({ limit: 5 })).toEqual(usuals);
     expect(read.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/usuals?limit=5");
+
+    // By time of day in the caller's zone (PN-2).
+    const local = captureFetch(jsonResponse(envelope({ ...usuals, bucket: "morning" })));
+    expect((await client(local.fetch).kitchen.usuals({ tzOffset: 330 })).bucket).toBe("morning");
+    expect(local.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/usuals?tzOffset=330");
+    const west = captureFetch(jsonResponse(envelope(usuals)));
+    await client(west.fetch).kitchen.usuals({ limit: 50, tzOffset: -300 });
+    expect(west.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/usuals?limit=50&tzOffset=-300");
   });
 
   it("asks items and searchItems for usable items only with usable=1", async () => {
