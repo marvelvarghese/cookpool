@@ -78,6 +78,9 @@ import {
 } from "./handlers/recipes.js";
 // Timers that find you (GC-3).
 import { handleCancelTimer, handleCreateTimer, handleListTimers } from "./handlers/timers.js";
+// Restocking and shopping runs (PN-3).
+import { handleCreatePurchase, handleUndoPurchase } from "./handlers/purchases.js";
+import { handleRestock } from "./handlers/restock.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -436,6 +439,22 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.timer",
     pattern: /^\/v1\/kitchen\/me\/timers\/([^/]+)$/,
     methods: { DELETE: handleCancelTimer },
+  },
+  // Restocking (PN-3): what to buy again, and the shopping run with its Undo.
+  {
+    name: "kitchen.me.restock",
+    pattern: /^\/v1\/kitchen\/me\/restock$/,
+    methods: { GET: handleRestock },
+  },
+  {
+    name: "kitchen.me.purchases",
+    pattern: /^\/v1\/kitchen\/me\/purchases$/,
+    methods: { POST: handleCreatePurchase },
+  },
+  {
+    name: "kitchen.me.purchase",
+    pattern: /^\/v1\/kitchen\/me\/purchases\/([^/]+)$/,
+    methods: { DELETE: handleUndoPurchase },
   },
 ];
 

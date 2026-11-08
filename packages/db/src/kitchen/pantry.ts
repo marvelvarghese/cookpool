@@ -156,12 +156,15 @@ export function insertItemStatement(item: NewKitchenItem): SqlStatement {
     owner.kind === "group"
       ? `(SELECT currency FROM kitchen_group_settings WHERE org_id = ${params.add(owner.orgId)} AND currency = ${params.add(item.currency)})`
       : params.add(item.currency);
+  // A shopping run's items (PN-3, migration 400) name their purchase; an item
+  // added on its own leaves the column out, so its insert is as it was.
+  const purchase = item.purchaseId ? { column: ", purchase_id", value: `, ${params.add(item.purchaseId)}` } : { column: "", value: "" };
   return {
     text: `INSERT INTO kitchen_items (
              id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
              qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by,
              bought_on, expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key,
-             created_at, updated_at, note
+             created_at, updated_at, note${purchase.column}
            ) VALUES (
              ${params.add(item.id)}, ${params.add(owner.kind)},
              ${params.add(owner.kind === "user" ? owner.subjectId : null)},
@@ -171,7 +174,7 @@ export function insertItemStatement(item: NewKitchenItem): SqlStatement {
              ${params.add(item.priceMinor)}, 0, ${currency}, ${params.add(item.paidBy)},
              ${params.add(item.boughtOn)}, ${params.add(item.expiresOn)}, ${params.add(item.wastePolicy)},
              ${params.add(item.sourceDishId ?? null)}, 'active', 1, ${params.add(item.createdBy)}, ${params.add(item.idemKey)},
-             ${params.add(item.now)}, ${params.add(item.now)}, ${params.add(item.note ?? null)}
+             ${params.add(item.now)}, ${params.add(item.now)}, ${params.add(item.note ?? null)}${purchase.value}
            )
            RETURNING ${ITEM_COLUMNS}`,
     params: params.values,

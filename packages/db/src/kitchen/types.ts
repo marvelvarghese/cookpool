@@ -313,6 +313,8 @@ export interface NewKitchenItem {
   sourceDishId?: string | null;
   /** Its note (RC-3): trimmed, 1–80 characters; absent or null for none. */
   note?: string | null;
+  /** The shopping run that adds it (PN-3, migration 400); absent or null for an item added on its own. */
+  purchaseId?: string | null;
 }
 
 export interface CreateItemInput {
