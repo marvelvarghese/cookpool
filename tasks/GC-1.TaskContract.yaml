@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: GC-1
+  title: "The guided-cooking epic, the spec"
+spec:
+  goal: "The cookpool-guided doc set and the build contracts for GC-2 to GC-7 are in the repository."
+  affects:
+    - specs/epics/cookpool-guided/**
+    - tasks/GC-1.TaskContract.yaml
+    - tasks/GC-2.TaskContract.yaml
+    - tasks/GC-3.TaskContract.yaml
+    - tasks/GC-4.TaskContract.yaml
+    - tasks/GC-5.TaskContract.yaml
+    - tasks/GC-6.TaskContract.yaml
+    - tasks/GC-7.TaskContract.yaml
+  doneWhen:
+    - "the README, design, plan, risks and status are merged"
+    - "GC-2 to GC-7 each have a contract in tasks/"
+  gates: []

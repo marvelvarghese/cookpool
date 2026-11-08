@@ -1,0 +1,25 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: GC-2
+  title: "The step model in the server"
+spec:
+  goal: "Recipe steps carry a phase, their ingredient lines, a flame, a time range or whistles, hands off, a time rule, a checkpoint and a tip; recipes carry tools and long prep; a dish records each step's time; and the owner can keep today's times."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - specs/epics/cookpool-guided/**
+    - tasks/GC-2.TaskContract.yaml
+  doneWhen:
+    - "migration 370 adds the step fields with a stable key per step, recipe tools, and kitchen_dish_step_times"
+    - "recipe create, patch, read and copies carry the step fields, tools and longPrep; copies keep step keys"
+    - "stepTimeAt scales a range by fixed, partly or linear and never touches whistles, covered by property tests"
+    - "the dish write takes stepLog and keeps one row per step with the recipe root and the factor"
+    - "PATCH step-times sets the owner's step ranges"
+  gates: []

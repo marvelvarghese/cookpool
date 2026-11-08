@@ -1,0 +1,22 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: GC-7
+  title: "Learning from cooks"
+spec:
+  goal: "A recipe read returns, per step, the range most cooks took at the caller's size once a step key has 5 times from 3 cooks."
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-guided/**
+    - tasks/GC-7.TaskContract.yaml
+  doneWhen:
+    - "times are normalised by the step's rule, pooled by recipe root and step key, and the 25th to 75th percentiles scaled back to the caller's size"
+    - "fewer than 5 times or 3 cooks returns no range; abandoned and skipped times are dropped"
+    - "no cook is identifiable from a read"
+  gates: []
