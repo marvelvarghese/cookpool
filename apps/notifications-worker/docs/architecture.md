@@ -31,6 +31,19 @@ api-edge exposes them with the subject pinned): `POST`/`DELETE
 /v1/notifications/push-subscriptions`, `GET /v1/notifications/push-key`,
 `POST /v1/notifications/push-test`.
 
+## Push to a subject (Cookpool GC-3)
+
+`POST /v1/notifications/push-to-subject` `{ subjectId, message }` pushes one
+`kitchen.timer` message to every device of `subjectId` with no preference
+check — a timer is something the person asked for — and answers the push
+summary (`devices`, `sent`, `gone`, `failed`, and `skipped` when nothing was
+tried). The person is named in the body, so the route is narrower than the
+rest: besides the internal actor headers, the caller must be `kitchen-worker`
+(`PUSH_TO_SUBJECT_INTERNAL_ACTORS`; anyone else, api-edge included, is 403),
+and api-edge's notifications facade does not list the path. Only the five
+message fields travel, each bounded, the url an app path. kitchen-worker's
+per-minute timer sweep is its one caller.
+
 ## Boundaries
 
 This Worker owns its bounded context: its data, its invariants, its
