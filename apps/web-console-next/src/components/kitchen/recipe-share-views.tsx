@@ -98,7 +98,7 @@ export function ShareSheetBody({
       {visibility === "link" ? (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2 rounded-[14px] border border-[#E3E6E0] bg-background py-1.5 pl-3.5 pr-1.5">
-            <span aria-live="polite" className="min-w-0 flex-1 truncate text-[15px] font-bold text-[#3F4842]">
+            <span aria-live="polite" className="min-w-0 flex-1 break-all text-[15px] font-bold leading-snug text-[#3F4842]">
               {linkUrl ?? LINK_MAKING_TEXT}
             </span>
             <button
