@@ -61,6 +61,26 @@ import type { RequestOptions, Transport } from "./transport.js";
 import type { ItemHistoryQuery, ItemHistoryResponse, RecipesQuery, RecipesResponse } from "@saas/contracts/kitchen";
 // Your measures (SM-13).
 import type { ItemScope, KitchenMeasureInput, SetMeasuresRequest, SetMeasuresResponse } from "@saas/contracts/kitchen";
+// Foods and recipes (RC-4).
+import type {
+  AlwaysHaveResponse,
+  CookNowResponse,
+  CopyRecipeRequest,
+  CreateRecipeBody,
+  ExploreRecipesQuery,
+  ExploreRecipesResponse,
+  FoodsQuery,
+  FoodsResponse,
+  MyRecipesResponse,
+  PersonRecipesResponse,
+  RecipeMatchQuery,
+  RecipeMatchResponse,
+  RecipeResponse,
+  SetAlwaysHaveRequest,
+  SetFoodAnswerRequest,
+  SetFoodAnswerResponse,
+  UpdateRecipeRequest,
+} from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -819,5 +839,146 @@ export class KitchenClient {
    */
   inbox(opts: RequestOptions = {}): Promise<InboxResponse> {
     return this.transport.request<InboxResponse>({ method: "GET", path: this.mePath("inbox") }, opts);
+  }
+
+  // -------------------------------------------------------------------------
+  // Foods and recipes (RC-4)
+  //
+  // The shared food list, Always have, recipes (templates: they never move
+  // money), what your pantries hold for one, sharing (Only me · My groups ·
+  // link), copies, a person's recipes, Explore and Cook now. Anything the
+  // caller may not see is a `NotFoundError`; a bad body a `ValidationError`
+  // with field errors. Cooking from a recipe is `cookDish` with `recipeId`,
+  // `recipeFactorMilli` and each ingredient's `recipeLine`.
+  // -------------------------------------------------------------------------
+
+  /** GET /v1/kitchen/foods — the food list, foods whose names match `q` first (`matchedName` says which). */
+  foods(query: FoodsQuery = {}, opts: RequestOptions = {}): Promise<FoodsResponse> {
+    return this.transport.request<FoodsResponse>(
+      { method: "GET", path: "/v1/kitchen/foods", query: { q: query.q || undefined, limit: query.limit } },
+      opts,
+    );
+  }
+
+  /**
+   * PUT /v1/kitchen/me/food-answers — "Is Kanda onion?", answered once for a
+   * name in the caller's own pantry (no `orgId`) or a group's (not as a
+   * viewer). `foodKey: null` answers "none of these". Every item of that
+   * name there is relinked at once (`linkedItems`).
+   */
+  setFoodAnswer(body: SetFoodAnswerRequest, opts: RequestOptions = {}): Promise<SetFoodAnswerResponse> {
+    return this.transport.request<SetFoodAnswerResponse>({ method: "PUT", path: this.mePath("food-answers"), body }, opts);
+  }
+
+  /** GET /v1/kitchen/me/always-have — the caller's list (salt and water, `isDefault`, until they save one). */
+  alwaysHave(opts: RequestOptions = {}): Promise<AlwaysHaveResponse> {
+    return this.transport.request<AlwaysHaveResponse>({ method: "GET", path: this.mePath("always-have") }, opts);
+  }
+
+  /** PUT /v1/kitchen/me/always-have — replace the list (an empty one stays empty). */
+  setAlwaysHave(foodKeys: string[], opts: RequestOptions = {}): Promise<AlwaysHaveResponse> {
+    const body: SetAlwaysHaveRequest = { foodKeys };
+    return this.transport.request<AlwaysHaveResponse>({ method: "PUT", path: this.mePath("always-have"), body }, opts);
+  }
+
+  /** GET /v1/kitchen/me/recipes — the caller's recipes and copies, last cooked first. */
+  myRecipes(opts: RequestOptions = {}): Promise<MyRecipesResponse> {
+    return this.transport.request<MyRecipesResponse>({ method: "GET", path: this.mePath("recipes") }, opts);
+  }
+
+  /**
+   * POST /v1/kitchen/me/recipes — write a recipe (My groups unless said), or
+   * with `fromDishId` save a dish as one: its ingredients at the amounts
+   * used, its portions as serves, the heaviest as the main line.
+   */
+  createRecipe(body: CreateRecipeBody, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>({ method: "POST", path: this.mePath("recipes"), body }, opts);
+  }
+
+  /** GET /v1/kitchen/recipes/:recipeId — a recipe the caller may see (`code` lets a link holder in), with their last cook of it. */
+  getRecipe(recipeId: string, query: { code?: string } = {}, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>(
+      { method: "GET", path: `/v1/kitchen/recipes/${encodeURIComponent(recipeId)}`, query: { code: query.code } },
+      opts,
+    );
+  }
+
+  /** PATCH /v1/kitchen/me/recipes/:recipeId — its owner; `lines` and `steps` replace the whole list. Copies never change. */
+  updateRecipe(recipeId: string, body: UpdateRecipeRequest, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>(
+      { method: "PATCH", path: this.mePath(`recipes/${encodeURIComponent(recipeId)}`), body },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/kitchen/me/recipes/:recipeId — its owner; gone for everyone, its copies kept. */
+  deleteRecipe(recipeId: string, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>(
+      { method: "DELETE", path: this.mePath(`recipes/${encodeURIComponent(recipeId)}`) },
+      opts,
+    );
+  }
+
+  /**
+   * GET /v1/kitchen/me/recipes/:recipeId/match — each line at factor `f`
+   * (thousandths, default 1000) as have, short, missing or always, with the
+   * items it would take, the largest factor the stock allows, and the
+   * unlinked items to ask about. A read: it reserves nothing.
+   */
+  recipeMatch(recipeId: string, query: RecipeMatchQuery = {}, opts: RequestOptions = {}): Promise<RecipeMatchResponse> {
+    return this.transport.request<RecipeMatchResponse>(
+      { method: "GET", path: this.mePath(`recipes/${encodeURIComponent(recipeId)}/match`), query: { f: query.f, code: query.code } },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/recipes/:recipeId/link — its owner: a new link code (`recipe.linkCode`); the old one stops at once. */
+  shareRecipeLink(recipeId: string, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>(
+      { method: "POST", path: this.mePath(`recipes/${encodeURIComponent(recipeId)}/link`), body: {} },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/kitchen/me/recipes/:recipeId/link — its owner: the link off, the recipe back to My groups. */
+  stopRecipeLink(recipeId: string, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>(
+      { method: "DELETE", path: this.mePath(`recipes/${encodeURIComponent(recipeId)}/link`) },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/recipe-links/:code — the recipe a link opens, for anyone signed in. */
+  recipeByLink(code: string, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>(
+      { method: "GET", path: `/v1/kitchen/recipe-links/${encodeURIComponent(code)}` },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/recipes/copies — save your own Only-me copy, by id or by link code ("from Anu"). */
+  copyRecipe(body: CopyRecipeRequest, opts: RequestOptions = {}): Promise<RecipeResponse> {
+    return this.transport.request<RecipeResponse>({ method: "POST", path: this.mePath("recipes/copies"), body }, opts);
+  }
+
+  /** GET /v1/kitchen/people/:subjectId/recipes — someone you share a group with: their My groups and link recipes. */
+  personRecipes(subjectId: string, opts: RequestOptions = {}): Promise<PersonRecipesResponse> {
+    return this.transport.request<PersonRecipesResponse>(
+      { method: "GET", path: `/v1/kitchen/people/${encodeURIComponent(subjectId)}/recipes` },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/recipes — Explore: Cookpool's own (default) or your groups', newest first, each with its match. */
+  exploreRecipes(query: ExploreRecipesQuery = {}, opts: RequestOptions = {}): Promise<ExploreRecipesResponse> {
+    return this.transport.request<ExploreRecipesResponse>(
+      { method: "GET", path: "/v1/kitchen/recipes", query: { source: query.source, q: query.q || undefined, kind: query.kind } },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/me/cook-now — what the caller can make: fewest missing first, then the largest factor, then the most recently cooked. */
+  cookNow(opts: RequestOptions = {}): Promise<CookNowResponse> {
+    return this.transport.request<CookNowResponse>({ method: "GET", path: this.mePath("cook-now") }, opts);
   }
 }
