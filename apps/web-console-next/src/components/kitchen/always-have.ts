@@ -21,7 +21,7 @@ import {
   type AlwaysHaveResponse,
   type KitchenFood,
   type KitchenRecipeLine,
-  type RecipeMatchResponse,
+  type RecipeLineMatch,
   type SetFoodAnswerRequest,
   type SetFoodAnswerResponse,
   type UnlinkedItem,
@@ -176,7 +176,7 @@ export function askKey(nameKey: string): string {
  */
 export function foodAsks(
   recipe: { lines: readonly Pick<KitchenRecipeLine, "position" | "name" | "foodKey">[] },
-  match: Pick<RecipeMatchResponse, "lines" | "unlinked"> | null,
+  match: { lines: readonly Pick<RecipeLineMatch, "position" | "status">[]; unlinked: readonly UnlinkedItem[] } | null,
   answered: ReadonlySet<string> = new Set(),
 ): FoodAsk[] {
   if (!match || match.unlinked.length === 0) return [];

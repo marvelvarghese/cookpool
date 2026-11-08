@@ -175,6 +175,16 @@ export function feedRecipeIds(dishes: readonly Pick<KitchenDish, "id" | "recipeI
   return out;
 }
 
+/**
+ * The recipe a card shows: the one its dish was cooked from, once its read
+ * has succeeded — a recipe you may not see answers 404 and is never in
+ * `loaded`, so the card leaves it out.
+ */
+export function feedRecipeFor<R>(dishId: string, recipeOf: ReadonlyMap<string, string>, loaded: ReadonlyMap<string, R>): R | null {
+  const id = recipeOf.get(dishId);
+  return id ? (loaded.get(id) ?? null) : null;
+}
+
 /** "Anu's recipe", "Cookpool's recipe", "Your recipe": whose it is, as the read says. */
 export function feedRecipeText(recipe: Pick<RecipeSummary, "isSystem" | "mine" | "ownerName">, cookLabel: string): string {
   if (recipe.isSystem) return "Cookpool's recipe";

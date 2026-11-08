@@ -24,7 +24,7 @@ import { pressIn, usePrefetchKitchen } from "./prefetch";
 import { recipeHref } from "./recipes";
 import { useRecipesInFull } from "./recipes-data";
 import { FeedRecipeRowView, SaveCopyChip } from "./cook-hub-views";
-import { feedRecipeIds, feedRecipeText } from "./explore";
+import { feedRecipeFor, feedRecipeIds, feedRecipeText } from "./explore";
 import { useSaveCopy } from "./recipe-travel-data";
 
 /**
@@ -118,7 +118,7 @@ function FromYourGroups({ meId, names }: { meId: string | null; names: MemberNam
         <ul className="space-y-3">
           {cards.map((card) => (
             <li key={card.dishId}>
-              <FeedCardView card={card} meId={meId} names={names} recipe={recipes.get(recipeOf.get(card.dishId) ?? "") ?? null} />
+              <FeedCardView card={card} meId={meId} names={names} recipe={feedRecipeFor(card.dishId, recipeOf, recipes)} />
             </li>
           ))}
         </ul>
