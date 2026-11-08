@@ -109,6 +109,26 @@ import type {
   RemoveFollowerResponse,
   SaveMyProfileRequest,
 } from "@saas/contracts/kitchen";
+// Posts, the feed, Yum, comments, reports and Activity (CM-3).
+import type {
+  ActivityResponse,
+  AddCommentRequest,
+  CommentResponse,
+  CommentsResponse,
+  CreatePostRequest,
+  CreateReportRequest,
+  DeleteCommentResponse,
+  DeletePostResponse,
+  FeedQuery,
+  FeedResponse,
+  MarkActivityReadResponse,
+  PostResponse,
+  ProfilePostsResponse,
+  ReportResponse,
+  UnreadActivityResponse,
+  UpdatePostRequest,
+  YumResponse,
+} from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -1366,6 +1386,122 @@ export class KitchenClient {
   /** GET /v1/kitchen/me/people/suggestions — `{ fromGroups, fromRecipes, popular }`, each with a `why`. */
   peopleSuggestions(opts: RequestOptions = {}): Promise<PeopleSuggestionsResponse> {
     return this.transport.request<PeopleSuggestionsResponse>({ method: "GET", path: this.mePath("people/suggestions") }, opts);
+  }
+
+  // Posts, the feed, Yum, comments, reports and Activity (CM-3)
+  //
+  // A post shares one of your dishes with only the stats you choose; who sees
+  // it is the server's rule (Just me, followers, public — a private profile's
+  // posts reach followers only; blocks hide both ways). A post nobody may
+  // see is a `NotFoundError`. Posting beyond Just me, Yum and comments need a
+  // profile (`ForbiddenError` `no_profile`); a dish not finalized or already
+  // shared is a `ConflictError` (`not_postable`, `already_posted`), and more
+  // than 30 comments an hour a `RateLimitError` (`comment_limit`).
+
+  /** POST /v1/kitchen/me/posts — share a dish you cooked (`show` picks the stats; missing ones stay off). */
+  createPost(body: CreatePostRequest, opts: RequestOptions = {}): Promise<PostResponse> {
+    return this.transport.request<PostResponse>({ method: "POST", path: this.mePath("posts"), body }, opts);
+  }
+
+  /** PATCH /v1/kitchen/me/posts/:postId — the caption, the audience or the stats shown. */
+  updatePost(postId: string, body: UpdatePostRequest, opts: RequestOptions = {}): Promise<PostResponse> {
+    return this.transport.request<PostResponse>({ method: "PATCH", path: this.mePath(`posts/${encodeURIComponent(postId)}`), body }, opts);
+  }
+
+  /** DELETE /v1/kitchen/me/posts/:postId — soft: `restorePost` puts it back until `restoreUntil`. */
+  deletePost(postId: string, opts: RequestOptions = {}): Promise<DeletePostResponse> {
+    return this.transport.request<DeletePostResponse>({ method: "DELETE", path: this.mePath(`posts/${encodeURIComponent(postId)}`) }, opts);
+  }
+
+  /** POST /v1/kitchen/me/posts/:postId/restore — the Undo of `deletePost`, within 10 minutes. */
+  restorePost(postId: string, opts: RequestOptions = {}): Promise<PostResponse> {
+    return this.transport.request<PostResponse>(
+      { method: "POST", path: this.mePath(`posts/${encodeURIComponent(postId)}/restore`), body: {} },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/posts/:postId — the post, with your usual time for its recipe at its size when you have one. */
+  post(postId: string, opts: RequestOptions = {}): Promise<PostResponse> {
+    return this.transport.request<PostResponse>({ method: "GET", path: this.postPath(postId, "") }, opts);
+  }
+
+  /** GET /v1/kitchen/me/feed — Following (default) or Discover, 20 a page. */
+  feed(query: FeedQuery = {}, opts: RequestOptions = {}): Promise<FeedResponse> {
+    return this.transport.request<FeedResponse>(
+      { method: "GET", path: this.mePath("feed"), query: { tab: query.tab, cursor: query.cursor || undefined } },
+      opts,
+    );
+  }
+
+  /** GET /v1/kitchen/profiles/:handle/posts — their posts you may see (`ForbiddenError` `private` when you can't see the profile). */
+  profilePosts(handle: string, query: PeoplePageQuery = {}, opts: RequestOptions = {}): Promise<ProfilePostsResponse> {
+    return this.transport.request<ProfilePostsResponse>(
+      { method: "GET", path: this.profilePath(handle, "/posts"), query: { cursor: query.cursor || undefined } },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/posts/:postId/yum */
+  yum(postId: string, opts: RequestOptions = {}): Promise<YumResponse> {
+    return this.transport.request<YumResponse>({ method: "POST", path: this.postPath(postId, "/yum"), body: {} }, opts);
+  }
+
+  /** DELETE /v1/kitchen/posts/:postId/yum */
+  unyum(postId: string, opts: RequestOptions = {}): Promise<YumResponse> {
+    return this.transport.request<YumResponse>({ method: "DELETE", path: this.postPath(postId, "/yum") }, opts);
+  }
+
+  /** GET /v1/kitchen/posts/:postId/comments — oldest first. */
+  comments(postId: string, query: PeoplePageQuery = {}, opts: RequestOptions = {}): Promise<CommentsResponse> {
+    return this.transport.request<CommentsResponse>(
+      { method: "GET", path: this.postPath(postId, "/comments"), query: { cursor: query.cursor || undefined } },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/posts/:postId/comments */
+  addComment(postId: string, body: AddCommentRequest, opts: RequestOptions = {}): Promise<CommentResponse> {
+    return this.transport.request<CommentResponse>({ method: "POST", path: this.postPath(postId, "/comments"), body }, opts);
+  }
+
+  /** DELETE /v1/kitchen/comments/:commentId — yours, or any on your post. */
+  deleteComment(commentId: string, opts: RequestOptions = {}): Promise<DeleteCommentResponse> {
+    return this.transport.request<DeleteCommentResponse>(
+      { method: "DELETE", path: `/v1/kitchen/comments/${encodeURIComponent(commentId)}` },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/reports — a post, a comment or a profile; a repeat answers your first report. */
+  report(body: CreateReportRequest, opts: RequestOptions = {}): Promise<ReportResponse> {
+    return this.transport.request<ReportResponse>({ method: "POST", path: "/v1/kitchen/reports", body }, opts);
+  }
+
+  /**
+   * GET /v1/kitchen/me/activity — follow requests waiting, and what happened
+   * to you, newest first (a post's Yums are one item). Named apart from
+   * `activity`, which is a group's ledger activity.
+   */
+  communityActivity(query: PeoplePageQuery = {}, opts: RequestOptions = {}): Promise<ActivityResponse> {
+    return this.transport.request<ActivityResponse>(
+      { method: "GET", path: this.mePath("activity"), query: { cursor: query.cursor || undefined } },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/activity/read — everything up to `before` (an ISO instant) is read. */
+  markActivityRead(before: string, opts: RequestOptions = {}): Promise<MarkActivityReadResponse> {
+    return this.transport.request<MarkActivityReadResponse>({ method: "POST", path: this.mePath("activity/read"), body: { before } }, opts);
+  }
+
+  /** GET /v1/kitchen/me/activity/unread — `{ count }` for the badge. */
+  unreadActivity(opts: RequestOptions = {}): Promise<UnreadActivityResponse> {
+    return this.transport.request<UnreadActivityResponse>({ method: "GET", path: this.mePath("activity/unread") }, opts);
+  }
+
+  private postPath(postId: string, rest: string): string {
+    return `/v1/kitchen/posts/${encodeURIComponent(postId)}${rest}`;
   }
 
   private profilePath(handle: string, rest: string): string {

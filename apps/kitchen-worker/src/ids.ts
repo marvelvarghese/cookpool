@@ -16,7 +16,11 @@ export type KitchenIdPrefix =
   | "rcp" // a recipe (RC-4)
   | "tmr" // a timer (GC-3)
   | "pur" // a shopping run's purchase (PN-3)
-  | "ask"; // an ask to use an ask-first item (PN-8)
+  | "ask" // an ask to use an ask-first item (PN-8)
+  | "pst" // a post (CM-3)
+  | "cmt" // a comment on a post (CM-3)
+  | "rpt" // a report (CM-3)
+  | "act"; // an Activity row (CM-3)
 
 export function generateRequestId(): string {
   const buf = new Uint8Array(12);

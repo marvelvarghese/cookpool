@@ -20,7 +20,7 @@ import {
 import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES } from "@saas/contracts/notifications";
 
 describe("kitchen emails", () => {
-  it("are five templates, sent as product email, from an allowed internal caller", () => {
+  it("are five templates and (CM-3) five push-only keys, sent as product email, from an allowed internal caller", () => {
     expect(KITCHEN_EMAILS).toEqual({
       USE_SOON: "kitchen.use_soon",
       DISH_POSTED: "kitchen.dish_posted",
@@ -29,6 +29,12 @@ describe("kitchen emails", () => {
       PORTION_SET: "kitchen.portion_set",
       // PW-5: someone recorded a payment to you.
       PAID_YOU: "kitchen.paid_you",
+      // CM-3: the social kinds, pushed only — their email is never sent.
+      FOLLOWED: "kitchen.followed",
+      FOLLOW_REQUEST: "kitchen.follow_request",
+      COMMENTED: "kitchen.commented",
+      YUM: "kitchen.yum",
+      COOKED_YOURS: "kitchen.cooked_yours",
     });
     expect(KITCHEN_EMAIL_CATEGORY).toBe("product");
     expect(NOTIFICATIONS_INTERNAL_ACTOR_VALUES).toContain("kitchen-worker");

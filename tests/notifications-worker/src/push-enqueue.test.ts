@@ -188,6 +188,29 @@ describe("the push beside an enqueue", () => {
     expect(pushes[1]!.tag).toMatch(/^kitchen\.dish_posted:ntf_[0-9a-f]{32}$/);
   });
 
+  it("never sends the email of a social kind (CM-3): recorded as suppressed, pushed beside it, even with email turned on", async () => {
+    const repo = memoryRepo();
+    await repo.upsertPreference({
+      id: "p1", orgId: SYSTEM_ORG as never, subjectKind: "user", subjectId: DEV, channel: "email",
+      categories: { product: true }, kinds: { "kitchen.yum": true }, updatedAt: NOW,
+    });
+    const pushes: TemplatePush[] = [];
+    const deps = service(repo, async (p) => void pushes.push(p));
+    for (const templateKey of ["kitchen.followed", "kitchen.follow_request", "kitchen.commented", "kitchen.yum", "kitchen.cooked_yours"]) {
+      const result = await enqueueNotification(
+        deps,
+        portionSet({ orgId: SYSTEM_ORG, templateKey, templateData: { actorName: "Meera K" }, idempotencyKey: `${templateKey}:x:${DEV}` }),
+      );
+      expect("outcome" in result && result.outcome.status).toBe("suppressed");
+    }
+    expect(repo.notifications.map((n) => n.status)).toEqual(["suppressed", "suppressed", "suppressed", "suppressed", "suppressed"]);
+    expect(repo.notifications.every((n) => n.sentAt === null)).toBe(true);
+    expect(pushes.map((p) => p.templateKey)).toEqual(["kitchen.followed", "kitchen.follow_request", "kitchen.commented", "kitchen.yum", "kitchen.cooked_yours"]);
+    // A retried enqueue pushes nothing more.
+    await enqueueNotification(deps, portionSet({ orgId: SYSTEM_ORG, templateKey: "kitchen.yum", idempotencyKey: `kitchen.yum:x:${DEV}` }));
+    expect(pushes).toHaveLength(5);
+  });
+
   it("never fails the email, whatever the push does", async () => {
     const repo = memoryRepo();
     const result = await enqueueNotification(

@@ -201,3 +201,34 @@ export type {
   CommunityRepository,
 } from "./community.js";
 export { createCommunityRepository } from "./community.js";
+
+// Posts, Yum, comments, reports and Activity (CM-3): part of KitchenRepository.
+export type {
+  KitchenPostAudience,
+  KitchenPostStats,
+  KitchenPostRecord,
+  KitchenPostSource,
+  KitchenPostSourceRecipe,
+  CreatePostInput,
+  CreatePostResult,
+  UpdatePostInput,
+  KitchenPostCursor,
+  KitchenPostsPage,
+  YumInput,
+  YumResult,
+  KitchenCommentRecord,
+  AddCommentInput,
+  AddCommentResult,
+  KitchenReportTargetKind,
+  KitchenReportReason,
+  KitchenReportRecord,
+  CreateReportInput,
+  KitchenSocialActivityItem,
+  KitchenSocialActivityCursor,
+  KitchenSocialActivityPage,
+  KitchenCookOfMine,
+  PostsRepository,
+} from "./posts.js";
+export { createPostsRepository, visiblePostSql } from "./posts.js";
+export type { KitchenActivityKind, KitchenActivityWrite } from "./activity-write.js";
+export { activityStatement } from "./activity-write.js";

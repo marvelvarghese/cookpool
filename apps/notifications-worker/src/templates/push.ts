@@ -7,6 +7,15 @@
  *   kitchen.dish_posted   "Egg fried rice is ready to claim"
  *   kitchen.paid_you      "Dev paid you ₹400.00 · UPI"
  *
+ * and the social kinds (CM-3), which are push only — their email is never
+ * sent (PUSH_ONLY_KINDS):
+ *
+ *   kitchen.followed        "Sam started following you"
+ *   kitchen.follow_request  "Priya wants to follow you"
+ *   kitchen.commented       "Kabir commented: Roast the spices first…"
+ *   kitchen.yum             "Meera said Yum to your Chicken curry"
+ *   kitchen.cooked_yours    "Dev cooked your Chicken curry · 1 kg"
+ *
  * The title is the app's name; `url` is the path in the app the email links
  * to (the service worker opens it on its own origin); `tag` is the caller's
  * idempotency key, which names what it is about and for whom, so a repeat
@@ -28,6 +37,8 @@ export const PUSH_TITLE = "Cookpool";
 /** Longest body and tag a push carries; the rest is cut with an ellipsis. */
 const MAX_BODY = 200;
 const MAX_TAG = 200;
+/** A comment's push quotes this much of it. */
+const COMMENT_EXCERPT_MAX = 40;
 
 function clip(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
@@ -70,6 +81,32 @@ const RENDERERS: Record<NotificationKind, PushRenderer> = {
     const method = oneLine(str(data, "method"));
     const paid = amount ? `${payer} paid you ${amount}` : `${payer} paid you`;
     return { body: method ? `${paid} · ${method}` : paid, url: appPath(str(data, "personUrl")) };
+  },
+  // The social kinds (CM-3): the actor is named by their profile, as kitchen-worker sends it.
+  [KITCHEN_EMAILS.FOLLOWED]: (data) => ({
+    body: `${oneLine(str(data, "actorName")) || "Someone"} started following you`,
+    url: appPath(str(data, "url"), "/community/activity"),
+  }),
+  [KITCHEN_EMAILS.FOLLOW_REQUEST]: (data) => ({
+    body: `${oneLine(str(data, "actorName")) || "Someone"} wants to follow you`,
+    url: appPath(str(data, "url"), "/community/activity"),
+  }),
+  [KITCHEN_EMAILS.COMMENTED]: (data) => {
+    const actor = oneLine(str(data, "actorName")) || "Someone";
+    const said = clip(oneLine(str(data, "excerpt")), COMMENT_EXCERPT_MAX);
+    return { body: said ? `${actor} commented: ${said}` : `${actor} commented on your post`, url: appPath(str(data, "url"), "/community/activity") };
+  },
+  [KITCHEN_EMAILS.YUM]: (data) => {
+    const actor = oneLine(str(data, "actorName")) || "Someone";
+    const dish = oneLine(str(data, "postTitle"));
+    return { body: dish ? `${actor} said Yum to your ${dish}` : `${actor} said Yum to your post`, url: appPath(str(data, "url"), "/community/activity") };
+  },
+  [KITCHEN_EMAILS.COOKED_YOURS]: (data) => {
+    const actor = oneLine(str(data, "actorName")) || "Someone";
+    const recipe = oneLine(str(data, "recipeName")) || "recipe";
+    const size = oneLine(str(data, "size"));
+    const cooked = `${actor} cooked your ${recipe}`;
+    return { body: size ? `${cooked} · ${size}` : cooked, url: appPath(str(data, "url"), "/community/activity") };
   },
 };
 

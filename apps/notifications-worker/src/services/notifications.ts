@@ -6,7 +6,7 @@ import type {
   NotificationDeliveryStatus,
   NotificationAttempt,
 } from "@saas/contracts/notifications";
-import { NOTIFICATION_EVENT_TYPES, isNotificationKind } from "@saas/contracts/notifications";
+import { NOTIFICATION_EVENT_TYPES, isNotificationKind, isPushOnlyKind } from "@saas/contracts/notifications";
 import type {
   NotificationsRepository,
   StoredNotification,
@@ -240,14 +240,17 @@ export async function enqueueNotification(
   }
 
   // Suppression short-circuit: a suppressed address, or (CP-18) a recipient
-  // tagged with their subject who opted out of this category in this org.
+  // tagged with their subject who opted out of this category in this org —
+  // or (CM-3) one of the push-only kinds, whose email is never sent.
   const suppressed = await repo.isSuppressed(orgUuid, request.recipient.channel, request.recipient.address);
   const blockedBy =
     suppressed.ok && suppressed.value
       ? "suppression"
-      : (await optedOut(repo, orgUuid, request))
-        ? "preference"
-        : null;
+      : isPushOnlyKind(request.templateKey)
+        ? "push_only"
+        : (await optedOut(repo, orgUuid, request))
+          ? "preference"
+          : null;
   if (blockedBy) {
     const id = genUuid();
     const create = await repo.createNotification({

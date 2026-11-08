@@ -20,6 +20,7 @@ import { createFoodsRepository } from "./foods.js";
 import { createRecipesRepository } from "./recipes.js";
 import { createAsksRepository } from "./asks.js";
 import { createCommunityRepository } from "./community.js";
+import { createPostsRepository } from "./posts.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -130,5 +131,7 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     ...createAsksRepository(executor),
     // Profiles, follows, blocks and mutes (CM-2).
     ...createCommunityRepository(executor),
+    // Posts, Yum, comments, reports and Activity (CM-3).
+    ...createPostsRepository(executor),
   };
 }

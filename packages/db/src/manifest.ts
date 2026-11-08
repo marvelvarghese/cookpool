@@ -399,5 +399,14 @@ export const manifest: MigrationManifest = {
       description:
         "Profiles and following: kitchen_profiles (user_id primary key; a lowercase unique handle of 3–20 a–z, 0–9, _ and . with no leading, trailing or doubled dot; name 1–40; about up to 160 or NULL; privacy public/private, default public; handle_changed_at NULL until the first change, which is free; created_at, updated_at); kitchen_follows (follower_id, followee_id primary key, state accepted/requested, created_at, accepted_at set exactly when accepted, never oneself), indexed by followee, state and acceptance and by state and acceptance; kitchen_blocks (blocker_id, blocked_id primary key, created_at), indexed by the blocked person; kitchen_mutes (muter_id, muted_id primary key, created_at); and kitchen_recipes.listed (0 or 1, default 0, 1 only on a link recipe — a public recipe), with an index of listed live recipes by time (Cookpool CM-2)",
     },
+    {
+      id: "440_kitchen_posts",
+      context: "kitchen",
+      path: "440_kitchen_posts/up.sql",
+      checksum:
+        "870825eae82f8432de00b06486a1775569e2d003e38f2cec1fc4ff0eee964e98",
+      description:
+        "Posts, Yum, comments, reports and Activity: kitchen_posts (pst_ id as a UUID, author_id, dish_id unique while live, recipe_id, title 1–60, caption up to 500 or NULL, audience followers/public/me, stats a JSON object of only size, minutes, ate and steps — no other key — photo_key NULL for CM-4, yum_pushed_at for the hourly Yum push, created_at, edited_at, deleted_at), indexed by author and time, audience and time and recipe; kitchen_post_yums (post_id, user_id primary key, created_at); kitchen_post_comments (cmt_ id, post_id, author_id, body 1–500, created_at, deleted_at and deleted_by together), indexed by post and time and by author and time; kitchen_reports (rpt_ id, reporter_id, target_kind post/comment/profile, target_id, reason spam/abuse/unsafe/other, note up to 300, created_at, state open/closed; one per reporter and target), indexed by target and state; and kitchen_activity (act_ id, recipient user_id, kind followed/follow_request/follow_accepted/yum/comment/cooked_yours/saved_yours, actor_id never the recipient, post_id, comment_id, recipe_id, created_at, read_at), indexed by recipient and time, unread, and by post and kind (Cookpool CM-3)",
+    },
   ],
 };

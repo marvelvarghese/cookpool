@@ -89,6 +89,14 @@ describe("kitchen route matching", () => {
     "/v1/kitchen/profiles/meeracooks/followers",
     "/v1/kitchen/people/search",
     "/v1/kitchen/me/follows/meeracooks",
+    // Posts, the feed, reactions and Activity (CM-3): forwarded with no edge change.
+    "/v1/kitchen/me/posts",
+    "/v1/kitchen/me/posts/pst_1/restore",
+    "/v1/kitchen/posts/pst_1/comments",
+    "/v1/kitchen/comments/cmt_1",
+    "/v1/kitchen/reports",
+    "/v1/kitchen/me/feed",
+    "/v1/kitchen/me/activity/unread",
   ])("%s is a kitchen route, and no other facade's", (path) => {
     expect(isKitchenRoute(path)).toBe(true);
     expect(isOrgRoute(path)).toBe(false);

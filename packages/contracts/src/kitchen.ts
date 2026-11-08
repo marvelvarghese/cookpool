@@ -1739,6 +1739,19 @@ export const KITCHEN_EMAILS = {
   PORTION_SET: "kitchen.portion_set",
   /** Someone recorded a payment to you (PW-5). */
   PAID_YOU: "kitchen.paid_you",
+  // The five social kinds (CM-3): push only. They are template keys because
+  // a push rides on an enqueue, but notifications-worker never sends their
+  // email (`PUSH_ONLY_KINDS`), so none has an email template.
+  /** Someone started following you. */
+  FOLLOWED: "kitchen.followed",
+  /** Someone asked to follow your private profile. */
+  FOLLOW_REQUEST: "kitchen.follow_request",
+  /** Someone commented on your post. */
+  COMMENTED: "kitchen.commented",
+  /** Someone said Yum to your post (at most once an hour per post). */
+  YUM: "kitchen.yum",
+  /** Someone posted a cook of your recipe. */
+  COOKED_YOURS: "kitchen.cooked_yours",
 } as const;
 
 export type KitchenEmail = (typeof KITCHEN_EMAILS)[keyof typeof KITCHEN_EMAILS];
@@ -2129,3 +2142,8 @@ export * from "./kitchen-asks.js";
 // follows and requests, blocks and mutes, people search and suggestions —
 // ./kitchen-community.ts (also through `@saas/contracts/kitchen`).
 export * from "./kitchen-community.js";
+
+// Posts, the feed, Yum, comments, reports and Activity (cookpool-community
+// CM-3): their routes, shapes and limits live in ./kitchen-posts.ts (also
+// through `@saas/contracts/kitchen`).
+export * from "./kitchen-posts.js";
