@@ -6,6 +6,7 @@ import {
   INSTALL_FIRST_LINE,
   NOT_YET_LINE,
   PUSH_ROWS,
+  pushRows,
   TEST_FAILED,
   TEST_SENT,
   badgeAction,
@@ -135,10 +136,23 @@ const push = (kinds: NotificationKindPreferences): NotificationPreference => ({
 
 describe("the switches", () => {
   it("are the canvas's four, in its order, each with its example", () => {
-    expect(PUSH_ROWS.map((r) => [r.kind, r.title, r.example])).toEqual([
+    // Today's frame: the three kinds (then the badge row), unchanged by CM-6.
+    expect(pushRows(false).map((r) => [r.kind, r.title, r.example])).toEqual([
       ["kitchen.portion_set", "Someone set my portion", "Anu said you had 1 portion"],
       ["kitchen.dish_posted", "A dish to claim", "Egg fried rice is ready"],
       ["kitchen.paid_you", "Someone paid me", "Dev paid you ₹400"],
+    ]);
+    // The new frame adds Community's five (cookpool-community CM-6), plainly labelled.
+    expect(PUSH_ROWS).toEqual(pushRows(true));
+    expect(pushRows(true).map((r) => [r.kind, r.title])).toEqual([
+      ["kitchen.portion_set", "Someone set my portion"],
+      ["kitchen.dish_posted", "A dish to claim"],
+      ["kitchen.paid_you", "Someone paid me"],
+      ["kitchen.followed", "New followers"],
+      ["kitchen.follow_request", "Follow requests"],
+      ["kitchen.commented", "Comments"],
+      ["kitchen.yum", "Yums"],
+      ["kitchen.cooked_yours", "Cooked your recipe"],
     ]);
     expect(BADGE_ROW).toEqual({ title: "To-dos on the app icon", example: "3" });
     expect(qk.pushKey()).toEqual(["push", "key"]);
@@ -146,13 +160,25 @@ describe("the switches", () => {
   });
 
   it("are all off until turned on: only an explicit true is on, and only the push row counts", () => {
-    expect(kindsOn([])).toEqual({ "kitchen.portion_set": false, "kitchen.dish_posted": false, "kitchen.paid_you": false });
+    expect(kindsOn([])).toEqual({
+      "kitchen.portion_set": false,
+      "kitchen.dish_posted": false,
+      "kitchen.paid_you": false,
+      // Community's five (CM-6), off until turned on like the rest.
+      "kitchen.followed": false,
+      "kitchen.follow_request": false,
+      "kitchen.commented": false,
+      "kitchen.yum": false,
+      "kitchen.cooked_yours": false,
+    });
     const email = { ...push({ "kitchen.paid_you": true }), channel: "email" as const };
     expect(kindsOn([email])["kitchen.paid_you"]).toBe(false);
-    expect(kindsOn([push({ "kitchen.paid_you": true, "kitchen.dish_posted": null })])).toEqual({
+    expect(kindsOn([push({ "kitchen.paid_you": true, "kitchen.dish_posted": null, "kitchen.yum": true })])).toMatchObject({
       "kitchen.portion_set": false,
       "kitchen.dish_posted": false,
       "kitchen.paid_you": true,
+      "kitchen.yum": true,
+      "kitchen.followed": false,
     });
   });
 

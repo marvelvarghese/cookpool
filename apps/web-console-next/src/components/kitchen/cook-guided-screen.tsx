@@ -4,6 +4,8 @@ import * as React from "react";
 import type { MyGroupBalance } from "@saas/contracts/kitchen";
 import { isOffline } from "@/lib/connection";
 import { newFrame } from "@/lib/features";
+import { afterFinishHref } from "./community-share";
+import { rememberStepSeed } from "./community-share-ui";
 import { SETTLE_EASE, SETTLE_MS, listenForDrags, prefersReducedMotion, type ElementLike } from "@/lib/gestures";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookSessions } from "@/lib/cook-session-store";
@@ -11,7 +13,7 @@ import { readLongPrep, writeLongPrep } from "@/lib/long-prep-store";
 import { useToast } from "@/components/ui/toast";
 import { useBack } from "./back-ui";
 import { useMemberNames, useMyBalances } from "./people-data";
-import { JUST_ME, dishHref } from "./dish-maker";
+import { JUST_ME } from "./dish-maker";
 import { formatMinor } from "./money";
 import { useFreshTakes } from "./cook-session-data";
 import { useCancelAsk, useCookAsk, useSessionAsks } from "./ask-data";
@@ -179,7 +181,9 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
   const finished = (out: FinishOutcome) => {
     setFinishOpen(false);
     if (out.ok) {
-      leave(dishHref(out.dish.id), "push");
+      // The new frame (cookpool-community CM-6): Share this cook? on the dish, once it can be posted.
+      rememberStepSeed(out.dish.id, (cookSessions.read(meId) ?? session).guide);
+      leave(afterFinishHref(out.dish, newFrame()), "push");
       return;
     }
     setAlert(out.message);

@@ -27,6 +27,9 @@ export const PULL_PAGES: readonly string[] = [
   "/dishes/:dishRef",
   // The new frame's Money (cookpool-recipes RC-2): your people and groups.
   "/money",
+  // Community's feed and Activity (cookpool-community CM-6): lists you read.
+  "/community",
+  "/community/activity",
 ];
 
 /** Whether the screen at `pathname` pulls to refresh. */

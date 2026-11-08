@@ -31,13 +31,15 @@ import {
   SectionLabel,
 } from "./community-views";
 import { HandleSetup } from "./community-setup-ui";
+import { CommunityFeed } from "./community-feed-ui";
+import { useUnreadActivity } from "./community-posts-data";
 import { useFollowRow } from "./community-profile-ui";
 import { useAnswerRequest, useBlock, useBlocks, useFollowRequests, useMyCommunityProfile, usePeopleSearch, usePeopleSuggestions, usePersonProfile } from "./community-data";
 
 /**
  * Community in the app (cookpool-community CM-5, design §4): the Cook tab's
  * `/community` shell — "Community", the bell (Activity), the search field
- * (people search) and the place CM-6's Following | Discover feed goes;
+ * (people search) and CM-6's Following · Discover feed;
  * HandleSetup the first time it opens without a profile — people search,
  * blocked people, and You's handle, counts and follow requests.
  */
@@ -58,12 +60,14 @@ function markOffered(): void {
   }
 }
 
-/** `/community`: the shell CM-6's feed fills. */
+/** `/community`: the header with the bell's count, search, and the feed (CM-6). */
 export function CommunityScreen() {
   const mine = useMyCommunityProfile();
   const [offered] = React.useState(readOffered);
   const [dismissed, setDismissed] = React.useState(false);
   const top = communityTop(mine.data ? mine.data.profile : mine.error ? null : undefined, offered || dismissed);
+  // The bell's count (CM-6): Activity is only yours once you have a profile.
+  const unread = useUnreadActivity(!!mine.data?.profile);
   React.useEffect(() => {
     if (top === "setup") markOffered();
   }, [top]);
@@ -86,14 +90,11 @@ export function CommunityScreen() {
   }
   return (
     <div className="flex w-full max-w-xl flex-col gap-3">
-      <CommunityHeader />
+      <CommunityHeader unread={unread} />
       <SearchLink />
       {top === "loading" ? <Skeleton className="h-16 w-full rounded-[20px]" /> : top === "card" ? <SetupCard /> : null}
-      {/* CM-6: Following | Discover (`?tab=`) goes here. */}
-      <section aria-label="Feed" className="flex flex-col items-center gap-1 rounded-[22px] border border-dashed border-[#D5DAD2] bg-card px-6 py-10 text-center">
-        <p className="text-base font-extrabold">Cooks from people you follow show here</p>
-        <p className="text-sm font-semibold text-muted-foreground">Find cooks to follow in search.</p>
-      </section>
+      {/* CM-6: Following · Discover (`?tab=`), the post cards. */}
+      <CommunityFeed />
     </div>
   );
 }
@@ -314,39 +315,5 @@ export function FollowRequests() {
         ))}
       </PeopleList>
     </section>
-  );
-}
-
-// ── CM-6's pages, for now ─────────────────────────────────────────
-
-/** `/community/activity`: CM-6 fills it; until then, your follow requests (when private) and a line. */
-export function ActivityScreen() {
-  const mine = useMyCommunityProfile();
-  return (
-    <div className="flex w-full max-w-xl flex-col gap-3">
-      <div className="-ml-2.5 flex min-h-11 items-center">
-        <BackButton />
-      </div>
-      <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.02em]">Activity</h1>
-      {mine.data?.profile?.privacy === "private" ? <FollowRequests /> : null}
-      <EmptyLine>Follows, Yums and comments show here</EmptyLine>
-    </div>
-  );
-}
-
-/** `/p/<id>`: CM-6's post page; until then, a way back. */
-export function PostScreen() {
-  return (
-    <div className="flex w-full max-w-xl flex-col gap-3">
-      <div className="-ml-2.5 flex min-h-11 items-center">
-        <BackButton />
-      </div>
-      <KCard className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-        <h1 className="text-lg font-bold tracking-tight">This post isn&apos;t here</h1>
-        <Link href={COMMUNITY_HREF} className={cn("flex min-h-11 items-center rounded-xl px-5 text-[15px] font-extrabold", GREEN_BUTTON)}>
-          Community
-        </Link>
-      </KCard>
-    </div>
   );
 }

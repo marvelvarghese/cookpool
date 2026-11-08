@@ -152,6 +152,15 @@ export const qk = {
   kitchenPeopleSearch: (q: string) => ["kitchenCommunity", "search", q] as const,
   kitchenPeopleSuggestions: () => ["kitchenCommunity", "suggestions"] as const,
   kitchenProfileRecipes: (handle: string) => ["kitchenRecipeBook", "profile", handle] as const,
+  // Posts (cookpool-community CM-6): the feeds (paged), a post, its
+  // comments (paged), a profile's posts, Activity (paged) and its unread
+  // count — under `kitchenCommunity()` too, so a block or mute refreshes them.
+  kitchenFeed: (tab: "following" | "discover") => ["kitchenCommunity", "feed", tab] as const,
+  kitchenPost: (postId: string) => ["kitchenCommunity", "post", postId] as const,
+  kitchenPostComments: (postId: string) => ["kitchenCommunity", "comments", postId] as const,
+  kitchenProfilePosts: (handle: string) => ["kitchenCommunity", "posts", handle] as const,
+  kitchenCommunityActivity: () => ["kitchenCommunity", "activity"] as const,
+  kitchenUnreadActivity: () => ["kitchenCommunity", "unread"] as const,
   // Notifications (cookpool-app PW-6): the environment's VAPID public key
   // (null while it has none) and the person's push kinds, in every group.
   pushKey: () => ["push", "key"] as const,

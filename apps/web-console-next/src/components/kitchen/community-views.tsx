@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { faceColor } from "./faces";
 import { ACTIVITY_HREF, PEOPLE_SEARCH_HREF, type CountCell, type FollowButton, type HandleNote } from "./community";
 import { rowFollowLabel, type PersonRow } from "./community-people";
+import { bellLabel, unreadBadge } from "./community-activity";
 
 /**
  * Community's parts as they draw (cookpool-community CM-5, the canvas row
@@ -154,17 +155,23 @@ export function LockCard({ title, sub }: { title: string; sub: string }) {
   );
 }
 
-/** Community's header: the title, and the bell opening Activity. */
-export function CommunityHeader() {
+/** Community's header: the title, and the bell opening Activity — with the unread count (CM-6) when there is one. */
+export function CommunityHeader({ unread = null }: { unread?: number | null }) {
+  const badge = unreadBadge(unread);
   return (
     <header className="flex min-h-11 items-center gap-2">
       <h1 className="flex-1 text-[28px] font-extrabold leading-tight tracking-[-0.02em]">Community</h1>
       <Link
         href={ACTIVITY_HREF}
-        aria-label="Activity"
-        className="grid h-11 w-11 place-items-center rounded-xl text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={bellLabel(unread)}
+        className="relative grid h-11 w-11 place-items-center rounded-xl text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Bell className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
+        {badge ? (
+          <span aria-hidden className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#B4471F] px-1 text-[10px] font-extrabold leading-none text-white">
+            {badge}
+          </span>
+        ) : null}
       </Link>
     </header>
   );

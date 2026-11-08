@@ -41,12 +41,26 @@ export const TEST_FAILED = "Couldn't send a test";
 export const TURN_ON_FAILED = "Couldn't turn that on";
 export const TURN_OFF_FAILED = "Couldn't turn that off";
 
-/** The three kinds, in the canvas's order, each with its one-line example. */
-export const PUSH_ROWS: readonly { kind: NotificationKind; title: string; example: string }[] = Object.freeze([
+/**
+ * The kinds, in the canvas's order, each with its one-line example: the
+ * three of every frame, then Community's five (cookpool-community CM-6),
+ * which only the new frame lists (`pushRows`).
+ */
+export const PUSH_ROWS: readonly { kind: NotificationKind; title: string; example: string; newFrameOnly?: true }[] = Object.freeze([
   { kind: "kitchen.portion_set", title: "Someone set my portion", example: "Anu said you had 1 portion" },
   { kind: "kitchen.dish_posted", title: "A dish to claim", example: "Egg fried rice is ready" },
   { kind: "kitchen.paid_you", title: "Someone paid me", example: "Dev paid you ₹400" },
+  { kind: "kitchen.followed", title: "New followers", example: "Sam started following you", newFrameOnly: true },
+  { kind: "kitchen.follow_request", title: "Follow requests", example: "Priya wants to follow you", newFrameOnly: true },
+  { kind: "kitchen.commented", title: "Comments", example: "Kabir commented: Roast the spices first…", newFrameOnly: true },
+  { kind: "kitchen.yum", title: "Yums", example: "Meera said Yum to your Chicken curry", newFrameOnly: true },
+  { kind: "kitchen.cooked_yours", title: "Cooked your recipe", example: "Dev cooked your Chicken curry · 1 kg", newFrameOnly: true },
 ]);
+
+/** The switches a frame lists: today's three, or all eight in the new frame. */
+export function pushRows(isNewFrame: boolean): typeof PUSH_ROWS {
+  return isNewFrame ? PUSH_ROWS : PUSH_ROWS.filter((r) => !r.newFrameOnly);
+}
 
 /** The fourth switch: Home's to-do count on the app icon (local to this device; no server). */
 export const BADGE_ROW = Object.freeze({ title: "To-dos on the app icon", example: "3" });
