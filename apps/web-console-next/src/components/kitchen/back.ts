@@ -54,6 +54,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/recipes/new": () => "/cook",
   "/recipes/:recipeId": () => "/cook",
   "/recipes/:recipeId/edit": ({ recipeId }) => `/recipes/${recipeId}`,
+  // The plan (cookpool-guided GC-6): the recipe it is the plan of.
+  "/recipes/:recipeId/plan": ({ recipeId }) => `/recipes/${recipeId}`,
   // Recipes travel (RC-8): Explore and a recipe's link page are Cook's.
   "/explore": () => "/cook",
   "/r/:code": () => "/cook",

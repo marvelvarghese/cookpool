@@ -446,3 +446,17 @@ export function planTotals(totals: PlanTotals): { label: string; value: string }
   ];
 }
 
+/**
+ * Under the totals, what they leave out: "Long prep (8 h) comes first and
+ * isn't counted." and "Whistle steps aren't counted: their time is the
+ * cooker's."; null when they leave nothing out.
+ */
+export function planNote(plan: Pick<Plan, "longPrep" | "whistleSteps">): string | null {
+  const parts: string[] = [];
+  if (plan.longPrep.length > 0) {
+    const times = plan.longPrep.map((l) => minutesText(wholeMinutes(l.seconds))).join(" and ");
+    parts.push(`Long prep (${times}) comes first and isn't counted.`);
+  }
+  if (plan.whistleSteps > 0) parts.push("Whistle steps aren't counted: their time is the cooker's.");
+  return parts.length > 0 ? parts.join(" ") : null;
+}
