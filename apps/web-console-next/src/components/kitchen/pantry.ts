@@ -2,9 +2,9 @@
  * Pantries in the Cookpool app (CP-12) as pure view-models over the CP-10
  * reads: which pantry an item lives in and the URL of its page, the pantry
  * picker (All pantries, Personal, then groups — recent first), the summary
- * and filters on /pantry, the per-pantry sections, what each item row says
- * (how much is left, who paid, the use-by chip, price per unit, the bar, what
- * is left of the price) and Home's use-soon strip. Dependency-free (contract
+ * and filters on /pantry, what each item row says (how much is left, who
+ * paid, the use-by chip, price per unit, the bar, what is left of the price)
+ * and Home's use-soon strip (which the new Pantry's Now strip reuses). Dependency-free (contract
  * types and the engine only), so it is unit-testable.
  *
  * Quantities are the engine's: `formatQuantity` prints every amount and
@@ -564,100 +564,8 @@ export function parseFilterParam(raw: string | null | undefined): ItemFilter {
   return raw === "soon" || raw === "expired" ? raw : "all";
 }
 
-export interface PantrySection<T extends KitchenItem> {
-  key: string;
-  pantry: Pantry;
-  label: string;
-  badge: string;
-  /** "6 items · ₹718.05 · 2 use soon · 4 people · waste split equally" */
-  meta: string;
-  /** The items shown: in the pantry, matching the filter and search, soonest use-by first. */
-  items: T[];
-  /** Folded at first: past the first three sections, unless it has something to use soon. */
-  startsOpen: boolean;
-}
-
-export interface PantrySections<T extends KitchenItem> {
-  sections: PantrySection<T>[];
-  /** Pantries with nothing in them, by label (All pantries, all items, no search only). */
-  emptyHidden: string[];
-}
-
-/** How many sections start unfolded on All pantries. */
-export const OPEN_SECTIONS = 3;
-
-/**
- * The /pantry list: one section per pantry in scope (Personal, then groups
- * recent first), each with the loaded items that belong to it and match the
- * filter and search, in the order the server sent them (soonest use-by
- * first). On All pantries with no filter, empty pantries fold into one line
- * ("Empty pantries hidden: …"), and a filter or search drops sections it
- * leaves empty. One chosen pantry is always shown, even empty.
- */
-export function pantrySections<T extends KitchenItem>(
-  pantries: readonly Pantry[],
-  items: readonly T[],
-  opts: {
-    selected: string;
-    filter?: ItemFilter;
-    query?: string;
-    recentSlugs?: readonly string[];
-    memberCounts?: ReadonlyMap<string, number>;
-  },
-): PantrySections<T> {
-  const filter = opts.filter ?? "all";
-  const query = opts.query ?? "";
-  const narrowed = filter !== "all" || query.trim() !== "";
-  const scope = orderPantries(pantriesInScope(pantries, opts.selected), opts.recentSlugs);
-  const byPantry = new Map<string, T[]>();
-  for (const item of items) {
-    const key = pantryKey(item.pantry);
-    const list = byPantry.get(key);
-    if (list) list.push(item);
-    else byPantry.set(key, [item]);
-  }
-
-  const sections: PantrySection<T>[] = [];
-  const emptyHidden: string[] = [];
-  const single = opts.selected !== ALL_PANTRIES;
-  for (const pantry of scope) {
-    const key = pantryKey(pantry);
-    const all = byPantry.get(key) ?? [];
-    const shown = all.filter((i) => matchesFilter(i, filter) && matchesQuery(i, query));
-    if (!single) {
-      if (!narrowed && all.length === 0 && pantry.itemCount === 0) {
-        emptyHidden.push(pantryLabel(pantry));
-        continue;
-      }
-      if (narrowed && shown.length === 0) continue;
-      if (!narrowed && all.length === 0) continue;
-    }
-    const count = pantry.kind === "group" ? opts.memberCounts?.get(pantry.orgId) : undefined;
-    const meta = [
-      countWords(pantry.itemCount, "item"),
-      formatMinor(pantry.worthMinor, pantry.currency),
-      pantry.useSoonCount > 0 ? `${pantry.useSoonCount} use soon` : null,
-      pantry.expiredCount > 0 ? `${pantry.expiredCount} expired` : null,
-      pantry.kind === "personal" ? "only you" : count !== undefined ? countWords(count, "person", "people") : null,
-      wasteRuleShort(pantry),
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    sections.push({
-      key,
-      pantry,
-      label: pantryLabel(pantry),
-      badge: pantryBadge(pantry),
-      meta,
-      items: shown,
-      startsOpen: false,
-    });
-  }
-  sections.forEach((s, i) => {
-    s.startsOpen = single || narrowed || i < OPEN_SECTIONS || s.pantry.useSoonCount + s.pantry.expiredCount > 0;
-  });
-  return { sections, emptyHidden };
-}
+// The per-pantry sections (`pantrySections`) went in cookpool-pantry PN-5:
+// the new frame's Pantry is sectioned by kind (pantry-list.ts).
 
 /** The desktop table's rows: every loaded item in scope matching the filter and search, soonest first. */
 export function pantryRows<T extends KitchenItem>(

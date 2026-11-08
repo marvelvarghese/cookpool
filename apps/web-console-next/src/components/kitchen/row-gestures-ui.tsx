@@ -140,7 +140,9 @@ export function SwipeRow({
       style={swipes ? { touchAction: "pan-y", ...rest.style } : rest.style}
       onPointerDown={(e: React.PointerEvent<HTMLElement>) => {
         rest.onPointerDown?.(e);
-        if (!swipes || (e.target as Element).closest?.(OWN_CONTROLS)) return;
+        // A control marked `data-row-surface` is the row itself (the new Pantry's row opens in place): it swipes and holds.
+        const own = (e.target as Element).closest?.(OWN_CONTROLS);
+        if (!swipes || (own && !own.hasAttribute("data-row-surface"))) return;
         tracker.down(e, rootRef.current?.getBoundingClientRect().width ?? 0);
       }}
       onPointerMove={(e: React.PointerEvent<HTMLElement>) => {

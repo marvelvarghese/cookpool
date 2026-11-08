@@ -9,10 +9,13 @@ import { Face } from "./faces-ui";
 import { useMemberNames } from "./people-data";
 import { useItemsByRef, useLogUse, useUsuals } from "./pantry-data";
 import { doItAgainRows, usualRef, usualsThatFit, type DoItAgainRow } from "./quick-use";
+import { quickUseFieldHref } from "./pantry-list";
+import { newFrame } from "@/lib/features";
 
 // Home's "What did you use?" and the row of usuals (CP-13, SM-10). Moved here
 // from the Home page unchanged by cookpool-recipes RC-2, so today's Home and
-// the new frame's Home share it.
+// the new frame's Home share it. In the new frame (cookpool-pantry PN-5) the
+// field opens the Pantry with its search ready; the usual chips stay.
 
 /** Usuals whose items are read for the row: a couple beyond the ones shown, so a usual that no longer fits is replaced. */
 const USUAL_CHIPS = 6;
@@ -52,7 +55,7 @@ export function QuickUse({ meId }: { meId: string | null }) {
   return (
     <section aria-label="Quick use" className="space-y-2">
       <Link
-        href="/use"
+        href={quickUseFieldHref(newFrame())}
         className="flex h-12 w-full items-center gap-2.5 rounded-2xl border border-input bg-card px-4 text-base text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Search className="h-5 w-5 shrink-0" aria-hidden />

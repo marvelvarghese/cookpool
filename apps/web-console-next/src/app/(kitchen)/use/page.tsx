@@ -31,6 +31,9 @@ import { amountCost, amountInput, orderConsumers, shareBreakdown } from "@/compo
 import { askable, countInLabel, countText, firstAsk } from "@/components/kitchen/measures";
 import { MeasureSheet, UnitSwitch, type MeasureSheetMode } from "@/components/kitchen/measures-ui";
 import { RepeatButton } from "@/components/kitchen/row-gestures-ui";
+import { useKitchenRouter } from "@/components/kitchen/transition-ui";
+import { pantryHrefFromUse } from "@/components/kitchen/pantry-list";
+import { newFrame } from "@/lib/features";
 import {
   defaultConsumers,
   defaultTile,
@@ -75,11 +78,31 @@ const STRIP_USUALS = 8;
  * + Anu · ₹6.00 each"). Logging ends in the one-line Undo toast and a fresh
  * screen. `/use?item=me:itm_…` (the item page's "Use some", a pantry row's
  * Use) opens with that item chosen. Only items you may use are offered.
+ *
+ * In the new frame (cookpool-pantry PN-5, design §4) there is one way to
+ * log: `/use` goes to the Pantry with its search ready, and `?item=` opens
+ * that row there (`pantryHrefFromUse`). This page is today's frame's.
  */
 export default function UsePage() {
+  // The new frame logs from the Pantry (cookpool-pantry PN-5, design §4); today's frame keeps this page.
+  return newFrame() ? <ToThePantry /> : <TodaysUse />;
+}
+
+function TodaysUse() {
   const searchParams = useSearchParams();
   const linked = parseItemRef(searchParams?.get("item"));
   return <QuickUse key={linked ? itemRefParam(linked) : "search"} linked={linked} />;
+}
+
+/** `/use` → `/pantry?focus=1`, and `/use?item=me:itm_…` → `/pantry?open=me:itm_…`, replacing itself. */
+function ToThePantry() {
+  const searchParams = useSearchParams();
+  const router = useKitchenRouter();
+  const to = pantryHrefFromUse(searchParams?.get("item"));
+  React.useEffect(() => {
+    router.replace(to);
+  }, [router, to]);
+  return <Skeleton className="h-12 w-full rounded-[14px]" aria-hidden />;
 }
 
 function useDebounced<T>(value: T, ms: number): T {

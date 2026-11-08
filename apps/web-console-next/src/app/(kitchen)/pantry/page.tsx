@@ -38,6 +38,7 @@ import {
   type PantrySummary,
 } from "@/components/kitchen/pantry";
 import { useKitchenRouter } from "@/components/kitchen/transition-ui";
+import { NewPantry } from "@/components/kitchen/pantry-new-ui";
 
 /** Rows the desktop table shows before "Show all N items". */
 const TABLE_ROWS = 12;
@@ -56,8 +57,19 @@ const TABLE_ROWS = 12;
  *
  * In the new frame (cookpool-recipes RC-8) Always have closes the page: the
  * foods that count as there in Cook now, each with ✕, and + Add.
+ *
+ * The new frame's Pantry is cookpool-pantry PN-5's (`NewPantry`,
+ * pantry-new-ui.tsx): sections by kind with level bars, counts as filters,
+ * search on phones, the Now strip, a suggested amount on each row, rows
+ * that open in place, the More… sheet and Log several. Today's frame keeps
+ * this page exactly as it was.
  */
 export default function PantryPage() {
+  // The new frame's Pantry (cookpool-pantry PN-5); today's, below, unchanged.
+  return newFrame() ? <NewPantry /> : <TodaysPantry />;
+}
+
+function TodaysPantry() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const profile = useProfile();
