@@ -8,6 +8,7 @@ import { newFrame } from "@/lib/features";
 import { SETTLE_EASE, SETTLE_MS, listenForDrags, prefersReducedMotion, type ElementLike } from "@/lib/gestures";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookSessions } from "@/lib/cook-session-store";
+import { readLongPrep, writeLongPrep } from "@/lib/long-prep-store";
 import { useToast } from "@/components/ui/toast";
 import { useBack } from "./back-ui";
 import { useMemberNames, useMyBalances } from "./people-data";
@@ -36,6 +37,7 @@ import {
   goToStep,
   guidedScreen,
   longPrepDone,
+  longPrepMarks,
   markStepDone,
   pauseTimer,
   resumeTimer,
@@ -121,6 +123,16 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
   const [finishOpen, setFinishOpen] = React.useState(false);
   const [alert, setAlert] = React.useState<string | null>(null);
   const [savingTimes, setSavingTimes] = React.useState(false);
+
+  // The recipe page's long prep (GC-6) agrees with this session's: done, or the soak and its timer.
+  const marks = longPrepMarks(session);
+  const marksKey = JSON.stringify(marks);
+  React.useEffect(() => {
+    const memory = readLongPrep();
+    const changed = Object.entries(marks).filter(([key, mark]) => JSON.stringify(memory[key]) !== JSON.stringify(mark));
+    if (changed.length > 0) writeLongPrep({ ...memory, ...Object.fromEntries(changed) });
+    // `marks` is new each render; its text says when it changed.
+  }, [marksKey]);
 
   // A new step stops what was being read of the last one.
   React.useEffect(() => stopReading, [g.current, screen]);

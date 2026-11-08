@@ -8,6 +8,7 @@ import { isOffline } from "@/lib/connection";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookSessions, useCookSession } from "@/lib/cook-session-store";
 import { newFrame } from "@/lib/features";
+import { readLongPrep } from "@/lib/long-prep-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,7 +25,7 @@ import { useRecipes } from "./from-before-data";
 import { SuggestionList, useTypeahead } from "./from-before-ui";
 import { useFreshTakes, useRecipe, useRecipeMatch } from "./cook-session-data";
 import { FinishSheet, SESSION_SHEET } from "./cook-finish-sheet";
-import { guidedScreen, guidedSessionFromRecipe } from "./cook-guided";
+import { guidedScreen, guidedSessionFromRecipe, withLongPrepMemory } from "./cook-guided";
 import { useCancelServerTimers, useGuideTimers } from "./cook-guided-data";
 import { GuidedCook } from "./cook-guided-screen";
 import { AddItemButton, DiscardPromptBody, SessionMeta, SessionRow, SessionTopBar, StepsCard, useNow } from "./cook-session-ui";
@@ -134,7 +135,9 @@ function StartFromRecipe({ meId, recipeId, f }: { meId: string; recipeId: string
   React.useEffect(() => {
     if (made.current || !recipe.data || !match.data) return;
     made.current = true;
-    cookSessions.write(meId, guidedSessionFromRecipe(recipe.data.recipe, recipe.data.lastCook, match.data, new Date()));
+    const now = new Date();
+    // Long prep done or started on the recipe page (GC-6) is so here too.
+    cookSessions.write(meId, withLongPrepMemory(guidedSessionFromRecipe(recipe.data.recipe, recipe.data.lastCook, match.data, now), readLongPrep(), now));
     router.replace(SESSION_PATH);
   }, [meId, recipe.data, match.data, router]);
   const error = recipe.error ?? match.error;

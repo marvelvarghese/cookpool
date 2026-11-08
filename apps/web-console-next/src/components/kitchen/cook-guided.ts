@@ -31,6 +31,7 @@ import {
   type UpdateStepTimesRequest,
 } from "@saas/contracts/kitchen";
 import { sessionFromRecipe, type CookSession, type FinishAnswer } from "./cook-session";
+import { longPrepKey, longPrepStatus, type LongPrepMark, type LongPrepMemory } from "./long-prep";
 import type { CookGuide, GuideMode, GuideStep, GuideTimer, StepTimes } from "./cook-guide-draft";
 
 // ── The numbers ───────────────────────────────────────────────────
@@ -338,13 +339,14 @@ function dropTimers(g: CookGuide, key: string): CookGuide {
 
 /**
  * The prompt's answer (design §3.1): Start step by step opens Before you
- * start; Just tick what I use is RC-6's screen from then on, and any timer
- * the prompt started (a soak) is stopped, its server timer cancelled.
+ * start; Just tick what I use is RC-6's screen from then on, which has no
+ * timers: they leave the session. A long prep's (a soak) keeps pinging — it
+ * is the recipe page's too (GC-6) — and any other is cancelled.
  */
 export function chooseMode(s: CookSession, mode: GuideMode, now: Date): CookSession {
   return withGuide(s, (g) => {
     if (mode === "tick") {
-      const cancels = [...g.cancels, ...g.timers.map((t) => t.serverId).filter((id): id is string => id !== null)];
+      const cancels = [...g.cancels, ...g.timers.filter((t) => !isLongPrepKey(g, t.stepKey)).map((t) => t.serverId).filter((id): id is string => id !== null)];
       return { ...g, mode: "tick", timers: [], cancels };
     }
     return { ...g, mode: "guided", screen: "prep", current: null, shownAt: now.toISOString() };
@@ -755,11 +757,89 @@ export function afterCancel(s: CookSession, serverId: string, answer: FinishAnsw
   return withGuide(s, (g) => (g.cancels.includes(serverId) ? { ...g, cancels: g.cancels.filter((id) => id !== serverId) } : g));
 }
 
-/** Every server timer the session holds or still has to cancel: Discard and Finish cancel them all. */
+/**
+ * The server timers Discard and Finish cancel: every one the session holds or
+ * still has to cancel — but a long prep's (a soak), which goes on pinging:
+ * the rajma is still soaking, and the recipe page shows it (GC-6).
+ */
 export function serverTimerIds(s: CookSession | null): string[] {
   const g = s?.guide;
   if (!g) return [];
-  return [...new Set([...g.timers.map((t) => t.serverId).filter((id): id is string => id !== null), ...g.cancels])];
+  const held = g.timers.filter((t) => !isLongPrepKey(g, t.stepKey)).map((t) => t.serverId);
+  return [...new Set([...held.filter((id): id is string => id !== null), ...g.cancels])];
+}
+
+// ── Long prep, with the recipe page (GC-6) ────────────────────────
+
+/** Is this a long prep step (a soak) of the guide? */
+export function isLongPrepKey(g: CookGuide, key: string): boolean {
+  return longPrepSteps(g).some((s) => s.key === key);
+}
+
+/**
+ * Long prep the recipe page already knows (GC-6's memory on this device,
+ * `lib/long-prep-store.ts`): Already done there (or its timer ended) is
+ * ticked here; a soak started there is this session's running timer, with
+ * the same server timer — not a second one.
+ */
+export function withLongPrepMemory(s: CookSession, memory: LongPrepMemory, now: Date): CookSession {
+  const g = s.guide;
+  const recipeId = s.recipeId;
+  if (!g || !recipeId) return s;
+  let next = s;
+  for (const step of longPrepSteps(g)) {
+    const ng = next.guide!;
+    if (isDone(ng, step.key) || timerOfStep(ng, step.key)) continue;
+    const status = longPrepStatus(memory, recipeId, step.key, now);
+    const mark = memory[longPrepKey(recipeId, step.key)];
+    if (status.state === "done") next = tickPrep(next, step.key, now);
+    else if (status.state === "started" && mark?.state === "started") {
+      const startMs = Date.parse(mark.at);
+      const endMs = Date.parse(mark.endsAt);
+      next = withGuide(next, (x) => {
+        const timer: GuideTimer = {
+          id: `t${x.seq}`,
+          stepKey: step.key,
+          label: timerLabel(x, step, s.name),
+          body: timerBody(x, step),
+          endsAt: mark.endsAt,
+          pausedLeftMs: null,
+          totalMs: Math.max(1, endMs - startMs),
+          serverId: mark.timerId,
+          push: "set",
+          pushNote: null,
+          rang: false,
+          seen: false,
+        };
+        return setTimes({ ...x, timers: [...x.timers, timer], seq: x.seq + 1 }, step.key, (t) => ({ ...t, startedAt: t.startedAt ?? mark.at }));
+      });
+    }
+  }
+  return next;
+}
+
+/**
+ * What the recipe page should remember of this session's long prep (GC-6's
+ * records, by `longPrepKey`): ticked is done; a soak with its server timer
+ * set is started. The screen writes what differs, so the recipe page agrees.
+ */
+export function longPrepMarks(s: CookSession): Record<string, LongPrepMark> {
+  const g = s.guide;
+  const out: Record<string, LongPrepMark> = {};
+  if (!g || !s.recipeId) return out;
+  for (const step of longPrepSteps(g)) {
+    const key = longPrepKey(s.recipeId, step.key);
+    const t = g.times[step.key];
+    if (isDone(g, step.key)) {
+      out[key] = { state: "done", at: t?.doneAt ?? t?.startedAt ?? new Date(0).toISOString() };
+      continue;
+    }
+    const timer = timerOfStep(g, step.key);
+    if (timer?.serverId && timer.endsAt) {
+      out[key] = { state: "started", at: t?.startedAt ?? timer.endsAt, endsAt: timer.endsAt, timerId: timer.serverId };
+    }
+  }
+  return out;
 }
 
 // ── Running the timers' work ──────────────────────────────────────

@@ -20,7 +20,9 @@ import {
   guidedScreen,
   guidedSessionFromRecipe,
   longPrepDone,
+  longPrepMarks,
   markStepDone,
+  serverTimerIds,
   startAndGoOn,
   startCooking,
   startTimer,
@@ -30,6 +32,7 @@ import {
   timerLabel,
   timerWord,
   todaysStepTimes,
+  withLongPrepMemory,
   writtenStepTimes,
 } from "@web-console-next/components/kitchen/cook-guided";
 import {
@@ -309,6 +312,43 @@ describe("the prompt (GuidePrompt, design §3.1)", () => {
     expect(s.guide!.timers).toEqual([]);
     expect(promptView(s, at(28_810))).toMatchObject({ dimmed: false, startSub: null, longPrep: [{ state: "done", sub: "Done" }] });
     expect(longPrepDone(s, "r-soak", at(28_900))).toBe(s);
+  });
+});
+
+describe("long prep, with the recipe page (GC-6)", () => {
+  const key = `${rajma().recipeId}:r-soak`;
+
+  it("is done here when it was Already done there (or its timer ended)", () => {
+    const s = withLongPrepMemory(rajma(), { [key]: { state: "done", at: at(-3600).toISOString() } }, NOW);
+    expect(s.guide!.prepDone).toEqual(["r-soak"]);
+    expect(promptView(s, NOW)!.dimmed).toBe(false);
+    const ended = withLongPrepMemory(rajma(), { [key]: { state: "started", at: at(-30_000).toISOString(), endsAt: at(-1_200).toISOString(), timerId: "tmr_page" } }, NOW);
+    expect(ended.guide!.prepDone).toEqual(["r-soak"]);
+  });
+
+  it("runs here with the same server timer when it was started there: no second soak", () => {
+    const memory = { [key]: { state: "started" as const, at: at(-3600).toISOString(), endsAt: at(25_200).toISOString(), timerId: "tmr_page" } };
+    const s = withLongPrepMemory(rajma(), memory, NOW);
+    expect(s.guide!.timers).toEqual([
+      expect.objectContaining({ stepKey: "r-soak", endsAt: at(25_200).toISOString(), totalMs: 28_800_000, serverId: "tmr_page", push: "set" }),
+    ]);
+    expect(s.guide!.times["r-soak"]!.startedAt).toBe(at(-3600).toISOString());
+    expect(promptView(s, NOW)!.longPrep[0]).toMatchObject({ state: "running", sub: "7 h left · we'll ping you" });
+    // A session that knows already is left as it is; nothing remembered, nothing changes.
+    expect(withLongPrepMemory(s, memory, NOW)).toEqual(s);
+    expect(withLongPrepMemory(rajma(), {}, NOW)).toEqual(rajma());
+  });
+
+  it("tells the recipe page what this session did: done, or started with its server timer", () => {
+    let s = startTimer(rajma(), "r-soak", NOW);
+    expect(longPrepMarks(s)).toEqual({});
+    s = { ...s, guide: { ...s.guide!, timers: s.guide!.timers.map((t) => ({ ...t, serverId: "tmr_soak", push: "set" as const })) } };
+    expect(longPrepMarks(s)).toEqual({ [key]: { state: "started", at: NOW.toISOString(), endsAt: at(28_800).toISOString(), timerId: "tmr_soak" } });
+    // Discard and Finish leave the soak pinging; Already done cancels it.
+    expect(serverTimerIds(s)).toEqual([]);
+    const done = longPrepDone(s, "r-soak", at(60));
+    expect(done.guide!.cancels).toEqual(["tmr_soak"]);
+    expect(longPrepMarks(done)).toEqual({ [key]: { state: "done", at: at(60).toISOString() } });
   });
 });
 
@@ -769,11 +809,11 @@ describe("Just tick what I use (RC-6, unchanged)", () => {
     expect(a).toEqual(b);
   });
 
-  it("stops any timer the prompt started (a soak), its server timer to be cancelled", () => {
-    let s = startTimer(rajma(), "r-soak", NOW);
-    s = { ...s, guide: { ...s.guide!, timers: s.guide!.timers.map((t) => ({ ...t, serverId: "tmr_soak", push: "set" as const })) } };
+  it("takes the timers out of the session: a soak keeps pinging (the recipe page has it too), any other is cancelled", () => {
+    let s = startTimer(startTimer(rajma(), "r-soak", NOW), "r-masala", NOW);
+    s = { ...s, guide: { ...s.guide!, timers: s.guide!.timers.map((t, i) => ({ ...t, serverId: i === 0 ? "tmr_soak" : "tmr_masala", push: "set" as const })) } };
     const tick = chooseMode(s, "tick", at(5));
-    expect(tick.guide).toMatchObject({ mode: "tick", timers: [], cancels: ["tmr_soak"] });
+    expect(tick.guide).toMatchObject({ mode: "tick", timers: [], cancels: ["tmr_masala"] });
   });
 });
 
