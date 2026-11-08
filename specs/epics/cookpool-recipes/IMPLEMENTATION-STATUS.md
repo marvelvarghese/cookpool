@@ -128,3 +128,102 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | `tests/web-console-next` | 69: `kitchen-features` 6, `kitchen-new-frame` 20 (tabs in both frames, active tab, Back, swipe, pull, shortcuts), `kitchen-money-page` 14 (figures, People, Groups, list, prod redirect), `kitchen-new-home` 15 (sections in both frames, no money card, To do order, From your groups, read window), `kitchen-cooks` 13, offline read 1 | 1385 (76 suites, after merging RC-3) |
 
 `pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, and `orun task check RC-2 --base origin/main` passes: 2 changed components, all inside the contract.
+
+### RC2 — recipes in the server (RC-4)
+
+**What shipped.** The server only: storage, contracts, kitchen-worker and the SDK. No console file changed.
+
+- **Migration `340_kitchen_foods`**:
+  - `kitchen_foods` (key PK, name, `mass`/`volume`/`count`, `each_g` in whole grams or NULL, a pantry category);
+  - `kitchen_food_names` (name_key PK, folded as `lower(trim())` → one food);
+  - `kitchen_items.food_key` (nullable, FK to the list);
+  - `kitchen_food_answers` (the "asked once" answer per pantry and name, keyed `owner_kind` + `owner_id` as `kitchen_measures` is; `food_key` NULL is "none of these");
+  - `kitchen_always_have` (user_id, food_key) and `kitchen_always_have_lists` (who has saved a list);
+  - the seed: 70 foods and 330 names in English, Hindi and regional words (onion/onions/pyaz/kanda, aloo, chawal, dahi, haldi, dhaniya, jeera, dal, …), one row per food and then one row per name, with `INSERT OR IGNORE`, so RC-7's 360 extends it the same way;
+  - one backfill `UPDATE` that links the items already in pantries by the same lookup.
+- **Migration `350_kitchen_recipes`**:
+  - `kitchen_recipes`: `rcp_` id, owner, name, `serves_half`, minutes, visibility, `link_code` UNIQUE, the three source fields, `is_system` (only for `usr_cookpool`), kind, created/updated/deleted. A CHECK keeps `link_code` set exactly while visibility is `link`.
+  - `kitchen_recipe_lines`: positions 0–39. Each line has an amount in a unit or is to taste with neither. A unique partial index allows one main line per recipe, and the main line is never to taste.
+  - `kitchen_recipe_steps`: positions 0–19, at most 200 characters each.
+  - `kitchen_dishes.recipe_id`, `kitchen_dishes.recipe_factor_milli` and `kitchen_dish_ingredients.recipe_line`, all nullable, plus an index on (cook, recipe_id, cooked_at) for last time.
+  - Its manifest entries follow RC-3's 330.
+- **matchFood** is one SQL expression (`packages/db/src/kitchen/food-link.ts`). A pantry's answer wins, a "none" answer included. Then comes the name itself. Then the name without a plural "es" or "s", which links only when those agree on exactly one food. The add's own batch links the item with it, personal or group, and a dish's just-bought items too, so the item add needs no extra read. `foodNameKey` and `foodLookupKeys` in contracts mirror it for the console.
+- **Scaling** (`packages/contracts/src/kitchen-recipes.ts`, re-exported from `kitchen.ts`):
+  - `scaleLine(qtyMilli, unit, factorMilli)` rounds pcs, count words and spoons to ½ (at least ½); g and ml to 5 below 100, 10 below 1000, then 50 (at least 5 g); kg and L to 0.01 (at least 0.01). To taste returns null.
+  - `scalePortions(servesHalf, factorMilli)` returns `{ portionsHalf, about, label }`: "2", "2½", "about 2".
+  - Also `factorForMain`, `factorForPortions` and `lineQuantity`.
+- **Routes** (design §7), all in kitchen-worker's router behind the existing `/v1/kitchen/*` facade, with the usual envelopes, 422 with field errors, and the opaque 404 for anything the caller may not see:
+
+  | Method and path | Who | Contract types |
+  |---|---|---|
+  | `GET /v1/kitchen/foods?q=&limit=` | signed in | `FoodsQuery`, `FoodsResponse` (`FoodMatch`) |
+  | `PUT /v1/kitchen/me/food-answers` | own pantry, or `kitchen.item.use` in the group | `SetFoodAnswerRequest`, `SetFoodAnswerResponse` |
+  | `GET`/`PUT /v1/kitchen/me/always-have` | self | `AlwaysHaveResponse`, `SetAlwaysHaveRequest` |
+  | `GET /v1/kitchen/me/recipes` | self | `MyRecipesResponse` (`RecipeSummary`) |
+  | `POST /v1/kitchen/me/recipes` | self | `CreateRecipeBody` = `CreateRecipeRequest` \| `SaveDishAsRecipeRequest`; `RecipeResponse` |
+  | `GET /v1/kitchen/recipes/{rcp}?code=` | may see it | `RecipeResponse` (`KitchenRecipe`, `RecipeLastCook`) |
+  | `PATCH`/`DELETE /v1/kitchen/me/recipes/{rcp}` | owner | `UpdateRecipeRequest`; `RecipeResponse` |
+  | `GET /v1/kitchen/me/recipes/{rcp}/match?f=&code=` | may see it | `RecipeMatchQuery`, `RecipeMatchResponse` (`RecipeLineMatch`, `RecipeMatchItem`, `RecipeMatchSummary`, `UnlinkedItem`) |
+  | `POST`/`DELETE /v1/kitchen/me/recipes/{rcp}/link` | owner | `RecipeResponse` (`recipe.linkCode`) |
+  | `GET /v1/kitchen/recipe-links/{code}` | signed in | `RecipeResponse` |
+  | `POST /v1/kitchen/me/recipes/copies` | may see it | `CopyRecipeRequest`; `RecipeResponse` |
+  | `GET /v1/kitchen/people/{usr}/recipes` | shares a group | `PersonRecipesResponse` |
+  | `GET /v1/kitchen/recipes?source=cookpool\|groups&q=&kind=` | signed in | `ExploreRecipesQuery`, `ExploreRecipesResponse` (`ExploreRecipe`) |
+  | `GET /v1/kitchen/me/cook-now` | self | `CookNowResponse` (`CookNowEntry`) |
+  | `POST /v1/kitchen/me/dishes` gains `recipeId`, `recipeFactorMilli`, `ingredients[].recipeLine` | as today | `CookDishRequest`; `KitchenDish.recipeId`/`recipeFactorMilli`, `KitchenDishIngredient.recipeLine` |
+
+- **Visibility** (§5.1), checked in the worker (`canSee` in `recipes.ts`), with no policy action:
+  - Cookpool's own and the owner's are always visible.
+  - only_me: nobody else.
+  - link: anyone with the code.
+  - groups or link: anyone who shares a group with the owner now. This reads membership for both people, so leaving ends it at once.
+  - Explore's "Your groups" and Cook now read the co-members from the rosters of the caller's groups.
+  - The link code is only ever shown to the owner.
+- **The match** (§3.3):
+  - Items count when they are active, have something left, link to the line's food, and sit in the caller's own pantry or a group whose role holds `kitchen.item.use`.
+  - Lines of the same dimension compare directly. A count line meets an item through its measure (the one the line's unit names, else its first), else a mass item through `each_g`. A mass line meets a count item through `each_g`.
+  - Items are taken soonest use-by first, then the caller's own, then the most left, until the need is met; each carries `takeMilli`.
+  - `maxFactorMilli` is the smallest available ÷ written over the lines that aren't "always", and null when anything is missing.
+  - The whole match is four reads, however many recipes (items, foods, Always have, measures).
+- **Cook now** ranks every visible recipe (yours and your copies, Cookpool's, your groups'). It sorts by fewest missing, then the largest factor, then the most recently cooked, then by name, and returns the first 20. Each entry carries its summary (up to three missing names) and `forPortionsHalf`.
+- **The dish write**:
+  - The recipe must be visible to the cook (404 otherwise).
+  - A `recipeLine` must be a line the recipe has (422).
+  - `recipeFactorMilli` and `recipeLine` need `recipeId` (422).
+  - All three are stored and returned on every dish read. Costs, transactions and splits are computed exactly as before; a test compares them with the same take without a recipe.
+- **lastCook** is the caller's latest dish with the recipe that wasn't canceled: when, the factor, the portions, and for each ingredient that named a line its quantity, unit and label.
+- **fromDishId** saves any dish the caller can read that wasn't canceled. Each ingredient becomes a line at the amount used, linked to its item's food. Serves comes from the dish's portions. The heaviest ingredient is the main line: volume counts as water, pieces by `each_g`.
+- **SDK**: `KitchenClient` gains `foods`, `setFoodAnswer`, `alwaysHave`, `setAlwaysHave`, `myRecipes`, `createRecipe`, `getRecipe`, `updateRecipe`, `deleteRecipe`, `recipeMatch`, `shareRecipeLink`, `stopRecipeLink`, `recipeByLink`, `copyRecipe`, `personRecipes`, `exploreRecipes` and `cookNow`. The types and the scaling helpers are re-exported from `@saas/sdk`.
+
+**Departures.**
+
+- **70 seed foods, not about 60**, and 340 also links the items already in pantries (one `UPDATE … WHERE food_key IS NULL`). Without it, every existing pantry would read "missing" until each item was re-added.
+- **An extra table, `kitchen_always_have_lists`.** It records that someone has saved their list, so a list they emptied stays empty instead of falling back to salt and water.
+- **Answers are keyed like measures** (`owner_kind`, `owner_id`), and **"none of these" is an answer** (`foodKey: null`). It unlinks that name's items in that pantry and stops the names table from linking them again, so the ask happens once.
+- **The exact name wins over its plural-dropped forms.** "Exactly one food" applies to the "es"/"s" candidates, which link only when they agree.
+- **Type names.** SM-8 already owns `Recipe`, `RecipeMatch`, `RecipeIngredient` and `RecipesResponse` (dishes cooked before), so the recipe types are `KitchenRecipe`, `RecipeSummary`, `KitchenRecipeLine`, `RecipeMatchResponse` and so on. They live in `kitchen-recipes.ts`, which is re-exported from `kitchen.ts` (and is `@saas/contracts/kitchen-recipes`). The storage record is `KitchenRecipeTemplateRecord`.
+- **A line's `qtyMilli` is thousandths of its unit's base** (g, ml, pieces), as an item's is. A count word ("onion") is one piece. `RECIPE_UNITS` restates the engine's unit sizes in contracts, which has no dependencies; a kitchen-worker test pins the two equal.
+- **Factor range** is 10–20 000 (× 0.01 to × 20). `maxFactorMilli` is capped at 20 000, and is 20 000 when no line limits it.
+- **`?code=` on `GET /recipes/{rcp}` and `…/match`** lets a link holder read and match a recipe without saving it first. The dish write takes no code: a link holder cooks from their copy.
+- **The match carries more than the design lists.** It has the portions, and per item `takeMilli`, `ref`, the pantry, name, unit and use-by. It also has `unlinked`: up to 20 usable items that link to no food and were never answered, which is what RC-8's "Is Kanda onion?" asks about. Items themselves don't expose `foodKey`, which keeps the item shape RC-3 just changed as it is.
+- **Spoons don't meet weights.** There are no densities, so "1 tsp turmeric" never meets a pantry's 100 g of it, and reads missing unless turmeric is on Always have (the design's own example). This is worth revisiting with RC-7's content.
+- **Explore**: "Your groups" leaves out the caller's own recipes, which are in My recipes, and includes link ones. It returns at most 50, newest first, each with its match at its written size.
+- **Kinds** are `breakfast`, `dal_curry`, `rice`, `roti`, `snack`, `sweet`, `drink` and `other`. Explore's chips plus three for RC-7's rotis, chai and the rest. The worker checks them; the table has no CHECK, so RC-7 can add one without a rebuild.
+- **Sharing**: PATCH to `link` mints a code if there is none. Any other visibility drops it. `DELETE …/link` returns the recipe to My groups. Deleting is soft and leaves visibility and code as they were, but no read sees a deleted recipe. DELETE answers the recipe as it was.
+- **More of the dish write takes a line**: `newItems[].recipeLine` too, for something bought during a session. The new dish fields are optional in the contract types (as `label` is), so dishes typed before still check. The server always sends them.
+- **fromDishId** takes a dish shared with the caller's group, not only their own. A canceled dish is 409 `dish_not_open`. A dozen becomes `pcs` and a pack becomes the count word "pack".
+- **`GET /people/{usr}/recipes` for yourself is 404**, as the person read is; use `/me/recipes`.
+- **A copy of Cookpool's own** reads "from Cookpool". "Saved by" counts live copies.
+- **Recipes write no audit event.** The log is a group's, and a recipe is a person's, as with a personal item.
+- **`tests/db/src/notifications-push.test.ts`** checks the two migrations right after 300 rather than the last two. RC-3 made the same change, and the merge took theirs.
+
+**Tests.**
+
+| Package | New | Total |
+|---|---|---|
+| `tests/db` | 23: `kitchen-recipes-migration` 11 (340/350 shape, the seed and its names, the backfill, every CHECK, FK and unique rule on real SQLite), `kitchen-recipes` 12 (matchFood, linking on add, answers, Always have, search, usable and unlinked items, recipes written, listed, edited, linked, deleted, copied, the dish's recipe link and last cook) | 749 |
+| `tests/contracts` | 16 (`kitchen-recipes`: examples and seeded property checks, each over thousands of cases: scaling by 1 is the identity after rounding, every result sits on its unit's grid and never below one step, within half a step of exact, monotonic in the factor; portions exact exactly when whole or half; folding; the route shapes) | 186 |
+| `tests/kitchen-worker` | 42: `foods` 10, `recipes` 17 (writing, the visibility matrix — owner, co-member, viewer, stranger, link holder, after rotating, after the link is off, after leaving — Cookpool's own, edit/delete, copies and their independence, a person's recipes, Explore, 401/405 on every route, the unit sizes against the engine), `recipe-match` 9 (have/short/missing/always, preference order, count↔mass through each_g and through a measure, Always have, maxFactor, a viewer's match, Cook now's order and limit), `recipe-dishes` 6 (dish with a recipe, money unchanged, refusals, lastCook, fromDishId) | 530 |
+| `packages/sdk` | 4 | 175 |
+
+`pnpm typecheck` and `pnpm lint` pass repo-wide (`tests/web-console-next`, untouched, still passes 1385), and `orun task check RC-4 --base origin/main` passes: 8 changed components, all inside the contract.
