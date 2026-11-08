@@ -75,6 +75,8 @@ import {
   handleRecipeMatch,
   handleUpdateRecipe,
 } from "./handlers/recipes.js";
+// Timers that find you (GC-3).
+import { handleCancelTimer, handleCreateTimer, handleListTimers } from "./handlers/timers.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -416,6 +418,17 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.person.recipes",
     pattern: /^\/v1\/kitchen\/people\/([^/]+)\/recipes$/,
     methods: { GET: handlePersonRecipes },
+  },
+  // Timers that find you (GC-3): the caller's own; the per-minute sweep pushes them.
+  {
+    name: "kitchen.me.timers",
+    pattern: /^\/v1\/kitchen\/me\/timers$/,
+    methods: { GET: handleListTimers, POST: handleCreateTimer },
+  },
+  {
+    name: "kitchen.me.timer",
+    pattern: /^\/v1\/kitchen\/me\/timers\/([^/]+)$/,
+    methods: { DELETE: handleCancelTimer },
   },
 ];
 
