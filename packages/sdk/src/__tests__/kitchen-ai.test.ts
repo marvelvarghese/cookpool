@@ -4,8 +4,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { AI_DAILY_ACTIONS, AI_USES_TEXT_MAX, Cookpool, KITCHEN_AI_ERROR_REASONS } from "../index.js";
-import { InternalError, RateLimitError } from "../errors.js";
+import { AI_DAILY_ACTIONS, AI_RECEIPT_MAX_BYTES, AI_RECEIPT_NOT_FOOD, AI_USES_TEXT_MAX, Cookpool, KITCHEN_AI_ERROR_REASONS } from "../index.js";
+import { InternalError, RateLimitError, ValidationError } from "../errors.js";
 
 interface CapturedCall {
   url: string;
@@ -88,5 +88,43 @@ describe("KitchenClient — Cookpool AI (AI-2)", () => {
     expect(err).toBeInstanceOf(RateLimitError);
     expect((err as RateLimitError).details).toMatchObject({ reason: KITCHEN_AI_ERROR_REASONS.AI_DAILY_LIMIT, limit: AI_DAILY_ACTIONS });
     expect(AI_USES_TEXT_MAX).toBe(300);
+  });
+});
+
+describe("KitchenClient — receipts (AI-3)", () => {
+  const receipt = {
+    store: "DMart",
+    total: 23600,
+    currency: "INR",
+    sumMinor: 23600,
+    totalMatches: true,
+    lines: [
+      {
+        text: "MLK PNR 200G",
+        name: "Paneer",
+        foodId: "paneer",
+        quantity: 200,
+        unit: "g",
+        priceMinor: 9000,
+        pantry: { kind: "personal", name: "My pantry" },
+        confidence: "sure",
+      },
+      { text: "SURF EXCEL 1KG", priceMinor: 14600, confidence: "check", reason: AI_RECEIPT_NOT_FOOD },
+    ],
+  };
+
+  it("sends the photo as given and returns the lines", async () => {
+    const f = capture(ok(receipt));
+    expect(await client(f.fetch).kitchen.aiReceipt("/9j/4AAQSkZJRg==")).toEqual(receipt);
+    expect(f.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/ai/receipt");
+    expect(f.calls[0]!.init.method).toBe("POST");
+    expect(JSON.parse(String(f.calls[0]!.init.body))).toEqual({ image: "/9j/4AAQSkZJRg==" });
+    expect(AI_RECEIPT_MAX_BYTES).toBe(1_572_864);
+  });
+
+  it("decodes a bad photo as a validation error on image", async () => {
+    const f = capture(failed("validation_failed", 422, { fields: { image: ["Must be at most 1.5 MB"] } }));
+    const err = await client(f.fetch).kitchen.aiReceipt("x").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ValidationError);
   });
 });

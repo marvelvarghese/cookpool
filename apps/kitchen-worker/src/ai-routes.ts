@@ -1,4 +1,5 @@
 import { handleAiStatus, handleAiUses } from "./handlers/ai.js";
+import { handleAiReceipt } from "./handlers/ai-receipt.js";
 import type { MeRoute } from "./router.js";
 
 // Cookpool AI (cookpool-ai AI-2, design §1, §2): the caller's own routes under
@@ -14,5 +15,10 @@ export const AI_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.ai.uses",
     pattern: /^\/v1\/kitchen\/me\/ai\/uses$/,
     methods: { POST: handleAiUses },
+  },
+  {
+    name: "kitchen.me.ai.receipt",
+    pattern: /^\/v1\/kitchen\/me\/ai\/receipt$/,
+    methods: { POST: handleAiReceipt },
   },
 ];

@@ -242,6 +242,36 @@ describe("the food list, against a real SQLite engine (340_kitchen_foods)", () =
   });
 });
 
+describe("matchFoods: many names in one read (cookpool-ai AI-3)", () => {
+  it("matches each name as matchFood does, keyed by the name as given, in ONE statement", async () => {
+    const names = ["Onions", "  PYAZ ", "Tomatoes", "eggs", "Amul Taaza", "", "Onions"];
+    sent.length = 0;
+    const found = await repo.matchFoods(names);
+    if (!found.ok) throw new Error("read failed");
+    expect(sent).toHaveLength(1);
+    expect([...found.value.entries()].map(([name, food]) => [name, food.key]).sort()).toEqual(
+      [
+        ["  PYAZ ", "onion"],
+        ["Onions", "onion"],
+        ["Tomatoes", "tomato"],
+        ["eggs", "egg"],
+      ].sort(),
+    );
+    for (const name of names) {
+      const one = await repo.matchFood(name);
+      if (!one.ok) throw new Error("read failed");
+      expect(found.value.get(name)?.key ?? null).toBe(one.value?.key ?? null);
+    }
+  });
+
+  it("reads nothing for no names", async () => {
+    sent.length = 0;
+    const found = await repo.matchFoods(["", "  "]);
+    expect(found.ok && found.value.size).toBe(0);
+    expect(sent).toHaveLength(0);
+  });
+});
+
 describe("recipes, against a real SQLite engine (350_kitchen_recipes)", () => {
   function recipe(overrides: Partial<NewKitchenRecipe> = {}): NewKitchenRecipe {
     return {

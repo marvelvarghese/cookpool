@@ -25,7 +25,7 @@ import { USES_TASK } from "../ai/uses-task.js";
 // `ai_failed`. Every model call is counted in kitchen_ai_usage.
 
 /** What this server offers now, when it has a key. AI-3…AI-6 turn theirs on. */
-const SERVER_FEATURES = { sayIt: true, receipt: false, import: false, voice: false, swaps: false } as const;
+const SERVER_FEATURES = { sayIt: true, receipt: true, import: false, voice: false, swaps: false } as const;
 
 export async function handleAiStatus(ctx: RequestContext): Promise<Response> {
   const available = aiAvailable(ctx.env);

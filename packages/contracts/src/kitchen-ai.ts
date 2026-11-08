@@ -118,3 +118,83 @@ export interface AiUsesResponse {
   lines: AiUseProposal[];
   unsure: string[];
 }
+
+// ── Receipts (AI-3, design §3) ──────────────────────────────
+//
+//   POST /v1/kitchen/me/ai/receipt   { image } → AiReceiptResponse
+//
+// One photo of a shop receipt read into lines, each matched to the caller's
+// own history and the food list on the server — before any model match — and
+// marked `sure` or `check`. Nothing is written and the image is never stored
+// or logged: the console opens the shopping run (PN-6) prefilled, and adds
+// with POST /v1/kitchen/me/purchases as today. Counts one AI action.
+
+/** The largest receipt photo, decoded: 1.5 MB. The console shrinks it to 1200 px on the long side first. */
+export const AI_RECEIPT_MAX_BYTES = 1_572_864;
+/** The photo types a receipt may be. */
+export const AI_RECEIPT_IMAGE_TYPES = ["image/jpeg", "image/webp"] as const;
+export type AiReceiptImageType = (typeof AI_RECEIPT_IMAGE_TYPES)[number];
+/** The most lines one receipt returns. */
+export const AI_RECEIPT_MAX_LINES = 60;
+
+/**
+ * POST /v1/kitchen/me/ai/receipt. `image`: the photo's bytes in base64, a
+ * JPEG or WebP of at most AI_RECEIPT_MAX_BYTES decoded (a `data:image/…;base64,`
+ * prefix is accepted). The type is read from the bytes, not from the prefix.
+ * A bad image is 422 `validation_failed` with field errors on `image`.
+ */
+export interface AiReceiptRequest {
+  image: string;
+}
+
+/** Why a line is `check`: `not_food`, or a few words ("not sure what MLK PNR is"). */
+export const AI_RECEIPT_NOT_FOOD = "not_food";
+
+/**
+ * One line of the receipt.
+ *
+ * - `text`: the line as printed.
+ * - `name`: the plain item name — as the caller last bought it when matched
+ *   to their history, else as read ("Paneer" for "MLK PNR").
+ * - `foodId`: the food-list key (`paneer`) when the name is a food.
+ * - `quantity` in `unit` (a unit key: pcs, kg, g, L, ml, pack…): what was
+ *   bought on the line, multipliers applied ("2 X 500G" → 1000 g).
+ * - `priceMinor`: the line's charged total in minor units (the selling price,
+ *   never the MRP).
+ * - `pantry`, `fromItemId`: where to add it — the pantry the name was last
+ *   bought into (and that purchase, for "like last time"), else the caller's
+ *   most-used pantry for the food's kind. Always a pantry the caller can add
+ *   to. Not set on non-food lines.
+ * - `confidence`: `sure` only when the name and the kind of unit match the
+ *   caller's history (or, with no history, exactly a food) and the price is
+ *   plausible (within ±50% of last time's, for the same amount). Else `check`
+ *   with a `reason`; non-food lines are `check` with reason `not_food`.
+ */
+export interface AiReceiptLine {
+  text: string;
+  name?: string;
+  foodId?: string;
+  quantity?: number;
+  unit?: string;
+  priceMinor?: number;
+  pantry?: PantryRef;
+  fromItemId?: string;
+  confidence: "sure" | "check";
+  reason?: string;
+}
+
+/**
+ * The receipt read. `store` and `total` when printed; `currency` is the
+ * chosen pantries' (the most lines'; INR when none); `sumMinor` is the sum of
+ * the food lines' prices; `totalMatches` says whether every line plus the
+ * receipt's own adjustments (an added tax, a discount, round-off) comes to
+ * `total` — false when it does not, or when no total was printed.
+ */
+export interface AiReceiptResponse {
+  store?: string;
+  total?: number;
+  currency: string;
+  sumMinor: number;
+  totalMatches: boolean;
+  lines: AiReceiptLine[];
+}

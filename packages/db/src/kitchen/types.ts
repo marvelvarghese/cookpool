@@ -847,6 +847,12 @@ export interface KitchenRepository extends AsksRepository, CommunityRepository, 
    */
   matchFood(name: string): Promise<KitchenResult<KitchenFoodRecord | null>>;
   /**
+   * matchFood for many names in ONE read (Cookpool AI, AI-3's receipt
+   * matching): each name that names one food, keyed by the name as given.
+   * Names that match nothing (or more than one food) are left out.
+   */
+  matchFoods(names: readonly string[]): Promise<KitchenResult<Map<string, KitchenFoodRecord>>>;
+  /**
    * Keep a pantry's answer for a name and, in the same batch, link every item
    * of that name in that pantry to it (or unlink them, for a null food).
    */

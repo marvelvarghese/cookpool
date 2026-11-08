@@ -104,6 +104,8 @@ describe("kitchen route matching", () => {
     // Cookpool AI (AI-2): the status read and sentence parsing, with no edge change.
     "/v1/kitchen/me/ai",
     "/v1/kitchen/me/ai/uses",
+    // Receipts (AI-3).
+    "/v1/kitchen/me/ai/receipt",
   ])("%s is a kitchen route, and no other facade's", (path) => {
     expect(isKitchenRoute(path)).toBe(true);
     expect(isOrgRoute(path)).toBe(false);
