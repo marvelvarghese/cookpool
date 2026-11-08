@@ -138,3 +138,14 @@ export type {
   TimersRepository,
 } from "./timers.js";
 export { createTimersRepository } from "./timers.js";
+
+// Restocking and shopping runs (PN-3): their own repository, beside the kitchen's.
+export type {
+  KitchenRestockQuery,
+  KitchenRestockName,
+  CreatePurchaseInput,
+  CreatedPurchase,
+  UndoPurchaseInput,
+  PurchasesRepository,
+} from "./purchases.js";
+export { createPurchasesRepository } from "./purchases.js";

@@ -2038,3 +2038,10 @@ export * from "./kitchen-recipes.js";
 // ./kitchen-timers.ts (also `@saas/contracts/kitchen-timers`).
 
 export * from "./kitchen-timers.js";
+
+// ── Restocking (PN-3) ───────────────────────────────────────
+//
+// What to buy again (finished, running low, usually bought) and the shopping
+// run that buys it in one write: see ./kitchen-restock.ts.
+
+export * from "./kitchen-restock.js";
