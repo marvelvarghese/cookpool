@@ -5,7 +5,6 @@ import Link from "next/link";
 import { CornerDownRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BackButton } from "./back-ui";
 import { LearnedBadge } from "./guided-views";
 import { planNote, planTotals, type Plan, type PlanRow, type PlanSize } from "./guided-steps";
 
@@ -15,15 +14,18 @@ import { planNote, planTotals, type Plan, type PlanRow, type PlanSize } from "./
  * totals, one row per step — its number (tinted when hands off), its words,
  * its range at this size, the learned badge, its rule in words and a bar,
  * and the Meanwhile line under a hands-off step — then Start step by step.
- * No reads or writes here, so it is rendered in tests.
+ * No reads or writes here (the Back control is handed in: it needs the
+ * router), so it is rendered in tests.
  */
 export function PlanView({
+  back,
   name,
   plan,
   sizes,
   onSize,
   startHref,
 }: {
+  back?: React.ReactNode;
   name: string;
   plan: Plan;
   sizes: readonly PlanSize[];
@@ -34,7 +36,7 @@ export function PlanView({
   return (
     <div className="flex w-full max-w-xl flex-col gap-3.5 pb-2">
       <div className="flex items-center gap-1">
-        <BackButton />
+        {back}
         <span className="min-w-0 flex-1 truncate text-[13px] font-extrabold uppercase tracking-[0.04em] text-[#5A635D]">{name}</span>
       </div>
       <h1 className="-mt-1 text-[26px] font-extrabold leading-tight tracking-[-0.02em]">The plan</h1>

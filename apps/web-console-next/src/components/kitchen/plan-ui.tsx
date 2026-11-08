@@ -6,6 +6,7 @@ import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
 import { KCard, K_BUTTON } from "./kit";
+import { BackButton } from "./back-ui";
 import { factorFromQuery, planOf, planSizes } from "./guided-steps";
 import { parseRecipeRef, sessionHref } from "./recipes";
 import { useRecipe } from "./recipes-data";
@@ -54,5 +55,5 @@ function PlanAtSize({ recipe, given }: { recipe: KitchenRecipe; given: number | 
   const sizes = planSizes(recipe, given);
   const [factor, setFactor] = React.useState(sizes[0]!.factorMilli);
   const plan = planOf(recipe, factor);
-  return <PlanView name={recipe.name} plan={plan} sizes={sizes} onSize={setFactor} startHref={sessionHref(recipe.id, factor)} />;
+  return <PlanView back={<BackButton />} name={recipe.name} plan={plan} sizes={sizes} onSize={setFactor} startHref={sessionHref(recipe.id, factor)} />;
 }
