@@ -27,6 +27,8 @@ import { groupSettleHref } from "@/components/kitchen/group-page";
 import { newFrame } from "@/lib/features";
 import { offersSaveAsRecipe } from "@/components/kitchen/recipes";
 import { SaveAsRecipeButton } from "@/components/kitchen/recipe-ui";
+import { offersShare } from "@/components/kitchen/community-share";
+import { DishShareButton, ShareCookSheet, useSharedPost } from "@/components/kitchen/community-share-ui";
 import {
   OVER_CLAIMED,
   claimCount,
@@ -154,6 +156,24 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
     const qs = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [dish.state, canSplit, startCorrecting]);
+
+  // Share this cook? (cookpool-community CM-6): the cook's own dish, once it
+  // can be posted, in the new frame — from Finish (`?share=1`), after the
+  // cook's Finalize, or Share.
+  const canShare = offersShare(newFrame(), dish, meId);
+  const [shareOpen, setShareOpen] = React.useState(false);
+  const [sharedPost, setSharedPost] = useSharedPost(dish.id);
+  const askedToShare = React.useRef(false);
+  React.useEffect(() => {
+    if (askedToShare.current || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("share") !== "1") return;
+    askedToShare.current = true;
+    if (canShare) setShareOpen(true);
+    params.delete("share");
+    const qs = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  }, [canShare]);
 
   // The shares on screen: the cook's edit, or the dish's own (a portion on its
   // way is in it already: SM-5's patch of the cached dish).
@@ -341,6 +361,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
           <DishMoney dish={dish} summary={finalizing ? [] : summary} flow={flow} people={people} now={now} />
           {/* The new frame (cookpool-recipes RC-5): a dish that was cooked becomes a recipe of yours. */}
           {!editing && offersSaveAsRecipe(newFrame(), dish) ? <SaveAsRecipeButton dishId={dish.id} /> : null}
+          {!editing && canShare ? <DishShareButton postId={sharedPost} onShare={() => setShareOpen(true)} /> : null}
         </div>
       </div>
 
@@ -376,7 +397,14 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
               className={cn(K_BUTTON, "h-[60px] flex-[1.4] rounded-[18px] text-[17px] font-extrabold")}
               disabled={split.over || portions.pending || (actions.busy !== null && actions.busy !== "finalize")}
               loading={actions.busy === "finalize"}
-              onClick={() => void actions.finalize(dirty ? draft : undefined).then((ok) => ok && setTouched(false))}
+              onClick={() =>
+                void actions.finalize(dirty ? draft : undefined).then((ok) => {
+                  if (!ok) return;
+                  setTouched(false);
+                  // Finalized, it can be posted: Share this cook? (the new frame).
+                  if (newFrame() && !sharedPost) setShareOpen(true);
+                })
+              }
             >
               Finalize
             </Button>
@@ -387,6 +415,10 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
           </Button>
         ) : null}
       </ActionBar>
+
+      {newFrame() && isCook && (shareOpen || canShare) ? (
+        <ShareCookSheet dish={dish} groupName={groupName} open={shareOpen} onClose={() => setShareOpen(false)} onPosted={setSharedPost} />
+      ) : null}
 
       <ConfirmDialog
         open={confirmCancel}

@@ -62,10 +62,9 @@ describe("which screens pull to refresh", () => {
     // Recipes travel (cookpool-recipes RC-8): Explore's search and sideways chips, and a link's Save.
     "/explore",
     "/r/:code",
-    // Community (cookpool-community CM-5): its shell, search's field, a profile's lists, the forms; CM-6 decides for the feed.
-    "/community",
+    // Community (cookpool-community CM-5): search's field, a profile's lists, the forms. CM-6: the feed and
+    // Activity pull (below); a post doesn't (its comment box), nor a profile (its Cooks | Recipes switch).
     "/community/search",
-    "/community/activity",
     "/u/:handle",
     "/p/:postId",
     "/you/profile",
@@ -74,7 +73,18 @@ describe("which screens pull to refresh", () => {
 
   it("decides for every page: a new page must choose", () => {
     expect([...PULL_PAGES, ...NO_PULL].sort()).toEqual([...STATIC_PAGES].sort());
-    expect(PULL_PAGES).toEqual(["/home", "/pantry", "/groups", "/groups/:orgSlug", "/people", "/people/:subjectId", "/dishes/:dishRef", "/money"]);
+    expect(PULL_PAGES).toEqual([
+      "/home",
+      "/pantry",
+      "/groups",
+      "/groups/:orgSlug",
+      "/people",
+      "/people/:subjectId",
+      "/dishes/:dishRef",
+      "/money",
+      "/community",
+      "/community/activity",
+    ]);
   });
 
   it.each([

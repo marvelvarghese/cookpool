@@ -8,6 +8,8 @@ import { isOffline } from "@/lib/connection";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookSessions, useCookSession } from "@/lib/cook-session-store";
 import { newFrame } from "@/lib/features";
+import { afterFinishHref } from "./community-share";
+import { rememberStepSeed } from "./community-share-ui";
 import { readLongPrep } from "@/lib/long-prep-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +21,7 @@ import { useBack } from "./back-ui";
 import { useProfile } from "./data";
 import { useMemberNames, useMyBalances } from "./people-data";
 import { PantryPanel } from "./dish-maker-ui";
-import { JUST_ME, MAX_DISH_INGREDIENTS, dishHref } from "./dish-maker";
+import { JUST_ME, MAX_DISH_INGREDIENTS } from "./dish-maker";
 import { fromBeforeTerm, recipeSuggestion, shownSuggestions } from "./from-before";
 import { useRecipes } from "./from-before-data";
 import { SuggestionList, useTypeahead } from "./from-before-ui";
@@ -288,7 +290,9 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
       onLeave();
       cancelTimers(session);
       cookSessions.clear(meId);
-      router.push(dishHref(out.dish.id));
+      // The new frame (cookpool-community CM-6): Share this cook? on the dish, once it can be posted.
+      rememberStepSeed(out.dish.id, session.guide);
+      router.push(afterFinishHref(out.dish, newFrame()));
       return;
     }
     if (out.kind === "offline") {

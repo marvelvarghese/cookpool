@@ -23,7 +23,6 @@ import { copyLink } from "./recipe-share";
 import {
   COMMUNITY_HREF,
   HANDLE_SETUP_HREF,
-  NO_COOKS_TEXT,
   atHandle,
   followButton,
   followedByText,
@@ -40,6 +39,8 @@ import {
 } from "./community";
 import { peopleRows, type PersonRow } from "./community-people";
 import { CountsRow, EmptyLine, FollowButtonView, LockCard, OUTLINE_BUTTON, PeopleList, PeopleListSkeleton, PersonRowView, ProfileFace } from "./community-views";
+import { ProfileCooks } from "./community-feed-ui";
+import { ReportSheet, type ReportTarget } from "./community-report-ui";
 import { useBlock, useFollow, useMute, useMyCommunityProfile, usePersonProfile, useProfilePeople, useProfileRecipes, useRemoveFollower } from "./community-data";
 
 /**
@@ -52,7 +53,7 @@ import { useBlock, useFollow, useMute, useMyCommunityProfile, usePersonProfile, 
  * Undo.
  *
  * Cooks a week isn't shown: the app only knows the dishes of people in your
- * groups, and Cooks fills in with posts (CM-3, CM-6).
+ * groups. Cooks is their posts, as the feed's cards (CM-6), and the default tab.
  */
 
 export function PersonProfileScreen() {
@@ -141,7 +142,7 @@ function ProfileBody({ view, onBlocked }: { view: PersonProfileResponse; onBlock
         ) : (
           <button
             type="button"
-            aria-label="More: mute or block"
+            aria-label="More: mute, block or report"
             aria-haspopup="dialog"
             onClick={() => setMenu(true)}
             className="grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -204,7 +205,7 @@ function ProfileTabs({ view, list }: { view: PersonProfileResponse; list: Profil
         ]}
       />
       {list === "cooks" ? (
-        <EmptyLine>{NO_COOKS_TEXT}</EmptyLine>
+        <ProfileCooks handle={handle} />
       ) : (
         <PersonRecipesView
           rows={rows}
@@ -299,7 +300,7 @@ export function useFollowRow(hasProfile: boolean) {
   );
 }
 
-/** ⋯: Mute (or Unmute) their posts, Block @handle, and that they aren't told. Report comes with CM-3's reports. */
+/** ⋯: Mute (or Unmute) their posts, Block @handle, and that they aren't told; Report @handle (CM-6). */
 function ProfileMenu({
   open,
   onOpenChange,
@@ -315,45 +316,60 @@ function ProfileMenu({
   const words = profileMenuText(profile, rel.muted);
   const mute = useMute();
   const block = useBlock();
+  const [report, setReport] = React.useState<ReportTarget | null>(null);
   const item = "min-h-[52px] w-full rounded-[14px] text-base font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        aria-describedby={undefined}
-        className={cn("mx-auto max-w-xl gap-2 rounded-t-[24px] border-x-0 bg-card px-5 pb-6 pt-3 min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border", CLOSE_44)}
-      >
-        <div aria-hidden className="mx-auto mb-1 h-[5px] w-10 shrink-0 rounded-full bg-[#D5DAD2] min-[900px]:hidden" />
-        <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-extrabold">{profileFirstName(profile)}</SheetTitle>
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              onOpenChange(false);
-              mute(profile, !rel.muted);
-            }}
-            className={cn(item, "border border-[#D5DAD2] bg-card hover:bg-accent")}
-          >
-            {words.mute}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              onOpenChange(false);
-              onBlocked({ userId: profile.userId, handle: profile.handle, name: profile.name });
-              // Undone, or refused: the profile comes back.
-              block(profile, true, (stands) => {
-                if (!stands) onBlocked(null);
-              });
-            }}
-            className={cn(item, "bg-[#FDECEA] text-[#B42318] hover:bg-[#FAD9D5]")}
-          >
-            {words.block}
-          </button>
-          <p className="text-center text-[13px] font-semibold text-muted-foreground">{words.blockNote}</p>
-        </div>
-      </SheetContent>
-    </Sheet>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="bottom"
+          aria-describedby={undefined}
+          className={cn("mx-auto max-w-xl gap-2 rounded-t-[24px] border-x-0 bg-card px-5 pb-6 pt-3 min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border", CLOSE_44)}
+        >
+          <div aria-hidden className="mx-auto mb-1 h-[5px] w-10 shrink-0 rounded-full bg-[#D5DAD2] min-[900px]:hidden" />
+          <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-extrabold">{profileFirstName(profile)}</SheetTitle>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                mute(profile, !rel.muted);
+              }}
+              className={cn(item, "border border-[#D5DAD2] bg-card hover:bg-accent")}
+            >
+              {words.mute}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                onBlocked({ userId: profile.userId, handle: profile.handle, name: profile.name });
+                // Undone, or refused: the profile comes back.
+                block(profile, true, (stands) => {
+                  if (!stands) onBlocked(null);
+                });
+              }}
+              className={cn(item, "bg-[#FDECEA] text-[#B42318] hover:bg-[#FAD9D5]")}
+            >
+              {words.block}
+            </button>
+            <p className="text-center text-[13px] font-semibold text-muted-foreground">{words.blockNote}</p>
+            {/* CM-6: reports exist now. */}
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                setReport({ kind: "profile", id: profile.userId, handle: profile.handle });
+              }}
+              className={cn(item, "border border-[#D5DAD2] bg-card hover:bg-accent")}
+            >
+              Report {atHandle(profile.handle)}
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+      <ReportSheet target={report} onClose={() => setReport(null)} />
+    </>
   );
 }
 

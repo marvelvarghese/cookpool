@@ -261,10 +261,12 @@ describe("a profile: the relationship decides the button", () => {
     expect(parseHandleParam("%E0%A4")).toBeNull();
     expect(parseHandleParam(null)).toBeNull();
     expect(profileHref("meeracooks")).toBe("/u/meeracooks");
-    expect(profileHref("meeracooks", "cooks")).toBe("/u/meeracooks?list=cooks");
-    expect(profileListFrom(null)).toBe("recipes");
+    // CM-6 flips the default to Cooks: the bare page is Cooks, Recipes is in the address.
+    expect(profileHref("meeracooks", "cooks")).toBe("/u/meeracooks");
+    expect(profileHref("meeracooks", "recipes")).toBe("/u/meeracooks?list=recipes");
+    expect(profileListFrom(null)).toBe("cooks");
     expect(profileListFrom("following")).toBe("following");
-    expect(profileListFrom("posts")).toBe("recipes");
+    expect(profileListFrom("posts")).toBe("cooks");
     expect(profileUrl("https://stage.cookpool.store/", "meeracooks")).toBe("https://stage.cookpool.store/u/meeracooks");
   });
 });

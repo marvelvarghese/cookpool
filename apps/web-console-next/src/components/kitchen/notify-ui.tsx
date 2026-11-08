@@ -6,6 +6,7 @@ import { Bell, ChevronRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { NotificationKind, NotificationPreference } from "@saas/contracts/notifications";
 import { cn } from "@/lib/cn";
+import { newFrame } from "@/lib/features";
 import { wrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
@@ -19,7 +20,7 @@ import {
   NOTIFY_TITLE,
   NOT_YET_LINE,
   NO_PUSH_LINE,
-  PUSH_ROWS,
+  pushRows,
   SEND_TEST,
   TURN_OFF_FAILED,
   TURN_ON_FAILED,
@@ -265,7 +266,7 @@ function PushSwitches({
     });
   };
 
-  const shown = PUSH_ROWS.map((row) => ({ ...row, on: shownOn(row.kind, kinds, deviceState, flipping[row.kind]) }));
+  const shown = pushRows(newFrame()).map((row) => ({ ...row, on: shownOn(row.kind, kinds, deviceState, flipping[row.kind]) }));
   const anyOn = shown.some((row) => row.on && flipping[row.kind] === undefined);
 
   const sendTest = async () => {

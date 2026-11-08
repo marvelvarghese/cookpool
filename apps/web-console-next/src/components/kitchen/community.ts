@@ -47,11 +47,8 @@ export const BLOCKED_HREF = "/you/blocked";
 export const PROFILE_LISTS = ["cooks", "recipes", "followers", "following"] as const;
 export type ProfileListId = (typeof PROFILE_LISTS)[number];
 
-/**
- * The tab a profile opens on. Recipes until posts arrive (CM-3/CM-6): Cooks
- * is empty for everyone before then.
- */
-export const PROFILE_DEFAULT_LIST: ProfileListId = "recipes";
+/** The tab a profile opens on: Cooks, their posts (CM-6; Recipes until posts arrived). */
+export const PROFILE_DEFAULT_LIST: ProfileListId = "cooks";
 
 export function profileListFrom(param: string | null | undefined): ProfileListId {
   return (PROFILE_LISTS as readonly string[]).includes(param ?? "") ? (param as ProfileListId) : PROFILE_DEFAULT_LIST;
@@ -68,7 +65,7 @@ export function profileUrl(origin: string, handle: string): string {
   return `${origin.replace(/\/+$/, "")}${profileHref(handle)}`;
 }
 
-/** A post's page (CM-6 fills it). */
+/** A post's page. */
 export function postHref(postId: string): string {
   return `/p/${encodeURIComponent(postId)}`;
 }
@@ -332,7 +329,7 @@ export function profileMenuText(profile: { name: string; handle: string }, muted
   };
 }
 
-/** The empty Cooks tab, until posts arrive (CM-3, CM-6). */
+/** An empty Cooks tab. */
 export const NO_COOKS_TEXT = "No cooks shared yet";
 /** A profile with no public recipes. */
 export const NO_PUBLIC_RECIPES_TEXT = "No public recipes yet";
