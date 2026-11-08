@@ -377,3 +377,144 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - **Deploy:**
   - The new frame asks for `limit=100`, which needs PN-2's kitchen-worker (on main since #81). Today's frame still asks for 10, so prod is unaffected.
   - Only console files change, so only the console redeploys.
+
+### PN4 — Ask before use in the server (PN-8)
+
+**Built:** design §8.5, with migration 420, the SDK and tests. Nothing in the console changes.
+
+**Migration 420 `420_kitchen_asks`** (registered with its sha256):
+- `kitchen_items.ask_first INTEGER NOT NULL DEFAULT 0 CHECK (ask_first IN (0, 1))`. Every existing item reads 0.
+- `kitchen_item_allowed (item_id → kitchen_items, member_id, created_at, PRIMARY KEY (item_id, member_id))`. The list is kept when `ask_first` is turned off.
+- `kitchen_asks`:
+  - `id` (`ask_` in the API), `org_id`, `item_id` → kitchen_items, `asker_id`, `qty_milli`, `unit`, `label`;
+  - `consumers` (a JSON array, 1–100), `weights` (NULL, or one per consumer), `source` (`pantry`|`cook`);
+  - `state` (`pending`|`approved`|`declined`|`canceled`), `created_at`, `expires_at` (+24 h), `answered_at`, `answered_by`, `move_id`, `txn_id`;
+  - two columns the design didn't list: `granted` (0/1: this approval added the asker to `allowed`) and `idem_key` (unique per item).
+  - CHECKs: approved ⇔ `move_id`; `txn_id` only when approved; pending ⇔ no answer.
+  - Indexes `(item_id, state)`, `(asker_id, created_at)`, and unique `(item_id, idem_key)`.
+- **Lapsing is read-side.** A pending ask lapses past `expires_at`, or once its item isn't active or isn't ask-first (`askIsLive`, `liveSql` in `packages/db/src/kitchen/asks.ts`).
+
+**Who is who** (`apps/kitchen-worker/src/asks.ts`):
+- **The answerer** is the buyer while they're a member, else the group's owners and admins (`MANAGE_ROLES`, pinned against the engine). The answerer is also the only one who sets `askFirst` and `allowed`.
+- **Who must ask:** anyone else not in `allowed`, owners and admins included while the buyer is a member.
+
+**Routes** (kitchen-worker; api-edge already forwards `/v1/…/kitchen/…`, so the edge is unchanged):
+- **`PATCH …/items/{itm}`** takes `askFirst` (boolean) and `allowed` (up to 100 members, 422 `not_in_group` otherwise).
+  - Anyone but the answerer gets 403 `not_buyer`, even an owner while the buyer is a member. Other fields keep the old rule.
+  - A personal item refuses both with 422 field errors.
+  - **`POST …/items`** takes the same two fields too (§8.1 "set on Add item"), only when the caller pays for the item (422 `askFirst` otherwise).
+- **Item reads:** every group item carries `askFirst`. An ask-first item also carries `allowed`, `mustAsk` (for the caller) and `answerer` (null once the buyer has left) on:
+  - a group's items, one item, and an edit's or add's answer;
+  - every pantry and search;
+  - the purchases answer;
+  - the use, waste, check and approve answers.
+  - The allowed lists are one more statement and the roster is fetched once per group, both only when some item asks first. The measures test's pinned counts are unchanged.
+- **Refusals for someone who must ask:** 403 `forbidden`, `details: { reason: "ask_first", itemId, answerer }`, writing nothing. This covers:
+  - `…/uses` and `…/waste`;
+  - `POST /v1/kitchen/me/dishes` taking the item;
+  - the check's `me` and `split` (PN-4's `groupCheckRefusal`). Owners, admins and the buyer may always check, and a raise or a check's `waste` stays open to anyone who may use the item (see departures).
+- **`POST …/items/{itm}/asks`** (`kitchen.item.use`) takes `{ quantity, unit | measure, consumers?, weights?, source? }` and returns 201 `{ ask }`.
+  - The amount is checked as a use's: 409 `insufficient_stock`, and 422 for a bad unit or measure.
+  - Consumers must be in the group (422 `not_in_group`).
+  - 409 `no_need` when the caller needn't ask: the buyer, someone allowed, an item that doesn't ask first, or an owner or admin once the buyer has left.
+  - A retried key answers with the same ask. A key someone else used is 409 `idempotency_key_reused`.
+- **`POST …/asks/{ask}/approve`** (the answerer) takes `{ alwaysAllow?, takeWhatsLeft? }` and returns 201 `{ ask, item, move, txn }`.
+  - It writes one `db.batch` (`repo.approveAsk`):
+    - the guarded ask update (not pending or past its time sets an invalid state, and the CHECK fails the batch);
+    - PN-4's `planGroupUse(asker ctx, item, { via: "ask" })`: the txn and splits, the move with the asker as actor and the txn's `created_by`, and the item update;
+    - the allowed insert with `alwaysAllow`;
+    - the audit event.
+  - The price and stock are that moment's. A stale item is planned again once.
+  - Less left than asked is 409 `insufficient_stock` with `details.qtyLeftMilli`. With `takeWhatsLeft`, it approves what is left, in the item's unit, with no label.
+  - The asker and every consumer must still be members (422 `not_in_group`).
+  - The same key by the same answerer answers the same (at the worker and in the repository).
+  - Anyone but the answerer gets 403 `not_buyer`. An ask in another group, or a bad id, is the opaque 404.
+- **`POST …/asks/{ask}/decline`** and **`…/reopen`** (the answerer) and **`…/cancel`** (the asker; anyone else gets 403 `not_creator`) return 200 `{ ask }`.
+  - Each moves from one state only, while the ask is live. A declined ask reopens only inside its 24 h.
+  - A lapsed ask is 409 `lapsed`. Any other state is 409 `not_pending` with `details.state`.
+  - The same answer repeated by the same person answers the same.
+- **`GET /v1/kitchen/me/asks`** returns `{ toAnswer, mine }`, at most 50 each:
+  - `toAnswer`: live pending asks in the caller's groups on items they bought, or, as an owner or admin, on items whose buyer has left. Oldest first.
+  - `mine`: the caller's own asks from the last 24 h, in any state. Newest first.
+- **`KitchenAsk`** (`packages/contracts/src/kitchen-asks.ts`) holds:
+  - `id` and `orgId`;
+  - `item { id, ref, name, pantry, displayUnit, qtyLeftMilli, qtyLeft, state }`;
+  - `asker` and `askerName`;
+  - `qtyMilli`, `quantity`, `unit`, `label`, and `amount` ("1 pinch");
+  - `consumers` and `consumerNames`, and `weights`;
+  - `source` and `state` (with `lapsed`);
+  - `createdAt`, `expiresAt`, `answeredAt` and `answeredBy`;
+  - `answerer` and `answererName`, and `paidBy`;
+  - `costMinor` (now's price while pending, the move's once approved), `backMinor` (what returns to the buyer), and `currency`;
+  - `enough`, `moveId` and `txnId`.
+- **Undo** of an approval goes the existing way, `…/txns/{txn}/reverse` or `…/moves/{mov}/undo`.
+  - Besides its logger and `reverse_any`, the person who approved it (`answered_by`) may now do either. That's needed because the use is the asker's.
+  - The reversal's own batch (`ask-undo.ts`, wired into `reverseTxn` and `undoMove` for `via = 'ask'` moves only) does two more things. It puts the ask back to **pending**, or **canceled** when the asker undid it. It also deletes the allowed row that the approval granted.
+  - Undo after Decline is `reopen`.
+- **Home's inbox** (`GET /v1/kitchen/me/inbox`) gains `asks: [{ kind: "ask", ask }]`: the caller's `toAnswer`. That is one more statement.
+- **Pushes,** through notifications-worker's push to a subject with the new kind `kitchen.ask`. Each is deferred after the commit, and a failure is logged and never fails the write:
+  - **On an ask:** "Dev asks for 1 pinch of your saffron" / "For Dev and Anu · ₹12 to you", url `/home?ask=<askId>`, tag `askId`. It goes to the buyer, or to every owner and admin once the buyer has left ("… of the saffron", "₹12 to Meera").
+  - **On approve:** to the asker, "Meera said yes · 1 pinch of saffron logged".
+  - **On decline:** to the asker, "Meera said no to the saffron".
+  - Both answer pushes carry the group's name as body and open the item page.
+  - Reopen and cancel push nothing.
+- **Purchases:** PN-3's `inheritedSettings()` copies `askFirst` and the item's `allowed` from an ask-first `fromItemId` in the line's own group (one more read only then).
+  - The new pack is paid by the caller, so they become its answerer.
+  - A line's own `askFirst`/`allowed` are ignored.
+- **Usuals:** `via = 'ask'` uses count (PN-4 filters only `'check'`). A test pins it for the asker and a consumer.
+- **SDK:** `askToUse`, `approveAsk`, `declineAsk`, `reopenAsk`, `cancelAsk`, `asks()`. `updateGroupItem` takes `askFirst`/`allowed` through the contract types. The PN-8 names are re-exported from `@saas/sdk`.
+- **notifications-worker:** `PUSH_TO_SUBJECT_KINDS` gains `kitchen.ask` (contracts). Its `component.yaml` redeploy line is touched so it accepts the kind, and its handler comment is updated. It has no other change.
+
+**Departures and decisions:**
+- **The ask rows are their own list, `InboxResponse.asks`,** not a sixth `InboxItem` kind. The console's `NEW_TODO_RANK: Record<InboxItem["kind"], number>` (`new-home.ts`) would stop compiling, and the console isn't in this task. `counts` leaves the asks out, and the field is optional in the types (always sent). PN-9 renders it at the top of To do.
+- **Admins ask too while the buyer is a member.** They're neither the buyer nor allowed. They may always run the stock check, though. The check refuses `me` and `split` only, as §8.2 lists; a raise and the check's `waste` stay open (risks PN-E).
+- **Undoing an approval puts the ask back,** rather than leaving it approved with its move reversed. Both writes are in one batch, and it's cheap: two statements, on `via = 'ask'` moves only.
+- **Reasons:** `ask_first` (403 `forbidden`); `no_need`, `lapsed` and `not_pending` (409 `conflict`), in `KITCHEN_ASK_ERROR_REASONS`. Existing reasons where they fit: `not_buyer`, `not_creator`, `insufficient_stock`, `not_in_group`. Error codes are unchanged.
+- **Several pending asks** by one person on one item are allowed.
+- **Repeats:** a repeated decline, cancel or reopen answers the same from the ask's state, with no stored key. The edge's 24 h key cache covers retries, so the worker keeps no `answer_key`.
+- **A `PATCH` with the setting and other fields** checks both rights, then writes `updateItem` and then `replaceAllowed`. That's two writes; neither moves money.
+- **Push words:** the item's first letter is lowercased ("saffron") unless its name starts with a capitalised pair ("MDH masala"). Whole rupees drop ".00".
+- **The approval's audit event** (`kitchen.item.used`) has the approver as actor, and its payload carries `askId`, `askedBy`, `approvedBy` and `via`. The txn title is the plain use's ("Saffron (1 pinch)").
+- **`KitchenItemRecord.askFirst` is optional in the types,** as `note` was. Every read sets it: `ITEM_COLUMNS` reads `ask_first`.
+
+**Tests:**
+- `tests/kitchen-worker` (35 suites, **798 tests**). `src/asks.test.ts` is new with 30 tests:
+  - setting rights: the buyer; owners and admins refused while she's a member and allowed after she leaves; outsiders; bad values; Add item; personal refused; `MANAGE_ROLES` against the engine;
+  - every refusal: `ask_first` on use, waste and dish, and on the check's `me`/`split` (owners and the buyer may check); `no_need`; 404 for a viewer or outsider; the amount's checks;
+  - asking moves nothing, pushes the buyer, and shows in `toAnswer`, `mine` and the inbox;
+  - approve posts the same money as a direct use on a twin item, with the asker as logger and `via: ask`, plus the yes push, the audit event, the replay and the second approval refused;
+  - `alwaysAllow`, then a direct use;
+  - `takeWhatsLeft`, at exactly the rest of the price;
+  - the admins answering once the buyer has left, and a consumer who left refused;
+  - undo by reversing the txn (back to pending, the grant taken back, approvable again), by the asker (canceled), and by the move's undo when there's no txn;
+  - decline with its push, then reopen, and reopen after 24 h lapsed; cancel; 404 and 405;
+  - lapsing at 24 h, on a finished item and when the setting is turned off, and approvable again once it's back on;
+  - a retried ask; a stale item replanned; a failed push and no binding never failing the write;
+  - Bought again copying the setting into the same group only, with the new buyer answering;
+  - an approved use counting as a usual.
+  - `inbox.test.ts`'s pins change on purpose: the empty inbox now carries `asks: []` (twice), and the read count is 13 (was 12) and 14 (was 13) with a third group.
+- `tests/db` (32 suites, **844 tests**). `src/kitchen-asks-migration.test.ts` is new with 13 tests:
+  - the registration;
+  - the text;
+  - the default and the CHECKs on real SQLite;
+  - through the repository: allowed lists, the ask replay, approve in one batch with the grant and its replay, nothing written when the ask moved on, lapsed or the item went stale, the answers' states, the list reads and their index plans, and undo through `reverseTxn` and `undoMove` (pending, and canceled for the asker).
+  - Two tests that run today's repository on an older schema now bring the schema up first, because `ITEM_COLUMNS` reads `ask_first`. They are `sqlite-schema.test.ts`'s 330 note test, which applies every later migration before reading, and the 410 test, which writes its pre-410 item by hand. What they check is unchanged.
+- `tests/contracts` (27 suites, **271 tests**). `src/kitchen-asks.test.ts` is new with 3 tests. `kitchen-timers.test.ts`'s `PUSH_TO_SUBJECT_KINDS` pin now includes `kitchen.ask`.
+- `packages/sdk` (**195 tests**). `src/__tests__/kitchen-asks.test.ts` is new with 6 tests.
+- `tests/notifications-worker` (**151 tests**). One new test: an ask's push is carried.
+- `tests/api-edge` (**587**, after `wire:fixture`) and `tests/web-console-next` (**1839**) pass unchanged. The console and its tests typecheck.
+- `typecheck` and `lint` are clean for db, contracts, sdk, kitchen-worker and notifications-worker, and for the test packages.
+
+**For later tasks:**
+- **PN-9:**
+  - Render `InboxResponse.asks` first in To do, and `/home?ask=`.
+  - A row reads `item.mustAsk`/`item.answerer` ("Ask Meera"; null means "Ask an admin"). `mine` drives the row's "Asked Meera · waiting" and Cancel.
+  - Undo after Approve is `reverseTxn(txn.id)`, or `undoGroupMove(move.id)` when `txn` is null. Undo after Decline is `reopenAsk`.
+  - A cook session's line sends `source: "cook"`.
+  - `askFirst`/`allowed` on Add item work only when paying yourself.
+- **Deploy order:**
+  - `ITEM_COLUMNS` now reads `ask_first`, so migration 420 must apply before this kitchen-worker serves. As with PN-4, kitchen-worker's enforced `db-migrate` edge orders it, and the new migration directory plans `db-migrate` by path.
+  - notifications-worker must be redeployed (its redeploy line is touched) before ask pushes are accepted. Until it is, they're refused with 422 and logged, and every write still succeeds.
+  - kitchen-worker changes in its own path, so it redeploys.
+  - The console has no change here, and picks up the contracts and SDK when PN-9 changes its files.
+- **A bound:** `toAnswer` reads at most 50 live asks before it drops, for an owner or admin, those whose buyer is still a member. A group with more than 50 pending asks could hide some until others are answered.
