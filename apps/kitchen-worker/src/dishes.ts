@@ -11,6 +11,8 @@ import {
   KITCHEN_ERROR_REASONS,
   MAX_DISH_INGREDIENTS,
   MAX_RECIPE_LINES,
+  MAX_STEP_LOG,
+  MAX_STEP_LOG_SECONDS,
   RECIPE_MAX_FACTOR_MILLI,
   RECIPE_MIN_FACTOR_MILLI,
   type DishOwed,
@@ -22,6 +24,7 @@ import type { AppendEventWithAuditInput } from "@saas/db/events";
 import { asUuid, isUuid, type Uuid } from "@saas/db/ids";
 import type {
   CookDishInput,
+  CookDishStepTimes,
   CookIngredient,
   KitchenDishError,
   KitchenDishRecord,
@@ -42,7 +45,7 @@ import { MAX_NAME, displayQuantity, isoDay, parseNewItem } from "./pantry.js";
 import { takeInMeasure, type MeasureBook } from "./measures.js";
 import { MAX_PORTIONS_HALF, dishSplitView } from "./split.js";
 import { measureField, quantityOf, stockErrorResponse } from "./stock.js";
-import { Fields, minor, oneOf, text, type FieldErrors } from "./validate.js";
+import { Fields, instant, minor, oneOf, text, type FieldErrors } from "./validate.js";
 
 /** What an item bought for a dish is filed under when the cook names nothing. */
 export const DEFAULT_NEW_ITEM_CATEGORY = "Other";
@@ -95,6 +98,63 @@ export interface ParsedDish {
   /** The recipe it is cooked from (RC-4): its stored UUID; null for none. */
   recipeId: Uuid | null;
   recipeFactorMilli: number | null;
+  /** Each step's start and tick in a guided session (GC-2), as sent; checked against the recipe by `stepTimesOf`. */
+  stepLog: ParsedStepLogEntry[];
+}
+
+/** One logged step: its key and when it started and was ticked. */
+export interface ParsedStepLogEntry {
+  key: string;
+  startedAt: Date;
+  doneAt: Date;
+}
+
+/** `stepLog` (GC-2): at most MAX_STEP_LOG `{ key, startedAt, doneAt }`, ISO 8601 times. */
+function stepLogField(fields: Fields, value: unknown): ParsedStepLogEntry[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    fields.add("stepLog", "Must be a list of { key, startedAt, doneAt }");
+    return [];
+  }
+  if (value.length > MAX_STEP_LOG) {
+    fields.add("stepLog", `At most ${MAX_STEP_LOG} steps`);
+    return [];
+  }
+  const log: ParsedStepLogEntry[] = [];
+  value.forEach((raw: unknown, i) => {
+    const at = `stepLog[${i}]`;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      fields.add(at, "Must be an object: { key, startedAt, doneAt }");
+      return;
+    }
+    const entry = raw as Record<string, unknown>;
+    const key = typeof entry.key === "string" && entry.key.length > 0 && entry.key.length <= 64 ? entry.key : fields.add(`${at}.key`, "Must be a step's key");
+    const startedAt = instant(fields, `${at}.startedAt`, entry.startedAt);
+    const doneAt = instant(fields, `${at}.doneAt`, entry.doneAt);
+    if (key !== undefined && startedAt !== undefined && doneAt !== undefined) log.push({ key, startedAt, doneAt });
+  });
+  return log;
+}
+
+/**
+ * The step times a dish keeps (GC-2, cookpool-guided design §5): one per step
+ * key the recipe has, the first sensible entry of it — seconds from start to
+ * tick, rounded, 0 to MAX_STEP_LOG_SECONDS. A key the recipe does not have, a
+ * step ticked before it started or taking more than a day, and a key logged
+ * again are left out. The rest is kept raw: learned ranges (GC-7) drop
+ * skipped and abandoned steps when they read them.
+ */
+export function stepTimesOf(log: readonly ParsedStepLogEntry[], recipeKeys: ReadonlySet<string>): CookDishStepTimes["steps"] {
+  const kept: Array<{ key: string; seconds: number }> = [];
+  const seen = new Set<string>();
+  for (const entry of log) {
+    if (!recipeKeys.has(entry.key) || seen.has(entry.key)) continue;
+    const ms = entry.doneAt.getTime() - entry.startedAt.getTime();
+    if (!(ms >= 0 && ms <= MAX_STEP_LOG_SECONDS * 1000)) continue;
+    seen.add(entry.key);
+    kept.push({ key: entry.key, seconds: Math.round(ms / 1000) });
+  }
+  return kept;
 }
 
 /** `errors` with every field name under `prefix` (`ingredients[2].quantity`). */
@@ -245,11 +305,14 @@ export function parseDish(body: Record<string, unknown>): Parsed<ParsedDish> {
   if ((body.recipeId === undefined || body.recipeId === null) && [...ingredients, ...newItems].some((i) => i.recipeLine !== null)) {
     fields.add("recipeId", "Ingredients name recipe lines: say which recipe");
   }
+  // How long each step took (GC-2): the steps of the recipe it names.
+  const stepLog = stepLogField(fields, body.stepLog);
+  if ((body.recipeId === undefined || body.recipeId === null) && stepLog.length > 0) fields.add("stepLog", "Send it with recipeId");
 
   if (!fields.ok || name === undefined || portionsHalf === undefined || extrasMinor === undefined || splitMode === undefined) {
     return { ok: false, fields: fields.errors };
   }
-  return { ok: true, value: { name, orgId, portionsHalf, extrasMinor, splitMode, ingredients, newItems, recipeId, recipeFactorMilli } };
+  return { ok: true, value: { name, orgId, portionsHalf, extrasMinor, splitMode, ingredients, newItems, recipeId, recipeFactorMilli, stepLog } };
 }
 
 /** `?state=`, or null when absent. */
