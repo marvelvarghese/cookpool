@@ -487,6 +487,11 @@ export function createAsksRepository(executor: SqlExecutor): AsksRepository {
             // The ask moved on (answered, cancelled, past its time), or the item did.
             const current = await findAsk(orgId, askId);
             if (!current) return NOT_FOUND;
+            // This very approval again (its key made the move it approved with): answer with it.
+            if (current.ask.state === "approved" && current.ask.moveId) {
+              const prior = await findMoveByIdem(itemId, move.idemKey);
+              if (prior && prior.id === current.ask.moveId) return await replayApproval(orgId, prior);
+            }
             if (current.ask.state !== "pending" || current.ask.expiresAt.getTime() <= now.getTime()) {
               return { ok: false, error: { kind: "ask_not_pending", ask: current.ask } };
             }
