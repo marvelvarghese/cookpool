@@ -49,6 +49,8 @@ export const STATIC_PAGES = Object.freeze([
   "/people/:subjectId",
   "/pantry",
   "/pantry/new",
+  // The shopping run (cookpool-pantry PN-6).
+  "/pantry/run",
   "/pantry/:itemRef",
   // The stock check (cookpool-pantry PN-7).
   "/pantry/:itemRef/check",

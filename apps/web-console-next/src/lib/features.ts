@@ -37,6 +37,8 @@ export function newFrame(config: Pick<AppConfig, "deployEnv"> = appConfig()): bo
 export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/money": "/home",
   "/you/settings": "/you",
+  // The shopping run (cookpool-pantry PN-6): today's frame has none, so its visitor goes to the Pantry.
+  "/pantry/run": "/pantry",
   // The cooking session (RC-6).
   "/cook/session": "/home",
   // The recipe screens (RC-5): a recipe, writing one and editing one.

@@ -41,6 +41,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/use": () => "/home",
   "/cook": () => "/home",
   "/pantry/new": () => "/home",
+  // The shopping run (cookpool-pantry PN-6): the Pantry's + Bought opens it.
+  "/pantry/run": () => "/pantry",
   // Home's avatar opens You.
   "/you": () => "/home",
   // You → Notifications (PW-6): You.

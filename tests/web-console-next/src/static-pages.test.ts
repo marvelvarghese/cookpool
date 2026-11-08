@@ -91,8 +91,8 @@ describe("_redirects: one file serves every value", () => {
   it("pins /pantry/new to itself before the item rule could catch it", () => {
     expect(rules[0]).toBe("/pantry/new /pantry/new 200");
     expect(rules.indexOf("/pantry/new /pantry/new 200")).toBeLessThan(rules.indexOf("/pantry/:itemRef /pantry/_ 200"));
-    // One rule per dynamic page (SM-11 added a group's settings, RC-5 a recipe and its edit page, RC-8 a recipe's link, GC-6 a recipe's plan, PN-7 an item's stock check), plus the two pins.
-    expect(rules).toHaveLength(14);
+    // One rule per dynamic page (SM-11 added a group's settings, RC-5 a recipe and its edit page, RC-8 a recipe's link, GC-6 a recipe's plan, PN-7 an item's stock check), plus the pins.
+    expect(rules).toHaveLength(15); // …and PN-6's shopping run, a third pin.
   });
 
   it("serves an item's stock check from its own file, before the item's rule (PN-7)", () => {
@@ -112,6 +112,14 @@ describe("_redirects: one file serves every value", () => {
     expect(staticPageFor("/recipes/rcp_1")).toBe("/recipes/:recipeId");
     expect(staticPageFor("/recipes/rcp_1/edit")).toBe("/recipes/:recipeId/edit");
     expect(pathParam("/recipes/:recipeId", "recipeId", "/recipes/rcp_1/edit")).toBe("rcp_1");
+  });
+
+  it("pins /pantry/run to itself before the item rule could catch it (PN-6)", () => {
+    expect(STATIC_PAGES).toContain("/pantry/run");
+    expect(rules.indexOf("/pantry/run /pantry/run 200")).toBeGreaterThanOrEqual(0);
+    expect(rules.indexOf("/pantry/run /pantry/run 200")).toBeLessThan(rules.indexOf("/pantry/:itemRef /pantry/_ 200"));
+    expect(staticPageFor("/pantry/run")).toBe("/pantry/run");
+    expect(staticPageFor("/pantry/me:itm_1")).toBe("/pantry/:itemRef");
   });
 });
 

@@ -70,6 +70,10 @@ export const qk = {
   kitchenUsualsAt: (bucket: string) => ["kitchenPantry", "usuals", bucket] as const,
   kitchenSearch: (q: string) => ["kitchenPantry", "search", q] as const,
   kitchenUsable: () => ["kitchenPantry", "usable"] as const,
+  // Restocking (cookpool-pantry PN-6): what was finished this week, what is
+  // running low, what you usually buy. Under `kitchenPantry()`, so every
+  // stock write and every purchase reads it again.
+  kitchenRestock: () => ["kitchenPantry", "restock"] as const,
   // The dish maker (CP-15): the items the cook may cook with, under
   // `kitchenPantry()` so any stock write refreshes them.
   kitchenCookable: () => ["kitchenPantry", "cookable"] as const,

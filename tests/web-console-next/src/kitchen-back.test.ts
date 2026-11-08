@@ -35,6 +35,8 @@ describe("the parent map (backParent)", () => {
     ["/use", "/home"],
     ["/cook", "/home"],
     ["/pantry/new", "/home"],
+    // The shopping run (PN-6) → Pantry, whose + Bought opens it.
+    ["/pantry/run", "/pantry"],
     ["/you", "/home"],
     // An item → Pantry, on the item's own pantry.
     ["/pantry/me:itm_abc123", "/pantry?pantry=personal"],

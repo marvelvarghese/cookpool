@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "./link";
 import { Minus, Plus } from "lucide-react";
-import type { KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
+import type { KitchenItem, KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -24,12 +24,15 @@ import { LevelBar } from "./pantry-row-ui";
 import { useSetState } from "./set-row-ui";
 import { restStep, type LadderStep } from "./pantry-set";
 import type { PantryRow } from "./pantry-list";
+import { shortMoney } from "./from-before";
 
 /** What the sheet is for: a row, its item and its usual. */
 export interface UseSheetTarget {
   row: PantryRow;
   item: ReachableItem;
   usual: KitchenUsual | null;
+  /** A running-low row's Bought again (cookpool-pantry PN-6): the item it buys like; none otherwise. */
+  buyAgain?: KitchenItem | null | undefined;
 }
 
 const SHEET_CLASS = cn(
@@ -48,8 +51,21 @@ const ACTION =
  * and what each pays; the one main button, Log; then Finish it (logs the
  * rest), Wasted (the item page's confirm) and Cook with it. It shares the
  * set row's amount and people (the device's draft), so either can be used.
+ * A running-low row's sheet ends with Bought again (PN-6), like last time.
  */
-export function UseSheet({ target, onClose, meId, onLogged }: { target: UseSheetTarget | null; onClose: () => void; meId: string | null; onLogged: () => void }) {
+export function UseSheet({
+  target,
+  onClose,
+  meId,
+  onLogged,
+  onBoughtAgain,
+}: {
+  target: UseSheetTarget | null;
+  onClose: () => void;
+  meId: string | null;
+  onLogged: () => void;
+  onBoughtAgain?: ((item: KitchenItem) => void) | undefined;
+}) {
   // The last item stays on the sheet while it slides away.
   const last = React.useRef<UseSheetTarget | null>(target);
   if (target) last.current = target;
@@ -58,14 +74,30 @@ export function UseSheet({ target, onClose, meId, onLogged }: { target: UseSheet
     <Sheet open={target !== null} onOpenChange={(open) => (open ? null : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, CLOSE_44)}>
         <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
-        {shown ? <SheetBody key={shown.item.id} target={shown} meId={meId} onClose={onClose} onLogged={onLogged} /> : <SheetTitle className="sr-only">Use</SheetTitle>}
+        {shown ? (
+          <SheetBody key={shown.item.id} target={shown} meId={meId} onClose={onClose} onLogged={onLogged} onBoughtAgain={onBoughtAgain} />
+        ) : (
+          <SheetTitle className="sr-only">Use</SheetTitle>
+        )}
         <div aria-hidden className="h-6 shrink-0" />
       </SheetContent>
     </Sheet>
   );
 }
 
-function SheetBody({ target, meId, onClose, onLogged }: { target: UseSheetTarget; meId: string | null; onClose: () => void; onLogged: () => void }) {
+function SheetBody({
+  target,
+  meId,
+  onClose,
+  onLogged,
+  onBoughtAgain,
+}: {
+  target: UseSheetTarget;
+  meId: string | null;
+  onClose: () => void;
+  onLogged: () => void;
+  onBoughtAgain?: ((item: KitchenItem) => void) | undefined;
+}) {
   const { row, item } = target;
   const orgId = item.pantry.kind === "group" ? item.pantry.orgId : null;
   const members = useMembersOf(orgId);
@@ -229,6 +261,19 @@ function SheetBody({ target, meId, onClose, onLogged }: { target: UseSheetTarget
               Cook with it
             </Link>
           </div>
+          {target.buyAgain && onBoughtAgain ? (
+            <button
+              type="button"
+              className={ACTION}
+              onClick={() => {
+                const like = target.buyAgain!;
+                onClose();
+                onBoughtAgain(like);
+              }}
+            >
+              Bought again · {shortMoney(target.buyAgain.priceMinor, target.buyAgain.currency)}
+            </button>
+          ) : null}
         </>
       )}
     </div>

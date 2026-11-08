@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "./link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronRight, Plus, Refrigerator, Search } from "lucide-react";
-import type { ReachableItem } from "@saas/contracts/kitchen";
+import type { KitchenItem, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +19,7 @@ import { AlwaysHaveCard } from "./always-have-ui";
 import { usualFor } from "./quick-use";
 import { itemRefOf } from "./pantry";
 import {
+  addItemHref,
   boughtHref,
   kindSections,
   parseOpenParam,
@@ -36,6 +37,11 @@ import { inTray, nowStrip, toggleTray, type NowChip, type TrayEntry } from "./no
 import { PantryRowView } from "./pantry-row-ui";
 import { LogTray, NowStripView } from "./now-strip-ui";
 import { UseSheet, type UseSheetTarget } from "./use-sheet-ui";
+import { localIsoDay } from "./item-form";
+import { useRestock } from "./restock-data";
+import { useBuyAgain } from "./buy-again-data";
+import { boughtAgainItem, finishedOpen, finishedRows, itemRestockKey, restockKey, toggleFinishedFold, type BoughtAgainSource, type FinishedRow } from "./restock";
+import { FinishedThisWeek } from "./finished-ui";
 
 type Row = PantryRow & { item: ReachableItem };
 
@@ -45,8 +51,9 @@ type Row = PantryRow & { item: ReachableItem };
  * on phones too (`?q=` fills it, `?focus=1` focuses it), with Log several;
  * the Now strip; the chips with their counts (`?filter=`, `?pantry=`); the
  * use-soon card; the sections by kind, each folding on a tap (remembered on
- * the device); PN-6's Finished this week; and Always have. A row opens in
- * place (`?open=` opens one), one at a time; its chip logs in one tap.
+ * the device); Finished this week (PN-6: Bought again, like last time); and
+ * Always have. A row opens in place (`?open=` opens one), one at a time; its
+ * chip logs in one tap. + Bought opens the shopping run (PN-6).
  */
 export function NewPantry() {
   const pathname = usePathname();
@@ -62,6 +69,9 @@ export function NewPantry() {
   const logUse = useLogUse();
   const logSeveral = useLogSeveral();
   const [folded, setFolded] = useFoldedSections();
+  const restock = useRestock();
+  const buyAgain = useBuyAgain();
+  const [now] = React.useState(() => new Date());
 
   const showParam = parseShow(params?.get("filter"), params?.get("pantry"));
   const [show, setShow] = React.useState<PantryShow>(showParam);
@@ -116,6 +126,31 @@ export function NewPantry() {
   const card = useSoonCard(rows, { show, query });
   const strip = searching ? [] : nowStrip(rows, usualList);
   const byId = React.useMemo(() => new Map(rows.map((r) => [r.id, r] as const)), [rows]);
+  const finished = finishedRows(restock.data, { show, query, now });
+  const groupPolicy = (orgId: string) => {
+    const p = (list ?? []).find((x) => x.kind === "group" && x.orgId === orgId);
+    return p?.kind === "group" ? p.wastePolicy : null;
+  };
+  // Bought again is PN-7's one-line purchase (`useBuyAgain`), like the item given.
+  const buyLike = (item: KitchenItem) => void buyAgain({ ref: itemRefOf(item), item, meId, today: localIsoDay(new Date()), idempotencyKey: crypto.randomUUID() });
+  const lineItem = (line: BoughtAgainSource) =>
+    boughtAgainItem(line, { today: localIsoDay(new Date()), groupWastePolicy: line.pantry.kind === "group" ? groupPolicy(line.pantry.orgId) : null });
+  // A running-low row's More… sheet offers Bought again: like the restock read's latest purchase of it, else like the item itself.
+  const buyAgainFor = (r: Row): KitchenItem | null => {
+    if (!r.status.low || r.pending) return null;
+    const key = itemRestockKey(r.item);
+    const line = restock.data?.runningLow.find((l) => l.why.itemId === r.id) ?? restock.data?.runningLow.find((l) => restockKey(l) === key);
+    if (line) return line.canAdd ? lineItem(line) : null;
+    return r.canUse ? r.item : null;
+  };
+  const finishedSection = (
+    <FinishedThisWeek
+      rows={finished}
+      open={finishedOpen(folded, searching)}
+      onFold={() => setFolded(toggleFinishedFold(folded))}
+      onBought={(f: FinishedRow) => buyLike(lineItem(f.line))}
+    />
+  );
 
   // The row `?open=` names, scrolled to once it is listed.
   const scrolled = React.useRef<string | null>(null);
@@ -165,7 +200,7 @@ export function NewPantry() {
       <header className="flex items-center justify-between gap-3">
         <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] min-[900px]:text-[30px]">Pantry</h1>
         <Link
-          href={boughtHref(show)}
+          href={boughtHref()}
           className="flex min-h-11 items-center gap-1.5 rounded-[14px] bg-primary px-3.5 text-[15px] font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
@@ -223,7 +258,10 @@ export function NewPantry() {
           </Button>
         </KCard>
       ) : nothingAnywhere ? (
-        <EmptyPantries />
+        <>
+          <EmptyPantries />
+          {finishedSection}
+        </>
       ) : (
         <>
           {bucket ? <NowStripView bucket={bucket} chips={strip} several={several} tray={tray} onChip={onStripChip} /> : null}
@@ -292,7 +330,7 @@ export function NewPantry() {
                           open={openId === r.id}
                           onToggle={() => setOpenId((id) => (id === r.id ? null : r.id))}
                           onChip={() => logChip(r)}
-                          onMore={() => setSheet({ row: r, item: r.item, usual: usualFor(r.id, usualList) })}
+                          onMore={() => setSheet({ row: r, item: r.item, usual: usualFor(r.id, usualList), buyAgain: buyAgainFor(r) })}
                           several={several}
                           inTray={inTray(tray, r.id)}
                           meId={meId}
@@ -307,7 +345,8 @@ export function NewPantry() {
             })
           )}
 
-          {/* ── PN-6's slot: "Finished this week" (design §6.1) goes here, just above Always have. ── */}
+          {/* Finished this week (PN-6, design §6.1), just above Always have. */}
+          {finishedSection}
 
           {items.data?.truncated ? <p className="text-[13px] text-muted-foreground">Showing the first 1,000 items.</p> : null}
         </>
@@ -325,7 +364,7 @@ export function NewPantry() {
           }}
         />
       ) : null}
-      <UseSheet target={sheet} onClose={() => setSheet(null)} meId={meId} onLogged={() => setOpenId(null)} />
+      <UseSheet target={sheet} onClose={() => setSheet(null)} meId={meId} onLogged={() => setOpenId(null)} onBoughtAgain={buyLike} />
     </div>
   );
 }
@@ -344,7 +383,7 @@ function NothingShown({ show, query }: { show: PantryShow; query: string }) {
       <p className="min-w-0 text-[15px] font-semibold text-muted-foreground">{text}</p>
       {q || show.kind === "pantry" ? (
         <Button asChild variant="outline" className={K_BUTTON}>
-          <Link href={boughtHref(show)}>
+          <Link href={addItemHref(show)}>
             <Plus aria-hidden />
             Bought it?
           </Link>

@@ -45,6 +45,8 @@ describe("which screens pull to refresh", () => {
     "/you/settings",
     "/you/notifications",
     "/pantry/new",
+    // The shopping run (cookpool-pantry PN-6): ticks and steppers, which a pull would fight.
+    "/pantry/run",
     "/pantry/:itemRef",
     // The stock check (cookpool-pantry PN-7): a level you drag, which a pull would fight.
     "/pantry/:itemRef/check",

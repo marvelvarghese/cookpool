@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { History } from "lucide-react";
-import type { Pantry } from "@saas/contracts/kitchen";
+import type { KitchenItem, Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import { memberLabel } from "@/components/kitchen/members";
 import { currencyPrefix } from "@/components/kitchen/money";
 import { canManageGroup, roleFromKitchen } from "@/components/kitchen/groups";
 import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
-import { useAddItem, useMembersOf, usePantries } from "@/components/kitchen/pantry-data";
+import { useAddItem, useKitchenItem, useMembersOf, usePantries } from "@/components/kitchen/pantry-data";
 import { MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
 import { NoteField } from "@/components/kitchen/item-note-ui";
 import { newFrame } from "@/lib/features";
@@ -50,6 +50,7 @@ import {
   type ItemForm,
 } from "@/components/kitchen/item-form";
 import { useKitchenRouter } from "@/components/kitchen/transition-ui";
+import { addFormFrom, historyEntryOfItem } from "@/components/kitchen/restock";
 
 /**
  * Bought (CP-12; SM-15 under the seven rules, the canvas's "Bought from
@@ -72,6 +73,10 @@ import { useKitchenRouter } from "@/components/kitchen/transition-ui";
  * at most 80 characters, and who will see it — "Only you see it" in your own
  * pantry, "Everyone in Flat 4B sees it" in a group's. A pick from before
  * keeps what is typed there.
+ *
+ * Also in the new frame (cookpool-pantry PN-6), `?from=me:itm_…` — Bought
+ * again's Change — opens the form filled from that item, as a pick from
+ * before would fill it ("Filled from last time"), with you as the payer.
  */
 export default function AddItemPage() {
   const searchParams = useSearchParams();
@@ -86,8 +91,12 @@ export default function AddItemPage() {
     [pantries.data, roles],
   );
   const asked = parsePantryParam(searchParams?.get("pantry"));
+  // `?from=` fills the form from an item (PN-6), in the new frame only; one that can't be read leaves it empty.
+  const fromRef = React.useMemo(() => addFormFrom(searchParams?.get("from"), newFrame()), [searchParams]);
+  const from = useKitchenItem(fromRef);
+  const fromWaiting = fromRef !== null && from.loading;
 
-  if (pantries.loading || profile.loading || rolesLoading) return <AddItemSkeleton />;
+  if (pantries.loading || profile.loading || rolesLoading || fromWaiting) return <AddItemSkeleton />;
   if (pantries.error || !pantries.data) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
@@ -102,7 +111,7 @@ export default function AddItemPage() {
   const viewerOnly = asked !== ALL_PANTRIES && asked !== PERSONAL_PANTRY && start === PERSONAL_PANTRY
     ? (pantries.data.find((p) => pantryKey(p) === asked) ?? null)
     : null;
-  return <AddItemForm pantries={writable} start={start} meId={meId} viewerOf={viewerOnly} />;
+  return <AddItemForm pantries={writable} start={start} meId={meId} viewerOf={viewerOnly} from={fromRef ? from.data : null} />;
 }
 
 function AddItemForm({
@@ -110,33 +119,44 @@ function AddItemForm({
   start,
   meId,
   viewerOf,
+  from = null,
 }: {
   pantries: readonly Pantry[];
   start: string;
   meId: string | null;
   /** The group the link asked for, when you only view it (the item goes to your own pantry instead). */
   viewerOf: Pantry | null;
+  /** The item `?from=` names (PN-6): the form starts filled from it. */
+  from?: KitchenItem | null;
 }) {
   const router = useKitchenRouter();
   const recentSlugs = useRecentGroupSlugs();
   const today = React.useMemo(() => localIsoDay(new Date()), []);
   // The new frame's Note (RC-3); the page is read in the browser, so the host decides once.
   const notes = React.useMemo(() => newFrame(), []);
-  const [form, setForm] = React.useState<ItemForm>(() => initialItemForm({ today, pantry: start, meId }));
-  const [moreUnits, setMoreUnits] = React.useState(() => MORE_UNITS.includes(form.unit));
+  // Filled from `?from=`'s item the way a pick from before fills it, once.
+  const [startFill] = React.useState(() =>
+    from ? historyFill(historyEntryOfItem(from, meId), initialItemForm({ today, pantry: start, meId }), { today, pantries, fallbackPantry: start, meId }) : null,
+  );
+  const [form, setForm] = React.useState<ItemForm>(() => startFill?.form ?? initialItemForm({ today, pantry: start, meId }));
+  const [moreUnits, setMoreUnits] = React.useState(() => startFill?.moreUnits ?? MORE_UNITS.includes(form.unit));
   const [morePayers, setMorePayers] = React.useState(false);
   const [showErrors, setShowErrors] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [serverFields, setServerFields] = React.useState<Partial<Record<ItemField, string>>>({});
   // "Filled from last time" shows from a pick until the name changes; the dates open on demand.
-  const [filled, setFilled] = React.useState(false);
+  const [filled, setFilled] = React.useState(startFill !== null);
   const [dateOpen, setDateOpen] = React.useState(false);
   const [boughtOpen, setBoughtOpen] = React.useState(false);
   // One key per item being added: a retry after a lost answer adds it once.
   const idemKey = React.useRef(crypto.randomUUID());
   const nameFieldRef = React.useRef<HTMLDivElement>(null);
   const addRef = React.useRef<HTMLButtonElement>(null);
+  // Filled from an item: the next tap is Add, as after a pick.
+  React.useEffect(() => {
+    if (startFill) window.requestAnimationFrame(() => addRef.current?.focus());
+  }, [startFill]);
 
   // From before: names bought before, as the name is typed (the most recent on an empty field).
   const typeahead = useTypeahead(form.name, "item-name-suggestions");
@@ -274,7 +294,7 @@ function AddItemForm({
             placeholder="Milk, eggs, rice…"
             maxLength={ITEM_NAME_MAX}
             autoComplete="off"
-            autoFocus
+            autoFocus={startFill === null}
             aria-invalid={!!err("name")}
             aria-describedby={err("name") ? "item-name-error" : undefined}
             className={cn(K_INPUT, "h-[52px] text-[17px] font-bold sm:h-[52px]")}
