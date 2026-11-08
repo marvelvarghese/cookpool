@@ -2,18 +2,19 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { RecipeMatchResponse, RecipeResponse } from "@saas/contracts/kitchen";
+import type { KitchenItem, RecipeMatchResponse, RecipeResponse } from "@saas/contracts/kitchen";
 import { wrap } from "@/lib/api";
 import { isOffline } from "@/lib/connection";
 import { useSession } from "@/lib/session";
 import { useApiQuery, qk } from "@/lib/query";
 import { useToast } from "@/components/ui/toast";
-import { refreshAfterDish } from "./dish-maker-data";
-import { refreshPantry } from "./pantry-data";
+import { refreshAfterDish, useCookableItems } from "./dish-maker-data";
+import { refreshPantry, useItemsByRef } from "./pantry-data";
+import { itemRefParam } from "./pantry";
 import { undoFailed, type UndoResult } from "./undo";
 import { useUndoToast } from "./undo-toast";
 import { JUST_ME, cookedText } from "./dish-maker";
-import { runFinish, type FinishOutcome, type FinishPlan } from "./cook-session";
+import { refreshTakes, runFinish, takeRefsToRead, type CookSession, type FinishOutcome, type FinishPlan } from "./cook-session";
 
 /**
  * The cooking session's reads and its one Finish (cookpool-recipes RC-6),
@@ -43,6 +44,34 @@ export function useRecipeMatch(recipeId: string | null, f: number) {
     () => wrap(() => client.kitchen.recipeMatch(recipeId ?? "", { f })),
     { enabled: recipeId !== null },
   );
+}
+
+/**
+ * The items the session takes from, as read now (someone may have used some
+ * meanwhile): the usable-items list, else each one on its own — written back
+ * into the draft (`refreshTakes`) for what they cost and what is left. RC-6's
+ * screen and guided mode (GC-5) both keep their lines fresh with it.
+ */
+export function useFreshTakes(session: CookSession, save: (change: (s: CookSession) => CookSession) => void): void {
+  const cookable = useCookableItems();
+  const listed = React.useMemo(() => new Map<string, KitchenItem>((cookable.data ?? []).map((i) => [i.id, i] as const)), [cookable.data]);
+  const listedIds = React.useMemo(() => new Set(listed.keys()), [listed]);
+  const listReady = cookable.data !== null || cookable.error !== null;
+  const toRead = listReady ? takeRefsToRead(session, listedIds) : [];
+  const toReadKey = toRead.map(itemRefParam).join(",");
+  const refs = React.useMemo(() => toRead, [toReadKey]);
+  const read = useItemsByRef(refs);
+  const readKey = [...read.entries()].map(([id, item]) => `${id}:${item ? `${item.version}:${item.qtyLeftMilli}` : "x"}`).join(",");
+  // What the draft holds of each item: a line picked or added since needs its item too.
+  const takesKey = session.lines
+    .flatMap((l) => l.takes.map((t) => `${t.itemId}:${t.gone ? "x" : t.item ? `${t.item.version}:${t.item.qtyLeftMilli}` : "?"}`))
+    .join(",");
+  React.useEffect(() => {
+    const fresh = new Map<string, KitchenItem | null>(listed);
+    for (const [id, item] of read) if (!fresh.has(id)) fresh.set(id, item);
+    if (fresh.size > 0) save((s) => refreshTakes(s, fresh));
+    // `read` is a new map each render; the keys say when it, or the draft's items, changed.
+  }, [listed, readKey, takesKey, save]);
 }
 
 /**
