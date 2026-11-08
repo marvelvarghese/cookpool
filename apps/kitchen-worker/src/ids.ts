@@ -12,7 +12,8 @@ export type KitchenIdPrefix =
   | "dsr" // a share of a dish
   | "txn" // a ledger transaction
   | "flg" // a flag on a transaction
-  | "msr"; // a measure an item's name is counted in (SM-13)
+  | "msr" // a measure an item's name is counted in (SM-13)
+  | "rcp"; // a recipe (RC-4)
 
 export function generateRequestId(): string {
   const buf = new Uint8Array(12);

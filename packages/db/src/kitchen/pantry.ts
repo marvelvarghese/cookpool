@@ -20,6 +20,7 @@ import type { SqlExecutor } from "../d1/executor.js";
 import { isCheckViolation, isUniqueViolation } from "../d1/errors.js";
 import { eventWithAuditStatements } from "../events/repository.js";
 import { pinGroupCurrencyStatement } from "./ledger.js";
+import { linkFoodStatement } from "./food-link.js";
 import type {
   KitchenDimension,
   KitchenItemRecord,
@@ -223,7 +224,8 @@ export function createPantryRepository(executor: SqlExecutor): PantryRepository 
       const statements: SqlStatement[] = [];
       if (owner.kind === "group") statements.push(pinGroupCurrencyStatement(owner.orgId, item.currency, item.now));
       const insertAt = statements.length;
-      statements.push(insert);
+      // Linked to its food in the same batch when exactly one matches its name (RC-4).
+      statements.push(insert, linkFoodStatement(item.id));
       if (audit) statements.push(...eventWithAuditStatements(audit));
 
       try {

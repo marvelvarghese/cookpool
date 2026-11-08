@@ -24,7 +24,8 @@
     "./notifications": "./src/notifications.ts",
     "./integrations": "./src/integrations.ts",
     "./idempotency": "./src/idempotency.ts",
-    "./kitchen": "./src/kitchen.ts"
+    "./kitchen": "./src/kitchen.ts",
+    "./kitchen-recipes": "./src/kitchen-recipes.ts"
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",

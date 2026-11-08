@@ -59,6 +59,22 @@ import { createPeople } from "./identity-client.js";
 import { handleGroupMembers, handleMyBalances, handlePerson } from "./handlers/people.js";
 import { handleInbox } from "./handlers/inbox.js";
 import { handleSubjectBalance, isInternalCaller } from "./handlers/internal.js";
+import { handleFoods, handleGetAlwaysHave, handleSetAlwaysHave, handleSetFoodAnswer } from "./handlers/foods.js";
+import {
+  handleCookNow,
+  handleCopyRecipe,
+  handleCreateRecipe,
+  handleCreateRecipeLink,
+  handleDeleteRecipe,
+  handleDeleteRecipeLink,
+  handleExploreRecipes,
+  handleGetRecipe,
+  handleMyRecipes,
+  handlePersonRecipes,
+  handleRecipeByLink,
+  handleRecipeMatch,
+  handleUpdateRecipe,
+} from "./handlers/recipes.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -218,7 +234,9 @@ const ORG_ROUTES: readonly OrgRoute[] = [
 ];
 
 // The caller's own routes, /v1/kitchen/me/…: their personal pantry, and every
-// pantry they can reach read as one. They take a RequestContext with no group.
+// pantry they can reach read as one — and the signed-in reads with no group in
+// their path (/v1/kitchen/foods, …/recipes, …/recipe-links, …/people/{usr}/
+// recipes, RC-4). They take a RequestContext with no group.
 // A personal item is checked against the caller's subject, not the policy
 // engine (design.md §6); a route that writes to a group authorizes in that
 // group (requireOrgAction). Same order as a group route: 405, then 401.
@@ -330,6 +348,74 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.inbox",
     pattern: /^\/v1\/kitchen\/me\/inbox$/,
     methods: { GET: handleInbox },
+  },
+  // The food list, answers and Always have (RC-4).
+  {
+    name: "kitchen.foods",
+    pattern: /^\/v1\/kitchen\/foods$/,
+    methods: { GET: handleFoods },
+  },
+  {
+    name: "kitchen.me.food_answers",
+    pattern: /^\/v1\/kitchen\/me\/food-answers$/,
+    methods: { PUT: handleSetFoodAnswer },
+  },
+  {
+    name: "kitchen.me.always_have",
+    pattern: /^\/v1\/kitchen\/me\/always-have$/,
+    methods: { GET: handleGetAlwaysHave, PUT: handleSetAlwaysHave },
+  },
+  // Recipes (RC-4). Copies are listed ahead of one recipe: its `{rcp}`
+  // capture would otherwise take "copies".
+  {
+    name: "kitchen.me.recipes",
+    pattern: /^\/v1\/kitchen\/me\/recipes$/,
+    methods: { GET: handleMyRecipes, POST: handleCreateRecipe },
+  },
+  {
+    name: "kitchen.me.recipes.copies",
+    pattern: /^\/v1\/kitchen\/me\/recipes\/copies$/,
+    methods: { POST: handleCopyRecipe },
+  },
+  {
+    name: "kitchen.me.recipe",
+    pattern: /^\/v1\/kitchen\/me\/recipes\/([^/]+)$/,
+    methods: { PATCH: handleUpdateRecipe, DELETE: handleDeleteRecipe },
+  },
+  {
+    name: "kitchen.me.recipe.match",
+    pattern: /^\/v1\/kitchen\/me\/recipes\/([^/]+)\/match$/,
+    methods: { GET: handleRecipeMatch },
+  },
+  {
+    name: "kitchen.me.recipe.link",
+    pattern: /^\/v1\/kitchen\/me\/recipes\/([^/]+)\/link$/,
+    methods: { POST: handleCreateRecipeLink, DELETE: handleDeleteRecipeLink },
+  },
+  {
+    name: "kitchen.me.cook_now",
+    pattern: /^\/v1\/kitchen\/me\/cook-now$/,
+    methods: { GET: handleCookNow },
+  },
+  {
+    name: "kitchen.recipes",
+    pattern: /^\/v1\/kitchen\/recipes$/,
+    methods: { GET: handleExploreRecipes },
+  },
+  {
+    name: "kitchen.recipe",
+    pattern: /^\/v1\/kitchen\/recipes\/([^/]+)$/,
+    methods: { GET: handleGetRecipe },
+  },
+  {
+    name: "kitchen.recipe_link",
+    pattern: /^\/v1\/kitchen\/recipe-links\/([^/]+)$/,
+    methods: { GET: handleRecipeByLink },
+  },
+  {
+    name: "kitchen.person.recipes",
+    pattern: /^\/v1\/kitchen\/people\/([^/]+)\/recipes$/,
+    methods: { GET: handlePersonRecipes },
   },
 ];
 

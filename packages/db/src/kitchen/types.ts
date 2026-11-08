@@ -727,6 +727,65 @@ export interface KitchenRepository {
    * their new order. Answers the name's measures as they now are.
    */
   replaceMeasures(input: ReplaceMeasuresInput): Promise<KitchenResult<KitchenMeasureRecord[]>>;
+
+  // ── Foods (RC-4) ──
+
+  /**
+   * Foods whose names match `q` (already folded), each once by its best
+   * name: equal, then starting with it, then a word starting with it, then
+   * containing it; by name within each. Null or empty `q`: every food by name.
+   */
+  searchFoods(q: string | null, limit: number): Promise<KitchenResult<KitchenFoodSearchRecord[]>>;
+  /** These foods (unknown keys are left out), by name. No keys, no query. */
+  getFoods(keys: readonly string[]): Promise<KitchenResult<KitchenFoodRecord[]>>;
+  /**
+   * matchFood (design §2): the one food `name` names — folded as SQLite folds
+   * it, then looked up as itself, else without a plural "es" or "s" when
+   * those agree on one food. Null when nothing (or more than one) matches.
+   */
+  matchFood(name: string): Promise<KitchenResult<KitchenFoodRecord | null>>;
+  /**
+   * Keep a pantry's answer for a name and, in the same batch, link every item
+   * of that name in that pantry to it (or unlink them, for a null food).
+   */
+  setFoodAnswer(input: SetFoodAnswerInput): Promise<KitchenResult<SetFoodAnswerResult>>;
+  /** A person's Always have list; the default (salt and water) until they first save one. */
+  getAlwaysHave(userId: string): Promise<KitchenResult<KitchenAlwaysHave>>;
+  /** Replace a person's Always have list (keys are checked by the caller; an unknown one is `invalid`). */
+  setAlwaysHave(userId: string, foodKeys: readonly string[], now: Date): Promise<KitchenResult<KitchenAlwaysHave>>;
+  /** Active items with something left, in the scope's pantries, linked to any of these foods. ONE read. */
+  listFoodItems(scope: KitchenPantryScope, foodKeys: readonly string[]): Promise<KitchenResult<KitchenFoodItemRecord[]>>;
+  /**
+   * Active items with something left in the scope's pantries that link to no
+   * food and whose name the pantry never answered for: one per name and
+   * pantry (the newest), newest first.
+   */
+  listUnlinkedItems(scope: KitchenPantryScope, limit: number): Promise<KitchenResult<KitchenItemRecord[]>>;
+  /** The food each of these items links to (null when unlinked; unknown ids are left out). ONE read. */
+  itemFoods(itemIds: readonly string[]): Promise<KitchenResult<Map<string, string | null>>>;
+
+  // ── Recipes (RC-4) ──
+
+  /** One live recipe (not deleted), as `viewer` reads it (their last cook of it). */
+  getRecipe(recipeId: Uuid, viewer: string): Promise<KitchenResult<KitchenRecipeTemplateRecord>>;
+  /** The live recipe a link code opens (only a link recipe has one). */
+  getRecipeByLinkCode(code: string, viewer: string): Promise<KitchenResult<KitchenRecipeTemplateRecord>>;
+  /** Live recipes in the scope (see `KitchenRecipesScope`), newest first, with their lines and steps: three reads. */
+  listRecipes(query: KitchenListRecipesQuery): Promise<KitchenResult<KitchenRecipeTemplateRecord[]>>;
+  /** Write a recipe, its lines and its steps in ONE batch. A taken link code is `conflict` (mint another). */
+  createRecipe(input: NewKitchenRecipe): Promise<KitchenResult<KitchenRecipeTemplateRecord>>;
+  /**
+   * Change a recipe its owner may edit (theirs, live, not Cookpool's) in ONE
+   * batch: the fields given; the lines and steps, when given, replaced as a
+   * whole. Anyone else's, or a deleted one, is `not_found`.
+   */
+  updateRecipe(input: UpdateKitchenRecipeInput): Promise<KitchenResult<KitchenRecipeTemplateRecord>>;
+  /** Soft-delete a recipe its owner may edit; its copies stay. Answers it as it was. */
+  deleteRecipe(recipeId: Uuid, ownerId: string, now: Date): Promise<KitchenResult<KitchenRecipeTemplateRecord>>;
+  /** Mint or rotate (a code: visibility link) or turn off (null: visibility groups) a recipe's link. */
+  setRecipeLink(recipeId: Uuid, ownerId: string, code: string | null, now: Date): Promise<KitchenResult<KitchenRecipeTemplateRecord>>;
+  /** The viewer's last dish of a recipe (not canceled), with its ingredients that named a line; null if none. */
+  lastCook(viewer: string, recipeId: Uuid): Promise<KitchenResult<KitchenRecipeLastCookRecord | null>>;
 }
 
 // ── Your measures (SM-13) ───────────────────────────────────
@@ -839,6 +898,8 @@ export interface KitchenDishIngredientRecord {
   paidBy: string;
   /** The `use` transaction that charged the cook for it; null when nobody else paid for it. */
   useTxnId: string | null;
+  /** The recipe line it was for (its position, RC-4, migration 350); null when it named none. */
+  recipeLine: number | null;
 }
 
 /**
@@ -894,6 +955,9 @@ export interface KitchenDishRecord {
   updatedAt: Date;
   /** Bumped by every claim, assignment, finalize and correction (CP-16). */
   version: number;
+  /** The recipe it was cooked from and the factor it was scaled by (RC-4, migration 350); null when it named none. */
+  recipeId: string | null;
+  recipeFactorMilli: number | null;
   ingredients: KitchenDishIngredientRecord[];
   /** Its shares, in the order they were listed or claimed (`position`). */
   shares: KitchenDishShareRecord[];
@@ -918,6 +982,8 @@ export interface CookIngredient {
   useTxnId: Uuid | null;
   /** The id of the `dish` stock move that takes it. */
   moveId: Uuid;
+  /** The recipe line it is for (RC-4); absent or null for none. */
+  recipeLine?: number | null;
 }
 
 /**
@@ -947,6 +1013,9 @@ export interface CookDishInput {
     idemKey: string;
     /** Written as cooked_at, created_at and updated_at, and on every move. */
     now: Date;
+    /** The recipe it is cooked from (RC-4), and the factor; absent or null for none. */
+    recipeId?: Uuid | null;
+    recipeFactorMilli?: number | null;
   };
   /** Bought just now: added to the cook's own pantry before any of it is taken (each is also an ingredient, at version 1). */
   newItems: readonly NewKitchenItem[];
@@ -1241,4 +1310,182 @@ export interface KitchenRecipeRecord {
   cookedAt: Date;
   times: number;
   ingredients: KitchenRecipeIngredientRecord[];
+}
+
+// ── Foods (RC-4, migration 340_kitchen_foods) ───────────────
+
+/** What an amount of a food measures. */
+export type KitchenFoodDimension = "mass" | "volume" | "count";
+
+/** One food on the shared list. */
+export interface KitchenFoodRecord {
+  key: string;
+  name: string;
+  dimension: KitchenFoodDimension;
+  /** One piece in whole grams; null when it is not counted. */
+  eachG: number | null;
+  category: string;
+}
+
+/** A food a search found, with its name that matched best. */
+export interface KitchenFoodSearchRecord extends KitchenFoodRecord {
+  matchedName: string;
+}
+
+/** A pantry's answer for a name, as stored. */
+export interface KitchenFoodAnswerRecord {
+  ownerKind: "user" | "group";
+  /** The person (`usr_…`) for a personal pantry, the group's UUID for a group's. */
+  ownerId: string;
+  /** lower(trim(name)). */
+  nameKey: string;
+  /** Null: "none of these". */
+  foodKey: string | null;
+  answeredBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SetFoodAnswerInput {
+  owner: KitchenPantryOwner;
+  /** The item name it answers for: folded (lower(trim())) by the statement. */
+  name: string;
+  /** A food on the list (the caller checks it), or null for none. */
+  foodKey: string | null;
+  /** Who answers (`usr_…`). */
+  actor: string;
+  now: Date;
+}
+
+export interface SetFoodAnswerResult {
+  answer: KitchenFoodAnswerRecord;
+  /** The items of that name in that pantry the answer now links (or unlinked). */
+  linkedItems: number;
+}
+
+/** A person's Always have list. */
+export interface KitchenAlwaysHave {
+  /** By key. */
+  foodKeys: string[];
+  /** False while they have never saved one: `foodKeys` is the default. */
+  isSet: boolean;
+}
+
+/** An item and the food it links to. */
+export interface KitchenFoodItemRecord {
+  item: KitchenItemRecord;
+  foodKey: string;
+}
+
+// ── Recipes (RC-4, migration 350_kitchen_recipes) ───────────
+//
+// A recipe is a template (the epic's own word), so its record is
+// KitchenRecipeTemplateRecord: SM-8's KitchenRecipeRecord is something else,
+// a dish name cooked before ("from before").
+
+export type KitchenRecipeVisibility = "only_me" | "groups" | "link";
+
+/** One line of a recipe, as stored. */
+export interface KitchenRecipeLineRecord {
+  position: number;
+  foodKey: string | null;
+  name: string;
+  /** Thousandths of the unit's base (g, ml, pieces); null to taste. */
+  qtyMilli: number | null;
+  /** Null to taste. */
+  unit: string | null;
+  toTaste: boolean;
+  isMain: boolean;
+}
+
+/** A recipe as stored, with its lines and steps in order. */
+export interface KitchenRecipeTemplateRecord {
+  id: string;
+  /** `usr_…`; `usr_cookpool` for Cookpool's own. */
+  ownerId: string;
+  name: string;
+  servesHalf: number;
+  minutes: number | null;
+  visibility: KitchenRecipeVisibility;
+  linkCode: string | null;
+  sourceRecipeId: string | null;
+  sourceOwnerId: string | null;
+  sourceOwnerName: string | null;
+  isSystem: boolean;
+  kind: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  lines: KitchenRecipeLineRecord[];
+  steps: string[];
+  /** Live copies saved of it. */
+  savedBy: number;
+  /** When the viewer last cooked it (a dish with it, not canceled); null if never. */
+  lastCookedAt: Date | null;
+}
+
+/**
+ * Which recipes a list reads — any of these, never a deleted one: the
+ * owner's own (any visibility), Cookpool's, and others' shown to their groups
+ * or by link (visibility groups or link) by these owners.
+ */
+export interface KitchenRecipesScope {
+  ownerId?: string | null;
+  system?: boolean;
+  sharedBy?: readonly string[];
+}
+
+export interface KitchenListRecipesQuery extends KitchenRecipesScope {
+  /** Whose last cook `lastCookedAt` is (`usr_…`). */
+  viewer: string;
+  /** The name contains it, case-insensitively (ASCII). */
+  q: string | null;
+  kind: string | null;
+  limit: number;
+}
+
+export interface NewKitchenRecipe {
+  id: Uuid;
+  ownerId: string;
+  name: string;
+  servesHalf: number;
+  minutes: number | null;
+  kind: string | null;
+  visibility: KitchenRecipeVisibility;
+  /** Exactly when visibility is link. */
+  linkCode: string | null;
+  /** For a copy: where it came from. */
+  source: { recipeId: string; ownerId: string; ownerName: string | null } | null;
+  /** In order: each one's position is its index. */
+  lines: readonly Omit<KitchenRecipeLineRecord, "position">[];
+  steps: readonly string[];
+  now: Date;
+}
+
+export interface UpdateKitchenRecipeInput {
+  recipeId: Uuid;
+  /** Only its owner's: anyone else's reads as not found. */
+  ownerId: string;
+  changes: {
+    name?: string;
+    servesHalf?: number;
+    minutes?: number | null;
+    kind?: string | null;
+    /** With `link`, the recipe keeps its code, or takes `newLinkCode` when it has none; anything else drops it. */
+    visibility?: KitchenRecipeVisibility;
+    newLinkCode?: string;
+  };
+  lines?: readonly Omit<KitchenRecipeLineRecord, "position">[];
+  steps?: readonly string[];
+  now: Date;
+}
+
+/** The viewer's last dish of a recipe. */
+export interface KitchenRecipeLastCookRecord {
+  dishId: string;
+  cookedAt: Date;
+  recipeFactorMilli: number | null;
+  portionsHalf: number;
+  /** Its ingredients that named a recipe line, in the cook's order. */
+  ingredients: KitchenDishIngredientRecord[];
 }

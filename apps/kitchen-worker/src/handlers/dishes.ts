@@ -31,6 +31,7 @@ import { parsePublicId, toPublicId } from "../ids.js";
 import { readMeasures, type MeasureBook } from "../measures.js";
 import { limitParam } from "../pantry.js";
 import { Fields } from "../validate.js";
+import { canSee } from "../recipes.js";
 
 // Dishes:
 //
@@ -104,6 +105,25 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
       const dish = prior.value;
       await ctx.defer(() => emailDishPosted(ctx, dish));
       return dishResponse(ctx, dish, 201);
+    }
+
+    // Cooked from a recipe (RC-4): one the cook may see (design §5.1), and lines it has.
+    if (dish.recipeId) {
+      const recipeId = dish.recipeId;
+      const recipe = await ctx.timings.measure("db", () => repo.getRecipe(recipeId, cook));
+      if (!recipe.ok) return recipe.error.kind === "not_found" ? notFound(ctx.requestId) : unavailable(ctx.requestId);
+      const visible = await canSee(ctx, recipe.value);
+      if (visible === null) return unavailable(ctx.requestId);
+      if (!visible) return notFound(ctx.requestId);
+      const lineFields = new Fields();
+      const count = recipe.value.lines.length;
+      dish.ingredients.forEach((i, at) => {
+        if (i.recipeLine !== null && i.recipeLine >= count) lineFields.add(`ingredients[${at}].recipeLine`, `The recipe has ${count} lines`);
+      });
+      dish.newItems.forEach((i, at) => {
+        if (i.recipeLine !== null && i.recipeLine >= count) lineFields.add(`newItems[${at}].recipeLine`, `The recipe has ${count} lines`);
+      });
+      if (!lineFields.ok) return validationError(ctx.requestId, lineFields.errors);
     }
 
     let sharedWith: { orgId: Uuid; currency: string } | null = null;

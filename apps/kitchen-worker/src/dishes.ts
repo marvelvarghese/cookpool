@@ -10,6 +10,9 @@ import {
   DISH_STATES,
   KITCHEN_ERROR_REASONS,
   MAX_DISH_INGREDIENTS,
+  MAX_RECIPE_LINES,
+  RECIPE_MAX_FACTOR_MILLI,
+  RECIPE_MIN_FACTOR_MILLI,
   type DishOwed,
   type DishSplitMode,
   type KitchenDish,
@@ -61,6 +64,8 @@ export interface ParsedIngredient {
   unit: UnitKey | null;
   /** Instead of a unit, one of the item's measures (SM-13): its word, and `quantity` as a count of it. */
   measure: { word: string; quantity: number } | null;
+  /** The recipe line it is for (RC-4); null for none. */
+  recipeLine: number | null;
 }
 
 /** An item just bought: what was bought, and how much of it goes in. */
@@ -75,6 +80,8 @@ export interface ParsedNewDishItem {
   expiresOn: string | null;
   useMilli: number;
   useUnit: string;
+  /** The recipe line it is for (RC-4); null for none. */
+  recipeLine: number | null;
 }
 
 export interface ParsedDish {
@@ -85,6 +92,9 @@ export interface ParsedDish {
   splitMode: DishSplitMode;
   ingredients: ParsedIngredient[];
   newItems: ParsedNewDishItem[];
+  /** The recipe it is cooked from (RC-4): its stored UUID; null for none. */
+  recipeId: Uuid | null;
+  recipeFactorMilli: number | null;
 }
 
 /** `errors` with every field name under `prefix` (`ingredients[2].quantity`). */
@@ -110,7 +120,15 @@ function parseIngredient(fields: Fields, at: string, value: unknown): ParsedIngr
     else fields.add(`${at}.unit`, `Must be one of: ${Object.keys(UNITS).join(", ")}`);
   }
   const measure = measureField(fields, `${at}.measure`, { measure: raw.measure, quantity, unit: raw.unit }, `${at}.quantity`);
-  return itemId && quantity !== undefined ? { itemId, quantity, unit, measure } : undefined;
+  const recipeLine = recipeLineField(fields, `${at}.recipeLine`, raw.recipeLine);
+  return itemId && quantity !== undefined && recipeLine !== undefined ? { itemId, quantity, unit, measure, recipeLine } : undefined;
+}
+
+/** `recipeLine` (RC-4): a line's position, 0 to MAX_RECIPE_LINES − 1, or none. Checked against the recipe when it is read. */
+function recipeLineField(fields: Fields, at: string, value: unknown): number | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value < MAX_RECIPE_LINES) return value;
+  return fields.add(at, `Must be a recipe line's position, a whole number from 0 to ${MAX_RECIPE_LINES - 1}`);
 }
 
 function parseNewDishItem(fields: Fields, at: string, value: unknown): ParsedNewDishItem | undefined {
@@ -147,6 +165,8 @@ function parseNewDishItem(fields: Fields, at: string, value: unknown): ParsedNew
   } else if (raw.useUnit !== undefined && raw.useUnit !== null) {
     return fields.add(`${at}.useUnit`, "Send useUnit with useQuantity");
   }
+  const recipeLine = recipeLineField(fields, `${at}.recipeLine`, raw.recipeLine);
+  if (recipeLine === undefined) return undefined;
   return {
     name: item.name,
     category: item.category,
@@ -158,6 +178,7 @@ function parseNewDishItem(fields: Fields, at: string, value: unknown): ParsedNew
     expiresOn: item.expiresOn,
     useMilli,
     useUnit,
+    recipeLine,
   };
 }
 
@@ -208,10 +229,27 @@ export function parseDish(body: Record<string, unknown>): Parsed<ParsedDish> {
     fields.add("ingredients", "Name each item once");
   }
 
+  // The recipe it is cooked from (RC-4): kept on the dish; money is worked out as without it.
+  let recipeId: Uuid | null = null;
+  if (body.recipeId !== undefined && body.recipeId !== null) {
+    recipeId = typeof body.recipeId === "string" ? parsePublicId("rcp", body.recipeId) : null;
+    if (!recipeId) fields.add("recipeId", "Must be a recipe's rcp_ id, or null");
+  }
+  let recipeFactorMilli: number | null = null;
+  if (body.recipeFactorMilli !== undefined && body.recipeFactorMilli !== null) {
+    const f = body.recipeFactorMilli;
+    if (typeof f === "number" && Number.isSafeInteger(f) && f >= RECIPE_MIN_FACTOR_MILLI && f <= RECIPE_MAX_FACTOR_MILLI) recipeFactorMilli = f;
+    else fields.add("recipeFactorMilli", `Must be the factor in thousandths, a whole number from ${RECIPE_MIN_FACTOR_MILLI} to ${RECIPE_MAX_FACTOR_MILLI}`);
+    if (body.recipeId === undefined || body.recipeId === null) fields.add("recipeFactorMilli", "Send it with recipeId");
+  }
+  if ((body.recipeId === undefined || body.recipeId === null) && [...ingredients, ...newItems].some((i) => i.recipeLine !== null)) {
+    fields.add("recipeId", "Ingredients name recipe lines: say which recipe");
+  }
+
   if (!fields.ok || name === undefined || portionsHalf === undefined || extrasMinor === undefined || splitMode === undefined) {
     return { ok: false, fields: fields.errors };
   }
-  return { ok: true, value: { name, orgId, portionsHalf, extrasMinor, splitMode, ingredients, newItems } };
+  return { ok: true, value: { name, orgId, portionsHalf, extrasMinor, splitMode, ingredients, newItems, recipeId, recipeFactorMilli } };
 }
 
 /** `?state=`, or null when absent. */
@@ -253,19 +291,21 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
   // Quantities, in each item's own dimension — or in one of its measures
   // (SM-13), which only decides how much is taken; the item's unit shows it.
   const fields = new Fields();
-  const taken: Array<{ item: KitchenItemRecord; qtyMilli: number; unit: string; label: string | null }> = [];
+  const taken: Array<{ item: KitchenItemRecord; qtyMilli: number; unit: string; label: string | null; recipeLine: number | null }> = [];
   let short: KitchenItemRecord | null = null;
   dish.ingredients.forEach((ingredient, i) => {
     const item = items.get(ingredient.itemId)!;
     if (ingredient.measure) {
       const inMeasure = takeInMeasure(item, input.measures(item), ingredient.measure, `ingredients[${i}].measure`);
-      if (inMeasure.kind === "taken") taken.push({ item, qtyMilli: inMeasure.qtyMilli, unit: item.displayUnit, label: inMeasure.label });
+      if (inMeasure.kind === "taken") {
+        taken.push({ item, qtyMilli: inMeasure.qtyMilli, unit: item.displayUnit, label: inMeasure.label, recipeLine: ingredient.recipeLine });
+      }
       else if (inMeasure.kind === "unknown") merge(fields, inMeasure.fields);
       else short ??= item;
       return;
     }
     const qty = quantityOf(item, ingredient.quantity, ingredient.unit);
-    if (qty.ok) taken.push({ item, ...qty.value, label: null });
+    if (qty.ok) taken.push({ item, ...qty.value, label: null, recipeLine: ingredient.recipeLine });
     else merge(fields, prefixed(`ingredients[${i}].`, qty.fields));
   });
   if (!fields.ok) return validationError(ctx.requestId, fields.errors);
@@ -291,7 +331,7 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
     });
   }
 
-  const ingredients = taken.map(({ item, qtyMilli, unit, label }): MutableIngredient => ({
+  const ingredients = taken.map(({ item, qtyMilli, unit, label, recipeLine }): MutableIngredient => ({
     owner: item.orgId ? { kind: "group", orgId: item.orgId as Uuid } : mine,
     itemId: item.id as Uuid,
     expectedVersion: item.version,
@@ -303,6 +343,7 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
     paidBy: item.paidBy,
     useTxnId: null,
     moveId: asUuid(crypto.randomUUID()),
+    recipeLine,
     name: item.name,
     // In the words it was given in: "Onions (2 onions)", else "Rice (250 g)".
     what: label ?? formatQuantity(qtyMilli, item.dimension, unit),
@@ -341,6 +382,7 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
       paidBy: cook,
       useTxnId: null,
       moveId: asUuid(crypto.randomUUID()),
+      recipeLine: n.recipeLine,
       name: n.name,
       what: formatQuantity(n.useMilli, n.dimension, n.useUnit),
     });
@@ -444,6 +486,8 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
       state: dish.splitMode === "claims" ? "open" : "draft",
       idemKey,
       now,
+      recipeId: dish.recipeId,
+      recipeFactorMilli: dish.recipeFactorMilli,
     },
     newItems,
     ingredients: ingredients.map(({ name: _name, what: _what, ...ingredient }) => ingredient),
@@ -525,7 +569,10 @@ export function toKitchenDish(record: KitchenDishRecord, viewer: string): Kitche
       label: i.label,
       costMinor: i.costMinor,
       useTxnId: i.useTxnId ? toPublicId("txn", i.useTxnId) : null,
+      recipeLine: i.recipeLine,
     })),
+    recipeId: record.recipeId ? toPublicId("rcp", record.recipeId) : null,
+    recipeFactorMilli: record.recipeFactorMilli,
     fromMineMinor: record.ingredientsMinor - owed,
     owes: [...owes.values()],
     ...dishSplitView(record, viewer),

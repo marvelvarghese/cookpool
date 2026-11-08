@@ -1463,3 +1463,106 @@ describe("KitchenClient — item notes (Cookpool RC-3)", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
+
+describe("KitchenClient — foods and recipes (Cookpool RC-4)", () => {
+  const recipe = { id: "rcp_1", name: "Chicken curry", linkCode: null };
+
+  it("reads the food list and Always have, answers 'Is Kanda onion?' and saves Always have", async () => {
+    const foods = captureFetch(jsonResponse(envelope({ foods: [] })));
+    await client(foods.fetch).kitchen.foods({ q: "pyaz", limit: 5 });
+    expect(foods.calls[0]!.url).toBe("https://api.test/v1/kitchen/foods?q=pyaz&limit=5");
+    const all = captureFetch(jsonResponse(envelope({ foods: [] })));
+    await client(all.fetch).kitchen.foods();
+    expect(all.calls[0]!.url).toBe("https://api.test/v1/kitchen/foods");
+
+    const answer = captureFetch(jsonResponse(envelope({ answer: { nameKey: "kanda", foodKey: "onion", orgId: "org_1" }, linkedItems: 2 })));
+    await client(answer.fetch).kitchen.setFoodAnswer({ nameKey: "kanda", foodKey: "onion", orgId: "org_1" });
+    expect(answer.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/food-answers");
+    expect(answer.calls[0]!.init.method).toBe("PUT");
+    expect(JSON.parse(String(answer.calls[0]!.init.body))).toEqual({ nameKey: "kanda", foodKey: "onion", orgId: "org_1" });
+
+    const always = captureFetch(jsonResponse(envelope({ foods: [], isDefault: true })));
+    expect(await client(always.fetch).kitchen.alwaysHave()).toEqual({ foods: [], isDefault: true });
+    expect(always.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/always-have");
+    const saved = captureFetch(jsonResponse(envelope({ foods: [], isDefault: false })));
+    await client(saved.fetch).kitchen.setAlwaysHave(["salt", "turmeric"]);
+    expect(saved.calls[0]!.init.method).toBe("PUT");
+    expect(JSON.parse(String(saved.calls[0]!.init.body))).toEqual({ foodKeys: ["salt", "turmeric"] });
+  });
+
+  it("writes, reads, edits and deletes a recipe on the design's paths", async () => {
+    const calls: Array<[string, string | undefined]> = [];
+    const respond = async (run: (c: Cookpool) => Promise<unknown>, status = 200) => {
+      const f = captureFetch(jsonResponse(envelope({ recipe, lastCook: null }), { status }));
+      await run(client(f.fetch));
+      calls.push([`${f.calls[0]!.init.method} ${f.calls[0]!.url}`, f.calls[0]!.init.body as string | undefined]);
+    };
+    await respond((c) => c.kitchen.createRecipe({ name: "Chicken curry", servesHalf: 8, lines: [{ name: "Chicken", quantity: "1", unit: "kg" }] }), 201);
+    await respond((c) => c.kitchen.createRecipe({ fromDishId: "dsh_1" }), 201);
+    await respond((c) => c.kitchen.getRecipe("rcp_1"));
+    await respond((c) => c.kitchen.getRecipe("rcp_1", { code: "AbCdEfGhJk" }));
+    await respond((c) => c.kitchen.updateRecipe("rcp_1", { visibility: "only_me" }));
+    await respond((c) => c.kitchen.deleteRecipe("rcp_1"));
+    await respond((c) => c.kitchen.shareRecipeLink("rcp_1"));
+    await respond((c) => c.kitchen.stopRecipeLink("rcp_1"));
+    await respond((c) => c.kitchen.recipeByLink("AbCdEfGhJk"));
+    await respond((c) => c.kitchen.copyRecipe({ linkCode: "AbCdEfGhJk" }), 201);
+    expect(calls.map(([call]) => call)).toEqual([
+      "POST https://api.test/v1/kitchen/me/recipes",
+      "POST https://api.test/v1/kitchen/me/recipes",
+      "GET https://api.test/v1/kitchen/recipes/rcp_1",
+      "GET https://api.test/v1/kitchen/recipes/rcp_1?code=AbCdEfGhJk",
+      "PATCH https://api.test/v1/kitchen/me/recipes/rcp_1",
+      "DELETE https://api.test/v1/kitchen/me/recipes/rcp_1",
+      "POST https://api.test/v1/kitchen/me/recipes/rcp_1/link",
+      "DELETE https://api.test/v1/kitchen/me/recipes/rcp_1/link",
+      "GET https://api.test/v1/kitchen/recipe-links/AbCdEfGhJk",
+      "POST https://api.test/v1/kitchen/me/recipes/copies",
+    ]);
+    expect(JSON.parse(calls[1]![1]!)).toEqual({ fromDishId: "dsh_1" });
+    expect(JSON.parse(calls[9]![1]!)).toEqual({ linkCode: "AbCdEfGhJk" });
+  });
+
+  it("reads lists, the match, a person's recipes, Explore and Cook now — and a refusal is a NotFoundError", async () => {
+    const urls: string[] = [];
+    const get = async (run: (c: Cookpool) => Promise<unknown>, data: unknown) => {
+      const f = captureFetch(jsonResponse(envelope(data)));
+      await run(client(f.fetch));
+      urls.push(f.calls[0]!.url);
+    };
+    await get((c) => c.kitchen.myRecipes(), { recipes: [] });
+    await get((c) => c.kitchen.recipeMatch("rcp_1", { f: 450 }), { lines: [] });
+    await get((c) => c.kitchen.recipeMatch("rcp_1"), { lines: [] });
+    await get((c) => c.kitchen.personRecipes("usr_anu"), { recipes: [] });
+    await get((c) => c.kitchen.exploreRecipes({ source: "groups", q: "dal", kind: "dal_curry" }), { recipes: [] });
+    await get((c) => c.kitchen.exploreRecipes(), { recipes: [] });
+    await get((c) => c.kitchen.cookNow(), { recipes: [] });
+    expect(urls).toEqual([
+      "https://api.test/v1/kitchen/me/recipes",
+      "https://api.test/v1/kitchen/me/recipes/rcp_1/match?f=450",
+      "https://api.test/v1/kitchen/me/recipes/rcp_1/match",
+      "https://api.test/v1/kitchen/people/usr_anu/recipes",
+      "https://api.test/v1/kitchen/recipes?source=groups&q=dal&kind=dal_curry",
+      "https://api.test/v1/kitchen/recipes",
+      "https://api.test/v1/kitchen/me/cook-now",
+    ]);
+    await expect(client(captureFetch(errorResponse("not_found", 404)).fetch).kitchen.getRecipe("rcp_1")).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      client(captureFetch(errorResponse("validation_failed", 422)).fetch).kitchen.createRecipe({ name: "", servesHalf: 0, lines: [] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("cooks from a recipe with the dish write's new fields, as they are", async () => {
+    const cooked = captureFetch(jsonResponse(envelope({ dish: { id: "dsh_1", recipeId: "rcp_1" } }), { status: 201 }));
+    await client(cooked.fetch).kitchen.cookDish({
+      name: "Chicken curry",
+      portionsHalf: 4,
+      splitMode: "claims",
+      orgId: "org_1",
+      recipeId: "rcp_1",
+      recipeFactorMilli: 450,
+      ingredients: [{ itemId: "itm_1", quantity: "450", unit: "g", recipeLine: 0 }],
+    });
+    expect(JSON.parse(String(cooked.calls[0]!.init.body))).toMatchObject({ recipeId: "rcp_1", recipeFactorMilli: 450, ingredients: [{ recipeLine: 0 }] });
+  });
+});
