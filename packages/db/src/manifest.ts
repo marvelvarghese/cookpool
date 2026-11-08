@@ -354,5 +354,14 @@ export const manifest: MigrationManifest = {
       description:
         "Timers that find you: kitchen_timers (tmr_ id, one person's usr_… user_id, a 1–60 character label, an optional 1–120 character body, the app path it opens, ends_at after created_at — kitchen-worker keeps it 30 s to 24 h ahead — sent_at once the per-minute sweep has claimed it and asked for its push, canceled_at once its person cancelled it), at most ten active per person; indexed on ends_at over active rows (the sweep), on (user_id, ends_at) over active rows (a person's list and the limit) and on ends_at over every row (the purge of rows that ended more than a day ago) (Cookpool GC-3)",
     },
+    {
+      id: "390_kitchen_cookpool_guided",
+      context: "kitchen",
+      path: "390_kitchen_cookpool_guided/up.sql",
+      checksum:
+        "b97920e7a3ffa123bfd078b6927047957b2f8f72ae01c2f3828e653987459a2a",
+      description:
+        "Cookpool's 42 recipes with guided steps: for each of 360's recipes under usr_cookpool, its tools (a JSON array) set by UPDATE, and its step rows replaced — DELETE, then one plain INSERT — by guided steps with fixed keys c00c0390-<recipe>-<step>: prep (chopping, soaking, marinating, resting) before cook, every cook step with a flame, its lines, a time range and rule or a whistle count, hands off where it waits, a checkpoint and a tip where useful; the rajma and chole soaks, sabudana's soak and fried rice's cooled rice are long prep. Lines, names and every other recipe are untouched (Cookpool GC-4)",
+    },
   ],
 };

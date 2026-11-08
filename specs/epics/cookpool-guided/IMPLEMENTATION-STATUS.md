@@ -207,3 +207,104 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | `packages/sdk` | the recipe-paths test now covers `getRecipe(…, { f })` and `recipeByLink(…, { f })` | 181 |
 
 `pnpm typecheck` passes repo-wide (52 tasks). `pnpm lint` passes for every touched package (`packages/contracts`, `packages/db`, `packages/sdk`, `apps/kitchen-worker`, `tests/contracts`, `tests/db`, `tests/kitchen-worker`). `orun task check GC-7 --base origin/main` passes: 7 changed components, all inside the contract.
+
+### GC1 — Cookpool's recipes with guided steps (GC-4)
+
+**What shipped.** Content only: one migration, its manifest entry, and tests. No worker, contract, SDK or console file changed.
+
+- **Migration `390_kitchen_cookpool_guided`**, with its manifest entry and checksum. For each of 360's 42 recipes, one block of three statements:
+  - `UPDATE kitchen_recipes SET tools = '[…]' WHERE id = '<360's fixed id>'`: two to four tools ("Pressure cooker", "Kadai with a lid", "Tawa", "Rolling pin and board", "Tadka pan", "Mixer jar", …).
+  - `DELETE FROM kitchen_recipe_steps WHERE recipe_id = '<id>'`.
+  - one plain `INSERT` of its guided steps, every column in the row (both seconds together; whistle steps leave them NULL).
+- **Fixed keys** `c00c0390-<recipe>-<step>`, both two digits and the step counted from 1 (Masala chai's milk step is `c00c0390-32-04`). They are the same in every environment and in every copy saved from now on, so GC-7's pool hangs on them.
+- **The content: 303 steps (215 before), 75 prep and 228 cook, 73 hands off.**
+  - **Prep comes first** in every recipe: chopping, rinsing, soaking, marinating, kneading and resting.
+  - **Every cook step has a flame** (0 off, 1 low, 2 medium, 3 high). A step done off the flame (mashing, mixing, garnishing, a drink) says 0.
+  - **Every cook step has a checkpoint or a time.** Most have both. Chicken curry, the milestone dish, has a flame, lines, a range and a checkpoint on every cook step.
+  - **The checkpoints** are the ones home cooks use: golden brown, the raw smell goes, oil shows at the edges, mustard seeds splutter, dal is soft and mashable, no pink inside, a bean mashes easily between your fingers, it leaves the sides of the pan. Each reads after "Until …".
+  - **Time rules:**
+    - `fixed` for tempering, boiling a pot of water, soaking, resting, the pressure dropping and a timed low flame;
+    - `partly` for frying onions, searing, reducing a gravy, cooking more vegetables in one pan, and bringing the recipe's own water or milk to a boil;
+    - `linear` only for work done once a piece: chopping, and rolling or frying rotis, parathas, puris, pakodas and omelettes one after another.
+  - **Pressure cookers**, in 9 recipes: a whistles step (on high for beans and potatoes, medium for dal and rice, which froth), then a timed low flame where the recipe needs one (rajma 15–20 min, chole 20–25 min), then "let the pressure drop" as a hands-off step off the heat (10–15 min, or 15–20 for a full cooker of beans).
+  - **Long prep:** rajma's and chole's overnight soak (8–12 h), sabudana's soak (5–8 h), and fried rice's rice, cooked and cooled ahead (1–3 h).
+  - **Lines:** every line goes in at some step. A line split between steps ("half the cumin", "the rest of the ghee"), or chopped in prep and added later, is attached to each step that uses it.
+  - **Text** is plain imperative words with no digits at all, so no amounts and no times. Tips and checkpoints have no digits either.
+
+| # | Recipe | Steps (prep + cook) | Hands off | Long prep | Whistles |
+|---|---|---|---|---|---|
+| 01 | Kanda poha | 8 (3 + 5) | 1 | — | — |
+| 02 | Rava upma | 7 (1 + 6) | 0 | — | — |
+| 03 | Egg bhurji | 6 (2 + 4) | 0 | — | — |
+| 04 | Masala omelette | 4 (2 + 2) | 0 | — | — |
+| 05 | Sabudana khichdi | 8 (2 + 6) | 1 | 5–8 h | — |
+| 06 | Aloo paratha | 10 (3 + 7) | 3 | — | 3 |
+| 07 | Plain paratha | 6 (2 + 4) | 1 | — | — |
+| 08 | Chapati | 6 (2 + 4) | 1 | — | — |
+| 09 | Puri | 6 (3 + 3) | 1 | — | — |
+| 10 | Dal tadka | 10 (2 + 8) | 3 | — | 3 |
+| 11 | Dal fry | 10 (2 + 8) | 4 | — | 4 |
+| 12 | Rajma | 11 (2 + 9) | 5 | 8–12 h | 3 |
+| 13 | Chole | 13 (3 + 10) | 5 | 8–12 h | 2 |
+| 14 | Sambar | 9 (2 + 7) | 6 | — | 4 |
+| 15 | Tomato rasam | 7 (3 + 4) | 3 | — | — |
+| 16 | Kadhi | 6 (2 + 4) | 1 | — | — |
+| 17 | Palak paneer | 10 (1 + 9) | 0 | — | — |
+| 18 | Paneer bhurji | 7 (2 + 5) | 0 | — | — |
+| 19 | Matar paneer | 7 (2 + 5) | 1 | — | — |
+| 20 | Aloo gobi | 6 (2 + 4) | 1 | — | — |
+| 21 | Bhindi fry | 6 (2 + 4) | 0 | — | — |
+| 22 | Baingan bharta | 7 (1 + 6) | 0 | — | — |
+| 23 | Chicken curry | 9 (2 + 7) | 3 | — | — |
+| 24 | Egg curry | 9 (1 + 8) | 2 | — | — |
+| 25 | Fish curry | 9 (3 + 6) | 3 | — | — |
+| 26 | Jeera rice | 6 (1 + 5) | 3 | — | — |
+| 27 | Veg pulao | 9 (2 + 7) | 3 | — | — |
+| 28 | Lemon rice | 9 (1 + 8) | 2 | — | — |
+| 29 | Curd rice | 7 (1 + 6) | 3 | — | 4 |
+| 30 | Moong dal khichdi | 7 (2 + 5) | 3 | — | 4 |
+| 31 | Veg fried rice | 6 (2 + 4) | 1 | 1–3 h | — |
+| 32 | Masala chai | 5 (1 + 4) | 0 | — | — |
+| 33 | Filter coffee | 5 (0 + 5) | 1 | — | — |
+| 34 | Sweet lassi | 3 (1 + 2) | 1 | — | — |
+| 35 | Nimbu pani | 3 (1 + 2) | 1 | — | — |
+| 36 | Onion pakoda | 6 (2 + 4) | 1 | — | — |
+| 37 | Pav bhaji | 10 (2 + 8) | 3 | — | 3 |
+| 38 | Veg sandwich | 6 (2 + 4) | 1 | — | — |
+| 39 | Rava sheera | 6 (0 + 6) | 0 | — | — |
+| 40 | Rice kheer | 6 (2 + 4) | 2 | — | — |
+| 41 | Besan ladoo | 6 (1 + 5) | 2 | — | — |
+| 42 | Gajar halwa | 6 (2 + 4) | 1 | — | — |
+
+**Departures.**
+
+- **The steps are replaced, not updated.** Design §6 says "by `UPDATE`s on the system rows". The number of steps changes for nearly every recipe (215 become 303), so each recipe's rows are deleted and inserted again, as the brief asked. The runner applies a migration statement by statement with no transaction and re-runs it whole after a failure. Each block deletes before it inserts, so a re-run leaves the same rows, and a test shows it.
+- **Only steps and tools change.** Lines, names, `minutes`, `created_at` and `updated_at` stay as 360 wrote them. The guided totals don't always match the recipe card's `minutes`. Rajma's and chole's cook steps alone come to 60–80 min, plus the whistles. Besan ladoo comes to 63–87 min with its two cooling waits, against 40. The card's number is left for whoever owns it.
+- **Keys are 14 characters, not 32 hex.** `STEP_KEY_RE` and 370's CHECK both allow them.
+- **Copies saved before 390 keep their old steps**, with 370's random keys, because a copy never follows its source. Their times would pool under Cookpool's recipe as the root, but under keys the new steps don't have. Nothing is on prod yet. Stage could have such copies if GC-2's 370 was applied there before 390.
+- **Times logged against the old random keys stop counting.** GC-7's `learned` pools by root and key. Once 390 gives Cookpool's steps their fixed keys, any time a dish logged against one of 370's random keys no longer matches a step, so GC-7 leaves it out. This is expected, and GC-7's status notes it too. No console sent a step log before GC-5, so no real times are lost.
+- **Long prep is four recipes, not two.** Rajma and chole carry the overnight soak. Sabudana khichdi's soak (5–8 h) and fried rice's cooled rice (1–3 h) are just as real. Chicken curry's marinade is 30–90 min, so GC-2's rule (shortest time at least an hour) keeps it ordinary hands-off prep. Its tip says an hour or more in the fridge makes it more tender.
+- **The pressure cooker's timed step is in the two bean recipes only.** RC-7's texts said 6–8 whistles for rajma and 6–7 for chole. 390 gives them 3 and 2 whistles, then 15–20 and 20–25 min on low, then the drop: fewer whistles, and the low flame does the slow cooking. Dals, khichdi, curd rice and the vegetables for pav bhaji and aloo paratha need no timed step. Veg pulao stays in a pot with a lid, and its tip gives the cooker way.
+- **Whistle steps carry no checkpoint.** The count is what you watch for.
+- **"Boiling a fixed amount of water" is read literally.** A pot of water whose amount doesn't change with the size (blanching, boiling eggs) is `fixed`. The recipe's own water or milk, which grows with the size, is `partly`.
+- **Some prep steps are untimed** and not hands off: rinse the dal, tie the tea bag, beat the eggs, crumble the paneer. A cook step always has a heat and a checkpoint or a time. Prep needs neither.
+- **The drinks' first steps are prep** ("Chill the curd and milk", "Chill the water", each with "Skip this if they're already cold"), so lassi and nimbu pani have three steps like every other recipe. Filter coffee and rava sheera have no prep.
+- **A split line shows its whole amount at each step.** The chip is the line, and the text says "half the …" or "the rest of the …". This is the same as RC-7's texts. Splitting a line in two would change 360's lines, which 390 leaves alone.
+- **Four older tests now expect 390's steps:**
+  - RC-7's db test reads 360's steps through 380 for its 3-to-8 bound;
+  - RC-7's kitchen-worker content test bounds the steps at `MAX_RECIPE_STEPS` (the guided suite checks them closely now);
+  - GC-2's guided-steps suite expects Cookpool's steps under 390's keys and with tools, not as text-only cook steps;
+  - CP-4's kitchen-migration rule required every kitchen migration to CREATE or ALTER. 390 only writes, so the rule now counts INSERT, UPDATE and DELETE too, still on `kitchen_*` tables only.
+- **The generator stayed in the scratchpad.** `up.sql` is the source of truth, and it reads on its own: a comment heads each recipe's block with its counts.
+- **Not checked on stage** (nothing deployed). `infra/db-migrate` is unchanged: it applies what the manifest lists. GC-5 (guided mode), GC-6 (the step editor and plan) and GC-7 (learned ranges) read these steps through `guidedSteps` and change nothing here.
+
+**Tests.**
+
+| Package | New | Total |
+|---|---|---|
+| `tests/db` | 10. `kitchen-cookpool-guided-migration` has 9: registration right after 380; the text, three statements a recipe naming only the 42, plain INSERT with no IGNORE or REPLACE, each statement under 20 KB; every row landing under the CHECKs on top of 380, and a re-run leaving the same rows and tools; fixed keys per recipe and position, unique across all, prep before cook, a flame on every cook step, none of 370's random keys left; tools, 1–10 names of 1–40 characters, each once; the rules between columns (both seconds or neither, min ≤ max, whistles without seconds and fixed, a sense with its checkpoint, every wait timed) plus every line ref real and every line used; long prep for rajma and chole of 6–12 h, and exactly the four; whistles followed by hands-off steps to the drop off the heat; nothing else changing (Cookpool's lines, recipe rows but for tools, a person's recipe, a copy saved before 390). The 10th is 390's checksum case in `migrations.test.ts`. Adjusted: RC-7's step bound (through 380) and the kitchen migration rule (writes count). | 815 |
+| `tests/kitchen-worker` | 47 in `cookpool-guided`, all through the real recipe read: one case for each of the 42 recipes, checking fixed keys, prep first, tools, a flame and a checkpoint or time on every cook step, a timer on every wait, whistles without seconds and never scaling, ranges of at least 30 s and at most 12 h for prep or 2 h for cook with the longest at most three times the shortest, no number with a unit in any text, every line ref real and every line used, and `longPrep` matching the rule. Then 5 more: rajma's and chole's soak first, as long prep of at least 6 h, with whistles, low flame and drop; the four long-prep recipes; Chicken curry's every cook step complete, its plan longer at 1 kg than at 750 g, and longer at 750 g than at 450 g, with the tempering unchanged; a copy keeping every step, key and tool; a cook's times on a copy of Masala chai pooling under Cookpool's recipe by `c00c0390-32-02` and `-04`. Adjusted: RC-7's step bound and GC-2's Cookpool read. | 701 |
+
+Totals are for the tree with main merged in, after GC-7 (#74): its 805 and 654, plus GC-4's 10 and 47. GC-7's suites pass unchanged over 390's steps.
+
+`pnpm typecheck` and `pnpm lint` pass for every touched package (`packages/db`, `tests/db`, `tests/kitchen-worker`). `orun task check GC-4 --base origin/main` passes: 4 changed components, all inside the contract.

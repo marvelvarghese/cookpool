@@ -261,6 +261,7 @@ describe("360_kitchen_cookpool_recipes (RC-7)", () => {
 
     it("gives every Cookpool recipe exactly one main line with an amount, every line a food on the list, and 3 to 8 steps of at most 200 characters", () => {
       const recipes = all<{ id: string }>("SELECT id FROM kitchen_recipes WHERE is_system = 1");
+      const asSeeded = migrated(380);
       for (const { id } of recipes) {
         const lines = all<{ food_key: string | null; qty_milli: number | null; unit: string | null; to_taste: number; is_main: number }>(
           "SELECT food_key, qty_milli, unit, to_taste, is_main FROM kitchen_recipe_lines WHERE recipe_id = ? ORDER BY position", id,
@@ -273,7 +274,8 @@ describe("360_kitchen_cookpool_recipes (RC-7)", () => {
           expect(line.food_key).not.toBeNull();
           if (line.to_taste === 0) expect(line.qty_milli).toBeGreaterThan(0);
         }
-        const steps = all<{ text: string }>("SELECT text FROM kitchen_recipe_steps WHERE recipe_id = ? ORDER BY position", id);
+        // 360's own steps, before GC-4's 390 rewrote them as guided steps (kitchen-cookpool-guided-migration).
+        const steps = asSeeded.prepare("SELECT text FROM kitchen_recipe_steps WHERE recipe_id = ? ORDER BY position").all(id) as { text: string }[];
         expect(steps.length).toBeGreaterThanOrEqual(3);
         expect(steps.length).toBeLessThanOrEqual(8);
         for (const { text } of steps) expect(text.length).toBeLessThanOrEqual(200);
@@ -282,6 +284,7 @@ describe("360_kitchen_cookpool_recipes (RC-7)", () => {
       expect(
         one<{ n: number }>("SELECT COUNT(*) AS n FROM kitchen_recipe_lines l LEFT JOIN kitchen_foods f ON f.key = l.food_key WHERE f.key IS NULL").n,
       ).toBe(0);
+      asSeeded.close();
     });
   });
 });
