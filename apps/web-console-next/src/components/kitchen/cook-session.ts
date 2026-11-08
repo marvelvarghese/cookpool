@@ -714,7 +714,8 @@ export interface SessionLineView {
 }
 
 export function sessionLineView(line: SessionLine, ctx: { meId: string | null; names?: MemberNames | null }): SessionLineView {
-  const short = lineShort(line);
+  // Short only while something is left to take: none left says so on its own.
+  const short = lineTakes(line).some((t) => t.milli > 0) && lineShort(line);
   const amount = line.qtyMilli !== null && line.unit !== null ? amountText(line.qtyMilli, line.unit) : "To taste";
   const sub = line.missing
     ? "Not in your pantries · left out"
