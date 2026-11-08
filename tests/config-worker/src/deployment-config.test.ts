@@ -785,3 +785,35 @@ describe("notifications-worker Web Push keys", () => {
     expect(component).toMatch(/runtimeSecrets: "VAPID_PRIVATE_KEY"/);
   });
 });
+
+// ── kitchen-worker's Anthropic key (Cookpool AI-2) ─────────────
+//
+// The key the AI routes call Claude with is a runtime secret pushed from orun
+// secrets at deploy, one per environment, exactly as notifications-worker's
+// VAPID_PRIVATE_KEY — never a var in the template or the rendered config.
+// Unseeded, it is skipped, and every AI route answers 503 ai_unavailable.
+
+describe("kitchen-worker Anthropic key", () => {
+  type Rendered = {
+    vars?: Record<string, string>;
+    env: Record<string, { vars?: Record<string, string> }>;
+  };
+  const templateRaw = fs.readFileSync(path.join(ROOT, "apps/kitchen-worker/wrangler.template.jsonc"), "utf-8");
+  const rendered = renderFromFixture("apps/kitchen-worker", parseJsoncStrings) as unknown as Rendered;
+  const component = readYaml("apps/kitchen-worker/component.yaml");
+
+  test("the key is only ever a secret reference, per environment, pushed as a runtime secret", () => {
+    expect(templateRaw).not.toMatch(/"ANTHROPIC_API_KEY"\s*:/);
+    expect(component).toMatch(
+      /optionalSecretEnv:\n\s+ANTHROPIC_API_KEY: "secret:\/\/ws_QX130J0D\/cookpool\/\{\{ \.environment \}\}\/ANTHROPIC_API_KEY"/,
+    );
+    expect(component).toMatch(/runtimeSecrets: "ANTHROPIC_API_KEY"/);
+  });
+
+  for (const envName of ["dev", "stage", "prod"]) {
+    test(`${envName} carries no Anthropic key in its vars`, () => {
+      expect(rendered.vars ?? {}).not.toHaveProperty("ANTHROPIC_API_KEY");
+      expect(rendered.env[envName]?.vars ?? {}).not.toHaveProperty("ANTHROPIC_API_KEY");
+    });
+  }
+});

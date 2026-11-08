@@ -2166,3 +2166,8 @@ export * from "./kitchen-posts.js";
 // dish with a group after cooking, and Home's split reminder —
 // ./kitchen-split-later.ts (also through `@saas/contracts/kitchen`).
 export * from "./kitchen-split-later.js";
+
+// Cookpool AI (cookpool-ai AI-2): the status read, say what you used, the
+// daily limits and the AI refusal reasons — ./kitchen-ai.ts (also through
+// `@saas/contracts/kitchen`).
+export * from "./kitchen-ai.js";

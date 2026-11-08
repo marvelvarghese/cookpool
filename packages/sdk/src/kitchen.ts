@@ -88,6 +88,8 @@ import type { CheckGroupItemRequest, CheckItemResponse, CheckPersonalItemRequest
 import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 // Timers that find you (GC-3).
 import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
+// Cookpool AI (AI-2).
+import type { AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
 // Restocking and shopping runs (PN-3).
 import type { PurchaseLine, PurchaseResponse, RestockResponse, UndoPurchaseResponse } from "@saas/contracts/kitchen";
 // Ask before use (PN-8).
@@ -1130,6 +1132,32 @@ export class KitchenClient {
       { method: "DELETE", path: this.mePath(`timers/${encodeURIComponent(timerId)}`) },
       opts,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Cookpool AI (AI-2)
+  //
+  // AI proposes, the caller confirms: nothing here writes. Without a key on
+  // the server an AI call is an `InternalError` (503) with
+  // `details.reason: "ai_unavailable"` — `ai()` says so up front with
+  // `available: false`. Past today's limit it is a `RateLimitError` with
+  // `details.reason: "ai_daily_limit"`; a refusal or a bad read is an
+  // `InternalError` (502) with `details.reason: "ai_failed"`.
+  // -------------------------------------------------------------------------
+
+  /** GET /v1/kitchen/me/ai — is AI set up, which features the server offers, and today's use against the limits. */
+  ai(opts: RequestOptions = {}): Promise<AiStatus> {
+    return this.transport.request<AiStatus>({ method: "GET", path: this.mePath("ai") }, opts);
+  }
+
+  /**
+   * POST /v1/kitchen/me/ai/uses — read one sentence (≤ AI_USES_TEXT_MAX
+   * characters) into proposed uses of the caller's items, and the words that
+   * matched nothing. Log the confirmed lines through `usePersonalItem` /
+   * `useGroupItem`.
+   */
+  aiUses(text: string, opts: RequestOptions = {}): Promise<AiUsesResponse> {
+    return this.transport.request<AiUsesResponse>({ method: "POST", path: this.mePath("ai/uses"), body: { text } }, opts);
   }
 
   // -------------------------------------------------------------------------

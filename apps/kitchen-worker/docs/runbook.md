@@ -29,6 +29,14 @@ exercised through `api-edge` (this Worker has no public URL).
   `unheard=` means the person has no subscribed device, or push is off in that
   environment (notifications-worker's VAPID keys). Either way the timer is not
   retried.
+- **AI says "isn't set up" (`GET /v1/kitchen/me/ai` → `available: false`,
+  AI routes 503 `ai_unavailable`)**: the `ANTHROPIC_API_KEY` runtime secret is
+  not stored for that environment. It is an owner step: store it with
+  `orun secrets set ANTHROPIC_API_KEY --org <workspace> --env <env>` (never in
+  the template or a var), then redeploy kitchen-worker so secrets-live pushes
+  it. AI routes answering 502 `ai_failed` mean the key is there but the
+  calls fail or are refused: the request's rows in `kitchen_ai_usage` have
+  `ok = 0`. A person at 429 `ai_daily_limit` has 50 rows today (UTC).
 - **Missing `WIRING_*` secret at deploy**: the infrastructure terraform
   upstream has not applied — check that lane first; within one
   convergence run the DAG guarantees order.

@@ -58,6 +58,15 @@ spec:
     WIRING_CLOUDFLARE_D1_STAGE: "secret://ws_QX130J0D/cookpool/stage/WIRING_CLOUDFLARE_D1"
     WIRING_CLOUDFLARE_D1_PROD: "secret://ws_QX130J0D/cookpool/prod/WIRING_CLOUDFLARE_D1"
 
+  # Runtime secrets, wire-now-seed-later: best-effort references — an
+  # unseeded key is skipped at resolve (and by secrets-live), so this block is
+  # inert until the value is stored in orun secrets. Cookpool AI-2: the
+  # Anthropic API key the AI routes call Claude with (one per environment).
+  # Until it is stored, every AI route answers 503 ai_unavailable and
+  # GET /v1/kitchen/me/ai says available: false.
+  optionalSecretEnv:
+    ANTHROPIC_API_KEY: "secret://ws_QX130J0D/cookpool/{{ .environment }}/ANTHROPIC_API_KEY"
+
   subscribe:
     environments:
       - name: dev
@@ -96,6 +105,9 @@ spec:
     owner: sourceplane
     repo: cookpool
 
+    # Runtime worker secrets, pushed by the secrets-live step from the
+    # values orun resolves for the optionalSecretEnv references above.
+    runtimeSecrets: "ANTHROPIC_API_KEY"
     turboFilter: "@saas/kitchen-worker"
     wranglerConfig: wrangler.jsonc
     wranglerTemplate: wrangler.template.jsonc

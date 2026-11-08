@@ -1,4 +1,5 @@
 import type { Timings } from "@saas/contracts/timing";
+import type { AiProvider } from "./ai/provider.js";
 import type { Uuid } from "@saas/db/ids";
 import type { Env } from "./env.js";
 import type { Groups } from "./groups-client.js";
@@ -22,6 +23,11 @@ export interface KitchenDeps {
    * response instead — never dropped.
    */
   waitUntil?: (work: Promise<unknown>) => void;
+  /**
+   * Cookpool AI (AI-2): the model provider, in place of the Anthropic client
+   * the API key builds — tests stub it, so no test reaches the network.
+   */
+  aiProvider?: AiProvider;
 }
 
 /** One authenticated request, as every handler sees it. */
@@ -45,6 +51,8 @@ export interface RequestContext {
    * at once with a `waitUntil`, after the work without one.
    */
   defer(work: () => Promise<unknown>): Promise<void>;
+  /** The model provider a test put in place (KitchenDeps.aiProvider); unset in production. */
+  aiProvider?: AiProvider;
 }
 
 /** A request under `/v1/organizations/{org}/kitchen/…`: one group. */

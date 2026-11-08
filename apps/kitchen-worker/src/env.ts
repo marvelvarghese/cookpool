@@ -12,4 +12,11 @@ export interface Env {
   ENVIRONMENT: string;
   /** The app's origin (https://cookpool.store, https://stage.cookpool.store): links in emails start here. */
   APP_URL?: string;
+  /**
+   * Cookpool AI (AI-2): the Anthropic API key, a runtime secret pushed at
+   * deploy from orun secrets (component.yaml), never in config. Without it
+   * every AI route answers 503 `ai_unavailable` and GET /me/ai says
+   * `available: false`.
+   */
+  ANTHROPIC_API_KEY?: string;
 }
