@@ -134,9 +134,9 @@ function settleShared(qc: QC, r: ApiResult<RecipeResponse>, recipeId: string): v
   if (r.ok) {
     qc.setQueryData(qk.kitchenRecipe(recipeId), r.data);
     applyPatches(queryCacheOf(qc), visibilityPatches(recipeId, { visibility: r.data.recipe.visibility, linkCode: r.data.recipe.linkCode }));
-  } else {
-    void qc.invalidateQueries({ queryKey: qk.kitchenRecipe(recipeId), exact: true });
   }
+  // Read again once every write on its way has landed: two quick taps whose answers cross still end on the server's.
+  void qc.invalidateQueries({ queryKey: qk.kitchenRecipe(recipeId), exact: true });
   void qc.invalidateQueries({ queryKey: qk.kitchenMyRecipes() });
 }
 
