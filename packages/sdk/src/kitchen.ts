@@ -534,10 +534,14 @@ export class KitchenClient {
     );
   }
 
-  /** GET /v1/kitchen/me/usuals — what the caller often uses, most first: presets and "Do it again". */
+  /**
+   * GET /v1/kitchen/me/usuals — what the caller often uses, most first: presets and "Do it again".
+   * With `tzOffset` (minutes east of UTC: `-new Date().getTimezoneOffset()`), each usual carries
+   * the current bucket's `now` and `strip`, and the answer its `bucket` (PN-2).
+   */
   usuals(query: UsualsQuery = {}, opts: RequestOptions = {}): Promise<UsualsResponse> {
     return this.transport.request<UsualsResponse>(
-      { method: "GET", path: this.mePath("usuals"), query: { limit: query.limit } },
+      { method: "GET", path: this.mePath("usuals"), query: { limit: query.limit, tzOffset: query.tzOffset } },
       opts,
     );
   }

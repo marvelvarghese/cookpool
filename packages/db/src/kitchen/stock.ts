@@ -22,7 +22,8 @@ import { isCheckViolation, isForeignKeyViolation, isUniqueViolation } from "../d
 import { eventWithAuditStatements } from "../events/repository.js";
 import { createLedgerRepository, pinGroupCurrencyStatement, splitsProblem, txnRecordOf, txnStatements } from "./ledger.js";
 import { MOVE_COLUMNS, MOVE_ORDER_DESC, latestLiveMoveSql, mapMove, restockStatements, reversalRecord } from "./moves.js";
-import { ITEM_COLUMNS, Params, createPantryRepository, itemColumns, mapItem, ownerClause, scopeClause } from "./pantry.js";
+import { ITEM_COLUMNS, Params, createPantryRepository, mapItem, ownerClause } from "./pantry.js";
+import { readUsuals } from "./usuals.js";
 import type { Uuid } from "../ids/index.js";
 import type {
   KitchenItemRecord,
@@ -30,7 +31,6 @@ import type {
   KitchenRepository,
   KitchenResult,
   KitchenStockMoveRecord,
-  KitchenUsualRecord,
   StockMoved,
 } from "./types.js";
 
@@ -390,48 +390,9 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
       }
     },
 
-    async usuals(query) {
-      const params = new Params();
-      const me = params.add(query.subjectId);
-      try {
-        // The caller's uses still in effect (logged by them, or naming them)
-        // of items in the scope with something left, counted per item; the
-        // newest one per item says how it was used last.
-        const result = await executor.execute(
-          `WITH mine AS (
-             SELECT m.item_id, m.qty_milli, m.unit, m.label, m.consumers, m.created_at,
-                    COUNT(*) OVER (PARTITION BY m.item_id) AS used_count,
-                    ROW_NUMBER() OVER (PARTITION BY m.item_id ORDER BY m.created_at DESC, m.rowid DESC) AS rn
-             FROM kitchen_stock_moves m JOIN kitchen_items i ON i.id = m.item_id
-             WHERE m.kind = 'use' AND m.created_at >= ${params.add(query.since)}
-               AND (m.actor = ${me} OR EXISTS (SELECT 1 FROM json_each(m.consumers) c WHERE c.value = ${me}))
-               AND NOT EXISTS (SELECT 1 FROM kitchen_stock_moves r WHERE r.reverses = m.id)
-               AND i.state = 'active' AND i.qty_left_milli > 0 AND ${scopeClause(params, query)}
-           )
-           SELECT ${itemColumns("i")}, mine.used_count, mine.qty_milli AS last_qty_milli, mine.unit AS last_unit,
-                  mine.label AS last_label, mine.consumers AS last_consumers, mine.created_at AS last_used_at
-           FROM mine JOIN kitchen_items i ON i.id = mine.item_id
-           WHERE mine.rn = 1
-           ORDER BY mine.used_count DESC, mine.created_at DESC, i.id
-           LIMIT ${params.add(query.limit)}`,
-          params.values,
-        );
-        const usuals: KitchenUsualRecord[] = result.rows.map((row) => {
-          const consumers: unknown = typeof row.last_consumers === "string" ? JSON.parse(row.last_consumers) : null;
-          return {
-            item: mapItem(row),
-            usedCount: Number(row.used_count),
-            lastQtyMilli: Number(row.last_qty_milli),
-            lastUnit: typeof row.last_unit === "string" ? row.last_unit : null,
-            lastLabel: typeof row.last_label === "string" ? row.last_label : null,
-            lastConsumers: Array.isArray(consumers) ? consumers.map(String) : null,
-            lastUsedAt: new Date(row.last_used_at as string),
-          };
-        });
-        return { ok: true, value: usuals };
-      } catch (err) {
-        return internal(err);
-      }
+    usuals(query) {
+      // By food and by time of day (PN-2): see ./usuals.ts.
+      return readUsuals(executor, query);
     },
   };
 }
