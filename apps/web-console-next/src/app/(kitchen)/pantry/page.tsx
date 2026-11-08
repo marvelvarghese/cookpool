@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "@/components/kitchen/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Plus, Refrigerator, Search } from "lucide-react";
 import type { KitchenUsual, Pantry, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -37,6 +37,7 @@ import {
   type ItemFilter,
   type PantrySummary,
 } from "@/components/kitchen/pantry";
+import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 
 /** Rows the desktop table shows before "Show all N items". */
 const TABLE_ROWS = 12;
@@ -383,7 +384,7 @@ function PhoneList({
   names: MemberNames;
 }) {
   const logUse = useLogUse();
-  const router = useRouter();
+  const router = useKitchenRouter();
   const [menu, setMenu] = React.useState<ItemMenuTarget | null>(null);
   return (
     <>

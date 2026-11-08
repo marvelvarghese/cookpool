@@ -7,6 +7,7 @@ import { ChevronLeft, RotateCw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { OFFLINE_BANNER_TEXT, isOffline } from "@/lib/connection";
 import { newFrame } from "@/lib/features";
+import { transitions } from "@/lib/transitions";
 import {
   EDGE_FRACTION,
   PULL_HOLD_PX,
@@ -236,7 +237,9 @@ export function EdgeSwipeBack({
     };
 
     const goBack = () => {
-      (shownBackAction() ?? fallback.current)();
+      // The page has slid away with the finger already: Back's page transition
+      // (RC-11) only fades the new screen in, so nothing slides twice.
+      transitions.swiped(() => (shownBackAction() ?? fallback.current)());
       // The new screen resets the page; if none comes, put it back anyway.
       leaving.current = window.setTimeout(reset, 1500);
     };

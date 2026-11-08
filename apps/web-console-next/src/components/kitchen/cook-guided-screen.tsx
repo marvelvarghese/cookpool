@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import type { MyGroupBalance } from "@saas/contracts/kitchen";
 import { isOffline } from "@/lib/connection";
 import { newFrame } from "@/lib/features";
@@ -78,6 +77,7 @@ import {
   type StepHandlers,
   type WaitHandlers,
 } from "./cook-guided-ui";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * Guided mode (cookpool-guided GC-5, design §3) at `/cook/session`: the same
@@ -92,7 +92,7 @@ import {
  * (`useScreenLock`). It shows only in the new frame, as the session does.
  */
 export function GuidedCook({ meId, session, onLeave }: { meId: string; session: CookSession; onLeave: () => void }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const minimize = useBack();
   const now = useNow(1000);
   const visible = usePageVisible();

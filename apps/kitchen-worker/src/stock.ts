@@ -32,7 +32,8 @@ export const MAX_CONSUMERS = 100;
 export const DEFAULT_MOVES_LIMIT = 50;
 export const MAX_MOVES_LIMIT = 200;
 export const DEFAULT_USUALS_LIMIT = 10;
-export const MAX_USUALS_LIMIT = 50;
+/** Room for a usual on every row of a big pantry (PN-2; it was 50). */
+export const MAX_USUALS_LIMIT = 100;
 
 /** The kinds of move an undo can put back directly: everything else is not_reversible. An adjust is a stock check's (PN-4). */
 const UNDOABLE: ReadonlySet<string> = new Set(["use", "waste", "adjust"]);

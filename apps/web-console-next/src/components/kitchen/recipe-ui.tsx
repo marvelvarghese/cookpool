@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "./link";
+import { useSearchParams } from "next/navigation";
 import { BookOpen, Pencil } from "lucide-react";
 import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -30,6 +30,7 @@ import {
   StartCookingBar,
   StepsSection,
 } from "./recipe-views";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * A recipe (cookpool-recipes RC-5, design §3, the canvas's `Recipe`),
@@ -180,7 +181,7 @@ function SaveCopyButton({ recipe, code }: { recipe: KitchenRecipe; code: string 
  * the serves, the heaviest the main item — and the recipe opens.
  */
 export function SaveAsRecipeButton({ dishId }: { dishId: string }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const saveDish = useSaveDishAsRecipe();
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);

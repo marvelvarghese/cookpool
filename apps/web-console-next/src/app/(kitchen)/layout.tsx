@@ -14,6 +14,7 @@ import { AddSheet } from "@/components/kitchen/add-sheet";
 import { SessionBar } from "@/components/kitchen/session-bar";
 import { AppNotify } from "@/components/kitchen/notify-device";
 import { BackTrailRecorder } from "@/components/kitchen/back-ui";
+import { PageTransitions } from "@/components/kitchen/transition-ui";
 import { EdgeSwipeBack, PullToRefresh } from "@/components/kitchen/gestures-ui";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
@@ -61,6 +62,11 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  * session's bar sits above the tab bar (`SessionBar`, RC-6; the sidebar's
  * footer from 900px). It is decided in the browser once the session is
  * ready, so the prerendered frame is the same for both.
+ *
+ * PAGE TRANSITIONS (cookpool-recipes RC-11, new frame only): every step
+ * between screens animates by its kind with the View Transitions API
+ * (`PageTransitions`, transition-ui.tsx), while the tab bar, the sidebar and
+ * the session bar stay put (`data-vt-keep`).
  */
 export default function KitchenLayout({ children }: { children: React.ReactNode }) {
   const ready = useRequireAuth({ returnHere: true, signOutOnUnauthorized: true });
@@ -114,6 +120,8 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
       {ready ? <EdgeSwipeBack frame={frame} page={main} /> : null}
       {/* What Back may go back to (PW-3): the screens this frame has shown. */}
       <BackTrailRecorder />
+      {/* Page transitions on phones (RC-11), in the new frame only: after the trail, whose counts they read. */}
+      {frameNew ? <PageTransitions /> : null}
     </div>
   );
 }

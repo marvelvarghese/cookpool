@@ -228,3 +228,110 @@
     padding-right: env(safe-area-inset-right);
   }
 }
+
+/*
+ * Page transitions (cookpool-recipes RC-11, design §1.6), with the View
+ * Transitions API. `lib/transitions.ts` sets <html data-vt="…"> for one step
+ * between screens, in the new frame only; outside a step nothing here applies.
+ * The page is the root group; the tab bar, the sidebar and the session bar
+ * have their own names and never move; a tapped card's title and tile glide
+ * as kp-share-title and kp-share-tile. Every step is under 300 ms. Outside any
+ * @layer, so Tailwind keeps it.
+ */
+html[data-vt] {
+  --vt-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes kp-vt-from-right { from { transform: translateX(100%); } }
+@keyframes kp-vt-to-right { to { transform: translateX(100%); } }
+@keyframes kp-vt-from-left { from { transform: translateX(-25%); filter: brightness(0.92); } }
+@keyframes kp-vt-to-left { to { transform: translateX(-25%); filter: brightness(0.92); } }
+@keyframes kp-vt-from-below { from { transform: translateY(100%); } }
+@keyframes kp-vt-to-below { to { transform: translateY(100%); } }
+@keyframes kp-vt-dim { to { filter: brightness(0.92); } }
+@keyframes kp-vt-undim { from { filter: brightness(0.92); } }
+@keyframes kp-vt-fade-out { to { opacity: 0; } }
+
+/* Fades — tab (peers), fade (from 900 px), reduced (reduced motion), swiped
+   (after the edge swipe moved the page): the browser's own cross-fade, timed. */
+html[data-vt="tab"]::view-transition-group(root) { animation-duration: 150ms; }
+html[data-vt="fade"]::view-transition-group(*) { animation-duration: 120ms; }
+html[data-vt="reduced"]::view-transition-group(*) { animation-duration: 100ms; }
+html[data-vt="swiped"]::view-transition-group(root) { animation-duration: 150ms; }
+
+/* Moves: the two pages are opaque, so no blending; the one on top gets a soft edge. */
+html[data-vt="forward"]::view-transition-old(root),
+html[data-vt="forward"]::view-transition-new(root),
+html[data-vt="back"]::view-transition-old(root),
+html[data-vt="back"]::view-transition-new(root),
+html[data-vt="up"]::view-transition-old(root),
+html[data-vt="up"]::view-transition-new(root),
+html[data-vt="down"]::view-transition-old(root),
+html[data-vt="down"]::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-timing-function: var(--vt-ease);
+  animation-fill-mode: both;
+}
+
+/* forward: the new page slides in from the right; the old one shifts left and dims. */
+html[data-vt="forward"]::view-transition-old(root) { animation-name: kp-vt-to-left; animation-duration: 280ms; }
+html[data-vt="forward"]::view-transition-new(root) {
+  animation-name: kp-vt-from-right;
+  animation-duration: 280ms;
+  box-shadow: -10px 0 28px rgb(23 32 27 / 0.12);
+}
+
+/* back: the reverse — the old page slides out to the right, over the one coming back. */
+html[data-vt="back"]::view-transition-old(root) {
+  z-index: 1;
+  animation-name: kp-vt-to-right;
+  animation-duration: 280ms;
+  box-shadow: -10px 0 28px rgb(23 32 27 / 0.12);
+}
+html[data-vt="back"]::view-transition-new(root) { animation-name: kp-vt-from-left; animation-duration: 280ms; }
+
+/* up: the cooking session rises from the bottom like a sheet; down: it slides away. */
+html[data-vt="up"]::view-transition-old(root) { animation-name: kp-vt-dim; animation-duration: 280ms; }
+html[data-vt="up"]::view-transition-new(root) {
+  animation-name: kp-vt-from-below;
+  animation-duration: 280ms;
+  box-shadow: 0 -10px 28px rgb(23 32 27 / 0.14);
+}
+html[data-vt="down"]::view-transition-old(root) {
+  z-index: 1;
+  animation-name: kp-vt-to-below;
+  animation-duration: 240ms;
+  box-shadow: 0 -10px 28px rgb(23 32 27 / 0.14);
+}
+html[data-vt="down"]::view-transition-new(root) { animation-name: kp-vt-undim; animation-duration: 240ms; }
+
+/* What stays put: the bars have their own names and no animation; the new one shows at once. */
+html[data-vt] [data-vt-keep="tabs"] { view-transition-name: kp-tabs; }
+html[data-vt] [data-vt-keep="sidebar"] { view-transition-name: kp-sidebar; }
+html[data-vt] [data-vt-keep="session-bar"] { view-transition-name: kp-session-bar; }
+html[data-vt]::view-transition-group(kp-tabs),
+html[data-vt]::view-transition-group(kp-sidebar),
+html[data-vt]::view-transition-group(kp-session-bar),
+html[data-vt]::view-transition-new(kp-tabs),
+html[data-vt]::view-transition-new(kp-sidebar),
+html[data-vt]::view-transition-new(kp-session-bar) {
+  animation: none;
+}
+html[data-vt]::view-transition-old(kp-tabs),
+html[data-vt]::view-transition-old(kp-sidebar),
+html[data-vt]::view-transition-old(kp-session-bar) {
+  animation: none;
+  opacity: 0;
+}
+
+/* A card's title and tile glide into the page's header with the slide. */
+html[data-vt]::view-transition-group(kp-share-title),
+html[data-vt]::view-transition-group(kp-share-tile) {
+  animation-duration: 280ms;
+  animation-timing-function: var(--vt-ease);
+}
+/* A part the new page did not show in time just fades where it was. */
+html[data-vt]::view-transition-old(kp-share-title):only-child,
+html[data-vt]::view-transition-old(kp-share-tile):only-child {
+  animation: kp-vt-fade-out 120ms ease-out both;
+}

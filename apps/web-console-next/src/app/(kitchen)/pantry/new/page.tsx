@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { History } from "lucide-react";
 import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -49,6 +49,7 @@ import {
   type ItemField,
   type ItemForm,
 } from "@/components/kitchen/item-form";
+import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 
 /**
  * Bought (CP-12; SM-15 under the seven rules, the canvas's "Bought from
@@ -116,7 +117,7 @@ function AddItemForm({
   /** The group the link asked for, when you only view it (the item goes to your own pantry instead). */
   viewerOf: Pantry | null;
 }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const recentSlugs = useRecentGroupSlugs();
   const today = React.useMemo(() => localIsoDay(new Date()), []);
   // The new frame's Note (RC-3); the page is read in the browser, so the host decides once.
