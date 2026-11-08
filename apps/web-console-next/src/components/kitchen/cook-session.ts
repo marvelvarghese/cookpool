@@ -66,6 +66,7 @@ import {
   type NewLine,
   type PantryLine,
 } from "./dish-maker";
+import { guideStepLog, parseGuide, type CookGuide } from "./cook-guide-draft";
 
 /** The draft's shape on the device; a stored draft of another version is dropped. */
 export const SESSION_VERSION = 1;
@@ -167,6 +168,12 @@ export interface CookSession {
   startedAt: string;
   /** The next number a line added by hand takes. */
   seq: number;
+  /**
+   * Guided mode (cookpool-guided GC-5): present when the session came from
+   * a recipe with steps; absent for a blank session, a recipe without steps
+   * and any draft written before it.
+   */
+  guide?: CookGuide;
 }
 
 /** A factor as the URL gives it (`?f=450`): a whole number of thousandths in range, else 1 (×1). */
@@ -1195,6 +1202,8 @@ export function finishPlan(
   }
 
   const portionsHalf = shared ? Math.max(1, eatenHalf(choices.halves)) : 2;
+  // Guided mode's step log (GC-5): each cook step's start and tick, with the recipe.
+  const stepLog = s.recipeId ? guideStepLog(s.guide) : [];
   const request: CookDishRequest = {
     name,
     orgId: shared ? choices.postTo : null,
@@ -1203,6 +1212,7 @@ export function finishPlan(
     ...(ingredients.length > 0 ? { ingredients } : {}),
     ...(newItems.length > 0 ? { newItems } : {}),
     ...(s.recipeId ? { recipeId: s.recipeId, recipeFactorMilli: s.factorMilli } : {}),
+    ...(stepLog.length > 0 ? { stepLog } : {}),
   };
   const eaters = shared && choices.roster ? eaterShares(choices.halves, choices.roster, choices.meId) : [];
   const shares: SetDishSharesRequest | null =
@@ -1331,6 +1341,14 @@ export function parseSession(raw: string | null | undefined): CookSession | null
   if (v["recipeId"] !== null && typeof v["recipeId"] !== "string") return null;
   const lines = v["lines"] as unknown[];
   if (!lines.every((l) => isObject(l) && typeof l["key"] === "string" && typeof l["name"] === "string" && Array.isArray(l["takes"]))) return null;
+  // Guided mode's part (GC-5): one this version can't read is dropped, and the session reads as RC-6's.
+  if ("guide" in v) {
+    const guide = parseGuide(v["guide"]);
+    if (guide) return { ...(v as unknown as CookSession), guide };
+    const rest: Record<string, unknown> = { ...v };
+    delete rest["guide"];
+    return rest as unknown as CookSession;
+  }
   return v as unknown as CookSession;
 }
 

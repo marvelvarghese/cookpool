@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { KitchenItem, MyGroupBalance } from "@saas/contracts/kitchen";
+import type { MyGroupBalance } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { isOffline } from "@/lib/connection";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookSessions, useCookSession } from "@/lib/cook-session-store";
+import { newFrame } from "@/lib/features";
+import { readLongPrep } from "@/lib/long-prep-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,27 +18,17 @@ import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { useBack } from "./back-ui";
 import { useProfile } from "./data";
 import { useMemberNames, useMyBalances } from "./people-data";
-import { useItemsByRef, useMembersOf } from "./pantry-data";
-import { itemRefParam } from "./pantry";
-import { useCookableItems } from "./dish-maker-data";
-import { PantryPanel, SharePicker } from "./dish-maker-ui";
-import { JUST_ME, MAX_DISH_INGREDIENTS, dishHref, dishTotals, shareChoice } from "./dish-maker";
+import { PantryPanel } from "./dish-maker-ui";
+import { JUST_ME, MAX_DISH_INGREDIENTS, dishHref } from "./dish-maker";
 import { fromBeforeTerm, recipeSuggestion, shownSuggestions } from "./from-before";
 import { useRecipes } from "./from-before-data";
 import { SuggestionList, useTypeahead } from "./from-before-ui";
-import { useFinishSession, useRecipe, useRecipeMatch } from "./cook-session-data";
-import {
-  AddItemButton,
-  DiscardPromptBody,
-  SaveSwitch,
-  SessionMeta,
-  SessionRow,
-  SessionTopBar,
-  StepsCard,
-  UntickedChoiceBox,
-  WhoAteList,
-  useNow,
-} from "./cook-session-ui";
+import { useFreshTakes, useRecipe, useRecipeMatch } from "./cook-session-data";
+import { FinishSheet, SESSION_SHEET } from "./cook-finish-sheet";
+import { guidedScreen, guidedSessionFromRecipe, withLongPrepMemory } from "./cook-guided";
+import { useCancelServerTimers, useGuideTimers } from "./cook-guided-data";
+import { GuidedCook } from "./cook-guided-screen";
+import { AddItemButton, DiscardPromptBody, SessionMeta, SessionRow, SessionTopBar, StepsCard, useNow } from "./cook-session-ui";
 import {
   FINISH_OFFLINE_TEXT,
   SESSION_PARENT,
@@ -45,41 +37,27 @@ import {
   addItemLine,
   blankSession,
   discardPrompt,
-  eatenHalf,
   elapsedText,
   factorParam,
   fillFromBefore,
   finishButtonText,
-  finishEaters,
-  finishPlan,
-  includedLines,
   isEmptySession,
   openChoice,
-  postLabel,
-  postSub,
   postToOf,
   progressText,
   recipeParam,
-  refreshTakes,
-  saveSwitch,
   scaleChip,
   sessionCurrency,
   sessionDishLines,
-  sessionFromRecipe,
   sessionLineView,
   setName,
   setPostTo,
-  startingEaters,
-  stepEater,
   stepLine,
   stepsTitle,
-  takeRefsToRead,
   tickLine,
   toggleStep,
-  untickedText,
   type CookSession,
   type FinishOutcome,
-  type UntickedChoice,
 } from "./cook-session";
 
 /**
@@ -119,6 +97,7 @@ export function CookSessionScreen() {
 function SessionGate({ meId, wanted }: { meId: string; wanted: { recipeId: string; f: number } | null }) {
   const router = useRouter();
   const session = useCookSession(meId);
+  const cancelTimers = useCancelServerTimers();
   // Finishing or discarding clears the draft on the way out: nothing new starts behind it.
   const [leaving, setLeaving] = React.useState(false);
   const choice = openChoice(session, wanted ? { recipeId: wanted.recipeId } : null);
@@ -133,25 +112,32 @@ function SessionGate({ meId, wanted }: { meId: string; wanted: { recipeId: strin
       <AskOneAtATime
         session={session}
         onResume={() => router.replace(SESSION_PATH)}
-        onDiscard={() => cookSessions.clear(meId)}
+        onDiscard={() => {
+          cancelTimers(session);
+          cookSessions.clear(meId);
+        }}
       />
     );
   }
   if (choice === "start" && wanted) return <StartFromRecipe meId={meId} recipeId={wanted.recipeId} f={wanted.f} />;
   if (!session || choice === "start") return <SessionSkeleton />;
+  // A recipe with steps cooks step by step (cookpool-guided GC-5), until Just tick what I use.
+  if (guidedScreen(session, newFrame())) return <GuidedCook meId={meId} session={session} onLeave={() => setLeaving(true)} />;
   return <LiveCook meId={meId} session={session} onLeave={() => setLeaving(true)} />;
 }
 
 /** From a recipe: read it and the match at `f`, then the draft is made from them, and the address drops its query. */
 function StartFromRecipe({ meId, recipeId, f }: { meId: string; recipeId: string; f: number }) {
   const router = useRouter();
-  const recipe = useRecipe(recipeId);
+  const recipe = useRecipe(recipeId, f);
   const match = useRecipeMatch(recipeId, f);
   const made = React.useRef(false);
   React.useEffect(() => {
     if (made.current || !recipe.data || !match.data) return;
     made.current = true;
-    cookSessions.write(meId, sessionFromRecipe(recipe.data.recipe, recipe.data.lastCook, match.data, new Date()));
+    const now = new Date();
+    // Long prep done or started on the recipe page (GC-6) is so here too.
+    cookSessions.write(meId, withLongPrepMemory(guidedSessionFromRecipe(recipe.data.recipe, recipe.data.lastCook, match.data, now), readLongPrep(), now));
     router.replace(SESSION_PATH);
   }, [meId, recipe.data, match.data, router]);
   const error = recipe.error ?? match.error;
@@ -211,7 +197,7 @@ function SessionSkeleton() {
   );
 }
 
-const SHEET = "mx-auto flex max-h-[92dvh] max-w-xl flex-col gap-3 rounded-t-[28px] border-x-0 bg-card px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-2.5 shadow-2xl focus:outline-none";
+const SHEET = SESSION_SHEET;
 const NO_GROUPS: readonly MyGroupBalance[] = [];
 
 /** The session itself. */
@@ -224,6 +210,9 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   const recentSlugs = useRecentGroupSlugs();
   const names = useMemberNames();
   const save = React.useCallback((change: (s: CookSession) => CookSession) => cookSessions.update(meId, change), [meId]);
+  // Server timers guided mode left to cancel (GC-5: Just tick what I use stops them), and any on leaving.
+  useGuideTimers(meId, session, now, true);
+  const cancelTimers = useCancelServerTimers();
 
   const [openKey, setOpenKey] = React.useState<string | null>(null);
   const [stepsOpen, setStepsOpen] = React.useState(false);
@@ -242,25 +231,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   }, []);
 
   // The items it takes from, as read now: the usable-items list, else each one on its own.
-  const cookable = useCookableItems();
-  const listed = React.useMemo(() => new Map<string, KitchenItem>((cookable.data ?? []).map((i) => [i.id, i] as const)), [cookable.data]);
-  const listedIds = React.useMemo(() => new Set(listed.keys()), [listed]);
-  const listReady = cookable.data !== null || cookable.error !== null;
-  const toRead = listReady ? takeRefsToRead(session, listedIds) : [];
-  const toReadKey = toRead.map(itemRefParam).join(",");
-  const refs = React.useMemo(() => toRead, [toReadKey]);
-  const read = useItemsByRef(refs);
-  const readKey = [...read.entries()].map(([id, item]) => `${id}:${item ? `${item.version}:${item.qtyLeftMilli}` : "x"}`).join(",");
-  // What the draft holds of each item: a line picked or added since needs its item too.
-  const takesKey = session.lines
-    .flatMap((l) => l.takes.map((t) => `${t.itemId}:${t.gone ? "x" : t.item ? `${t.item.version}:${t.item.qtyLeftMilli}` : "?"}`))
-    .join(",");
-  React.useEffect(() => {
-    const fresh = new Map<string, KitchenItem | null>(listed);
-    for (const [id, item] of read) if (!fresh.has(id)) fresh.set(id, item);
-    if (fresh.size > 0) save((s) => refreshTakes(s, fresh));
-    // `read` is a new map each render; the keys say when it, or the draft's items, changed.
-  }, [listed, readKey, takesKey, save]);
+  useFreshTakes(session, save);
 
   const postTo = postToOf(session, groups, recentSlugs);
   const group = postTo === JUST_ME ? null : (groups.find((g) => g.orgId === postTo) ?? null);
@@ -302,6 +273,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   const finished = (out: FinishOutcome) => {
     if (out.ok) {
       onLeave();
+      cancelTimers(session);
       cookSessions.clear(meId);
       router.push(dishHref(out.dish.id));
       return;
@@ -317,6 +289,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   };
   const discard = () => {
     onLeave();
+    cancelTimers(session);
     cookSessions.clear(meId);
     router.replace(SESSION_PARENT);
   };
@@ -490,144 +463,3 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
 const PICKER_SHEET = cn(
   "mx-auto h-[88dvh] max-w-xl gap-0 overflow-hidden rounded-t-[28px] border-x-0 bg-background px-4 pb-3 pt-2.5 shadow-2xl focus:outline-none",
 );
-
-/**
- * Finish (design §4.2): the unticked lines (Took them all / Leave them out),
- * who ate (the post-to group's faces, you at 1), where it posts, the save
- * switch, and Post with the total and each person's share.
- */
-function FinishSheet({
-  session,
-  meId,
-  groups,
-  groupsLoading,
-  postTo,
-  onPostTo,
-  onClose,
-  onPoint,
-  onDone,
-}: {
-  session: CookSession;
-  meId: string;
-  groups: readonly MyGroupBalance[];
-  groupsLoading: boolean;
-  postTo: string;
-  onPostTo: (postTo: string) => void;
-  onClose: () => void;
-  onPoint: (lineKey: string | null) => void;
-  onDone: (out: FinishOutcome) => void;
-}) {
-  const finish = useFinishSession();
-  const [unticked, setUnticked] = React.useState<UntickedChoice>("all");
-  const [halves, setHalves] = React.useState<Record<string, number>>(() => startingEaters(meId));
-  const [saveOn, setSaveOn] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-  const [problem, setProblem] = React.useState<string | null>(null);
-
-  const shared = postTo !== JUST_ME;
-  const group = shared ? (groups.find((g) => g.orgId === postTo) ?? null) : null;
-  const members = useMembersOf(shared ? postTo : null);
-  const names = useMemberNames(members.data);
-  const roster = React.useMemo(() => (members.data ? members.data.map((m) => m.subjectId) : null), [members.data]);
-  // Only the group's own people count (the pick may have changed under them).
-  const eaten = React.useMemo(() => {
-    if (!roster) return halves;
-    const keep = new Set([meId, ...roster]);
-    return Object.fromEntries(Object.entries(halves).filter(([id]) => keep.has(id)));
-  }, [halves, roster, meId]);
-
-  const lines = includedLines(session, unticked);
-  const dishLines = sessionDishLines(lines);
-  const currency = sessionCurrency(session, group?.currency ?? null);
-  const portionsHalf = shared ? Math.max(1, eatenHalf(eaten)) : 2;
-  const totals = dishTotals({ lines: dishLines, extrasMinor: 0, portionsHalf, meId, currency });
-  const eaters = shared && roster ? finishEaters({ roster, meId, halves: eaten, totalMinor: totals.totalMinor, names }) : null;
-  const notTicked = untickedText(session);
-  const sw = saveSwitch(session);
-  const choice = shareChoice(postTo, groups);
-  const waiting = shared && roster === null && !members.error;
-
-  const post = async () => {
-    if (busy || waiting) return;
-    setProblem(null);
-    const planned = finishPlan(session, { unticked, postTo, halves: eaten, roster, meId, save: saveOn && sw !== null }, { groups });
-    if (!planned.ok) {
-      setProblem(planned.problem.message);
-      if (planned.problem.lineKey) {
-        onClose();
-        onPoint(planned.problem.lineKey);
-      }
-      return;
-    }
-    setBusy(true);
-    const out = await finish(planned.plan, group?.name ?? null);
-    setBusy(false);
-    if (!out.ok && out.kind === "offline") {
-      setProblem(out.message);
-      return;
-    }
-    onDone(out);
-  };
-
-  return (
-    <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET, CLOSE_44)}>
-        <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-        <SheetTitle className="pr-12 text-[22px] font-extrabold">{shared ? "Who ate?" : "Finish"}</SheetTitle>
-        <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
-          {notTicked ? <UntickedChoiceBox text={notTicked} value={unticked} onChange={setUnticked} /> : null}
-
-          {shared ? (
-            members.error ? (
-              <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <p className="text-sm text-muted-foreground">Couldn&apos;t load who&apos;s in {group?.name ?? "the group"}. {members.error.message}</p>
-                <Button variant="outline" className={K_BUTTON} onClick={members.reload}>
-                  Try again
-                </Button>
-              </KCard>
-            ) : (
-              <WhoAteList
-                rows={eaters?.rows ?? []}
-                meId={meId}
-                names={names}
-                currency={currency}
-                loading={eaters === null}
-                onStep={(id, d) => setHalves((h) => stepEater(h, id, d))}
-              />
-            )
-          ) : null}
-
-          <SharePicker
-            title="Post to"
-            groups={groups}
-            value={postTo}
-            choice={choice}
-            currency={dishLines.length > 0 ? sessionCurrency(session) : null}
-            loading={groupsLoading}
-            onChange={(to) => {
-              setProblem(null);
-              onPostTo(to);
-            }}
-          />
-
-          {sw ? <SaveSwitch label={sw.label} on={saveOn} onChange={setSaveOn} /> : null}
-
-          {problem ? (
-            <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
-              {problem}
-            </p>
-          ) : null}
-        </div>
-        <Button
-          type="button"
-          className={cn(MAIN_BUTTON, "shrink-0 bg-[#B4471F] text-white hover:bg-[#9C3C19]")}
-          loading={busy}
-          disabled={waiting || (shared && members.error !== null)}
-          onClick={() => void post()}
-        >
-          <MainButtonLabel title={postLabel(postTo, group?.name ?? null)} who={postSub(totals)} />
-        </Button>
-      </SheetContent>
-    </Sheet>
-  );
-}
