@@ -1,0 +1,28 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-2
+  title: "AI plumbing and sentence parsing in the server"
+spec:
+  goal: "An Anthropic client in kitchen-worker with Haiku first and one Sonnet retry on failed validation, cached prompts, daily limits and usage (migration 470), the AI status read, and sentence-to-proposed-uses parsing."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-2.TaskContract.yaml
+  doneWhen:
+    - "kitchen-worker reads ANTHROPIC_API_KEY as a secret; without it every AI route answers 503 ai_unavailable and the status read says available false"
+    - "calls use claude-haiku-5-5 with a strict schema and retry once on claude-sonnet-5-5 only when validation fails; prompts are cached"
+    - "migration 470 adds kitchen_ai_usage and kitchen_ai_imports; 50 actions and 30 voice minutes a day per person are enforced with 429"
+    - "POST /me/ai/uses turns a sentence into checked proposals with items, amounts and people, plus the unsure names, and writes nothing"
+    - "no prompt contains money, balances, group names or full names; tests stub the API and cover escalation, limits and validation"
+  gates: []

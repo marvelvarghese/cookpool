@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-7
+  title: "Say what you used and AI settings in the app"
+spec:
+  goal: "In the new frame, the Pantry's sentence box with Speak, the proposal card with Log and Undo, and You \u2192 Cookpool AI with switches, today's use and what is sent."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-7.TaskContract.yaml
+  doneWhen:
+    - "the Pantry shows the sentence box when AI is available and the switch is on; Go shows checked lines, unsure names and Log N"
+    - "Log writes the confirmed uses with one Undo; Speak records a clip and fills the box from the transcript"
+    - "You \u2192 Cookpool AI shows the switches, today's use against the limits and what is sent; with newFrame false nothing changes"
+  gates: []

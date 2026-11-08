@@ -1,0 +1,26 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-3
+  title: "Receipts in the server"
+spec:
+  goal: "Read a receipt photo into lines, match them locally to the caller's history and foods first, mark unsure ones, and check the total; nothing stored."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-3.TaskContract.yaml
+  doneWhen:
+    - "POST /me/ai/receipt reads a photo of at most 1.5 MB into lines with name, quantity, unit, price, pantry and sure or check"
+    - "names are matched locally against restock lines, item history and foods before any model match; non-food lines are check"
+    - "the total is compared with the sum of lines; the image is never stored or logged; tests stub the API"
+  gates: []

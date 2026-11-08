@@ -1,0 +1,25 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-1
+  title: "The cookpool-ai spec"
+spec:
+  goal: "Land the cookpool-ai doc set and the contracts for AI-2 to AI-12, from the canvas row Cookpool AI."
+  affects:
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-1.TaskContract.yaml
+    - tasks/AI-2.TaskContract.yaml
+    - tasks/AI-3.TaskContract.yaml
+    - tasks/AI-4.TaskContract.yaml
+    - tasks/AI-5.TaskContract.yaml
+    - tasks/AI-6.TaskContract.yaml
+    - tasks/AI-7.TaskContract.yaml
+    - tasks/AI-8.TaskContract.yaml
+    - tasks/AI-9.TaskContract.yaml
+    - tasks/AI-10.TaskContract.yaml
+    - tasks/AI-11.TaskContract.yaml
+    - tasks/AI-12.TaskContract.yaml
+  doneWhen:
+    - "the doc set is merged under specs/epics/cookpool-ai"
+    - "each of AI-2 to AI-12 has a contract in tasks/"
+  gates: []

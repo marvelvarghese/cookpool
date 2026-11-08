@@ -1,0 +1,25 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-6
+  title: "Swaps and ideas in the server"
+spec:
+  goal: "Swaps for one or two missing lines of Cook now recipes, and a quick dish idea from use-soon items as a draft, cached per person for a day."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-6.TaskContract.yaml
+  doneWhen:
+    - "POST /me/ai/swaps returns a swap per missing line for up to 5 recipes missing one or two lines"
+    - "POST /me/ai/idea returns a recipe draft from up to 6 items, cached per person for a day; tests stub the API"
+  gates: []
