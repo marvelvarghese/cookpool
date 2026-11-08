@@ -37,7 +37,12 @@ export function newFrame(config: Pick<AppConfig, "deployEnv"> = appConfig()): bo
 export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/money": "/home",
   "/you/settings": "/you",
+  // The cooking session (RC-6).
   "/cook/session": "/home",
+  // The recipe screens (RC-5): a recipe, writing one and editing one.
+  "/recipes/new": "/home",
+  "/recipes/:recipeId": "/home",
+  "/recipes/:recipeId/edit": "/home",
 };
 
 /** Where a page (static-pages.mjs's pattern) sends a visitor in this frame, or null when it shows. */

@@ -50,6 +50,10 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/you/settings": () => "/you",
   // The cooking session (RC-6): minimize goes to the Cook tab when nothing of the app's is behind it.
   "/cook/session": () => "/cook",
+  // The recipe screens (RC-5): a recipe and a new one are Cook's; editing one goes back to it.
+  "/recipes/new": () => "/cook",
+  "/recipes/:recipeId": () => "/cook",
+  "/recipes/:recipeId/edit": ({ recipeId }) => `/recipes/${recipeId}`,
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // A dish: its group when it is shared (and the group is known), else Home.

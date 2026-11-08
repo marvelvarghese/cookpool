@@ -56,6 +56,10 @@ export const API_READS = Object.freeze([
   "/v1/organizations/:orgId/kitchen/activity", // a group's activity
   "/v1/kitchen/me/balances", // your balances across groups (People, Home)
   "/v1/kitchen/me/people/:subjectId", // a person, and why you owe each other
+  "/v1/kitchen/me/recipes", // your recipes and copies (Cook's My recipes, You; RC-5)
+  "/v1/kitchen/recipes/:recipeId", // a recipe
+  "/v1/kitchen/me/recipes/:recipeId/match", // what your pantries hold for it, per factor
+  "/v1/kitchen/me/cook-now", // what you can make now (Home, Cook)
 ]);
 
 /** Values a `:name` above never takes: these are typed searches (`items/history?q=`, `dishes/recipes?q=`), not screens. */

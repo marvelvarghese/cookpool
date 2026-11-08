@@ -805,12 +805,12 @@ export function factorText(factorMilli: number): string {
   return String(Math.round(factorMilli / 10) / 100);
 }
 
-/** The dark chip: "For about 2 · ×0.45", opening the recipe; none for a blank session. */
+/** The dark chip: "For about 2 · ×0.45", opening the recipe at that size (RC-5's `?f=`); none for a blank session. */
 export function scaleChip(s: CookSession): { label: string; href: string } | null {
   if (!s.recipeId || s.factorMilli === null) return null;
   const parts = s.servesHalf !== null ? [`For ${scalePortions(s.servesHalf, s.factorMilli).label}`] : [];
   parts.push(`×${factorText(s.factorMilli)}`);
-  return { label: parts.join(" · "), href: `/recipes/${encodeURIComponent(s.recipeId)}` };
+  return { label: parts.join(" · "), href: `/recipes/${encodeURIComponent(s.recipeId)}?f=${s.factorMilli}` };
 }
 
 /** "Steps · 2 of 5". */
@@ -846,6 +846,8 @@ export const BAR_HIDDEN_PAGES: readonly RegExp[] = [
   /^\/pantry\/[^/]+$/,
   /^\/dishes\/[^/]+$/,
   /^\/groups\/[^/]+\/expense(?:\/|$)/,
+  // The recipe screens (RC-5): a recipe's Start cooking, and its forms' Save.
+  /^\/recipes(?:\/|$)/,
 ];
 
 /** Whether the bar shows on `pathname`: a session is open and this isn't the session (or a form with its own main button). */

@@ -362,7 +362,7 @@ describe("a session from a recipe (design §4.2)", () => {
 
   it("heads the screen with the scale chip, opening the recipe, and the steps", () => {
     const s = curry();
-    expect(scaleChip(s)).toEqual({ label: "For about 2 · ×0.45", href: `/recipes/${RECIPE_ID}` });
+    expect(scaleChip(s)).toEqual({ label: "For about 2 · ×0.45", href: `/recipes/${RECIPE_ID}?f=450` });
     expect(scaleChip(blankSession(NOW))).toBeNull();
     expect(stepsTitle(s)).toBe("Steps · 0 of 5");
     expect(stepsTitle(toggleStep(toggleStep(s, 0), 3))).toBe("Steps · 2 of 5");
@@ -800,7 +800,7 @@ describe("the bar on every tab (design §4.4)", () => {
   });
 
   it("stays off the forms whose own main button sits there, and off when nothing is cooking", () => {
-    for (const path of ["/use", "/pantry/new", "/pantry/me:itm_1", "/dishes/dsh_1", "/groups/flat-4b-k3x9/expense"]) {
+    for (const path of ["/use", "/pantry/new", "/pantry/me:itm_1", "/dishes/dsh_1", "/groups/flat-4b-k3x9/expense", "/recipes/rcp_1", "/recipes/new", "/recipes/rcp_1/edit"]) {
       expect([path, sessionBarShows(path, s)]).toEqual([path, false]);
     }
     expect(sessionBarShows("/home", null)).toBe(false);

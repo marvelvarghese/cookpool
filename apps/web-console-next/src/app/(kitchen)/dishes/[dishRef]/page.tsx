@@ -23,6 +23,9 @@ import { itemHref } from "@/components/kitchen/pantry";
 import { useDish, useDishActions, usePortions } from "@/components/kitchen/dish-data";
 import { DishChipPill, DishMoney, MoneyLines, PortionStepper, WhoHadSomeList } from "@/components/kitchen/dish-ui";
 import { groupSettleHref } from "@/components/kitchen/group-page";
+import { newFrame } from "@/lib/features";
+import { offersSaveAsRecipe } from "@/components/kitchen/recipes";
+import { SaveAsRecipeButton } from "@/components/kitchen/recipe-ui";
 import {
   OVER_CLAIMED,
   claimCount,
@@ -332,6 +335,8 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
             </div>
           ) : null}
           <DishMoney dish={dish} summary={finalizing ? [] : summary} flow={flow} people={people} now={now} />
+          {/* The new frame (cookpool-recipes RC-5): a dish that was cooked becomes a recipe of yours. */}
+          {!editing && offersSaveAsRecipe(newFrame(), dish) ? <SaveAsRecipeButton dishId={dish.id} /> : null}
         </div>
       </div>
 

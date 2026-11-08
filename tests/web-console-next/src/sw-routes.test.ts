@@ -67,9 +67,26 @@ describe("a person's own screens: network first, the last good answer kept per a
     "/api/v1/organizations/org_1/kitchen/activity?limit=20",
     "/api/v1/kitchen/me/balances",
     "/api/v1/kitchen/me/people/usr_1",
+    // The recipe screens (cookpool-recipes RC-5): My recipes, a recipe, its match per factor, Cook now.
+    "/api/v1/kitchen/me/recipes",
+    "/api/v1/kitchen/recipes/rcp_1",
+    "/api/v1/kitchen/me/recipes/rcp_1/match?f=450",
+    "/api/v1/kitchen/me/cook-now",
   ];
 
   it.each(reads)("%s", (path) => expect(get(path)).toEqual({ strategy: "data" }));
+
+  it("keep recipe writes and searches off the cache (RC-5)", () => {
+    for (const [method, path] of [
+      ["POST", "/api/v1/kitchen/me/recipes"],
+      ["POST", "/api/v1/kitchen/me/recipes/copies"],
+      ["PATCH", "/api/v1/kitchen/me/recipes/rcp_1"],
+      ["DELETE", "/api/v1/kitchen/me/recipes/rcp_1"],
+      ["GET", "/api/v1/kitchen/foods?q=oni"],
+    ] as const) {
+      expect(classify({ method, url: `${ORIGIN}${path}`, mode: "cors" }, ORIGIN)).toEqual({ strategy: "network-only" });
+    }
+  });
 
   it("are exactly the reads listed, one each", () => {
     const covered = new Set(reads.map((r) => apiRead(new URL(`${ORIGIN}${r}`).pathname)));

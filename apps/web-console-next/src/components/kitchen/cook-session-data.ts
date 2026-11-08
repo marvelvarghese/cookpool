@@ -81,7 +81,11 @@ export function useFinishSession() {
       cookKey.current = null;
       const dish = out.dish;
       refreshAfterDish(qc, dish);
-      if (plan.recipe) void qc.invalidateQueries({ queryKey: ["kitchenRecipe"] });
+      // The recipe's last cook, My recipes' order (last cooked first) and Cook now.
+      if (plan.recipe) {
+        void qc.invalidateQueries({ queryKey: qk.kitchenRecipeBook() });
+        void qc.invalidateQueries({ queryKey: qk.kitchenCookNow() });
+      }
       const text = cookedText({
         name: dish.name,
         share: dish.orgId ?? JUST_ME,

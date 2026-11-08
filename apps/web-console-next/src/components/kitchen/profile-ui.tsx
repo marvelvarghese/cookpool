@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Settings } from "lucide-react";
 import type { PersonViewResponse } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -34,15 +35,20 @@ import {
 } from "./cooks";
 import { PersonSkeleton, RecordPayment, WhyGroup, safeDecode } from "./person-ui";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
+import { useMyRecipes, usePrefetchRecipe } from "./recipes-data";
+import { profileHref, profileListFrom, profileRecipeRows, recipeStats, type ProfileList } from "./cook-hub";
+import { Segmented, YourRecipes } from "./cook-hub-views";
 
 /**
  * Your page and a person's in the new frame (cookpool-recipes RC-2, design
  * §1.4, the canvas's `Profile`). Both read your dishes and your groups' —
  * the one read the app already has — for the cooks they show.
  *
- * - **You** (`/you`): your face, name and groups; Cooks and Groups (RC-5 adds
- *   Recipes and Saved by); "Cooks a week" over the last 8 weeks; your recent
- *   cooks. The gear opens settings — today's You rows.
+ * - **You** (`/you`): your face, name and groups; Cooks, Recipes, Saved by
+ *   and Groups; "Cooks a week" over the last 8 weeks; then Recipes | Cooks
+ *   (RC-5): your recipes, each with who can see it, or your recent cooks —
+ *   the choice kept in the address (`?list=cooks`). The gear opens settings —
+ *   today's You rows.
  * - **A person** (`/people/[id]`): their face and name, "In Flat 4B with you";
  *   what is between you two ("You get back ₹40.00") with Settle up; their
  *   recent cooks in the groups you share; and the Why, open, under its
@@ -62,6 +68,12 @@ export function YourPage() {
   const counts = React.useMemo(() => cooksAWeek(dishes.dishes, meId, now), [dishes.dishes, meId, now]);
   const rows = React.useMemo(() => recentCooks(dishes.dishes, meId, { groupNames, now }), [dishes.dishes, meId, groupNames, now]);
   const cooks = cookCountText(cookCount(dishes.dishes, meId), dishes.complete);
+  const recipes = useMyRecipes();
+  const stats = recipes.data ? recipeStats(recipes.data) : null;
+  const recipeRows = React.useMemo(() => (recipes.data ? profileRecipeRows(recipes.data) : []), [recipes.data]);
+  const searchParams = useSearchParams();
+  const list = profileListFrom(searchParams?.get("list"));
+  const prefetchRecipe = usePrefetchRecipe();
 
   return (
     <div className="flex w-full max-w-xl flex-col gap-4 min-[900px]:gap-5">
@@ -88,8 +100,10 @@ export function YourPage() {
         </Link>
       </header>
 
-      <dl className="grid grid-cols-2 gap-2">
+      <dl className="grid grid-cols-2 gap-2 min-[480px]:grid-cols-4">
         <Stat label="Cooks" value={dishes.loading ? null : cooks} />
+        <Stat label="Recipes" value={recipes.loading ? null : stats ? String(stats.recipes) : "–"} />
+        <Stat label="Saved by" value={recipes.loading ? null : stats ? String(stats.savedBy) : "–"} />
         <Stat label="Groups" value={groups.loading ? null : String(groups.data?.length ?? 0)} />
       </dl>
 
@@ -101,10 +115,14 @@ export function YourPage() {
           </Button>
         </KCard>
       ) : (
-        <>
-          <CooksAWeek counts={counts} loading={dishes.loading} />
-          <CookList title="Your cooks" rows={rows} loading={dishes.loading} empty="No cooks yet" />
-        </>
+        <CooksAWeek counts={counts} loading={dishes.loading} />
+      )}
+
+      <ProfileListSwitch list={list} />
+      {list === "recipes" ? (
+        <YourRecipes rows={recipeRows} loading={recipes.loading} failed={!!recipes.error && !recipes.data} onReload={recipes.reload} prefetch={prefetchRecipe} />
+      ) : dishes.failed ? null : (
+        <CookList title="Your cooks" hideTitle rows={rows} loading={dishes.loading} empty="No cooks yet" />
       )}
     </div>
   );
@@ -170,13 +188,45 @@ function CooksAWeek({ counts, loading }: { counts: readonly number[]; loading: b
   );
 }
 
+/** Recipes | Cooks, a segmented control; the choice stays in the address. */
+function ProfileListSwitch({ list }: { list: ProfileList }) {
+  const router = useRouter();
+  return (
+    <Segmented
+      label="Show"
+      large
+      value={list}
+      onChange={(next) => {
+        if (next !== list) router.replace(profileHref(next), { scroll: false });
+      }}
+      options={[
+        { id: "recipes", label: "Recipes" },
+        { id: "cooks", label: "Cooks" },
+      ]}
+    />
+  );
+}
+
 /** A list of cooks, newest first: each opens its dish. */
-function CookList({ title, rows, loading, empty }: { title: string; rows: readonly CookRow[]; loading: boolean; empty: string }) {
+function CookList({
+  title,
+  hideTitle = false,
+  rows,
+  loading,
+  empty,
+}: {
+  title: string;
+  /** Named for screen readers only (You's Recipes | Cooks already says it). */
+  hideTitle?: boolean;
+  rows: readonly CookRow[];
+  loading: boolean;
+  empty: string;
+}) {
   const id = React.useId();
   const prefetch = usePrefetchKitchen();
   return (
     <section aria-labelledby={id} className="min-w-0 space-y-2">
-      <h2 id={id} className="text-lg font-extrabold tracking-tight">
+      <h2 id={id} className={cn("text-lg font-extrabold tracking-tight", hideTitle && "sr-only")}>
         {title}
       </h2>
       {loading ? (
