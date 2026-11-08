@@ -336,5 +336,14 @@ export const manifest: MigrationManifest = {
       description:
         "The full food list and Cookpool's own recipes: kitchen_foods.g_per_ml (grams per millilitre, nullable, so a spoon meets a weight), set on RC-4's foods measured by spoon or cup; 230 more foods (300 in all) and 1,850 more names in English, Hindi and regional words; 42 home-staple recipes under usr_cookpool (is_system, seen by everyone, edited by no one) with their lines and steps; and one backfill linking items still unlinked to the new names (Cookpool RC-7)",
     },
+    {
+      id: "380_kitchen_timers",
+      context: "kitchen",
+      path: "380_kitchen_timers/up.sql",
+      checksum:
+        "4484c14ac6225b88c6ce14817d700ac20459e9a6ec6ab3caadbe8b146bbcb073",
+      description:
+        "Timers that find you: kitchen_timers (tmr_ id, one person's usr_… user_id, a 1–60 character label, an optional 1–120 character body, the app path it opens, ends_at after created_at — kitchen-worker keeps it 30 s to 24 h ahead — sent_at once the per-minute sweep has claimed it and asked for its push, canceled_at once its person cancelled it), at most ten active per person; indexed on ends_at over active rows (the sweep), on (user_id, ends_at) over active rows (a person's list and the limit) and on ends_at over every row (the purge of rows that ended more than a day ago) (Cookpool GC-3)",
+    },
   ],
 };

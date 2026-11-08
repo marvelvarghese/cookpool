@@ -81,6 +81,8 @@ import type {
   SetFoodAnswerResponse,
   UpdateRecipeRequest,
 } from "@saas/contracts/kitchen";
+// Timers that find you (GC-3).
+import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -980,5 +982,41 @@ export class KitchenClient {
   /** GET /v1/kitchen/me/cook-now — what the caller can make: fewest missing first, then the largest factor, then the most recently cooked. */
   cookNow(opts: RequestOptions = {}): Promise<CookNowResponse> {
     return this.transport.request<CookNowResponse>({ method: "GET", path: this.mePath("cook-now") }, opts);
+  }
+
+  // -------------------------------------------------------------------------
+  // Timers that find you (GC-3)
+  //
+  // A timer the caller sets is pushed to every device they have subscribed
+  // within a minute of its end — no preference involved. Guided mode sets one
+  // whenever it starts a timer and cancels it on Pause, Done early or a tick.
+  // At most KITCHEN_TIMERS_MAX_ACTIVE active at once: one more is a
+  // `ValidationError` whose details carry `reason: "too_many_timers"`.
+  // -------------------------------------------------------------------------
+
+  /** GET /v1/kitchen/me/timers — the caller's active timers (not sent, not cancelled), soonest first. */
+  timers(opts: RequestOptions = {}): Promise<KitchenTimersResponse> {
+    return this.transport.request<KitchenTimersResponse>({ method: "GET", path: this.mePath("timers") }, opts);
+  }
+
+  /**
+   * POST /v1/kitchen/me/timers — set a timer ending at `endsAt`, 30 s to 24 h
+   * ahead. `label` is the push's title, `body` its text, `url` the app path
+   * it opens (the cooking session when left out).
+   */
+  createTimer(body: CreateKitchenTimerRequest, opts: RequestOptions = {}): Promise<KitchenTimerResponse> {
+    return this.transport.request<KitchenTimerResponse>({ method: "POST", path: this.mePath("timers"), body }, opts);
+  }
+
+  /**
+   * DELETE /v1/kitchen/me/timers/:timerId — cancel it so it is never pushed.
+   * A repeat answers the same; a timer already pushed comes back with
+   * `sentAt` set. Anyone else's timer is a `NotFoundError`.
+   */
+  cancelTimer(timerId: string, opts: RequestOptions = {}): Promise<KitchenTimerResponse> {
+    return this.transport.request<KitchenTimerResponse>(
+      { method: "DELETE", path: this.mePath(`timers/${encodeURIComponent(timerId)}`) },
+      opts,
+    );
   }
 }

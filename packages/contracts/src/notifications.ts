@@ -402,7 +402,7 @@ export interface PushTestResponse {
  * shown instead of stacking.
  */
 export interface PushMessage {
-  kind: NotificationKind | "test";
+  kind: NotificationKind | "test" | PushToSubjectKind;
   title: string;
   body: string;
   url: string;
@@ -410,6 +410,42 @@ export interface PushMessage {
 }
 
 export const PUSH_MESSAGE_MAX_BYTES = 3072;
+
+// ---------------------------------------------------------------------------
+// Push to a subject (Cookpool GC-3): internal only
+// ---------------------------------------------------------------------------
+//
+// POST /v1/notifications/push-to-subject `{ subjectId, message }` pushes one
+// message to every device of `subjectId`, with no preference check: it is for
+// pushes the person asked for themselves — a timer they set (kitchen-worker's
+// per-minute sweep). The person is named in the body, so the route is
+// reachable only over a service binding, from a worker in
+// PUSH_TO_SUBJECT_INTERNAL_ACTORS: api-edge's notifications facade does not
+// list it, and notifications-worker refuses any other caller (403).
+
+/** The kinds a push to a subject may carry: never one of the preference kinds. */
+export const PUSH_TO_SUBJECT_KINDS = ["kitchen.timer"] as const;
+export type PushToSubjectKind = (typeof PUSH_TO_SUBJECT_KINDS)[number];
+
+/** The only callers notifications-worker takes a push to a subject from. */
+export const PUSH_TO_SUBJECT_INTERNAL_ACTORS = ["kitchen-worker"] as const;
+
+export const PUSH_TO_SUBJECT_PATH = "/v1/notifications/push-to-subject";
+
+/** The longest title, body, url and tag a push to a subject may carry. */
+export const PUSH_TO_SUBJECT_LIMITS = { title: 100, body: 200, url: 300, tag: 200 } as const;
+
+export interface PushToSubjectRequest {
+  /** The person (`usr_…`) whose devices hear it. */
+  subjectId: string;
+  /** `url` is an app path ("/cook/session"); `tag` names what it is (a timer's `tmr_…` id). */
+  message: PushMessage & { kind: PushToSubjectKind };
+}
+
+/** The push summary; `skipped` says why nothing was sent, when nothing was tried. */
+export interface PushToSubjectResponse extends PushTestResponse {
+  skipped?: "push_off" | "no_devices";
+}
 
 // ---------------------------------------------------------------------------
 // Provider adapter seam

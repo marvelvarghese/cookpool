@@ -6,9 +6,10 @@ import { handleGetPreferences } from "./handlers/get-preferences.js";
 import { handlePutPreferences } from "./handlers/put-preferences.js";
 import { handleCreateSuppression } from "./handlers/create-suppression.js";
 import { handleGetPushKey, handlePushTest, handleSubscribePush, handleUnsubscribePush } from "./handlers/push.js";
+import { handlePushToSubject } from "./handlers/push-to-subject.js";
 import { errorResponse, notFound, methodNotAllowed, logUnexpected } from "./http.js";
 import { generateRequestId } from "./ids.js";
-import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES } from "@saas/contracts/notifications";
+import { NOTIFICATIONS_INTERNAL_ACTOR_VALUES, PUSH_TO_SUBJECT_PATH } from "@saas/contracts/notifications";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 const INTERNAL_ACTOR_HEADER = "x-internal-actor";
@@ -88,6 +89,16 @@ export async function route(request: Request, env: Env): Promise<Response> {
         return request.method === "GET" ? handleGetPushKey(env, requestId) : methodNotAllowed(requestId);
       }
       return request.method === "POST" ? handlePushTest(request, env, requestId, actor) : methodNotAllowed(requestId);
+    }
+
+    // Push to a subject (GC-3): a timer's push, from kitchen-worker only — the
+    // handler refuses every other internal caller. api-edge never routes it.
+    if (url.pathname === PUSH_TO_SUBJECT_PATH) {
+      const actor = resolveInternalActor(request);
+      if (!actor) {
+        return errorResponse("forbidden", "Internal service-binding required", 403, requestId);
+      }
+      return request.method === "POST" ? handlePushToSubject(request, env, requestId, actor) : methodNotAllowed(requestId);
     }
 
     // Suppression: POST /v1/notifications/recipients/:recipient/suppress

@@ -2020,3 +2020,10 @@ export interface SubjectBalanceResponse {
 // and Cook now: see ./kitchen-recipes.ts (also `@saas/contracts/kitchen-recipes`).
 
 export * from "./kitchen-recipes.js";
+
+// ── Timers that find you (GC-3) ─────────────────────────────
+//
+// Set, list and cancel a timer; the server pushes it when it ends: see
+// ./kitchen-timers.ts (also `@saas/contracts/kitchen-timers`).
+
+export * from "./kitchen-timers.js";
