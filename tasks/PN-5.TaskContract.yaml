@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-5
+  title: "The new Pantry"
+spec:
+  goal: "In the new frame, the Pantry is grouped by kind with level bars, counts as filters and search on phones, a Now strip, a suggested amount with its reason on each row, rows that open in place, the More sheet and Log several; Home's field and /use lead to it."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-5.TaskContract.yaml
+  doneWhen:
+    - "the Pantry shows sections by kind in the design's order, each row with a level bar coloured green, amber or red, and chips All, Use soon N, Running low N and a chip per pantry"
+    - "the Now strip shows the bucket's usuals and use-soon items, and one tap logs with Undo"
+    - "each row's chip shows suggestUse's amount and logs it in one tap; a tap on the row opens it in place with Last, the amount box and its reason, faces for group items, the cost and Use"
+    - "More opens the sheet with How much, Who had it, Log, Finish it, Wasted and Cook with it"
+    - "Log several gathers taps into a tray and Log N writes them with one Undo"
+    - "Home's field opens /pantry?focus=1 and /use redirects there in the new frame; with newFrame false nothing changes"
+  gates: []

@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-6
+  title: "Restocking in the app"
+spec:
+  goal: "In the new frame, the Pantry shows Finished this week with Bought again, Bought again adds an item like last time with Change and Undo, /pantry/new?from= prefills from an item, and /pantry/run is the shopping run with one Add and one Undo."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-6.TaskContract.yaml
+  doneWhen:
+    - "Finished this week lists items finished in the last 7 days with Bought again, and hides when empty"
+    - "Bought again writes a one-line purchase like last time; its toast offers Change (/pantry/new?from=) and Undo"
+    - "/pantry/run groups Finished, Running low and You usually buy; ticking a line opens quantity, price and pantry; Add N writes one purchase and Undo removes it"
+    - "the Pantry's + Bought opens the shopping run; with newFrame false nothing changes"
+  gates: []
