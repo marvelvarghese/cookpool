@@ -54,7 +54,8 @@ export function withoutFood(list: AlwaysHaveResponse, key: string): AlwaysHaveRe
 
 /** A food as the list keeps it (a search's `matchedName` dropped). */
 function stripMatch(food: KitchenFood & { matchedName?: string }): KitchenFood {
-  const { matchedName: _drop, ...rest } = food;
+  const rest: KitchenFood & { matchedName?: string } = { ...food };
+  delete rest.matchedName;
   return rest;
 }
 

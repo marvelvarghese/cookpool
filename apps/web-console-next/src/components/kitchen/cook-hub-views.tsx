@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Bookmark, ChevronRight, CookingPot, Plus } from "lucide-react";
+import { BookOpen, Bookmark, ChevronRight, CookingPot, Plus } from "lucide-react";
 import type { CookNowEntry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -481,5 +481,24 @@ export function PersonRecipesView({
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * Under a From your groups card (RC-8): the recipe the dish was cooked
+ * from — "Anu's recipe", "Cookpool's recipe" — opening it, and Save.
+ */
+export function FeedRecipeRowView({ text, href, save }: { text: string; href: string; save?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2.5 border-t border-[#ECEEE9] pt-2">
+      <Link
+        href={href}
+        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-sm font-extrabold text-[#165C3A] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <BookOpen className="h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden />
+        <span className="truncate">{text}</span>
+      </Link>
+      {save ?? null}
+    </div>
   );
 }
