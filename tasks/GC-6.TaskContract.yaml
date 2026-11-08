@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: GC-6
+  title: "Writing guided steps, and the plan"
+spec:
+  goal: "In the new frame, the recipe form writes guided steps and tools, the recipe page shows structured steps and long prep first, and /recipes/[id]/plan shows the plan at a size."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-guided/**
+    - tasks/GC-6.TaskContract.yaml
+  doneWhen:
+    - "the form edits a step's phase, lines, flame, minutes or whistles, hands off, rule, checkpoint and tip, with a live preview"
+    - "the recipe page lists long prep first and each step's flame, range and checkpoint"
+    - "/recipes/[id]/plan shows totals and each step's range at the chosen size by stepTimeAt"
+  gates: []

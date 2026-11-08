@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: GC-4
+  title: "Cookpool's recipes with guided steps"
+spec:
+  goal: "Cookpool's 42 recipes have guided steps (phase, lines, flame, range, rule, checkpoint) and tools, seeded by migration 390."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/kitchen-worker-tests
+    - specs/epics/cookpool-guided/**
+    - tasks/GC-4.TaskContract.yaml
+  doneWhen:
+    - "migration 390 rewrites every Cookpool recipe's steps with fixed keys"
+    - "a content test checks every cook step has a flame and a checkpoint or a time, every line a step uses exists, hands-off steps have a time, and ranges are sane"
+  gates: []
