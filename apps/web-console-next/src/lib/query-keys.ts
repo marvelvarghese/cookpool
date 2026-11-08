@@ -68,6 +68,10 @@ export const qk = {
   // The new frame's usuals (cookpool-pantry PN-5): per part of the day, so the
   // read runs again when the morning ends. Under `kitchenUsuals()` too.
   kitchenUsualsAt: (bucket: string) => ["kitchenPantry", "usuals", bucket] as const,
+  // Ask before use (cookpool-pantry PN-9): the asks the caller answers and
+  // their own from the last day. Under `kitchenPantry()`, so every stock
+  // write (an approval is one) reads them again.
+  kitchenAsks: () => ["kitchenPantry", "asks"] as const,
   kitchenSearch: (q: string) => ["kitchenPantry", "search", q] as const,
   kitchenUsable: () => ["kitchenPantry", "usable"] as const,
   // Restocking (cookpool-pantry PN-6): what was finished this week, what is

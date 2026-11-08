@@ -59,11 +59,14 @@ export function HomeTodoList({
   meId,
   names,
   className,
+  lead,
 }: {
   inbox: AsyncState<InboxResponse>;
   meId: string | null;
   names: MemberNames;
   className?: string;
+  /** What goes first in To do (cookpool-pantry PN-9: the ask cards, in the new frame); with it, To do is never "All clear". */
+  lead?: React.ReactNode;
 }) {
   const now = React.useMemo(() => new Date(), []);
   const [all, setAll] = React.useState(false);
@@ -102,6 +105,8 @@ export function HomeTodoList({
             Try again
           </Button>
         </div>
+      ) : todos.total === 0 && lead ? (
+        lead
       ) : todos.total === 0 ? (
         <div role="status" className="flex min-h-[68px] items-center gap-3 rounded-[22px] border bg-card px-4">
           <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cp-herb-tint text-primary">
@@ -110,13 +115,16 @@ export function HomeTodoList({
           <span className="text-base font-extrabold">All clear</span>
         </div>
       ) : (
-        <ul id={listId} className="divide-y overflow-hidden rounded-[22px] border bg-card">
-          {todos.rows.map((todo) => (
-            <li key={todo.key}>
-              <TodoRow todo={todo} meId={meId} names={names} onMenu={setMenu} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {lead}
+          <ul id={listId} className="divide-y overflow-hidden rounded-[22px] border bg-card">
+            {todos.rows.map((todo) => (
+              <li key={todo.key}>
+                <TodoRow todo={todo} meId={meId} names={names} onMenu={setMenu} />
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       <ItemActionsSheet target={menu} onClose={() => setMenu(null)} meId={meId} />
     </section>

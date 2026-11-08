@@ -15,6 +15,7 @@ import {
   checkDiff,
   checkMarks,
   checkOptions,
+  checkAskNote,
   checkTitle,
   clampLevel,
   defaultGone,
@@ -63,6 +64,7 @@ export function StockCheckScreen({
   const diff = checkDiff(item, says);
   const tiles = thinksAndSays(item, says);
   const options = checkOptions({ item, says, roster: groupRoster, meId, names });
+  const askNote = checkAskNote(item, names);
   const option = options.find((o) => o.gone === gone) ?? options[0] ?? null;
   const fix = fixButton(item, says);
   const heading = checkTitle(item);
@@ -163,6 +165,7 @@ export function StockCheckScreen({
               );
             })}
           </div>
+          {askNote ? <p className="px-1 text-[13px] font-bold text-[#8A5A00]">{askNote}</p> : null}
         </section>
       ) : null}
 

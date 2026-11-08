@@ -37,6 +37,8 @@ import { inTray, nowStrip, toggleTray, type NowChip, type TrayEntry } from "./no
 import { PantryRowView } from "./pantry-row-ui";
 import { LogTray, NowStripView } from "./now-strip-ui";
 import { UseSheet, type UseSheetTarget } from "./use-sheet-ui";
+import { useAsks, useMinuteNow } from "./ask-data";
+import { askName, askStatus } from "./ask-before-use";
 import { localIsoDay } from "./item-form";
 import { useRestock } from "./restock-data";
 import { useBuyAgain } from "./buy-again-data";
@@ -69,6 +71,10 @@ export function NewPantry() {
   const logUse = useLogUse();
   const logSeveral = useLogSeveral();
   const [folded, setFolded] = useFoldedSections();
+  // Ask before use (cookpool-pantry PN-9): your asks, for the rows that must ask.
+  const asks = useAsks();
+  const mine = asks.data?.mine ?? null;
+  const askNow = useMinuteNow();
   const restock = useRestock();
   const buyAgain = useBuyAgain();
   const [now] = React.useState(() => new Date());
@@ -116,7 +122,7 @@ export function NewPantry() {
   const usualList = usuals.data;
   const showPantry = (list?.length ?? 0) > 1 && show.kind !== "pantry";
   const rows: Row[] = React.useMemo(
-    () => (loaded ?? []).map((item) => ({ ...pantryRow(item, { usual: usualFor(item.id, usualList), showPantry, meId, names }), item })),
+    () => (loaded ?? []).map((item) => ({ ...pantryRow(item, { usual: usualFor(item.id, usualList), showPantry, meId, names, askName: askName(item, { names }) }), item })),
     [loaded, usualList, showPantry, meId, names],
   );
   const statuses = React.useMemo(() => new Map(rows.map((r) => [r.id, r.status] as const)), [rows]);
@@ -336,6 +342,8 @@ export function NewPantry() {
                           meId={meId}
                           names={names}
                           onLogged={() => setOpenId(null)}
+                          askName={askName(r.item, { names })}
+                          askStatus={askStatus(r.id, mine, { now: askNow, names })}
                         />
                       ))}
                     </ul>

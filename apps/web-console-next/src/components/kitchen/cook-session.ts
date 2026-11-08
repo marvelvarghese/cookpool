@@ -40,6 +40,9 @@ import {
   type SaveDishAsRecipeRequest,
   type SetDishSharesRequest,
   type UpdateRecipeRequest,
+  type AskState,
+  type AskToUseRequest,
+  type KitchenAsk,
 } from "@saas/contracts/kitchen";
 import { dimensionOf, formatQuantity, isUnit, type Dimension } from "@saas/kitchen-engine/units";
 import { formatMinor } from "./money";
@@ -67,6 +70,8 @@ import {
   type PantryLine,
 } from "./dish-maker";
 import { guideStepLog, parseGuide, type CookGuide } from "./cook-guide-draft";
+import { isPendingId } from "@/lib/optimistic";
+import { answererWords, firstName, lapsesIn } from "./ask-before-use";
 
 /** The draft's shape on the device; a stored draft of another version is dropped. */
 export const SESSION_VERSION = 1;
@@ -142,6 +147,29 @@ export interface SessionLine {
   toTaste: boolean;
   /** The recipe's own line, as written; null for a line the recipe doesn't have. */
   written: WrittenLine | null;
+  /**
+   * Ask before use (cookpool-pantry PN-9, design §8.4): the ask this line
+   * sent for an item the cook must ask for, as last read. While it waits or
+   * once approved the line stays out of the dish (an approval is the cook's
+   * own use). Absent on every other line, and on drafts written before.
+   */
+  ask?: SessionLineAsk;
+}
+
+/** A line's ask (PN-8's `KitchenAsk`, as the draft keeps it). */
+export interface SessionLineAsk {
+  /** `ask_…` (or a pending id while it is on its way). */
+  id: string;
+  orgId: string;
+  itemId: string;
+  /** "2 g". */
+  amount: string;
+  /** Who answers it (null once the buyer has left: an admin), with their name when the server gave it. */
+  answerer: string | null;
+  answererName: string | null;
+  state: AskState;
+  expiresAt: string;
+  answeredBy: string | null;
 }
 
 export interface SessionStep {
@@ -385,9 +413,13 @@ export function discardPrompt(current: CookSession): { title: string; body: stri
 
 // ── Changing it ───────────────────────────────────────────────────
 
-/** Is this line counted in what was taken (and so can be ticked)? A missing line can't be. */
+/**
+ * Is this line counted in what was taken (and so can be ticked)? A missing
+ * line can't be, nor one the cook must ask for (PN-9: it reads Ask Meera
+ * instead of a tick, and stays out of the dish).
+ */
 export function tickable(line: SessionLine): boolean {
-  return !line.missing;
+  return !line.missing && !lineAsks(line);
 }
 
 /** Tick a line in, or out again. A missing line stays unticked. */
@@ -575,7 +607,9 @@ function sameItem(a: KitchenItem, b: KitchenItem): boolean {
     a.qtyLeftMilli === b.qtyLeftMilli &&
     a.worthMinor === b.worthMinor &&
     a.priceMinor === b.priceMinor &&
-    a.state === b.state
+    a.state === b.state &&
+    // Whether the cook must ask for it (PN-9) changes without a new version.
+    (a.mustAsk ?? false) === (b.mustAsk ?? false)
   );
 }
 
@@ -718,9 +752,11 @@ export interface SessionLineView {
   canLess: boolean;
   canMore: boolean;
   short: boolean;
+  /** Ask before use (PN-9): the line's ask, in place of the tick; null on a line the cook just ticks. */
+  ask: SessionLineAskView | null;
 }
 
-export function sessionLineView(line: SessionLine, ctx: { meId: string | null; names?: MemberNames | null }): SessionLineView {
+export function sessionLineView(line: SessionLine, ctx: { meId: string | null; names?: MemberNames | null; now?: Date }): SessionLineView {
   // Short only while something is left to take: none left says so on its own.
   const short = lineTakes(line).some((t) => t.milli > 0) && lineShort(line);
   const amount = line.qtyMilli !== null && line.unit !== null ? amountText(line.qtyMilli, line.unit) : "To taste";
@@ -747,7 +783,10 @@ export function sessionLineView(line: SessionLine, ctx: { meId: string | null; n
     costNote = [amountPart, money, short ? "all there is" : null].filter((x): x is string => !!x).join(" · ") || "…";
   }
   const lower = line.name.toLowerCase();
-  const canEdit = !line.missing && !line.toTaste && line.qtyMilli !== null && line.unit !== null;
+  const ask = sessionLineAskView(line, { meId: ctx.meId, names: ctx.names ?? null, now: ctx.now ?? new Date() });
+  // An ask on its way, or approved, holds the amount it asked for.
+  const held = ask !== null && (ask.state === "waiting" || ask.state === "approved");
+  const canEdit = !line.missing && !line.toTaste && line.qtyMilli !== null && line.unit !== null && !held;
   const less = canEdit ? stepAmount(line.qtyMilli!, line.unit!, -1) : null;
   const more = canEdit ? stepAmount(line.qtyMilli!, line.unit!, 1) : null;
   return {
@@ -756,7 +795,7 @@ export function sessionLineView(line: SessionLine, ctx: { meId: string | null; n
     sub,
     amount,
     canEdit,
-    ticked: line.ticked,
+    ticked: line.ticked && ask === null,
     tickable: tickable(line),
     missing: line.missing,
     toTaste: line.toTaste,
@@ -768,7 +807,153 @@ export function sessionLineView(line: SessionLine, ctx: { meId: string | null; n
     canLess: less !== null,
     canMore: more !== null && (!line.bought || (line.qtyMilli ?? 0) < line.bought.qtyMilli),
     short,
+    ask,
   };
+}
+
+// ── Ask before use (cookpool-pantry PN-9, design §8.4) ────────────
+
+/**
+ * What the line takes from an item the cook must ask for (`mustAsk`, a
+ * group's item), and how much; null when it takes from none.
+ */
+export function lineAskTake(line: SessionLine): { take: SessionTake; milli: number } | null {
+  if (line.bought || line.missing) return null;
+  for (const t of lineTakes(line)) if (t.milli > 0 && t.take.orgId && t.take.item?.mustAsk) return t;
+  return null;
+}
+
+/**
+ * Does the line ask instead of being ticked? While its ask waits or once it
+ * was approved (the approval is the cook's own use, so it is never taken
+ * twice), and whenever it takes from an item the cook must ask for. A
+ * declined or lapsed ask leaves it asking again only while that's still so.
+ */
+export function lineAsks(line: SessionLine): boolean {
+  const a = line.ask;
+  if (a && (a.state === "pending" || a.state === "approved")) return true;
+  return lineAskTake(line) !== null;
+}
+
+export interface SessionLineAskView {
+  state: "ask" | "waiting" | "approved" | "declined" | "lapsed";
+  /** Who it asks: "Meera", "an admin". */
+  who: string;
+  /** The button in the tick's place: "Ask Meera", "Ask again"; null while it waits or once approved. */
+  button: string | null;
+  /** Its name: "Ask Meera for 2 g of Saffron". */
+  buttonLabel: string | null;
+  /** "Asked Meera · waiting · lapses in 24 h", "Meera said yes · logged as yours", "Meera said no", "Lapsed"; null before asking. */
+  text: string | null;
+  /** Cancel shows while it waits (once the server has it). */
+  cancel: boolean;
+}
+
+/** Who a line asks: its ask's answerer, else the item's ("Meera", "an admin"). */
+function lineAnswerer(line: SessionLine, names?: MemberNames | null): string {
+  if (line.ask) return answererWords(line.ask.answerer, names, line.ask.answererName);
+  const item = lineAskTake(line)?.take.item;
+  return answererWords(item?.answerer ?? null, names);
+}
+
+/** The line's ask, as its row shows it; null for a line the cook just ticks. */
+export function sessionLineAskView(line: SessionLine, ctx: { meId: string | null; names?: MemberNames | null; now: Date }): SessionLineAskView | null {
+  const take = lineAskTake(line);
+  const a = line.ask;
+  if (!a && !take) return null;
+  const who = lineAnswerer(line, ctx.names);
+  const Who = who[0]!.toUpperCase() + who.slice(1);
+  const by = a?.answeredBy && a.answeredBy !== a.answerer ? (firstName(a.answeredBy, ctx.names) ?? "An admin") : Who;
+  const again = (state: "declined" | "lapsed", text: string): SessionLineAskView =>
+    take
+      ? { state, who, button: "Ask again", buttonLabel: `Ask ${who} again for ${line.name}`, text, cancel: false }
+      : { state, who, button: null, buttonLabel: null, text, cancel: false };
+  if (a?.state === "pending") {
+    return { state: "waiting", who, button: null, buttonLabel: null, text: `Asked ${who} · waiting · lapses in ${lapsesIn(a.expiresAt, ctx.now)}`, cancel: !isPendingId(a.id) };
+  }
+  if (a?.state === "approved") return { state: "approved", who, button: null, buttonLabel: null, text: `${by} said yes · logged as yours`, cancel: false };
+  if (a?.state === "declined") return again("declined", `${by} said no`);
+  if (a?.state === "lapsed") return again("lapsed", "Lapsed");
+  if (!take) return null;
+  const amount = formatQuantity(take.milli, take.take.dimension, AMOUNT_STEPS[take.take.dimension].unit);
+  return { state: "ask", who, button: `Ask ${who}`, buttonLabel: `Ask ${who} for ${amount} of ${line.name}`, text: null, cancel: false };
+}
+
+/**
+ * The line's ask (PN-8's `askToUse`): what it takes from the item the cook
+ * must ask for, in that item's base unit, for the cook, from a cook session.
+ * Null when the line asks for nothing.
+ */
+export function cookAskRequest(line: SessionLine, meId: string): { orgId: string; itemId: string; body: AskToUseRequest; amount: string } | null {
+  const t = lineAskTake(line);
+  if (!t || !t.take.orgId) return null;
+  const unit = AMOUNT_STEPS[t.take.dimension].unit;
+  return {
+    orgId: t.take.orgId,
+    itemId: t.take.itemId,
+    body: { quantity: milliToDecimal(t.milli), unit, consumers: [meId], source: "cook" },
+    amount: formatQuantity(t.milli, t.take.dimension, unit),
+  };
+}
+
+/** A server's ask as the draft keeps it. */
+export function lineAskOf(ask: KitchenAsk): SessionLineAsk {
+  return {
+    id: ask.id,
+    orgId: ask.orgId,
+    itemId: ask.item.id,
+    amount: ask.amount,
+    answerer: ask.answerer,
+    answererName: ask.answererName,
+    state: ask.state,
+    expiresAt: ask.expiresAt,
+    answeredBy: ask.answeredBy,
+  };
+}
+
+/** Put an ask on a line (it was sent), or take it off (cancelled, or refused). */
+export function withLineAsk(s: CookSession, key: string, ask: SessionLineAsk | null): CookSession {
+  return {
+    ...s,
+    lines: s.lines.map((l) => {
+      if (l.key !== key) return l;
+      if (ask) return { ...l, ask, ticked: false };
+      const rest = { ...l };
+      delete rest.ask;
+      return rest;
+    }),
+  };
+}
+
+/**
+ * The lines' asks as the server has them now (`asks().mine`): each one's
+ * state and answer; a cancelled one comes off its line (it asks again); one
+ * `mine` no longer holds lapses once past its time. The same session when
+ * nothing changed.
+ */
+export function syncLineAsks(s: CookSession, mine: readonly KitchenAsk[], now: Date): CookSession {
+  const byId = new Map(mine.map((a) => [a.id, a] as const));
+  let changed = false;
+  const lines = s.lines.map((l) => {
+    const a = l.ask;
+    if (!a || isPendingId(a.id)) return l;
+    const fresh = byId.get(a.id);
+    if (fresh?.state === "canceled") {
+      changed = true;
+      const rest = { ...l };
+      delete rest.ask;
+      return rest;
+    }
+    const next: SessionLineAsk = fresh
+      ? lineAskOf(fresh)
+      : a.state === "pending" && Date.parse(a.expiresAt) <= now.getTime()
+        ? { ...a, state: "lapsed" }
+        : a;
+    if (next.state === a.state && next.answeredBy === a.answeredBy && next.expiresAt === a.expiresAt) return l;
+    changed = true;
+    return { ...l, ask: next };
+  });
+  return changed ? { ...s, lines } : s;
 }
 
 // ── The header and the bar ────────────────────────────────────────
@@ -889,7 +1074,8 @@ export function untickedText(s: CookSession): string | null {
 
 /** What Finish posts: the ticked lines, and the unticked ones too when they took them all — never a missing one. */
 export function includedLines(s: CookSession, unticked: UntickedChoice): SessionLine[] {
-  return s.lines.filter((l) => !l.missing && (l.ticked || unticked === "all"));
+  // A line the cook asks for (PN-9) is never in the dish: an approval is their own use.
+  return s.lines.filter((l) => !l.missing && !lineAsks(l) && (l.ticked || unticked === "all"));
 }
 
 /**
@@ -925,7 +1111,7 @@ export function sessionCurrency(s: CookSession, groupCurrency?: string | null): 
 
 /** What the ticked lines cost so far. */
 export function soFarMinor(s: CookSession): number {
-  return s.lines.filter((l) => l.ticked && !l.missing).reduce((a, l) => a + (sessionLineCost(l) ?? 0), 0);
+  return s.lines.filter((l) => l.ticked && !l.missing && !lineAsks(l)).reduce((a, l) => a + (sessionLineCost(l) ?? 0), 0);
 }
 
 /** Under Finish: "₹143.96 so far · post to Flat 4B" ("just for you" when it isn't shared). */

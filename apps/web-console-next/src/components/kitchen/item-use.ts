@@ -431,13 +431,15 @@ export function historyRows(
 export function checkMoveText(
   m: KitchenStockMove,
   ctx: {
-    item: Pick<KitchenItem, "dimension" | "displayUnit" | "pantry">;
+    item: Pick<KitchenItem, "dimension" | "displayUnit" | "pantry"> & { paidBy?: string };
     meId: string | null;
     names?: MemberNames | null;
     byId?: ReadonlyMap<string, KitchenStockMove>;
   },
 ): { what: string; by: string | null } | null {
   const { item, meId, names } = ctx;
+  // An approved ask's use (cookpool-pantry PN-9) reads as one too.
+  if (m.via === "ask") return askMoveText(m, ctx);
   // In the item's own unit ("1.75 L"): a check sends its level in the base unit.
   const qty = formatQuantity(m.qtyMilli, item.dimension, item.displayUnit);
   const by = memberLabel(m.actor, meId, names);
@@ -462,6 +464,25 @@ export function checkMoveText(
     default:
       return null;
   }
+}
+
+/**
+ * An approved ask's use in words (cookpool-pantry PN-9, design §5.5): who
+ * had it and how much, as any use reads ("Dev and Anu · 1 pinch"), with
+ * "Asked · approved by Meera" on the line under. The move doesn't say who
+ * approved it, so it names the buyer, who answers while they're in the group.
+ */
+export function askMoveText(
+  m: KitchenStockMove,
+  ctx: { item: Pick<KitchenItem, "dimension"> & { paidBy?: string }; meId: string | null; names?: MemberNames | null },
+): { what: string; by: string } | null {
+  if (m.via !== "ask" || m.kind !== "use") return null;
+  const { item, meId, names } = ctx;
+  const people = m.consumers && m.consumers.length > 0 ? m.consumers : [m.actor];
+  const had = capitalize(joinNames(people.map((c) => memberLabelInline(c, meId, names))));
+  const words = m.label ?? formatQuantity(m.qtyMilli, item.dimension, m.unit);
+  const by = item.paidBy ? `Asked · approved by ${memberLabelInline(item.paidBy, meId, names)}` : "Asked · approved";
+  return { what: `${had} · ${words}`, by };
 }
 
 /**

@@ -56,10 +56,12 @@ import {
   stepsTitle,
   tickLine,
   toggleStep,
+  withLineAsk,
   type CookSession,
   type FinishOutcome,
 } from "./cook-session";
 import { useKitchenRouter } from "./transition-ui";
+import { useCancelAsk, useCookAsk, useSessionAsks } from "./ask-data";
 
 /**
  * The cooking session's screen (cookpool-recipes RC-6, design §4.2, the
@@ -233,10 +235,20 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
 
   // The items it takes from, as read now: the usable-items list, else each one on its own.
   useFreshTakes(session, save);
+  // Ask before use (cookpool-pantry PN-9): a line the cook must ask for asks, and its answer reaches it.
+  useSessionAsks(session, save);
+  const cookAsk = useCookAsk(meId, save);
+  const cancelAsk = useCancelAsk();
+  const cancelLineAsk = (key: string) => {
+    const a = session.lines.find((l) => l.key === key)?.ask;
+    if (!a) return;
+    save((s) => withLineAsk(s, key, null));
+    void cancelAsk({ id: a.id, orgId: a.orgId });
+  };
 
   const postTo = postToOf(session, groups, recentSlugs);
   const group = postTo === JUST_ME ? null : (groups.find((g) => g.orgId === postTo) ?? null);
-  const views = session.lines.map((l) => sessionLineView(l, { meId, names }));
+  const views = session.lines.map((l) => sessionLineView(l, { meId, names, now }));
   const chip = scaleChip(session);
   const blank = session.recipeId === null;
   const full = session.lines.length >= MAX_DISH_INGREDIENTS;
@@ -359,6 +371,8 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
                   setFlagged(null);
                   save((s) => stepLine(s, v.key, d));
                 }}
+                onAsk={() => cookAsk(session, v.key, v.ask?.who ?? "the buyer")}
+                onCancelAsk={() => cancelLineAsk(v.key)}
               />
             ))}
           </ul>

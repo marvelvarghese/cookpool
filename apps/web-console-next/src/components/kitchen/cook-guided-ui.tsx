@@ -896,6 +896,9 @@ function PrepSection({ title, children }: { title: string; children: React.React
 export interface PrepHandlers {
   onMinimize: () => void;
   onTickLine: (key: string) => void;
+  /** Ask before use (cookpool-pantry PN-9): a line's Ask Meera, and Cancel while it waits. */
+  onAskLine?: (key: string, who: string) => void;
+  onCancelAskLine?: (key: string) => void;
   onToggleLine: (key: string) => void;
   onStepLine: (key: string, delta: 1 | -1) => void;
   onTickTool: (index: number) => void;
@@ -955,6 +958,8 @@ export function GuidePrepView({
                 onTick={() => on.onTickLine(v.key)}
                 onToggle={() => on.onToggleLine(v.key)}
                 onStep={(d) => on.onStepLine(v.key, d)}
+                {...(on.onAskLine ? { onAsk: () => on.onAskLine?.(v.key, v.ask?.who ?? "the buyer") } : {})}
+                {...(on.onCancelAskLine ? { onCancelAsk: () => on.onCancelAskLine?.(v.key) } : {})}
               />
             ))}
           </ul>

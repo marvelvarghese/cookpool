@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Check, ChevronDown, CookingPot, Minus, Plus, Timer } from "lucide-react";
+import { Check, ChevronDown, CookingPot, Hourglass, Lock, Minus, Plus, Timer, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatMinor } from "./money";
 import { Face } from "./faces-ui";
@@ -98,6 +98,8 @@ export function SessionRow({
   onTick,
   onToggle,
   onStep,
+  onAsk,
+  onCancelAsk,
 }: {
   view: SessionLineView;
   open: boolean;
@@ -107,19 +109,48 @@ export function SessionRow({
   onTick: () => void;
   onToggle: () => void;
   onStep: (delta: 1 | -1) => void;
+  /** Ask before use (cookpool-pantry PN-9): the line's Ask Meera, in the tick's place. */
+  onAsk?: () => void;
+  /** …and Cancel, while it waits. */
+  onCancelAsk?: () => void;
 }) {
   const panelId = `session-amount-${view.key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+  const ask = view.ask;
   return (
     <li
       id={`session-line-${view.key.replace(/[^A-Za-z0-9_-]/g, "-")}`}
       className={cn(
         "scroll-mt-24",
         !last && "border-b border-[#ECEEE9]",
-        view.ticked ? "bg-[#EEF7F1]" : "bg-card",
+        view.ticked ? "bg-[#EEF7F1]" : view.ask?.state === "waiting" ? "bg-[#FFFBF0]" : "bg-card",
         flagged && "outline outline-2 -outline-offset-2 outline-cp-expired",
       )}
     >
       <div className="flex min-h-16 items-center gap-2.5 py-1.5 pl-2 pr-2.5">
+        {ask ? (
+          ask.button && onAsk ? (
+            <button
+              type="button"
+              onClick={onAsk}
+              aria-label={ask.buttonLabel ?? ask.button}
+              className="flex h-11 max-w-[42%] shrink-0 items-center gap-1.5 rounded-[14px] px-3 text-sm font-extrabold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={{ backgroundColor: INK }}
+            >
+              <Lock className="h-3.5 w-3.5 shrink-0" strokeWidth={2.6} aria-hidden />
+              <span className="truncate">{ask.button}</span>
+            </button>
+          ) : (
+            <span
+              aria-hidden
+              className={cn(
+                "grid h-11 w-11 shrink-0 place-items-center rounded-[14px]",
+                ask.state === "approved" ? "bg-[#E4F2EA] text-primary" : ask.state === "waiting" ? "bg-[#FDF1D6] text-[#8A5A00]" : "bg-muted text-muted-foreground",
+              )}
+            >
+              {ask.state === "approved" ? <Check className="h-5 w-5" strokeWidth={2.6} /> : ask.state === "declined" ? <X className="h-5 w-5" strokeWidth={2.4} /> : ask.state === "waiting" ? <Hourglass className="h-5 w-5" strokeWidth={2.2} /> : <Lock className="h-5 w-5" strokeWidth={2.2} />}
+            </span>
+          )
+        ) : (
         <button
           type="button"
           onClick={onTick}
@@ -137,11 +168,26 @@ export function SessionRow({
         >
           <Check className="h-5 w-5" strokeWidth={2.6} aria-hidden />
         </button>
+        )}
         <div className="flex min-w-0 flex-1 flex-col gap-px">
           <span className={cn("truncate text-[15px] font-extrabold", view.missing && "text-muted-foreground line-through")}>{view.name}</span>
           <span className="truncate text-xs font-semibold text-muted-foreground">{view.sub}</span>
+          {ask?.text ? (
+            <span role="status" className={cn("text-xs font-extrabold leading-snug", ask.state === "approved" ? "text-[#165C3A]" : ask.state === "waiting" ? "text-[#8A5A00]" : "text-muted-foreground")}>
+              {ask.text}
+            </span>
+          ) : null}
         </div>
-        {view.canEdit ? (
+        {ask?.cancel && onCancelAsk ? (
+          <button
+            type="button"
+            onClick={onCancelAsk}
+            aria-label={`Cancel the ask for ${view.name}`}
+            className="min-h-11 shrink-0 rounded-xl border border-[#E8C77A] bg-card px-3 text-sm font-extrabold text-[#5C3D00] transition-colors hover:bg-[#FFF8E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Cancel
+          </button>
+        ) : view.canEdit ? (
           <button
             type="button"
             onClick={onToggle}

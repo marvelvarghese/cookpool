@@ -14,6 +14,11 @@ import { Face } from "./faces-ui";
 import { memberLabel, type MemberNames } from "./members";
 import { useMemberNames } from "./people-data";
 import { useInbox } from "./inbox-data";
+import { useSearchParams } from "next/navigation";
+import type { AskInboxItem } from "@saas/contracts/kitchen";
+import { useToast } from "@/components/ui/toast";
+import { AskCards } from "./ask-card-ui";
+import { askArrival, askCardsShown, parseAskParam, type AnsweredAsk } from "./ask-card";
 import { HomeTodoList } from "./inbox-ui";
 import { InstallCard } from "./install-ui";
 import { QuickUse } from "./quick-use-ui";
@@ -51,6 +56,8 @@ export function NewHome() {
   const inbox = useInbox();
   // Dishes first, then Pay X, then use soon (the canvas), each in the server's order.
   const ordered = React.useMemo(() => (inbox.data ? { ...inbox, data: newHomeTodoOrder(inbox.data) } : inbox), [inbox]);
+  // Ask before use (cookpool-pantry PN-9): the asks you answer go first in To do.
+  const asks = useHomeAsks(inbox.data?.asks ?? null);
 
   return (
     <div className="space-y-4">
@@ -69,13 +76,67 @@ export function NewHome() {
       <div className="flex flex-col gap-4 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:items-start min-[900px]:gap-6">
         <div className="flex min-w-0 flex-col gap-4">
           {shows.has("quick-use") ? <QuickUse meId={meId} /> : null}
-          {shows.has("todo") ? <HomeTodoList inbox={ordered} meId={meId} names={names} /> : null}
+          {shows.has("todo") ? (
+            <HomeTodoList
+              inbox={ordered}
+              meId={meId}
+              names={names}
+              lead={asks.count > 0 ? <AskCards asks={inbox.data?.asks ?? []} answered={asks.answered} onAnswered={asks.setAnswered} meId={meId} names={names} highlight={asks.highlight} /> : undefined}
+            />
+          ) : null}
           {shows.has("cook-now") ? <CookNow meId={meId} /> : null}
         </div>
         {shows.has("from-groups") ? <FromYourGroups meId={meId} names={names} /> : null}
       </div>
     </div>
   );
+}
+
+/**
+ * The ask cards' state on Home (PN-9): the answers given here (each card
+ * stays, with Undo, after the inbox moves on), and `?ask=<askId>` — the
+ * push's address — scrolling to that card and lighting it up, or saying it
+ * was already answered. The address drops `?ask=` once it is used.
+ */
+function useHomeAsks(listed: readonly AskInboxItem[] | null) {
+  const params = useSearchParams();
+  const { toast } = useToast();
+  const target = parseAskParam(params?.get("ask"));
+  const [answered, setAnsweredMap] = React.useState<ReadonlyMap<string, AnsweredAsk>>(new Map());
+  const [highlight, setHighlight] = React.useState<string | null>(null);
+  const setAnswered = React.useCallback((id: string, a: AnsweredAsk | null) => {
+    setAnsweredMap((m) => {
+      const next = new Map(m);
+      if (a) next.set(id, a);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  const shown = askCardsShown(listed, answered);
+  const shownIds = listed === null ? null : shown.map((s) => s.ask.id);
+  const arrival = askArrival(target, shownIds);
+  const used = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!target || !arrival || used.current === target) return;
+    used.current = target;
+    const now = new URLSearchParams(window.location.search);
+    now.delete("ask");
+    const qs = now.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    if (arrival === "gone") {
+      toast({ kind: "warning", title: "Already answered", description: "That ask was answered or has lapsed." });
+      return;
+    }
+    setHighlight(target);
+    window.requestAnimationFrame(() => document.querySelector(`[data-ask-id="${target}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
+  }, [target, arrival, toast]);
+  // The light goes out after a few seconds.
+  React.useEffect(() => {
+    if (!highlight) return;
+    const timer = window.setTimeout(() => setHighlight(null), 4_000);
+    return () => window.clearTimeout(timer);
+  }, [highlight]);
+  return { answered, setAnswered, highlight, count: shown.length };
 }
 
 /** "From your groups": a card for each dish finished in one of your groups in the last 7 days. */

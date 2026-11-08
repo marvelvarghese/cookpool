@@ -46,6 +46,7 @@ import { newFrame } from "@/lib/features";
 import type { UsualBucket } from "@saas/contracts/kitchen-usuals";
 import { msToNextBucket, tzOffsetOf, usualsRead } from "./now-strip";
 import { checkUndoRefusal } from "./stock-check";
+import { answererWords, askFirstRefusalFields, askItemPatches } from "./ask-before-use";
 
 /**
  * Cookpool's pantry reads and stock writes (CP-12), through the CP-10/CP-11
@@ -443,7 +444,9 @@ function useStockWrite() {
  */
 export function useLogUse() {
   const { client } = useSession();
+  const qc = useQueryClient();
   const stockWrite = useStockWrite();
+  const isNew = newFrame();
   return React.useCallback(
     (input: LogUseInput): Promise<LogUseResult> => {
       const { ref, item, qtyMilli, meId, names } = input;
@@ -479,15 +482,28 @@ export function useLogUse() {
         title: textFor(change.costMinor),
         // The server's cost, if someone used some meanwhile and it differs.
         answered: (a) => (a.move.costMinor !== change.costMinor ? { title: textFor(a.move.costMinor) } : undefined),
-        refusal: (error) => ({ title: `Couldn't log ${item.name}`, message: logRefusal(error, { item, meId, names: names ?? null }).message }),
+        refusal: (error) => ({
+          title: `Couldn't log ${item.name}`,
+          message: (isNew ? askFirstText(error, names) : null) ?? logRefusal(error, { item, meId, names: names ?? null }).message,
+        }),
       }).then((r): LogUseResult => {
         if (r.ok) return { ok: true, response: r.data };
+        // You must ask first (cookpool-pantry PN-9): its row turns into the ask row at once.
+        const asking = isNew ? askFirstRefusalFields(r.error) : null;
+        if (asking) applyPatches(queryCacheOf(qc), askItemPatches(item.id, asking));
         const refusal = logRefusal(r.error, { item, meId, names: names ?? null });
         return { ok: false, ...refusal, answered: wasAnswered(r) };
       });
     },
-    [client, stockWrite],
+    [client, qc, stockWrite, isNew],
   );
+}
+
+/** A use refused because you must ask first (PN-9's 403 `ask_first`): "Ask Meera first". */
+function askFirstText(error: ApiErrorBody, names: MemberNames | null | undefined): string | null {
+  if (error.reason !== "ask_first") return null;
+  const answerer = error.details?.["answerer"];
+  return `Ask ${answererWords(typeof answerer === "string" ? answerer : null, names)} first`;
 }
 
 /**
