@@ -523,6 +523,9 @@ export type {
   StepLogEntry,
   UpdateStepTimesRequest,
   StepTimesInput,
+  // Learned ranges (GC-7).
+  LearnedStepRange,
+  RecipeQuery,
 } from "@saas/contracts/kitchen";
 
 export {
@@ -559,6 +562,9 @@ export {
   stepTimeMultiplier,
   isLongPrep,
   longPrepOf,
+  // Learned ranges (GC-7).
+  LEARNED_MIN_SAMPLES,
+  LEARNED_MIN_COOKS,
 } from "@saas/contracts/kitchen";
 
 // Timers that find you (Cookpool GC-3).
