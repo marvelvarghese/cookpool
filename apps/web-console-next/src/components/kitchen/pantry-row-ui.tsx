@@ -10,6 +10,9 @@ import { swipeUseLabel } from "./item-actions";
 import { LEVEL_COLORS, type LevelTone, type PantryRow, type RowTag } from "./pantry-list";
 import type { MemberNames } from "./members";
 import { SetRow } from "./set-row-ui";
+import { useAskToUse, useCancelAsk } from "./ask-data";
+import { askRowEnd, type AskStatus } from "./ask-before-use";
+import { AskStatusLine } from "./ask-ui";
 
 /**
  * One row of the new Pantry (cookpool-pantry PN-5, design §1, the canvas's
@@ -28,7 +31,8 @@ const TAG: Record<RowTag["tone"], string> = {
   soon: "bg-[#FDF1D6] text-[#8A5A00]",
   low: "bg-[#FDF1D6] text-[#8A5A00]",
   expired: "bg-[#FDECEC] text-[#B42318]",
-  ask: "bg-muted text-foreground",
+  // The canvas's AskRequest: amber, with a lock (PN-9).
+  ask: "bg-[#FDF1D6] text-[#8A5A00]",
 };
 
 export function RowTagPill({ tag }: { tag: RowTag }) {
@@ -62,6 +66,8 @@ export function PantryRowView({
   meId,
   names,
   onLogged,
+  askName = null,
+  askStatus = null,
 }: {
   row: PantryRow;
   item: ReachableItem;
@@ -79,8 +85,31 @@ export function PantryRowView({
   names: MemberNames;
   /** The set row logged: close it. */
   onLogged: () => void;
+  /** Ask before use (cookpool-pantry PN-9): who you must ask ("Meera"), when you must (the row's `variant: "ask"`). */
+  askName?: string | null;
+  /** Your latest ask for it, as the row says it ("Asked Meera · 1 pinch · waiting"). */
+  askStatus?: AskStatus | null;
 }) {
   const chip = row.chip;
+  const askToUse = useAskToUse();
+  const cancelAsk = useCancelAsk();
+  const askEnd = several ? null : askRowEnd(row, askStatus, { askName, meId, names });
+  const ask = () => {
+    if (askEnd?.kind !== "ask" || item.pantry.kind !== "group" || row.ref.kind !== "group" || !askName) return;
+    const step = askEnd.step;
+    void askToUse({
+      ref: row.ref,
+      item,
+      qtyMilli: step.qtyMilli,
+      consumers: askEnd.consumers,
+      idempotencyKey: crypto.randomUUID(),
+      what: step.words,
+      measure: step.amount.kind === "measure" ? { measure: step.amount.measure, quantity: step.amount.quantity } : null,
+      meId,
+      names,
+      who: askName,
+    });
+  };
   const swipe: SwipeAction | null =
     chip?.kind === "log" ? { label: several ? (inTray ? "Take out" : "Add to tray") : swipeUseLabel(chip.words), tone: "use", run: onChip } : null;
   const opens = !row.pending && row.canUse;
@@ -98,6 +127,8 @@ export function PantryRowView({
         </span>
       </span>
       {row.note ? <NoteLine note={row.note} /> : null}
+      {/* While it waits and the row is open, the set row's box says it (with Cancel). */}
+      {askStatus && !(open && askStatus.phase === "waiting") ? <AskStatusLine status={askStatus} /> : null}
     </>
   );
   return (
@@ -122,7 +153,26 @@ export function PantryRowView({
         ) : (
           <span className={cn("flex min-w-0 flex-1 flex-col", row.pending && "opacity-70")}>{body}</span>
         )}
-        {open || !chip ? null : chip.kind === "log" ? (
+        {open ? null : askEnd?.kind === "ask" ? (
+          <button
+            type="button"
+            aria-label={askEnd.label}
+            onClick={ask}
+            className="flex h-11 max-w-[46%] shrink-0 items-center gap-1.5 rounded-[12px] border border-[#17201B] bg-[#17201B] px-3 text-sm font-extrabold text-white transition-colors hover:bg-[#17201B]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Lock className="h-3.5 w-3.5 shrink-0" strokeWidth={2.6} aria-hidden />
+            <span className="truncate">{askEnd.words}</span>
+          </button>
+        ) : askEnd?.kind === "cancel" ? (
+          <button
+            type="button"
+            aria-label={askEnd.label}
+            onClick={() => void cancelAsk(askEnd.ask)}
+            className="h-11 shrink-0 rounded-[12px] border border-[#E8C77A] bg-card px-3 text-sm font-extrabold text-[#5C3D00] transition-colors hover:bg-[#FFF8E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Cancel
+          </button>
+        ) : !chip ? null : chip.kind === "log" ? (
           <button
             type="button"
             aria-label={several ? `${inTray ? "Take out of" : "Add to"} the tray: ${chip.words} of ${row.name}` : chip.label}
@@ -154,7 +204,9 @@ export function PantryRowView({
           </button>
         )}
       </div>
-      {open ? <SetRow row={row} item={item} usual={usual} meId={meId} names={names} onMore={onMore} onLogged={onLogged} /> : null}
+      {open ? (
+        <SetRow row={row} item={item} usual={usual} meId={meId} names={names} onMore={onMore} onLogged={onLogged} askName={askName} askStatus={askStatus} />
+      ) : null}
     </SwipeRow>
   );
 }

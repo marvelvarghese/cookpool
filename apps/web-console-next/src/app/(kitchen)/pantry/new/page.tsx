@@ -50,6 +50,8 @@ import {
   type ItemForm,
 } from "@/components/kitchen/item-form";
 import { useKitchenRouter } from "@/components/kitchen/transition-ui";
+import { NEW_ASK_DRAFT, addItemAskFields, askDraftOf, showsAddItemAsk, type AskDraft } from "@/components/kitchen/ask-before-use";
+import { AskSettingFields } from "@/components/kitchen/ask-ui";
 import { addFormFrom, historyEntryOfItem } from "@/components/kitchen/restock";
 
 /**
@@ -206,6 +208,9 @@ function AddItemForm({
   const roster = React.useMemo(() => (members.data ?? []).map((m) => m.subjectId), [members.data]);
   const payerChips = chipWindow(roster, { meId, names, chosen: form.paidBy ? [form.paidBy] : [], expanded: morePayers, max: 5 });
   const myRole = roleFromKitchen(members.data?.find((m) => m.subjectId === meId)?.role);
+  // Who can use it (cookpool-pantry PN-9, design §8.1): a group item you pay for, in the new frame.
+  const [askDraft, setAskDraft] = React.useState<AskDraft>(() => (from?.askFirst ? askDraftOf(from) : NEW_ASK_DRAFT));
+  const showAsk = notes && showsAddItemAsk({ group: group !== null, paidBy: form.paidBy, meId });
 
   // Added at once (SM-5): the item is listed in its pantry, the toast is up
   // (Undo for whoever paid for it, or an owner or admin — the API's rule) and
@@ -228,7 +233,10 @@ function AddItemForm({
     setBusy(true);
     const paidBy = request.kind === "group" ? (request.body.paidBy ?? meId) : meId;
     void addItem({
-      request,
+      request:
+        showAsk && request.kind === "group"
+          ? { ...request, body: { ...request.body, ...addItemAskFields(askDraft, { group: true, paidBy, meId, roster: members.data ? roster : null }) } }
+          : request,
       pantry: group ? { kind: "group", orgId: group.orgId, slug: group.slug, name: group.name } : { kind: "personal", name: chosen?.name ?? "Personal" },
       currency,
       groupWastePolicy: group ? group.wastePolicy : null,
@@ -530,7 +538,25 @@ function AddItemForm({
       </header>
 
       <form onSubmit={submit} noValidate className="max-w-xl space-y-6">
-        {boughtSections(group !== null, notes).map((id) => sections[id])}
+        {boughtSections(group !== null, notes).map((id) =>
+          id === "waste" && showAsk && group ? (
+            <React.Fragment key="waste">
+              {sections[id]}
+              <AskSettingFields
+                idPrefix="add-item-ask"
+                groupName={group.name}
+                draft={askDraft}
+                onChange={setAskDraft}
+                roster={members.data ? members.data.filter((m) => m.role !== "viewer").map((m) => m.subjectId) : null}
+                answerer={meId}
+                meId={meId}
+                names={names}
+              />
+            </React.Fragment>
+          ) : (
+            sections[id]
+          ),
+        )}
 
         {serverError ? (
           <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">

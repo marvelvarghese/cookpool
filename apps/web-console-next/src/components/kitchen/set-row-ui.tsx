@@ -12,6 +12,9 @@ import { memberInitials, memberLabel, type MemberNames } from "./members";
 import { orderConsumers } from "./item-use";
 import { usePantryDrafts, saveDraft } from "@/lib/pantry-device";
 import type { PantryRow } from "./pantry-list";
+import { useAskToUse, useCancelAsk } from "./ask-data";
+import { askButtonText, type AskStatus } from "./ask-before-use";
+import { ASK_BUTTON, AskLockIcon, AskWaitBox } from "./ask-ui";
 import {
   canStep,
   draftOf,
@@ -72,6 +75,8 @@ export function SetRow({
   names: knownNames,
   onMore,
   onLogged,
+  askName = null,
+  askStatus = null,
 }: {
   row: PantryRow;
   item: ReachableItem;
@@ -80,6 +85,10 @@ export function SetRow({
   names: MemberNames;
   onMore: () => void;
   onLogged: () => void;
+  /** Ask before use (cookpool-pantry PN-9): who you must ask; the main button then reads "Ask Meera" and asks. */
+  askName?: string | null;
+  /** Your ask for it: while it waits, the row shows it with Cancel instead of the amount. */
+  askStatus?: AskStatus | null;
 }) {
   const me = meId;
   const orgId = item.pantry.kind === "group" ? item.pantry.orgId : null;
@@ -89,9 +98,12 @@ export function SetRow({
   const roster = React.useMemo(() => (orgId && members.data ? members.data.map((m) => m.subjectId) : null), [orgId, members.data]);
   const moves = useItemMoves(row.ref);
   const logUse = useLogUse();
+  const askToUse = useAskToUse();
+  const cancelAsk = useCancelAsk();
   const set = useSetState(row, item, roster, me);
   const { step, steps, consumers } = set;
   if (!step) return null;
+  const asking = row.variant === "ask" && askName !== null && row.ref.kind === "group";
 
   const personal = item.pantry.kind === "personal";
   const last = lastLine({ moves: moves.data, usual, item, meId: me, names, now: new Date() });
@@ -105,6 +117,23 @@ export function SetRow({
 
   const use = () => {
     if (!ready) return;
+    if (asking && row.ref.kind === "group" && askName) {
+      // You must ask first: the same amount and people go to the buyer as an ask (nothing comes off yet).
+      void askToUse({
+        ref: row.ref,
+        item,
+        qtyMilli: step.qtyMilli,
+        consumers,
+        idempotencyKey: crypto.randomUUID(),
+        what: step.words,
+        measure: step.amount.kind === "measure" ? { measure: step.amount.measure, quantity: step.amount.quantity } : null,
+        meId: me,
+        names,
+        who: askName,
+      });
+      set.clear();
+      return;
+    }
     void logUse({
       ref: row.ref,
       item,
@@ -119,6 +148,14 @@ export function SetRow({
     set.clear();
     onLogged();
   };
+
+  if (askStatus?.phase === "waiting") {
+    return (
+      <div className="flex flex-col gap-2.5 px-3 pb-3.5">
+        <AskWaitBox status={askStatus} onCancel={() => void cancelAsk(askStatus.ask)} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2.5 px-3 pb-3.5">
@@ -186,15 +223,22 @@ export function SetRow({
       </div>
 
       <div className="grid grid-cols-[2fr_1fr] gap-2">
-        <button
-          type="button"
-          disabled={!ready}
-          onClick={use}
-          className="flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-primary text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
-        >
-          <Check className="h-5 w-5" strokeWidth={2.8} aria-hidden />
-          Use
-        </button>
+        {asking && askName ? (
+          <button type="button" disabled={!ready} onClick={use} className={ASK_BUTTON}>
+            <AskLockIcon />
+            <span className="truncate">{askButtonText(askName)}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!ready}
+            onClick={use}
+            className="flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-primary text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+          >
+            <Check className="h-5 w-5" strokeWidth={2.8} aria-hidden />
+            Use
+          </button>
+        )}
         <button
           type="button"
           onClick={onMore}

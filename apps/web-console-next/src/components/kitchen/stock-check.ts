@@ -32,6 +32,7 @@ import { formatMinor } from "./money";
 import { memberLabel, type MemberNames } from "./members";
 import { amountCost, amountStep, milliToDecimal, shareBreakdown, wastePreview, type ShareLine } from "./item-use";
 import { eachText } from "./faces";
+import { answererWords } from "./ask-before-use";
 import { pendingId } from "@/lib/optimistic";
 import type { StockChange } from "./cache-patches";
 
@@ -51,6 +52,8 @@ export type CheckItem = Pick<
   | "paidBy"
   | "wastePolicy"
   | "wastePolicyOverride"
+  | "mustAsk"
+  | "answerer"
 >;
 
 // ── The level ─────────────────────────────────────────────────────
@@ -229,8 +232,21 @@ export interface CheckOption {
 }
 
 /** The answer chosen to start with: Split for a group's item (design §7), I used it for your own. */
-export function defaultGone(item: Pick<KitchenItem, "pantry">): StockCheckGone {
+export function defaultGone(item: Pick<KitchenItem, "pantry" | "mustAsk">): StockCheckGone {
+  // Someone who must ask before using it (cookpool-pantry PN-9) can only say it went bad.
+  if (item.pantry.kind === "group" && item.mustAsk) return "waste";
   return item.pantry.kind === "group" ? "split" : "me";
+}
+
+/**
+ * For someone who must ask before using the item (cookpool-pantry PN-9): the
+ * server refuses the check's I used it and Split for them (`ask_first`), so
+ * only It went bad is offered, and one line says who logs a use — "Ask Meera
+ * to log what was used". Null for everyone else.
+ */
+export function checkAskNote(item: Pick<KitchenItem, "pantry" | "mustAsk" | "answerer">, names?: MemberNames | null): string | null {
+  if (item.pantry.kind !== "group" || !item.mustAsk) return null;
+  return `Ask ${answererWords(item.answerer ?? null, names)} to log what was used`;
 }
 
 /**
@@ -266,6 +282,8 @@ export function checkOptions(input: {
   if (item.pantry.kind === "personal") {
     return [{ gone: "me", title: "I used it", sub: "Logged as yours", costMinor, lines: [] }, wentBad];
   }
+  // You must ask before using it (PN-9): a use or a split is the answerer's to log.
+  if (item.mustAsk) return [wentBad];
 
   const mine = shareBreakdown({ item, qtyMilli: d, consumers: meId ? [meId] : [], meId, names: names ?? null });
   const buyer = memberLabel(item.paidBy, meId, names);

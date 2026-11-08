@@ -14,6 +14,7 @@ import { useMemberNames, useMyBalances } from "./people-data";
 import { JUST_ME, dishHref } from "./dish-maker";
 import { formatMinor } from "./money";
 import { useFreshTakes } from "./cook-session-data";
+import { useCancelAsk, useCookAsk, useSessionAsks } from "./ask-data";
 import { FinishSheet } from "./cook-finish-sheet";
 import { useNow } from "./cook-session-ui";
 import {
@@ -25,6 +26,7 @@ import {
   setPostTo,
   stepLine,
   tickLine,
+  withLineAsk,
   type CookSession,
   type FinishOutcome,
 } from "./cook-session";
@@ -103,6 +105,10 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
   const g = session.guide!;
 
   useFreshTakes(session, save);
+  // Ask before use (cookpool-pantry PN-9): Gather's lines the cook must ask for ask, as RC-6's do.
+  useSessionAsks(session, save);
+  const cookAsk = useCookAsk(meId, save);
+  const cancelAsk = useCancelAsk();
   useGuideTimers(meId, session, now, visible);
   const lockState = useScreenLock(screen !== "prompt" && g.screenOn && visible);
   const [canLock, setCanLock] = React.useState(true);
@@ -253,13 +259,20 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
       body = (
         <GuidePrepView
           view={view}
-          gather={session.lines.map((l) => sessionLineView(l, { meId, names }))}
+          gather={session.lines.map((l) => sessionLineView(l, { meId, names, now }))}
           openKey={openKey}
           strip={strip}
           banner={bannerCard}
           on={{
             onMinimize: minimize,
             onTickLine: (key) => save((s) => tickLine(s, key)),
+            onAskLine: (key, who) => cookAsk(session, key, who),
+            onCancelAskLine: (key) => {
+              const a = session.lines.find((l) => l.key === key)?.ask;
+              if (!a) return;
+              save((s) => withLineAsk(s, key, null));
+              void cancelAsk({ id: a.id, orgId: a.orgId });
+            },
             onToggleLine: (key) => setOpenKey((k) => (k === key ? null : key)),
             onStepLine: (key, d) => save((s) => stepLine(s, key, d)),
             onTickTool: (i) => save((s) => tickTool(s, i)),

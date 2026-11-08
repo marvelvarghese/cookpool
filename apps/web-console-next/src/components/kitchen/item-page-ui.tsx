@@ -20,6 +20,9 @@ import { localIsoDay } from "./item-form";
 import { shortMoney } from "./from-before";
 import { leftText } from "./pantry";
 import { runOutEstimate, whoHadIt } from "./item-use";
+import { useAskToUse, useAsks, useCancelAsk, useMinuteNow } from "./ask-data";
+import { askName, askStatus } from "./ask-before-use";
+import { AskLockIcon, AskStatusLine, AskWaitBox } from "./ask-ui";
 import {
   RING_COLORS,
   canBuyAgain,
@@ -114,11 +117,22 @@ const CHIP =
 export function QuickUseChips({ itemRef, item, usual, roster, meId, names }: ItemPartsCtx) {
   const logUse = useLogUse();
   const [sheet, setSheet] = React.useState<UseSheetTarget | null>(null);
+  // Ask before use (cookpool-pantry PN-9): who you must ask first, and your ask while it waits.
+  const askToUse = useAskToUse();
+  const cancelAsk = useCancelAsk();
+  const asks = useAsks();
+  const now = useMinuteNow();
+  const who = itemRef.kind === "group" ? askName(item, { names }) : null;
+  const status = askStatus(item.id, asks.data?.mine ?? null, { now, names });
   const chips = quickChips(item, usual);
   if (chips.length === 0) return null;
   const log = (chip: QuickChip) => {
     const fromChip = chip.consumerIds?.filter((id) => roster === null || roster.includes(id)) ?? [];
     const consumers = item.pantry.kind === "personal" ? [] : fromChip.length > 0 ? fromChip : defaultConsumers(usual, roster, meId);
+    if (who && itemRef.kind === "group") {
+      void askToUse({ ref: itemRef, item, qtyMilli: chip.qtyMilli, consumers, idempotencyKey: crypto.randomUUID(), what: chip.words, measure: chipMeasure(chip), meId, names, who });
+      return;
+    }
     void logUse({
       ref: itemRef,
       item,
@@ -131,8 +145,17 @@ export function QuickUseChips({ itemRef, item, usual, roster, meId, names }: Ite
       names,
     });
   };
+  if (status?.phase === "waiting") return <AskWaitBox status={status} onCancel={() => void cancelAsk(status.ask)} />;
   return (
-    <div role="group" aria-label="Use some" className="grid grid-cols-4 gap-1.5">
+    <div className="flex flex-col gap-2">
+    {status ? <AskStatusLine status={status} className="mt-0 px-1" /> : null}
+    {who ? (
+      <p className="flex items-center gap-1.5 px-1 text-[13px] font-bold text-[#8A5A00]">
+        <AskLockIcon className="h-4 w-4" />
+        Each tap asks {who}
+      </p>
+    ) : null}
+    <div role="group" aria-label={who ? `Ask ${who} for some` : "Use some"} className="grid grid-cols-4 gap-1.5">
       {chips.map((chip) => (
         <button
           key={chip.key}
@@ -147,13 +170,14 @@ export function QuickUseChips({ itemRef, item, usual, roster, meId, names }: Ite
       <button
         type="button"
         aria-haspopup="dialog"
-        onClick={() => setSheet({ row: pantryRow(item, { usual, showPantry: false, meId, names }), item: { ...item, canUse: true }, usual })}
+        onClick={() => setSheet({ row: pantryRow(item, { usual, showPantry: false, meId, names, askName: who }), item: { ...item, canUse: true }, usual })}
         className="col-start-4 flex min-h-[52px] items-center justify-center rounded-[14px] bg-primary px-2 text-sm font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         More…
       </button>
       {/* The Pantry's More… sheet (PN-5): how much, who had it, Log, Finish it, Wasted, Cook with it. */}
       <UseSheet target={sheet} onClose={() => setSheet(null)} meId={meId} onLogged={() => undefined} />
+    </div>
     </div>
   );
 }
@@ -219,14 +243,30 @@ export function ItemActionsRow({ itemRef, item, usual, roster, meId, names, canW
   const buyAgain = useBuyAgain();
   const logUse = useLogUse();
   const wasteItem = useWasteItem();
+  const askToUse = useAskToUse();
   const [wasting, setWasting] = React.useState(false);
   const live = canWrite && item.state === "active" && item.qtyLeftMilli > 0;
+  // You must ask first (PN-9): Finish it asks for the rest; Wasted and Cook with it are the buyer's (the server refuses them).
+  const who = itemRef.kind === "group" ? askName(item, { names }) : null;
   const buy = canBuyAgain(item, canWrite);
   const check = canCheck(item, canWrite);
   if (!live && !buy && !check) return null;
 
   const finish = () =>
-    void logUse({
+    who && itemRef.kind === "group"
+      ? void askToUse({
+          ref: itemRef,
+          item,
+          qtyMilli: item.qtyLeftMilli,
+          consumers: defaultConsumers(usual, roster, meId),
+          idempotencyKey: crypto.randomUUID(),
+          what: leftText(item),
+          measure: null,
+          meId,
+          names,
+          who,
+        })
+      : void logUse({
       ref: itemRef,
       item,
       qtyMilli: item.qtyLeftMilli,
@@ -256,10 +296,10 @@ export function ItemActionsRow({ itemRef, item, usual, roster, meId, names, canW
         ) : null}
         {live ? (
           <button type="button" onClick={finish} className={ACTION}>
-            Finish it
+            {who ? "Ask for the rest" : "Finish it"}
           </button>
         ) : null}
-        {live ? (
+        {live && !who ? (
           <button type="button" aria-expanded={wasting} aria-controls="waste-preview" onClick={() => setWasting((w) => !w)} className={ACTION}>
             Wasted
           </button>
@@ -270,12 +310,12 @@ export function ItemActionsRow({ itemRef, item, usual, roster, meId, names, canW
       ) : null}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
         {check ? (
-          <Link href={checkHref(itemRef)} className={cn(ACTION, live ? "" : "col-span-2")}>
+          <Link href={checkHref(itemRef)} className={cn(ACTION, live && !who ? "" : "col-span-2")}>
             <SlidersVertical className="h-[18px] w-[18px] shrink-0 text-muted-foreground" aria-hidden />
             <span className="truncate">Fix how much is left</span>
           </Link>
         ) : null}
-        {live ? (
+        {live && !who ? (
           <Link href={cookHref(itemRef)} className={cn(ACTION, check ? "px-3.5" : "col-span-2")}>
             <CookingPot className="h-[18px] w-[18px] shrink-0 text-muted-foreground" aria-hidden />
             Cook with it

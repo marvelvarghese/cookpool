@@ -61,6 +61,9 @@ import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookHref } from "@/components/kitchen/dish-maker";
 import { undoneToast } from "@/components/kitchen/undo";
 import { usePrefetchKitchen } from "@/components/kitchen/prefetch";
+import { askName } from "@/components/kitchen/ask-before-use";
+import { ItemAskSetting } from "@/components/kitchen/ask-ui";
+import { RowTagPill } from "@/components/kitchen/pantry-row-ui";
 
 /**
  * One item (CP-12; SM-15 under the seven rules, the canvas's MeasureItem):
@@ -209,6 +212,8 @@ function NewItemView(ctx: ItemCtx) {
   const usual = usualFor(item.id, usuals.data);
   const moves = useItemMoves(itemRef);
   const parts = { itemRef, item, meId, names, roster, usual };
+  // Ask before use (cookpool-pantry PN-9): "Ask Meera" when you must ask first.
+  const ask = itemRef.kind === "group" ? askName(item, { names }) : null;
 
   return (
     <div className="space-y-5">
@@ -217,6 +222,7 @@ function NewItemView(ctx: ItemCtx) {
         <h1 className="min-w-0 break-words text-[26px] font-extrabold leading-tight tracking-tight">{item.name}</h1>
         <span className={CHIP}>{pantryChipLabel(item.pantry)}</span>
         {stateLabel ? <span className={CHIP}>{stateLabel}</span> : null}
+        {ask ? <RowTagPill tag={{ label: `Ask ${ask}`, tone: "ask" }} /> : null}
       </header>
 
       <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
@@ -231,6 +237,7 @@ function NewItemView(ctx: ItemCtx) {
         <div className="min-w-0 space-y-5">
           <NoteCard {...ctx} />
           {item.state === "active" ? <CountedAs item={item} canWrite={roleKnown && canWrite} /> : null}
+          {roleKnown && canWrite ? <ItemAskSetting item={item} roster={roster} meId={meId} names={names} role={ctx.role} /> : null}
           {live && roleKnown && !canWrite ? <p className="px-1 text-sm text-muted-foreground">You only view {pantryLabel(item.pantry)}.</p> : null}
           {roleKnown ? <ItemActionsRow {...parts} canWrite={canWrite} /> : null}
           {personal && item.state === "active" ? <MoveCard {...ctx} /> : null}

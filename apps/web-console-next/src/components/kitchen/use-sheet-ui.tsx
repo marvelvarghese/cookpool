@@ -24,6 +24,9 @@ import { LevelBar } from "./pantry-row-ui";
 import { useSetState } from "./set-row-ui";
 import { restStep, type LadderStep } from "./pantry-set";
 import type { PantryRow } from "./pantry-list";
+import { useAskToUse, useAsks, useCancelAsk, useMinuteNow } from "./ask-data";
+import { askButtonText, askName, askStatus } from "./ask-before-use";
+import { AskLockIcon, AskWaitBox } from "./ask-ui";
 import { shortMoney } from "./from-before";
 
 /** What the sheet is for: a row, its item and its usual. */
@@ -108,6 +111,13 @@ function SheetBody({
   const wasteItem = useWasteItem();
   const [wasting, setWasting] = React.useState(false);
   const personal = item.pantry.kind === "personal";
+  // Ask before use (cookpool-pantry PN-9): who you must ask first, and your ask while it waits.
+  const askToUse = useAskToUse();
+  const cancelAsk = useCancelAsk();
+  const asks = useAsks();
+  const now = useMinuteNow();
+  const who = row.ref.kind === "group" ? askName(item, { names }) : null;
+  const waiting = askStatus(item.id, asks.data?.mine ?? null, { now, names });
   const tiles = row.ladder.tiles;
   const step = set.step;
   const onTile = step ? tiles.find((t) => t.id === step.key || (!t.rest && t.amount.qtyMilli === step.qtyMilli && !step.rest)) : undefined;
@@ -115,13 +125,30 @@ function SheetBody({
   const consumers = set.consumers;
   const ready = step !== null && (personal || consumers.length > 0);
   const breakdown = !personal && step ? shareBreakdown({ item, qtyMilli: step.qtyMilli, consumers, meId, names }) : null;
-  const who = personal || !step ? null : whoLine({ ids: faceOrder(consumers, meId, names), meId, names, amounts: breakdown?.lines.map((l) => l.amountMinor) ?? null, currency: item.currency });
+  const whoText = personal || !step ? null : whoLine({ ids: faceOrder(consumers, meId, names), meId, names, amounts: breakdown?.lines.map((l) => l.amountMinor) ?? null, currency: item.currency });
   const cost = step ? formatMinor(amountCost(item, step.qtyMilli), item.currency) : null;
   const facts = [pantryLabel(item.pantry), personal ? null : `${memberLabel(item.paidBy, meId, names)} paid ${formatMinor(item.priceMinor, item.currency)}`, expiryText(item)]
     .filter(Boolean)
     .join(" · ");
 
   const log = (s: LadderStep) => {
+    if (who && row.ref.kind === "group" && consumers.length > 0) {
+      void askToUse({
+        ref: row.ref,
+        item,
+        qtyMilli: s.qtyMilli,
+        consumers,
+        idempotencyKey: crypto.randomUUID(),
+        what: s.words,
+        measure: s.amount.kind === "measure" ? { measure: s.amount.measure, quantity: s.amount.quantity } : null,
+        meId,
+        names,
+        who,
+      });
+      set.clear();
+      onClose();
+      return;
+    }
     if (personal || consumers.length > 0) {
       void logUse({
         ref: row.ref,
@@ -161,7 +188,9 @@ function SheetBody({
         </Link>
       </div>
 
-      {wasting ? (
+      {waiting?.phase === "waiting" ? (
+        <AskWaitBox status={waiting} onCancel={() => void cancelAsk(waiting.ask)} />
+      ) : wasting ? (
         <WasteConfirm
           className="border-0 bg-background p-4"
           item={item}
@@ -246,21 +275,41 @@ function SheetBody({
             </section>
           )}
 
-          <Button type="button" className={MAIN_BUTTON} disabled={!ready} onClick={() => step && log(step)}>
-            <MainButtonLabel title={!ready ? "Pick who had it" : `Log ${step!.words}${personal && cost ? ` · ${cost}` : ""}`} who={ready ? who : null} />
-          </Button>
+          {who ? (
+            <>
+              <Button type="button" className={cn(MAIN_BUTTON, "bg-[#17201B] hover:bg-[#17201B]/90")} disabled={!ready} onClick={() => step && log(step)}>
+                <MainButtonLabel title={!ready ? "Pick who had it" : `${askButtonText(who)} · ${step!.words}`} who={ready ? whoText : null} />
+              </Button>
+              {/* Wasted and Cook with it are the buyer's to do while you must ask (the server refuses them: ask_first). */}
+              <div className="grid grid-cols-[auto_1fr] items-center gap-3">
+                <button type="button" className={cn(ACTION, "px-3.5")} disabled={consumers.length === 0} onClick={() => log(restStep(item))}>
+                  Ask for the rest
+                </button>
+                <p className="flex items-center gap-1.5 text-[13px] font-bold text-[#8A5A00]">
+                  <AskLockIcon className="h-4 w-4" />
+                  Nothing comes off until {who} says yes
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <Button type="button" className={MAIN_BUTTON} disabled={!ready} onClick={() => step && log(step)}>
+                <MainButtonLabel title={!ready ? "Pick who had it" : `Log ${step!.words}${personal && cost ? ` · ${cost}` : ""}`} who={ready ? whoText : null} />
+              </Button>
 
-          <div className="grid grid-cols-3 gap-2">
-            <button type="button" className={ACTION} disabled={!(personal || consumers.length > 0)} onClick={() => log(restStep(item))}>
-              Finish it
-            </button>
-            <button type="button" className={ACTION} onClick={() => setWasting(true)}>
-              Wasted
-            </button>
-            <Link href={cookHref(row.ref)} onClick={onClose} className={ACTION}>
-              Cook with it
-            </Link>
-          </div>
+              <div className="grid grid-cols-3 gap-2">
+                <button type="button" className={ACTION} disabled={!(personal || consumers.length > 0)} onClick={() => log(restStep(item))}>
+                  Finish it
+                </button>
+                <button type="button" className={ACTION} onClick={() => setWasting(true)}>
+                  Wasted
+                </button>
+                <Link href={cookHref(row.ref)} onClick={onClose} className={ACTION}>
+                  Cook with it
+                </Link>
+              </div>
+            </>
+          )}
           {target.buyAgain && onBoughtAgain ? (
             <button
               type="button"
