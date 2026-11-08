@@ -4,11 +4,11 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 | Milestone | State | PR |
 |---|---|---|
-| GC0 — the spec | landing | GC-1 |
-| GC1 — steps that guide | | |
-| GC2 — cooking with you | | |
-| GC3 — timers that find you | | |
-| GC4 — learning from cooks | | |
+| GC0 — the spec | ✅ shipped 2026-11-08 | #69 (GC-1) |
+| GC1 — steps that guide | ✅ shipped on stage 2026-11-08 | #73 (GC-2), #75 (GC-4), #76 (GC-6) |
+| GC2 — cooking with you | ✅ shipped on stage 2026-11-08 | #77 (GC-5) |
+| GC3 — timers that find you | ✅ shipped on stage 2026-11-08 | #72 (GC-3) |
+| GC4 — learning from cooks | ✅ shipped on stage 2026-11-08 | #74 (GC-7), GC-8 |
 
 ## Departures from the design
 
@@ -416,3 +416,13 @@ Totals are for the tree with main merged in, after GC-7 (#74): its 805 and 654, 
 | `tests/web-console-next` | `kitchen-cook-guided.test.ts`: 44 — the draft (the guide from a recipe, none without steps, the mode, steps, ticks and timers, a reload, a bad guide dropped, the screens and the new frame) · the prompt with and without long prep (stats, bar, Before you start, Soak now with the step's time, Already done) · long prep with the recipe page's memory (done there, started there adopted, written back, a soak kept past Discard) · prep (Gather's ticks, tools, prep, "N of M ready", Start 15 min into the strip, Start cooking) · the step (header, segments, plan link, flames, scaled chips, checkpoint, timer and learned range shown or absent, tip, Done and Finish, swipe only looks) · hands off (Start and go on, the strip, waiting, the banner) · Meanwhile · whistles (the count, Can't hear it?, the strip, the next step's timer) · Done (rows, the cost, Use today's times' body and its undo, only for your own) · the posted `stepLog` · Just tick unchanged · prod. `kitchen-cook-guided-timers.test.ts`: 23 — server timer create and cancel (start, Pause, Resume, +1 min, a tick, Discard), the visible hand-over and one ring, hidden left to the push, too short, a stale create cancelled, a failed cancel retried · `too_many_timers` and other refusals · the push hint · the wake lock (mocked: taken, released, retaken on visibility, waits for visible, refused, missing) · read aloud (mocked) · the bell (mocked) · swipe. `kitchen-cook-guided-content.test.ts`: 3 — Cookpool's 42 recipes, read from GC-4's 390, each open on the prompt (long prep holding the start) and cook from the first step to Done: every step shows, every push fits GC-3's bounds, whistles count, the step log has every cook step. Fixtures in `kitchen-cook-guided-fixtures.ts` (GC-6's `kitchen-guided-fixtures.ts` is its own). RC-6's 52 tests pass unchanged. | 1744 (87 suites) |
 
 `pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`; `next build` passes (`/cook/session` 33 kB). `orun task check GC-5 --base origin/main` passes: 2 changed components, all inside the contract.
+
+### The stage close (GC-8)
+
+- **Every build task is merged and deployed:** GC-2 to GC-7. Migrations 370–390 are applied on stage and prod.
+- **The per-minute timer cron is running.**
+- **Two deploys needed reruns, neither a code problem:**
+  - GC-3's verify jobs failed on an Orunbase log-chunk upload, though every step had passed.
+  - GC-4's migrate jobs hit a D1 401.
+- **GC-3 widened its contract** by `config-worker-tests`, which pinned kitchen-worker's cron list, and re-attached it.
+- **Not yet checked by a person:** the milestones' "done when" lines that need a real phone. They are listed under "After this epic" in the README.

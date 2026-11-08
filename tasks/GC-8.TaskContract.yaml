@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: GC-8
+  title: "Guided cooking on stage"
+spec:
+  goal: "The cookpool-guided epic reads shipped on stage, with what it shipped as, the as-built table, and the follow-ups the tasks reported; prod follows cookpool-recipes RC5."
+  affects:
+    - specs/epics/cookpool-guided/**
+    - tasks/GC-8.TaskContract.yaml
+  doneWhen:
+    - "the README status reads shipped on stage and Shipped as lists every pull request"
+    - "GC0 to GC4 read shipped in the plan and the status table"
+    - "the follow-ups the tasks reported are listed after the epic"
+  gates: []

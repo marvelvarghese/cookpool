@@ -14,7 +14,7 @@ It is built the way a good workout app works: one thing at a time, big targets, 
 
 | Field | Value |
 |-------|-------|
-| Status | In progress — GC0 landing |
+| Status | ✅ Shipped on stage 2026-11-08 · reaches prod with cookpool-recipes RC5 |
 | Cluster | **GC** (GC0–GC4) |
 | Owner(s) | **Step model, timers and learning:** `apps/kitchen-worker`, `packages/db`, `packages/contracts`, `packages/sdk`. **Timer pushes:** `apps/notifications-worker`. **Guided mode, the step editor and the plan:** `apps/web-console-next`. |
 | Builds on | `cookpool-recipes`: RC-4 recipes and steps, RC-5 the recipe page and form, RC-6 the cooking session, RC-7 Cookpool's recipes. `cookpool-app` (PW-5/PW-6 Web Push). |
@@ -22,7 +22,7 @@ It is built the way a good workout app works: one thing at a time, big targets, 
 | Decisions locked | (1) **Guided is the default when a recipe has steps.** "Just tick what I use" (RC-6) stays; it is the same session, the same Finish and the same money. (2) **A step ends when you tick it.** The checkpoint is what you watch for; the timer is a guide. (3) **Parallel work comes from waiting.** A hands-off step frees the cook, and the app offers the next steps meanwhile. Authors write steps in order, with no flowchart. (4) **Long prep is planned up front.** A hands-off prep step of an hour or more shows on the recipe page and at the start, with a reminder. (5) **Times scale by rule, per step:** the same, a bit longer (× size^0.5) or longer (× size). Whistles never scale. (6) **Ranges from other cooks show only from 5 cooks by 3 people.** They are aggregated, never shown with a name, and never rewrite the author's words. (7) **The server pushes a timer within a minute of its end.** The web can't schedule its own alarm. In the app it rings on time. (8) **Ingredients are attached to a step, not written into its text.** The step shows them as chips with scaled amounts, so there is no template language. (9) **No voice commands.** iPhone web speech recognition is unreliable. Instead: big buttons, swipe, read aloud, screen on. (10) **Stage first,** behind `newFrame()`. |
 | Design | Claude Design canvas, row "Guided cooking — step by step": https://claude.ai/artifact/TwmkN2cAmebQPkL2QEQZVv (`GuidePrompt`, `GuidePrep`, `GuideStep`, `GuideWait`, `GuideTimeline`, `GuideEditor`, `GuideDone`). The stickies there hold the rules and this epic's draft. |
 | Gate | GC1 is the day a recipe knows how to guide. GC2 is the day it cooks with you. GC3 is the day a timer finds you. GC4 is the day it learns. |
-| Shipped as | |
+| Shipped as | GC0 #69 · GC1 #73 #75 #76 · GC2 #77 · GC3 #72 · GC4 #74 · close GC-8. On stage: recipes with guided steps (flame, scaled ingredients, a time range or whistles, hands off, checkpoint, tip), tools and long prep; Cookpool's 42 recipes rewritten as 303 guided steps; the step editor and the plan; guided mode in the session (the prompt, before you start, one step at a time, waiting with Meanwhile, whistles, screen on, read aloud, swipe, Done); timers pushed to a locked phone within a minute; and ranges learned from 5 cooks by 3 people. |
 
 ## Read order
 
@@ -40,3 +40,22 @@ It is built the way a good workout app works: one thing at a time, big targets, 
 | GC2 — cooking with you | guided mode: the prompt, Before you start, one step at a time, waiting and Meanwhile, whistles, screen on, read aloud, swipe, Done | on stage, Chicken curry cooks from the first step to Who ate, the simmer runs while step 7 is open, and Done shows each step's time |
 | GC3 — timers that find you | timers set in the server, and the per-minute push | a timer set in guided mode reaches a locked phone within a minute of its end |
 | GC4 — learning from cooks | each step's time recorded with the size; ranges from 5 cooks | after 5 recorded cooks, a step reads "usually N–M min at this size · K cooks" |
+
+## After this epic
+
+These are what the tasks reported and left for later, or for a small fix:
+
+- **Prod.** Guided cooking lives inside the new frame, so it reaches prod with cookpool-recipes' RC5, when the owner says go.
+- **Owner checks on an installed iPhone** (#77, #76, #72):
+  - the screen stays on through a step and while waiting, and comes back after a lock;
+  - a simmer started with the phone locked pushes within a minute, and with the app open it rings once and doesn't push;
+  - read aloud;
+  - swiping between steps doesn't fight the edge swipe-back;
+  - Chicken curry cooks from the prompt to Who ate;
+  - a soak started on the recipe page shows as running in the session, without a second push.
+- **A recipe's minutes** aren't recomputed from its guided totals. Rajma, chole and besan ladoo differ (GC-4).
+- **A line used in two steps shows its full amount at each step** (GC-4). A per-step share of a line would fix it.
+- **Copies saved before migration 390** keep their old random step keys, so their times don't pool with Cookpool's (GC-4, GC-7).
+- **"Your 12th cook"** is left out of Done, because there's no cheap count of a person's dishes (GC-5).
+- **Timers reach a locked phone up to a minute late** (risk GC-A). Durable Object alarms would make that exact.
+- **db-migrate sometimes gets D1 401s.** Migrations 330 and 390 each needed a rerun; a retry inside db-migrate would save the reruns.
