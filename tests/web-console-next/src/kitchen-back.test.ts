@@ -41,6 +41,9 @@ describe("the parent map (backParent)", () => {
     ["/pantry/me%3Aitm_abc123", "/pantry?pantry=personal"],
     ["/pantry/org:org_f1a:itm_abc123", "/pantry?pantry=org_f1a"],
     ["/pantry/not-an-item", "/pantry"],
+    // Its stock check (PN-7) → the item.
+    ["/pantry/me:itm_abc123/check", "/pantry/me:itm_abc123"],
+    ["/pantry/org:org_f1a:itm_abc123/check", "/pantry/org:org_f1a:itm_abc123"],
     // A dish → Home until its group is known (and for a dish of your own).
     ["/dishes/dsh_1", "/home"],
     // A group → Groups; its Settings and Add a bill → the group.

@@ -72,11 +72,24 @@ export function useUndoToast() {
             else update(shown, { ...t, duration: REFUSAL_MS });
           },
         );
+      const extra = offer.extra;
       const id = toast({
         kind: "success",
         title: offer.title,
         description: offer.description,
         duration: UNDO_MS,
+        secondary: extra
+          ? {
+              label: extra.label,
+              onClick: () => {
+                if (pressed || closed) return;
+                closed = true;
+                clearTimeout(timer);
+                uncount();
+                extra.onClick();
+              },
+            }
+          : undefined,
         action: {
           label: "Undo",
           onClick: () => {
@@ -105,7 +118,7 @@ export function useUndoToast() {
           closed = true;
           clearTimeout(timer);
           uncount();
-          update(id, { ...t, action: undefined, duration: REFUSAL_MS });
+          update(id, { ...t, action: undefined, secondary: undefined, duration: REFUSAL_MS });
         },
         close: () => {
           closed = true;

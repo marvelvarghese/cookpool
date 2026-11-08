@@ -28,8 +28,11 @@ import {
   useItemMoves,
   useKitchenItem,
   usePantries,
+  useUsuals,
   useWasteItem,
 } from "@/components/kitchen/pantry-data";
+import { usualFor } from "@/components/kitchen/quick-use";
+import { ItemActionsRow, LevelRingCard, QuickUseChips, RunOutCard, WhoHadItCard } from "@/components/kitchen/item-page-ui";
 import { StockBar, UseByPill } from "@/components/kitchen/pantry-ui";
 import { WasteConfirm } from "@/components/kitchen/item-actions-ui";
 import { SwipeRow } from "@/components/kitchen/row-gestures-ui";
@@ -139,6 +142,12 @@ const STATE_LABEL: Record<KitchenItem["state"], string | null> = {
 };
 
 function ItemView(ctx: ItemCtx) {
+  // The new frame's page (cookpool-pantry PN-7): today's frame renders exactly as before.
+  if (newFrame()) return <NewItemView {...ctx} />;
+  return <TodayItemView {...ctx} />;
+}
+
+function TodayItemView(ctx: ItemCtx) {
   const { item, roleKnown, canWrite } = ctx;
   const personal = item.pantry.kind === "personal";
   const live = item.state === "active" && item.qtyLeftMilli > 0;
@@ -178,6 +187,55 @@ function ItemView(ctx: ItemCtx) {
           </Button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The new frame's item page (cookpool-pantry PN-7, design §5, the canvas's
+ * ItemPage), top to bottom on a phone: the level ring, the quick-use chips,
+ * "At this rate", Who had it, the history (stock checks read as such, a
+ * check's raise undoable), the note and measures, then Bought again, Finish
+ * it, Wasted, Fix how much is left and Cook with it. The chips and More…
+ * are how you use it: there is no Use some button here.
+ */
+function NewItemView(ctx: ItemCtx) {
+  const { itemRef, item, meId, names, roster, roleKnown, canWrite } = ctx;
+  const personal = item.pantry.kind === "personal";
+  const live = item.state === "active" && item.qtyLeftMilli > 0;
+  const stateLabel = STATE_LABEL[item.state];
+  const canUseHere = live && roleKnown && canWrite;
+  const usuals = useUsuals(canUseHere);
+  const usual = usualFor(item.id, usuals.data);
+  const moves = useItemMoves(itemRef);
+  const parts = { itemRef, item, meId, names, roster, usual };
+
+  return (
+    <div className="space-y-5">
+      <BackButton />
+      <header className="flex min-w-0 flex-wrap items-center gap-2">
+        <h1 className="min-w-0 break-words text-[26px] font-extrabold leading-tight tracking-tight">{item.name}</h1>
+        <span className={CHIP}>{pantryChipLabel(item.pantry)}</span>
+        {stateLabel ? <span className={CHIP}>{stateLabel}</span> : null}
+      </header>
+
+      <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
+        <div className="min-w-0 space-y-4">
+          <LevelRingCard item={item} usual={usual} meId={meId} names={names} />
+          {canUseHere ? <QuickUseChips {...parts} /> : null}
+          <RunOutCard item={item} moves={moves.data ?? null} />
+          <WhoHadItCard item={item} moves={moves.data ?? null} meId={meId} names={names} />
+          <HistoryCard {...ctx} fresh />
+        </div>
+
+        <div className="min-w-0 space-y-5">
+          <NoteCard {...ctx} />
+          {item.state === "active" ? <CountedAs item={item} canWrite={roleKnown && canWrite} /> : null}
+          {live && roleKnown && !canWrite ? <p className="px-1 text-sm text-muted-foreground">You only view {pantryLabel(item.pantry)}.</p> : null}
+          {roleKnown ? <ItemActionsRow {...parts} canWrite={canWrite} /> : null}
+          {personal && item.state === "active" ? <MoveCard {...ctx} /> : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -367,7 +425,7 @@ function MoveCard({ itemRef, item }: ItemCtx) {
 
 // ── History ────────────────────────────────────────────────────────
 
-function HistoryCard({ itemRef, item, meId, names, role, canWrite }: ItemCtx) {
+function HistoryCard({ itemRef, item, meId, names, role, canWrite, fresh = false }: ItemCtx & { fresh?: boolean }) {
   const { client } = useSession();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -375,7 +433,8 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite }: ItemCtx) {
   const [pending, setPending] = React.useState<string | null>(null);
   const personal = item.pantry.kind === "personal";
   const now = new Date();
-  const rows = moves.data ? historyRows(moves.data, { item, meId, names, now }) : null;
+  // The new frame (PN-7) reads a stock check's moves as the check, and lets its raise be undone.
+  const rows = moves.data ? historyRows(moves.data, fresh ? { item, meId, names, now, stockChecks: true } : { item, meId, names, now }) : null;
   const byId = new Map((moves.data ?? []).map((m) => [m.id, m] as const));
 
   const undo = async (move: KitchenStockMove) => {
@@ -383,7 +442,9 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite }: ItemCtx) {
     const r = await undoStockMove(client, itemRef, move);
     setPending(null);
     refreshPantry(qc, itemRef.kind === "group" ? itemRef.orgId : null);
-    toast(undoneToast(r.ok ? { ok: true, description: "It's back in the pantry." } : undoRefusal(r.error)));
+    // A stock check's raise (PN-7) comes back off; anything else is back in the pantry.
+    const back = fresh && move.kind === "adjust" ? "It's back to what Cookpool thought." : "It's back in the pantry.";
+    toast(undoneToast(r.ok ? { ok: true, description: back } : undoRefusal(r.error)));
   };
 
   return (
@@ -407,7 +468,7 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite }: ItemCtx) {
         <ul className="divide-y overflow-hidden rounded-[18px] border bg-card">
           {rows.map((row) => {
             const move = byId.get(row.id);
-            const can = { meId, personal, role, canWrite };
+            const can = fresh ? { meId, personal, role, canWrite, adjusts: true } : { meId, personal, role, canWrite };
             const undoable = move && moves.data ? canUndoMove(move, moves.data, can) : false;
             // Your own use or waste swipes left to the same Undo (PW-8); the button stays.
             const swipe = move && moves.data && pending !== move.id && canSwipeUndoMove(move, moves.data, can);

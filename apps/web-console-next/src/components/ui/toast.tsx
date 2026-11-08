@@ -19,6 +19,11 @@ interface ToastItem {
    * `onClick` and closes the toast.
    */
   action?: { label: string; onClick: () => void } | undefined;
+  /**
+   * A second, quieter button before it (cookpool-pantry PN-7: Bought
+   * again's "Change · Undo"). Pressing it runs `onClick` and closes the toast.
+   */
+  secondary?: { label: string; onClick: () => void } | undefined;
   /** How long it stays, in ms (default 4500; Infinity until closed). */
   duration?: number | undefined;
   /**
@@ -122,6 +127,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 </ToastPrimitive.Description>
               )}
             </div>
+            {t.secondary ? (
+              <ToastPrimitive.Action
+                altText={t.secondary.label}
+                onClick={t.secondary.onClick}
+                className="-mr-2 inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t.secondary.label}
+              </ToastPrimitive.Action>
+            ) : null}
             {t.action ? (
               <ToastPrimitive.Action
                 altText={t.action.label}

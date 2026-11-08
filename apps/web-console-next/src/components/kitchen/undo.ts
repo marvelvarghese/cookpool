@@ -49,6 +49,11 @@ export interface UndoOffer {
    * back what the server still has.
    */
   restore?: () => void;
+  /**
+   * A second button before Undo (cookpool-pantry PN-7: Bought again's
+   * Change). It closes the toast; what it does is the caller's.
+   */
+  extra?: { label: string; onClick: () => void } | undefined;
 }
 
 /** How long a refusal stays on screen. */

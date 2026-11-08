@@ -46,6 +46,8 @@ describe("which screens pull to refresh", () => {
     "/you/notifications",
     "/pantry/new",
     "/pantry/:itemRef",
+    // The stock check (cookpool-pantry PN-7): a level you drag, which a pull would fight.
+    "/pantry/:itemRef/check",
     "/groups/:orgSlug/expense",
     "/groups/:orgSlug/settings",
     "/join/:code",
@@ -137,6 +139,7 @@ describe("the edge swipe's gate: installed on an iPhone, never on a tab", () => 
     expect(edgeSwipeBackOn(iphone, "/groups/")).toBe(false);
     const examples: Record<string, string> = {
       "/pantry/:itemRef": "/pantry/me:itm_abc123",
+      "/pantry/:itemRef/check": "/pantry/me:itm_abc123/check",
       "/dishes/:dishRef": "/dishes/dsh_1",
       "/groups/:orgSlug": "/groups/flat-4b-k3x9",
       "/groups/:orgSlug/settings": "/groups/flat-4b-k3x9/settings",

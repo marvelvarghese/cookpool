@@ -50,6 +50,8 @@ export const STATIC_PAGES = Object.freeze([
   "/pantry",
   "/pantry/new",
   "/pantry/:itemRef",
+  // The stock check (cookpool-pantry PN-7).
+  "/pantry/:itemRef/check",
   "/dishes/:dishRef",
   "/recipes/new",
   "/recipes/:recipeId",

@@ -45,6 +45,7 @@ import { countedWords } from "./measures";
 import { newFrame } from "@/lib/features";
 import type { UsualBucket } from "@saas/contracts/kitchen-usuals";
 import { msToNextBucket, tzOffsetOf, usualsRead } from "./now-strip";
+import { checkUndoRefusal } from "./stock-check";
 
 /**
  * Cookpool's pantry reads and stock writes (CP-12), through the CP-10/CP-11
@@ -220,6 +221,12 @@ function undoRefusalText(error: ApiErrorBody): { kind: "warning" | "error"; titl
       return { kind: "warning", title: "This one can't be undone", description: "Log it again instead." };
     case "not_creator":
       return { kind: "warning", title: "Only who logged it can undo it", description: "Or an owner or admin of the group." };
+    case "insufficient_stock": {
+      // A stock check's raise, undone once what it added is used (cookpool-pantry PN-7).
+      const used = checkUndoRefusal(error);
+      if (used) return { kind: used.kind, title: used.title, description: used.description };
+      return { kind: "error", title: "Couldn't undo it", description: error.message };
+    }
     default:
       return { kind: "error", title: "Couldn't undo it", description: error.message };
   }
