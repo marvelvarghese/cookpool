@@ -227,3 +227,88 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | `packages/sdk` | 4 | 175 |
 
 `pnpm typecheck` and `pnpm lint` pass repo-wide (`tests/web-console-next`, untouched, still passes 1385), and `orun task check RC-4 --base origin/main` passes: 8 changed components, all inside the contract.
+
+### RC2 — the recipe screens (RC-5)
+
+**What shipped.** The console only; no server, contract or SDK change. Everything new shows only where `newFrame()` is true. With it false, every page renders what it did.
+
+- **The Cook hub** (`/cook` in the new frame; `CookHub`, `cook-hub-views.tsx`). `cookPageShows(newFrame, ?item)` picks it at render; prod keeps today's dish maker. From the top:
+  - "Cook".
+  - **Start cooking**: full width, in the cook colour #B4471F, with the pot. It opens `/cook/session` (RC-6's page).
+  - **Cook now**, from `GET /v1/kitchen/me/cook-now`:
+    - a segmented "Can make N" (nothing missing) | "Missing 1 · N", starting on Can make when there is any;
+    - a row per recipe: its tile (the initial on one of five tints, by id), the name, "Have all 5 · for 3" in green or "Missing yogurt · for 2" muted, and **Start** (`/cook/session?recipe=…&f=…`);
+    - hidden while empty, unread, or when nothing misses fewer than two.
+  - **My recipes**, from `GET /v1/kitchen/me/recipes`: the count; **New recipe** in a two-column row whose second cell is RC-8's for Explore (`extraAction`); a card per recipe, last cooked first (never cooked last, then newest). Each card has the name, its ingredients on one ellipsized line, "Serves 4 · from Anu · Cooked today" (or "Saved by 3"), and a tinted **Start cooking** at the written size.
+- **The recipe page** (`/recipes/[id]`, new frame only; `recipe-ui.tsx` over `recipe-views.tsx`). It is one static file for `_`, as `dishes/[id]` is: `static-pages.mjs`, a `ParamShell` layout with `generateStaticParams`, `usePathParam`.
+  - **Header**: Back; the name; "from Anu" with her face for a copy, "by Anu" with her face for someone else's, "by Cookpool" for Cookpool's own, nothing for yours; minutes ("45 min", "1 h 15 min").
+  - **One action**: Edit for the owner (not on Cookpool's own). For anyone else, **Save** (`POST …/copies` with `{ recipeId }`, or `{ linkCode }` when opened with `?code=`). It reads Saved at once, with the Undo toast, and links to your copy once written. A copy you saved before is found in My recipes by `source.recipeId`.
+  - **How much**, one factor in thousandths that both rows set:
+    - MAIN ITEM, − amount +, through `factorForMain`;
+    - the chip, "As written · serves 4" or "×0.45 · every line follows" in dark;
+    - **Use all 450 g you have**;
+    - Portions, − about 2 +, through `factorForPortions` and `scalePortions`.
+  - **Ingredients**, with "Have 6 of 8 · 2 to get" (or "Have all 8"). Each line has:
+    - a dot: green have, amber short, red missing, grey always;
+    - the name, the main one marked "· main";
+    - its amount from `scaleLine`;
+    - its status: "✓ Flat 4B · 600 g", "Short · you have 450 g", "Missing" or "Always have".
+
+    Amounts change at once. The match (`GET …/match?f=`) is read again 350 ms after the factor stops moving, and the last answer stays on screen meanwhile.
+  - **Steps · N**: folded, opening numbered.
+  - **The main button**: Start cooking, "For about 2 · chicken 450 g" under it, opening `/cook/session?recipe=<id>&f=<factorMilli>`. It is held above the tab bar.
+- **New and Edit** (`/recipes/new`, `/recipes/[id]/edit`, new frame only; `recipe-form.ts` and `recipe-form-ui.tsx`).
+  - Name, serves (½ steps, ½ to 100), minutes (optional).
+  - **Lines**: the words, with the food list under them as they are typed (`GET /v1/kitchen/foods?q=`, the SM-9 type-ahead); free words allowed; an amount and a unit from `RECIPE_UNIT_KEYS` (plus the food's word for one piece, "onion", and the line's own word on edit); a To taste switch; a **Main** radio; up, down and remove.
+  - The main line is the one you marked while it can be, else the first line with a weight, else the first with an amount. It is never to taste: its radio is disabled, and marking the main line to taste hands it to the default. Exactly one line says `isMain` in what is sent.
+  - **Steps**: up to 20, each up to 200 characters.
+  - **Save** POSTs or PATCHes, then opens the recipe: New replaces the form with the recipe page, Edit goes Back to it. A 422's `fields` land on the line or step they name, counted past the blank lines left out (`errorsFromDetails`). The first field in error takes the focus.
+  - **Delete**, on Edit for the owner, with Undo and no confirm.
+- **Save as recipe** on a dish's page (new frame): any dish that was cooked and not canceled. It sends `POST /v1/kitchen/me/recipes` with `{ fromDishId }`, then opens the new recipe. A canceled one's refusal (`dish_not_open`) reads "It was canceled, so there's nothing to save."
+- **Home's Cook now**: `cook-now-slot.tsx` is filled with the first three entries. Each is a 160 px card, scrolling sideways: its tile, its name, and "Have all · for 3" in green or "Missing 1 · yogurt" muted. Each opens its recipe, and **See all** opens `/cook`. Nothing shows while Cook now is empty.
+- **You**: **Recipes** and **Saved by** join Cooks and Groups (2 × 2 on a phone, four across from 480 px). Under Cooks a week there is a **Recipes | Cooks** segmented control, kept in the address (`/you?list=cooks`), with Recipes first. Each of your recipes shows who can see it: "My groups · saved by 4", "Only me · from Anu", "Anyone with the link".
+- **Routes**: the three pages are in `static-pages.mjs` (`/recipes/new` pinned before the recipe rule) and `NEW_FRAME_ONLY`, so a prod visitor is sent Home. Back goes to Cook, and from Edit to the recipe. None of them pulls to refresh.
+- **Offline**: `API_READS` gains `/v1/kitchen/me/recipes`, `/v1/kitchen/recipes/:recipeId`, `/v1/kitchen/me/recipes/:recipeId/match` (each factor its own answer) and `/v1/kitchen/me/cook-now`.
+- **Cache**: Cook now and the match sit under `qk.kitchenPantry()`, so every stock write reads them again. Recipes sit under `qk.kitchenRecipeBook()`. A recipe write reads My recipes, Cook now and its matches again.
+
+**Departures.**
+
+- **Cook with it stays on the dish maker.** `/cook?item=…` (an item's page, the inbox) still opens today's dish maker in the new frame. Only bare `/cook` is the hub.
+- **"for N" and Start in Cook now**:
+  - A recipe missing something has no `forPortionsHalf` from the server, so its row says the recipe's written serves ("Missing yogurt · for 4"), and Start opens it at × 1.
+  - One you can make starts at the portions its row says: f = forPortions ÷ serves, which is at most the stock's max factor and is capped at × 2, as "for N" is. The raw `maxFactorMilli` can be × 20 for a recipe that is all Always have.
+- **Stepping the main item**: 50 g a step (0.05 for kg and L), but 10 g under 100 g, so a small main item can still be set. A step snaps to its grid (437 g → 450 g, or → 400 g). Pieces, spoons, cups and count words step by ½. Portions step a whole portion, down to ½.
+- **Use all** sets the most on the main line's grid that the stock covers (`floorToGrid`), so the line then reads have, not short. With 437.5 g it reads "Use all 430 g you have": the words say what it sets.
+- **Stock in a line's dimension**: a spoon or cup line's stock reads in ml or L ("✓ Flat 4B · 400 ml"), not "26.7 tbsp"; a weight in g or kg, a count in its pieces.
+- **Ingredient names on My recipes' cards**: `RecipeSummary` carries no lines, so the hub reads each recipe in full (`qk.kitchenRecipe`, which also warms its page). Until a read lands, its card says "Chicken + 7 more".
+- **Delete with Undo, without an undelete**. RC-4's DELETE has no reversal. The recipe leaves My recipes and Cook now at once, and the DELETE is sent when the ten-second Undo has gone, or at once on `pagehide`. Undo puts the lists back, and nothing was sent. If the app is killed within those ten seconds without a `pagehide`, the recipe stays.
+- **Saving a copy** shows Saved at once. Its Undo deletes the copy.
+- **Writing a recipe waits for the server.** Save as recipe and the form's Save are not instant writes: a 422 has to land on the form, and the page they open is the one just written. The new recipe is cached first, so it opens at once.
+- **Save as recipe** reads "finished" as cooked: it shows on open, draft and finalized dishes, never canceled ones, which the server allows. It offers no Undo, since you land on the recipe, whose Edit has Delete.
+- **The recipe page also takes `?f=`**, opening it scaled for RC-6's chip, and **`?code=`**, which RC-8's `/r/<code>` can pass along to the reads and the copy.
+- **Bylines**: someone else's own recipe reads "by Anu" with her face. A copy of Cookpool's own reads "from Cookpool", without a face. Yours shows none.
+- **Free words on a line** are allowed and say so under the field: "Not on the food list · won't match a pantry". A picked food stays linked while the words still contain its name ("Onions, sliced" keeps Onion).
+- **Dates** are in the app's one style ("Cooked today", "Cooked 3 Nov"), not the canvas's "Cooked Tue".
+- **Saved by**, on You, is the sum of `savedBy` over your recipes and copies.
+- **Views apart from reads**: `recipe-views.tsx` and `cook-hub-views.tsx` hold no reads, so the tests render them. A prefetch comes in as a prop. `RecipeFormScreen` is exported.
+- **Edits outside the new files**:
+  - `cook/page.tsx` (the chooser);
+  - `dishes/[dishRef]/page.tsx` (the button);
+  - `profile-ui.tsx`;
+  - `features.ts`, `static-pages.mjs`, `back.ts`, `query-keys.ts`, `routes.mjs`.
+- **Existing tests touched**, because a new page must choose:
+  - `gestures.test.ts`: the three pages don't pull;
+  - `static-pages.test.ts`: 11 rules, not 8, and the recipe rules;
+  - `sw-routes.test.ts`: the four reads.
+
+  No assertion about today's frame changed.
+- **Until RC-6 lands**, Start cooking's `/cook/session` links have no page.
+- **Not checked on stage** (nothing deployed). The screens were looked at locally at 390 px through a temporary fixture page. Every request off localhost was refused, and none was made. The page was removed and never committed. `next build` prerenders `/recipes/_`, `/recipes/_/edit` and `/recipes/new`.
+
+**Tests.**
+
+| Package | New | Total |
+|---|---|---|
+| `tests/web-console-next` | 95: `kitchen-recipe-page` 35 (hrefs and the session's address, amounts, every line by `scaleLine` over nine factors, main and portions linked, the chip, Use all on the grid and never past the stock, statuses and the have line, bylines, Save/Saved, the views, Save as recipe in both frames); `kitchen-cook-hub` 30 (`/cook` in both frames, the hub's order, Cook now's filter, counts, rows and Start factors, Home's strip, My recipes' order and cards, You's stats, rows and list, delete and Undo on the cache, the cache keys, prod redirects and Back); `kitchen-recipe-form` 24 (the request, amounts, the single main line under every edit, never to taste, validation, 422 mapping, foods and links, moves, serves, steps, the edit round trip); `static-pages` 1, `sw-routes` 5 | 1480 (79 suites) |
+
+`pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, and `orun task check RC-5 --base origin/main` passes: 2 changed components, all inside the contract.
