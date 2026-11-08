@@ -15,6 +15,7 @@ import type {
   KitchenTxn,
   MovesResponse,
   StockMoveResponse,
+  UsualsResponse,
 } from "@saas/contracts/kitchen";
 import { costOfUse } from "@saas/kitchen-engine/money";
 import { createHarness, envelope, newGroup, type Envelope, type Group, type Harness } from "./harness.js";
@@ -714,5 +715,25 @@ describe("a stock check on a personal item", () => {
     expect((await checkMine(RAHUL, item, { left: left("300", "g") })).body.error.details.fields).toHaveProperty(["gone"]);
     expect((await checkMine(ANU, item, { left: left("300", "g"), gone: "me" })).status).toBe(404);
     expect(written()).toEqual(before);
+  });
+});
+
+describe("a check is not a habit", () => {
+  it("leaves everyone's usuals as their own uses made them", async () => {
+    const item = await groupItem(MEERA, four);
+    await use(ANU, four, item, { quantity: "200", unit: "ml" });
+    tick();
+    // Rahul splits 300 ml across everyone, Anu included, and later checks some as his own.
+    await check(RAHUL, four, item, { left: left("500", "ml"), gone: "split" });
+    tick();
+    await check(RAHUL, four, item, { left: left("400", "ml"), gone: "me" });
+    const usualOf = async (as: string) => {
+      const res = await call<UsualsResponse>("GET", me("usuals"), as);
+      expect(res.status).toBe(200);
+      return res.body.data.usuals.find((u) => u.itemId === item.id) ?? null;
+    };
+    expect(await usualOf(ANU)).toMatchObject({ lastQtyMilli: 200_000, usedCount: 1 });
+    expect(await usualOf(RAHUL)).toBeNull();
+    expect(await usualOf(DEV)).toBeNull();
   });
 });

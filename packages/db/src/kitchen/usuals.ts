@@ -12,7 +12,9 @@
 //   scoped     items in the scope (any state but removed: a finished pack's
 //              uses still count), with their food;
 //   mine       the person's uses since `since` (logged by them, or naming them
-//              as a consumer), not reversed, with the local hour they fell in;
+//              as a consumer), not reversed and not written by a stock check
+//              (PN-4: a split check names everyone, and fixing the level is
+//              not a habit), with the local hour they fell in;
 //   ranked     each use's place in its food and in its item, newest first;
 //   in_bucket  the uses in the bucket's hours since its own `since`, counted
 //              per food and per amount; bucket_pick keeps the most frequent
@@ -105,6 +107,7 @@ export async function readUsuals(executor: SqlExecutor, query: KitchenUsualsQuer
          WHERE m.kind = 'use' AND m.created_at >= ${since}
            AND (m.actor = ${me} OR EXISTS (SELECT 1 FROM json_each(m.consumers) c WHERE c.value = ${me}))
            AND NOT EXISTS (SELECT 1 FROM kitchen_stock_moves r WHERE r.reverses = m.id)
+           AND (m.via IS NULL OR m.via <> 'check')
        ),
        ranked AS (
          SELECT mine.*,
