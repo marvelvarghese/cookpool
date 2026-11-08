@@ -1328,3 +1328,14 @@ export function parseSession(raw: string | null | undefined): CookSession | null
   if (!lines.every((l) => isObject(l) && typeof l["key"] === "string" && typeof l["name"] === "string" && Array.isArray(l["takes"]))) return null;
   return v as unknown as CookSession;
 }
+
+/** Inputs that bring up a phone's keyboard (the bar hides while one has focus); not a checkbox, a button or a range. */
+export function opensKeyboard(el: { tagName: string; type?: string | null; isContentEditable?: boolean } | null | undefined): boolean {
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName.toUpperCase();
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag !== "INPUT") return false;
+  const type = (el.type ?? "text").toLowerCase();
+  return !["checkbox", "radio", "button", "submit", "reset", "range", "color", "file", "image", "hidden"].includes(type);
+}

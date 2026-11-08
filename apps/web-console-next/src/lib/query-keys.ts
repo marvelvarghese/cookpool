@@ -76,6 +76,11 @@ export const qk = {
   // what an ingredient would come from now, may have changed.
   kitchenItemHistory: (q: string) => ["kitchenPantry", "history", q] as const,
   kitchenRecipes: (q: string) => ["kitchenPantry", "recipes", q] as const,
+  // Recipes (cookpool-recipes RC-4, read by RC-6's session): one recipe with
+  // the caller's last cook of it, and what their pantries hold for it at a
+  // factor — the match under `kitchenPantry()`, so a stock write refreshes it.
+  kitchenRecipe: (recipeId: string) => ["kitchenRecipe", recipeId] as const,
+  kitchenRecipeMatch: (recipeId: string, factorMilli: number) => ["kitchenPantry", "recipeMatch", recipeId, factorMilli] as const,
   // Cookpool's dishes (CP-17): one dish (its page) and a group's dishes (the
   // group's Dishes tab). Both start with `kitchenDishes()`, so one
   // invalidation after cooking, a claim, an assignment, a finalize, a

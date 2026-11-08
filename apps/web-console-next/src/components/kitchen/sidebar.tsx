@@ -12,6 +12,7 @@ import { recentGroups } from "./groups";
 import { kitchenIcon } from "./icons";
 import { GroupAvatar } from "./kit";
 import { useGroups, useProfile } from "./data";
+import { SessionBar } from "./session-bar";
 import { personInitials, shownName } from "./you";
 
 /** The cookpool wordmark: a pot in a green rounded square. */
@@ -40,6 +41,7 @@ const ROW =
  * In the new frame (`newFrame`, cookpool-recipes RC-2) it lists the same five
  * as the phone's bar — Home · Pantry · Cook · Money · You, Cook's icon in a
  * filled green square — and has no Add: each tab's main action is at its top.
+ * Its footer holds the cooking session's bar while one is open (RC-6).
  */
 export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: () => void; addOpen: boolean; newFrame?: boolean }) {
   const pathname = usePathname();
@@ -145,6 +147,8 @@ export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: ()
         ) : null}
       </section>
 
+      {/* The cooking session, while one is open (RC-6): in the footer, above the person. */}
+      {newFrame ? <SessionBar placement="sidebar" /> : null}
       <SidebarPerson />
     </aside>
   );
