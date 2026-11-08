@@ -212,3 +212,168 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
   - kitchen-worker changes in its own path, so it redeploys.
   - Nothing else bundles the kitchen repository.
   - The console has no change here, and will pick up the contracts and SDK when PN-7 changes its files.
+
+### PN1 — The new Pantry (PN-5)
+
+**Built.** Console only, all behind `newFrame()`. No route, no migration, no SDK change. With `newFrame()` false, `/pantry`, `/use` and Home render exactly what they did: each page picks its frame at the top (`newFrame() ? <NewPantry/> : <TodaysPantry/>`, the same for `/use`), and today's code below it is unchanged.
+
+- **The Pantry** (`pantry-new-ui.tsx`, design §1, the canvas's PantryNew), top to bottom:
+  - "Pantry" and **+ Bought**;
+  - the search, on phones too, with **Log several** beside it. `?q=` fills it and `?focus=1` focuses it;
+  - the **Now strip**;
+  - the chips with counts;
+  - the use-soon card;
+  - the sections by kind;
+  - a marked slot for PN-6's Finished this week;
+  - Always have.
+  - It reads `items?pantry=all` once and does every filter, count and search locally.
+- **The view-models:**
+  - `pantry-list.ts`: kinds and sections, filters and chips, the row (tag, level, chip), the use-soon card, and the address helpers.
+  - `pantry-set.ts`: the ladder, the suggestion, − and +, the reason, Last, the faces' cost, and the drafts.
+  - `now-strip.ts`: the strip, the tray, and the usuals read.
+- **The UI:**
+  - `pantry-row-ui.tsx`: the row, its chip, the swipe and hold.
+  - `set-row-ui.tsx`: the open row.
+  - `use-sheet-ui.tsx`: the More… sheet.
+  - `now-strip-ui.tsx`: the strip and the tray.
+- **Writes:**
+  - `log-several-data.ts` is Log several's write.
+  - `lib/pantry-device.ts` keeps the folded sections and the drafts on the device.
+- **Sections** run Dairy, Veg, Fruit, Grains, Protein, Spices, Leftovers (`LEFTOVERS_CATEGORY`), Other.
+  - An item's kind is its category, case-insensitive. A category outside the list sits under Other, and its row's level line ends with the category as typed ("· Snacks").
+  - Inside a section: use soon first (soonest, so expired, first), then running low, then by name.
+  - A header tap folds its section, and the device remembers it (`<prefix>.pantry-folded`). A section stays open while searching, or while it holds the open row.
+- **Chips:**
+  - They read `All N · Use soon N · Running low N · <pantry> N`.
+  - The pantry chips show only with more than one pantry, yours first, then groups opened last first.
+  - A count of 0 hides its chip, except All and the one chosen.
+  - It's one choice at a time, mirrored in `?filter=soon|low` or `?pantry=`.
+- **A row:**
+  - **The tag:**
+    - It is one of: Ask (PN-9) › Expired › "Use soon · Tue" (today / tomorrow / the use-by's weekday) › Running low › the pantry on All.
+    - When the tag says something else, the pantry goes beside the level ("1 L of 1 L · Flat 4B").
+  - **The level bar** is `#1F7A4D`, `#D97706` when running low or use soon, and `#B42318` once expired. The tag or a count always says it too.
+  - **The chip** is `suggestUse`'s amount ("1 glass"). One tap logs it through `useLogUse` for the people from last time (the bucket's for a bucket usual, else you), with the usual Undo toast. A swipe left does the same, and holding opens the sheet. "Use…" (open the row) shows only when there's no suggestion. A viewer's row has no chip.
+  - **Usuals** come from `useUsuals()` by `itemId`. `isRunningLow` gets the usual and its `now`.
+- **The set row** (§1.1):
+  - "Last: 1 glass · today, 8:10 am · you and Anu" comes from the item's moves, skipping a stock check's `via: "check"` use. With no use of its own, it reads the usual's last use, so a new pack inherits it.
+  - − [amount] + walks the ladder, starting at the suggestion with its reason. Once moved it reads "Changed from 1 glass".
+  - For a group item, up to 4 faces and "+N" (which opens the sheet), and the cost, "₹17.00 · ₹8.50 each" (the engine's split of the people who had it).
+  - ✓ Use and More….
+  - The amount and the people are the device's draft for that item (`<prefix>.pantry-drafts`, the newest 40), shared with the sheet and cleared on Use. Both device keys are cleared on sign-out (`clearDeviceRecords`).
+- **The More… sheet** (§1.2), in place of `ItemActionsSheet` on the new Pantry:
+  - name, level, "Flat 4B · Meera paid ₹68.00 · Use by …", the note, and Open;
+  - How much: the item's `useTiles` (4 at most, The rest included) plus Other, a − + stepper in the item's unit;
+  - Who had it (`FaceRow`);
+  - Log, as "Log 1 glass" over "You + Anu · ₹8.50 each";
+  - Finish it (logs the rest for the faces), Wasted (the existing `WasteConfirm`), and Cook with it (`/cook?item=`).
+- **Log several** (§1.3):
+  - The toggle turns the row chips, their swipes and the strip chips into tray toggles (ticked while in).
+  - The tray sits above the tab bar: "1 glass milk · eggs × 2 · 100 g atta", **Log 3 for you**, and "A meal for others? Cook it instead" (`/cook`).
+  - `useLogSeveral` patches every item at once and sends the uses one after another, each to the ordinary `…/uses` route.
+  - One toast: "Logged 3 for you · ₹29.00". Its one Undo reverses each written use, the last first (`undoStockMove`).
+  - If some are refused, it reads "Logged 2 of 3 for you · Couldn't log …"; if all are refused, the refusal.
+- **The Now strip** (§3), "NOW · EVENING":
+  - first, the usuals with `strip: true` whose row logs in one tap, most uses in the bucket first, at most 4;
+  - then use-soon items with something left, soonest first, via `soonStrip` — 6 in all.
+  - A chip reads "Milk · 1 glass · Evening usual". A tap logs it, or under Log several it goes to the tray.
+  - It isn't drawn when empty, nor while searching.
+- **The usuals read** (`usualsRead`, `useUsualBucket`):
+  - **New frame:** `GET /v1/kitchen/me/usuals?limit=100&tzOffset=<-getTimezoneOffset()>`, keyed `["kitchenPantry","usuals",<bucket>]`. That's under the old prefix, so stock writes still refresh and patch it, and the last answer stays on screen while the next loads.
+  - The bucket is looked at again at the next bucket's start (`msToNextBucket`) and whenever the page comes back. A new bucket is a new key, so the read runs again.
+  - **Today's frame:** exactly `?limit=10` under `["kitchenPantry","usuals"]`, as before. Home's usual chips and + Add's Do it again read the same entry in each frame.
+- **Home and `/use`** (§4), new frame only:
+  - Home's "What did you use?" links to `/pantry?focus=1`, and the usual chips stay.
+  - `/use` replaces itself with `/pantry?focus=1`.
+  - `/use?item=<ref>` replaces itself with `/pantry?open=<ref>`, which opens that row and scrolls to it.
+  - `?focus` and `?open` are dropped from the address once used. Every `quickUseHref` link (item page, Home cards) therefore lands on the open row. Navigation uses RC-11's `Link` and `useKitchenRouter`.
+- **Helpers:**
+  - `soonStrip` is reused by the Now strip.
+  - `pantrySections` (per pantry), `OPEN_SECTIONS` and its types are removed, superseded by `kindSections`, along with their 5 tests. The `pantryRows` test stays, under "the desktop table's rows".
+- **Seams:**
+  - **PN-9:** `pantryRow(item, { askName })` gives `variant: "ask"`, the tag "Ask Meera" with a lock, and no chip. PN-9 draws the asking chip and set row.
+  - **PN-6:** the marked slot above Always have in `pantry-new-ui.tsx`, and `boughtHref`.
+- **Shared files, all additive:**
+  - `pantry-data.ts`: `useUsuals` and the new `useUsualBucket`. `USUALS_LIMIT` is now re-exported from `now-strip.ts`.
+  - `query-keys.ts`: `kitchenUsualsAt`.
+  - `sign-out.ts`: `clearPantryDevice`.
+  - `quick-use-ui.tsx`: the field's href.
+  - `row-gestures-ui.tsx`: `SwipeRow` lets a control marked `data-row-surface` swipe and hold, because the row's open-in-place surface is a `<button>`.
+  - `pantry.ts`: the removal above.
+  - `item-use.ts` is untouched.
+
+**Departures and decisions:**
+- **The ladder is longer than the tiles.**
+  - `useTiles` alone gives at most three amounts and The rest; it keeps a slot for "Count in …". So 1 L of milk would step ½ glass, 1 glass, then straight to 1 L, and the plan's "steps to 2 glasses" couldn't happen.
+  - The ladder is the tiles, plus up to 6 steps above the suggestion, below what's left: ×2…×7 of an amount ("2 glasses", "200 g"), or one more of a measure at a time ("3 onions"). They're in order of amount, then The rest. This matches the canvas's UseSheet tiles (½ glass, 1 glass, 2 glasses).
+  - The tiles are fed the **bucket's** usual when there is one, so the usual tile is the amount the row suggests.
+- **`/use?item=` opens the row without focusing the search.** The design has `?focus=1` too, but on a phone the keyboard would come up over the row you came to log. `/use` alone still focuses.
+- **Use soon counts expired items too.** The old frame's Expired chip folds into it, and `?filter=expired` reads as Use soon. The use-soon card counts only items still in date, since expired food isn't something to cook with.
+- **A "Running low" tag** is added to the design's tags, so the amber bar is never the only signal for a low item. The pantry then moves beside the level.
+- **Log several logs for you alone** ("Log 3 for you", the canvas's words). A meal for others is the tray's Cook link. Only the one-tap chips go to the tray; the set row's ✓ Use and the sheet's Log still log at once. The toggle sits beside the search, so it's there without the strip.
+- **The chip on The rest** says the amount ("300 ml"), with "The rest" as its reason in the set row and the strip.
+- **The sheet's Other** is a − + stepper in the item's unit (50 g / 50 ml / 1 pc / ½ pack steps); it takes no typed amount. A typed amount remains on the item page.
+- **Search is local** over the loaded items (`matchesQuery`, every word), not the server's search. Results are rows like any other.
+- **One layout at every width:** the same sections in a 760 px column beside the sidebar. The desktop table is today's frame's.
+- **+ Bought** goes to `/pantry/new` (with `?pantry=` when one is chosen), as the Pantry's + did, because `/pantry/run` doesn't exist yet. PN-6 changes `boughtHref`.
+- **The set row has no "Fix how much is left".** The canvas shows it, but it's PN-7's route.
+- **Drafts aren't timed out.** They're kept until Use (the newest 40), as the design says. A stale draft shows as "Changed from …".
+
+**Tests:**
+- `tests/web-console-next` (**91 suites, 1,839 tests**). Three files are new, with 47 tests; 5 `pantrySections` tests are removed.
+  - **`kitchen-pantry-new.test.ts` (19 tests):**
+    - the kinds' order and counts;
+    - Other labelled as typed;
+    - the order inside a section;
+    - choice and search;
+    - folding;
+    - the chips and their counts, with zeros hidden, the single-pantry case, and `?filter=`/`?pantry=`;
+    - + Bought;
+    - the use-soon card;
+    - the row's tags, level text and bar colours;
+    - the chip's words, people, personal and viewer cases;
+    - PN-9's variant;
+    - Home's field in both frames;
+    - the `/use` mapping.
+  - **`kitchen-pantry-set.test.ts` (18 tests):**
+    - the ladder: liquid, measure, multiples, empty, and Other's amount;
+    - the suggestion: bucket, rest, pieces, use soon, first, and never more than what's left;
+    - stepping and its ends;
+    - the reason and "Changed from …";
+    - Last: own moves, an undone one, a stock check skipped, the usual's, personal, and none;
+    - who it starts with;
+    - the cost each, including a buyer who had none;
+    - drafts: round trip, a measure, parsing, and the cap.
+  - **`kitchen-now-strip.test.ts` (10 tests):**
+    - the heading;
+    - strip usuals before use-soon, by count, then soonest;
+    - the 4/6 caps with no repeats;
+    - unloggable rows left out;
+    - the tray's toggle, line, button and toast;
+    - the usuals read in both frames (`{ limit: 10 }` unchanged; `limit=100` with `tzOffset` under the bucket key);
+    - `msToNextBucket`.
+  - `kitchen-pantry-fixtures.ts` gains `makeUsual`, `morningUsual` and `ONION`.
+- `typecheck` and `lint` are clean for `@saas/web-console-next` and `@saas/web-console-next-tests`. `console-artifact.mjs build` serves 29 pages as files; `/pantry`, `/use` and `/home` stay static.
+- **In the browser** (`next dev`, with the SM-15 in-page API mock extended with `now`/`strip` by `?tzOffset=`; no request left the machine), at 390×844 and 1280×800:
+  - **The page:** the header, search, "NOW · EVENING" with Milk / Eggs / Dal makhani…, `All 20 · Use soon 7 · Running low 2 · Me · Flat 4B · …`, the use-soon card, Dairy · Veg · Fruit · Grains · Protein · Leftovers · Other with tags and coloured bars, "· Snacks" under Other, and Always have.
+  - **Logging and Undo:**
+    - The Milk chip logged "You + Anu · 1 glass · ₹8.50 each", and Undo reversed the txn back to 500 ml.
+    - The set row showed Last, 1 glass · Evening usual → + → 2 glasses · Changed from 1 glass, then Anu → ✓ Use ("You + Anu · 2 glasses · ₹17.00 each"), and the row closed.
+  - **The sheet:** personal and group sheets with faces, and Wasted's confirm.
+  - **Log several:** 3 in the tray → three POSTs in order, one toast "Logged 3 for you · ₹29.00", and one Undo reversed all three.
+  - **Arriving:**
+    - `/use?item=` → `/pantry` with Milk open.
+    - Home's field → `/pantry?focus=1`, with the search focused and the usual chips still on Home.
+  - **Search, filter and fold:** search "dal" → Grains and Leftovers only, no strip. Running low → `?filter=low`. A folded Dairy survived a reload.
+  - **Gestures:** a touch hold opened the sheet, and a touch swipe left logged with Undo.
+  - **Fit:** no sideways scroll at 390 px, and every control is 44 px or more.
+  - **Found and fixed during the check:** the cost each counted a buyer who had none ("≈ ₹5.67" for two people), and the set row's cost line was truncated beside five faces.
+  - Today's frame (prod) wasn't opened in the browser: it needs a prod host. It is covered by the untouched code paths and the frame tests above.
+
+**For later tasks:**
+- **PN-6:** Finished this week goes in the marked slot in `pantry-new-ui.tsx`. Point `boughtHref` at `/pantry/run`. A row of Finished this week can reuse `RowTagPill`/`LevelBar`.
+- **PN-7:** the item page's "Use some" still links to `/use?item=`, which now opens the row on the Pantry. It could link to `/pantry?open=` directly, or use `pantry-set.ts`'s ladder for its quick-use chips. `lastLine` already skips `via: "check"`.
+- **PN-9:** pass `askName` to `pantryRow`, then draw the ask chip and set row for `variant === "ask"`.
+- **Deploy:**
+  - The new frame asks for `limit=100`, which needs PN-2's kitchen-worker (on main since #81). Today's frame still asks for 10, so prod is unaffected.
+  - Only console files change, so only the console redeploys.

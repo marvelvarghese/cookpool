@@ -19,7 +19,8 @@
  *    stash, the Name step marker, how they signed in, their recent groups,
  *    the admin console's last org, the icon badge's switch (and count),
  *    the cooking session's draft (cookpool-recipes RC-6) and what long prep
- *    it marked done (cookpool-guided GC-6). The API target is the device's,
+ *    it marked done (cookpool-guided GC-6), and the Pantry's folded sections
+ *    and set-row drafts (cookpool-pantry PN-5). The API target is the device's,
  *    not the person's, and stays.
  * 5. A full navigation to `/login` (replacing You in history), so nothing
  *    in memory — and no Cookpool theme on <body> — outlives the session.
@@ -33,6 +34,7 @@ import { clearBadgeRecord } from "./push-device";
 import { FORGET_PUSH_MS } from "./push";
 import { clearCookSessions } from "./cook-session-store";
 import { clearLongPrep } from "./long-prep-store";
+import { clearPantryDevice } from "./pantry-device";
 
 /** Where signing out lands. */
 export const SIGNED_OUT_PATH = "/login";
@@ -56,6 +58,7 @@ export function clearDeviceRecords(): void {
   clearBadgeRecord();
   clearCookSessions();
   clearLongPrep();
+  clearPantryDevice();
 }
 
 export interface SignOutDeps {

@@ -4,12 +4,15 @@
 
 import type {
   GroupPantry,
+  KitchenMeasure,
   KitchenStockMove,
+  KitchenUsual,
   PantryRef,
   PersonalPantry,
   ReachableItem,
   WastePolicy,
 } from "@saas/contracts/kitchen";
+import type { UsualNow } from "@saas/contracts/kitchen-usuals";
 import { dimensionOf, pricePerUnit, toMilli, type UnitKey } from "@saas/kitchen-engine/units";
 
 export const ME = "usr_000000000000000000000000000000aa";
@@ -147,3 +150,34 @@ export function makeMove(o: Partial<KitchenStockMove> & { kind: KitchenStockMove
     ...o,
   };
 }
+
+// ── Usuals (cookpool-pantry PN-5) ─────────────────────────────────
+
+/** The caller's usual of `item`: by default 1 glass (250 ml), last had by you, three times. */
+export function makeUsual(item: ReachableItem, o: Partial<KitchenUsual> & { now?: UsualNow | null } = {}): KitchenUsual {
+  return {
+    itemId: item.id,
+    name: item.name,
+    pantry: item.pantry,
+    lastQtyMilli: 250_000,
+    lastQuantity: 250,
+    lastUnit: "ml",
+    lastLabel: null,
+    measures: [],
+    consumers: [ME],
+    usedCount: 3,
+    lastUsedAt: "2026-11-08T02:40:00.000Z",
+    qtyLeftMilli: item.qtyLeftMilli,
+    now: null,
+    strip: false,
+    ...o,
+  };
+}
+
+/** A morning usual of `qtyMilli` (in ml), `count` uses of the food in the bucket. */
+export function morningUsual(qtyMilli: number, count: number, consumerIds: string[] = [ME], label: string | null = null): UsualNow {
+  return { bucket: "morning", qtyMilli, quantity: qtyMilli / 1000, unit: "ml", label, consumerIds, count };
+}
+
+/** Onions counted one at a time, 150 g each. */
+export const ONION: KitchenMeasure = { id: "msr_onion", one: "onion", many: "onions", count: 1, amountMilli: 150_000 };

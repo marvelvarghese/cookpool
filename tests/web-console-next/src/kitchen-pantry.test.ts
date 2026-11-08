@@ -17,7 +17,6 @@ import {
   pantryListRow,
   pantryPickerList,
   pantryRows,
-  pantrySections,
   pantrySummary,
   parseFilterParam,
   parseItemRef,
@@ -183,7 +182,9 @@ describe("the summary and filters", () => {
   });
 });
 
-describe("sections per pantry", () => {
+// The per-pantry sections (`pantrySections`) went in cookpool-pantry PN-5: the
+// new frame's Pantry is sectioned by kind (kitchen-pantry-new.test.ts).
+describe("the desktop table's rows", () => {
   const butter = makeItem({ name: "Butter", pantry: PERSONAL_REF, unit: "g", bought: "500", left: "450", priceMinor: 28000, paidBy: ME });
   const cream = makeItem({ name: "Fresh cream", pantry: PERSONAL_REF, unit: "ml", bought: "200", left: "100", priceMinor: 6000, paidBy: ME, daysToUseBy: 2 });
   const milk = makeItem({ name: "Milk", pantry: groupRef(FLAT), unit: "L", bought: "1", priceMinor: 6800, daysToUseBy: 1 });
@@ -191,59 +192,6 @@ describe("sections per pantry", () => {
   const yogurt = makeItem({ name: "Yogurt", pantry: groupRef(FLAT), unit: "g", bought: "400", priceMinor: 12000, daysToUseBy: -1 });
   const flour = makeItem({ name: "Chapati flour", pantry: groupRef(LUNCH), unit: "kg", bought: "5", left: "2.5", priceMinor: 24000 });
   const items = [yogurt, milk, cream, flour, rice, butter];
-  const pantries = [
-    personalPantry({ itemCount: 2, useSoonCount: 1, worthMinor: 28200 }),
-    groupPantry(FLAT, { itemCount: 3, useSoonCount: 1, expiredCount: 1, worthMinor: 58480 }),
-    groupPantry(LUNCH, { itemCount: 1, worthMinor: 12000, wastePolicy: "buyer_absorbs" }),
-    groupPantry(TRIP),
-  ];
-
-  it("groups the items by pantry — Personal, then groups recent first — in the order they came (soonest first)", () => {
-    const { sections, emptyHidden } = pantrySections(pantries, items, { selected: ALL_PANTRIES, recentSlugs: [LUNCH.slug] });
-    expect(sections.map((s) => s.label)).toEqual(["Personal", "Lunch club", "Flat 4B"]);
-    expect(sections[0]!.items.map((i) => i.name)).toEqual(["Fresh cream", "Butter"]);
-    expect(sections[2]!.items.map((i) => i.name)).toEqual(["Yogurt", "Milk", "Rice"]);
-    expect(emptyHidden).toEqual(["Goa trip"]);
-  });
-
-  it("heads each section with its count, worth, what to use, its people and its rule", () => {
-    const { sections } = pantrySections(pantries, items, { selected: ALL_PANTRIES, memberCounts: new Map([[FLAT.orgId, 4]]) });
-    expect(sections.find((s) => s.label === "Flat 4B")!.meta).toBe(
-      `3 items · ${formatMinor(58480)} · 1 use soon · 1 expired · 4 people · waste split equally`,
-    );
-    expect(sections.find((s) => s.label === "Personal")!.meta).toBe(`2 items · ${formatMinor(28200)} · 1 use soon · only you`);
-    expect(sections.find((s) => s.label === "Lunch club")!.meta).toBe(`1 item · ${formatMinor(12000)} · buyer absorbs waste`);
-  });
-
-  it("filters to what to use soon, or what has expired, dropping sections left empty", () => {
-    const soon = pantrySections(pantries, items, { selected: ALL_PANTRIES, filter: "soon" });
-    expect(soon.sections.map((s) => [s.label, s.items.map((i) => i.name)])).toEqual([
-      ["Personal", ["Fresh cream"]],
-      ["Flat 4B", ["Milk"]],
-    ]);
-    expect(soon.emptyHidden).toEqual([]);
-    const expired = pantrySections(pantries, items, { selected: ALL_PANTRIES, filter: "expired" });
-    expect(expired.sections.map((s) => [s.label, s.items.map((i) => i.name)])).toEqual([["Flat 4B", ["Yogurt"]]]);
-  });
-
-  it("always shows one chosen pantry, even empty", () => {
-    const { sections } = pantrySections(pantries, [], { selected: TRIP.orgId });
-    expect(sections.map((s) => [s.label, s.items.length, s.startsOpen])).toEqual([["Goa trip", 0, true]]);
-  });
-
-  it("opens the first three sections, and any further one with something to use", () => {
-    const groups = Array.from({ length: 5 }, (_, i) => ({ orgId: `org_g${i}`, slug: `g-${i}`, name: `G${i}` }));
-    const ps = [personalPantry(), ...groups.map((g, i) => groupPantry(g, { itemCount: 1, useSoonCount: i === 4 ? 1 : 0 }))];
-    const its = groups.map((g, i) => makeItem({ pantry: groupRef(g), daysToUseBy: i === 4 ? 1 : null }));
-    const { sections } = pantrySections(ps, its, { selected: ALL_PANTRIES });
-    expect(sections.map((s) => [s.label, s.startsOpen])).toEqual([
-      ["G0", true],
-      ["G1", true],
-      ["G2", true],
-      ["G3", false],
-      ["G4", true],
-    ]);
-  });
 
   it("gives the desktop table every matching item in scope, by name search too", () => {
     expect(pantryRows(items, { selected: ALL_PANTRIES, query: "CREAM" }).map((i) => i.name)).toEqual(["Fresh cream"]);

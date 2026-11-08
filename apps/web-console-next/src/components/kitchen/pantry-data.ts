@@ -42,6 +42,9 @@ import {
 } from "./cache-patches";
 import { beginWrite, queryCacheOf } from "./optimistic-data";
 import { countedWords } from "./measures";
+import { newFrame } from "@/lib/features";
+import type { UsualBucket } from "@saas/contracts/kitchen-usuals";
+import { msToNextBucket, tzOffsetOf, usualsRead } from "./now-strip";
 
 /**
  * Cookpool's pantry reads and stock writes (CP-12), through the CP-10/CP-11
@@ -225,15 +228,53 @@ function undoRefusalText(error: ApiErrorBody): { kind: "warning" | "error"; titl
 // ── Quick use (CP-13) ─────────────────────────────────────────────
 
 /** How many usuals the app reads: quick use's strip, and the + Add sheet's Do it again (one cache entry). */
-export const USUALS_LIMIT = 10;
+export { USUALS_LIMIT } from "./now-strip";
 
-/** What the caller often uses (CP-11's usuals), most used first: usable items with something left. */
+/**
+ * The part of the day on this device (the new frame's usuals, cookpool-pantry
+ * PN-5), looked at again when it should change and whenever the page comes
+ * back; null in today's frame.
+ */
+export function useUsualBucket(isNewFrame: boolean = newFrame()): UsualBucket | null {
+  const [bucket, setBucket] = React.useState<UsualBucket | null>(() => usualsRead(isNewFrame, new Date()).bucket);
+  React.useEffect(() => {
+    if (!isNewFrame) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const look = () => {
+      const at = new Date();
+      setBucket(usualsRead(true, at).bucket);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(look, msToNextBucket(at, tzOffsetOf(at)) + 1_000);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") look();
+    };
+    look();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [isNewFrame]);
+  return bucket;
+}
+
+/**
+ * What the caller often uses (CP-11's usuals), most used first: usable items
+ * with something left. In the new frame (PN-5) every row's usual, with this
+ * device's offset, read again when the part of the day changes (the last
+ * answer stays on screen meanwhile); today's frame reads exactly as before.
+ */
 export function useUsuals(enabled = true) {
   const { client } = useSession();
+  const isNew = newFrame();
+  const bucket = useUsualBucket(isNew);
+  const read = usualsRead(isNew, new Date());
+  const key = isNew && bucket ? qk.kitchenUsualsAt(bucket) : read.key;
   return useApiQuery<KitchenUsual[]>(
-    qk.kitchenUsuals(),
-    () => wrap(async () => (await client.kitchen.usuals({ limit: USUALS_LIMIT })).usuals),
-    { enabled },
+    key,
+    () => wrap(async () => (await client.kitchen.usuals(isNew ? { ...read.query, tzOffset: tzOffsetOf(new Date()) } : read.query)).usuals),
+    isNew ? { enabled, keepPrevious: true } : { enabled },
   );
 }
 

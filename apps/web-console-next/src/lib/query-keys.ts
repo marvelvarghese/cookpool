@@ -65,6 +65,9 @@ export const qk = {
   // pantry they may use from, and their usable items (the strip before they
   // have usuals). Under `kitchenPantry()` too, so a use refreshes them.
   kitchenUsuals: () => ["kitchenPantry", "usuals"] as const,
+  // The new frame's usuals (cookpool-pantry PN-5): per part of the day, so the
+  // read runs again when the morning ends. Under `kitchenUsuals()` too.
+  kitchenUsualsAt: (bucket: string) => ["kitchenPantry", "usuals", bucket] as const,
   kitchenSearch: (q: string) => ["kitchenPantry", "search", q] as const,
   kitchenUsable: () => ["kitchenPantry", "usable"] as const,
   // The dish maker (CP-15): the items the cook may cook with, under
