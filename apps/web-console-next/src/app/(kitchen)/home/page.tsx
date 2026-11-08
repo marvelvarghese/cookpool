@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronRight, Plus, Search, Ticket } from "lucide-react";
+import { ChevronRight, Plus, Ticket } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { newFrame } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { rememberedGroupId, useRecentGroupSlugs } from "@/lib/recent-groups";
@@ -11,10 +12,10 @@ import { useGroups, useProfile } from "@/components/kitchen/data";
 import { personInitials } from "@/components/kitchen/you";
 import { RECENT_GROUPS, friendlyName, homeGreeting, homeMoney, recentAcrossGroups, recentGroupsToRead } from "@/components/kitchen/home";
 import { K_BUTTON } from "@/components/kitchen/kit";
-import { Face } from "@/components/kitchen/faces-ui";
 import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data";
-import { useItemsByRef, useLogUse, useUsuals } from "@/components/kitchen/pantry-data";
-import { doItAgainRows, usualRef, usualsThatFit, type DoItAgainRow } from "@/components/kitchen/quick-use";
+import { QuickUse } from "@/components/kitchen/quick-use-ui";
+import { homeSections } from "@/components/kitchen/new-home";
+import { NewHome } from "@/components/kitchen/new-home-ui";
 import { useInbox, useRecentActivity } from "@/components/kitchen/inbox-data";
 import { HomeTodoList, RecentActivityList } from "@/components/kitchen/inbox-ui";
 import { usePrefetchKitchen } from "@/components/kitchen/prefetch";
@@ -35,8 +36,19 @@ import { InstallCard } from "@/components/kitchen/install-ui";
  *
  * PW-2: under the greeting, the one invitation to install Cookpool, from the
  * device's second day and never in the installed app (`InstallCard`).
+ *
+ * Since cookpool-recipes RC-2 the address picks its Home when it renders: the
+ * new frame's (`NewHome`: no money card; To do, Cook now, From your groups)
+ * everywhere but prod, today's in prod. Each shows the sections
+ * `homeSections` lists for its frame.
  */
 export default function HomePage() {
+  return newFrame() ? <NewHome /> : <TodayHome />;
+}
+
+/** Today's Home (prod): what `homeSections(false)` lists. */
+function TodayHome() {
+  const shows = new Set(homeSections(false));
   const profile = useProfile();
   const user = profile.data;
   const meId = user?.id ?? null;
@@ -62,15 +74,15 @@ export default function HomePage() {
         </Link>
       </header>
 
-      <InstallCard />
+      {shows.has("install") ? <InstallCard /> : null}
 
       <div className="flex flex-col gap-3 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:items-start min-[900px]:gap-6">
         <div className="contents min-[900px]:flex min-[900px]:min-w-0 min-[900px]:flex-col min-[900px]:gap-4">
-          <MoneyCard />
-          <QuickUse meId={meId} />
+          {shows.has("money") ? <MoneyCard /> : null}
+          {shows.has("quick-use") ? <QuickUse meId={meId} /> : null}
         </div>
-        <HomeTodoList inbox={inbox} meId={meId} names={names} className="min-[900px]:row-span-2" />
-        <RecentActivity meId={meId} className="min-[900px]:col-start-1" />
+        {shows.has("todo") ? <HomeTodoList inbox={inbox} meId={meId} names={names} className="min-[900px]:row-span-2" /> : null}
+        {shows.has("recent") ? <RecentActivity meId={meId} className="min-[900px]:col-start-1" /> : null}
       </div>
     </div>
   );
@@ -136,91 +148,6 @@ function MoneyCard() {
       </span>
       <ChevronRight className="h-[22px] w-[22px] shrink-0 text-muted-foreground" aria-hidden />
     </Link>
-  );
-}
-
-/** Usuals whose items are read for the row: a couple beyond the ones shown, so a usual that no longer fits is replaced. */
-const USUAL_CHIPS = 6;
-
-/**
- * "What did you use?" (CP-13), and under it the one row of your usuals
- * (SM-10: it was Home's use-soon cards, + Add's "Do it again" and Use's
- * strip — three places). Each chip says what and for whom — "Milk · 1 glass"
- * with the faces of who it is for when that is not just you — and logs it
- * again at once, with the Undo toast. Nothing shows until you have usuals.
- */
-function QuickUse({ meId }: { meId: string | null }) {
-  const usuals = useUsuals();
-  const names = useMemberNames();
-  const logUse = useLogUse();
-  const fit = React.useMemo(() => usualsThatFit(usuals.data ?? []).slice(0, USUAL_CHIPS + 2), [usuals.data]);
-  const refs = React.useMemo(() => fit.map(usualRef), [fit]);
-  const items = useItemsByRef(refs);
-  const rows = doItAgainRows(fit, items, { meId, names, limit: USUAL_CHIPS });
-
-  // Logged at once (SM-5): the Undo toast is up before the server answers; a refusal is put back and says why.
-  const again = (row: DoItAgainRow) => {
-    if (!row.item) return;
-    void logUse({
-      ref: row.ref,
-      item: row.item,
-      qtyMilli: row.qtyMilli,
-      consumers: row.consumers,
-      idempotencyKey: crypto.randomUUID(),
-      what: row.words,
-      measure: row.measure,
-      meId,
-      names,
-    });
-  };
-
-  return (
-    <section aria-label="Quick use" className="space-y-2">
-      <Link
-        href="/use"
-        className="flex h-12 w-full items-center gap-2.5 rounded-2xl border border-input bg-card px-4 text-base text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Search className="h-5 w-5 shrink-0" aria-hidden />
-        <span className="min-w-0 flex-1 truncate">What did you use?</span>
-      </Link>
-      {usuals.loading ? (
-        <div className="flex gap-2" aria-hidden>
-          <Skeleton className="h-11 w-32 rounded-full" />
-          <Skeleton className="h-11 w-28 rounded-full" />
-          <Skeleton className="h-11 w-28 rounded-full" />
-        </div>
-      ) : rows.length > 0 ? (
-        <ul aria-label="Your usuals" className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
-          {rows.map((row) => {
-            const others = row.consumers.length > 1 || (row.consumers.length === 1 && row.consumers[0] !== meId);
-            return (
-              <li key={row.key} className="shrink-0">
-                <button
-                  type="button"
-                  aria-label={row.label}
-                  aria-disabled={!row.item ? true : undefined}
-                  onClick={() => again(row)}
-                  className={cn(
-                    "flex h-11 items-center gap-2 whitespace-nowrap rounded-full border bg-card pl-4 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    others ? "pr-1.5" : "pr-4",
-                    row.item ? "hover:bg-accent" : "cursor-wait",
-                  )}
-                >
-                  {row.title}
-                  {others ? (
-                    <span aria-hidden className="flex -space-x-1">
-                      {row.consumers.slice(0, 3).map((id) => (
-                        <Face key={id} subjectId={id} meId={meId} names={names} className="h-8 w-8 text-[10px] ring-2 ring-card" />
-                      ))}
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-    </section>
   );
 }
 

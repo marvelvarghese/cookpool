@@ -83,6 +83,9 @@ export const qk = {
   kitchenDishes: () => ["kitchenDishes"] as const,
   kitchenDish: (dishId: string) => ["kitchenDishes", "dish", dishId] as const,
   kitchenGroupDishes: (orgId: string) => ["kitchenDishes", "group", orgId] as const,
+  // The dishes you cooked or that were shared with your groups (cookpool-recipes
+  // RC-2: Home's "From your groups", your page and a person's cooks), paged.
+  kitchenMyDishes: () => ["kitchenDishes", "mine"] as const,
   // Home (CP-23): the inbox — under `kitchenMe()`, so every ledger write
   // refreshes it; stock writes and dish writes refresh it by this key too —
   // and each group's newest entries for Recent activity, under the group's
