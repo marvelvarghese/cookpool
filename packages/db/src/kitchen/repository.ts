@@ -21,6 +21,7 @@ import { createRecipesRepository } from "./recipes.js";
 import { createAsksRepository } from "./asks.js";
 import { createCommunityRepository } from "./community.js";
 import { createPostsRepository } from "./posts.js";
+import { createSplitLaterRepository } from "./split-later.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -133,5 +134,7 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     ...createCommunityRepository(executor),
     // Posts, Yum, comments, reports and Activity (CM-3).
     ...createPostsRepository(executor),
+    // Cooked, then split later, and Home's split reminder (CM-8).
+    ...createSplitLaterRepository(executor),
   };
 }

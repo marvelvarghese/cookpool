@@ -5,8 +5,8 @@
 //
 // THE STATS WHITELIST lives in `computeStats`: a post carries only the stats
 // its author chose, from four fixed facts of the dish — its size against the
-// recipe, the step log's total, how many shares it had, and steps logged of
-// the recipe's cook steps. Nothing else of the dish is read (`postSource`
+// recipe, the step log's total, how many servings it made (its portions,
+// since CM-8), and steps logged of the recipe's cook steps. Nothing else of the dish is read (`postSource`
 // selects no price, no ledger row, no group and no person), so nothing else
 // can reach a post.
 
@@ -54,17 +54,26 @@ export function computeStats(source: KitchenPostSource, show: PostShow): Kitchen
     stats.size = { factorMilli: source.recipe ? factor : null, main: source.recipe ? main : null, portionsHalf: source.portionsHalf };
   }
   if (show.time && source.stepsLogged > 0) stats.minutes = Math.max(1, Math.round(source.stepSeconds / 60));
-  if (show.ate) stats.ate = Math.max(1, source.shares);
+  // How many it served: its portions in whole servings (CM-8) — a dish is posted before it is split, or never split.
+  if (show.ate) stats.ate = servingsOf(source.portionsHalf);
   if (show.steps && source.stepsLogged > 0 && source.recipeCookSteps > 0) {
     stats.steps = { done: Math.min(source.stepsLogged, source.recipeCookSteps), total: source.recipeCookSteps };
   }
   return stats;
 }
 
-/** Can a dish be posted: a group dish once finalized; a Just me dish unless canceled. */
+/** A dish's portions as whole servings, rounded up, at least 1 (½ portion serves one; 1½ serve two). */
+export function servingsOf(portionsHalf: number): number {
+  return Math.max(1, Math.ceil(portionsHalf / 2));
+}
+
+/**
+ * Can a dish be posted: any of the cook's dishes but a canceled one — its
+ * own or split with a group, open or finalized (CM-8: posting and splitting
+ * are separate actions, in any order).
+ */
 export function postable(source: KitchenPostSource): boolean {
-  if (source.state === "canceled") return false;
-  return !source.inGroup || source.state === "finalized";
+  return source.state !== "canceled";
 }
 
 /** The dish's name as a post's title. */

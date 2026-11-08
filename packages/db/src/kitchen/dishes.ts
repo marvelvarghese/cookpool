@@ -72,9 +72,9 @@ export type DishesRepository = Pick<
 
 // ── Row mappers ────────────────────────────────────────────
 
-const DISH_COLUMNS = `d.id, d.cook, d.org_id, d.name, d.portions_half, d.extras_minor, d.ingredients_minor,
+export const DISH_COLUMNS = `d.id, d.cook, d.org_id, d.name, d.portions_half, d.extras_minor, d.ingredients_minor,
   d.total_minor, d.currency, d.split_mode, d.state, d.txn_id, d.leftover_item_id, d.cooked_at, d.finalized_at,
-  d.canceled_at, d.idem_key, d.created_at, d.updated_at, d.version, d.recipe_id, d.recipe_factor_milli`;
+  d.canceled_at, d.idem_key, d.created_at, d.updated_at, d.version, d.recipe_id, d.recipe_factor_milli, d.split_at`;
 
 type Row = Record<string, unknown>;
 
@@ -110,6 +110,7 @@ function mapDish(row: Row, ingredients: KitchenDishIngredientRecord[], shares: K
     version: Number(row.version),
     recipeId: nullableString(row.recipe_id),
     recipeFactorMilli: row.recipe_factor_milli === null || row.recipe_factor_milli === undefined ? null : Number(row.recipe_factor_milli),
+    splitAt: nullableDate(row.split_at),
     ingredients,
     shares,
   };
@@ -251,58 +252,60 @@ function txnsProblem(records: readonly KitchenTxnRecord[]): KitchenDishError | n
 
 // ── Repository functions ───────────────────────────────────
 
+/** The ingredients of these dishes, each dish's in the cook's order. */
+async function ingredientsOf(executor: SqlExecutor, dishIds: readonly string[]): Promise<Map<string, KitchenDishIngredientRecord[]>> {
+  const byDish = new Map<string, KitchenDishIngredientRecord[]>();
+  if (dishIds.length === 0) return byDish;
+  const result = await executor.execute(
+    `SELECT di.dish_id, di.item_id, i.name, di.position, di.qty_milli, di.unit, di.label, di.cost_minor, di.org_id,
+            di.paid_by, di.use_txn_id, di.recipe_line
+     FROM kitchen_dish_ingredients di JOIN kitchen_items i ON i.id = di.item_id
+     WHERE di.dish_id IN (SELECT value FROM json_each($1))
+     ORDER BY di.dish_id, di.position`,
+    [JSON.stringify(dishIds)],
+  );
+  for (const row of result.rows) {
+    const dishId = row.dish_id as string;
+    const list = byDish.get(dishId) ?? [];
+    list.push(mapDishIngredient(row));
+    byDish.set(dishId, list);
+  }
+  return byDish;
+}
+
+/** The shares of these dishes, each dish's in the order they were listed or claimed. */
+async function sharesOf(executor: SqlExecutor, dishIds: readonly string[]): Promise<Map<string, KitchenDishShareRecord[]>> {
+  const byDish = new Map<string, KitchenDishShareRecord[]>();
+  if (dishIds.length === 0) return byDish;
+  const result = await executor.execute(
+    `SELECT dish_id, id, subject_id, position, portions_half, exact_minor, source, set_by, created_at, updated_at
+     FROM kitchen_dish_shares
+     WHERE dish_id IN (SELECT value FROM json_each($1))
+     ORDER BY dish_id, position, id`,
+    [JSON.stringify(dishIds)],
+  );
+  for (const row of result.rows) {
+    const dishId = row.dish_id as string;
+    const list = byDish.get(dishId) ?? [];
+    list.push(mapShare(row));
+    byDish.set(dishId, list);
+  }
+  return byDish;
+}
+
+/** These dish rows (selected with DISH_COLUMNS), each with its ingredients and shares (two reads, however many dishes). */
+export async function dishesWithParts(executor: SqlExecutor, rows: readonly Row[]): Promise<KitchenDishRecord[]> {
+  const ids = rows.map((r) => r.id as string);
+  const ingredients = await ingredientsOf(executor, ids);
+  const shares = await sharesOf(executor, ids);
+  return rows.map((row) => mapDish(row, ingredients.get(row.id as string) ?? [], shares.get(row.id as string) ?? []));
+}
+
 export function createDishesRepository(executor: SqlExecutor): DishesRepository {
   const pantry = createPantryRepository(executor);
   const ledger = createLedgerRepository(executor);
 
-  /** The ingredients of these dishes, each dish's in the cook's order. */
-  async function ingredientsOf(dishIds: readonly string[]): Promise<Map<string, KitchenDishIngredientRecord[]>> {
-    const byDish = new Map<string, KitchenDishIngredientRecord[]>();
-    if (dishIds.length === 0) return byDish;
-    const result = await executor.execute(
-      `SELECT di.dish_id, di.item_id, i.name, di.position, di.qty_milli, di.unit, di.label, di.cost_minor, di.org_id,
-              di.paid_by, di.use_txn_id, di.recipe_line
-       FROM kitchen_dish_ingredients di JOIN kitchen_items i ON i.id = di.item_id
-       WHERE di.dish_id IN (SELECT value FROM json_each($1))
-       ORDER BY di.dish_id, di.position`,
-      [JSON.stringify(dishIds)],
-    );
-    for (const row of result.rows) {
-      const dishId = row.dish_id as string;
-      const list = byDish.get(dishId) ?? [];
-      list.push(mapDishIngredient(row));
-      byDish.set(dishId, list);
-    }
-    return byDish;
-  }
-
-  /** The shares of these dishes, each dish's in the order they were listed or claimed. */
-  async function sharesOf(dishIds: readonly string[]): Promise<Map<string, KitchenDishShareRecord[]>> {
-    const byDish = new Map<string, KitchenDishShareRecord[]>();
-    if (dishIds.length === 0) return byDish;
-    const result = await executor.execute(
-      `SELECT dish_id, id, subject_id, position, portions_half, exact_minor, source, set_by, created_at, updated_at
-       FROM kitchen_dish_shares
-       WHERE dish_id IN (SELECT value FROM json_each($1))
-       ORDER BY dish_id, position, id`,
-      [JSON.stringify(dishIds)],
-    );
-    for (const row of result.rows) {
-      const dishId = row.dish_id as string;
-      const list = byDish.get(dishId) ?? [];
-      list.push(mapShare(row));
-      byDish.set(dishId, list);
-    }
-    return byDish;
-  }
-
-  /** These dish rows, each with its ingredients and shares (two reads, however many dishes). */
-  async function withParts(rows: readonly Row[]): Promise<KitchenDishRecord[]> {
-    const ids = rows.map((r) => r.id as string);
-    const ingredients = await ingredientsOf(ids);
-    const shares = await sharesOf(ids);
-    return rows.map((row) => mapDish(row, ingredients.get(row.id as string) ?? [], shares.get(row.id as string) ?? []));
-  }
+  const withParts = (rows: readonly Row[]) => dishesWithParts(executor, rows);
 
   async function findDish(where: string, params: unknown[]): Promise<KitchenDishRecord | null> {
     const result = await executor.execute(`SELECT ${DISH_COLUMNS} FROM kitchen_dishes d WHERE ${where}`, params);

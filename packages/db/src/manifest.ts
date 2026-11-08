@@ -408,5 +408,14 @@ export const manifest: MigrationManifest = {
       description:
         "Posts, Yum, comments, reports and Activity: kitchen_posts (pst_ id as a UUID, author_id, dish_id unique while live, recipe_id, title 1–60, caption up to 500 or NULL, audience followers/public/me, stats a JSON object of only size, minutes, ate and steps — no other key — photo_key NULL for CM-4, yum_pushed_at for the hourly Yum push, created_at, edited_at, deleted_at), indexed by author and time, audience and time and recipe; kitchen_post_yums (post_id, user_id primary key, created_at); kitchen_post_comments (cmt_ id, post_id, author_id, body 1–500, created_at, deleted_at and deleted_by together), indexed by post and time and by author and time; kitchen_reports (rpt_ id, reporter_id, target_kind post/comment/profile, target_id, reason spam/abuse/unsafe/other, note up to 300, created_at, state open/closed; one per reporter and target), indexed by target and state; and kitchen_activity (act_ id, recipient user_id, kind followed/follow_request/follow_accepted/yum/comment/cooked_yours/saved_yours, actor_id never the recipient, post_id, comment_id, recipe_id, created_at, read_at), indexed by recipient and time, unread, and by post and kind (Cookpool CM-3)",
     },
+    {
+      id: "460_kitchen_split_later",
+      context: "kitchen",
+      path: "460_kitchen_split_later/up.sql",
+      checksum:
+        "3dd317745b3d73878c8cf16f517b95c421bc6e3bd6d58291c4035d6b4c32d9c0",
+      description:
+        "Cooked, then split later: kitchen_dishes.split_at (when a dish cooked as its cook's own was split with a group — set once with org_id, and only on a dish that has one, by CHECK) and kitchen_dishes.split_dismissed_at (when its cook dismissed Home's reminder to split it; NULL while it would remind). Both nullable, no default (Cookpool CM-8)",
+    },
   ],
 };

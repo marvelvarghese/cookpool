@@ -1,6 +1,7 @@
 import type { AsksRepository } from "./asks.js";
 import type { CommunityRepository } from "./community.js";
 import type { PostsRepository } from "./posts.js";
+import type { SplitLaterRepository } from "./split-later.js";
 import type { KitchenActivityWrite } from "./activity-write.js";
 import type { AppendEventWithAuditInput } from "../events/types.js";
 import type { Uuid } from "../ids/index.js";
@@ -656,7 +657,7 @@ export interface KitchenUsualsBucketQuery {
  * dish and check of a group item reads its guard — but its storage is its own
  * file: ./asks.ts.
  */
-export interface KitchenRepository extends AsksRepository, CommunityRepository, PostsRepository {
+export interface KitchenRepository extends AsksRepository, CommunityRepository, PostsRepository, SplitLaterRepository {
   /** The group's settings row, or `null` when it has none (it uses the defaults). */
   getGroupSettings(orgId: Uuid): Promise<KitchenResult<KitchenGroupSettings | null>>;
   /**
@@ -1084,6 +1085,8 @@ export interface KitchenDishRecord {
   /** The recipe it was cooked from and the factor it was scaled by (RC-4, migration 350); null when it named none. */
   recipeId: string | null;
   recipeFactorMilli: number | null;
+  /** When a dish cooked as its cook's own was split with a group (CM-8, migration 460); null otherwise. */
+  splitAt: Date | null;
   ingredients: KitchenDishIngredientRecord[];
   /** Its shares, in the order they were listed or claimed (`position`). */
   shares: KitchenDishShareRecord[];

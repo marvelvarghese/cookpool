@@ -810,3 +810,22 @@ export {
 } from "@saas/contracts/kitchen";
 
 export { PUSH_ONLY_KINDS, isPushOnlyKind, type PushOnlyKind } from "@saas/contracts/notifications";
+
+// Cooked, then split later, and Home's split reminder (CM-8).
+export type {
+  SplitDishRequest,
+  SplitDishResponse,
+  SplitReminderInboxItem,
+  SplitReminderDismissResponse,
+  SplitSuggestReason,
+  KitchenSplitErrorReason,
+} from "@saas/contracts/kitchen";
+
+export {
+  KITCHEN_DISH_SPLIT_EVENT,
+  KITCHEN_SPLIT_ERROR_REASONS,
+  SPLIT_REMINDER_DAYS,
+  SPLIT_REMINDER_MIN_PORTIONS_HALF,
+  SPLIT_REMINDERS_MAX,
+  SPLIT_SUGGEST_REASONS,
+} from "@saas/contracts/kitchen";

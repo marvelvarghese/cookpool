@@ -63,7 +63,7 @@ export interface PostShow {
   size: boolean;
   /** The step log's total time. */
   time: boolean;
-  /** How many people ate. */
+  /** How many it served: the dish's portions (CM-8). */
   ate: boolean;
   /** Steps done of the recipe's cook steps. */
   steps: boolean;
@@ -90,7 +90,11 @@ export interface PostStats {
   size?: PostSizeStat;
   /** The step log's total, in whole minutes (at least 1). */
   minutes?: number;
-  /** How many people the dish was shared between (1 for a Just me dish). */
+  /**
+   * How many it served: the dish's portions, rounded up to whole servings
+   * (at least 1). Since CM-8 never its shares — a dish can be posted before
+   * it is split, or never split.
+   */
   ate?: number;
   /** Logged steps of the recipe's cook steps. */
   steps?: { done: number; total: number };
@@ -147,7 +151,7 @@ export interface CommunityPost {
 }
 
 export interface CreatePostRequest {
-  /** `dsh_…`: a dish the caller cooked, finalized (or Just me), not canceled, with no live post. */
+  /** `dsh_…`: a dish the caller cooked, not canceled, with no live post — before or after a split, open or finalized (CM-8). */
   dishId: string;
   caption?: string | null;
   audience: PostAudience;
@@ -359,7 +363,7 @@ export const YUM_PUSH_EVERY_MS = 60 * 60 * 1000;
 
 /** `details.reason` of the posts routes' refusals (the error codes are the pinned ones). */
 export const KITCHEN_POSTS_ERROR_REASONS = {
-  /** 409 `conflict`: the dish isn't finalized (a group dish) or was canceled. */
+  /** 409 `conflict`: the dish was canceled. (Before CM-8, also a group dish not yet finalized.) */
   NOT_POSTABLE: "not_postable",
   /** 409 `conflict`: the dish already has a live post (`details.postId`). */
   ALREADY_POSTED: "already_posted",

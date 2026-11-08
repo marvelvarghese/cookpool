@@ -1,6 +1,9 @@
 import {
   DEFAULT_KITCHEN_CURRENCY,
   INBOX_EXPIRED_DAYS,
+  SPLIT_REMINDER_DAYS,
+  SPLIT_REMINDER_MIN_PORTIONS_HALF,
+  SPLIT_REMINDERS_MAX,
   INBOX_USE_SOON_DAYS,
   INBOX_USE_SOON_MAX,
   USUALS_DAYS,
@@ -32,6 +35,7 @@ import {
 import { toEngineTxns } from "../ledger.js";
 import { addDays, isoDay } from "../pantry.js";
 import { readMyAsks } from "./asks.js";
+import { splitReminders } from "../split-later.js";
 
 // GET /v1/kitchen/me/inbox — Home's inbox (CP-19): dishes to claim or
 // finalize, items to use soon, payments the caller owes and open flags on
@@ -55,6 +59,11 @@ import { readMyAsks } from "./asks.js";
 // for names. Server-Timing phases: groups, dishes, items, ledger, flags,
 // identity.
 //
+// Cooked, then split later (CM-8): `splitReminders` lists the caller's own
+// unsplit dishes worth splitting (./split-later.ts) — one more statement in
+// the dishes phase, and one more (the group they last cooked for) only when a
+// dish took nothing from a group it could go to.
+//
 // Ask before use (PN-8): the pending asks the caller answers ride in `asks`,
 // for the top of To do — one more statement beside the rest (and the roster
 // of a group where an owner or admin answers for a buyer who has left).
@@ -74,12 +83,19 @@ export async function handleInbox(ctx: RequestContext): Promise<Response> {
   const today = isoDay(now);
 
   return withKitchenRepo(ctx, async (repo) => {
-    const [[open, drafts], [soon, usuals], [settings, ledgers], flags, asks] = await Promise.all([
+    const [[open, drafts, unsplit], [soon, usuals], [settings, ledgers], flags, asks] = await Promise.all([
       ctx.timings.measure("dishes", () =>
         Promise.all([
           // The caller's own open dishes, and those open for claims where they may claim.
           repo.listDishes({ cook: me, orgIds: [...claimGroups], state: "open", cursor: null, limit: INBOX_DISHES_LIMIT }),
           repo.listDishes({ cook: me, orgIds: [], state: "draft", cursor: null, limit: INBOX_DISHES_LIMIT }),
+          // Their own dishes not yet split with a group, worth a reminder (CM-8).
+          repo.listUnsplitDishes({
+            cook: me,
+            since: new Date(now.getTime() - SPLIT_REMINDER_DAYS * DAY_MS),
+            minPortionsHalf: SPLIT_REMINDER_MIN_PORTIONS_HALF,
+            limit: SPLIT_REMINDERS_MAX,
+          }),
         ]),
       ),
       ctx.timings.measure("items", () =>
@@ -115,7 +131,7 @@ export async function handleInbox(ctx: RequestContext): Promise<Response> {
       readMyAsks(ctx, repo, groups, { mine: false }),
     ]);
     // A list that silently left something out would be wrong: any failed read is a 503.
-    if (!open.ok || !drafts.ok || !soon.ok || !usuals.ok || !settings.ok || !flags.ok) return unavailable(ctx.requestId);
+    if (!open.ok || !drafts.ok || !unsplit.ok || !soon.ok || !usuals.ok || !settings.ok || !flags.ok) return unavailable(ctx.requestId);
     if (ledgers.some((l) => !l.ok) || !asks) return unavailable(ctx.requestId);
 
     const claims = open.value.dishes.filter((d) => isClaimable(d, me, claimGroups));
@@ -154,9 +170,24 @@ export async function handleInbox(ctx: RequestContext): Promise<Response> {
       ...openFlags.map((f) => flagItem(f, byOrg.get(f.orgId)!, names)),
     ];
 
+    // Where each unsplit dish could go (CM-8): the group it took most from, else the one last cooked for.
+    let latestFailed = false;
+    const reminders = await splitReminders(unsplit.value, groups, currencies, async (orgIds) => {
+      const latest = await ctx.timings.measure("dishes", () => repo.latestGroupDishOrg(me, orgIds));
+      if (latest.ok) return latest.value;
+      latestFailed = true;
+      return null;
+    });
+    if (latestFailed) return unavailable(ctx.requestId);
+
     const ordered = inOrder(items, today);
     return successResponse<InboxResponse>(
-      { items: ordered, counts: countsOf(ordered), asks: asks.toAnswer.map((ask) => ({ kind: "ask", ask })) },
+      {
+        items: ordered,
+        counts: countsOf(ordered),
+        asks: asks.toAnswer.map((ask) => ({ kind: "ask", ask })),
+        splitReminders: reminders,
+      },
       ctx.requestId,
     );
   });

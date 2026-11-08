@@ -1012,6 +1012,7 @@ export interface UsualsResponse {
 
 export type { UsualBucket, UsualNow } from "./kitchen-usuals.js";
 import type { AskInboxItem } from "./kitchen-asks.js";
+import type { SplitReminderInboxItem } from "./kitchen-split-later.js";
 
 // ── Your measures (SM-13) ───────────────────────────────────
 //
@@ -1481,6 +1482,12 @@ export interface KitchenDish {
    */
   recipeId?: string | null;
   recipeFactorMilli?: number | null;
+  /**
+   * When a dish cooked as its cook's own was split with its group (CM-8,
+   * ./kitchen-split-later.ts); null for a dish cooked into a group or never
+   * split. Every answer carries it; optional so dishes typed before CM-8 still check.
+   */
+  splitAt?: string | null;
   /** What the cook paid for themselves: their own pantry, and their own purchases in a group. */
   fromMineMinor: number;
   /** What the cook owes, per group and buyer, in the order the ingredients name them. fromMineMinor + Σ owes = ingredientsMinor. */
@@ -2086,6 +2093,13 @@ export interface InboxResponse {
    * leaves them out. Every answer carries it.
    */
   asks?: AskInboxItem[];
+  /**
+   * Cooked, then split later (CM-8): one reminder per unsplit dish of the
+   * caller's worth splitting, newest first. Its own list, as `asks` is, so a
+   * console that switches over every `items` kind reads this answer as
+   * before; `counts` leaves them out. Every answer carries it.
+   */
+  splitReminders?: SplitReminderInboxItem[];
 }
 
 // ── A person's balance, service-internal (CP-19) ────────────
@@ -2147,3 +2161,8 @@ export * from "./kitchen-community.js";
 // CM-3): their routes, shapes and limits live in ./kitchen-posts.ts (also
 // through `@saas/contracts/kitchen`).
 export * from "./kitchen-posts.js";
+
+// Cooked, then split later (cookpool-community CM-8): splitting the cook's own
+// dish with a group after cooking, and Home's split reminder —
+// ./kitchen-split-later.ts (also through `@saas/contracts/kitchen`).
+export * from "./kitchen-split-later.js";
