@@ -2,13 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Bookmark, BookOpen, ChevronDown } from "lucide-react";
+import { Bookmark, BookOpen, ChevronDown, ListOrdered } from "lucide-react";
 import type { KitchenRecipe, RecipeMatchResponse } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KCard, K_BUTTON } from "./kit";
 import { Face } from "./faces-ui";
+import { GuidedStepItem } from "./guided-views";
+import type { StepRow } from "./guided-steps";
 import {
   amountText,
   factorChip,
@@ -243,23 +245,55 @@ export function IngredientsSection({
   );
 }
 
-/** Steps · N, folded until opened, numbered. */
-export function StepsSection({ steps, initiallyOpen = false }: { steps: readonly string[]; initiallyOpen?: boolean }) {
+/**
+ * Steps · N, folded until opened, numbered. With `rows` (cookpool-guided
+ * GC-6) each step shows its flame, its range at the page's size, what to
+ * watch for, Hands off and the learned badge; `planHref` puts The plan
+ * beside the heading.
+ */
+export function StepsSection({
+  steps,
+  rows,
+  planHref,
+  initiallyOpen = false,
+}: {
+  steps: readonly string[];
+  rows?: readonly StepRow[] | undefined;
+  planHref?: string | null | undefined;
+  initiallyOpen?: boolean;
+}) {
   const [open, setOpen] = React.useState(initiallyOpen);
   const id = React.useId();
   return (
     <section aria-label="Steps" className="flex flex-col gap-2.5">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
-        className="flex min-h-12 items-center justify-between rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <span className="text-lg font-extrabold tracking-tight">Steps · {steps.length}</span>
-        <ChevronDown className={cn("h-5 w-5 transition-transform", open && "rotate-180")} aria-hidden />
-      </button>
-      {open ? (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={() => setOpen((o) => !o)}
+          className="flex min-h-12 flex-1 items-center justify-between gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="text-lg font-extrabold tracking-tight">Steps · {steps.length}</span>
+          <ChevronDown className={cn("h-5 w-5 transition-transform", open && "rotate-180")} aria-hidden />
+        </button>
+        {planHref ? (
+          <Link
+            href={planHref}
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-[#C9CFC6] bg-card px-3.5 text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ListOrdered className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+            The plan
+          </Link>
+        ) : null}
+      </div>
+      {open && rows ? (
+        <ol id={id} className="flex flex-col gap-2">
+          {rows.map((row) => (
+            <GuidedStepItem key={row.position} row={row} />
+          ))}
+        </ol>
+      ) : open ? (
         <ol id={id} className="flex flex-col gap-2">
           {steps.map((text, i) => (
             <li key={i} className="flex gap-3 rounded-2xl border bg-card px-3.5 py-3">

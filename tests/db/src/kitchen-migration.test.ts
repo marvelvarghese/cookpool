@@ -22,19 +22,22 @@ describe("kitchen migrations", () => {
     expect(ids.indexOf("210_kitchen_settings")).toBe(ids.indexOf("200_membership_join_codes") + 1);
   });
 
-  it("only creates or alters kitchen_* tables, each create guarded with IF NOT EXISTS", () => {
+  it("only creates, alters or writes kitchen_* tables, each create guarded with IF NOT EXISTS", () => {
     for (const m of kitchen) {
-      // Statements only: the header comments may name what they describe.
-      const sql = readFileSync(resolve(MIGRATIONS_ROOT, m.path), "utf8").replace(/--.*$/gm, "");
+      // Statements only: the header comments may name what they describe, and a seed's words may say anything.
+      const sql = readFileSync(resolve(MIGRATIONS_ROOT, m.path), "utf8").replace(/--.*$/gm, "").replace(/'(?:[^']|'')*'/g, "''");
       const creates = [...sql.matchAll(/CREATE\s+(?:UNIQUE\s+)?(TABLE|INDEX)\s+(IF NOT EXISTS\s+)?([a-z_]+)/gi)];
       const alters = [...sql.matchAll(/ALTER\s+TABLE\s+([a-z_]+)/gi)];
-      // A migration that only adds a column (290) has no CREATE; every one does something.
-      expect(creates.length + alters.length).toBeGreaterThan(0);
+      const writes = [...sql.matchAll(/(?:INSERT\s+(?:OR\s+[A-Z]+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+([a-z_]+)/gi)];
+      // A migration that only adds a column (290) has no CREATE, and one that only rewrites seed rows (390, GC-4)
+      // neither; every one does something.
+      expect(creates.length + alters.length + writes.length).toBeGreaterThan(0);
       for (const [, kind, guard, name] of creates) {
         expect(guard).toBeDefined();
         if (kind!.toUpperCase() === "TABLE") expect(name).toMatch(/^kitchen_/);
       }
       for (const [, table] of alters) expect(table).toMatch(/^kitchen_/);
+      for (const [, table] of writes) expect([m.id, table]).toEqual([m.id, expect.stringMatching(/^kitchen_/)]);
     }
   });
 

@@ -12,6 +12,7 @@
 
 import { isRecipeUnit, wholeStepMinutes, type StepHeat, type StepSense } from "@saas/contracts/kitchen";
 import { formatMinor } from "./money";
+import { recipePlanHref } from "./guided-steps";
 import {
   amountText,
   progress,
@@ -360,10 +361,10 @@ export interface StepScreenView {
   planHref: string | null;
 }
 
-/** GC-6's plan, at the session's size. */
+/** GC-6's plan (`/recipes/<id>/plan?f=`), at the session's size, by GC-6's own link. */
 export function planHref(s: Pick<CookSession, "recipeId" | "factorMilli">): string | null {
   if (!s.recipeId) return null;
-  return `/recipes/${encodeURIComponent(s.recipeId)}/plan?f=${factorOf(s)}`;
+  return recipePlanHref(s.recipeId, factorOf(s));
 }
 
 /** Whole minutes since the cooking started: "14 MIN IN". */

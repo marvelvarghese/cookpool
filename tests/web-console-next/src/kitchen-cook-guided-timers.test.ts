@@ -41,7 +41,7 @@ import {
 import { GuidePromptView, PingAndScreen, TimerCard } from "@web-console-next/components/kitchen/cook-guided-ui";
 import { promptView } from "@web-console-next/components/kitchen/cook-guided-screens";
 import { ME } from "./kitchen-pantry-fixtures";
-import { NOW, at, curry } from "./kitchen-guided-fixtures";
+import { NOW, at, curry } from "./kitchen-cook-guided-fixtures";
 
 // cookpool-guided GC-5 (design §3.7, §4's console side): every timer the
 // session starts sets a server timer (GC-3), which Pause, Done early, a tick

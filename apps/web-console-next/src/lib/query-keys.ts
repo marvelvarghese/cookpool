@@ -98,6 +98,10 @@ export const qk = {
   kitchenRecipeBook: () => ["kitchenRecipeBook"] as const,
   kitchenMyRecipes: () => ["kitchenRecipeBook", "mine"] as const,
   kitchenRecipe: (recipeId: string) => ["kitchenRecipeBook", "recipe", recipeId] as const,
+  // The same recipe read at a size (cookpool-guided GC-6's plan): only its
+  // steps' learned ranges (GC-7) differ, so it sits under the recipe's own
+  // key, and anything that refreshes or patches the recipe reaches it too.
+  kitchenRecipeAt: (recipeId: string, factorMilli: number) => ["kitchenRecipeBook", "recipe", recipeId, "f", factorMilli] as const,
   // RC-8: a person's recipes (their page) and the recipe a link opens, under
   // the book too, so a copy refreshes their "saved by".
   kitchenPersonRecipes: (subjectId: string) => ["kitchenRecipeBook", "person", subjectId] as const,

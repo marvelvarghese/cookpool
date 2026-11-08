@@ -29,14 +29,13 @@ import { refreshTakes, runFinish, takeRefsToRead, type CookSession, type FinishO
 /**
  * A recipe the caller may see, with their last cook of it ("last time") —
  * read at the session's size `f` (cookpool-guided GC-7: its steps' learned
- * ranges come at that size). Its own key under the recipe's, so the recipe
- * page's read (as written) is not mixed up with it, and refreshing the
- * recipe refreshes both.
+ * ranges come at that size), under GC-6's `qk.kitchenRecipeAt`: the recipe's
+ * own key, so refreshing the recipe refreshes it too.
  */
 export function useRecipe(recipeId: string | null, f?: number) {
   const { client } = useSession();
   return useApiQuery<RecipeResponse>(
-    f === undefined ? qk.kitchenRecipe(recipeId ?? "") : [...qk.kitchenRecipe(recipeId ?? ""), "f", f],
+    f === undefined ? qk.kitchenRecipe(recipeId ?? "") : qk.kitchenRecipeAt(recipeId ?? "", f),
     () => wrap(() => client.kitchen.getRecipe(recipeId ?? "", f === undefined ? {} : { f })),
     { enabled: recipeId !== null },
   );

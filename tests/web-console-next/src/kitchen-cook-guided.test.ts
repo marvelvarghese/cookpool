@@ -58,7 +58,7 @@ import {
   type WaitHandlers,
 } from "@web-console-next/components/kitchen/cook-guided-ui";
 import { FLAT, ME, MEERA } from "./kitchen-pantry-fixtures";
-import { CURRY, CURRY_ID, CURRY_MATCH, ITEMS, NOW, RAJMA, RAJMA_MATCH, at, curry, rajma } from "./kitchen-guided-fixtures";
+import { CURRY, CURRY_ID, CURRY_MATCH, ITEMS, NOW, RAJMA, RAJMA_MATCH, at, curry, rajma } from "./kitchen-cook-guided-fixtures";
 
 // cookpool-guided GC-5 (design §3, §5's posting): a recipe with steps cooks
 // step by step in RC-6's session — the prompt, Before you start, one step at

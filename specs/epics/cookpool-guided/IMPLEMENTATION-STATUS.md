@@ -208,6 +208,164 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 `pnpm typecheck` passes repo-wide (52 tasks). `pnpm lint` passes for every touched package (`packages/contracts`, `packages/db`, `packages/sdk`, `apps/kitchen-worker`, `tests/contracts`, `tests/db`, `tests/kitchen-worker`). `orun task check GC-7 --base origin/main` passes: 7 changed components, all inside the contract.
 
+### GC1 — Cookpool's recipes with guided steps (GC-4)
+
+**What shipped.** Content only: one migration, its manifest entry, and tests. No worker, contract, SDK or console file changed.
+
+- **Migration `390_kitchen_cookpool_guided`**, with its manifest entry and checksum. For each of 360's 42 recipes, one block of three statements:
+  - `UPDATE kitchen_recipes SET tools = '[…]' WHERE id = '<360's fixed id>'`: two to four tools ("Pressure cooker", "Kadai with a lid", "Tawa", "Rolling pin and board", "Tadka pan", "Mixer jar", …).
+  - `DELETE FROM kitchen_recipe_steps WHERE recipe_id = '<id>'`.
+  - one plain `INSERT` of its guided steps, every column in the row (both seconds together; whistle steps leave them NULL).
+- **Fixed keys** `c00c0390-<recipe>-<step>`, both two digits and the step counted from 1 (Masala chai's milk step is `c00c0390-32-04`). They are the same in every environment and in every copy saved from now on, so GC-7's pool hangs on them.
+- **The content: 303 steps (215 before), 75 prep and 228 cook, 73 hands off.**
+  - **Prep comes first** in every recipe: chopping, rinsing, soaking, marinating, kneading and resting.
+  - **Every cook step has a flame** (0 off, 1 low, 2 medium, 3 high). A step done off the flame (mashing, mixing, garnishing, a drink) says 0.
+  - **Every cook step has a checkpoint or a time.** Most have both. Chicken curry, the milestone dish, has a flame, lines, a range and a checkpoint on every cook step.
+  - **The checkpoints** are the ones home cooks use: golden brown, the raw smell goes, oil shows at the edges, mustard seeds splutter, dal is soft and mashable, no pink inside, a bean mashes easily between your fingers, it leaves the sides of the pan. Each reads after "Until …".
+  - **Time rules:**
+    - `fixed` for tempering, boiling a pot of water, soaking, resting, the pressure dropping and a timed low flame;
+    - `partly` for frying onions, searing, reducing a gravy, cooking more vegetables in one pan, and bringing the recipe's own water or milk to a boil;
+    - `linear` only for work done once a piece: chopping, and rolling or frying rotis, parathas, puris, pakodas and omelettes one after another.
+  - **Pressure cookers**, in 9 recipes: a whistles step (on high for beans and potatoes, medium for dal and rice, which froth), then a timed low flame where the recipe needs one (rajma 15–20 min, chole 20–25 min), then "let the pressure drop" as a hands-off step off the heat (10–15 min, or 15–20 for a full cooker of beans).
+  - **Long prep:** rajma's and chole's overnight soak (8–12 h), sabudana's soak (5–8 h), and fried rice's rice, cooked and cooled ahead (1–3 h).
+  - **Lines:** every line goes in at some step. A line split between steps ("half the cumin", "the rest of the ghee"), or chopped in prep and added later, is attached to each step that uses it.
+  - **Text** is plain imperative words with no digits at all, so no amounts and no times. Tips and checkpoints have no digits either.
+
+| # | Recipe | Steps (prep + cook) | Hands off | Long prep | Whistles |
+|---|---|---|---|---|---|
+| 01 | Kanda poha | 8 (3 + 5) | 1 | — | — |
+| 02 | Rava upma | 7 (1 + 6) | 0 | — | — |
+| 03 | Egg bhurji | 6 (2 + 4) | 0 | — | — |
+| 04 | Masala omelette | 4 (2 + 2) | 0 | — | — |
+| 05 | Sabudana khichdi | 8 (2 + 6) | 1 | 5–8 h | — |
+| 06 | Aloo paratha | 10 (3 + 7) | 3 | — | 3 |
+| 07 | Plain paratha | 6 (2 + 4) | 1 | — | — |
+| 08 | Chapati | 6 (2 + 4) | 1 | — | — |
+| 09 | Puri | 6 (3 + 3) | 1 | — | — |
+| 10 | Dal tadka | 10 (2 + 8) | 3 | — | 3 |
+| 11 | Dal fry | 10 (2 + 8) | 4 | — | 4 |
+| 12 | Rajma | 11 (2 + 9) | 5 | 8–12 h | 3 |
+| 13 | Chole | 13 (3 + 10) | 5 | 8–12 h | 2 |
+| 14 | Sambar | 9 (2 + 7) | 6 | — | 4 |
+| 15 | Tomato rasam | 7 (3 + 4) | 3 | — | — |
+| 16 | Kadhi | 6 (2 + 4) | 1 | — | — |
+| 17 | Palak paneer | 10 (1 + 9) | 0 | — | — |
+| 18 | Paneer bhurji | 7 (2 + 5) | 0 | — | — |
+| 19 | Matar paneer | 7 (2 + 5) | 1 | — | — |
+| 20 | Aloo gobi | 6 (2 + 4) | 1 | — | — |
+| 21 | Bhindi fry | 6 (2 + 4) | 0 | — | — |
+| 22 | Baingan bharta | 7 (1 + 6) | 0 | — | — |
+| 23 | Chicken curry | 9 (2 + 7) | 3 | — | — |
+| 24 | Egg curry | 9 (1 + 8) | 2 | — | — |
+| 25 | Fish curry | 9 (3 + 6) | 3 | — | — |
+| 26 | Jeera rice | 6 (1 + 5) | 3 | — | — |
+| 27 | Veg pulao | 9 (2 + 7) | 3 | — | — |
+| 28 | Lemon rice | 9 (1 + 8) | 2 | — | — |
+| 29 | Curd rice | 7 (1 + 6) | 3 | — | 4 |
+| 30 | Moong dal khichdi | 7 (2 + 5) | 3 | — | 4 |
+| 31 | Veg fried rice | 6 (2 + 4) | 1 | 1–3 h | — |
+| 32 | Masala chai | 5 (1 + 4) | 0 | — | — |
+| 33 | Filter coffee | 5 (0 + 5) | 1 | — | — |
+| 34 | Sweet lassi | 3 (1 + 2) | 1 | — | — |
+| 35 | Nimbu pani | 3 (1 + 2) | 1 | — | — |
+| 36 | Onion pakoda | 6 (2 + 4) | 1 | — | — |
+| 37 | Pav bhaji | 10 (2 + 8) | 3 | — | 3 |
+| 38 | Veg sandwich | 6 (2 + 4) | 1 | — | — |
+| 39 | Rava sheera | 6 (0 + 6) | 0 | — | — |
+| 40 | Rice kheer | 6 (2 + 4) | 2 | — | — |
+| 41 | Besan ladoo | 6 (1 + 5) | 2 | — | — |
+| 42 | Gajar halwa | 6 (2 + 4) | 1 | — | — |
+
+**Departures.**
+
+- **The steps are replaced, not updated.** Design §6 says "by `UPDATE`s on the system rows". The number of steps changes for nearly every recipe (215 become 303), so each recipe's rows are deleted and inserted again, as the brief asked. The runner applies a migration statement by statement with no transaction and re-runs it whole after a failure. Each block deletes before it inserts, so a re-run leaves the same rows, and a test shows it.
+- **Only steps and tools change.** Lines, names, `minutes`, `created_at` and `updated_at` stay as 360 wrote them. The guided totals don't always match the recipe card's `minutes`. Rajma's and chole's cook steps alone come to 60–80 min, plus the whistles. Besan ladoo comes to 63–87 min with its two cooling waits, against 40. The card's number is left for whoever owns it.
+- **Keys are 14 characters, not 32 hex.** `STEP_KEY_RE` and 370's CHECK both allow them.
+- **Copies saved before 390 keep their old steps**, with 370's random keys, because a copy never follows its source. Their times would pool under Cookpool's recipe as the root, but under keys the new steps don't have. Nothing is on prod yet. Stage could have such copies if GC-2's 370 was applied there before 390.
+- **Times logged against the old random keys stop counting.** GC-7's `learned` pools by root and key. Once 390 gives Cookpool's steps their fixed keys, any time a dish logged against one of 370's random keys no longer matches a step, so GC-7 leaves it out. This is expected, and GC-7's status notes it too. No console sent a step log before GC-5, so no real times are lost.
+- **Long prep is four recipes, not two.** Rajma and chole carry the overnight soak. Sabudana khichdi's soak (5–8 h) and fried rice's cooled rice (1–3 h) are just as real. Chicken curry's marinade is 30–90 min, so GC-2's rule (shortest time at least an hour) keeps it ordinary hands-off prep. Its tip says an hour or more in the fridge makes it more tender.
+- **The pressure cooker's timed step is in the two bean recipes only.** RC-7's texts said 6–8 whistles for rajma and 6–7 for chole. 390 gives them 3 and 2 whistles, then 15–20 and 20–25 min on low, then the drop: fewer whistles, and the low flame does the slow cooking. Dals, khichdi, curd rice and the vegetables for pav bhaji and aloo paratha need no timed step. Veg pulao stays in a pot with a lid, and its tip gives the cooker way.
+- **Whistle steps carry no checkpoint.** The count is what you watch for.
+- **"Boiling a fixed amount of water" is read literally.** A pot of water whose amount doesn't change with the size (blanching, boiling eggs) is `fixed`. The recipe's own water or milk, which grows with the size, is `partly`.
+- **Some prep steps are untimed** and not hands off: rinse the dal, tie the tea bag, beat the eggs, crumble the paneer. A cook step always has a heat and a checkpoint or a time. Prep needs neither.
+- **The drinks' first steps are prep** ("Chill the curd and milk", "Chill the water", each with "Skip this if they're already cold"), so lassi and nimbu pani have three steps like every other recipe. Filter coffee and rava sheera have no prep.
+- **A split line shows its whole amount at each step.** The chip is the line, and the text says "half the …" or "the rest of the …". This is the same as RC-7's texts. Splitting a line in two would change 360's lines, which 390 leaves alone.
+- **Four older tests now expect 390's steps:**
+  - RC-7's db test reads 360's steps through 380 for its 3-to-8 bound;
+  - RC-7's kitchen-worker content test bounds the steps at `MAX_RECIPE_STEPS` (the guided suite checks them closely now);
+  - GC-2's guided-steps suite expects Cookpool's steps under 390's keys and with tools, not as text-only cook steps;
+  - CP-4's kitchen-migration rule required every kitchen migration to CREATE or ALTER. 390 only writes, so the rule now counts INSERT, UPDATE and DELETE too, still on `kitchen_*` tables only.
+- **The generator stayed in the scratchpad.** `up.sql` is the source of truth, and it reads on its own: a comment heads each recipe's block with its counts.
+- **Not checked on stage** (nothing deployed). `infra/db-migrate` is unchanged: it applies what the manifest lists. GC-5 (guided mode), GC-6 (the step editor and plan) and GC-7 (learned ranges) read these steps through `guidedSteps` and change nothing here.
+
+**Tests.**
+
+| Package | New | Total |
+|---|---|---|
+| `tests/db` | 10. `kitchen-cookpool-guided-migration` has 9: registration right after 380; the text, three statements a recipe naming only the 42, plain INSERT with no IGNORE or REPLACE, each statement under 20 KB; every row landing under the CHECKs on top of 380, and a re-run leaving the same rows and tools; fixed keys per recipe and position, unique across all, prep before cook, a flame on every cook step, none of 370's random keys left; tools, 1–10 names of 1–40 characters, each once; the rules between columns (both seconds or neither, min ≤ max, whistles without seconds and fixed, a sense with its checkpoint, every wait timed) plus every line ref real and every line used; long prep for rajma and chole of 6–12 h, and exactly the four; whistles followed by hands-off steps to the drop off the heat; nothing else changing (Cookpool's lines, recipe rows but for tools, a person's recipe, a copy saved before 390). The 10th is 390's checksum case in `migrations.test.ts`. Adjusted: RC-7's step bound (through 380) and the kitchen migration rule (writes count). | 815 |
+| `tests/kitchen-worker` | 47 in `cookpool-guided`, all through the real recipe read: one case for each of the 42 recipes, checking fixed keys, prep first, tools, a flame and a checkpoint or time on every cook step, a timer on every wait, whistles without seconds and never scaling, ranges of at least 30 s and at most 12 h for prep or 2 h for cook with the longest at most three times the shortest, no number with a unit in any text, every line ref real and every line used, and `longPrep` matching the rule. Then 5 more: rajma's and chole's soak first, as long prep of at least 6 h, with whistles, low flame and drop; the four long-prep recipes; Chicken curry's every cook step complete, its plan longer at 1 kg than at 750 g, and longer at 750 g than at 450 g, with the tempering unchanged; a copy keeping every step, key and tool; a cook's times on a copy of Masala chai pooling under Cookpool's recipe by `c00c0390-32-02` and `-04`. Adjusted: RC-7's step bound and GC-2's Cookpool read. | 701 |
+
+Totals are for the tree with main merged in, after GC-7 (#74): its 805 and 654, plus GC-4's 10 and 47. GC-7's suites pass unchanged over 390's steps.
+
+`pnpm typecheck` and `pnpm lint` pass for every touched package (`packages/db`, `tests/db`, `tests/kitchen-worker`). `orun task check GC-4 --base origin/main` passes: 4 changed components, all inside the contract.
+
+### GC1 — writing guided steps, and the plan (GC-6)
+
+**Built** (design §1, §2, §3.5, §8; the canvas's `GuideEditor` and `GuideTimeline`). The console only: `apps/web-console-next` and its tests. Everything renders only when `newFrame()` is true; no server, SDK or `/cook/session` file changed.
+
+- **The step editor** (`/recipes/new`, `/recipes/[id]/edit`; `step-editor.ts` pure, `step-editor-ui.tsx`):
+  - each step is a draft (`StepDraft`): the server's `key` it was read with, Prep | Cook, What to do, the lines that go in now (held by the form's line keys, so they follow the lines as they move or go, and turned into positions in the lines sent only on Save), the flame, None | Minutes | Whistles with the range (Shortest and Longest steppers) or the count, Hands off ("The cook can do the next steps meanwhile"), More food takes (Same time · A bit longer · Longer → fixed / partly / linear), Done when (Look · Smell · Sound · Feel · Taste and the checkpoint) and the Tip;
+  - each step is a row — its number (tinted when hands off), its words and what is set ("Medium flame · 10–12 min · Until it looks golden brown") — that opens into the editor; a step with an error is held open;
+  - **the live preview** shows what the cook sees at the recipe's own size: "THE COOK SEES · SERVES 4", the flame and time in words ("MEDIUM FLAME · 8–10 MIN · HANDS OFF"), the text, the chips with the amounts as written ("3 onions", "2 tbsp ginger-garlic paste", "Salt"), "Until it looks golden brown" and the tip;
+  - **Save** sends every step with a key, or any guided field, as a `RecipeStepInput` with all its fields and its key (`stepWrite`), so keys survive edits, removals and line moves; a new step of text only is still its words (a string), so RC-5's plain steps stay valid; `formFromRecipe` reads `guidedSteps` (texts when the read has none);
+  - **Tools** sit under the name: chips with ×, and a field with Add (up to 10, 1–40 characters, each once in any case); always sent, so a PATCH replaces the list;
+  - **422s** land on the part they name (`errorsFromDetails`): `steps[i].text`/`steps[i]` on the words, `minSeconds`/`maxSeconds`/`whistles` on the time, `lines`, `heat`, `phase`, `handsOff`, `timeRule`, `sense`/`checkpoint` on Done when, `tip`; `tools[i]` on that tool; blanks left out are counted (`stepIndexes`, `toolIndexes`).
+- **The recipe page** (`/recipes/[id]`):
+  - **Long prep first** (`long-prep.ts`, `long-prep-ui.tsx`, `lib/long-prep-store.ts`): an amber card under the title, one row per long-prep step (`longPrep`, else `longPrepOf(guidedSteps)`) with its words and time ("· 8 h"), **Soak now · ping me** and **Already done**. Soak now calls `createTimer` with `{ label: <recipe name>, body: "Time's up: <step>", url: /recipes/<id> (+ ?code=), endsAt: now + its shortest time }`; once set the row reads "Started · we'll ping you at 8:00 pm". Ten timers running reads "You have 10 timers running. Cancel one to set this."
+  - **The Steps list** (`stepRows`): each guided step's flames and "Medium flame", its range at the page's size by `stepTimeAt`, Prep, Hands off, "Until it looks golden brown" with the sense's icon, the learned badge ("Usually 7–9 min · 23 cooks", blue) when the read has `learned`, and the tip. A text-only step is its words alone.
+  - **The plan** link sits beside Steps (`recipePlanHref(id, f, code)`: `/recipes/<id>/plan?f=450`).
+- **The plan** (`/recipes/[id]/plan`; `planOf` in `guided-steps.ts`, `plan-views.tsx`, `plan-ui.tsx`): the recipe's own static shell (`/recipes/_/plan`), added to `STATIC_PAGES` (a 13th `_redirects` rule), `NEW_FRAME_ONLY` (prod → Home) and Back's parents (→ the recipe); no pull to refresh. It has:
+  - the size switch, "450 g · about 2" | "1 kg · 4" (`?f=` and the recipe's own), or the own size alone;
+  - In all · Hands on · Waiting;
+  - one row per step: its number (tinted when hands off), words, range at this size ("7–8 min · hands off"), learned badge, rule in words (Same at any size · Partly follows the amount · Follows the amount) and a bar;
+  - the Meanwhile line under a hands-off step;
+  - **Start step by step** → `/cook/session?recipe=<id>&f=<f>` (GC-5's seam).
+
+  The recipe is read at the size on screen (`getRecipe(id, { code, f })`, GC-7) under `qk.kitchenRecipeAt(id, f)`, which sits under `qk.kitchenRecipe(id)` so writes and patches reach it.
+
+**Departures**
+
+1. **Time has a third choice, None**, beside Minutes | Whistles: an untimed step must be writable. The range is two steppers (Shortest, Longest), not the canvas's one "8–10 min" with only − on the low end and + on the high. They step 1 min under 10 min, 5 under an hour, 15 under 3 h, then an hour (a soak of 8 h is a few taps), from 1 min to a day. Either end pushes the other. A step's seconds that are off the minute grid stay as read until touched. Switching kinds keeps the other kind's numbers.
+2. **No per-step Save.** The canvas's "Save step" is the form's own Save; a step only opens and folds.
+3. **Picking the lit flame again clears it** to "no flame" (null), which is not Off (0). A sense picked with no checkpoint is not sent (the server needs one), and a lit sense picked again clears it. A guided step with no words is "Say what to do", not left out.
+4. **The checkpoint's words.** "Until it looks golden brown" takes the sense's verb (looks, smells, sounds, feels, tastes). Words that are a sentence already ("the raw smell goes", "it stops sizzling": they start with the, a, it, they, no…) read "Until the raw smell goes", and a leading "until" is not said twice. Without a sense: "Until golden brown".
+5. **The preview is at the recipe's own size** ("serves 4", amounts as written), as the task says; the canvas shows "for about 2".
+6. **The learned badge.** The recipe page reads without a size, so every stepper tap shares one cache entry. Its ranges come at × 1 and are scaled to the page's size by the step's rule (`learnedAt`, `wholeStepMinutes`), the arithmetic GC-7 does. The plan reads at its size and shows them as sent. Until that read answers, it paints from the last size's answer or the recipe page's, scaled from the size it was read at. Whistle steps show theirs too: the usual time the count takes (GC-7 departure 8).
+7. **Long prep:**
+   - the card sits under the title, above How much;
+   - the button's verb is the step's first word when it is a long-prep verb (Soak, Marinate, Rest, Rise, Proof, Chill, Ferment, Brine, Steep, Thaw, Defrost, Set), else "Start now · ping me";
+   - **Already done** is kept in localStorage (`<prefix>.long-prep`, by recipe and step key) for 24 h; a started timer counts as done once it ends, for a day more;
+   - Already done on a started row also cancels its timer (best effort);
+   - a row that is done leaves the card, and the card goes when all are;
+   - the record is forgotten on sign-out (`clearDeviceRecords`, the one line added to `lib/sign-out.ts`);
+   - "Turn on notifications to hear timers" (§4) is not shown here.
+8. **The plan's totals** add each timed step's middle at the size, rounded to minutes. Hands on is the steps that are not hands off; Waiting is the rest. Time saved by doing steps meanwhile is not taken off, as on the canvas. **Long prep and whistle steps stay outside the totals**, and a line says so: "Long prep (8 h) comes first and isn't counted. Whistle steps aren't counted: their time is the cooker's." Bars are against the longest step of the cooking, so the soak has none. A long prep row reads "Long prep · do it first", with no Meanwhile.
+9. **Meanwhile** names the steps after a hands-off step up to the next hands-off one, without numbers: "Meanwhile: Chop the coriander · Flame off, coriander, taste", and "· +N more" past three. It is empty when the next step waits too, and for long prep.
+10. **The plan link shows only when some step has a time** (a plan of texts says nothing). It carries `?f=` (left out at × 1) and the link code.
+11. **The Steps list shows Prep and the tip too**, beyond the flame, range, checkpoint, Hands off and learned badge asked for. It does not show the line chips: the ingredients are listed just above.
+
+**Not verified yet:** nothing ran in a browser. The console has no local API, and this task does not call stage. It is covered by rendering every view in tests, by `next build` (which prerenders `/recipes/_/plan`), and by GC-2's and GC-7's server tests for the write and read shapes. The milestone's Chicken curry check waits for GC-4's 390.
+
+**Tests** (`tests/web-console-next`, 84 suites, 1674 tests)
+
+| File | New | What |
+|---|---|---|
+| `kitchen-step-editor.test.ts` | 33 | A guided recipe's edit form: keys and lines as line keys, sent back exactly; texts when there are no `guidedSteps`; whistles. Each field into the write body: phase, words, lines, flame (and cleared), minutes and whistles never both, hands off, the three rules, sense only with a checkpoint, tip, a new step without a key. Keys kept across edits, a removed step and moved or removed lines; blank plain steps left out, wordless guided ones refused. The 422 mapping, every part and tools, blanks counted, and the fallbacks. The stepper's grid and bounds, min ≤ max, whistles 1–10. The preview's words (flame, time, Hands off, chips, the checkpoint by sense and as a sentence, prep, serves), drawn. The folded summary. The editor drawn folded and opened on an error. Tools: once, ≤ 10, ≤ 40, sent always, a repeat refused, drawn. |
+| `kitchen-guided-recipe.test.ts` | 26 | The Steps list at 450, 1000 and 2000 by `stepTimeAt`; flames, checkpoints, Hands off, Prep. Learned when present, at the page's size by rule, or as read at the read's size, and absent otherwise; whistle steps; garbage refused. Texts only; chips. Drawn, with The plan's link. Long prep: listed or derived; the verb and duration; the `createTimer` body (url back to the recipe, `?code=`, clipped label and body); `createTimer` called once and remembered; ten timers, the server's words, offline; done for a day, started until its end, then done; the memory parsed and pruned; the card drawn idle, started and empty. The plan: its address and `?f=`; the sizes and labels; the totals at 450 and 1000, and against `stepTimeAt` at five sizes; each row's range, learned, rule words and bar; Meanwhile and +N more; long prep and whistles outside the totals, and the note; drawn with the switch, the tinted number and Start's link; the sized read's query and key. Prod: redirected Home, shown on stage, the static shell, Back. |
+| changed | — | `kitchen-recipe-form.test.ts`: steps as drafts, `tools: []` in the body. `static-pages.test.ts`: 13 rules, the plan's. `gestures.test.ts`: the plan does not pull. `kitchen-cook-hub.test.ts`: the plan among the new-frame-only pages, and its Back. |
+
+`next build` passes (it prerenders `/recipes/_/plan`). `pnpm typecheck` passes repo-wide (52 tasks), and lint passes for `apps/web-console-next` and `tests/web-console-next`. `orun task check GC-6 --base origin/main` passes: 2 changed components, all inside the contract.
+
 ### GC2 — guided mode (GC-5)
 
 **What shipped.** The console only (`apps/web-console-next`), behind `newFrame()` like the session itself: `/cook/session` is new-frame only, and `guidedScreen(s, newFrame())` is null in today's frame.

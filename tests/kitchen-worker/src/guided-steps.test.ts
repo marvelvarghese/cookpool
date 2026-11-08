@@ -118,11 +118,12 @@ describe("guided steps on a recipe (GC-2, design §1)", () => {
     const curry = await writeRecipe(w, ANU, chickenCurry);
     expect(withoutKeys(curry)).toEqual(chickenCurry.steps.map((text, i) => textOnly(i, text)));
     expect([curry.tools, curry.longPrep]).toEqual([[], []]);
-    // Cookpool's own (360's steps, keyed by 370) read the same way.
+    // Cookpool's own were 360's plain steps until GC-4's 390 rewrote them as guided steps under fixed keys (cookpool-guided).
     const chai = (await w.call<{ recipes: Array<{ id: string; name: string }> }>("GET", "/v1/kitchen/recipes?q=chai", RAHUL)).body.data.recipes[0]!;
     const seeded = await read(chai.id, RAHUL);
     expect(seeded.guidedSteps!.length).toBeGreaterThanOrEqual(3);
-    for (const s of seeded.guidedSteps!) expect(s).toMatchObject({ key: expect.stringMatching(HEX32), phase: "cook", lines: [], handsOff: false });
+    for (const s of seeded.guidedSteps!) expect(s.key).toMatch(/^c00c0390-\d{2}-\d{2}$/);
+    expect(seeded.tools!.length).toBeGreaterThan(0);
   });
 
   it("lists long prep: hands-off prep steps of an hour or more, by their shortest time", async () => {

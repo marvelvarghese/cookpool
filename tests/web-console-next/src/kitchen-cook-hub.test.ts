@@ -338,7 +338,8 @@ describe("deleting a recipe, with Undo", () => {
 });
 
 describe("the recipe pages exist only in the new frame", () => {
-  const PAGES = ["/recipes/new", "/recipes/:recipeId", "/recipes/:recipeId/edit"];
+  // cookpool-guided GC-6 adds the plan.
+  const PAGES = ["/recipes/new", "/recipes/:recipeId", "/recipes/:recipeId/edit", "/recipes/:recipeId/plan"];
 
   it("send a prod visitor Home", () => {
     for (const page of PAGES) expect(frameRedirect(page, false)).toBe("/home");
@@ -356,6 +357,7 @@ describe("the recipe pages exist only in the new frame", () => {
     expect(backParent("/recipes/rcp_1", {}, { newFrame: true })).toBe("/cook");
     expect(backParent("/recipes/new", {}, { newFrame: true })).toBe("/cook");
     expect(backParent("/recipes/rcp_1/edit", {}, { newFrame: true })).toBe("/recipes/rcp_1");
+    expect(backParent("/recipes/rcp_1/plan", {}, { newFrame: true })).toBe("/recipes/rcp_1");
     // Cook is a tab in the new frame: no Back.
     expect(backParent("/cook", {}, { newFrame: true })).toBeNull();
   });
