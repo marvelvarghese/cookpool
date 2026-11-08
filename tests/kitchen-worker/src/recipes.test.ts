@@ -14,7 +14,7 @@ import type {
 } from "@saas/contracts/kitchen";
 import { RECIPE_LINK_CODE_RE, RECIPE_UNITS } from "@saas/contracts/kitchen";
 import { UNITS } from "@saas/kitchen-engine/units";
-import { ANU, DEV, OLU, RAHUL, VIK, chickenCurry, me, systemRecipe, world, writeRecipe, type World } from "./recipes-helpers.js";
+import { ANU, DEV, OLU, RAHUL, VIK, chickenCurry, me, systemRecipe, withoutCookpoolSeed, world, writeRecipe, type World } from "./recipes-helpers.js";
 
 let w: World;
 
@@ -302,6 +302,7 @@ describe("a person's recipes (RC-4, design §1.4, §5.1)", () => {
 
 describe("Explore (RC-4, design §5.3)", () => {
   it("lists Cookpool's own by default, and your groups' shared ones — never your own or Only-me ones — each with its match", async () => {
+    withoutCookpoolSeed(w);
     systemRecipe(w, "Masala chai", 4, [["tea", "Tea", 10_000, "g", true], ["milk", "Milk", 250_000, "ml", false]], "drink");
     systemRecipe(w, "Poha", 4, [["poha", "Poha", 200_000, "g", true]], "breakfast");
     await writeRecipe(w, ANU, chickenCurry);

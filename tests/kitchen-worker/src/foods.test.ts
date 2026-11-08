@@ -19,13 +19,17 @@ describe("GET /v1/kitchen/foods (RC-4)", () => {
     const pyaz = await w.call<FoodsResponse>("GET", "/v1/kitchen/foods?q=Pyaz", OLU);
     expect(pyaz.status).toBe(200);
     expect(pyaz.body.data.foods).toEqual([
-      { key: "onion", name: "Onion", dimension: "mass", eachG: 150, category: "veg", matchedName: "pyaz" },
+      { key: "onion", name: "Onion", dimension: "mass", eachG: 150, category: "veg", gPerMl: 0.65, matchedName: "pyaz" },
+      { key: "spring_onion", name: "Spring onion", dimension: "mass", eachG: 15, category: "veg", gPerMl: 0.42, matchedName: "hara pyaz" },
     ]);
+    // "dal" itself, then names that start with it (dalchini, dalia: RC-7's list), then a word that does.
     const dal = await w.call<FoodsResponse>("GET", "/v1/kitchen/foods?q=dal&limit=3", RAHUL);
-    expect(dal.body.data.foods.map((f) => f.key)).toEqual(["toor_dal", "chana_dal", "masoor_dal"]);
+    expect(dal.body.data.foods.map((f) => f.key)).toEqual(["toor_dal", "cinnamon", "dalia"]);
+    // The whole list is longer than the largest page (about 300 foods since RC-7).
     const all = await w.call<FoodsResponse>("GET", "/v1/kitchen/foods?limit=100", RAHUL);
-    expect(all.body.data.foods.length).toBeGreaterThanOrEqual(55);
-    expect(all.body.data.foods.find((f) => f.key === "egg")).toMatchObject({ dimension: "count", eachG: 50, category: "protein" });
+    expect(all.body.data.foods).toHaveLength(100);
+    const anda = await w.call<FoodsResponse>("GET", "/v1/kitchen/foods?q=anda", RAHUL);
+    expect(anda.body.data.foods[0]).toMatchObject({ key: "egg", dimension: "count", eachG: 50, category: "protein", gPerMl: null });
   });
 
   it("asks for a signed-in caller, and refuses a query or limit out of range", async () => {
@@ -111,8 +115,8 @@ describe("Always have (RC-4, design §3.4)", () => {
     expect(first.status).toBe(200);
     expect(first.body.data).toEqual({
       foods: [
-        { key: "salt", name: "Salt", dimension: "mass", eachG: null, category: "spices" },
-        { key: "water", name: "Water", dimension: "volume", eachG: null, category: "other" },
+        { key: "salt", name: "Salt", dimension: "mass", eachG: null, category: "spices", gPerMl: 1.2 },
+        { key: "water", name: "Water", dimension: "volume", eachG: null, category: "other", gPerMl: 1 },
       ],
       isDefault: true,
     });
