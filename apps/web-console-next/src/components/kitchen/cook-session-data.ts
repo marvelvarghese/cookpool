@@ -1,0 +1,109 @@
+"use client";
+
+import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import type { RecipeMatchResponse, RecipeResponse } from "@saas/contracts/kitchen";
+import { wrap } from "@/lib/api";
+import { isOffline } from "@/lib/connection";
+import { useSession } from "@/lib/session";
+import { useApiQuery, qk } from "@/lib/query";
+import { useToast } from "@/components/ui/toast";
+import { refreshAfterDish } from "./dish-maker-data";
+import { refreshPantry } from "./pantry-data";
+import { undoFailed, type UndoResult } from "./undo";
+import { useUndoToast } from "./undo-toast";
+import { JUST_ME, cookedText } from "./dish-maker";
+import { runFinish, type FinishOutcome, type FinishPlan } from "./cook-session";
+
+/**
+ * The cooking session's reads and its one Finish (cookpool-recipes RC-6),
+ * through RC-4's SDK: the recipe with the caller's last cook of it, and the
+ * match at the session's factor (what each line would take, from which
+ * items) — and Finish's writes in order (`runFinish`): the existing cook
+ * write, the shares, the recipe write. Once cooked, every read it changed is
+ * refreshed and the toast offers Undo for ten seconds, which cancels the dish
+ * through the existing cancel route (SM-5).
+ */
+
+/** A recipe the caller may see, with their last cook of it ("last time"). */
+export function useRecipe(recipeId: string | null) {
+  const { client } = useSession();
+  return useApiQuery<RecipeResponse>(
+    qk.kitchenRecipe(recipeId ?? ""),
+    () => wrap(() => client.kitchen.getRecipe(recipeId ?? "")),
+    { enabled: recipeId !== null },
+  );
+}
+
+/** What the caller's pantries hold for each of its lines at factor `f`, and the items each would take. */
+export function useRecipeMatch(recipeId: string | null, f: number) {
+  const { client } = useSession();
+  return useApiQuery<RecipeMatchResponse>(
+    qk.kitchenRecipeMatch(recipeId ?? "", f),
+    () => wrap(() => client.kitchen.recipeMatch(recipeId ?? "", { f })),
+    { enabled: recipeId !== null },
+  );
+}
+
+/**
+ * Post a finished session: `runFinish` over the client. A refusal comes back
+ * in words (the pantry reads are refreshed, as the dish maker's are); once
+ * cooked, the toast "Cooked Chicken curry · ₹143.96 · Flat 4B" offers Undo,
+ * and a shares or recipe write that failed says so in a second toast. The
+ * caller clears the draft and opens the dish.
+ */
+export function useFinishSession() {
+  const { client } = useSession();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const offerUndo = useUndoToast();
+  // One key per attempt: a refusal is stored against its key at the edge, so the next try needs a new one.
+  const cookKey = React.useRef<string | null>(null);
+  return React.useCallback(
+    async (plan: FinishPlan, groupName: string | null): Promise<FinishOutcome> => {
+      cookKey.current ??= crypto.randomUUID();
+      const key = cookKey.current;
+      const out = await runFinish(plan, {
+        offline: () => isOffline(),
+        cookDish: (request) => wrap(() => client.kitchen.cookDish(request, { idempotencyKey: key })),
+        setShares: (orgId, dishId, body) =>
+          wrap(() => client.kitchen.setDishShares(orgId, dishId, body, { idempotencyKey: crypto.randomUUID() })),
+        updateRecipe: (recipeId, body) => wrap(() => client.kitchen.updateRecipe(recipeId, body, { idempotencyKey: crypto.randomUUID() })),
+        createRecipe: (body) => wrap(() => client.kitchen.createRecipe(body, { idempotencyKey: crypto.randomUUID() })),
+      });
+      if (!out.ok) {
+        if (out.kind === "refused") {
+          refreshPantry(qc, null);
+          if (out.answered) cookKey.current = null;
+        }
+        return out;
+      }
+      cookKey.current = null;
+      const dish = out.dish;
+      refreshAfterDish(qc, dish);
+      if (plan.recipe) void qc.invalidateQueries({ queryKey: ["kitchenRecipe"] });
+      const text = cookedText({
+        name: dish.name,
+        share: dish.orgId ?? JUST_ME,
+        groupName,
+        mode: dish.splitMode,
+        totalMinor: dish.totalMinor,
+        currency: dish.currency,
+      });
+      offerUndo({
+        title: text.title,
+        undo: async (): Promise<UndoResult> => {
+          const c = await wrap(() => client.kitchen.cancelDish(dish.id, { idempotencyKey: crypto.randomUUID() }));
+          refreshAfterDish(qc, dish);
+          if (c.ok) return { ok: true, description: `${dish.name} is canceled: everything is back in its pantry.` };
+          if (c.error.reason === "dish_not_open") return { ok: false, kind: "warning", title: "It's finalized now", description: "Correct it on the dish page instead." };
+          return undoFailed(c.error);
+        },
+      });
+      if (out.sharesError) toast({ kind: "warning", title: "Who ate wasn't saved", description: out.sharesError });
+      if (out.recipeError) toast({ kind: "warning", title: "The recipe wasn't saved", description: out.recipeError });
+      return out;
+    },
+    [client, qc, toast, offerUndo],
+  );
+}

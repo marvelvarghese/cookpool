@@ -57,10 +57,10 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  *
  * THE NEW FRAME (cookpool-recipes RC-2, `newFrame()`: everywhere but prod):
  * the tab bar and the sidebar list Home · Pantry · Cook · Money · You, with
- * no + Add (and no Add sheet), and the cooking session's bar has its slot
- * above the tab bar (`SessionBar`, empty until RC-6). It is decided in the
- * browser once the session is ready, so the prerendered frame is the same
- * for both.
+ * no + Add (and no Add sheet), and while a cooking session is open the
+ * session's bar sits above the tab bar (`SessionBar`, RC-6; the sidebar's
+ * footer from 900px). It is decided in the browser once the session is
+ * ready, so the prerendered frame is the same for both.
  */
 export default function KitchenLayout({ children }: { children: React.ReactNode }) {
   const ready = useRequireAuth({ returnHere: true, signOutOnUnauthorized: true });
