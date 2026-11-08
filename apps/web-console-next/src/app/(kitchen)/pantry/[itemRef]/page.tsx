@@ -35,6 +35,10 @@ import { WasteConfirm } from "@/components/kitchen/item-actions-ui";
 import { SwipeRow } from "@/components/kitchen/row-gestures-ui";
 import { MAIN_BUTTON } from "@/components/kitchen/faces-ui";
 import { CountedAs } from "@/components/kitchen/measures-ui";
+import { ItemNoteCard } from "@/components/kitchen/item-note-ui";
+import { canEditNote, noteOf } from "@/components/kitchen/item-note";
+import { useSetItemNote } from "@/components/kitchen/item-note-data";
+import { newFrame } from "@/lib/features";
 import {
   barTone,
   itemHref,
@@ -64,7 +68,8 @@ import { usePrefetchKitchen } from "@/components/kitchen/prefetch";
  * use was given in; then one main button, **Use some**, held in thumb reach.
  * Uses and waste confirm by a ten-second Undo. The address names the item:
  * `/pantry/me:itm_…` (yours) or `/pantry/org:org_…:itm_…` (a group's).
- * Viewers see it all and change nothing.
+ * Viewers see it all and change nothing. In the new frame (RC-3) its note
+ * sits under the stock, changed in place with the same ten-second Undo.
  */
 export default function ItemPage() {
   const ref = parseItemRef(usePathParam("/pantry/:itemRef", "itemRef"));
@@ -153,6 +158,7 @@ function ItemView(ctx: ItemCtx) {
       <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
         <div className="min-w-0 space-y-5">
           <StockCard {...ctx} />
+          {newFrame() ? <NoteCard {...ctx} /> : null}
           {item.state === "active" ? <CountedAs item={item} canWrite={roleKnown && canWrite} /> : null}
           {live && roleKnown && !canWrite ? <p className="px-1 text-sm text-muted-foreground">You only view {pantryLabel(item.pantry)}.</p> : null}
         </div>
@@ -199,6 +205,24 @@ function StockCard({ item, meId, names }: ItemCtx) {
       <StockBar percent={leftPercent(item)} tone={barTone(item)} thick />
       <p className="text-sm font-semibold tabular-nums text-muted-foreground">{facts.line}</p>
     </section>
+  );
+}
+
+// ── Note (RC-3) ────────────────────────────────────────────────────
+
+/** Its note: shown to whoever sees the item, changed by whoever may edit it (the API's rule), with Undo. */
+function NoteCard({ item, meId, role, roleKnown, canWrite }: ItemCtx) {
+  const setNote = useSetItemNote();
+  const editable = roleKnown && canEditNote(item, { meId, role, canWrite });
+  return (
+    <ItemNoteCard
+      // A new note from elsewhere (the server's answer, an Undo) starts the block afresh.
+      key={noteOf(item) ?? ""}
+      note={noteOf(item)}
+      pantry={item.pantry.kind === "group" ? { kind: "group", name: item.pantry.name } : { kind: "personal" }}
+      canEdit={editable}
+      onSave={(note) => void setNote({ item, note })}
+    />
   );
 }
 

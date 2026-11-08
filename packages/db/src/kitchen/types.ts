@@ -274,6 +274,8 @@ export interface KitchenItemRecord {
   /** The item's own waste rule; null follows the group (always null for a personal item). */
   wastePolicy: KitchenWastePolicy | null;
   sourceDishId: string | null;
+  /** One line about it (RC-3), at most 80 characters; null when it has none. Read by whoever can read the item. */
+  note: string | null;
   state: KitchenItemState;
   version: number;
   createdBy: string;
@@ -309,6 +311,8 @@ export interface NewKitchenItem {
   now: Date;
   /** The dish whose leftovers it is (CP-16); absent or null for anything bought. */
   sourceDishId?: string | null;
+  /** Its note (RC-3): trimmed, 1–80 characters; absent or null for none. */
+  note?: string | null;
 }
 
 export interface CreateItemInput {
@@ -336,6 +340,8 @@ export interface KitchenItemChanges {
   priceMinor?: number;
   /** Group items only. */
   wastePolicy?: KitchenWastePolicy | null;
+  /** Its note (RC-3): trimmed, 1–80 characters, or null to clear it. Words only: it changes no money and no stock. */
+  note?: string | null;
 }
 
 export interface UpdateItemInput {

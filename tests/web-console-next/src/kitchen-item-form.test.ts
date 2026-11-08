@@ -233,7 +233,7 @@ describe("Bought, in order (SM-15)", () => {
   });
 
   it("focuses the first problem in the order the form shows it", () => {
-    expect(ITEM_FIELDS).toEqual(["name", "quantity", "price", "category", "paidBy", "expiresOn", "boughtOn"]);
+    expect(ITEM_FIELDS).toEqual(["name", "quantity", "price", "category", "paidBy", "expiresOn", "boughtOn", "note"]);
     const p = previewItemForm(form({ category: "", expiresOn: "2026-11-01" }), { today: TODAY, meId: ME });
     expect(firstItemError(p.errors)).toBe("category");
   });

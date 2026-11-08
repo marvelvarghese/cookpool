@@ -52,6 +52,11 @@ import { Fields } from "../validate.js";
 // add writes the item and `kitchen.item.added` in one batch, and no ledger
 // transaction. A member who may edit items but did not buy this one gets a
 // 403 `not_buyer`; anyone without the route's grant the opaque 404.
+//
+// An item's note (RC-3) is part of the item: every member who may read the
+// pantry reads it, nobody outside the group does, and setting or clearing it
+// (on the add or an edit, by the same rule as any edit) writes no ledger
+// transaction.
 
 /** This group as the caller's membership sees it (its name and slug), for the item's pantry. */
 export async function thisGroup(ctx: OrgContext): Promise<{ ok: true; group: MemberGroup } | { ok: false; response: Response }> {
@@ -184,6 +189,7 @@ export async function handleCreateGroupItem(ctx: OrgContext, request: Request): 
           createdBy: actor,
           idemKey: idem.key,
           now,
+          note: input.note,
         },
         audit: ledgerAudit(ctx, {
           type: "kitchen.item.added",

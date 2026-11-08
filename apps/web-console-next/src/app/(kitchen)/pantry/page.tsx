@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
+import { newFrame } from "@/lib/features";
 import { useProfile } from "@/components/kitchen/data";
 import { IconBubble, KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
 import type { MemberNames } from "@/components/kitchen/members";
@@ -183,7 +184,7 @@ function PantryBody({
     [loaded, scope, filter],
   );
   const tableRows = React.useMemo(
-    () => (loaded ? pantryRows(loaded, { selected: scope, filter, query }).map((i) => itemRowView(i, { meId, names })) : []),
+    () => (loaded ? pantryRows(loaded, { selected: scope, filter, query }).map((i) => itemRowView(i, { meId, names, notes: newFrame() })) : []),
     [loaded, scope, filter, query, meId, names],
   );
   const shownRows = showAll ? tableRows : tableRows.slice(0, TABLE_ROWS);
@@ -387,6 +388,8 @@ function PhoneList({
             showPantry,
             usualQtyMilli: usual?.qtyMilli ?? null,
             usualWords: usual?.words ?? null,
+            // The note's third line is the new frame's (RC-3).
+            notes: newFrame(),
           });
           const use = row.use;
           const onLog =

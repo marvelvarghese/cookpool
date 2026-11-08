@@ -2578,3 +2578,141 @@ describe("sign-in code limits, against a real SQLite engine (280_identity_login_
     expect(plan.map((p) => p.detail).join(" ")).toContain("login_challenges_user_created_idx");
   });
 });
+
+// Item notes (Cookpool RC-3, migration 330): one nullable column on the item,
+// at most 80 characters by SQLite's own length(). Every item read carries it,
+// so it is read by exactly whoever can read the item; writing it changes
+// nothing else — no stock, no money, no ledger.
+describe("item notes, against a real SQLite engine (330_kitchen_item_notes)", () => {
+  let db: DatabaseSync;
+  let executor: ReturnType<typeof createSqlExecutor>;
+  const flat = asUuid("d5d5d5d5-d5d5-45d5-85d5-d5d5d5d5d5d5");
+  const me = { kind: "user", subjectId: "usr_rahul" } as const;
+  const inFlat = { kind: "group", orgId: flat } as const;
+  const now = new Date("2026-11-08T08:00:00.000Z");
+  let seq = 0;
+
+  beforeEach(() => {
+    db = migratedDatabase();
+    executor = createSqlExecutor(d1Over(db));
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  const count = (table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
+
+  function newItem(overrides: Partial<NewKitchenItem> = {}): NewKitchenItem {
+    seq += 1;
+    return {
+      id: asUuid(randomUUID()),
+      owner: me,
+      name: `Paneer ${seq}`,
+      category: "Dairy",
+      dimension: "mass",
+      displayUnit: "g",
+      qtyMilli: 200_000,
+      priceMinor: 9000,
+      currency: "INR",
+      paidBy: "usr_rahul",
+      boughtOn: "2026-11-08",
+      expiresOn: null,
+      wastePolicy: null,
+      createdBy: "usr_rahul",
+      idemKey: `note-${seq}`,
+      now,
+      ...overrides,
+    };
+  }
+
+  it("reads an item written before the column as having no note", async () => {
+    const before = new DatabaseSync(":memory:");
+    before.exec("PRAGMA foreign_keys = ON");
+    const apply = (dir: string) => {
+      for (const statement of splitStatements(readFileSync(join(MIGRATIONS_ROOT, dir, "up.sql"), "utf8"))) before.exec(statement);
+    };
+    for (const dir of migrationDirs().filter((d) => d < "330_kitchen_item_notes")) apply(dir);
+    const repoBefore = createKitchenRepository(createSqlExecutor(d1Over(before)));
+    // Written without the column: the repository's insert names it, so the row goes in by hand.
+    const id = asUuid(randomUUID());
+    before
+      .prepare(
+        `INSERT INTO kitchen_items (id, owner_kind, owner_subject_id, name, category, dimension, display_unit, qty_bought_milli,
+           qty_left_milli, price_minor, currency, paid_by, bought_on, created_by, idem_key)
+         VALUES (?, 'user', 'usr_rahul', 'Rice', 'Grains', 'mass', 'kg', 1000000, 1000000, 9000, 'INR', 'usr_rahul', '2026-11-01', 'usr_rahul', 'old')`,
+      )
+      .run(id);
+    apply("330_kitchen_item_notes");
+    const read = await repoBefore.getItem(me, id);
+    expect(read.ok && read.value).toMatchObject({ name: "Rice", note: null, version: 1 });
+    before.close();
+  });
+
+  it("stores a note on a personal and a group item, and every read returns it", async () => {
+    const repo = createKitchenRepository(executor);
+    const mine = await repo.createItem({ item: newItem({ note: "For Sunday's curry" }) });
+    const shared = await repo.createItem({ item: newItem({ owner: inFlat, note: "Top shelf" }) });
+    const plain = await repo.createItem({ item: newItem() });
+    expect(mine.ok && mine.value.item.note).toBe("For Sunday's curry");
+    expect(shared.ok && shared.value.item.note).toBe("Top shelf");
+    expect(plain.ok && plain.value.item.note).toBeNull();
+    if (!mine.ok || !shared.ok) throw new Error("unreachable");
+
+    const own = await repo.getItem(me, asUuid(mine.value.item.id));
+    expect(own.ok && own.value.note).toBe("For Sunday's curry");
+    const got = await repo.getItem(inFlat, asUuid(shared.value.item.id));
+    expect(got.ok && got.value.note).toBe("Top shelf");
+    const page = await repo.listItems({ ownerSubjectId: "usr_rahul", orgIds: [flat], q: null, expires: null, cursor: null, limit: 10 });
+    expect(page.ok && page.value.items.map((i) => i.note).sort()).toEqual([null, "For Sunday's curry", "Top shelf"].sort());
+    const found = await repo.searchItems({ ownerSubjectId: "usr_rahul", orgIds: [flat], q: "paneer", limit: 10 });
+    expect(found.ok && found.value.map((i) => i.note).filter(Boolean).sort()).toEqual(["For Sunday's curry", "Top shelf"]);
+  });
+
+  it("sets and clears a note alone: the version moves, the stock and the money do not", async () => {
+    const repo = createKitchenRepository(executor);
+    const added = await repo.createItem({ item: newItem({ owner: inFlat }) });
+    if (!added.ok) throw new Error("unreachable");
+    const itemId = asUuid(added.value.item.id);
+    // Some of it is used: what was bought is fixed, the note is not.
+    db.prepare("UPDATE kitchen_items SET qty_left_milli = 150000, cost_taken_minor = 2250 WHERE id = ?").run(itemId);
+    const txns = count("kitchen_txns");
+
+    const set = await repo.updateItem({ owner: inFlat, itemId, changes: { note: "Half for Anu" }, expectedVersion: 1, now });
+    expect(set.ok && set.value).toMatchObject({ note: "Half for Anu", version: 2, qtyLeftMilli: 150_000, costTakenMinor: 2250, priceMinor: 9000 });
+    const cleared = await repo.updateItem({ owner: inFlat, itemId, changes: { note: null }, expectedVersion: 2, now });
+    expect(cleared.ok && cleared.value).toMatchObject({ note: null, version: 3, qtyLeftMilli: 150_000 });
+    // A stale version is refused as for any edit.
+    expect(await repo.updateItem({ owner: inFlat, itemId, changes: { note: "Late" }, expectedVersion: 2, now })).toEqual({
+      ok: false,
+      error: { kind: "version_conflict", version: 3 },
+    });
+    // Another pantry's key reads it as not there.
+    expect(await repo.updateItem({ owner: me, itemId, changes: { note: "Mine?" }, now })).toEqual({ ok: false, error: { kind: "not_found" } });
+
+    expect(count("kitchen_txns")).toBe(txns);
+    expect(count("kitchen_stock_moves")).toBe(0);
+  });
+
+  it("holds a note to 80 characters, counted as characters, not bytes", async () => {
+    const repo = createKitchenRepository(executor);
+    const added = await repo.createItem({ item: newItem() });
+    if (!added.ok) throw new Error("unreachable");
+    const itemId = asUuid(added.value.item.id);
+
+    expect((await repo.updateItem({ owner: me, itemId, changes: { note: "x".repeat(80) }, now })).ok).toBe(true);
+    // 80 two-byte characters still fit: length() counts characters.
+    expect((await repo.updateItem({ owner: me, itemId, changes: { note: "é".repeat(80) }, now })).ok).toBe(true);
+    expect(await repo.updateItem({ owner: me, itemId, changes: { note: "x".repeat(81) }, now })).toEqual({
+      ok: false,
+      error: { kind: "invalid", reason: "item_out_of_range" },
+    });
+    expect(await repo.createItem({ item: newItem({ note: "y".repeat(81) }) })).toEqual({
+      ok: false,
+      error: { kind: "invalid", reason: "item_out_of_range" },
+    });
+    expect(() => db.prepare("UPDATE kitchen_items SET note = ? WHERE id = ?").run("z".repeat(81), itemId)).toThrow(/CHECK/);
+    const read = await repo.getItem(me, itemId);
+    expect(read.ok && read.value.note).toBe("é".repeat(80));
+  });
+});

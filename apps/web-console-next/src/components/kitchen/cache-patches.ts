@@ -578,6 +578,8 @@ export function pendingItem(input: {
     expiresOn?: string | null | undefined;
     paidBy?: string | undefined;
     wastePolicy?: KitchenItem["wastePolicy"] | undefined;
+    /** Its note (RC-3), as sent: already trimmed. */
+    note?: string | null | undefined;
   };
   pantry: PantryRef;
   currency: string;
@@ -625,6 +627,7 @@ export function pendingItem(input: {
     createdBy: input.meId,
     createdAt: input.at,
     updatedAt: input.at,
+    note: body.note ?? null,
     canUse: true,
   };
 }
