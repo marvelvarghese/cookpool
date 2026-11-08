@@ -178,10 +178,14 @@ export function setLine(form: RecipeForm, key: string, patch: Partial<Pick<LineD
   return patch.toTaste && form.mainKey === key ? { ...next, mainKey: null } : next;
 }
 
-/** Type a line's words: they stay linked to the food only while they still name it. */
+/**
+ * Type a line's words: they stay linked to the food while they still name it
+ * ("Onions, sliced" keeps Onion; "Garlic" does not).
+ */
 export function typeLineName(form: RecipeForm, key: string, name: string): RecipeForm {
   return mapLine(form, key, (l) => {
-    const linked = l.foodName !== null && foodNameKey(name) === foodNameKey(l.foodName);
+    const food = l.foodName === null ? "" : foodNameKey(l.foodName);
+    const linked = food !== "" && foodNameKey(name).includes(food);
     return linked ? { ...l, name } : { ...l, name, foodKey: null, foodName: null, countWord: null };
   });
 }
@@ -376,4 +380,29 @@ export function errorsFromDetails(
   }
   if (!hasErrors(errors)) errors.other = fallback;
   return errors;
+}
+
+// ── The food list under a line's name ─────────────────────────────
+
+/** A food the search found, as the suggestion list shows it: "Onion · pyaz" (the name it matched, when another). */
+export interface FoodSuggestion {
+  key: string;
+  name: string;
+  meta: string;
+  price: string;
+  label: string;
+}
+
+export function foodSuggestionViews(foods: readonly FoodMatch[]): FoodSuggestion[] {
+  return foods.map((f) => {
+    const other = f.matchedName && foodNameKey(f.matchedName) !== foodNameKey(f.name) ? f.matchedName : "";
+    return { key: f.key, name: f.name, meta: other, price: "", label: other ? `${f.name} · ${other}` : f.name };
+  });
+}
+
+/** Under a named line: linked to a food (so it can match a pantry), or the person's own words. */
+export function lineLinkText(line: Pick<LineDraft, "name" | "foodKey" | "foodName">): { text: string; linked: boolean } | null {
+  if (!line.name.trim()) return null;
+  if (line.foodKey) return { text: `✓ ${line.foodName ?? line.name}`, linked: true };
+  return { text: "Not on the food list · won't match a pantry", linked: false };
 }
