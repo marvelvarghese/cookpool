@@ -47,6 +47,10 @@ describe("which screens pull to refresh", () => {
     "/groups/:orgSlug/expense",
     "/groups/:orgSlug/settings",
     "/join/:code",
+    // The recipe screens (cookpool-recipes RC-5): a recipe's steppers, and its two forms.
+    "/recipes/new",
+    "/recipes/:recipeId",
+    "/recipes/:recipeId/edit",
   ];
 
   it("decides for every page: a new page must choose", () => {

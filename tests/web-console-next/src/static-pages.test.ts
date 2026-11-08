@@ -79,6 +79,8 @@ describe("_redirects: one file serves every value", () => {
       "/groups/:orgSlug /groups/_ 200",
       "/groups/:orgSlug/expense /groups/_/expense 200",
       "/join/:code /join/_ 200",
+      "/recipes/:recipeId /recipes/_ 200",
+      "/recipes/:recipeId/edit /recipes/_/edit 200",
     ]) {
       expect(rules).toContain(rule);
     }
@@ -87,8 +89,17 @@ describe("_redirects: one file serves every value", () => {
   it("pins /pantry/new to itself before the item rule could catch it", () => {
     expect(rules[0]).toBe("/pantry/new /pantry/new 200");
     expect(rules.indexOf("/pantry/new /pantry/new 200")).toBeLessThan(rules.indexOf("/pantry/:itemRef /pantry/_ 200"));
-    // One rule per dynamic page (SM-11 added a group's settings), plus the pin.
-    expect(rules).toHaveLength(8);
+    // One rule per dynamic page (SM-11 added a group's settings, RC-5 a recipe and its edit page), plus the two pins.
+    expect(rules).toHaveLength(11);
+  });
+
+  it("pins /recipes/new to itself before the recipe rule could catch it (RC-5)", () => {
+    expect(rules.indexOf("/recipes/new /recipes/new 200")).toBeGreaterThanOrEqual(0);
+    expect(rules.indexOf("/recipes/new /recipes/new 200")).toBeLessThan(rules.indexOf("/recipes/:recipeId /recipes/_ 200"));
+    expect(staticPageFor("/recipes/new")).toBe("/recipes/new");
+    expect(staticPageFor("/recipes/rcp_1")).toBe("/recipes/:recipeId");
+    expect(staticPageFor("/recipes/rcp_1/edit")).toBe("/recipes/:recipeId/edit");
+    expect(pathParam("/recipes/:recipeId", "recipeId", "/recipes/rcp_1/edit")).toBe("rcp_1");
   });
 });
 

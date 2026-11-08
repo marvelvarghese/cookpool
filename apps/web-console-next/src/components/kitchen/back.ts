@@ -48,6 +48,10 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   // The new frame's pages (RC-2), for a visitor of today's frame: Money sends them Home; settings is You's.
   "/money": () => "/home",
   "/you/settings": () => "/you",
+  // The recipe screens (RC-5): a recipe and a new one are Cook's; editing one goes back to it.
+  "/recipes/new": () => "/cook",
+  "/recipes/:recipeId": () => "/cook",
+  "/recipes/:recipeId/edit": ({ recipeId }) => `/recipes/${recipeId}`,
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // A dish: its group when it is shared (and the group is known), else Home.
