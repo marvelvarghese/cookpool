@@ -1,0 +1,28 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-4
+  title: "The stock check in the server"
+spec:
+  goal: "A check route for personal and group items sets what is left: less becomes a use by the caller, a use split across current members, or waste under the item's rule; more becomes an adjust move with no money; every move carries via = check (migration 410)."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/kitchen-engine
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-4.TaskContract.yaml
+  doneWhen:
+    - "migration 410 adds kitchen_stock_moves.via with CHECK in check and ask, registered with its checksum"
+    - "POST items/{id}/check with less and gone me, split or waste posts the same move and txn the use or waste route would, with via check"
+    - "split charges every current member an equal share; personal items refuse split"
+    - "more than what is left writes an adjust move that raises qty_left, never above what was bought, with no txn, and its undo takes it back off"
+    - "an unchanged level is refused with reason unchanged; the SDK has checkPersonalItem and checkGroupItem; tests cover each case and the money"
+  gates: []

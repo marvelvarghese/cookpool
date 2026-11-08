@@ -1,0 +1,30 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-8
+  title: "Ask before use in the server"
+spec:
+  goal: "Group items gain askFirst and an allowed list set by the buyer (or an admin once the buyer has left); others ask, the buyer approves, declines or reopens, the asker cancels, asks lapse after 24 hours, approval posts the use with via ask, and both sides get a push (migration 420)."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-8.TaskContract.yaml
+  doneWhen:
+    - "migration 420 adds kitchen_items.ask_first, kitchen_item_allowed and kitchen_asks, registered with their checksums"
+    - "only the buyer, or an admin once the buyer is not a member, can set askFirst and allowed"
+    - "a member who must ask is refused by use, waste, dish and check with reason ask_first, and an ask from someone who need not ask is refused with no_need"
+    - "approve posts the use as the asker would at that moment, adds the asker to allowed when asked, and offers what is left when less is left; decline, reopen and cancel work as design 8.3 says; a pending ask past 24 hours or on an inactive item reads lapsed"
+    - "GET /v1/kitchen/me/asks returns toAnswer and mine; the inbox gains ask rows; the buyer is pushed on an ask and the asker on an answer"
+    - "purchases with fromItemId copy askFirst and allowed; tests cover every route and refusal"
+  gates: []

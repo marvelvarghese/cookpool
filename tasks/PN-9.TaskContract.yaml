@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-9
+  title: "Ask before use in the app"
+spec:
+  goal: "In the new frame, Add item and the item page offer Who can use it to the buyer; rows that need asking read Ask with the buyer's name and show waiting and Cancel; Home's To do shows the ask card with Approve, Decline, Always let and Undo, opened from the push; the cook session's line asks."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-9.TaskContract.yaml
+  doneWhen:
+    - "the buyer sets Anyone or Ask me first and the never-need-to-ask people on Add item and the item page"
+    - "for someone who must ask, the row's tag and button read Ask and the buyer's name, and an ask shows waiting with Cancel, then the answer or Lapsed"
+    - "Home shows the ask card first in To do with the money it moves, Always let, Decline and Approve, each with Undo; /home?ask= scrolls to it"
+    - "an ask-first ingredient in a cook session reads Ask and sends an ask for the cook"
+    - "with newFrame false nothing changes"
+  gates: []
