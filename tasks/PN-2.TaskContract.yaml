@@ -1,0 +1,27 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-2
+  title: "Usuals by time of day and by food"
+spec:
+  goal: "The usuals read gains time-of-day buckets from ?tzOffset=, usuals resolved by name key within a pantry so a new pack inherits them, a bucket usual (now) and a strip flag, plus suggestUse and isRunningLow in contracts and the SDK."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-2.TaskContract.yaml
+  doneWhen:
+    - "GET /v1/kitchen/me/usuals?tzOffset= returns bucket, and per item now (2+ uses in the bucket, the most frequent amount) and strip (3+ uses)"
+    - "a new active item with the same name key in the same pantry gets the old item's usual"
+    - "suggestUse picks rest, usual_now, usual, use_soon or first as design 2.2 says, never more than what is left"
+    - "isRunningLow is true under 20 percent of what was bought or under one usual"
+    - "the SDK's usuals takes tzOffset; kitchen-worker and contracts tests cover the buckets, the inheritance and each rule"
+  gates: []

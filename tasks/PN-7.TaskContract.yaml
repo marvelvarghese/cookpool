@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-7
+  title: "The item page and the stock check screen"
+spec:
+  goal: "In the new frame, the item page shows a level ring, quick-use chips, when it runs out at this rate, who had it, history that names stock checks, and Bought again, Finish it, Wasted and Fix how much is left, which opens /pantry/[itemRef]/check."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-7.TaskContract.yaml
+  doneWhen:
+    - "the item page shows the ring with amount and worth left, the suggestion chips and More"
+    - "runOutEstimate reads a weekday within 7 days, in about N weeks after that, and nothing without 2 uses on 2 days"
+    - "who had it shows each person's share of what was used, and history reads stock checks as such"
+    - "the check screen sets the level by drag, marks or arrow keys, asks where the difference went for less, says no money moves for more, and Fix writes the check with Undo"
+    - "with newFrame false nothing changes"
+  gates: []

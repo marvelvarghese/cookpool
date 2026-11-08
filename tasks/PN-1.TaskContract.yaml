@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-1
+  title: "The cookpool-pantry spec"
+spec:
+  goal: "Land the cookpool-pantry doc set (README, design, implementation plan, risks, status) and the contracts for PN-2 to PN-10, from the approved canvas rows Pantry and using and Ask before use."
+  affects:
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-1.TaskContract.yaml
+    - tasks/PN-2.TaskContract.yaml
+    - tasks/PN-3.TaskContract.yaml
+    - tasks/PN-4.TaskContract.yaml
+    - tasks/PN-5.TaskContract.yaml
+    - tasks/PN-6.TaskContract.yaml
+    - tasks/PN-7.TaskContract.yaml
+    - tasks/PN-8.TaskContract.yaml
+    - tasks/PN-9.TaskContract.yaml
+    - tasks/PN-10.TaskContract.yaml
+  doneWhen:
+    - "the doc set is merged under specs/epics/cookpool-pantry"
+    - "each of PN-2 to PN-10 has a contract in tasks/"
+  gates: []
