@@ -1,11 +1,44 @@
-import { appConfig } from "./app-config";
+// THE NEW FRAME, STAGE FIRST (Cookpool cookpool-recipes RC-2, design §1.1).
+//
+// The five tabs (Home · Pantry · Cook · Money · You), the new Home, Money,
+// your page and a person's page are on wherever the app is not prod: dev,
+// stage, a local build and a workers.dev host that names no environment.
+// Prod keeps today's app until the owner says go (RC5 turns it on there and
+// deletes the old screens).
+//
+// It is read at runtime, in the browser, from the environment the page's own
+// host names (`appConfig()`, saas-console-artifact CA2): one build serves
+// every environment, as before. A screen whose layout changes picks its
+// component when it renders (`newFrame() ? <NewHome/> : <Home/>`), and every
+// kitchen page renders only after the session is ready — never while it is
+// prerendered — so the prerendered file is the same for both frames.
+//
+// Dependency-free but for the config, so it is unit-testable.
+
+import { appConfig, type AppConfig } from "./app-config";
+
+/** Whether an environment shows the new frame: every one but prod. */
+export function newFrameFor(deployEnv: string | null | undefined): boolean {
+  return deployEnv !== "prod";
+}
+
+/** Whether this page shows the new frame (true everywhere but prod). */
+export function newFrame(config: Pick<AppConfig, "deployEnv"> = appConfig()): boolean {
+  return newFrameFor(config.deployEnv);
+}
 
 /**
- * The new frame (cookpool-recipes design §1.1): on wherever the app is not
- * prod — dev, stage, local, and a workers.dev host without an environment.
- * Read at runtime from the host the page is served on (`appConfig()`, CA2),
- * so one build serves every environment. Prod keeps today's app until RC5.
+ * Pages that exist only in the new frame, and where today's frame sends a
+ * visitor instead (design §1.1: a prod visitor goes to Home). `/you/settings`
+ * is the new frame's home for today's You rows, so prod is sent to `/you`,
+ * where those rows still are.
  */
-export function newFrame(): boolean {
-  return appConfig().deployEnv !== "prod";
+export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
+  "/money": "/home",
+  "/you/settings": "/you",
+};
+
+/** Where a page (static-pages.mjs's pattern) sends a visitor in this frame, or null when it shows. */
+export function frameRedirect(page: string, isNewFrame: boolean): string | null {
+  return isNewFrame ? null : (NEW_FRAME_ONLY[page] ?? null);
 }

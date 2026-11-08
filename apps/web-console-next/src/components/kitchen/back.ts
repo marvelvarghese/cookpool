@@ -18,6 +18,9 @@ import { PERSONAL_PANTRY, parseItemRef } from "./pantry";
 /** The tabs (+ Add is a sheet): they have no back control and no parent. */
 export const TAB_PAGES: readonly string[] = ["/home", "/pantry", "/groups", "/people"];
 
+/** The new frame's tabs (cookpool-recipes RC-2): Home · Pantry · Cook · Money · You. */
+export const NEW_FRAME_TAB_PAGES: readonly string[] = ["/home", "/pantry", "/cook", "/money", "/you"];
+
 /** Where a screen's parent is when nothing on its address says (an unknown screen). */
 export const DEFAULT_PARENT = "/home";
 
@@ -42,6 +45,9 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/you": () => "/home",
   // You → Notifications (PW-6): You.
   "/you/notifications": () => "/you",
+  // The new frame's pages (RC-2), for a visitor of today's frame: Money sends them Home; settings is You's.
+  "/money": () => "/home",
+  "/you/settings": () => "/you",
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // A dish: its group when it is shared (and the group is known), else Home.
@@ -55,6 +61,20 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   // A person: People. (`/settle` only opens People.)
   "/people/:subjectId": () => "/people",
   "/settle": () => "/people",
+};
+
+/**
+ * The new frame's parents where they differ (RC-2): Groups and People are
+ * reached from Money (money lives in Money), settings from You's gear.
+ */
+const NEW_FRAME_PARENTS: Readonly<Record<string, ParentRule>> = {
+  "/groups": () => "/money",
+  "/groups/:orgSlug": () => "/money",
+  "/join/:code": () => "/money",
+  "/people": () => "/money",
+  "/people/:subjectId": () => "/money",
+  "/settle": () => "/money",
+  "/you/notifications": () => "/you/settings",
 };
 
 /** The Cookpool screens that have a parent (every page of the app that is not a tab). */
@@ -79,12 +99,20 @@ function itemParent(raw: string | undefined): string {
  * join link → Groups; a person → People; Use, Bought, Cook and You → Home.
  * Null for a tab (it has no back control); Home for an address it does not
  * know.
+ *
+ * In the new frame (`frame.newFrame`, RC-2) the tabs are the new five, and
+ * Groups, People and a person go back to Money.
  */
-export function backParent(pathname: string | null | undefined, known: BackKnown = {}): string | null {
+export function backParent(
+  pathname: string | null | undefined,
+  known: BackKnown = {},
+  frame: { newFrame?: boolean } = {},
+): string | null {
   if (!pathname) return DEFAULT_PARENT;
   const page = staticPageFor(pathname);
-  if (page && TAB_PAGES.includes(page)) return null;
-  const rule = page ? PARENTS[page] : undefined;
+  const tabs = frame.newFrame ? NEW_FRAME_TAB_PAGES : TAB_PAGES;
+  if (page && tabs.includes(page)) return null;
+  const rule = page ? ((frame.newFrame ? NEW_FRAME_PARENTS[page] : undefined) ?? PARENTS[page]) : undefined;
   if (!page || !rule) return DEFAULT_PARENT;
   return rule(matchPage(page, pathname) ?? {}, known);
 }

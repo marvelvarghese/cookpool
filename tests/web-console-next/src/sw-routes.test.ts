@@ -57,6 +57,7 @@ describe("a person's own screens: network first, the last good answer kept per a
     "/api/v1/kitchen/me/items/itm_1/moves?limit=100",
     "/api/v1/organizations/org_1/kitchen/items/itm_2",
     "/api/v1/organizations/org_1/kitchen/items/itm_2/moves",
+    "/api/v1/kitchen/me/dishes?limit=100",
     "/api/v1/kitchen/me/dishes/dsh_1",
     "/api/v1/organizations/org_1/kitchen/dishes",
     "/api/v1/organizations/org_1/kitchen/members",

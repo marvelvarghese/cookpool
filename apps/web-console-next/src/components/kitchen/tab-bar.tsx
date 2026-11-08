@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { KITCHEN_TABS, isKitchenTabActive } from "./nav";
+import { isTabActiveIn, kitchenTabs, type KitchenNavLink } from "./nav";
 import { kitchenIcon } from "./icons";
 
 /**
@@ -14,8 +14,12 @@ import { kitchenIcon } from "./icons";
  * sheet, in the app's one primary green (SM-10: it was tomato, a second
  * "this is the action" colour). Fixed to the bottom with the home-indicator
  * inset; every cell is at least 60px tall.
+ *
+ * In the new frame (`newFrame`, cookpool-recipes RC-2): Home · Pantry · Cook ·
+ * Money · You, with Cook in the middle, its icon in a filled green rounded
+ * square; there is no + Add.
  */
-export function KitchenTabBar({ onAdd, addOpen }: { onAdd: () => void; addOpen: boolean }) {
+export function KitchenTabBar({ onAdd, addOpen, newFrame = false }: { onAdd: () => void; addOpen: boolean; newFrame?: boolean }) {
   const pathname = usePathname();
   return (
     <nav
@@ -24,7 +28,7 @@ export function KitchenTabBar({ onAdd, addOpen }: { onAdd: () => void; addOpen: 
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 pb-safe backdrop-blur-md min-[900px]:hidden"
     >
       <ul className="mx-auto grid max-w-lg grid-cols-5">
-        {KITCHEN_TABS.map((item) => {
+        {kitchenTabs(newFrame).map((item) => {
           if (item.kind === "action") {
             return (
               <li key={item.id} className="flex justify-center">
@@ -43,7 +47,8 @@ export function KitchenTabBar({ onAdd, addOpen }: { onAdd: () => void; addOpen: 
               </li>
             );
           }
-          const active = isKitchenTabActive(item.id, pathname);
+          const active = isTabActiveIn(newFrame, item.id, pathname);
+          if (item.featured) return <FeaturedTab key={item.id} item={item} active={active} />;
           const Icon = kitchenIcon(item.icon);
           return (
             <li key={item.id}>
@@ -64,5 +69,34 @@ export function KitchenTabBar({ onAdd, addOpen }: { onAdd: () => void; addOpen: 
         })}
       </ul>
     </nav>
+  );
+}
+
+/** The new frame's Cook: the middle tab, its icon in a filled green rounded square (44px), the label under it. */
+function FeaturedTab({ item, active }: { item: KitchenNavLink; active: boolean }) {
+  const Icon = kitchenIcon(item.icon);
+  return (
+    <li>
+      <Link
+        href={item.href}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "group flex min-h-[60px] flex-col items-center justify-center gap-0.5 rounded-xl text-xs transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          active ? "font-bold text-primary" : "font-semibold text-foreground",
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "grid h-11 w-11 place-items-center rounded-[14px] bg-primary text-primary-foreground transition-transform group-active:scale-95",
+            active ? "shadow-[0_4px_12px_rgba(31,122,77,0.32)]" : "shadow-[0_2px_6px_rgba(31,122,77,0.2)]",
+          )}
+        >
+          <Icon className="h-6 w-6" strokeWidth={2.2} />
+        </span>
+        <span>{item.label}</span>
+      </Link>
+    </li>
   );
 }

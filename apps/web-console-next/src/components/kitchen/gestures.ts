@@ -25,6 +25,8 @@ export const PULL_PAGES: readonly string[] = [
   "/people",
   "/people/:subjectId",
   "/dishes/:dishRef",
+  // The new frame's Money (cookpool-recipes RC-2): your people and groups.
+  "/money",
 ];
 
 /** Whether the screen at `pathname` pulls to refresh. */
@@ -55,11 +57,12 @@ export function edgeSwipeDevice(env: EdgeSwipeEnv): boolean {
 /**
  * Whether a swipe from the left edge goes back on the screen at `pathname`:
  * on such a device, on every screen with a back control (PW-3's
- * `backParent`), never on the tabs.
+ * `backParent`), never on the tabs — the new frame's five in the new frame
+ * (cookpool-recipes RC-2).
  */
-export function edgeSwipeBackOn(env: EdgeSwipeEnv, pathname: string | null | undefined): boolean {
+export function edgeSwipeBackOn(env: EdgeSwipeEnv, pathname: string | null | undefined, newFrame = false): boolean {
   if (!pathname || !edgeSwipeDevice(env)) return false;
-  return backParent(pathname) !== null;
+  return backParent(pathname, {}, { newFrame }) !== null;
 }
 
 /** The device, as the edge swipe sees it (call it in an effect: the pages are prerendered). */

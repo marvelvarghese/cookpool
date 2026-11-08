@@ -51,3 +51,80 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | `packages/sdk` | 2 | 171 |
 
 `pnpm typecheck` and `pnpm lint` pass, and `orun task check RC-3 --base origin/main` passes: 10 changed components, all inside the contract.
+
+### RC1 — the new frame (RC-2)
+
+**What shipped.** The console only; no server, contract or SDK change.
+
+- **The switch** (`src/lib/features.ts`): `newFrame()` is true wherever `appConfig().deployEnv` is not `prod`. That covers stage, dev, local and a workers.dev host that names no environment. It is read in the browser from the page's host. `newFrameFor(env)` is the pure rule. `frameRedirect(page, on)` says where a new-frame-only page sends a prod visitor. Every kitchen page renders only once the session is ready, never while it is prerendered, so one prerendered file serves both frames.
+- **Five tabs** (`nav.ts`, `tab-bar.tsx`, `sidebar.tsx`): **Home · Pantry · Cook · Money · You**. Cook sits in the middle, its icon in a 44 px filled green rounded square. There is no + tab, and the Add sheet is not mounted in the new frame. From 900 px the sidebar lists the same five. It has no Add button and keeps Recent groups and the person at its foot. With the flag off, both bars are today's.
+- **Home** (`/home` picks `NewHome` or today's at render; `new-home.ts` lists each frame's sections):
+  - "Hi, Rahul".
+  - What did you use?, today's field with its usuals row.
+  - **To do**: today's inbox rows, reordered: dishes first, an open dish with its ½-step chips (0 ½ 1 1½ 2) in the row; then Pay X; then use soon or past its date; then flags.
+  - **Cook now**: an empty slot, `CookNow` in `cook-now-slot.tsx`, for RC-5 to replace.
+  - **From your groups**: a card per dish finished in the last 7 days in any of your groups. Each has the cook's face, "Meera cooked", the group and when, the name, and three numbers: portions, each, you had.
+  - No money card and no Recent.
+- **Money** (`/money`, new frame only, `money-ui.tsx`):
+  - One figure per currency: you get back / you owe.
+  - **Settle up**, the main button, goes to today's settle screen (`/people`). **Bill** asks which group and then opens today's Add a bill.
+  - A segmented **People | Groups**, kept in the address as `?list=groups`. A person row has face, name, shared group and the amount with its direction; it opens `/people/[id]`. A group row has its tile, name, member count and your balance; it opens today's group page.
+  - Under Groups: **New group** and **Join with a link**.
+  - A prod visitor is sent to `/home`.
+- **You** (`/you`, `YourPage` in `profile-ui.tsx`):
+  - Your 64 px face, name and groups.
+  - **Cooks** and **Groups**.
+  - A "Cooks a week" column chart over the last 8 weeks.
+  - Your recent cooks.
+  - The gear opens **`/you/settings`**, today's You rows (name, how you sign in, notifications, install, sign out) titled Settings. In prod `/you` is today's page, and `/you/settings` sends a visitor to `/you`.
+- **A person** (`/people/[id]`, `NewPerson`):
+  - Back, their 64 px face, name and "In Flat 4B with you".
+  - The balance strip ("You get back ₹40.00"), with **Settle up**.
+  - Their recent cooks in the groups you share.
+  - Today's itemized Why, open under a **Why** heading.
+  - In prod the page is unchanged (`TodayPerson`).
+- **Session bar slot**: `SessionBar` (`session-bar.tsx`) sits in the kitchen layout above the tab bar, in the new frame only. It renders nothing; RC-6 owns it.
+- **Routes**: `/money` and `/you/settings` are added to `static-pages.mjs` (SM-2's pattern), so they are served as files and precached.
+- **Home-screen shortcuts** (plan item): in the new frame they are **What did you use?** (`/use`) and **Start cooking** (`/cook`).
+- **Offline**: `GET /v1/kitchen/me/dishes` joins the service worker's `API_READS`.
+
+**Departures.**
+
+- **No feed route.** From your groups, your Cooks, Cooks a week and a person's cooks all come from the existing `GET /v1/kitchen/me/dishes`: what you cooked plus what was shared with your groups, newest cooked first. It is read 100 at a time, at most four pages, until it covers 14 days (Home) or 56 days (You, a person). One cache entry, under `qk.kitchenDishes()`, serves all three. Two limits follow:
+  - A dish finished this week but cooked more than 14 days ago does not show on Home.
+  - Past 400 dishes read, Cooks reads "400+".
+- **The To do order is set in the console.** Dishes, then payments, then use soon or past its date, then flags; within each, the server's order holds. The server's own order (past-date food first) is unchanged, and so is the icon badge count. Home still shows three rows and "See all".
+- **Home keeps two things the canvas doesn't draw**: the install card (PW-2) under the greeting, and the usuals row under What did you use? ("the existing field", and RC-H's "Do it again stays").
+- **`/cook` is today's cook screen** in the Cook tab, Back button included; in the new frame Back goes Home. RC-5 replaces it.
+- **Settle up on Money** goes to `/people`, today's settle screen; `/settle` only redirects there. **Settle up on a person's page** is today's Record payment (which group, then UPI · Cash · Bank) under the new label.
+- **Bill** skips groups you only view, and goes straight to the group when there is one.
+- **You**:
+  - Only Cooks and Groups; RC-5 adds Recipes and Saved by.
+  - "Your cooks" stands alone; RC-5 adds the Recipes | Cooks tabs.
+  - Cooks a week counts 7-day windows ending today, not calendar weeks. The number sits on this week's column only; every column states its count in its tooltip and accessible name.
+- **A person's cooks** are those in the groups the person read lists. That read also lists any group where money between you is still open.
+- **Where pages sit in the new frame**:
+  - Tabs: `/use` is Home's; `/dishes`, `/recipes`, `/explore` and `/r` are Cook's; `/people`, `/settle`, `/groups` and `/join` are Money's; `/you/*` is You's.
+  - Back: Groups, People, a group, a person, a join link and `/settle` go back to Money, and `/you/notifications` to settings. `backParent` and the edge swipe take the frame.
+  - People and Groups, now reached from Money, show a Back in the new frame only.
+- **The manifest decides its shortcuts on the server, from the request's host.** It switches only where the host names an environment other than prod. Localhost, an unknown host or no request keeps today's three, so prod's can't change by accident. `app-config.ts` gains `requestAppConfig(host)` for this.
+- **Colours**: amounts use the kit's tokens (`cp-owed` #1D5FB8, `cp-owe` #C2410C), not the brief's #1D4ED8. The cook colour #B4471F marks the pot on From your groups cards.
+- **Moved without change** so both frames share it:
+  - today's You → `you-settings-ui.tsx` (gains `title`/`sub` props whose defaults render as before);
+  - today's person page → `person-ui.tsx` (Record payment gains a `title` prop, default "Record payment");
+  - Home's QuickUse → `quick-use-ui.tsx`.
+- **Existing tests touched**, because a new page must choose:
+  - `gestures.test.ts`: `/money` pulls to refresh, `/you/settings` doesn't;
+  - `sw-routes.test.ts`: the new offline read.
+
+  No assertion about today's frame changed.
+- **Merged with RC-3**: one `newFrame()`, RC-2's. It is a superset with the same rule and default, so RC-3's test of it passes unchanged. RC-3's `notes: newFrame()` in `pantry/page.tsx` is kept.
+- **Not checked on stage** (nothing deployed). The new screens were looked at locally at 375 px and 1280 px against a temporary in-page mock of the API, so no request left the machine. The mock was removed and never committed. Prod's frame is covered by tests only.
+
+**Tests.**
+
+| Package | New | Total |
+|---|---|---|
+| `tests/web-console-next` | 69: `kitchen-features` 6, `kitchen-new-frame` 20 (tabs in both frames, active tab, Back, swipe, pull, shortcuts), `kitchen-money-page` 14 (figures, People, Groups, list, prod redirect), `kitchen-new-home` 15 (sections in both frames, no money card, To do order, From your groups, read window), `kitchen-cooks` 13, offline read 1 | 1385 (76 suites, after merging RC-3) |
+
+`pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, and `orun task check RC-2 --base origin/main` passes: 2 changed components, all inside the contract.

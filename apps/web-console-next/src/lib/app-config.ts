@@ -151,6 +151,15 @@ export function browserAppConfig(host: string, defaults: AppConfig = DEFAULT_APP
   return resolveAppConfig({}, defaults, host);
 }
 
+/**
+ * The config on the server for one request's host (cookpool-recipes RC-2: the
+ * manifest's shortcuts follow the environment the host names): the Worker's
+ * vars, then the host.
+ */
+export function requestAppConfig(host: string | null | undefined): AppConfig {
+  return resolveAppConfig(typeof process !== "undefined" ? process.env : {}, DEFAULT_APP_CONFIG, host);
+}
+
 let browser: AppConfig | null = null;
 
 /**
