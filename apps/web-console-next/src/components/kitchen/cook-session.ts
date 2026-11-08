@@ -848,6 +848,8 @@ export const BAR_HIDDEN_PAGES: readonly RegExp[] = [
   /^\/groups\/[^/]+\/expense(?:\/|$)/,
   // The recipe screens (RC-5): a recipe's Start cooking, and its forms' Save.
   /^\/recipes(?:\/|$)/,
+  // A recipe's link (RC-8): its Save to my recipes.
+  /^\/r\/[^/]+$/,
 ];
 
 /** Whether the bar shows on `pathname`: a session is open and this isn't the session (or a form with its own main button). */

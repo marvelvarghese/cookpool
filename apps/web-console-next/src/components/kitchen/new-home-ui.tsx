@@ -3,13 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { CookingPot } from "lucide-react";
+import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "./data";
 import { friendlyName, homeGreeting } from "./home";
 import { K_BUTTON } from "./kit";
 import { Face } from "./faces-ui";
-import type { MemberNames } from "./members";
+import { memberLabel, type MemberNames } from "./members";
 import { useMemberNames } from "./people-data";
 import { useInbox } from "./inbox-data";
 import { HomeTodoList } from "./inbox-ui";
@@ -20,6 +21,11 @@ import { HOME_DISH_DAYS, feedCards, type FeedCard } from "./cooks";
 import { useMyDishes } from "./cooks-data";
 import { homeSections, newHomeTodoOrder } from "./new-home";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
+import { recipeHref } from "./recipes";
+import { useRecipesInFull } from "./recipes-data";
+import { FeedRecipeRowView, SaveCopyChip } from "./cook-hub-views";
+import { feedRecipeFor, feedRecipeIds, feedRecipeText } from "./explore";
+import { useSaveCopy } from "./recipe-travel-data";
 
 /**
  * The new frame's Home (cookpool-recipes RC-2, design §1.4, the canvas's
@@ -27,8 +33,9 @@ import { pressIn, usePrefetchKitchen } from "./prefetch";
  * (with your usuals); To do — an open dish to claim, with its ½-step chips in
  * the row, then Pay X, then food to use soon or past its date; Cook now (a
  * slot RC-5 fills; nothing yet); From your groups — what was finished in your
- * groups this week. No money card: money lives in Money, and a debt that
- * needs you is a To do.
+ * groups this week, with the recipe it was cooked from when you may see it
+ * ("Anu's recipe" and Save, RC-8). No money card: money lives in Money, and
+ * a debt that needs you is a To do.
  *
  * From 900px, two columns: what needs you on the left, your groups' cooks on
  * the right.
@@ -81,6 +88,10 @@ function FromYourGroups({ meId, names }: { meId: string | null; names: MemberNam
     [dishes.dishes, meId, names, groupNames, now],
   );
   const hasGroups = (groups.data?.length ?? 0) > 0;
+  // The recipes the cards' dishes were cooked from (RC-8): each shows once its read succeeds (a 404 is one you may not see).
+  const recipeOf = React.useMemo(() => feedRecipeIds(dishes.dishes, cards.map((c) => c.dishId)), [dishes.dishes, cards]);
+  const recipeIds = React.useMemo(() => [...new Set(recipeOf.values())], [recipeOf]);
+  const recipes = useRecipesInFull(recipeIds);
 
   return (
     <section aria-labelledby="home-from-groups" className="min-w-0 space-y-2">
@@ -107,7 +118,7 @@ function FromYourGroups({ meId, names }: { meId: string | null; names: MemberNam
         <ul className="space-y-3">
           {cards.map((card) => (
             <li key={card.dishId}>
-              <FeedCardView card={card} meId={meId} names={names} />
+              <FeedCardView card={card} meId={meId} names={names} recipe={feedRecipeFor(card.dishId, recipeOf, recipes)} />
             </li>
           ))}
         </ul>
@@ -116,13 +127,40 @@ function FromYourGroups({ meId, names }: { meId: string | null; names: MemberNam
   );
 }
 
-function FeedCardView({ card, meId, names }: { card: FeedCard; meId: string | null; names: MemberNames }) {
+function FeedCardView({ card, meId, names, recipe }: { card: FeedCard; meId: string | null; names: MemberNames; recipe: KitchenRecipe | null }) {
+  if (!recipe) return <FeedCardLink card={card} meId={meId} names={names} />;
+  // With the recipe it was cooked from (RC-8): the card, then "Anu's recipe" and Save under it.
+  return (
+    <article className="rounded-[22px] border bg-card shadow-[0_1px_2px_rgba(23,32,27,0.04)]">
+      <FeedCardLink card={card} meId={meId} names={names} bare />
+      <div className="px-4 pb-2">
+        <FeedRecipeRowView
+          text={feedRecipeText(recipe, memberLabel(card.cookId, meId, names))}
+          href={recipeHref(recipe.id)}
+          save={recipe.mine ? null : <FeedRecipeSave recipe={recipe} />}
+        />
+      </div>
+    </article>
+  );
+}
+
+/** Save on a feed card's recipe: your own copy. */
+function FeedRecipeSave({ recipe }: { recipe: KitchenRecipe }) {
+  const copy = useSaveCopy(recipe);
+  return <SaveCopyChip name={recipe.name} savedId={copy.savedId} saving={copy.saving} onSave={copy.save} icon />;
+}
+
+function FeedCardLink({ card, meId, names, bare = false }: { card: FeedCard; meId: string | null; names: MemberNames; bare?: boolean }) {
   const prefetch = usePrefetchKitchen();
   return (
     <Link
       {...pressIn(() => prefetch.dish(card.dishId, card.orgId))}
       href={card.href}
-      className="block rounded-[22px] border bg-card p-4 shadow-[0_1px_2px_rgba(23,32,27,0.04)] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={
+        bare
+          ? "block rounded-t-[22px] p-4 pb-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "block rounded-[22px] border bg-card p-4 shadow-[0_1px_2px_rgba(23,32,27,0.04)] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      }
     >
       <span className="flex items-center gap-3">
         <Face subjectId={card.cookId} meId={meId} names={names} />
