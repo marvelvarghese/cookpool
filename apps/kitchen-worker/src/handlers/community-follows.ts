@@ -4,6 +4,7 @@ import {
   COMMUNITY_PAGE_SIZE,
   FOLLOWS_PER_DAY,
   KITCHEN_COMMUNITY_ERROR_REASONS,
+  KITCHEN_EMAILS,
   type BlockResponse,
   type BlocksResponse,
   type FollowResponse,
@@ -14,6 +15,7 @@ import { decodeCursor, isSubjectKey, peopleCursor, subjectParam, visibleProfile 
 import type { RequestContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
 import { errorResponse, forbidden, notFound, successResponse, unavailable, unprocessable, validationError } from "../http.js";
+import { deferSocialPush } from "../social-push.js";
 import { peoplePage } from "./community-profiles.js";
 
 // Following, requests, blocks and mutes (CM-2, cookpool-community design §1):
@@ -37,8 +39,11 @@ import { peoplePage } from "./community-profiles.js";
 // write's own statement: FOLLOWS_PER_DAY and BLOCKS_PER_DAY in the last 24
 // hours, 429 `rate_limited` past them.
 //
-// CM-3 writes the Activity rows (`followed`, `follow_request`,
-// `follow_accepted`) in the same writes as these follows.
+// The Activity rows (CM-3) are written in the same batches as these
+// follows: the followee's `followed` or `follow_request` with a new follow,
+// the follower's `follow_accepted` with an accepted request. A new follow
+// also pushes `kitchen.followed` or `kitchen.follow_request` to the followee
+// (a preference push, opt-in) after it committed.
 
 const R = KITCHEN_COMMUNITY_ERROR_REASONS;
 
@@ -69,12 +74,24 @@ export async function handleFollow(ctx: RequestContext, _request: Request, param
         state: profile.privacy === "public" ? "accepted" : "requested",
         now: ctx.now(),
         maxPerDay: FOLLOWS_PER_DAY,
+        activityId: crypto.randomUUID(),
       }),
     );
     if (!followed.ok) return unavailable(ctx.requestId);
     const result = followed.value;
     if (result.kind === "blocked") return notFound(ctx.requestId);
     if (result.kind === "limited") return limited(ctx, `You can follow ${FOLLOWS_PER_DAY} people a day`, R.FOLLOW_LIMIT, FOLLOWS_PER_DAY);
+    if (result.kind === "followed") {
+      const asked = result.follow.state === "requested";
+      await deferSocialPush(ctx, {
+        kind: asked ? KITCHEN_EMAILS.FOLLOW_REQUEST : KITCHEN_EMAILS.FOLLOWED,
+        to: profile.userId,
+        data: { actorName: mine.value.name, actorHandle: mine.value.handle },
+        path: asked ? "/community/activity" : `/u/${encodeURIComponent(mine.value.handle)}`,
+        // Each new follow is its own push: a follow again after an unfollow is a new one.
+        keyParts: [me, String(result.follow.createdAt.getTime())],
+      });
+    }
     return successResponse<FollowResponse>({ state: result.follow.state }, ctx.requestId, result.kind === "followed" ? 201 : 200);
   });
 }
@@ -105,7 +122,7 @@ export async function handleAcceptFollow(ctx: RequestContext, _request: Request,
   const follower = subjectParam(params[0]);
   if (!follower) return notFound(ctx.requestId);
   return withKitchenRepo(ctx, async (repo) => {
-    const accepted = await ctx.timings.measure("db", () => repo.acceptFollow(ctx.actor.subjectId, follower, ctx.now()));
+    const accepted = await ctx.timings.measure("db", () => repo.acceptFollow(ctx.actor.subjectId, follower, ctx.now(), crypto.randomUUID()));
     if (!accepted.ok) return unavailable(ctx.requestId);
     if (!accepted.value) return notFound(ctx.requestId);
     return successResponse<FollowResponse>({ state: "accepted" }, ctx.requestId);

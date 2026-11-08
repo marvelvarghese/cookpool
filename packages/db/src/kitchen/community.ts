@@ -25,6 +25,7 @@
 
 import { executeBatch, type SqlExecutor } from "../d1/executor.js";
 import { isUniqueViolation } from "../d1/errors.js";
+import { activityStatement } from "./activity-write.js";
 import type { KitchenResult } from "./types.js";
 
 export type KitchenProfilePrivacy = "public" | "private";
@@ -79,6 +80,8 @@ export interface FollowInput {
   now: Date;
   /** The most follows one person may make in a day; this one is refused at the limit. */
   maxPerDay: number;
+  /** The id of the Activity row (CM-3) a new follow writes for the followee: `followed`, or `follow_request` (a fresh UUID when left out). */
+  activityId?: string;
 }
 
 export type FollowResult =
@@ -178,8 +181,13 @@ export interface CommunityRepository {
   follow(input: FollowInput): Promise<KitchenResult<FollowResult>>;
   /** True when there was a follow (either state) to delete. */
   unfollow(followerId: string, followeeId: string): Promise<KitchenResult<boolean>>;
-  /** The follow after accepting; null when there was no follow at all. An accepted one comes back as it is. */
-  acceptFollow(followeeId: string, followerId: string, now: Date): Promise<KitchenResult<KitchenFollowRecord | null>>;
+  /**
+   * The follow after accepting; null when there was no follow at all. An
+   * accepted one comes back as it is. Accepting a request writes the
+   * follower's `follow_accepted` Activity row (CM-3, id `activityId`) in the
+   * same batch.
+   */
+  acceptFollow(followeeId: string, followerId: string, now: Date, activityId?: string): Promise<KitchenResult<KitchenFollowRecord | null>>;
   /** True when there was a request to decline. */
   declineFollow(followeeId: string, followerId: string): Promise<KitchenResult<boolean>>;
   /** True when there was a follow (either state) to remove. */
@@ -464,19 +472,37 @@ export function createCommunityRepository(executor: SqlExecutor): CommunityRepos
 
     async follow(input) {
       const since = new Date(input.now.getTime() - DAY_MS);
-      const made = await one(
-        `INSERT INTO kitchen_follows (follower_id, followee_id, state, created_at, accepted_at)
-         SELECT $1, $2, $3, $4, CASE WHEN $3 = 'accepted' THEN $4 ELSE NULL END
-         WHERE (SELECT COUNT(*) FROM kitchen_follows WHERE follower_id = $1 AND created_at > $5) < $6
-           AND NOT EXISTS (SELECT 1 FROM kitchen_blocks
-                           WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1))
-         ON CONFLICT (follower_id, followee_id) DO NOTHING
-         RETURNING follower_id, followee_id, state, created_at, accepted_at`,
-        [input.followerId, input.followeeId, input.state, input.now, since, input.maxPerDay],
-        mapFollow,
-      );
-      if (!made.ok) return made;
-      if (made.value) return { ok: true, value: { kind: "followed", follow: made.value } };
+      let made: KitchenFollowRecord | null = null;
+      try {
+        const [inserted] = await executeBatch(executor, [
+          {
+            text: `INSERT INTO kitchen_follows (follower_id, followee_id, state, created_at, accepted_at)
+                   SELECT $1, $2, $3, $4, CASE WHEN $3 = 'accepted' THEN $4 ELSE NULL END
+                   WHERE (SELECT COUNT(*) FROM kitchen_follows WHERE follower_id = $1 AND created_at > $5) < $6
+                     AND NOT EXISTS (SELECT 1 FROM kitchen_blocks
+                                     WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1))
+                   ON CONFLICT (follower_id, followee_id) DO NOTHING
+                   RETURNING follower_id, followee_id, state, created_at, accepted_at`,
+            params: [input.followerId, input.followeeId, input.state, input.now, since, input.maxPerDay],
+          },
+          // The followee's Activity (CM-3): only when the follow above is the one this batch wrote.
+          activityStatement(
+            {
+              id: input.activityId ?? crypto.randomUUID(),
+              userId: input.followeeId,
+              kind: input.state === "accepted" ? "followed" : "follow_request",
+              actorId: input.followerId,
+              now: input.now,
+            },
+            `EXISTS (SELECT 1 FROM kitchen_follows nf WHERE nf.follower_id = $4 AND nf.followee_id = $2 AND nf.created_at = $8)`,
+          ),
+        ]);
+        const row = inserted?.rows[0];
+        made = row ? mapFollow(row) : null;
+      } catch (err) {
+        return internal(err);
+      }
+      if (made) return { ok: true, value: { kind: "followed", follow: made } };
       const existing = await getFollow(input.followerId, input.followeeId);
       if (!existing.ok) return existing;
       if (existing.value) return { ok: true, value: { kind: "existing", follow: existing.value } };
@@ -488,15 +514,28 @@ export function createCommunityRepository(executor: SqlExecutor): CommunityRepos
     unfollow: (followerId, followeeId) =>
       changed(`DELETE FROM kitchen_follows WHERE follower_id = $1 AND followee_id = $2 RETURNING follower_id`, [followerId, followeeId]),
 
-    async acceptFollow(followeeId, followerId, now) {
-      const accepted = await one(
-        `UPDATE kitchen_follows SET state = 'accepted', accepted_at = $3
-         WHERE followee_id = $1 AND follower_id = $2 AND state = 'requested'
-         RETURNING follower_id, followee_id, state, created_at, accepted_at`,
-        [followeeId, followerId, now],
-        mapFollow,
-      );
-      if (!accepted.ok || accepted.value) return accepted;
+    async acceptFollow(followeeId, followerId, now, activityId) {
+      let accepted: KitchenFollowRecord | null = null;
+      try {
+        const [updated] = await executeBatch(executor, [
+          {
+            text: `UPDATE kitchen_follows SET state = 'accepted', accepted_at = $3
+                   WHERE followee_id = $1 AND follower_id = $2 AND state = 'requested'
+                   RETURNING follower_id, followee_id, state, created_at, accepted_at`,
+            params: [followeeId, followerId, now],
+          },
+          // The follower's Activity (CM-3): only when this batch accepted it.
+          activityStatement(
+            { id: activityId ?? crypto.randomUUID(), userId: followerId, kind: "follow_accepted", actorId: followeeId, now },
+            `EXISTS (SELECT 1 FROM kitchen_follows af WHERE af.follower_id = $2 AND af.followee_id = $4 AND af.accepted_at = $8)`,
+          ),
+        ]);
+        const row = updated?.rows[0];
+        accepted = row ? mapFollow(row) : null;
+      } catch (err) {
+        return internal(err);
+      }
+      if (accepted) return { ok: true, value: accepted };
       return getFollow(followerId, followeeId);
     },
 

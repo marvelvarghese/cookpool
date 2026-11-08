@@ -151,20 +151,21 @@ export async function handleGetProfile(ctx: RequestContext, _request: Request, p
     const { profile, follow } = target;
     const me = ctx.actor.subjectId;
     const isYou = profile.userId === me;
-    const [counts, back, muted, followedBy] = await ctx.timings.measure("db", () =>
+    const [counts, back, muted, followedBy, posts] = await ctx.timings.measure("db", () =>
       Promise.all([
         repo.profileCounts(profile.userId),
         isYou ? Promise.resolve({ ok: true as const, value: null }) : repo.getFollow(profile.userId, me),
         isYou ? Promise.resolve({ ok: true as const, value: false }) : repo.isMuted(me, profile.userId),
         isYou ? Promise.resolve({ ok: true as const, value: [] }) : repo.followedBy(me, profile.userId, FOLLOWED_BY_MAX),
+        repo.postCount(profile.userId, me),
       ]),
     );
-    if (!counts.ok || !back.ok || !muted.ok || !followedBy.ok) return unavailable(ctx.requestId);
+    if (!counts.ok || !back.ok || !muted.ok || !followedBy.ok || !posts.ok) return unavailable(ctx.requestId);
     return successResponse<PersonProfileResponse>(
       {
         profile: toCommunityProfile(profile),
-        // Posts arrive with CM-3 (kitchen_posts, migration 440): it counts them here.
-        counts: { posts: 0, ...counts.value },
+        // Live posts (CM-3): every one of your own; of anyone else's, all but Just me.
+        counts: { posts: posts.value, ...counts.value },
         relationship: {
           following: followStateOf(follow),
           followsYou: back.value?.state === "accepted",

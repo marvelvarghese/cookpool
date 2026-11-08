@@ -80,29 +80,31 @@ export async function handlePeopleSuggestions(ctx: RequestContext): Promise<Resp
     const since = new Date(ctx.now().getTime() - POPULAR_DAYS * DAY_MS);
     // A few more than shown, so taking out people already in an earlier list still leaves a full one.
     const reach = SUGGESTIONS_MAX * 3;
-    const [members, owners, popular] = await ctx.timings.measure("db", () =>
+    const [members, owners, cooks, popular] = await ctx.timings.measure("db", () =>
       Promise.all([
         repo.profilesFor({ userIds: [...groupOf.keys()], viewer, unfollowedOnly: true, limit: reach }),
-        // Owners of recipes the caller saved. CM-3 adds the people who cooked the caller's recipes (posts linking them).
+        // Owners of recipes the caller saved, then people who posted cooks of the caller's recipes (CM-3).
         repo.recipeOwnersSavedBy({ viewer, limit: reach }),
+        repo.cooksOfMine({ viewer, limit: reach }),
         repo.popularProfiles({ viewer, since, limit: reach }),
       ]),
     );
-    if (!members.ok || !owners.ok || !popular.ok) return unavailable(ctx.requestId);
+    if (!members.ok || !owners.ok || !cooks.ok || !popular.ok) return unavailable(ctx.requestId);
 
     const seen = new Set<string>([viewer]);
-    const take = <T>(rows: readonly T[], profileOf: (row: T) => KitchenProfileRecord, why: (row: T) => string): SuggestedPerson[] => {
+    const take = <T>(rows: readonly T[], profileOf: (row: T) => KitchenProfileRecord, why: (row: T) => string, max = SUGGESTIONS_MAX): SuggestedPerson[] => {
       const out: SuggestedPerson[] = [];
       for (const row of rows) {
         const profile = profileOf(row);
-        if (out.length >= SUGGESTIONS_MAX || seen.has(profile.userId)) continue;
+        if (out.length >= max || seen.has(profile.userId)) continue;
         seen.add(profile.userId);
         out.push(suggested(profile, why(row)));
       }
       return out;
     };
     const fromGroups = take(members.value, (p) => p, (p) => `In ${groupOf.get(p.userId) ?? "your group"}`);
-    const fromRecipes = take(owners.value, (o) => o.profile, (o) => `You saved their ${o.recipeName}`);
+    const saved = take(owners.value, (o) => o.profile, (o) => `You saved their ${o.recipeName}`);
+    const fromRecipes = [...saved, ...take(cooks.value, (c) => c.profile, (c) => `Cooked your ${c.recipeName}`, SUGGESTIONS_MAX - saved.length)];
     const popularPeople = take(
       popular.value,
       (p) => p.profile,

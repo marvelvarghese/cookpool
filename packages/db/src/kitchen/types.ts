@@ -1,5 +1,7 @@
 import type { AsksRepository } from "./asks.js";
 import type { CommunityRepository } from "./community.js";
+import type { PostsRepository } from "./posts.js";
+import type { KitchenActivityWrite } from "./activity-write.js";
 import type { AppendEventWithAuditInput } from "../events/types.js";
 import type { Uuid } from "../ids/index.js";
 
@@ -654,7 +656,7 @@ export interface KitchenUsualsBucketQuery {
  * dish and check of a group item reads its guard — but its storage is its own
  * file: ./asks.ts.
  */
-export interface KitchenRepository extends AsksRepository, CommunityRepository {
+export interface KitchenRepository extends AsksRepository, CommunityRepository, PostsRepository {
   /** The group's settings row, or `null` when it has none (it uses the defaults). */
   getGroupSettings(orgId: Uuid): Promise<KitchenResult<KitchenGroupSettings | null>>;
   /**
@@ -1670,6 +1672,13 @@ export interface NewKitchenRecipe {
   /** Default none. */
   tools?: readonly string[];
   now: Date;
+  /**
+   * A copy of someone's public recipe (CM-3): the source owner's
+   * `saved_yours` Activity row, written in the same batch — while the source
+   * is still public and the saver has a profile, never for oneself or across
+   * a block.
+   */
+  savedYours?: KitchenActivityWrite | null;
 }
 
 export interface UpdateKitchenRecipeInput {

@@ -252,6 +252,22 @@ describe("the push that goes with an email", () => {
     }
   });
 
+  it("pushes the social kinds (CM-3) only when turned on: off by default, and off again when turned off", async () => {
+    const { service, prefs, deps } = await setup();
+    const yum = push("kitchen.yum", { actorName: "Meera K", postTitle: "Chicken curry", url: "https://cookpool.store/p/pst_1" });
+    expect(await pushForTemplate(deps, yum)).toBeNull();
+    prefs.set(DEV, "push", { "kitchen.yum": true, "kitchen.followed": false });
+    expect(await pushForTemplate(deps, yum)).toEqual({ devices: 3, sent: 3, gone: 0, failed: 0 });
+    expect(await pushForTemplate(deps, push("kitchen.followed", { actorName: "Sam", url: "" }))).toBeNull();
+    expect(await pushForTemplate(deps, push("kitchen.commented", { actorName: "Kabir", excerpt: "Hi", url: "" }))).toBeNull();
+    expect(service.requests).toHaveLength(3);
+    // Turned off: nothing.
+    const off = await setup();
+    off.prefs.set(DEV, "push", { "kitchen.yum": false, "kitchen.cooked_yours": false });
+    expect(await pushForTemplate(off.deps, yum)).toBeNull();
+    expect(off.service.requests).toHaveLength(0);
+  });
+
   it("is a person's own: someone else's push row turns nothing on for them", async () => {
     const { service, prefs, deps } = await setup();
     prefs.set(ANU, "push", { "kitchen.portion_set": true });
@@ -310,6 +326,28 @@ describe("the push messages", () => {
       url: "/home",
     });
     expect(renderPushMessage("kitchen.use_soon", {}, "t")).toBeNull();
+  });
+
+  it("say the five social kinds (CM-3) in the design's words", () => {
+    const url = "https://cookpool.store/p/pst_0123456789abcdef0123456789abcdef";
+    expect(renderPushMessage("kitchen.followed", { actorName: "Sam", url: "https://cookpool.store/u/sam" }, "t")).toEqual({
+      kind: "kitchen.followed", title: "Cookpool", body: "Sam started following you", url: "/u/sam", tag: "t",
+    });
+    expect(renderPushMessage("kitchen.follow_request", { actorName: "Priya", url: "" }, "t")).toMatchObject({
+      body: "Priya wants to follow you", url: "/community/activity",
+    });
+    expect(renderPushMessage("kitchen.commented", { actorName: "Kabir", excerpt: "Roast the spices first, then the onions go in", url }, "t")).toMatchObject({
+      body: "Kabir commented: Roast the spices first, then the onions…", url: "/p/pst_0123456789abcdef0123456789abcdef",
+    });
+    expect(renderPushMessage("kitchen.yum", { actorName: "Meera", postTitle: "Chicken curry", url }, "t")).toMatchObject({
+      body: "Meera said Yum to your Chicken curry",
+    });
+    expect(renderPushMessage("kitchen.cooked_yours", { actorName: "Dev", recipeName: "Chicken curry", size: "1 kg", url }, "t")).toMatchObject({
+      body: "Dev cooked your Chicken curry · 1 kg",
+    });
+    expect(renderPushMessage("kitchen.cooked_yours", { actorName: "Dev", recipeName: "Chicken curry", size: null, url: "" }, "t")).toMatchObject({
+      body: "Dev cooked your Chicken curry", url: "/community/activity",
+    });
   });
 
   it("stays one line and small, and links only into the app", () => {

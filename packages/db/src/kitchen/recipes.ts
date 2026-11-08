@@ -28,6 +28,7 @@
 // by every copy — is ONE read: the root walk and the times for the recipe's
 // step keys in the same statement, through kitchen_dish_step_times_root_idx.
 
+import { activityStatement } from "./activity-write.js";
 import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executor.js";
 import type { Uuid } from "../ids/index.js";
 import { isCheckViolation, isForeignKeyViolation, isUniqueViolation } from "../d1/errors.js";
@@ -375,6 +376,16 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
         { text: insertLines("$1", "$2"), params: [input.id, linesJson(input.lines)] },
         { text: insertSteps("$1", "$2"), params: [input.id, stepsJson(input.steps)] },
       ];
+      if (input.savedYours) {
+        // The source owner hears of a copy of their public recipe (CM-3), from someone with a profile.
+        statements.push(
+          activityStatement(
+            input.savedYours,
+            `EXISTS (SELECT 1 FROM kitchen_recipes src WHERE src.id = $7 AND src.deleted_at IS NULL AND src.visibility = 'link' AND src.listed = 1)
+             AND EXISTS (SELECT 1 FROM kitchen_profiles sp WHERE sp.user_id = $4)`,
+          ),
+        );
+      }
       try {
         await executeBatch(executor, statements);
       } catch (err) {

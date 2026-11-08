@@ -548,6 +548,12 @@ export async function handleCopyRecipe(ctx: RequestContext, request: Request): P
     const names = inPublic ? await profileNames(ctx, repo, [source]) : await ownerNames(ctx, [source]);
     if (!names) return unavailable(ctx.requestId);
     const ownerName = source.isSystem ? SYSTEM_RECIPE_OWNER_NAME : (names.get(source.ownerId) ?? null);
+    // A copy of someone's public recipe tells them (CM-3): `saved_yours` in the copy's own batch.
+    const me = ctx.actor.subjectId;
+    const savedYours =
+      !source.isSystem && source.ownerId !== me && source.visibility === "link" && source.listed
+        ? { id: crypto.randomUUID(), userId: source.ownerId, kind: "saved_yours" as const, actorId: me, recipeId: source.id, now: ctx.now() }
+        : null;
     // A copy is its own: owned by the saver, Only me, the same lines, steps (their keys too) and tools, and where it came from.
     const written = await writeRecipe(ctx, repo, {
       id: asUuid(crypto.randomUUID()),
@@ -562,6 +568,7 @@ export async function handleCopyRecipe(ctx: RequestContext, request: Request): P
       steps: source.guidedSteps.map((step) => keptStep(step)),
       tools: source.tools,
       now: ctx.now(),
+      savedYours,
     });
     if (!written.ok) return writeFailed(ctx, written);
     return recipeResponse(ctx, repo, written.value, 201);

@@ -195,9 +195,46 @@ export interface NotificationCategoryPreferences {
  *   kitchen.dish_posted   a dish to claim ("Egg fried rice is ready to claim")
  *   kitchen.paid_you      someone paid me ("Dev paid you ₹400.00 · UPI")
  */
-export const NOTIFICATION_KINDS = ["kitchen.portion_set", "kitchen.dish_posted", "kitchen.paid_you"] as const;
+export const NOTIFICATION_KINDS = [
+  "kitchen.portion_set",
+  "kitchen.dish_posted",
+  "kitchen.paid_you",
+  // The social kinds (Cookpool CM-3): push only — see PUSH_ONLY_KINDS.
+  "kitchen.followed",
+  "kitchen.follow_request",
+  "kitchen.commented",
+  "kitchen.yum",
+  "kitchen.cooked_yours",
+] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+/**
+ * The kinds whose email is never sent (Cookpool CM-3): someone followed you
+ * or asked to, commented, said Yum, or cooked your recipe. They are pushed
+ * to a person who turned them on (opt-in, like every kind); their enqueue is
+ * recorded as suppressed, so the email channel stays off whatever the
+ * preferences say.
+ *
+ *   kitchen.followed        "Sam started following you"
+ *   kitchen.follow_request  "Priya wants to follow you"
+ *   kitchen.commented       "Kabir commented: Roast the spices first…"
+ *   kitchen.yum             "Meera said Yum to your Chicken curry"
+ *   kitchen.cooked_yours    "Dev cooked your Chicken curry · 1 kg"
+ */
+export const PUSH_ONLY_KINDS = [
+  "kitchen.followed",
+  "kitchen.follow_request",
+  "kitchen.commented",
+  "kitchen.yum",
+  "kitchen.cooked_yours",
+] as const satisfies readonly NotificationKind[];
+
+export type PushOnlyKind = (typeof PUSH_ONLY_KINDS)[number];
+
+export function isPushOnlyKind(value: unknown): value is PushOnlyKind {
+  return typeof value === "string" && (PUSH_ONLY_KINDS as readonly string[]).includes(value);
+}
 
 export function isNotificationKind(value: unknown): value is NotificationKind {
   return typeof value === "string" && (NOTIFICATION_KINDS as readonly string[]).includes(value);
