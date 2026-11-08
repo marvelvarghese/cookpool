@@ -335,3 +335,31 @@ describe("Cookpool AI: daily limits (AI-2)", () => {
     w.close();
   });
 });
+
+describe("Cookpool AI: the runner takes an image (for AI-3's receipts)", () => {
+  it("sends a base64 image block beside text, unchanged, on both models", async () => {
+    const task: AiTask<{ image: string }, { total: number }> = {
+      feature: "receipt",
+      system: "Read the receipt.",
+      schema: { type: "object", properties: { total: { type: "number" } }, required: ["total"], additionalProperties: false },
+      maxTokens: 2000,
+      content: (input) => [
+        { type: "image", source: { type: "base64", media_type: "image/webp", data: input.image } },
+        { type: "text", text: "The receipt." },
+      ],
+      check: (answer) => {
+        const total = (answer as { total: number }).total;
+        return total > 0 ? { ok: true, value: { total } } : { ok: false, problems: ["no total"] };
+      },
+    };
+    const provider = stubProvider([answer({ total: 0 }), answer({ total: 412.5 }, { model: AI_RETRY_MODEL })]);
+    const result = await runAiTask(provider, task, { image: "UklGRgAAAABXRUJQ" });
+    expect(result).toMatchObject({ ok: true, data: { total: 412.5 }, model: AI_RETRY_MODEL, escalated: true });
+    for (const sent of provider.sent) {
+      expect(sent.messages[0]!.content).toEqual([
+        { type: "image", source: { type: "base64", media_type: "image/webp", data: "UklGRgAAAABXRUJQ" } },
+        { type: "text", text: "The receipt." },
+      ]);
+    }
+  });
+});
