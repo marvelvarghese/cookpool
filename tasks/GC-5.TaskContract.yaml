@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: GC-5
+  title: "Guided mode in the app"
+spec:
+  goal: "In the new frame, a recipe with steps cooks step by step: the prompt, Before you start, one step at a time with flame, chips, checkpoint and timer, waiting with Meanwhile and whistles, screen on, read aloud, swipe, server timers, and Done with each step's time before Who ate."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-guided/**
+    - tasks/GC-5.TaskContract.yaml
+  doneWhen:
+    - "the session offers Start step by step or Just tick what I use"
+    - "Before you start ticks gather, tools and prep and starts prep timers"
+    - "a step shows its flame, scaled chips, checkpoint, timer and learned range when present; Done moves on and swipe moves between steps"
+    - "a hands-off step's timer keeps running in the strip while later steps are open; whistles count"
+    - "server timers are created and cancelled with the session's timers"
+    - "Done shows each step's time and posts the stepLog through Who ate"
+  gates: []

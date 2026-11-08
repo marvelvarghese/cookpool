@@ -1,0 +1,26 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: GC-3
+  title: "Timers that find you, in the server"
+spec:
+  goal: "A cook can set, list and cancel timers; a per-minute cron pushes each due timer to the cook's devices through notifications-worker, once."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - specs/epics/cookpool-guided/**
+    - tasks/GC-3.TaskContract.yaml
+  doneWhen:
+    - "migration 380 adds kitchen_timers"
+    - "GET, POST and DELETE /v1/kitchen/me/timers work for the caller only"
+    - "a per-minute trigger pushes due unsent timers once and marks them sent; cancelled timers never push"
+    - "notifications-worker has an internal push-to-subject route reachable only over the service binding"
+  gates: []
