@@ -656,3 +656,31 @@ export {
   RESTOCK_REASONS,
   PURCHASE_MAX_LINES,
 } from "@saas/contracts/kitchen";
+
+// Ask before use (Cookpool PN-8).
+export type {
+  AskState,
+  AskSource,
+  AskItem,
+  KitchenAsk,
+  AskToUseRequest,
+  AskResponse,
+  ApproveAskRequest,
+  ApproveAskResponse,
+  AsksResponse,
+  AskInboxItem,
+  KitchenAskErrorReason,
+} from "@saas/contracts/kitchen";
+
+export {
+  ASK_STATES,
+  ASK_SOURCES,
+  ASK_LAPSE_HOURS,
+  ASK_LAPSE_MS,
+  ASK_MINE_HOURS,
+  ASKS_LIST_MAX,
+  ASK_ALLOWED_MAX,
+  KITCHEN_ASK_PUSH_KIND,
+  KITCHEN_ASK_ERROR_REASONS,
+  askPushUrl,
+} from "@saas/contracts/kitchen";

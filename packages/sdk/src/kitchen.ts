@@ -90,6 +90,8 @@ import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
 // Restocking and shopping runs (PN-3).
 import type { PurchaseLine, PurchaseResponse, RestockResponse, UndoPurchaseResponse } from "@saas/contracts/kitchen";
+// Ask before use (PN-8).
+import type { ApproveAskRequest, ApproveAskResponse, AskResponse, AsksResponse, AskToUseRequest } from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -390,7 +392,8 @@ export class KitchenClient {
    *
    * Its buyer, or an owner or admin (`ForbiddenError`, `reason:
    * "not_buyer"`). Quantity and price only while nothing has been used;
-   * `note` (RC-3) at any time.
+   * `note` (RC-3) at any time. `askFirst` and `allowed` (PN-8) are the
+   * buyer's alone while they are in the group, then an owner's or admin's.
    */
   updateGroupItem(
     orgId: string,
@@ -1129,6 +1132,74 @@ export class KitchenClient {
   undoPurchase(purchaseId: string, opts: RequestOptions = {}): Promise<UndoPurchaseResponse> {
     return this.transport.request<UndoPurchaseResponse>(
       { method: "DELETE", path: this.mePath(`purchases/${encodeURIComponent(purchaseId)}`) },
+      opts,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Ask before use (PN-8)
+  //
+  // On a group item whose buyer turned on `askFirst`, anyone else not in
+  // `allowed` asks (`item.mustAsk`); using it directly is a `ForbiddenError`
+  // with `reason: "ask_first"`. The answerer (`item.answerer`: the buyer, or
+  // an owner or admin once they have left) approves — posting the use as the
+  // asker would have, undone as that use is — declines, or reopens a
+  // declined ask; the asker cancels. A pending ask lapses after 24 hours, or
+  // when its item is finished or stops asking first (`ConflictError`,
+  // `reason: "lapsed"`); an answered one is `reason: "not_pending"`. POSTs
+  // take `opts.idempotencyKey`.
+  // -------------------------------------------------------------------------
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/items/:itemId/asks — ask for an
+   * amount (a unit or one of the item's measures) for `consumers` (default
+   * the caller). Nothing comes off the stock. `reason: "no_need"`
+   * (`ConflictError`) when the caller needn't ask: use it directly.
+   */
+  askToUse(orgId: string, itemId: string, body: AskToUseRequest, opts: RequestOptions = {}): Promise<AskResponse> {
+    return this.transport.request<AskResponse>(
+      { method: "POST", path: this.groupPath(orgId, `items/${encodeURIComponent(itemId)}/asks`), body },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/organizations/:orgId/kitchen/asks/:askId/approve — the answerer.
+   * `{ ask, item, move, txn }`; undo with `reverseTxn` (or `undoGroupMove`
+   * when `txn` is null), which puts the ask back to pending. Less left than
+   * asked is a `ConflictError` with `reason: "insufficient_stock"` unless
+   * `takeWhatsLeft`; `alwaysAllow` lets the asker skip asking from now on.
+   */
+  approveAsk(orgId: string, askId: string, body: ApproveAskRequest = {}, opts: RequestOptions = {}): Promise<ApproveAskResponse> {
+    return this.transport.request<ApproveAskResponse>(
+      { method: "POST", path: this.groupPath(orgId, `asks/${encodeURIComponent(askId)}/approve`), body },
+      opts,
+    );
+  }
+
+  /** POST /v1/organizations/:orgId/kitchen/asks/:askId/decline — the answerer; the asker hears no. */
+  declineAsk(orgId: string, askId: string, opts: RequestOptions = {}): Promise<AskResponse> {
+    return this.answerAsk(orgId, askId, "decline", opts);
+  }
+
+  /** POST /v1/organizations/:orgId/kitchen/asks/:askId/reopen — the answerer's Undo of a decline, inside the ask's 24 hours. */
+  reopenAsk(orgId: string, askId: string, opts: RequestOptions = {}): Promise<AskResponse> {
+    return this.answerAsk(orgId, askId, "reopen", opts);
+  }
+
+  /** POST /v1/organizations/:orgId/kitchen/asks/:askId/cancel — the asker's own (`ForbiddenError`, `reason: "not_creator"`, for anyone else). */
+  cancelAsk(orgId: string, askId: string, opts: RequestOptions = {}): Promise<AskResponse> {
+    return this.answerAsk(orgId, askId, "cancel", opts);
+  }
+
+  /** GET /v1/kitchen/me/asks — `{ toAnswer, mine }`: the pending asks the caller answers, and their own from the last 24 hours. */
+  asks(opts: RequestOptions = {}): Promise<AsksResponse> {
+    return this.transport.request<AsksResponse>({ method: "GET", path: this.mePath("asks") }, opts);
+  }
+
+  private answerAsk(orgId: string, askId: string, verb: "decline" | "reopen" | "cancel", opts: RequestOptions): Promise<AskResponse> {
+    return this.transport.request<AskResponse>(
+      { method: "POST", path: this.groupPath(orgId, `asks/${encodeURIComponent(askId)}/${verb}`), body: {} },
       opts,
     );
   }

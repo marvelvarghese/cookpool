@@ -80,9 +80,9 @@ describe("isKitchenTimerUrl", () => {
 });
 
 describe("a timer's push", () => {
-  it("is kitchen.timer, the one kind pushed to a subject — never a kind a preference turns off", () => {
+  it("is kitchen.timer, a kind pushed to a subject (beside an ask's, PN-8) — never a kind a preference turns off", () => {
     expect(KITCHEN_TIMER_PUSH_KIND).toBe("kitchen.timer");
-    expect(PUSH_TO_SUBJECT_KINDS).toEqual([KITCHEN_TIMER_PUSH_KIND]);
+    expect(PUSH_TO_SUBJECT_KINDS).toEqual([KITCHEN_TIMER_PUSH_KIND, "kitchen.ask"]);
     expect(isNotificationKind(KITCHEN_TIMER_PUSH_KIND)).toBe(false);
     expect(NOTIFICATION_KINDS as readonly string[]).not.toContain(KITCHEN_TIMER_PUSH_KIND);
   });

@@ -171,6 +171,25 @@ describe("the push", () => {
     ]);
   });
 
+  it("carries an ask's push (Cookpool PN-8) as it carries a timer's: its kind, the Home path with the ask, its tag", async () => {
+    const seen: PushMessage[] = [];
+    const push = async (_d: PushDeliveryDeps, _subjectId: string, message: PushMessage): Promise<PushSummary> => {
+      seen.push(message);
+      return { devices: 1, sent: 1, gone: 0, failed: 0 };
+    };
+    const { deps: d } = deps({ push });
+    const ask = {
+      kind: "kitchen.ask",
+      title: "Dev asks for 1 pinch of your saffron",
+      body: "For Dev and Anu · ₹12 to you",
+      url: "/home?ask=ask_00000000000040008000000000000001",
+      tag: "ask_00000000000040008000000000000001",
+    };
+    const res = await handlePushToSubject(post({ subjectId: ANU, message: ask }), env, "req_t", KITCHEN, d);
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([ask]);
+  });
+
   it("reaches every device of the subject with no push preference set — and no one else's", async () => {
     const service = pushService();
     const { subscriptions, deps: d } = deps({ fetch: service.fetch });

@@ -5,6 +5,7 @@
 // price all come from the kitchen engine.
 
 import {
+  ASK_ALLOWED_MAX,
   CURRENCY_CODE_RE,
   DEFAULT_KITCHEN_CURRENCY,
   DEFAULT_WASTE_POLICY,
@@ -351,7 +352,7 @@ export interface ParsedNewItem extends ParsedQuantity {
 }
 
 /** The most people an item may let use it without asking (PN-8). */
-export const MAX_ALLOWED = 100;
+export const MAX_ALLOWED = ASK_ALLOWED_MAX;
 
 /**
  * `askFirst` and `allowed` (PN-8): a group item's, as sent; on a personal
