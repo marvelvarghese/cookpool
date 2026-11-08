@@ -4,15 +4,19 @@ metadata:
   name: RC-7
   title: "Cookpool's recipes and the food list"
 spec:
-  goal: About 300 foods with their names in several languages and about 40 Cookpool recipes are seeded by migration 360, each recipe complete and every line linked to a food.
+  goal: "About 300 foods with their names in several languages and about 40 Cookpool recipes are seeded by migration 360, each recipe complete and every line linked to a food; foods carry a density so a spoon of a spice meets a pack weighed in grams."
   affects:
     - default/cookpool/db
     - default/cookpool/db-tests
     - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/kitchen-worker
     - default/cookpool/kitchen-worker-tests
     - specs/epics/cookpool-recipes/**
     - tasks/RC-7.TaskContract.yaml
   doneWhen:
-    - migration 360 seeds the foods, names and recipes under usr_cookpool
+    - migration 360 seeds the foods, names and recipes under usr_cookpool, and adds kitchen_foods.g_per_ml
+    - the match converts volume and mass through a food's g_per_ml, so 1 tsp turmeric meets a 100 g pack
     - a test checks every recipe has one main line, every line links to a food or is to taste, and every amount scales
   gates: []
