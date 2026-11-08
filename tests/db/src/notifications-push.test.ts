@@ -80,11 +80,13 @@ const SYSTEM = asUuid("00000000-0000-0000-0000-000000000000");
 describe("the push migrations", () => {
   it("are notifications' 310 and 320, right after 300", () => {
     const ids = manifest.migrations.map((m) => m.id);
-    expect(ids.slice(ids.indexOf("300_kitchen_measures") + 1)).toEqual([
+    const after = ids.indexOf("300_kitchen_measures") + 1;
+    // The two right after 300; later epics' migrations (330 onwards) follow them.
+    expect(ids.slice(after, after + 2)).toEqual([
       "310_notification_push_subscriptions",
       "320_notification_push_preferences",
     ]);
-    for (const id of ids.slice(-2)) expect(manifest.migrations.find((m) => m.id === id)!.context).toBe("notifications");
+    for (const id of ids.slice(after, after + 2)) expect(manifest.migrations.find((m) => m.id === id)!.context).toBe("notifications");
   });
 
   it("310 adds one table: a unique https endpoint per row, for one person, no org", () => {

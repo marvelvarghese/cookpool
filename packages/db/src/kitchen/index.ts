@@ -97,3 +97,24 @@ export type {
   NewKitchenMeasure,
   ReplaceMeasuresInput,
 } from "./types.js";
+
+// Foods and recipes (RC-4).
+export type {
+  KitchenFoodDimension,
+  KitchenFoodRecord,
+  KitchenFoodSearchRecord,
+  KitchenFoodAnswerRecord,
+  SetFoodAnswerInput,
+  SetFoodAnswerResult,
+  KitchenAlwaysHave,
+  KitchenFoodItemRecord,
+  KitchenRecipeVisibility,
+  KitchenRecipeLineRecord,
+  KitchenRecipeTemplateRecord,
+  KitchenRecipesScope,
+  KitchenListRecipesQuery,
+  NewKitchenRecipe,
+  UpdateKitchenRecipeInput,
+  KitchenRecipeLastCookRecord,
+} from "./types.js";
+export { KITCHEN_DEFAULT_ALWAYS_HAVE } from "./foods.js";

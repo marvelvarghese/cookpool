@@ -36,6 +36,7 @@ import { createLedgerRepository, pinGroupCurrencyStatement, splitsProblem, txnRe
 import { MOVE_COLUMNS, mapMove, newMoveId, restockStatements, reversalRecord } from "./moves.js";
 import { ITEM_COLUMNS, Params, createPantryRepository, insertItemStatement, mapItem, scopeClause } from "./pantry.js";
 import { takeStockStatements } from "./stock.js";
+import { linkFoodStatement } from "./food-link.js";
 import type { Uuid } from "../ids/index.js";
 import type {
   KitchenDishError,
@@ -73,7 +74,7 @@ export type DishesRepository = Pick<
 
 const DISH_COLUMNS = `d.id, d.cook, d.org_id, d.name, d.portions_half, d.extras_minor, d.ingredients_minor,
   d.total_minor, d.currency, d.split_mode, d.state, d.txn_id, d.leftover_item_id, d.cooked_at, d.finalized_at,
-  d.canceled_at, d.idem_key, d.created_at, d.updated_at, d.version`;
+  d.canceled_at, d.idem_key, d.created_at, d.updated_at, d.version, d.recipe_id, d.recipe_factor_milli`;
 
 type Row = Record<string, unknown>;
 
@@ -107,6 +108,8 @@ function mapDish(row: Row, ingredients: KitchenDishIngredientRecord[], shares: K
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
     version: Number(row.version),
+    recipeId: nullableString(row.recipe_id),
+    recipeFactorMilli: row.recipe_factor_milli === null || row.recipe_factor_milli === undefined ? null : Number(row.recipe_factor_milli),
     ingredients,
     shares,
   };
@@ -126,7 +129,8 @@ function mapShare(row: Row): KitchenDishShareRecord {
   };
 }
 
-function mapIngredient(row: Row): KitchenDishIngredientRecord {
+/** An ingredient row (with the item's name as `name`), as stored. */
+export function mapDishIngredient(row: Row): KitchenDishIngredientRecord {
   return {
     itemId: row.item_id as string,
     name: row.name as string,
@@ -138,6 +142,7 @@ function mapIngredient(row: Row): KitchenDishIngredientRecord {
     orgId: nullableString(row.org_id),
     paidBy: row.paid_by as string,
     useTxnId: nullableString(row.use_txn_id),
+    recipeLine: row.recipe_line === null || row.recipe_line === undefined ? null : Number(row.recipe_line),
   };
 }
 
@@ -256,7 +261,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
     if (dishIds.length === 0) return byDish;
     const result = await executor.execute(
       `SELECT di.dish_id, di.item_id, i.name, di.position, di.qty_milli, di.unit, di.label, di.cost_minor, di.org_id,
-              di.paid_by, di.use_txn_id
+              di.paid_by, di.use_txn_id, di.recipe_line
        FROM kitchen_dish_ingredients di JOIN kitchen_items i ON i.id = di.item_id
        WHERE di.dish_id IN (SELECT value FROM json_each($1))
        ORDER BY di.dish_id, di.position`,
@@ -265,7 +270,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
     for (const row of result.rows) {
       const dishId = row.dish_id as string;
       const list = byDish.get(dishId) ?? [];
-      list.push(mapIngredient(row));
+      list.push(mapDishIngredient(row));
       byDish.set(dishId, list);
     }
     return byDish;
@@ -356,18 +361,20 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
       statements.push({
         text: `INSERT INTO kitchen_dishes (
                  id, cook, org_id, name, portions_half, extras_minor, ingredients_minor, total_minor, currency,
-                 split_mode, state, cooked_at, idem_key, created_at, updated_at
+                 split_mode, state, cooked_at, idem_key, created_at, updated_at, recipe_id, recipe_factor_milli
                ) VALUES (
                  ${d.add(dish.id)}, ${d.add(dish.cook)}, ${d.add(dish.orgId)}, ${d.add(dish.name)},
                  ${d.add(dish.portionsHalf)}, ${d.add(dish.extrasMinor)}, ${d.add(ingredientsMinor)},
                  ${d.add(ingredientsMinor + dish.extrasMinor)}, ${currency}, ${d.add(dish.splitMode)},
-                 ${d.add(dish.state)}, ${d.add(dish.now)}, ${d.add(dish.idemKey)}, ${d.add(dish.now)}, ${d.add(dish.now)}
+                 ${d.add(dish.state)}, ${d.add(dish.now)}, ${d.add(dish.idemKey)}, ${d.add(dish.now)}, ${d.add(dish.now)},
+                 ${d.add(dish.recipeId ?? null)}, ${d.add(dish.recipeFactorMilli ?? null)}
                )`,
         params: d.values,
       });
 
-      // What the cook just bought is in their pantry before any of it is taken.
-      for (const item of newItems) statements.push(insertItemStatement(item));
+      // What the cook just bought is in their pantry before any of it is taken,
+      // linked to its food as any item added is (RC-4).
+      for (const item of newItems) statements.push(insertItemStatement(item), linkFoodStatement(item.id));
 
       ingredients.forEach((ingredient, position) => {
         const move: KitchenStockMoveRecord = {
@@ -391,8 +398,8 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
         statements.push(...takeStockStatements(ingredient.owner, ingredient.expectedVersion, move));
         statements.push({
           text: `INSERT INTO kitchen_dish_ingredients (
-                   dish_id, item_id, position, qty_milli, unit, label, cost_minor, org_id, paid_by, use_txn_id
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                   dish_id, item_id, position, qty_milli, unit, label, cost_minor, org_id, paid_by, use_txn_id, recipe_line
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
           params: [
             dish.id,
             ingredient.itemId,
@@ -404,6 +411,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
             ingredient.owner.kind === "group" ? ingredient.owner.orgId : null,
             ingredient.paidBy,
             ingredient.useTxnId,
+            ingredient.recipeLine ?? null,
           ],
         });
       });
