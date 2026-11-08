@@ -1,12 +1,14 @@
 // Push to a subject (Cookpool GC-3): one message to every device of one
-// person, for a push they asked for themselves — a timer they set.
+// person, for a push they asked for themselves — a timer they set — or an ask
+// on a group item that asks first, to its answerer and back to its asker
+// (Cookpool PN-8).
 //
 //   POST /v1/notifications/push-to-subject  { subjectId, message: { kind, title, body, url, tag } }
 //     → 200 { devices, sent, gone, failed, skipped? }
 //
 // Internal only, and narrower than the rest of this worker: the person is
 // named in the body, not pinned by the edge, so only a worker in
-// PUSH_TO_SUBJECT_INTERNAL_ACTORS (kitchen-worker's timer sweep) may call it —
+// PUSH_TO_SUBJECT_INTERNAL_ACTORS (kitchen-worker: its timer sweep, its ask routes) may call it —
 // any other caller, api-edge included, is 403 — and api-edge's notifications
 // facade does not list the path. There is no preference check: the kinds it
 // carries (PUSH_TO_SUBJECT_KINDS) are never ones a person turns off.

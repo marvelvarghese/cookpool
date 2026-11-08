@@ -464,6 +464,22 @@ export interface KitchenItem {
    * only so items typed before RC-3 still check.
    */
   note?: string | null;
+  /**
+   * Ask before use (PN-8, ./kitchen-asks.ts): its buyer asks to be asked
+   * first. Every group item carries it (false unless turned on); a personal
+   * item never asks and leaves it out.
+   */
+  askFirst?: boolean;
+  /** On an ask-first item: who never needs to ask (`usr_…`). */
+  allowed?: string[];
+  /** On an ask-first item: must the caller ask before using it? */
+  mustAsk?: boolean;
+  /**
+   * On an ask-first item: who answers asks and sets who may use it — its
+   * buyer while they are in the group; null once they have left (the group's
+   * owners and admins do).
+   */
+  answerer?: string | null;
 }
 
 /**
@@ -562,6 +578,13 @@ export interface CreatePersonalItemRequest {
 export interface CreateGroupItemRequest extends CreatePersonalItemRequest {
   paidBy?: string;
   wastePolicy?: WastePolicy | null;
+  /**
+   * Ask before use (PN-8): "Ask me first", only on an item the caller pays
+   * for (otherwise 422 on `askFirst`); `allowed` names who never needs to ask
+   * (members of the group: 422 `not_in_group`).
+   */
+  askFirst?: boolean;
+  allowed?: string[];
 }
 
 /**
@@ -591,6 +614,14 @@ export interface UpdatePersonalItemRequest {
  */
 export interface UpdateGroupItemRequest extends UpdatePersonalItemRequest {
   wastePolicy?: WastePolicy | null;
+  /**
+   * Ask before use (PN-8): only the item's answerer — its buyer, or an owner
+   * or admin once the buyer has left the group (403 `not_buyer`). `allowed`
+   * replaces who never needs to ask (members: 422 `not_in_group`). A
+   * personal item refuses both (422).
+   */
+  askFirst?: boolean;
+  allowed?: string[];
 }
 
 /**
@@ -980,6 +1011,7 @@ export interface UsualsResponse {
 }
 
 export type { UsualBucket, UsualNow } from "./kitchen-usuals.js";
+import type { AskInboxItem } from "./kitchen-asks.js";
 
 // ── Your measures (SM-13) ───────────────────────────────────
 //
@@ -2034,6 +2066,13 @@ export type InboxCounts = { total: number } & Record<InboxKind, number>;
 export interface InboxResponse {
   items: InboxItem[];
   counts: InboxCounts;
+  /**
+   * Ask before use (PN-8): the pending asks the caller answers, oldest first,
+   * for the top of To do. Its own list rather than an `items` kind, so a
+   * console that switches over every kind still reads this answer; `counts`
+   * leaves them out. Every answer carries it.
+   */
+  asks?: AskInboxItem[];
 }
 
 // ── A person's balance, service-internal (CP-19) ────────────
@@ -2081,3 +2120,7 @@ export * from "./kitchen-restock.js";
 // The stock check (cookpool-pantry PN-4): setting what is really left of an
 // item — ./kitchen-stock-check.ts (also through `@saas/contracts/kitchen`).
 export * from "./kitchen-stock-check.js";
+
+// Ask before use (cookpool-pantry PN-8): a group item its buyer guards, asks
+// and their answers — ./kitchen-asks.ts (also through `@saas/contracts/kitchen`).
+export * from "./kitchen-asks.js";

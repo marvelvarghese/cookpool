@@ -4,9 +4,10 @@ import {
   type StockCheckGone,
 } from "@saas/contracts/kitchen";
 import { asUuid, type Uuid } from "@saas/db/ids";
-import type { AdjustStockInput, KitchenItemRecord, KitchenPantryOwner } from "@saas/db/kitchen";
+import type { AdjustStockInput, KitchenItemRecord, KitchenPantryOwner, KitchenRepository } from "@saas/db/kitchen";
 import type { AppendEventWithAuditInput } from "@saas/db/events";
 import { formatQuantity, isUnit, UNITS, type UnitKey } from "@saas/kitchen-engine/units";
+import { askFirstRefusal } from "../asks.js";
 import { requireGroupAction } from "../authz.js";
 import type { OrgContext, RequestContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
@@ -161,14 +162,21 @@ function planAdjust(
 }
 
 /**
- * PN-8's seam (ask before use, design §8.2): on an ask-first item, the
- * check's `me` and `split` are the buyer's and admins' only — anyone else is
- * refused here with `details.reason: "ask_first"`, before anything is
- * planned. Until PN-8 adds ask-first items, whoever may use an item may
- * check it.
+ * Ask before use (PN-8, design §8.2): on an ask-first item, the check's `me`
+ * and `split` are refused with `details.reason: "ask_first"` to whoever must
+ * ask — before anything is planned. The buyer, the people they allowed, and
+ * the group's owners and admins (who may always check one) are not refused.
+ * Raising the level and `waste` stay open to anyone who may use the item: a
+ * gap the buyer finds is theirs to split (risks PN-E).
  */
-function groupCheckRefusal(_ctx: OrgContext, _item: KitchenItemRecord, _gone: StockCheckGone | null): Response | null {
-  return null;
+async function groupCheckRefusal(
+  ctx: OrgContext,
+  repo: KitchenRepository,
+  item: KitchenItemRecord,
+  gone: StockCheckGone | null,
+): Promise<Response | null> {
+  if (gone !== "me" && gone !== "split") return null;
+  return askFirstRefusal(ctx, repo, item, { managers: true });
 }
 
 // ── The routes ─────────────────────────────────────────────
@@ -230,7 +238,7 @@ export async function handleCheckGroupItem(ctx: OrgContext, request: Request, pa
       async (item): Promise<StockWrite | Response> => {
         const diff = differenceOf(ctx.requestId, item, check);
         if (diff instanceof Response) return diff;
-        const refused = groupCheckRefusal(ctx, item, diff.kind === "less" ? diff.gone : null);
+        const refused = await groupCheckRefusal(ctx, repo, item, diff.kind === "less" ? diff.gone : null);
         if (refused) return refused;
 
         if (diff.kind === "more") {

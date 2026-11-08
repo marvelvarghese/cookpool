@@ -130,4 +130,4 @@ spec:
 # ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
 # ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
 # ci: re-trigger deploy (verify orun-secrets brokered CLOUDFLARE_API_TOKEN resolve in worker deploy lane, 20260727T153639Z)
-# orun: redeploy SM-3 bind the Asia-Pacific database, Smart Placement 2026-11-04T07:56:11Z
+# orun: redeploy PN-8 accept the kitchen.ask push to a subject 2026-11-08T12:29:48Z

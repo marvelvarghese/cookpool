@@ -131,6 +131,11 @@ export async function handleCreatePurchase(ctx: RequestContext, request: Request
     if (!settings.ok || !from.ok) return unavailable(ctx.requestId);
     const currencies = new Map(settings.value.map((s) => [s.orgId, s.currency]));
     const fromById = new Map(from.value.map((r) => [r.id, r]));
+    // Who may use an ask-first item a line buys again without asking (PN-8): one read, only when one asks first.
+    const guarded = from.value.filter((r) => r.askFirst === true).map((r) => r.id);
+    const allowedRows = await ctx.timings.measure("db", () => kitchen.listAllowed(guarded));
+    if (!allowedRows.ok) return unavailable(ctx.requestId);
+    const allowedOf = (itemId: string) => allowedRows.value.filter((r) => r.itemId === itemId).map((r) => r.memberId);
 
     const missing: Record<string, string[]> = {};
     for (const line of lines) {
@@ -152,7 +157,11 @@ export async function handleCreatePurchase(ctx: RequestContext, request: Request
     const now = ctx.now();
     const today = isoDay(now);
     const items: NewKitchenItem[] = lines.map((line) => {
-      const inherited = inheritedSettings(line, line.fromItemId ? fromById.get(line.fromItemId)! : null);
+      const inherited = inheritedSettings(
+        line,
+        line.fromItemId ? fromById.get(line.fromItemId)! : null,
+        line.fromItemId ? allowedOf(line.fromItemId) : [],
+      );
       return {
         id: asUuid(crypto.randomUUID()),
         owner: ownerOf(ctx, line),
@@ -167,6 +176,8 @@ export async function handleCreatePurchase(ctx: RequestContext, request: Request
         boughtOn: today,
         expiresOn: line.item.expiresOn,
         wastePolicy: inherited.wastePolicy,
+        askFirst: inherited.askFirst,
+        allowed: inherited.allowed,
         createdBy: me,
         idemKey: `${idem.key}${LINE_KEY_SEPARATOR}${line.index}`,
         now,

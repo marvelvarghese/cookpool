@@ -9,10 +9,12 @@ import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";
 import { idempotencyKeyReused, ledgerAudit, postedTxnResponse, toKitchenFlag } from "../ledger.js";
 import { Fields, text } from "../validate.js";
+import { approvedBy } from "./uses.js";
 
 // One transaction of the group's ledger:
 //
-// POST …/kitchen/txns/{txn}/reverse   its creator, or kitchen.txn.reverse_any (owner, admin)
+// POST …/kitchen/txns/{txn}/reverse   its creator, or kitchen.txn.reverse_any (owner, admin) — and,
+//                                     for a use an approved ask posted (PN-8), whoever approved it
 //   Posts a `reversal` whose splits swap the original's paid and owed, so the
 //   two cancel to the paisa. A transaction is reversed once: the second try is
 //   409 `already_reversed`. Corrections are always reversals; nothing in the
@@ -50,7 +52,11 @@ export async function handleReverseTxn(ctx: OrgContext, request: Request, params
     const original = found.value;
 
     const actor = ctx.actor.subjectId;
-    if (original.createdBy !== actor && !(await groupAllows(ctx, "kitchen.txn.reverse_any"))) {
+    // A use an approved ask posted (PN-8) is the asker's: whoever approved it may reverse it too.
+    const approver = async () =>
+      original.kind === "use" && original.sourceKind === "item" && original.sourceId !== null &&
+      (await approvedBy(ctx, repo, { itemId: original.sourceId, txnId: original.id }, actor));
+    if (original.createdBy !== actor && !(await approver()) && !(await groupAllows(ctx, "kitchen.txn.reverse_any"))) {
       return forbidden(
         ctx.requestId,
         "Only whoever logged a transaction, or an owner or admin, can reverse it",

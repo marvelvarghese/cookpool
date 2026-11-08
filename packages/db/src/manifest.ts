@@ -381,5 +381,14 @@ export const manifest: MigrationManifest = {
       description:
         "What wrote a stock move: a nullable kitchen_stock_moves.via, CHECK in ('check', 'ask') — check on every use, waste and adjust a stock check writes (PN-4), ask reserved for the use an approved ask posts (PN-8); NULL for every move logged directly, every reversal, and every move written before (Cookpool PN-4)",
     },
+    {
+      id: "420_kitchen_asks",
+      context: "kitchen",
+      path: "420_kitchen_asks/up.sql",
+      checksum:
+        "5ddba43ea6bc22992b99c04d2ef8bbe8d029dad0b6ac0acfaf557ab020976c1c",
+      description:
+        "Ask before use: kitchen_items.ask_first (0 or 1, default 0 — the buyer of a group item asks to be asked first); kitchen_item_allowed (item_id, member_id, created_at; primary key item and member — who never needs to ask); and kitchen_asks (ask_ id, org_id, item_id, asker_id, qty_milli, unit, the measure's label, consumers as a JSON array, weights or NULL, source pantry or cook, state pending/approved/declined/canceled, created_at, expires_at 24 h on, answered_at and answered_by, the move_id and txn_id an approval posted, granted when it also let the asker, and an idem_key unique per item), indexed by item and state and by asker and time. Lapsing is read-side (Cookpool PN-8)",
+    },
   ],
 };

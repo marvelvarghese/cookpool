@@ -15,7 +15,8 @@ export type KitchenIdPrefix =
   | "msr" // a measure an item's name is counted in (SM-13)
   | "rcp" // a recipe (RC-4)
   | "tmr" // a timer (GC-3)
-  | "pur"; // a shopping run's purchase (PN-3)
+  | "pur" // a shopping run's purchase (PN-3)
+  | "ask"; // an ask to use an ask-first item (PN-8)
 
 export function generateRequestId(): string {
   const buf = new Uint8Array(12);

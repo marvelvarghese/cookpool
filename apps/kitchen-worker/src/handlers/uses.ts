@@ -57,6 +57,7 @@ import {
   useAmount,
 } from "../stock.js";
 import { Fields } from "../validate.js";
+import { askFirstRefusal, itemAskFields, readAskRules } from "../asks.js";
 import { thisGroup } from "./group-items.js";
 
 // Using a group's items, /v1/organizations/{org}/kitchen/…
@@ -76,6 +77,10 @@ import { thisGroup } from "./group-items.js";
 // buyer absorbs records the move only. A move with a transaction is undone by
 // reversing it (…/txns/{txn}/reverse puts the stock back); …/moves/{mov}/undo
 // puts back a move that moved no money.
+//
+// An ask-first item (PN-8) refuses the use and waste routes, 403 `ask_first`,
+// to anyone who must ask (./asks.ts); its answerer may undo the use an
+// approval posted, as its logger may.
 
 function owner(ctx: OrgContext): KitchenPantryOwner {
   return { kind: "group", orgId: ctx.orgId };
@@ -91,10 +96,33 @@ function toSplits(splits: readonly Split[]): KitchenSplit[] {
 }
 
 /**
- * 201 with the item as it is now (in this group's pantry, with its measures —
- * `known` when the write read them already, else read here), the move and its
- * transaction. The stock check (PN-4) answers with it too.
+ * The item as it is now (in this group's pantry, with its measures — `known`
+ * when the write read them already, else read here — and, when it asks
+ * first, its rule for the caller, PN-8), the move and its transaction. Null
+ * on a failed read.
  */
+export async function movedData(
+  ctx: OrgContext,
+  repo: KitchenRepository,
+  group: MemberGroup,
+  settings: KitchenGroupSettings | null,
+  result: StockMoved,
+  known: MeasureBook | null = null,
+): Promise<StockMoveResponse | null> {
+  const [measures, rules] = await Promise.all([
+    known ?? readMeasures(ctx, repo, [result.item]),
+    readAskRules(ctx, repo, [result.item]),
+  ]);
+  if (!measures || !rules) return null;
+  const ask = itemAskFields(result.item, rules(result.item), ctx.actor.subjectId, group.role);
+  return {
+    item: toKitchenItem(result.item, groupPantryRef(group), wastePolicyOf(settings), isoDay(ctx.now()), measures(result.item), ask),
+    move: toStockMove(result.move, result.item),
+    txn: result.txn ? toKitchenTxn(result.txn) : null,
+  };
+}
+
+/** 201 with movedData: the stock routes', the stock check's (PN-4) and an approval's (PN-8) answer. */
 export async function moved(
   ctx: OrgContext,
   repo: KitchenRepository,
@@ -103,17 +131,8 @@ export async function moved(
   result: StockMoved,
   known: MeasureBook | null = null,
 ): Promise<Response> {
-  const measures = known ?? (await readMeasures(ctx, repo, [result.item]));
-  if (!measures) return unavailable(ctx.requestId);
-  return successResponse<StockMoveResponse>(
-    {
-      item: toKitchenItem(result.item, groupPantryRef(group), wastePolicyOf(settings), isoDay(ctx.now()), measures(result.item)),
-      move: toStockMove(result.move, result.item),
-      txn: result.txn ? toKitchenTxn(result.txn) : null,
-    },
-    ctx.requestId,
-    201,
-  );
+  const data = await movedData(ctx, repo, group, settings, result, known);
+  return data ? successResponse<StockMoveResponse>(data, ctx.requestId, 201) : unavailable(ctx.requestId);
 }
 
 /** A use to write, from the item as just read: how much, in which unit and words, and who had it. */
@@ -207,6 +226,24 @@ export function planGroupUse(ctx: OrgContext, item: KitchenItemRecord, use: Grou
       },
     }),
   };
+}
+
+/**
+ * Did `actor` approve the ask whose use this is (PN-8)? The use is the
+ * asker's, so its answerer may undo it too, as its logger may. False on a
+ * failed read.
+ */
+export async function approvedBy(
+  ctx: OrgContext,
+  repo: KitchenRepository,
+  of: { itemId: string; moveId?: string; txnId?: string; via?: KitchenStockMoveVia | null },
+  actor: string,
+): Promise<boolean> {
+  if (of.via !== undefined && of.via !== "ask") return false;
+  const found = await ctx.timings.measure("db", () =>
+    repo.findApproval({ itemId: of.itemId, ...(of.moveId ? { moveId: of.moveId } : {}), ...(of.txnId ? { txnId: of.txnId } : {}) }),
+  );
+  return found.ok && found.value !== null && found.value.answeredBy === actor;
 }
 
 /** Waste to write, from the item as just read. */
@@ -348,6 +385,9 @@ export async function handleUseGroupItem(ctx: OrgContext, request: Request, para
     // takes; the answer then shows the same ones.
     let measures: MeasureBook | null = null;
     const result = await takeStock(ctx, repo, { owner: owner(ctx), itemId, kind: "use", idemKey: idem.key }, async (item) => {
+      // Someone who must ask first (PN-8) asks instead.
+      const refused = await askFirstRefusal(ctx, repo, item);
+      if (refused) return refused;
       const qty = await useAmount(ctx.requestId, item, use, async () => (measures = await readMeasures(ctx, repo, [item])));
       if (qty instanceof Response) return qty;
       return planGroupUse(ctx, item, { ...qty, consumers, weights: use.weights, idemKey: idem.key });
@@ -379,6 +419,8 @@ export async function handleWasteGroupItem(ctx: OrgContext, request: Request, pa
     if (!settings.ok) return unavailable(ctx.requestId);
 
     const result = await takeStock(ctx, repo, { owner: owner(ctx), itemId, kind: "waste", idemKey: idem.key }, async (item) => {
+      const refused = await askFirstRefusal(ctx, repo, item);
+      if (refused) return refused;
       let qtyMilli = item.qtyLeftMilli;
       let unit = item.displayUnit;
       if (waste.quantity !== null) {
@@ -431,7 +473,7 @@ export async function handleUndoGroupMove(ctx: OrgContext, request: Request, par
       moveId,
       idemKey: idem.key,
       async authorize(move) {
-        if (move.actor === actor || (await groupAllows(ctx, "kitchen.txn.reverse_any"))) return null;
+        if (move.actor === actor || (await approvedBy(ctx, repo, { itemId: move.itemId, moveId: move.id, via: move.via }, actor)) || (await groupAllows(ctx, "kitchen.txn.reverse_any"))) return null;
         return forbidden(
           ctx.requestId,
           "Only whoever logged it, or an owner or admin, can undo it",

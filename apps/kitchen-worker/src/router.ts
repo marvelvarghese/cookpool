@@ -84,6 +84,15 @@ import { handleRestock } from "./handlers/restock.js";
 
 // The stock check (PN-4).
 import { handleCheckGroupItem, handleCheckMyItem } from "./handlers/stock-check.js";
+// Ask before use (PN-8).
+import {
+  handleApproveAsk,
+  handleAskToUse,
+  handleCancelAsk,
+  handleDeclineAsk,
+  handleMyAsks,
+  handleReopenAsk,
+} from "./handlers/asks.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -245,6 +254,32 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     name: "kitchen.dish.portion",
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/dishes\/([^/]+)\/claims\/([^/]+)$/,
     methods: { PUT: handleSetPortion },
+  },
+  // Ask before use (PN-8): ask for an ask-first item, and its answers.
+  {
+    name: "kitchen.item.asks",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/items\/([^/]+)\/asks$/,
+    methods: { POST: handleAskToUse },
+  },
+  {
+    name: "kitchen.ask.approve",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/asks\/([^/]+)\/approve$/,
+    methods: { POST: handleApproveAsk },
+  },
+  {
+    name: "kitchen.ask.decline",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/asks\/([^/]+)\/decline$/,
+    methods: { POST: handleDeclineAsk },
+  },
+  {
+    name: "kitchen.ask.reopen",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/asks\/([^/]+)\/reopen$/,
+    methods: { POST: handleReopenAsk },
+  },
+  {
+    name: "kitchen.ask.cancel",
+    pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/asks\/([^/]+)\/cancel$/,
+    methods: { POST: handleCancelAsk },
   },
 ];
 
@@ -470,6 +505,12 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.purchase",
     pattern: /^\/v1\/kitchen\/me\/purchases\/([^/]+)$/,
     methods: { DELETE: handleUndoPurchase },
+  },
+  // Ask before use (PN-8): the asks the caller answers, and their own.
+  {
+    name: "kitchen.me.asks",
+    pattern: /^\/v1\/kitchen\/me\/asks$/,
+    methods: { GET: handleMyAsks },
   },
 ];
 

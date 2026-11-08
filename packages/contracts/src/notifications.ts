@@ -418,13 +418,15 @@ export const PUSH_MESSAGE_MAX_BYTES = 3072;
 // POST /v1/notifications/push-to-subject `{ subjectId, message }` pushes one
 // message to every device of `subjectId`, with no preference check: it is for
 // pushes the person asked for themselves — a timer they set (kitchen-worker's
-// per-minute sweep). The person is named in the body, so the route is
-// reachable only over a service binding, from a worker in
+// per-minute sweep) — and for an ask they must answer or one they made, on a
+// group item whose buyer turned on "Ask me first" (Cookpool PN-8). The person
+// is named in the body, so the route is reachable only over a service
+// binding, from a worker in
 // PUSH_TO_SUBJECT_INTERNAL_ACTORS: api-edge's notifications facade does not
 // list it, and notifications-worker refuses any other caller (403).
 
 /** The kinds a push to a subject may carry: never one of the preference kinds. */
-export const PUSH_TO_SUBJECT_KINDS = ["kitchen.timer"] as const;
+export const PUSH_TO_SUBJECT_KINDS = ["kitchen.timer", "kitchen.ask"] as const;
 export type PushToSubjectKind = (typeof PUSH_TO_SUBJECT_KINDS)[number];
 
 /** The only callers notifications-worker takes a push to a subject from. */

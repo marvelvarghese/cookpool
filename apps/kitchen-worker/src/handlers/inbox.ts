@@ -31,6 +31,7 @@ import {
 } from "../inbox.js";
 import { toEngineTxns } from "../ledger.js";
 import { addDays, isoDay } from "../pantry.js";
+import { readMyAsks } from "./asks.js";
 
 // GET /v1/kitchen/me/inbox — Home's inbox (CP-19): dishes to claim or
 // finalize, items to use soon, payments the caller owes and open flags on
@@ -53,6 +54,10 @@ import { addDays, isoDay } from "../pantry.js";
 // 10 + one per group, side by side; then one identity lookup per 100 people
 // for names. Server-Timing phases: groups, dishes, items, ledger, flags,
 // identity.
+//
+// Ask before use (PN-8): the pending asks the caller answers ride in `asks`,
+// for the top of To do — one more statement beside the rest (and the roster
+// of a group where an owner or admin answers for a buyer who has left).
 
 const DAY_MS = 86_400_000;
 
@@ -69,7 +74,7 @@ export async function handleInbox(ctx: RequestContext): Promise<Response> {
   const today = isoDay(now);
 
   return withKitchenRepo(ctx, async (repo) => {
-    const [[open, drafts], [soon, usuals], [settings, ledgers], flags] = await Promise.all([
+    const [[open, drafts], [soon, usuals], [settings, ledgers], flags, asks] = await Promise.all([
       ctx.timings.measure("dishes", () =>
         Promise.all([
           // The caller's own open dishes, and those open for claims where they may claim.
@@ -106,10 +111,12 @@ export async function handleInbox(ctx: RequestContext): Promise<Response> {
       ctx.timings.measure("flags", () =>
         repo.listOpenFlagsOnTxnsBy({ createdBy: me, orgIds: groups.map((g) => g.orgId), limit: INBOX_FLAGS_LIMIT }),
       ),
+      // The asks the caller answers (PN-8), for the top of To do.
+      readMyAsks(ctx, repo, groups, { mine: false }),
     ]);
     // A list that silently left something out would be wrong: any failed read is a 503.
     if (!open.ok || !drafts.ok || !soon.ok || !usuals.ok || !settings.ok || !flags.ok) return unavailable(ctx.requestId);
-    if (ledgers.some((l) => !l.ok)) return unavailable(ctx.requestId);
+    if (ledgers.some((l) => !l.ok) || !asks) return unavailable(ctx.requestId);
 
     const claims = open.value.dishes.filter((d) => isClaimable(d, me, claimGroups));
     const mine = [...open.value.dishes, ...drafts.value.dishes].filter((d) => isFinalizable(d, me, byOrg));
@@ -148,6 +155,9 @@ export async function handleInbox(ctx: RequestContext): Promise<Response> {
     ];
 
     const ordered = inOrder(items, today);
-    return successResponse<InboxResponse>({ items: ordered, counts: countsOf(ordered) }, ctx.requestId);
+    return successResponse<InboxResponse>(
+      { items: ordered, counts: countsOf(ordered), asks: asks.toAnswer.map((ask) => ({ kind: "ask", ask })) },
+      ctx.requestId,
+    );
   });
 }

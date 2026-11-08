@@ -51,7 +51,7 @@ export type PantryRepository = Pick<
 
 export const ITEM_COLUMNS = `id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
   qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by, bought_on,
-  expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key, created_at, updated_at, note`;
+  expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key, created_at, updated_at, note, ask_first`;
 
 /** ITEM_COLUMNS of the table aliased `alias`, for a join (the row keys stay the bare column names). */
 export function itemColumns(alias: string): string {
@@ -94,6 +94,8 @@ export function mapItem(row: Row): KitchenItemRecord {
     wastePolicy: nullableString(row.waste_policy) as KitchenWastePolicy | null,
     sourceDishId: nullableString(row.source_dish_id),
     note: nullableString(row.note),
+    // Ask before use (PN-8, migration 420): 1 when its buyer asks to be asked first.
+    askFirst: Number(row.ask_first ?? 0) === 1,
     state: row.state as KitchenItemState,
     version: Number(row.version),
     createdBy: row.created_by as string,
@@ -159,12 +161,14 @@ export function insertItemStatement(item: NewKitchenItem): SqlStatement {
   // A shopping run's items (PN-3, migration 400) name their purchase; an item
   // added on its own leaves the column out, so its insert is as it was.
   const purchase = item.purchaseId ? { column: ", purchase_id", value: `, ${params.add(item.purchaseId)}` } : { column: "", value: "" };
+  // An ask-first item (PN-8, migration 420) says so; any other leaves the column to its default.
+  const ask = item.askFirst ? { column: ", ask_first", value: ", 1" } : { column: "", value: "" };
   return {
     text: `INSERT INTO kitchen_items (
              id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
              qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by,
              bought_on, expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key,
-             created_at, updated_at, note${purchase.column}
+             created_at, updated_at, note${purchase.column}${ask.column}
            ) VALUES (
              ${params.add(item.id)}, ${params.add(owner.kind)},
              ${params.add(owner.kind === "user" ? owner.subjectId : null)},
@@ -174,11 +178,23 @@ export function insertItemStatement(item: NewKitchenItem): SqlStatement {
              ${params.add(item.priceMinor)}, 0, ${currency}, ${params.add(item.paidBy)},
              ${params.add(item.boughtOn)}, ${params.add(item.expiresOn)}, ${params.add(item.wastePolicy)},
              ${params.add(item.sourceDishId ?? null)}, 'active', 1, ${params.add(item.createdBy)}, ${params.add(item.idemKey)},
-             ${params.add(item.now)}, ${params.add(item.now)}, ${params.add(item.note ?? null)}${purchase.value}
+             ${params.add(item.now)}, ${params.add(item.now)}, ${params.add(item.note ?? null)}${purchase.value}${ask.value}
            )
            RETURNING ${ITEM_COLUMNS}`,
     params: params.values,
   };
+}
+
+/**
+ * The members a new ask-first item lets use it without asking (PN-8,
+ * migration 420): one insert each, after the item's own in its batch. None
+ * for an item that names nobody.
+ */
+export function allowedStatements(item: Pick<NewKitchenItem, "id" | "allowed" | "now">): SqlStatement[] {
+  return [...new Set(item.allowed ?? [])].map((memberId) => ({
+    text: "INSERT INTO kitchen_item_allowed (item_id, member_id, created_at) VALUES ($1, $2, $3)",
+    params: [item.id, memberId, item.now],
+  }));
 }
 
 // ── Repository functions ───────────────────────────────────
@@ -228,7 +244,7 @@ export function createPantryRepository(executor: SqlExecutor): PantryRepository 
       if (owner.kind === "group") statements.push(pinGroupCurrencyStatement(owner.orgId, item.currency, item.now));
       const insertAt = statements.length;
       // Linked to its food in the same batch when exactly one matches its name (RC-4).
-      statements.push(insert, linkFoodStatement(item.id));
+      statements.push(insert, linkFoodStatement(item.id), ...allowedStatements(item));
       if (audit) statements.push(...eventWithAuditStatements(audit));
 
       try {
@@ -279,6 +295,7 @@ export function createPantryRepository(executor: SqlExecutor): PantryRepository 
       if (changes.expiresOn !== undefined) sets.push(`expires_on = ${params.add(changes.expiresOn)}`);
       if (changes.wastePolicy !== undefined) sets.push(`waste_policy = ${params.add(changes.wastePolicy)}`);
       if (changes.note !== undefined) sets.push(`note = ${params.add(changes.note)}`);
+      if (changes.askFirst !== undefined) sets.push(`ask_first = ${params.add(changes.askFirst ? 1 : 0)}`);
       if (changes.quantity !== undefined) {
         const qty = params.add(changes.quantity.qtyMilli);
         sets.push(

@@ -32,6 +32,7 @@ import {
 } from "./moves.js";
 import { ITEM_COLUMNS, Params, createPantryRepository, mapItem, ownerClause } from "./pantry.js";
 import { readUsuals } from "./usuals.js";
+import { askUndoneStatements } from "./ask-undo.js";
 import type { Uuid } from "../ids/index.js";
 import type {
   KitchenItemRecord,
@@ -422,6 +423,8 @@ export function createStockRepository(executor: SqlExecutor): StockRepository {
         move.kind === "adjust"
           ? unadjustStatements(move, record, ITEM_COLUMNS, expectedVersion)
           : restockStatements(move, record, ITEM_COLUMNS, expectedVersion);
+      // An approved ask's use (PN-8): its answer is undone with it.
+      statements.push(...askUndoneStatements(move, reversal.actor, reversal.now));
       if (audit) statements.push(...eventWithAuditStatements(audit));
 
       try {

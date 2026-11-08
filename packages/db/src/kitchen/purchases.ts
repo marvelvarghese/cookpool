@@ -28,7 +28,7 @@ import { eventWithAuditStatements } from "../events/repository.js";
 import type { AppendEventWithAuditInput } from "../events/types.js";
 import { linkFoodStatement } from "./food-link.js";
 import { pinGroupCurrencyStatement } from "./ledger.js";
-import { ITEM_COLUMNS, Params, insertItemStatement, mapItem, ownerClause, scopeClause } from "./pantry.js";
+import { ITEM_COLUMNS, Params, allowedStatements, insertItemStatement, mapItem, ownerClause, scopeClause } from "./pantry.js";
 import type { KitchenItemRecord, KitchenItemState, KitchenPantryOwner, KitchenPantryScope, KitchenResult, NewKitchenItem } from "./types.js";
 
 // ── Restock ────────────────────────────────────────────────
@@ -269,7 +269,8 @@ export function createPurchasesRepository(executor: SqlExecutor): PurchasesRepos
           statements.push(pinGroupCurrencyStatement(item.owner.orgId, item.currency, item.now));
         }
         insertAt.push(statements.length);
-        statements.push(insertItemStatement(item), linkFoodStatement(item.id));
+        // A line from an ask-first item keeps who may use it without asking (PN-8).
+        statements.push(insertItemStatement(item), linkFoodStatement(item.id), ...allowedStatements(item));
       }
       for (const audit of audits) statements.push(...eventWithAuditStatements(audit));
 
