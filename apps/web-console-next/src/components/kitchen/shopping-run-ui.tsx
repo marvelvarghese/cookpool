@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Check, Lock, Minus, Plus, X } from "lucide-react";
+import { Check, Lock, Plus, X } from "lucide-react";
 import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { useBack } from "./back-ui";
 import { useMyRoles } from "./people-data";
 import { usePantries } from "./pantry-data";
-import { orderPantries, pantryChipLabel, pantryKey } from "./pantry";
+import { orderPantries, pantryKey } from "./pantry";
 import { localIsoDay } from "./item-form";
 import { useRestock, useShoppingRun } from "./restock-data";
 import {
@@ -30,6 +30,11 @@ import {
   type RunPicks,
   type TickedLine,
 } from "./shopping-run";
+import { RunLineEditor } from "./run-line-editor-ui";
+import { readingText, receiptCard, receiptRun, receiptStartPicks, type ReceiptState } from "./receipt-run";
+import { ReceiptCapture, ReceiptProblem, ReceiptReading, ScanReceiptButton } from "./receipt-scan-ui";
+import { ReceiptHeading, ReceiptResult } from "./receipt-run-ui";
+import { useReceiptScan } from "./receipt-scan-flow";
 
 /**
  * The shopping run (cookpool-pantry PN-6, design §6.3, the canvas's
@@ -41,6 +46,11 @@ import {
  * item. The footer — "Paid by you · each goes to its own pantry" and
  * **Add 3 · ₹449** — writes them in one purchase, with one Undo. Nothing is
  * ticked to start with.
+ *
+ * Scan a receipt (cookpool-ai AI-8; new frame, AI available, the device's
+ * switch on) sits at the top: the camera, then the photo being read, then
+ * this run filled from the receipt — matched lines ticked, the ones to
+ * check asked — with the same footer and the same one write.
  */
 export function ShoppingRun() {
   const profile = useProfile();
@@ -56,6 +66,7 @@ export function ShoppingRun() {
   const [picks, setPicks] = React.useState<RunPicks>({});
   const [choosing, setChoosing] = React.useState<string | null>(null);
   const idemKey = React.useRef(crypto.randomUUID());
+  const scan = useReceiptScan();
 
   // Where a line can go: your own pantry, and groups where you are more than a viewer (Add item's rule).
   const writable = React.useMemo(
@@ -63,8 +74,21 @@ export function ShoppingRun() {
     [pantries.data, roles, recentSlugs],
   );
   const groups = React.useMemo(() => runGroups(restock.data, { now, today }), [restock.data, now, today]);
-  const lines = React.useMemo(() => runLines(groups), [groups]);
-  const summary = runSummary(lines, picks, { pantries: writable, today });
+  // A receipt read (AI-8) fills the run with its own lines instead of the restock groups.
+  const receipt = React.useMemo(
+    () => (scan.read && writable.length > 0 ? receiptRun(scan.read.res, { restock: restock.data, pantries: writable, meId, categories: scan.read.categories }) : null),
+    [scan.read, writable, restock.data, meId],
+  );
+  // The read's own picks: its matched lines ticked, set once when it arrives (derived state, set while rendering).
+  const [started, setStarted] = React.useState<{ for: object | null; state: ReceiptState }>({ for: null, state: { picks: {}, answers: {} } });
+  if (receipt && scan.read && started.for !== scan.read) setStarted({ for: scan.read, state: { picks: receiptStartPicks(receipt), answers: {} } });
+  const receiptState = started.state;
+  const setReceiptState = (update: (s: ReceiptState) => ReceiptState) => setStarted((x) => ({ ...x, state: update(x.state) }));
+  const showsReceipt = receipt !== null && scan.read !== null && started.for === scan.read && scan.phase === "result";
+
+  const lines = React.useMemo(() => (showsReceipt && receipt ? receipt.lines : runLines(groups)), [showsReceipt, receipt, groups]);
+  const activePicks = showsReceipt ? receiptState.picks : picks;
+  const summary = runSummary(lines, activePicks, { pantries: writable, today });
   const opened = new Map(summary.ticked.map((t) => [t.key, t] as const));
 
   const add = () => {
@@ -83,8 +107,27 @@ export function ShoppingRun() {
     });
     idemKey.current = crypto.randomUUID();
     setPicks({});
+    setReceiptState(() => ({ picks: {}, answers: {} }));
     close();
   };
+
+  if (scan.phase === "capture") {
+    return <ReceiptCapture onPhoto={scan.take} onClose={scan.fromLink ? close : scan.reset} problem={scan.captureProblem} />;
+  }
+  if (scan.phase === "reading" || (scan.phase === "result" && !showsReceipt)) {
+    return (
+      <div className="pb-4 min-[900px]:max-w-[640px]">
+        <ReceiptReading photoUrl={scan.photoUrl} text={readingText(scan.found)} onCancel={scan.cancel} />
+      </div>
+    );
+  }
+  if (scan.phase === "problem" && scan.error) {
+    return (
+      <div className="pb-4 min-[900px]:max-w-[640px]">
+        <ReceiptProblem photoUrl={scan.photoUrl} error={scan.error} onRetake={scan.retake} onByHand={scan.reset} />
+      </div>
+    );
+  }
 
   const loading = restock.loading || (!restock.data && !restock.error);
   return (
@@ -98,60 +141,79 @@ export function ShoppingRun() {
         >
           <X className="h-[22px] w-[22px]" strokeWidth={2.2} aria-hidden />
         </button>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <h1 className="text-2xl font-extrabold leading-tight tracking-[-0.02em]">Shopping run</h1>
-          <span className="text-[13px] font-bold text-muted-foreground">Tick what you bought · change what differs</span>
-        </span>
+        {showsReceipt ? (
+          <ReceiptHeading />
+        ) : (
+          <span className="flex min-w-0 flex-1 flex-col">
+            <h1 className="text-2xl font-extrabold leading-tight tracking-[-0.02em]">Shopping run</h1>
+            <span className="text-[13px] font-bold text-muted-foreground">Tick what you bought · change what differs</span>
+          </span>
+        )}
       </header>
 
-      {loading ? (
-        <div className="space-y-3" aria-hidden>
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-[136px] w-full rounded-[20px]" />
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-[136px] w-full rounded-[20px]" />
-        </div>
-      ) : restock.error ? (
-        <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load what to restock. {restock.error.message}</p>
-          <Button variant="outline" className={K_BUTTON} onClick={restock.reload}>
-            Try again
-          </Button>
-        </KCard>
-      ) : groups.length === 0 ? (
-        <KCard className="p-4">
-          <p className="text-[15px] font-semibold text-muted-foreground">Nothing finished or running low</p>
-        </KCard>
+      {showsReceipt && receipt && scan.read ? (
+        <ReceiptResult
+          run={receipt}
+          card={receiptCard(receipt, summary.ticked, scan.read.at)}
+          photoUrl={scan.photoUrl}
+          state={receiptState}
+          onState={setReceiptState}
+          opened={opened}
+          pantries={writable}
+        />
       ) : (
-        groups.map((g) => (
-          <section key={g.id} aria-labelledby={`run-${g.id}`} className="flex flex-col gap-1.5">
-            <h2 id={`run-${g.id}`} className="px-0.5 text-xs font-extrabold tracking-[0.06em] text-foreground/80">
-              {g.title}
-            </h2>
-            <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] border border-[#E3E6E0] bg-card">
-              {g.lines.map((l) => (
-                <RunLineView
-                  key={l.key}
-                  line={l}
-                  ticked={opened.get(l.key) ?? null}
-                  choosing={choosing === l.key}
-                  pantries={writable}
-                  onTick={() => {
-                    setPicks((p) => toggleTick(p, l));
-                    if (choosing === l.key) setChoosing(null);
-                  }}
-                  onStep={(delta) => setPicks((p) => stepPick(p, l, delta))}
-                  onPrice={(text) => setPicks((p) => pricePick(p, l.key, text))}
-                  onChoose={() => setChoosing((c) => (c === l.key ? null : l.key))}
-                  onPantry={(key) => {
-                    setPicks((p) => pantryPick(p, l.key, key, writable));
-                    setChoosing(null);
-                  }}
-                />
-              ))}
-            </ul>
-          </section>
-        ))
+        <>
+          {scan.shows ? <ScanReceiptButton onClick={scan.open} /> : null}
+          {loading ? (
+            <div className="space-y-3" aria-hidden>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-[136px] w-full rounded-[20px]" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-[136px] w-full rounded-[20px]" />
+            </div>
+          ) : restock.error ? (
+            <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
+              <p className="text-sm text-muted-foreground">Couldn&apos;t load what to restock. {restock.error.message}</p>
+              <Button variant="outline" className={K_BUTTON} onClick={restock.reload}>
+                Try again
+              </Button>
+            </KCard>
+          ) : groups.length === 0 ? (
+            <KCard className="p-4">
+              <p className="text-[15px] font-semibold text-muted-foreground">Nothing finished or running low</p>
+            </KCard>
+          ) : (
+            groups.map((g) => (
+              <section key={g.id} aria-labelledby={`run-${g.id}`} className="flex flex-col gap-1.5">
+                <h2 id={`run-${g.id}`} className="px-0.5 text-xs font-extrabold tracking-[0.06em] text-foreground/80">
+                  {g.title}
+                </h2>
+                <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] border border-[#E3E6E0] bg-card">
+                  {g.lines.map((l) => (
+                    <RunLineView
+                      key={l.key}
+                      line={l}
+                      ticked={opened.get(l.key) ?? null}
+                      choosing={choosing === l.key}
+                      pantries={writable}
+                      onTick={() => {
+                        setPicks((p) => toggleTick(p, l));
+                        if (choosing === l.key) setChoosing(null);
+                      }}
+                      onStep={(delta) => setPicks((p) => stepPick(p, l, delta))}
+                      onPrice={(text) => setPicks((p) => pricePick(p, l.key, text))}
+                      onChoose={() => setChoosing((c) => (c === l.key ? null : l.key))}
+                      onPantry={(key) => {
+                        setPicks((p) => pantryPick(p, l.key, key, writable));
+                        setChoosing(null);
+                      }}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))
+          )}
+        </>
       )}
 
       <Link
@@ -231,70 +293,17 @@ function RunLineView({
         {ticked ? <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{ticked.priceMinor !== null ? `${ticked.prefix}${ticked.priceText}` : ""}</span> : null}
       </div>
       {ticked ? (
-        <div className="flex flex-wrap items-center gap-2 pb-3 pl-[62px] pr-3">
-          <button type="button" aria-label={`Less ${line.name}`} disabled={!ticked.canLess} onClick={() => onStep(-1)} className={STEPPER}>
-            <Minus className="h-5 w-5" aria-hidden />
-          </button>
-          <span role="status" className="min-w-16 text-center text-[15px] font-extrabold tabular-nums">
-            {ticked.step.words}
-          </span>
-          <button type="button" aria-label={`More ${line.name}`} disabled={!ticked.canMore} onClick={() => onStep(1)} className={STEPPER}>
-            <Plus className="h-5 w-5" aria-hidden />
-          </button>
-          <label
-            className={cn(
-              "flex min-h-11 items-center gap-1 rounded-xl border px-2.5 text-[15px] font-extrabold focus-within:ring-2 focus-within:ring-ring",
-              ticked.priceMinor === null ? "border-destructive" : "border-[#C9CFC6]",
-            )}
-          >
-            <span aria-hidden>{ticked.prefix}</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={ticked.priceText}
-              onChange={(e) => onPrice(e.target.value)}
-              aria-label={`Price of ${line.name}`}
-              aria-invalid={ticked.priceMinor === null}
-              autoComplete="off"
-              className="w-16 bg-transparent text-[15px] font-extrabold tabular-nums text-foreground outline-none"
-            />
-          </label>
-          <button
-            type="button"
-            aria-expanded={choosing}
-            aria-label={`${line.name} goes to ${ticked.pantryLabel} · change`}
-            onClick={onChoose}
-            className="min-h-11 min-w-11 rounded-full bg-[#E6EEF8] px-3 text-xs font-extrabold text-[#1D4F91] transition-colors hover:bg-[#D9E5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {ticked.pantryLabel}
-          </button>
-          {choosing ? (
-            <div role="group" aria-label={`Where ${line.name} goes`} className="flex w-full flex-wrap gap-2 pt-1">
-              {pantries.map((p) => {
-                const key = pantryKey(p);
-                const here = key === ticked.pantry;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={here}
-                    onClick={() => onPantry(key)}
-                    className={cn(
-                      "min-h-11 rounded-full border px-3.5 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      here ? "border-foreground bg-foreground text-background" : "border-[#D5DAD2] bg-card text-foreground hover:bg-accent",
-                    )}
-                  >
-                    {pantryChipLabel(p)}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
+        <RunLineEditor
+          name={line.name}
+          ticked={ticked}
+          choosing={choosing}
+          pantries={pantries}
+          onStep={onStep}
+          onPrice={onPrice}
+          onChoose={onChoose}
+          onPantry={onPantry}
+        />
       ) : null}
     </li>
   );
 }
-
-const STEPPER =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#C9CFC6] bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
