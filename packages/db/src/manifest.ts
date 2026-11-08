@@ -300,5 +300,23 @@ export const manifest: MigrationManifest = {
       description:
         "Push as a preference channel: notifications_notification_preferences rebuilt (same name, rows and unique key) so channel may be 'email' or 'push', with a kinds map (kitchen.portion_set, kitchen.dish_posted, kitchen.paid_you) beside categories; existing rows keep their meaning with kinds '{}' (Cookpool PW-5)",
     },
+    {
+      id: "340_kitchen_foods",
+      context: "kitchen",
+      path: "340_kitchen_foods/up.sql",
+      checksum:
+        "feec993c42c0d891541cbeb24244e924c152f10257c08efdcc1cd835a2ec66a4",
+      description:
+        "The shared food list: kitchen_foods (key, name, mass/volume/count, one piece in grams, category) and kitchen_food_names (every spelling and language → one food), seeded with 70 everyday foods and their English, Hindi and regional names; kitchen_items.food_key (linked when an item is added and exactly one food matches its name); kitchen_food_answers (a pantry's \"asked once\" answer per name, or none); kitchen_always_have and kitchen_always_have_lists (a person's always-have foods; salt and water until they save their own) (Cookpool RC-4)",
+    },
+    {
+      id: "350_kitchen_recipes",
+      context: "kitchen",
+      path: "350_kitchen_recipes/up.sql",
+      checksum:
+        "6722b99310bd9a743ecc9a7c2e7b050c7096182cce615b6e5649ceb053cba6b7",
+      description:
+        "Recipes: kitchen_recipes (rcp_ templates owned by a person or Cookpool's system user; serves in halves; only_me / groups / link visibility with a unique 10-character link code exactly while it is link; copies carry their source and its owner's name; soft delete), kitchen_recipe_lines (food or free text, an amount in a unit or to taste, exactly one main never to taste) and kitchen_recipe_steps (up to 20, 200 characters each); the dish's recipe_id and recipe_factor_milli and each ingredient's recipe_line, nullable (Cookpool RC-4)",
+    },
   ],
 };
