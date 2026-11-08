@@ -9,9 +9,12 @@ import {
   DEFAULT_KITCHEN_CURRENCY,
   DEFAULT_WASTE_POLICY,
   ITEM_FILTERS,
+  ITEM_NOTE_MAX,
   KITCHEN_ERROR_REASONS,
   USE_SOON_DAYS,
   WASTE_POLICIES,
+  itemNoteLength,
+  normalizeItemNote,
   type ItemFilter,
   type KitchenItem,
   type KitchenMeasure,
@@ -148,6 +151,9 @@ export function toKitchenItem(
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     measures,
+    // Whoever can read the item reads its note (RC-3): every route that
+    // answers with an item has already scoped it to the caller's pantries.
+    note: record.note,
   };
 }
 
@@ -306,6 +312,19 @@ function wastePolicyValue(fields: Fields, value: unknown): WastePolicy | null | 
   return oneOf(fields, "wastePolicy", value, WASTE_POLICIES);
 }
 
+/**
+ * An item's note (RC-3): text, trimmed; empty (or null) is none, stored as
+ * NULL. At most ITEM_NOTE_MAX characters, counted as the table's CHECK counts
+ * them. Undefined when it was not sent (or is wrong, recorded in `fields`).
+ */
+function noteValue(fields: Fields, value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value !== null && typeof value !== "string") return fields.add("note", "Must be text, or null for none");
+  const note = normalizeItemNote(value);
+  if (note !== null && itemNoteLength(note) > ITEM_NOTE_MAX) return fields.add("note", `Must be at most ${ITEM_NOTE_MAX} characters`);
+  return note;
+}
+
 export interface ParsedNewItem extends ParsedQuantity {
   name: string;
   category: string;
@@ -318,6 +337,8 @@ export interface ParsedNewItem extends ParsedQuantity {
   paidBy: string | null;
   /** Group items only: null follows the group. */
   wastePolicy: WastePolicy | null;
+  /** Trimmed; null when none was sent (or only spaces). */
+  note: string | null;
 }
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; fields: FieldErrors };
@@ -333,6 +354,7 @@ export function parseNewItem(body: Record<string, unknown>, options: { group: bo
   const currency = currencyValue(fields, body.currency);
   const boughtOn = body.boughtOn === undefined || body.boughtOn === null ? null : isoDate(fields, "boughtOn", body.boughtOn) ?? null;
   const expiresOn = body.expiresOn === undefined || body.expiresOn === null ? null : isoDate(fields, "expiresOn", body.expiresOn) ?? null;
+  const note = noteValue(fields, body.note) ?? null;
   let paidBy: string | null = null;
   let wastePolicy: WastePolicy | null = null;
   if (options.group) {
@@ -347,7 +369,7 @@ export function parseNewItem(body: Record<string, unknown>, options: { group: bo
   }
   return {
     ok: true,
-    value: { name, category, ...qty, priceMinor, currency, boughtOn, expiresOn, paidBy, wastePolicy },
+    value: { name, category, ...qty, priceMinor, currency, boughtOn, expiresOn, paidBy, wastePolicy, note },
   };
 }
 
@@ -359,6 +381,8 @@ export interface ParsedItemEdit {
   quantity?: { value: string | number; unit: string | null };
   priceMinor?: number;
   wastePolicy?: WastePolicy | null;
+  /** Trimmed; null clears it. */
+  note?: string | null;
   version?: number;
 }
 
@@ -399,13 +423,17 @@ export function parseItemEdit(body: Record<string, unknown>, options: { group: b
     const wastePolicy = wastePolicyValue(fields, body.wastePolicy);
     if (wastePolicy !== undefined) edit.wastePolicy = wastePolicy;
   }
+  if (body.note !== undefined) {
+    const note = noteValue(fields, body.note);
+    if (note !== undefined) edit.note = note;
+  }
   if (body.version !== undefined) {
     if (typeof body.version === "number" && Number.isSafeInteger(body.version) && body.version >= 1) edit.version = body.version;
     else fields.add("version", "Must be the item's version, a whole number from 1");
   }
   const changes = Object.keys(edit).filter((k) => k !== "version");
   if (fields.ok && changes.length === 0) {
-    fields.add("body", `Provide at least one of: name, category, expiresOn, quantity, priceMinor${options.group ? ", wastePolicy" : ""}`);
+    fields.add("body", `Provide at least one of: name, category, expiresOn, quantity, priceMinor${options.group ? ", wastePolicy" : ""}, note`);
   }
   return fields.ok ? { ok: true, value: edit } : { ok: false, fields: fields.errors };
 }
@@ -432,6 +460,7 @@ export function itemChanges(edit: ParsedItemEdit, quantity: ParsedQuantity | und
   if (quantity !== undefined) changes.quantity = quantity;
   if (edit.priceMinor !== undefined) changes.priceMinor = edit.priceMinor;
   if (edit.wastePolicy !== undefined) changes.wastePolicy = edit.wastePolicy;
+  if (edit.note !== undefined) changes.note = edit.note;
   return changes;
 }
 

@@ -24,14 +24,15 @@ import {
 //
 //   POST   /v1/kitchen/me/items          add to it
 //   GET    /v1/kitchen/me/items/{itm}    one of its items
-//   PATCH  /v1/kitchen/me/items/{itm}    name, category, use-by; quantity and price while unused
+//   PATCH  /v1/kitchen/me/items/{itm}    name, category, use-by, note; quantity and price while unused
 //   DELETE /v1/kitchen/me/items/{itm}    added by mistake (refused once used)
 //
 // Only its owner can see or change it: every read and write is keyed by the
 // caller's subject, so anyone else's item is the opaque 404. No policy engine:
 // a personal pantry belongs to a person, not a group (design.md §6). Its items
 // move no money and carry no audit event — audit is a group's log, and a
-// personal pantry is in no group.
+// personal pantry is in no group. So an item's note (RC-3) here is read by
+// its owner alone.
 //
 // (GET /v1/kitchen/me/items, the list across every pantry, is in ./pantries.ts.)
 
@@ -81,6 +82,7 @@ export async function handleCreateMyItem(ctx: RequestContext, request: Request):
           createdBy: actor,
           idemKey: idem.key,
           now,
+          note: input.note,
         },
       }),
     );
