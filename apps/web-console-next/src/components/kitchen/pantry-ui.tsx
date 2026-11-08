@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { GroupAvatar } from "./kit";
+import { NoteLine } from "./item-note-ui";
 import { Money } from "./ledger-ui";
 import type { ShareLine } from "./item-use";
 import type { BarTone, ItemRowView, PantryListRow, PantryOption, ExpiryChip } from "./pantry";
@@ -74,6 +75,7 @@ export function StockBar({ percent, tone, className, thick = false }: { percent:
  * the Use screen with it chosen. Just added (SM-5), it is listed at once and
  * opens once the server has it. PW-8: swiping the row left does what Use
  * does (`swipe`), and holding it opens its menu (`onLongPress`); Use stays.
+ * RC-3: its note, when the row carries one (the new frame), is a third line.
  */
 export function PantryListRowView({
   row,
@@ -98,6 +100,7 @@ export function PantryListRowView({
             ) : null}
           </span>
         ) : null}
+        {row.note ? <NoteLine note={row.note} /> : null}
       </span>
       <span className="shrink-0 whitespace-nowrap text-[15px] font-extrabold tabular-nums">
         <span className="sr-only">Left: </span>
@@ -202,6 +205,7 @@ export function ItemTable({ rows, showPantry }: { rows: readonly ItemRowView[]; 
                     {r.name}
                   </Link>
                 )}
+                {r.note ? <NoteLine note={r.note} className="max-w-72" /> : null}
               </td>
               {showPantry ? (
                 <td className="px-4 py-2.5">

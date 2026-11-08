@@ -460,11 +460,13 @@ export interface ItemRowView {
   canUse: boolean;
   /** Just added, the server's answer still on its way (SM-5): listed, but nothing opens it yet. */
   pending: boolean;
+  /** Its note under the name (RC-3): in the new frame only (`notes`), null without one. */
+  note: string | null;
 }
 
 export function itemRowView(
   item: KitchenItem & { canUse?: boolean },
-  ctx: { meId: string | null; names?: MemberNames | null },
+  ctx: { meId: string | null; names?: MemberNames | null; notes?: boolean },
 ): ItemRowView {
   const href = itemHref(item);
   const lob = leftOfBought(item);
@@ -492,6 +494,7 @@ export function itemRowView(
     worth: formatMinor(item.worthMinor, item.currency),
     canUse: !isPendingId(item.id) && (item.canUse ?? true) && item.state === "active" && item.qtyLeftMilli > 0,
     pending: isPendingId(item.id),
+    note: ctx.notes ? (item.note ?? null) : null,
   };
 }
 
@@ -712,17 +715,20 @@ export interface PantryListRow {
   /** Null when you may not use it (a viewer), or nothing is left. */
   use: RowUse | null;
   pending: boolean;
+  /** The third line (RC-3): its note, in the new frame only (`notes`); null without one. */
+  note: string | null;
 }
 
 /**
  * A row of the phone list. Use logs your usual amount of the item for just
  * you, in one tap (with Undo), when you have one that fits what is left;
  * otherwise it opens Use with the item chosen. Never for others: nobody is
- * charged from a row they cannot see.
+ * charged from a row they cannot see. In the new frame (`notes`) its note is
+ * a third line.
  */
 export function pantryListRow(
   item: KitchenItem & { canUse?: boolean },
-  ctx: { showPantry: boolean; usualQtyMilli?: number | null; usualWords?: string | null },
+  ctx: { showPantry: boolean; usualQtyMilli?: number | null; usualWords?: string | null; notes?: boolean },
 ): PantryListRow {
   const chip = expiryChip(item);
   const pending = isPendingId(item.id);
@@ -745,6 +751,7 @@ export function pantryListRow(
     pantry: ctx.showPantry ? pantryChipLabel(item.pantry) : null,
     use,
     pending,
+    note: ctx.notes ? (item.note ?? null) : null,
   };
 }
 
