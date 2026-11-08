@@ -157,6 +157,9 @@ export function firstNameOf(name: string | null | undefined): string | null {
   return trimmed.split(/\s+/)[0] ?? trimmed;
 }
 
+/** A listed link recipe (cookpool-community CM-5): on your profile and in Explore's Public. */
+export const PUBLIC_WORD = "Public";
+
 /** The three ways a recipe can be seen (design §5.1), as You lists them. */
 export const VISIBILITY_WORDS: Readonly<Record<RecipeVisibility, string>> = {
   only_me: "Only me",

@@ -136,6 +136,22 @@ export const qk = {
   // `kitchenLedger(orgId)`, so a write in that group refreshes them.
   kitchenInbox: () => ["kitchenMe", "inbox"] as const,
   kitchenRecentActivity: (orgId: string) => ["kitchenLedger", orgId, "recent"] as const,
+  // Community (cookpool-community CM-5): your profile, a handle's
+  // availability, someone's profile and its lists, your follow requests,
+  // blocks, people search and suggestions. All start with
+  // `kitchenCommunity()`, so a follow, block or mute refreshes every one.
+  // A profile's public recipes sit under the recipe book, so a copy refreshes
+  // their "saved by".
+  kitchenCommunity: () => ["kitchenCommunity"] as const,
+  kitchenMyProfile: () => ["kitchenCommunity", "me"] as const,
+  kitchenHandle: (handle: string) => ["kitchenCommunity", "handle", handle] as const,
+  kitchenPersonProfile: (handle: string) => ["kitchenCommunity", "profile", handle] as const,
+  kitchenProfilePeople: (handle: string, list: "followers" | "following") => ["kitchenCommunity", "people", handle, list] as const,
+  kitchenFollowRequests: () => ["kitchenCommunity", "requests"] as const,
+  kitchenBlocks: () => ["kitchenCommunity", "blocks"] as const,
+  kitchenPeopleSearch: (q: string) => ["kitchenCommunity", "search", q] as const,
+  kitchenPeopleSuggestions: () => ["kitchenCommunity", "suggestions"] as const,
+  kitchenProfileRecipes: (handle: string) => ["kitchenRecipeBook", "profile", handle] as const,
   // Notifications (cookpool-app PW-6): the environment's VAPID public key
   // (null while it has none) and the person's push kinds, in every group.
   pushKey: () => ["push", "key"] as const,

@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { CLOSE_44 } from "./kit";
 import { useGroups } from "./data";
-import { COPIED_MS, copyLink, recipeLinkUrl, shareOptions, visibilityCall, type ShareCall } from "./recipe-share";
+import { COPIED_MS, copyLink, levelCall, recipeLinkUrl, shareLevelOf, shareOptions, type ShareCall } from "./recipe-share";
 import { ShareSheetBody } from "./recipe-share-views";
 import { useShareRecipe } from "./recipe-travel-data";
 
@@ -15,7 +15,8 @@ import { useShareRecipe } from "./recipe-travel-data";
  * Who can see your recipe (cookpool-recipes RC-8, design §5.1, the canvas's
  * `ShareRecipe`): the Share icon at the top right of your recipe's page opens
  * a bottom sheet, "Who can see it" — Only me, My groups, Anyone with the
- * link — the chosen row tinted green. Choosing one changes it at once, with
+ * link, Public (cookpool-community CM-5: listed on your profile and in
+ * Discover) — the chosen row tinted green. Choosing one changes it at once, with
  * Undo. With the link on, its full address with a dark Copy ("Copied"), New
  * link (a fresh code; the old one stops) and Turn off (back to My groups).
  * Then "Saved by N", and Done.
@@ -27,7 +28,7 @@ export function ShareSheet({
   open,
   onOpenChange,
 }: {
-  recipe: Pick<KitchenRecipe, "id" | "name" | "visibility" | "linkCode" | "savedBy">;
+  recipe: Pick<KitchenRecipe, "id" | "name" | "visibility" | "linkCode" | "savedBy" | "listed">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -36,7 +37,9 @@ export function ShareSheet({
   const { toast } = useToast();
   const [copied, setCopied] = React.useState(false);
   const [rotating, setRotating] = React.useState(false);
-  const options = React.useMemo(() => shareOptions((groups.data ?? []).map((g) => g.name)), [groups.data]);
+  // Public (cookpool-community CM-5): the sheet is the new frame's only.
+  const options = React.useMemo(() => shareOptions((groups.data ?? []).map((g) => g.name), { public: true }), [groups.data]);
+  const level = shareLevelOf(recipe);
   const linkUrl = recipe.visibility === "link" && recipe.linkCode && typeof window !== "undefined" ? recipeLinkUrl(window.location.origin, recipe.linkCode) : null;
 
   // "Copied" for a moment, and never for a code that has since changed.
@@ -65,13 +68,13 @@ export function ShareSheet({
         </SheetTitle>
         <ShareSheetBody
           options={options}
-          visibility={recipe.visibility}
+          visibility={level}
           linkUrl={linkUrl}
           copied={copied}
           savedBy={recipe.savedBy}
           rotating={rotating}
           onPick={(to) => {
-            if (to !== recipe.visibility) send(visibilityCall(to));
+            if (to !== level) send(levelCall(to, level));
           }}
           onCopy={() => {
             if (!linkUrl) return;

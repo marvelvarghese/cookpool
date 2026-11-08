@@ -23,20 +23,21 @@ import { groupNamesText } from "./recipe-share";
 
 export const EXPLORE_HREF = "/explore";
 
-/** Explore with a source shown (`/explore?source=groups`); Cookpool's own is the bare page. */
+/** Explore with a source shown (`/explore?source=groups`, `?source=public`); Cookpool's own is the bare page. */
 export function exploreHref(source: ExploreSource): string {
-  return source === "groups" ? `${EXPLORE_HREF}?source=groups` : EXPLORE_HREF;
+  return source === "cookpool" ? EXPLORE_HREF : `${EXPLORE_HREF}?source=${source}`;
 }
 
-/** The source in the address: Your groups for `groups`, else Cookpool. */
+/** The source in the address: Your groups for `groups`, Public for `public` (CM-5), else Cookpool. */
 export function exploreSourceFrom(param: string | null | undefined): ExploreSource {
-  return param === "groups" ? "groups" : "cookpool";
+  return param === "groups" || param === "public" ? param : "cookpool";
 }
 
-/** The segmented switch's two halves. */
+/** The segmented switch: Cookpool · Your groups · Public (cookpool-community CM-5: cooks' listed recipes). */
 export const EXPLORE_SOURCES: readonly { id: ExploreSource; label: string }[] = [
   { id: "cookpool", label: "Cookpool" },
   { id: "groups", label: "Your groups" },
+  { id: "public", label: "Public" },
 ];
 
 export type ExploreKind = RecipeKind | "all";
@@ -71,6 +72,7 @@ export function exploreQuery(source: ExploreSource, q: string, kind: ExploreKind
  */
 export function exploreSubtitle(source: ExploreSource, cookpoolCount: number | null, groupNames: readonly string[]): string {
   if (source === "groups") return groupNames.length > 0 ? `Shared in ${groupNamesText(groupNames)}` : "Shared in your groups";
+  if (source === "public") return "Listed by cooks on their profiles";
   if (cookpoolCount === null) return "By Cookpool";
   return `By Cookpool · ${cookpoolCount} ${cookpoolCount === 1 ? "recipe" : "recipes"}`;
 }
@@ -127,7 +129,7 @@ export function exploreRows(recipes: readonly ExploreRecipe[], opts: { source: E
         name: r.name,
         href: recipeHref(r.id),
         tile: recipeTile(r),
-        meta: recipeMetaLine(r, opts.source === "groups"),
+        meta: recipeMetaLine(r, opts.source !== "cookpool"),
         match: m.text,
         tone: m.tone,
       };

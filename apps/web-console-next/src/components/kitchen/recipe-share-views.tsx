@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Bookmark, Link2, Lock, Share, UsersRound } from "lucide-react";
-import type { RecipeVisibility } from "@saas/contracts/kitchen";
+import { Bookmark, Globe, Link2, Lock, Share, UsersRound } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { LINK_MAKING_TEXT, savedByText, type ShareOption } from "./recipe-share";
+import { LINK_MAKING_TEXT, savedByText, type ShareLevel, type ShareOption } from "./recipe-share";
 
 /**
  * The share sheet's parts as they draw (cookpool-recipes RC-8, the canvas's
@@ -13,7 +12,7 @@ import { LINK_MAKING_TEXT, savedByText, type ShareOption } from "./recipe-share"
  * writes.
  */
 
-const ICONS = { lock: Lock, groups: UsersRound, link: Link2 } as const;
+const ICONS = { lock: Lock, groups: UsersRound, link: Link2, public: Globe } as const;
 
 /** The Share icon, 44 px, beside Edit. */
 export function ShareIconButton({ onClick }: { onClick: () => void }) {
@@ -74,13 +73,14 @@ export function ShareSheetBody({
   titleId = "share-recipe-h",
 }: {
   options: readonly ShareOption[];
-  visibility: RecipeVisibility;
+  /** The recipe's level (`shareLevelOf`): a visibility, or Public (CM-5). */
+  visibility: ShareLevel;
   /** The full address while the link is on; null while a code is on its way. */
   linkUrl: string | null;
   copied: boolean;
   savedBy: number;
   rotating?: boolean;
-  onPick: (to: RecipeVisibility) => void;
+  onPick: (to: ShareLevel) => void;
   onCopy: () => void;
   onRotate: () => void;
   onTurnOff: () => void;
@@ -95,7 +95,7 @@ export function ShareSheetBody({
         ))}
       </div>
 
-      {visibility === "link" ? (
+      {visibility === "link" || visibility === "public" ? (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2 rounded-[14px] border border-[#E3E6E0] bg-background py-1.5 pl-3.5 pr-1.5">
             <span aria-live="polite" className="min-w-0 flex-1 break-all text-[15px] font-bold leading-snug text-[#3F4842]">

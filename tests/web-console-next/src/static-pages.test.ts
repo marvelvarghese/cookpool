@@ -83,6 +83,8 @@ describe("_redirects: one file serves every value", () => {
       "/recipes/:recipeId/edit /recipes/_/edit 200",
       "/recipes/:recipeId/plan /recipes/_/plan 200",
       "/r/:code /r/_ 200",
+      "/u/:handle /u/_ 200",
+      "/p/:postId /p/_ 200",
     ]) {
       expect(rules).toContain(rule);
     }
@@ -92,7 +94,7 @@ describe("_redirects: one file serves every value", () => {
     expect(rules[0]).toBe("/pantry/new /pantry/new 200");
     expect(rules.indexOf("/pantry/new /pantry/new 200")).toBeLessThan(rules.indexOf("/pantry/:itemRef /pantry/_ 200"));
     // One rule per dynamic page (SM-11 added a group's settings, RC-5 a recipe and its edit page, RC-8 a recipe's link, GC-6 a recipe's plan, PN-7 an item's stock check), plus the pins.
-    expect(rules).toHaveLength(15); // …and PN-6's shopping run, a third pin.
+    expect(rules).toHaveLength(17); // …and PN-6's shopping run, a third pin; CM-5 a profile and a post.
   });
 
   it("serves an item's stock check from its own file, before the item's rule (PN-7)", () => {
