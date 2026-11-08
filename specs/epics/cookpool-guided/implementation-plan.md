@@ -2,14 +2,14 @@
 
 Each task is one pull request on `orun/GC-k-<slug>` with its contract in `tasks/GC-k.TaskContract.yaml`. Everything in the console is behind `newFrame()`: on stage, off in prod until cookpool-recipes RC5.
 
-## GC0 — the spec
+## GC0 — the spec ✅
 
 - **GC-1:** this doc set and the contracts for GC-2 to GC-7.
 
 **Done when**
 - merged
 
-## GC1 — steps that guide
+## GC1 — steps that guide ✅
 
 - **GC-2: the step model in the server** (design §1, §2, §5's recording, §6 migration 370, §7):
   - the step fields, `tools` and `longPrep`;
@@ -29,7 +29,7 @@ Each task is one pull request on `orun/GC-k-<slug>` with its contract in `tasks/
 - its plan differs at 450 g and at 1 kg as the rules say
 - a new recipe can be written with guided steps
 
-## GC2 — cooking with you
+## GC2 — cooking with you ✅
 
 - **GC-5: guided mode** (design §3, §4's console side, §5's posting):
   - the prompt, Before you start, the step, waiting and Meanwhile, whistles, Done;
@@ -44,7 +44,7 @@ Each task is one pull request on `orun/GC-k-<slug>` with its contract in `tasks/
 - Done shows each step's real time
 - "Just tick what I use" still works
 
-## GC3 — timers that find you
+## GC3 — timers that find you ✅
 
 - **GC-3: timers in the server** (design §4, migration 380):
   - the routes;
@@ -55,7 +55,7 @@ Each task is one pull request on `orun/GC-k-<slug>` with its contract in `tasks/
 - on stage, a timer set in guided mode reaches a locked phone within a minute of its end
 - a cancelled timer never does
 
-## GC4 — learning from cooks
+## GC4 — learning from cooks ✅
 
 - **GC-7: learned ranges** (design §5): the aggregation by recipe root and step key, at least 5 times from 3 cooks, percentiles at the caller's size, and the recipe read's `learned`.
 - **GC-8:** close the stage part.
