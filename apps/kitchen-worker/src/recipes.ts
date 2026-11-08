@@ -17,10 +17,18 @@
 // a new step gets one, a PATCH keeps the key a step sends when the recipe
 // has it, and a plain-string step keeps the step with the same text — so a
 // client that writes texts only (RC-5's form) loses nothing it did not change.
+//
+// Learned ranges (GC-7, cookpool-guided design §5): every full read of a
+// recipe carries, on each guided step, the range cooks really took at the
+// size asked for — from one storage read of the recipe root's pool for all
+// its step keys, and contracts' `learnedStepTime` per step. Cooks are only
+// counted: no id leaves storage.
 
 import {
   COOK_NOW_MISSING_NAMES,
   DEFAULT_RECIPE_VISIBILITY,
+  LEARNED_MIN_SECONDS,
+  learnedStepTime,
   DEFAULT_STEP_PHASE,
   DEFAULT_STEP_TIME_RULE,
   MAX_RECIPE_TOOL,
@@ -60,6 +68,7 @@ import {
   type KitchenRecipe,
   type KitchenRecipeLine,
   type KitchenRecipeStep,
+  type LearnedStepRange,
   type PantryRef,
   type RecipeKind,
   type RecipeLastCook,
@@ -72,7 +81,9 @@ import {
   type StepPhase,
   type StepSense,
   type StepTimeRule,
+  type StepTimeSample,
 } from "@saas/contracts/kitchen";
+import type { Uuid } from "@saas/db/ids";
 import type {
   KitchenFoodRecord,
   KitchenItemRecord,
@@ -185,9 +196,25 @@ export function toRecipeStep(step: KitchenRecipeStepRecord): KitchenRecipeStep {
   };
 }
 
-export function toKitchenRecipe(record: KitchenRecipeTemplateRecord, viewer: string, names: ReadonlyMap<string, DisplayName>): KitchenRecipe {
+/** Each guided step's learned range, by step key (GC-7): only the steps that have one. */
+export type LearnedSteps = ReadonlyMap<string, LearnedStepRange>;
+
+/**
+ * A recipe in full. `learned` (GC-7) puts each step's learned range on it;
+ * a step with none — and every step when it is not given — has no `learned`.
+ */
+export function toKitchenRecipe(
+  record: KitchenRecipeTemplateRecord,
+  viewer: string,
+  names: ReadonlyMap<string, DisplayName>,
+  learned: LearnedSteps = new Map(),
+): KitchenRecipe {
   const summary = toRecipeSummary(record, viewer, names);
-  const guidedSteps = record.guidedSteps.map(toRecipeStep);
+  const guidedSteps = record.guidedSteps.map((s) => {
+    const step = toRecipeStep(s);
+    const range = learned.get(s.key);
+    return range ? { ...step, learned: { ...range } } : step;
+  });
   return {
     ...summary,
     lines: record.lines.map(toRecipeLine),
@@ -198,6 +225,38 @@ export function toKitchenRecipe(record: KitchenRecipeTemplateRecord, viewer: str
     tools: [...record.tools],
     longPrep: longPrepOf(guidedSteps),
   };
+}
+
+/**
+ * What cooks taught a recipe's steps (GC-7, design §5), at size
+ * `factorMilli`: ONE storage read of its root's pool for all its step keys
+ * (canceled, skipped and sizeless times left out there), then each step's
+ * range by its own rule and author's time (`learnedStepTime`). Null when the
+ * pool could not be read.
+ */
+export async function learnedSteps(
+  ctx: RequestContext,
+  repo: KitchenRepository,
+  record: KitchenRecipeTemplateRecord,
+  factorMilli: number,
+): Promise<LearnedSteps | null> {
+  if (record.guidedSteps.length === 0) return new Map();
+  const pooled = await ctx.timings.measure("db", () =>
+    repo.pooledStepTimes({ recipeId: record.id as Uuid, stepKeys: record.guidedSteps.map((s) => s.key), minSeconds: LEARNED_MIN_SECONDS }),
+  );
+  if (!pooled.ok) return null;
+  const byKey = new Map<string, StepTimeSample[]>();
+  for (const t of pooled.value) {
+    const list = byKey.get(t.stepKey) ?? [];
+    list.push({ seconds: t.seconds, factorMilli: t.factorMilli, cook: t.cook });
+    byKey.set(t.stepKey, list);
+  }
+  const learned = new Map<string, LearnedStepRange>();
+  for (const step of record.guidedSteps) {
+    const range = learnedStepTime(step, byKey.get(step.key) ?? [], factorMilli);
+    if (range) learned.set(step.key, range);
+  }
+  return learned;
 }
 
 export function toLastCook(record: KitchenRecipeLastCookRecord): RecipeLastCook {

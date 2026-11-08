@@ -1501,11 +1501,13 @@ describe("KitchenClient — foods and recipes (Cookpool RC-4)", () => {
     await respond((c) => c.kitchen.createRecipe({ fromDishId: "dsh_1" }), 201);
     await respond((c) => c.kitchen.getRecipe("rcp_1"));
     await respond((c) => c.kitchen.getRecipe("rcp_1", { code: "AbCdEfGhJk" }));
+    await respond((c) => c.kitchen.getRecipe("rcp_1", { f: 450 }));
     await respond((c) => c.kitchen.updateRecipe("rcp_1", { visibility: "only_me" }));
     await respond((c) => c.kitchen.deleteRecipe("rcp_1"));
     await respond((c) => c.kitchen.shareRecipeLink("rcp_1"));
     await respond((c) => c.kitchen.stopRecipeLink("rcp_1"));
     await respond((c) => c.kitchen.recipeByLink("AbCdEfGhJk"));
+    await respond((c) => c.kitchen.recipeByLink("AbCdEfGhJk", { f: 2_000 }));
     await respond((c) => c.kitchen.copyRecipe({ linkCode: "AbCdEfGhJk" }), 201);
     await respond((c) => c.kitchen.updateStepTimes("rcp_1", { steps: [{ key: "k1", minSeconds: 420, maxSeconds: 540 }] }));
     expect(calls.map(([call]) => call)).toEqual([
@@ -1513,17 +1515,19 @@ describe("KitchenClient — foods and recipes (Cookpool RC-4)", () => {
       "POST https://api.test/v1/kitchen/me/recipes",
       "GET https://api.test/v1/kitchen/recipes/rcp_1",
       "GET https://api.test/v1/kitchen/recipes/rcp_1?code=AbCdEfGhJk",
+      "GET https://api.test/v1/kitchen/recipes/rcp_1?f=450",
       "PATCH https://api.test/v1/kitchen/me/recipes/rcp_1",
       "DELETE https://api.test/v1/kitchen/me/recipes/rcp_1",
       "POST https://api.test/v1/kitchen/me/recipes/rcp_1/link",
       "DELETE https://api.test/v1/kitchen/me/recipes/rcp_1/link",
       "GET https://api.test/v1/kitchen/recipe-links/AbCdEfGhJk",
+      "GET https://api.test/v1/kitchen/recipe-links/AbCdEfGhJk?f=2000",
       "POST https://api.test/v1/kitchen/me/recipes/copies",
       "PATCH https://api.test/v1/kitchen/me/recipes/rcp_1/step-times",
     ]);
     expect(JSON.parse(calls[1]![1]!)).toEqual({ fromDishId: "dsh_1" });
-    expect(JSON.parse(calls[9]![1]!)).toEqual({ linkCode: "AbCdEfGhJk" });
-    expect(JSON.parse(calls[10]![1]!)).toEqual({ steps: [{ key: "k1", minSeconds: 420, maxSeconds: 540 }] });
+    expect(JSON.parse(calls[11]![1]!)).toEqual({ linkCode: "AbCdEfGhJk" });
+    expect(JSON.parse(calls[12]![1]!)).toEqual({ steps: [{ key: "k1", minSeconds: 420, maxSeconds: 540 }] });
   });
 
   it("reads lists, the match, a person's recipes, Explore and Cook now — and a refusal is a NotFoundError", async () => {

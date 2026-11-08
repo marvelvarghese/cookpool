@@ -799,6 +799,18 @@ export interface KitchenRepository {
    * when there is no such recipe. ONE read.
    */
   recipeRootId(recipeId: Uuid): Promise<KitchenResult<Uuid | null>>;
+  /**
+   * The times cooks kept for these step keys (GC-7), pooled under the
+   * recipe's root — found as `recipeRootId` finds it — so the root's own
+   * dishes and every copy's count alike. ONE read, through
+   * kitchen_dish_step_times_root_idx and the dishes' primary key. Left out in
+   * SQL: a canceled dish's times, any under `minSeconds` (a skipped step), and
+   * any whose size is not known (the time's factor, else its dish's). Kept
+   * raw otherwise: the worker leaves out abandoned times and normalises by
+   * each step's rule. Who cooked is a number that tells cooks apart within
+   * this read only, never their id. No keys reads nothing.
+   */
+  pooledStepTimes(query: PooledStepTimesQuery): Promise<KitchenResult<KitchenPooledStepTime[]>>;
 }
 
 // ── Your measures (SM-13) ───────────────────────────────────
@@ -1567,6 +1579,27 @@ export interface UpdateKitchenRecipeInput {
   lines?: readonly Omit<KitchenRecipeLineRecord, "position">[];
   steps?: readonly NewKitchenRecipeStep[];
   now: Date;
+}
+
+/** What `pooledStepTimes` reads (GC-7). */
+export interface PooledStepTimesQuery {
+  /** The recipe being read: its root's pool is read. */
+  recipeId: Uuid;
+  /** Its steps' keys (at most a recipe's 20). */
+  stepKeys: readonly string[];
+  /** A time under this many seconds was a step skipped, not timed. */
+  minSeconds: number;
+}
+
+/** One time from a recipe root's pool (GC-7). */
+export interface KitchenPooledStepTime {
+  stepKey: string;
+  /** From the step's start to its tick, at the size it was cooked at. */
+  seconds: number;
+  /** That size, in thousandths: the time's own, else its dish's (never null: a time of no size is left out). */
+  factorMilli: number;
+  /** Who cooked it: 1, 2, 3… in the order this read met them — the same number for the same cook within one read, and nothing more. */
+  cook: number;
 }
 
 /** The viewer's last dish of a recipe. */
