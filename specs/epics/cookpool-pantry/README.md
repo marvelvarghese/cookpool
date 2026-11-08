@@ -13,7 +13,7 @@ It is built the way a good workout app works: the next thing is already filled i
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | ✅ Shipped on stage 2026-11-08 · reaches prod with cookpool-recipes RC5 |
 | Cluster | **PN** (PN0–PN4) |
 | Owner(s) | **Suggestions, restocking, the stock check and asks:** `apps/kitchen-worker`, `packages/db`, `packages/contracts`, `packages/sdk`. **The ask push:** `apps/kitchen-worker` through notifications-worker's push to a subject. **The Pantry, the item page, the shopping run, the stock check and the ask screens:** `apps/web-console-next`. |
 | Builds on | `cookpool-kitchen` (CP3 pantries and using, the waste rule), `cookpool-simpler` (SM-5 writes with Undo, the five tabs), `cookpool-recipes` (RC-2 item notes, RC-3 foods and kinds, RC-11 page transitions), `cookpool-guided` (GC-3 push to a subject), `cookpool-app` (PW-5/PW-6 Web Push, PW-8 rows and long-press). |
@@ -21,7 +21,7 @@ It is built the way a good workout app works: the next thing is already filled i
 | Decisions locked | (1) **One kitchen surface.** The Pantry is where you log, check and restock; there is no second logging screen. (2) **Suggestions come from the server and say why:** your usual for this time of day from your own last 60 days with that food, the rest when little is left, and use soon. A new pack inherits the usual because it's kept per food, not per item. (3) **One row open at a time,** and Undo instead of "Are you sure?". (4) **Finished items stay 7 days.** (5) **A shopping run is one write with one payer.** Each line keeps its own pantry and price, and Undo removes them all. (6) **The stock check never invents money.** Less than expected becomes a use by you, a use split across the group's members, or waste under the item's rule. More than expected moves no money. (7) **Ask before use is per item, off by default, and set by the buyer.** Nothing moves until they approve. An ask lapses after 24 h. The buyer can let named people skip asking. (8) **Stage first,** behind `newFrame()`. |
 | Design | Claude Design canvas, rows "Pantry and using — faster" and "Ask before use": https://claude.ai/artifact/TwmkN2cAmebQPkL2QEQZVv (`PantryNew`, `UseSheet`, `QuickLog`, `ItemPage`, `BuyAgain`, `StockCheck`, `AskSetting`, `AskRequest`, `AskApprove`). The stickies there hold the rules. |
 | Gate | PN1 is the day the Pantry logs in one tap. PN2 is the day restocking takes one go. PN3 is the day stock can be fixed honestly. PN4 is the day a buyer can guard an item. |
-| Shipped as | |
+| Shipped as | PN0 #79 · PN1 #81 #84 · PN2 #82 #87 · PN3 #83 #85 · PN4 #86 #88 · close PN-10. On stage: usuals by time of day, kept per food so a new pack inherits them; the Pantry by kind with level bars, counts as filters, phone search, the Now strip, a suggested amount with its reason on every row, rows that open in place, the More… sheet and Log several; Home's field opens the Pantry; Finished this week, Bought again with Change and Undo, `/pantry/new?from=`, and the shopping run in one write (migration 400); the item page with a level ring, quick-use chips, when it runs out, who had it and its actions; the stock check, whose difference becomes your use, a split with the group or waste, and whose raise moves no money (migration 410); and ask before use: the buyer's switch and allowed list, asks from rows, sheets, the item page and the cook session, the buyer's Home card with Approve, Decline and Always let, pushes both ways, and 24 h lapsing (migration 420). |
 
 ## Read order
 
@@ -42,4 +42,26 @@ It is built the way a good workout app works: the next thing is already filled i
 
 ## After this epic
 
-(Filled in by the close-out task.)
+These are what the tasks reported and left for later, or for a small fix:
+
+- **Prod.** Everything lives inside the new frame, so it reaches prod with cookpool-recipes RC5, when the owner says go.
+- **Owner checks on an installed iPhone and on stage:**
+  - the Now strip at a real morning, after three morning uses of the same thing;
+  - one-tap chips, the open row and Log several, each with Undo;
+  - a shopping run across two pantries, and its Undo;
+  - a stock check split with the flat, and its Undo;
+  - an ask reaching the buyer's locked phone, the push opening the Home card, Approve with Always let, and the asker's push;
+  - an unanswered ask reading Lapsed after 24 h.
+- **Running low in the restock read** uses only the 20 % rule. The per-person "under one usual" half applies only on the Pantry (PN-3).
+- **"Lasts about N days"** on running-low lines needs a use rate in the restock read; the line reads "600 g of 5 kg left" for now (PN-6).
+- **Offline,** the service worker doesn't cache the restock read, so Finished this week is hidden (PN-6).
+- **The new Pantry's search** is over the loaded items, not the server's search. It has one layout at every width; the desktop table stays in the old frame (PN-5).
+- **Other amounts** are a stepper, with no typed amount (PN-5).
+- **History after a raising stock check:** a reversal of a use logged before the raise is capped at what was bought, so its move can overstate what came back. The money is exact (PN-4).
+- **Asks:**
+  - history names the buyer as the approver, because moves don't record who approved (PN-9);
+  - an approver who isn't an owner or admin can undo an approved ask only from the Home card, not from history (PN-9);
+  - `toAnswer` returns at most 50 (PN-8);
+  - several pending asks per person per item are allowed (PN-8);
+  - an approved cook-session ask is the cook's own use, outside the dish's cost (risk PN-F).
+- **PN-8's contract** had a "done when" line over Orunbase's 200-character limit, so it was never attached; PN-10 split the line and attached it.

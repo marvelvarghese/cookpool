@@ -4,11 +4,11 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 | Milestone | State | PR |
 |---|---|---|
-| PN0 — the spec | | |
-| PN1 — one tap from the Pantry | | |
-| PN2 — restocking in one go | | |
-| PN3 — fixing stock honestly | | |
-| PN4 — ask before use | | |
+| PN0 — the spec | ✅ shipped 2026-11-08 | #79 (PN-1) |
+| PN1 — one tap from the Pantry | ✅ shipped on stage 2026-11-08 | #81 (PN-2), #84 (PN-5) |
+| PN2 — restocking in one go | ✅ shipped on stage 2026-11-08 | #82 (PN-3), #87 (PN-6) |
+| PN3 — fixing stock honestly | ✅ shipped on stage 2026-11-08 | #83 (PN-4), #85 (PN-7) |
+| PN4 — ask before use | ✅ shipped on stage 2026-11-08 | #86 (PN-8), #88 (PN-9), PN-10 |
 
 ## Departures from the design
 
