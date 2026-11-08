@@ -198,9 +198,15 @@ describe("the food list, against a real SQLite engine (340_kitchen_foods)", () =
       if (!found.ok) throw new Error("read failed");
       return found.value.map((f) => `${f.key}:${f.matchedName}`);
     };
-    expect(await search("pyaz")).toEqual(["onion:pyaz"]);
-    expect((await search("dal")).slice(0, 2)).toEqual(["toor_dal:dal", "chana_dal:chana dal"]);
-    expect(await search("chilli")).toEqual(["green_chilli:chilli", "red_chilli_powder:chilli powder"]);
+    // The name itself, then names that start with it, then a word that does (360's list, RC-7).
+    expect(await search("pyaz")).toEqual(["onion:pyaz", "spring_onion:hara pyaz"]);
+    expect((await search("dal")).slice(0, 6)).toEqual([
+      "toor_dal:dal", "cinnamon:dalchini", "dalia:dalia", "namkeen:dal moth", "pomegranate:dalimb", "chana_dal:chana dal",
+    ]);
+    expect(await search("chilli")).toEqual([
+      "green_chilli:chilli", "chilli_flakes:chilli flakes", "red_chilli_powder:chilli powder", "red_chilli_sauce:chilli sauce",
+      "dried_red_chilli:red chilli", "green_chilli_sauce:green chilli sauce",
+    ]);
     expect(await search("chilli", 1)).toEqual(["green_chilli:chilli"]);
     expect(await search("zzz")).toEqual([]);
     const everything = await repo.searchFoods(null, 100);
@@ -280,7 +286,8 @@ describe("recipes, against a real SQLite engine (350_kitchen_recipes)", () => {
   });
 
   it("refuses two main lines, a to-taste main, a food not on the list and a taken link code — writing nothing", async () => {
-    const count = () => (db.prepare("SELECT COUNT(*) AS n FROM kitchen_recipes").get() as { n: number }).n;
+    // People's recipes (Cookpool's own, seeded by 360, aside).
+    const count = () => (db.prepare("SELECT COUNT(*) AS n FROM kitchen_recipes WHERE is_system = 0").get() as { n: number }).n;
     const bad = [
       recipe({ lines: [...recipe().lines, { foodKey: "rice", name: "Rice", qtyMilli: 1_000, unit: "g", toTaste: false, isMain: true }] }),
       recipe({ lines: [{ foodKey: "salt", name: "Salt", qtyMilli: null, unit: null, toTaste: true, isMain: true }] }),
@@ -302,6 +309,10 @@ describe("recipes, against a real SQLite engine (350_kitchen_recipes)", () => {
   });
 
   it("lists the owner's own, Cookpool's and others' shared ones — never only-me ones of others, nor deleted ones", async () => {
+    // Cookpool's seeded recipes (360) aside, so each scope is counted exactly.
+    db.exec(`DELETE FROM kitchen_recipe_steps WHERE recipe_id IN (SELECT id FROM kitchen_recipes WHERE is_system = 1);
+             DELETE FROM kitchen_recipe_lines WHERE recipe_id IN (SELECT id FROM kitchen_recipes WHERE is_system = 1);
+             DELETE FROM kitchen_recipes WHERE is_system = 1;`);
     const mineOnly = await create({ ownerId: RAHUL, visibility: "only_me", name: "Rahul's secret dal" });
     const anuGroups = await create({ name: "Anu's curry" });
     const anuLink = await create({ name: "Anu's poha", visibility: "link", linkCode: "PohaPohaPo", kind: "breakfast" });

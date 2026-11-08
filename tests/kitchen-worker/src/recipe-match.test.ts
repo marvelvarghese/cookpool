@@ -8,7 +8,9 @@
 // order.
 
 import type { CookDishResponse, CookNowResponse, RecipeMatchResponse } from "@saas/contracts/kitchen";
-import { ANU, OLU, RAHUL, VIK, addItem, chickenCurry, groupPath, me, systemRecipe, world, writeRecipe, type World } from "./recipes-helpers.js";
+import {
+  ANU, OLU, RAHUL, VIK, addItem, chickenCurry, groupPath, me, systemRecipe, withoutCookpoolSeed, world, writeRecipe, type World,
+} from "./recipes-helpers.js";
 
 let w: World;
 
@@ -50,7 +52,7 @@ describe("GET /v1/kitchen/me/recipes/{rcp}/match (RC-4, design §3.3)", () => {
       [0, "short", 1_000_000, 800_000], // 300 g in Flat 4B and 500 g of his own
       [1, "have", 2_000, 11_666], // 5 onions of 100 g in the flat, 1 kg of his own at 150 g each
       [2, "missing", 200_000, 0],
-      [3, "missing", 5_000, 0], // a spoon of turmeric does not meet 100 g of it
+      [3, "have", 5_000, 166_666], // a spoon of turmeric meets 100 g of it through its density, 0.6 g/ml (RC-7)
       [4, "always", null, 0], // salt, to taste
     ]);
     // The flat's chicken goes first: it is to be used by the 10th; his own by the 12th.
@@ -61,7 +63,9 @@ describe("GET /v1/kitchen/me/recipes/{rcp}/match (RC-4, design §3.3)", () => {
     expect(m.lines[0]!.items[0]!.pantry).toMatchObject({ kind: "group", orgId: w.flat.publicId });
     // Neither onion has a use-by date: his own pantry first, two onions at 150 g each.
     expect(m.lines[1]!.items.map((i) => [i.itemId, i.takeMilli, i.unit])).toEqual([[s.ownOnions.id, 300_000, "kg"]]);
-    expect(m.summary).toEqual({ lines: 5, have: 1, short: 1, missing: 2, always: 1, missingNames: ["Tomatoes", "Turmeric"], maxFactorMilli: null });
+    // The teaspoon is 3 g of the pack.
+    expect(m.lines[3]!.items.map((i) => [i.itemId, i.takeMilli, i.unit])).toEqual([[s.turmeric.id, 3_000, "g"]]);
+    expect(m.summary).toEqual({ lines: 5, have: 2, short: 1, missing: 1, always: 1, missingNames: ["Tomatoes"], maxFactorMilli: null });
     // What he could be asked about: the milk links to no food.
     expect(m.unlinked).toEqual([{ itemId: s.milk.id, orgId: null, name: "Amul taaza", nameKey: "amul taaza" }]);
   });
@@ -76,7 +80,7 @@ describe("GET /v1/kitchen/me/recipes/{rcp}/match (RC-4, design §3.3)", () => {
       ["have", 450_000, 0.45, "kg"],
       ["have", 1_000, 1, "onion"], // 0.9 onion rounds to 1
       ["missing", 90_000, 90, "g"],
-      ["missing", 2_500, 0.5, "tsp"],
+      ["have", 2_500, 0.5, "tsp"],
       ["always", null, null, null],
     ]);
     expect(m.lines[0]!.items.map((i) => [i.itemId, i.takeMilli])).toEqual([
@@ -139,6 +143,7 @@ describe("GET /v1/kitchen/me/recipes/{rcp}/match (RC-4, design §3.3)", () => {
 
 describe("GET /v1/kitchen/me/cook-now (RC-4, design §5.4)", () => {
   it("ranks every recipe the caller can see by fewest missing, then the largest factor, then the most recently cooked", async () => {
+    withoutCookpoolSeed(w);
     await addItem(w, RAHUL, null, { name: "Rice", category: "grains", quantity: "1", unit: "kg", priceMinor: 9000 });
     const salt = await addItem(w, RAHUL, null, { name: "Salt", category: "spices", quantity: "1", unit: "kg", priceMinor: 2500 });
     const rice = (name: string, grams: string, servesHalf: number) => ({
@@ -189,6 +194,7 @@ describe("GET /v1/kitchen/me/cook-now (RC-4, design §5.4)", () => {
   });
 
   it("returns at most 20, each naming at most three missing lines", async () => {
+    withoutCookpoolSeed(w);
     for (let i = 0; i < 24; i += 1) {
       systemRecipe(w, `Staple ${String(i).padStart(2, "0")}`, 4, [
         ["tea", "Tea", 10_000, "g", true], ["milk", "Milk", 1_000, "ml", false], ["sugar", "Sugar", 1_000, "g", false], ["ginger", "Ginger", 1_000, "g", false],

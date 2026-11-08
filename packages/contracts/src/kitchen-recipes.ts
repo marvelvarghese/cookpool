@@ -50,6 +50,13 @@ export interface KitchenFood {
   eachG: number | null;
   /** The pantry category it is filed under: veg, fruit, dairy, grains, protein, spices, other. */
   category: string;
+  /**
+   * Grams per millilitre (RC-7): a spoon or cup of it meets an item weighed
+   * in grams, and a weight meets a bottle (turmeric ≈ 0.6, rice ≈ 0.8, oil ≈
+   * 0.92); null when it has none, and then they never meet. Optional in the
+   * type so foods typed before RC-7 still check; the server always sends it.
+   */
+  gPerMl?: number | null;
 }
 
 /** A food the search found, with the name of it that matched ("pyaz" for Onion). */
@@ -469,7 +476,7 @@ export interface RecipeLineMatch {
   /** The same in the line's unit; null to taste. */
   needQuantity: number | null;
   unit: string | null;
-  /** What the caller's pantries hold of its food, in the line's base unit (≈ when counts meet weights). */
+  /** What the caller's pantries hold of its food, in the line's base unit (≈ when counts meet weights, or volumes meet weights through the food's density). */
   availableMilli: number;
   /**
    * The items it would take from — soonest use-by first, then the caller's

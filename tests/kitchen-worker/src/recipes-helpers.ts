@@ -100,7 +100,17 @@ export const chickenCurry = {
   steps: ["Brown the onions", "Add the chicken and the spices", "Simmer 30 minutes"],
 };
 
-/** Put a Cookpool recipe straight into the table, as RC-7's migration will: lines given as [food, name, qtyMilli, unit, main]. */
+/**
+ * Take out Cookpool's own recipes, which migration 360 seeds (RC-7), so a
+ * test that counts or ranks recipes sees only those it wrote.
+ */
+export function withoutCookpoolSeed(w: World): void {
+  w.h.db.exec(`DELETE FROM kitchen_recipe_steps WHERE recipe_id IN (SELECT id FROM kitchen_recipes WHERE is_system = 1);
+               DELETE FROM kitchen_recipe_lines WHERE recipe_id IN (SELECT id FROM kitchen_recipes WHERE is_system = 1);
+               DELETE FROM kitchen_recipes WHERE is_system = 1;`);
+}
+
+/** Put a Cookpool recipe straight into the table, as migration 360 does: lines given as [food, name, qtyMilli, unit, main]. */
 export function systemRecipe(
   w: World,
   name: string,

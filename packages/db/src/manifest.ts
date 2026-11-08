@@ -327,5 +327,14 @@ export const manifest: MigrationManifest = {
       description:
         "Recipes: kitchen_recipes (rcp_ templates owned by a person or Cookpool's system user; serves in halves; only_me / groups / link visibility with a unique 10-character link code exactly while it is link; copies carry their source and its owner's name; soft delete), kitchen_recipe_lines (food or free text, an amount in a unit or to taste, exactly one main never to taste) and kitchen_recipe_steps (up to 20, 200 characters each); the dish's recipe_id and recipe_factor_milli and each ingredient's recipe_line, nullable (Cookpool RC-4)",
     },
+    {
+      id: "360_kitchen_cookpool_recipes",
+      context: "kitchen",
+      path: "360_kitchen_cookpool_recipes/up.sql",
+      checksum:
+        "035861f1e00a40135553ea661b357bd2baa45f9355a8b04bca90904625fe3a3b",
+      description:
+        "The full food list and Cookpool's own recipes: kitchen_foods.g_per_ml (grams per millilitre, nullable, so a spoon meets a weight), set on RC-4's foods measured by spoon or cup; 230 more foods (300 in all) and 1,850 more names in English, Hindi and regional words; 42 home-staple recipes under usr_cookpool (is_system, seen by everyone, edited by no one) with their lines and steps; and one backfill linking items still unlinked to the new names (Cookpool RC-7)",
+    },
   ],
 };

@@ -299,6 +299,75 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
   `next build` prerenders `/cook/session` as a static page.
 
+### RC4 — Cookpool's recipes and the food list (RC-7)
+
+**What shipped.** Storage, contracts and kitchen-worker's match. No console file changed.
+
+- **Migration `360_kitchen_cookpool_recipes`**, laid out as 340 and 350, with its manifest entry and checksum:
+  - **Density**: `kitchen_foods.g_per_ml REAL NULL CHECK (g_per_ml IS NULL OR (g_per_ml > 0 AND g_per_ml <= 5))`, grams per millilitre. One `UPDATE … WHERE g_per_ml IS NULL` sets it on 50 of RC-4's 70 foods (spices, salt, sugar, flours, rice, dals, oil, ghee, milk and curd, and chopped vegetables and herbs). The new foods carry theirs in the insert. In all, 173 of the 300 foods have one.
+  - **Foods**: 230 more, so **300** in all, in RC-4's seven categories: veg 62, fruit 28, grains (grains, flours, dals and pulses) 51, dairy 13, protein 14, spices 55, other (oils, sauces and condiments, baking, nuts and dry fruit, snacks, drinks) 77. Each food has a dimension, `each_g` where people count it (sweet potato 200, drumstick 50, pav 40, papad 10), and answers to its own key in words.
+  - **Names**: 1,850 more, so **2,180** in all. That is 1,361 for the new foods and 489 more for RC-4's. They are in English, Hindi, Tamil, Telugu, Malayalam, Kannada, Bengali and Marathi where common (lauki, sorakkai, anapakaya, churakka, lau, dudhi), plus cuts and varieties (rohu, surmai, pomfret, bangda and mathi are fish; boneless and keema are chicken or mutton). RC-4's 70 foods and 330 names are exactly as 340 wrote them, which a test checks.
+  - **Cookpool's 42 recipes** under `usr_cookpool`, with `is_system = 1` and visibility `groups` and no link code, as RC-4's helpers write them:
+    - breakfast 5: Kanda poha, Rava upma, Egg bhurji, Masala omelette, Sabudana khichdi;
+    - roti 4: Aloo paratha, Plain paratha, Chapati, Puri;
+    - dal & curry 16: Dal tadka, Dal fry, Rajma, Chole, Sambar, Tomato rasam, Kadhi, Palak paneer, Paneer bhurji, Matar paneer, Aloo gobi, Bhindi fry, Baingan bharta, Chicken curry, Egg curry, Fish curry;
+    - rice 6: Jeera rice, Veg pulao, Lemon rice, Curd rice, Moong dal khichdi, Veg fried rice;
+    - drink 4: Masala chai, Filter coffee, Sweet lassi, Nimbu pani;
+    - snack 3: Onion pakoda, Pav bhaji, Veg sandwich;
+    - sweet 4: Rava sheera, Rice kheer, Besan ladoo, Gajar halwa.
+
+    Each serves 2 to 6 and has its minutes and 4 to 18 lines (477 in all), exactly one of them main and never to taste. Every line, the 65 to-taste ones included, names a food on the list, in g, kg, ml, L, pcs, tsp, tbsp or cup. Every amount sits on its unit's rounding grid, so `scaleLine` at × 1 returns it as written. Each recipe has 3 to 6 steps of at most 200 characters (215 in all).
+  - **Backfill**: items still unlinked are linked to the new foods and names by the same lookup an add uses, unless their pantry answered for that name.
+  - Every seed statement is `INSERT OR IGNORE`, one per group of foods, of names, and of recipes' lines and steps. The largest is 15 KB, well under D1's 100 KB statement limit.
+- **Storage** (`packages/db/src/kitchen`): `KitchenFoodRecord.gPerMl`, read by every food read (search, `getFoods`, `matchFood`, Always have).
+- **Contracts**: `KitchenFood.gPerMl` (on `FoodMatch` and Always have's foods too), documented on the type. The `availableMilli` doc now says volumes meet weights.
+- **kitchen-worker**: `toKitchenFood` returns `gPerMl`. In `itemPerLine` (the match, and with it Explore and Cook now), a count line still meets any item through its measure first. Otherwise both sides go through grams: a gram is 1, a millilitre is the food's `g_per_ml`, a piece is its `each_g`. So 1 tsp of turmeric meets a 100 g pack (3 g of it), a cup of rice meets a 1 kg bag (192 g), 50 g of ghee meets a 500 ml jar (≈ 56 ml), and a cup of chopped onion meets onions counted by the piece. A food without the figure it needs still reads missing.
+
+**Density sources.** These are household weights per volume, rounded to two figures, for a 5 ml teaspoon, a 15 ml tablespoon and a 240 ml cup (contracts' `RECIPE_UNITS`).
+- USDA FoodData Central (SR Legacy) household measures, for example:
+  - ground turmeric 1 tsp = 3.0 g, so 0.6;
+  - chilli powder 2.7 g/tsp, so 0.54;
+  - table salt 6 g/tsp, so 1.2;
+  - granulated sugar 200 g/cup, so 0.85;
+  - whole-wheat flour 120 g/cup, so 0.5;
+  - all-purpose flour 125 g/cup, so 0.52;
+  - raw rice 185–200 g/cup, so 0.8;
+  - lentils and mung beans 192–207 g/cup, so 0.8–0.85;
+  - butter 0.95, yogurt 1.03, rolled oats 0.34, cornstarch 0.53, semolina 0.7, honey 1.42, ketchup 1.13, soy sauce 1.07.
+- The FAO/INFOODS Density Database v2.0 (2012) for liquids and fats: oils 0.91–0.92, milk 1.03, ghee 0.9.
+- Common Indian kitchen conversions where USDA has no entry: thick poha ≈ 75 g/cup (0.32), besan ≈ 95 g/cup (0.4), sabudana ≈ 155 g/cup (0.65), ground masalas 0.45–0.6.
+
+**Departures.**
+
+- **300 foods, 2,180 names and 42 recipes**, not "about 300" and "about 40". The names are close to seven per food because regional words are most of the value.
+- **No katori.** RC-4's units are `g kg ml L pcs tsp tbsp cup`. Any other unit is a count word, one piece of the line's food, so "1 katori dal" would mean one dal. Lines say cups instead. A katori unit would need the kitchen engine's unit table, which this contract does not cover.
+- **Small and whole spices are to taste.** Amounts round to half a spoon, so the smallest spoon line is ½ tsp. `each_g` is whole grams and RC-4's foods may not change, so a clove, a bay leaf, a cardamom pod or a sprig of curry leaves cannot be counted. Those lines, and hing, saffron and salt, are to taste with their food linked: 65 of 477 lines. The match counts them as there, as it does any to-taste line.
+- **The conversion goes through grams both ways and for counts too**, rather than only volume ↔ mass. A cup of chopped onion meets onions counted in pieces (`g_per_ml ÷ each_g`). A measure still wins for a count line. The match also adds a millionth of a thousandth of slack before it floors what is available, so 1 ÷ 0.9 never loses the last thousandth (500 ml of ghee is 450 g, not 449.999).
+- **`gPerMl` is optional in the type** (`gPerMl?: number | null`), as RC-3's `note?` is, so foods typed before RC-7 (fixtures, RC-5's and RC-6's work) still check. The server always sends it, as null when there is none.
+- **The column has a CHECK** (above 0, at most 5) beyond the brief's `REAL NULL`. Because `INSERT OR IGNORE` skips a row that fails a CHECK without a word, a test applies 360's seed with plain `INSERT` on top of 350 and every row lands.
+- **360 also backfills items** still unlinked, as 340 did, skipping any name a pantry answered ("none of these" included). Without it, an existing "Kaju" or "Arhar" would stay unlinked until re-added.
+- **Fixed recipe ids and times.** The recipes are `c00c0360-0000-4000-8000-0000000000NN`, so a re-run adds nothing and copies keep their source. Their `created_at` is a minute apart from 2026-11-08T00:00Z, so Explore's newest-first order is the seed's order, from Kanda poha down to Gajar halwa.
+- **Recipe names**: Kanda poha, Rava upma, Tomato rasam, Moong dal khichdi, Veg fried rice, Sweet lassi, Rava sheera and Rice kheer say which one they are. Explore's `q=poha` and the like still find them.
+- **Words left out or placed on purpose**:
+  - `methi` is the leaves; the seeds are `methi dana`.
+  - `vellam` stays jaggery (Tamil), not water (Malayalam).
+  - `dalia` is broken wheat, not the Gujarati roasted gram.
+  - `sitaphal` is custard apple, not pumpkin.
+  - `chakka` (jackfruit in Malayalam, hung curd in Marathi) and `kaya` are left out.
+  - Brand names are left out (Milkmaid, Nutrela, Dalda, Frooti).
+  - Fish varieties and chicken or mutton cuts are names of `fish`, `chicken` and `mutton`, not foods of their own, so Fish curry meets a pantry's rohu.
+- **RC-4's tests changed only where the larger list or the seed changes the truth**:
+  - the turmeric line in the match test now reads have (3 g of the pack);
+  - food reads carry `gPerMl`;
+  - search: `dal` lists dalchini, dalia, dal moth and dalimb before chana dal (RC-4's tiers put a name that starts with the query before a word that does), `pyaz` also finds spring onion (hara pyaz), and `chilli` finds six;
+  - `?limit=100` is now a full page, so the egg is found by `q=anda`;
+  - the 340 seed test reads a database migrated through 350;
+  - the names test's not-a-food placeholder is now `kohlrabi`, since `shallot` is a name.
+
+  Tests that count or rank recipes exactly (Explore, Cook now's order and its limit, the db list and the refused write) first take out Cookpool's seed (`withoutCookpoolSeed`).
+- **Save as recipe** still weighs volume as water when it picks the heaviest line. That is a recipe route, outside this contract.
+- **Not checked on stage** (nothing deployed). `infra/db-migrate` is unchanged: it applies whatever the manifest lists, as it did 330–350.
+
 **Tests.**
 
 | Package | New | Total |
@@ -306,3 +375,9 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | `tests/web-console-next` | 52 (`kitchen-cook-session.test.ts`): the store 7 (per-account key, a fresh store after a reload, snapshots and subscribers, other versions dropped, one at a time, the discard sheet, cleared on sign-out); from a recipe 7 (lines from the match, takes, where from and last time, missing left out, to taste, the chip and steps, fresh reads); blank with from before 3; ticks 1; the stepper 4; Add an item 2; the Finish sheet 6 (unticked, who ate, post to, the button's cost, the switch, today's amounts); posting 11 (the exact body with `recipeId`/`recipeFactorMilli`/`recipeLine`, leave out and one item once, the shares call, just you, ½ at least, save amounts, save as a recipe, problems, a refusal pointing at its line, shares refused, offline); the bar 5; a row as drawn 3; the address and prod 3 | 1437 (77 suites) |
 
 `pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, and `orun task check RC-6 --base origin/main` passes: 2 changed components, all inside the contract.
+
+| `tests/db` | 11 (`kitchen-cookpool-recipes-migration`: 360's registration and text, every seed row landing under plain INSERT, re-running adds nothing, the backfill and answered names, the column and its CHECK, ≥ 280 foods in their categories and named by their keys, RC-4's foods and names untouched, ≥ 1,500 unique folded names, the densities, ≥ 38 recipes under usr_cookpool, their lines and steps); 5 RC-4 tests adjusted | 761 |
+| `tests/kitchen-worker` | 52 (`cookpool-recipes`: the content test, one case per Cookpool recipe (42) for one main line not to taste, every line a known food or to taste, the contracts' units, amounts above zero, `scaleLine` at × 0.5, × 1 and × 2 on the grid, 3–8 steps ≤ 200 characters and serves 2–6; plus the count; 6 for the match through density (turmeric, rice and its factor, ghee by weight, onion by the cup, paneer with none still missing, a density taken away); 3 through the router (Explore `source=cookpool` with kind and q, a full read with no edits and a copy, Masala chai first in Cook now and missing tea and sugar without densities)); 7 RC-4 tests adjusted | 582 |
+| `tests/contracts` | 2 (`kitchen-food-density`) | 188 |
+
+`pnpm typecheck` passes repo-wide (52 tasks). `pnpm lint` passes for every touched package (`packages/db`, `packages/contracts`, `apps/kitchen-worker`, `tests/db`, `tests/contracts`, `tests/kitchen-worker`).

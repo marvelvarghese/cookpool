@@ -10,6 +10,9 @@
 // included; then the name itself; then the name without a plural "es" or
 // "s", when those agree on exactly one food. Anything else stays unlinked.
 //
+// A food may carry a density (g_per_ml, migration 360_kitchen_cookpool_recipes):
+// grams per millilitre, so the match can meet a spoon of it with a weight.
+//
 // Always have is a short list per person. Until they first save it they read
 // the default (salt and water): kitchen_always_have_lists records that they
 // have, so a list they emptied stays empty.
@@ -45,7 +48,7 @@ export type FoodsRepository = Pick<
 /** What a person always has until they save their own list (contracts' DEFAULT_ALWAYS_HAVE). */
 export const KITCHEN_DEFAULT_ALWAYS_HAVE: readonly string[] = ["salt", "water"];
 
-const FOOD_COLUMNS = "f.key, f.name, f.dimension, f.each_g, f.category";
+const FOOD_COLUMNS = "f.key, f.name, f.dimension, f.each_g, f.category, f.g_per_ml";
 
 type Row = Record<string, unknown>;
 
@@ -56,6 +59,7 @@ function mapFood(row: Row): KitchenFoodRecord {
     dimension: row.dimension as KitchenFoodDimension,
     eachG: row.each_g === null || row.each_g === undefined ? null : Number(row.each_g),
     category: row.category as string,
+    gPerMl: row.g_per_ml === null || row.g_per_ml === undefined ? null : Number(row.g_per_ml),
   };
 }
 
