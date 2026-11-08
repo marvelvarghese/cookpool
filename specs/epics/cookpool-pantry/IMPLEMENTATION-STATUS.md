@@ -79,3 +79,89 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 **For later tasks:**
 - **PN-5:** send `tzOffset: -new Date().getTimezoneOffset()`. The `kitchenUsuals` query key has no bucket in it, so a read cached at 10:55 still says morning at 11:05. Refetch when `usualBucketAt(new Date(), tz)` changes.
 - **PN-3:** can call `isRunningLow({ item, usual })` with the last usual. The name-key reads here need no index.
+
+### PN3 — The stock check in the server (PN-4)
+
+**Built.**
+
+- **Migration 410** `410_kitchen_moves_via`: `ALTER TABLE kitchen_stock_moves ADD COLUMN via TEXT CHECK (via IS NULL OR via IN ('check', 'ask'))`. It's registered in `manifest.ts` with its sha256. Every move written before reads NULL. `'ask'` is there for PN-8.
+- **`POST /v1/kitchen/me/items/{itm}/check`** and **`POST /v1/organizations/{org}/kitchen/items/{itm}/check`**:
+  - **Request:** `{ left: { quantity, unit? }, gone?: "me" | "split" | "waste" }`.
+    - `quantity` is a decimal string or number, and `0` (or `"0.0"`) means empty.
+    - `unit` is any unit the use routes take that measures what the item does. The default is the item's own unit.
+  - **Response:** 201 `StockMoveResponse` (`{ item, move, txn }`), also typed as `CheckItemResponse`. Idempotency works as on every write.
+  - **Authz:** a group item takes `kitchen.item.use`, the same as using it: members, owners and admins, not viewers. Everyone else gets the opaque 404. A personal item is keyed by the caller's subject.
+  - **Less than is left:** the check writes exactly what `…/uses` or `…/waste` would have written for the difference. It goes through the same planners, so the move, cost, transaction, splits, audit event, email and Undo are theirs:
+    - `me` is a use by the caller. A group item posts a `use` txn charging the caller, or none when the caller is the buyer.
+    - `split` is a use whose consumers are every member on the group's roster, oldest first. It uses `buildUse` equal shares, so the odd paisa goes one each to the earliest. Personal items refuse it.
+    - `waste` is waste under the item's rule, else the group's. Split equally posts a `waste` txn shared by the roster; buyer absorbs, and every personal item, writes the move only.
+  - **More than is left:** an `adjust` move of the difference, with `cost_minor` 0, no txn, and `qty_left` raised. The item becomes `active`. A group item writes the audit event `kitchen.item.adjusted`.
+  - **Every move a check writes has `via = 'check'`.** Reversals never carry `via`.
+  - **Refusals,** each writing nothing:
+    - the same level as is left: 422 `details.reason: "unchanged"` with `details.qtyLeftMilli`;
+    - above what was bought: 422 `details.reason: "more_than_bought"` with `details.qtyBoughtMilli`;
+    - less without `gone`, `split` on a personal item, or a bad `gone`: 422 field `gone`;
+    - a malformed level, a unit of another dimension, or a `measure`: 422 fields `left`, `left.quantity`, `left.unit` or `left.measure`.
+- **Shared write paths** (refactored out of the handlers, behaviour unchanged; the existing 709 worker tests pass as they were):
+  - `planGroupUse`, `planGroupWaste` and `emailUse` (`handlers/uses.ts`), and `planPersonalUse` and `planPersonalWaste` (`handlers/my-uses.ts`). The use and waste routes and the check all call them.
+  - The worker's `takeStock` (`stock.ts`) takes `kind: "check"` and a plan that returns either a take or an adjust (`StockWrite`). A replay matches a check's key only to a move with `via = 'check'` by the same actor. A use or waste key matches only a move with no `via`.
+- **Database:**
+  - `KitchenStockMoveRecord.via` and `TakeStockInput.move.via`.
+  - The new `repo.adjustStock(AdjustStockInput)` writes one batch: the guarded `adjust` insert, then `qty_left + d` and `state = 'active'`. It fails as `stale` on a moved version and as `invalid: more_than_bought` on the CHECK.
+  - `repo.undoMove` on an `adjust` uses `unadjustStatements`, which take `d` back off. An item it empties is finished as its latest take still in effect left it: `wasted` after a waste, else `used_up`. If less than `d` is left, it fails with `insufficient_stock`.
+- **Undo of an adjust** goes through the existing `…/moves/{mov}/undo` (personal and group), with the same authz: its logger, or `kitchen.txn.reverse_any`. It's allowed whenever the difference is still all there, even when it isn't the latest move. Otherwise it's 409 `insufficient_stock` with `details.qtyLeftMilli`. Undo of a check's use or waste is the existing undo: reverse its transaction, or `…/undo` when it posted none.
+- **Contracts:**
+  - `KitchenStockMove.via?: "check" | "ask"`, present only when set.
+  - The new module `packages/contracts/src/kitchen-stock-check.ts`, re-exported from `kitchen.ts`, holds:
+    - `STOCK_MOVE_VIAS` and `StockMoveVia`;
+    - `STOCK_CHECK_GONE` and `StockCheckGone`;
+    - `KITCHEN_CHECK_ERROR_REASONS` (`unchanged`, `more_than_bought`) and `KitchenCheckErrorReason`;
+    - `StockCheckLevel`, `CheckGroupItemRequest`, `CheckPersonalItemRequest` (no `split`) and `CheckItemResponse`.
+- **SDK:** `kitchen.checkGroupItem(orgId, itemId, body, opts)` and `kitchen.checkPersonalItem(itemId, body, opts)`. The PN-4 names are re-exported from `@saas/sdk`.
+- **kitchen-engine:** no change. `costOfUse` already keeps a raised item inside its price. A route test (raise, then use it all: the moves in effect sum to exactly ₹60) and a 500-run randomised sequence of uses and raises confirm it.
+
+**Departures and decisions:**
+- **A check can raise a finished item.** A used-up or wasted item is active again after an `adjust`, and costs nothing more: it has already cost its price. Nothing is refunded. Reversing the use or waste is how money comes back. Undoing that adjust finishes it again, as it was.
+- **An adjust's undo isn't latest-only.** The design says "if it's still there". An adjust costs nothing, so no later move's cost depends on it, and it can come off whenever the difference is still all there. Every other move keeps the latest-only rule.
+- **Restocks stop at what was bought.** `restockStatements` now sets `qty_left = MIN(qty_bought, qty_left + q)`. A transaction reversal or a cancelled dish for a use logged *before* a raising check would otherwise go over what was bought, fail the stock CHECK and answer 500. Now it stops at full and the money still comes back exactly. Without an adjust the cap can't be reached. The reversal move still records the original quantity, so history can overstate what came back in that one case.
+- **Activity says why.** A check's txn title ends in " · stock check" ("Milk (250 ml) · stock check", "Wasted: Milk (100 ml) · stock check"). Its audit description says so too, and its audit payload carries `via`. Otherwise the txn is the one the use or waste route writes. This follows risks PN-C ("Everyone sees it in Activity with the checker's name").
+- **Usuals skip check moves.** PN-2's `readUsuals` (`packages/db/src/kitchen/usuals.ts`) adds `AND (m.via IS NULL OR m.via <> 'check')`. A split check names everyone, and fixing a level isn't a habit, so it must not become anyone's "Your usual". `via = 'ask'` uses (PN-8) still count.
+- **Split's members are the roster,** viewers included, the same set waste split equally charges ("every current member"). Someone who has left isn't charged.
+- **`gone` is ignored when the level is more,** so the console can send its default answer either way. It's validated whenever it's sent.
+- **The level is absolute,** read against the item when the check writes. A use landing between the read and the write only shrinks the difference, through the usual one stale retry.
+- **A retried check is answered with its move,** not refused as unchanged. A key reused between a check and a use or waste is 409 `idempotency_key_reused`.
+- **The check's reasons** live in their own `KITCHEN_CHECK_ERROR_REASONS`, as the timers' do, not in `KITCHEN_ERROR_REASONS`. Error codes are unchanged: all refusals are `validation_failed` 422.
+- **A level takes a unit only.** `left.measure` is refused, because it would otherwise read as the item's own unit.
+- **`kitchen-stock-check.ts` has no package subpath.** It's reachable through `@saas/contracts/kitchen`, which keeps `packages/contracts/package.json` untouched.
+- **PN-8's seam:** `groupCheckRefusal(ctx, item, gone)` in `handlers/stock-check.ts`. It runs after the difference is known and before anything is planned, and returns null today.
+
+**Tests:**
+- `tests/kitchen-worker` (32 suites, **738 tests**, PN-2's included). `src/stock-check.test.ts` is new with 29 tests:
+  - **`me`:** the same move and txn as `…/uses`, apart from `via` and the title note; the buyer's own check posting nothing and being undone directly; a level of 0 charging exactly what's left of the price.
+  - **`split`:** the design's Flat 4B (₹3.75 × 4, Meera +₹11.25); ₹50.51 four ways (1263/1263/1263/1262); the roster with the viewer, and without someone who left; a buyer-only group posting no txn, with undo.
+  - **`waste`:** split equally, the same as `…/waste`; buyer absorbs, and the item's rule winning over the group's; 0 meaning wasted.
+  - **Undo restores exactly:** reversing `me`, `split` and `waste` brings back every balance to {} and the item to 1 L / ₹60.
+  - **More:** the adjust (no txn, worth unchanged, `kitchen.item.adjusted`); its undo by the checker, a 403 for others, and an admin's undo; undo after later uses while the difference is there, and 409 `insufficient_stock` once it isn't; waking a used-up and a wasted item, with the undo finishing each again as it was; the total never above the price; a reversal after a raise capped at full; the randomised `costOfUse` property.
+  - **Refusals:** `unchanged` in three spellings, `more_than_bought`, 11 malformed bodies, and authz (viewer, outsider, another group, a bad id, 405, 401).
+  - **Retries and races:** a retry replays; keys can't cross between a use and a check; a use landing mid-check shrinks the difference.
+  - **History:** `via` on check moves only.
+  - **Personal:** `me` with undo, `waste`, and raising with undo; `split`, `unchanged`, `more_than_bought` and another person's item refused.
+  - **Usuals:** a split check is nobody's usual. This test fails without the filter.
+- `tests/db` (30 suites, **823 tests**). `src/kitchen-moves-via-migration.test.ts` is new with 7 tests: the registration order (PN-3's 400 may land first); the text (one additive column); the CHECK; a pre-410 move reading NULL; and, through the repository, `via` round-trips, `adjustStock` (cost 0, `more_than_bought`, `stale`, replay) and the adjust's undo (`insufficient_stock`, and finishing it again).
+- `tests/contracts` (25 suites, **265 tests**). `src/kitchen-stock-check.test.ts` is new with 2 tests: the constants, a compile-time check that `StockMoveVia` equals `KitchenStockMove["via"]`, and the request types (`split` is a type error on a personal check).
+- `packages/sdk` (**185 tests**). `src/__tests__/kitchen-stock-check.test.ts` is new with 4 tests: the paths, the body, the idempotency key, the errors with their reasons, and the re-exports.
+- `tests/api-edge` (**587**) passes unchanged. The kitchen facade forwards any `/v1/…/kitchen/…` path, so the edge needed no change. `apps/web-console-next` typechecks.
+- `typecheck` and `lint` are clean for `@saas/db`, `@saas/contracts`, `@saas/sdk`, `@saas/kitchen-worker` and `@saas/kitchen-engine`, and for the three test packages.
+
+**For later tasks:**
+- **PN-7:**
+  - Answer `gone` only when the level is less, and cap the level at Full. "It's right" sends nothing.
+  - Undo of a check's use or waste is `reverseTxn` when `txn` isn't null, else `undo…Move`. An adjust is `undo…Move`, and `insufficient_stock` means what it added has been used.
+  - History reads `move.via === "check"` as "Stock check · …". A `use` with several consumers is the split.
+- **PN-8:**
+  - `'ask'` is already in the CHECK and in `KitchenStockMoveVia`. `planGroupUse(ctx, item, { …, via: "ask" })` writes the approved use, and usuals still count it.
+  - Restrict checks in `groupCheckRefusal`.
+- **Deploy order:** `MOVE_COLUMNS` now reads `m.via`, so migration 410 must apply before this kitchen-worker serves. On main, kitchen-worker's enforced `db-migrate` edge orders it, and the new migration directory plans `db-migrate` by path.
+  - kitchen-worker changes in its own path, so it redeploys.
+  - Nothing else bundles the kitchen repository.
+  - The console has no change here, and will pick up the contracts and SDK when PN-7 changes its files.
