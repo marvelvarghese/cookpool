@@ -4,8 +4,10 @@
 //   - Every recipe migration 360 seeds, checked against the contracts: one
 //     main line that is not to taste; every line a food on the list (or to
 //     taste); units the app knows; amounts above zero that scaleLine keeps as
-//     written at × 1 and rounds onto the unit's grid at × 0.5 and × 2; 3 to 8
-//     steps of at most 200 characters; serves 2 to 6; a kind Explore knows.
+//     written at × 1 and rounds onto the unit's grid at × 0.5 and × 2; 3 to
+//     20 steps of at most 200 characters (360 wrote 3 to 8; GC-4's 390 rewrote
+//     them as guided steps, which cookpool-guided checks); serves 2 to 6; a
+//     kind Explore knows.
 //   - The match through a food's density: a teaspoon of turmeric meets a
 //     100 g pack, a cup of rice a 1 kg bag, 50 g of ghee a 500 ml jar, a cup
 //     of chopped onion a dozen counted ones; a food without a density still
@@ -17,6 +19,7 @@
 
 import {
   MAX_RECIPE_STEP,
+  MAX_RECIPE_STEPS,
   RECIPE_KINDS,
   RECIPE_UNIT_KEYS,
   recipeUnitOf,
@@ -119,10 +122,10 @@ describe("Cookpool's recipes, as migration 360 seeds them (RC-7, design §5.5)",
       expect([at, scaleLine(qty, unit, 500)! <= qty && qty <= scaleLine(qty, unit, 2000)!]).toEqual([at, true]);
     }
 
-    // 3 to 8 short steps.
+    // 3 to 20 short steps: 390's guided steps (GC-4), each held to more in cookpool-guided.
     const steps = stepsOf(recipe.id);
     expect(steps.length).toBeGreaterThanOrEqual(3);
-    expect(steps.length).toBeLessThanOrEqual(8);
+    expect(steps.length).toBeLessThanOrEqual(MAX_RECIPE_STEPS);
     for (const step of steps) {
       expect(step.length).toBeGreaterThan(0);
       expect(step.length).toBeLessThanOrEqual(MAX_RECIPE_STEP);
