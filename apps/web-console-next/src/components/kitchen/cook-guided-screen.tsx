@@ -18,6 +18,9 @@ import { formatMinor } from "./money";
 import { useFreshTakes } from "./cook-session-data";
 import { useCancelAsk, useCookAsk, useSessionAsks } from "./ask-data";
 import { FinishSheet } from "./cook-finish-sheet";
+import { CookFinishSheet } from "./cooked-finish-sheet";
+import { rememberCookedSeed } from "./cooked-data";
+import { FINISH_TITLE, cookedSeedOf } from "./cooked";
 import { useNow } from "./cook-session-ui";
 import {
   FINISH_OFFLINE_TEXT,
@@ -125,7 +128,8 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
   const recentSlugs = useRecentGroupSlugs();
   const names = useMemberNames();
   const postTo = postToOf(session, groups, recentSlugs);
-  const group = postTo === JUST_ME ? null : (groups.find((x) => x.orgId === postTo) ?? null);
+  // The new frame (cookpool-community CM-9): the dish is the cook's own, split with a group later if at all.
+  const group = newFrame() || postTo === JUST_ME ? null : (groups.find((x) => x.orgId === postTo) ?? null);
 
   const [openKey, setOpenKey] = React.useState<string | null>(null);
   const [finishOpen, setFinishOpen] = React.useState(false);
@@ -181,8 +185,10 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
   const finished = (out: FinishOutcome) => {
     setFinishOpen(false);
     if (out.ok) {
-      // The new frame (cookpool-community CM-6): Share this cook? on the dish, once it can be posted.
-      rememberStepSeed(out.dish.id, (cookSessions.read(meId) ?? session).guide);
+      // The new frame (cookpool-community CM-9): Cooked!, with Post to Community and Split with a group.
+      const last = cookSessions.read(meId) ?? session;
+      rememberStepSeed(out.dish.id, last.guide);
+      rememberCookedSeed(out.dish.id, cookedSeedOf(last, new Date()));
       leave(afterFinishHref(out.dish, newFrame()), "push");
       return;
     }
@@ -345,7 +351,8 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
       body = (
         <GuideDoneView
           view={view}
-          whoAteSub={`${cost} · ${group ? `post to ${group.name}` : "just for you"}`}
+          whoAteSub={newFrame() ? `${cost} · yours` : `${cost} · ${group ? `post to ${group.name}` : "just for you"}`}
+          {...(newFrame() ? { mainTitle: FINISH_TITLE } : {})}
           strip={strip}
           savingTimes={savingTimes}
           alert={alert}
@@ -367,7 +374,9 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
       <div ref={surface} className="touch-pan-y">
         {body}
       </div>
-      {finishOpen ? (
+      {finishOpen && newFrame() ? (
+        <CookFinishSheet session={session} meId={meId} onClose={() => setFinishOpen(false)} onPoint={() => undefined} onDone={finished} />
+      ) : finishOpen ? (
         <FinishSheet
           session={session}
           meId={meId}

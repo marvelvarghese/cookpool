@@ -315,16 +315,17 @@ describe("a post's page", () => {
 // ── Share this cook? ──────────────────────────────────────────────
 
 describe("Share this cook?", () => {
-  it("is offered for your own postable dish in the new frame only; Finish lands on it", () => {
+  it("is offered for your own postable dish in the new frame only; Finish lands on Cooked!", () => {
     expect(dishPostable(dish())).toBe(true);
-    expect(dishPostable(dish({ orgId: "org_1", state: "open" }))).toBe(false);
+    // CM-9: any dish but a canceled one, before or after a split, open or finalized.
+    expect(dishPostable(dish({ orgId: "org_1", state: "open" }))).toBe(true);
     expect(dishPostable(dish({ state: "canceled" }))).toBe(false);
     expect(dishPostable(dish({ orgId: null, state: "open" }))).toBe(true);
     expect(offersShare(true, dish(), "usr_me")).toBe(true);
     expect(offersShare(true, dish(), "usr_other")).toBe(false);
     expect(offersShare(false, dish(), "usr_me")).toBe(false);
-    expect(afterFinishHref(dish(), true)).toBe("/dishes/dsh_1?share=1");
-    expect(afterFinishHref(dish({ orgId: "org_1", state: "open" }), true)).toBe("/dishes/dsh_1");
+    expect(afterFinishHref(dish(), true)).toBe("/dishes/dsh_1?cooked=1");
+    expect(afterFinishHref(dish({ orgId: "org_1", state: "open" }), true)).toBe("/dishes/dsh_1?cooked=1");
     expect(afterFinishHref(dish(), false)).toBe("/dishes/dsh_1");
   });
 
@@ -338,11 +339,12 @@ describe("Share this cook?", () => {
     expect(showRows(p).map((r) => [r.label, r.value])).toEqual([
       ["Size", "450 g"],
       ["Time", "48 min"],
-      ["How many ate", "1"],
+      // CM-8/CM-9: how many ate is the dish's servings (6 half portions → 3).
+      ["How many ate", "3"],
       ["Steps done", "9 of 9"],
     ]);
     expect(showRows({ ...p, steps: { minutes: null, steps: null } })[1]).toMatchObject({ value: null, unknown: true });
-    expect(shareTopLine(dish({ orgId: "org_1", shares: [{}, {}, {}, {}] as KitchenDish["shares"] }), "Flat 4B")).toBe("✓ Posted to Flat 4B · 4 ate");
+    expect(shareTopLine(dish({ orgId: "org_1", shares: [{}, {}, {}, {}] as KitchenDish["shares"] }), "Flat 4B")).toBe("✓ Split with Flat 4B");
     expect(shareTopLine(dish(), null)).toBe("✓ Cooked · just you");
   });
 
@@ -381,7 +383,7 @@ describe("Share this cook?", () => {
     expect(postedToast("public", 12, true)).toEqual({ title: "Posted", description: "your 12 followers see it" });
     expect(postedToast("me", 12, false)).toEqual({ title: "On your profile", description: "Only you see it" });
     expect(postRefusal({ reason: "already_posted", message: "x", details: { postId: "pst_9" } })).toEqual({ kind: "open", postId: "pst_9" });
-    expect(postRefusal({ reason: "not_postable", message: "x" })).toEqual({ kind: "say", text: "Finalize it first: everyone's portion needs to be set" });
+    expect(postRefusal({ reason: "not_postable", message: "x" })).toEqual({ kind: "say", text: "It was canceled: there's nothing to post" });
     expect(postRefusal({ message: "Nope" })).toEqual({ kind: "say", text: "Nope" });
   });
 

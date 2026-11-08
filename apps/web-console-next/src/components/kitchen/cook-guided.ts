@@ -256,12 +256,17 @@ export function timerLabel(g: CookGuide, step: GuideStep, dishName: string): str
   return clip(`${head} · ${clip(name, Math.max(8, KITCHEN_TIMER_LABEL_MAX - head.length - 3))}`, KITCHEN_TIMER_LABEL_MAX);
 }
 
-/** What comes after a step: the next cook step's words, "Who ate?" after the last, "start cooking" after prep. */
+/**
+ * What comes after a step: the next cook step's words, "Finish" after the
+ * last (cookpool-community CM-9: the session ends at Finish and Cooked!; Who
+ * ate is Split's, after it — the session is the new frame's only), "start
+ * cooking" after prep.
+ */
 export function nextText(g: CookGuide, step: GuideStep): string {
   if (step.phase === "prep") return "start cooking";
   const cook = cookSteps(g);
   const i = cook.findIndex((s) => s.key === step.key);
-  return cook[i + 1]?.text ?? "Who ate?";
+  return cook[i + 1]?.text ?? "Finish";
 }
 
 /** The push's text: "Next: Cut the thickest piece open" (at most KITCHEN_TIMER_BODY_MAX characters). */

@@ -1280,6 +1280,12 @@ export interface FinishChoices {
   meId: string;
   /** The save switch is on. */
   save: boolean;
+  /**
+   * Just you: how many it made, in half portions (cookpool-community CM-9:
+   * the new frame's Finish asks, so the dish can be split later). Absent, one
+   * portion, as before.
+   */
+  portionsHalf?: number;
 }
 
 export type RecipeWrite =
@@ -1387,7 +1393,11 @@ export function finishPlan(
     return { ok: false, problem: { message: odd, lineKey: item ? (lineOfItem[item.key] ?? null) : null, field: "currency" } };
   }
 
-  const portionsHalf = shared ? Math.max(1, eatenHalf(choices.halves)) : 2;
+  const portionsHalf = shared
+    ? Math.max(1, eatenHalf(choices.halves))
+    : choices.portionsHalf !== undefined
+      ? Math.max(1, Math.min(MAX_EATEN_HALF, Math.round(choices.portionsHalf)))
+      : 2;
   // Guided mode's step log (GC-5): each cook step's start and tick, with the recipe.
   const stepLog = s.recipeId ? guideStepLog(s.guide) : [];
   const request: CookDishRequest = {

@@ -27,6 +27,9 @@ import { useRecipes } from "./from-before-data";
 import { SuggestionList, useTypeahead } from "./from-before-ui";
 import { useFreshTakes, useRecipe, useRecipeMatch } from "./cook-session-data";
 import { FinishSheet, SESSION_SHEET } from "./cook-finish-sheet";
+import { CookFinishSheet } from "./cooked-finish-sheet";
+import { rememberCookedSeed } from "./cooked-data";
+import { cookedSeedOf } from "./cooked";
 import { guidedScreen, guidedSessionFromRecipe, withLongPrepMemory } from "./cook-guided";
 import { useCancelServerTimers, useGuideTimers } from "./cook-guided-data";
 import { GuidedCook } from "./cook-guided-screen";
@@ -248,8 +251,10 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
     void cancelAsk({ id: a.id, orgId: a.orgId });
   };
 
+  // The new frame (cookpool-community CM-9): the dish is the cook's own, split with a group later if at all.
+  const ownDish = newFrame();
   const postTo = postToOf(session, groups, recentSlugs);
-  const group = postTo === JUST_ME ? null : (groups.find((g) => g.orgId === postTo) ?? null);
+  const group = ownDish || postTo === JUST_ME ? null : (groups.find((g) => g.orgId === postTo) ?? null);
   const views = session.lines.map((l) => sessionLineView(l, { meId, names, now }));
   const chip = scaleChip(session);
   const blank = session.recipeId === null;
@@ -290,8 +295,9 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
       onLeave();
       cancelTimers(session);
       cookSessions.clear(meId);
-      // The new frame (cookpool-community CM-6): Share this cook? on the dish, once it can be posted.
+      // The new frame (cookpool-community CM-9): Cooked!, with Post to Community and Split with a group.
       rememberStepSeed(out.dish.id, session.guide);
+      rememberCookedSeed(out.dish.id, cookedSeedOf(session, new Date()));
       router.push(afterFinishHref(out.dish, newFrame()));
       return;
     }
@@ -462,7 +468,9 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
         </SheetContent>
       </Sheet>
 
-      {finishOpen ? (
+      {finishOpen && ownDish ? (
+        <CookFinishSheet session={session} meId={meId} onClose={() => setFinishOpen(false)} onPoint={point} onDone={finished} />
+      ) : finishOpen ? (
         <FinishSheet
           session={session}
           meId={meId}

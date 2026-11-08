@@ -513,7 +513,7 @@ describe("a step (GuideStep, design §3.3)", () => {
     expect(s.guide).toMatchObject({ current: "c-sear" });
     expect(s.guide!.times["c-onions"]).toEqual({ startedAt: at(90).toISOString(), doneAt: at(700).toISOString() });
     const last = goToStep(s, "c-salt", at(800));
-    expect(stepScreen(last, at(800))!).toMatchObject({ mainLabel: "Finish", next: "Next · Who ate?" });
+    expect(stepScreen(last, at(800))!).toMatchObject({ mainLabel: "Finish", next: "Next · Finish" });
     const done = markStepDone(last, "c-salt", at(900));
     expect(done.guide).toMatchObject({ screen: "done", finishedAt: at(900).toISOString() });
     // Back to the steps, and Done again, keeps what was ticked.
