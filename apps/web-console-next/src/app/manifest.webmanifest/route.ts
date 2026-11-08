@@ -1,4 +1,5 @@
-import { appConfig } from "@/lib/app-config";
+import { appConfig, requestAppConfig } from "@/lib/app-config";
+import { newFrame } from "@/lib/features";
 import { buildManifest } from "@/lib/manifest";
 
 // The web app manifest, built per request from the runtime config
@@ -12,8 +13,17 @@ import { buildManifest } from "@/lib/manifest";
 // console is still reachable inside it at /orgs and /account.
 export const dynamic = "force-dynamic";
 
-export function GET(): Response {
-  const manifest = buildManifest(appConfig().productName);
+//
+// The shortcuts follow the frame (cookpool-recipes RC-2): the new frame's
+// where the request's host names an environment and it is not prod (stage's
+// custom domain or workers.dev host). Where the environment cannot be told
+// from the request, the manifest stays today's, so prod's can never change by
+// a host this route does not know.
+export function GET(request?: Request): Response {
+  const host = request ? new URL(request.url).host : null;
+  const config = host ? requestAppConfig(host) : appConfig();
+  const known = host !== null && config.deployEnv !== undefined;
+  const manifest = buildManifest(config.productName, { newFrame: known && newFrame(config) });
   return new Response(JSON.stringify(manifest, null, 2), {
     headers: { "content-type": "application/manifest+json; charset=utf-8" },
   });

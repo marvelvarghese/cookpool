@@ -12,6 +12,8 @@ import { KITCHEN_ICONS } from "@web-console-next/components/kitchen/icons";
 import { NEW_FRAME_TAB_PAGES, TAB_PAGES, backParent } from "@web-console-next/components/kitchen/back";
 import { edgeSwipeBackOn, pullsToRefresh } from "@web-console-next/components/kitchen/gestures";
 import { STATIC_PAGES } from "@web-console-next/lib/static-pages.mjs";
+import { MANIFEST_SHORTCUTS, NEW_FRAME_SHORTCUTS, buildManifest } from "@web-console-next/lib/manifest";
+import { GET } from "@web-console-next/app/manifest.webmanifest/route";
 
 // cookpool-recipes RC-2 (design §1.1, §1.2): the new frame — five tabs,
 // Home · Pantry · Cook · Money · You — is on everywhere but prod, read at
@@ -138,5 +140,36 @@ describe("Back in the new frame", () => {
   it("pulls Money to refresh", () => {
     expect(pullsToRefresh("/money")).toBe(true);
     expect(pullsToRefresh("/you/settings")).toBe(false);
+  });
+});
+
+describe("the home-screen shortcuts in each frame (design §1.2)", () => {
+  const names = (m: ReturnType<typeof buildManifest>) => m.shortcuts.map((s) => [s.name, s.url]);
+
+  it("are What did you use? and Start cooking in the new frame", () => {
+    expect(names(buildManifest("cookpool", { newFrame: true }))).toEqual([
+      ["What did you use?", "/use"],
+      ["Start cooking", "/cook"],
+    ]);
+    for (const s of NEW_FRAME_SHORTCUTS) expect(MANIFEST_SHORTCUTS.flatMap((m) => m.icons.map((i) => i.src))).toContain(s.icons[0]!.src);
+  });
+
+  it("are today's three with newFrame() false", () => {
+    expect(names(buildManifest("cookpool"))).toEqual(MANIFEST_SHORTCUTS.map((s) => [s.name, s.url]));
+    expect(names(buildManifest("cookpool", { newFrame: false }))).toEqual(MANIFEST_SHORTCUTS.map((s) => [s.name, s.url]));
+  });
+
+  it("follow the host the manifest is asked for on: stage gets the new ones, prod keeps today's", async () => {
+    const served = async (url?: string) => names((await GET(url ? new Request(url) : undefined).json()) as ReturnType<typeof buildManifest>);
+    expect(await served("https://stage.cookpool.store/manifest.webmanifest")).toEqual([
+      ["What did you use?", "/use"],
+      ["Start cooking", "/cook"],
+    ]);
+    expect(await served("https://cookpool-web-console-next-stage.cookpool.workers.dev/manifest.webmanifest")).toHaveLength(2);
+    expect(await served("https://cookpool.store/manifest.webmanifest")).toEqual(MANIFEST_SHORTCUTS.map((s) => [s.name, s.url]));
+    expect(await served("https://cookpool-web-console-next-prod.cookpool.workers.dev/manifest.webmanifest")).toHaveLength(3);
+    // A host that names no environment, or no request at all: today's, so prod's can never change by accident.
+    expect(await served("http://localhost:3001/manifest.webmanifest")).toHaveLength(3);
+    expect(await served()).toHaveLength(3);
   });
 });
