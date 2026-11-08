@@ -43,6 +43,8 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/recipes/new": "/home",
   "/recipes/:recipeId": "/home",
   "/recipes/:recipeId/edit": "/home",
+  // Recipes travel (RC-8): a recipe's link.
+  "/r/:code": "/home",
 };
 
 /** Where a page (static-pages.mjs's pattern) sends a visitor in this frame, or null when it shows. */

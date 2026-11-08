@@ -54,6 +54,7 @@ export const STATIC_PAGES = Object.freeze([
   "/recipes/new",
   "/recipes/:recipeId",
   "/recipes/:recipeId/edit",
+  "/r/:code",
   "/groups",
   "/groups/:orgSlug",
   "/groups/:orgSlug/expense",

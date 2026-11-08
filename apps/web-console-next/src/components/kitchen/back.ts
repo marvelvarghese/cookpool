@@ -54,6 +54,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/recipes/new": () => "/cook",
   "/recipes/:recipeId": () => "/cook",
   "/recipes/:recipeId/edit": ({ recipeId }) => `/recipes/${recipeId}`,
+  // Recipes travel (RC-8): a recipe's link page is Cook's.
+  "/r/:code": () => "/cook",
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // A dish: its group when it is shared (and the group is known), else Home.
