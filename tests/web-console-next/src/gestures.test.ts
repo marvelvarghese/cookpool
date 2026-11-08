@@ -38,6 +38,8 @@ describe("which screens pull to refresh", () => {
     "/auth/callback",
     "/use",
     "/cook",
+    // The cooking session (cookpool-recipes RC-6): a screen you work in, not a list.
+    "/cook/session",
     "/settle",
     "/you",
     "/you/settings",

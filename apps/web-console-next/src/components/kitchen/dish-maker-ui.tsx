@@ -749,6 +749,7 @@ export function SharePicker({
   currency,
   loading,
   onChange,
+  title = "Share it with",
 }: {
   groups: readonly MyGroupBalance[];
   value: string;
@@ -756,6 +757,8 @@ export function SharePicker({
   currency: string | null;
   loading: boolean;
   onChange: (share: string) => void;
+  /** Its heading: "Share it with" (the dish maker), "Post to" (a cooking session's Finish, RC-6). */
+  title?: string;
 }) {
   const recentSlugs = useRecentGroupSlugs();
   const [open, setOpen] = React.useState(false);
@@ -769,7 +772,7 @@ export function SharePicker({
   };
   return (
     <div className="space-y-2">
-      <h2 className="text-[17px] font-extrabold">Share it with</h2>
+      <h2 className="text-[17px] font-extrabold">{title}</h2>
       <button
         ref={buttonRef}
         type="button"
@@ -780,7 +783,7 @@ export function SharePicker({
       >
         <ShareBadge option={{ kind: value === JUST_ME ? "me" : "group", name: choice.name }} />
         <span className="min-w-0 flex-1">
-          <span className="sr-only">Share it with: </span>
+          <span className="sr-only">{title}: </span>
           <span className="block truncate text-base font-extrabold">{choice.name}</span>
           <span className="block truncate text-xs text-muted-foreground">{choice.meta}</span>
         </span>

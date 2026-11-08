@@ -39,6 +39,7 @@ export const STATIC_PAGES = Object.freeze([
   "/home",
   "/use",
   "/cook",
+  "/cook/session",
   "/settle",
   "/you",
   "/you/settings",

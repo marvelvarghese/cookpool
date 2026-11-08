@@ -228,6 +228,85 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 `pnpm typecheck` and `pnpm lint` pass repo-wide (`tests/web-console-next`, untouched, still passes 1385), and `orun task check RC-4 --base origin/main` passes: 8 changed components, all inside the contract.
 
+### RC3 — cooking sessions (RC-6)
+
+**What shipped.** The console only; no server, contract, SDK or migration change. Everything is behind `newFrame()`: with it off, no screen, request or bar changes.
+
+- **The draft** (`components/kitchen/cook-session.ts`, pure) and its **store** (`lib/cook-session-store.ts`, a thin localStorage adapter):
+  - One plain object per account under `<storagePrefix>.session.<accountId>`. It holds the recipe id (or null) and factor, the name, serves (for the chip), whether you own the recipe, the lines, the steps done, the post-to group and `startedAt`.
+  - A line holds its food, its words, the amount (`qtyMilli`) and unit, the item(s) to take (each with what the match took and a snapshot of the item: price, who paid, what is left), `recipeLine`, ticked, missing and to taste, last time's words, and the recipe's own line as written.
+  - **One at a time** (`openChoice`): `/cook/session` resumes what is open; `?recipe=` for the same recipe resumes; another recipe asks "Finish or discard Chicken curry?" (**Resume** / **Discard and start**). An empty blank session gives way without asking.
+  - Cleared on Finish, on Discard, and on sign-out: `clearDeviceRecords` now also clears every `<prefix>.session.*` key. Other tabs follow through the `storage` event.
+- **`/cook/session`** (new page, `cook-session-screen.tsx`, `cook-session-ui.tsx`, `cook-session-data.ts`). A prod visitor goes to `/home` (`NEW_FRAME_ONLY`). It is a static page (SM-2), belongs to the Cook tab, has no pull to refresh, and minimize goes back, else to `/cook`.
+  - **From a recipe** (`?recipe=rcp_…&f=450`): it reads the recipe (`GET /v1/kitchen/recipes/{id}`, with `lastCook`) and the match at `f`, makes the draft, then drops the query from the address. Each line takes the match's items, one take per item. Its amount comes from `scaleLine`. Last time comes from `lastCook`, summed per line when one unit. A missing line is kept, struck through ("Not in your pantries · left out") with a dashed, disabled tick.
+  - **Blank:** the first field is the name, with from before's "Cooked before" under it (SM-3's type-ahead and `useRecipes`). Picking one fills its lines at last time's amounts, from the item matched now. A second pick replaces the first pick's lines and keeps lines added by hand.
+  - **Header:** minimize (chevron-down), COOKING, a clock since `startedAt` ("12:04"), the name as h1, the dark chip "For about 2 · ×0.45" to `/recipes/<id>` (none blank), and "3 of 7 in".
+  - **Rows:**
+    - a 44 px tick (green when ticked; the row is `#EEF7F1`);
+    - the name;
+    - "Flat 4B · Meera paid · last time 2 onions" ("Your pantry", "Always have", "Just bought", "None left now", "· short");
+    - the amount as a button that opens − / + in the row, with "≈ 225 g · ₹9" (the dish maker's `lineCost`; just the money when the line counts in the item's own unit; "not counted" when it takes nothing).
+    - To-taste lines tick and show "To taste".
+  - **Add an item:** a dashed button that opens today's item picker (`PantryPanel`: search every pantry, Bought it just now) in a sheet. It adds a line with that item at the dish maker's starting amount, or a just-bought line.
+  - **Steps · 2 of 5**, expandable, each step a checkbox. **Discard session** under them asks once, then goes to `/cook`.
+  - The items are read fresh as you cook: from the usable-items list, else each on its own by ref. Less left cuts the take, and an item gone leaves it out.
+- **Finish:** the green main button above the tab bar, "Finish" over "₹143.96 so far · post to Flat 4B" ("Nothing in yet · …" before a tick). Offline it says "You're offline…" and keeps the session. It opens a bottom sheet:
+  - "3 not ticked" with **Took them all** (default) / **Leave them out**;
+  - **Who ate:** the post-to group's faces, ½ steppers and each share by the engine (you at 1, the rest at 0);
+  - **Post to** (`SharePicker`, titled "Post to"): the group most lines take from, else the group opened last, else Just me. Just me hides Who ate;
+  - the switch: **Save today's amounts to my recipe** (yours, and an amount differs) or **Save as a recipe** (blank);
+  - **Post to Flat 4B** in the cook colour, "₹143.96 · 2 portions · ₹71.98 each".
+- **Posting** (`finishPlan`, then `runFinish`, wired by `useFinishSession`):
+  1. `POST /v1/kitchen/me/dishes` with name, `orgId`, `portionsHalf` (Who ate's total, at least ½), `splitMode: "claims"`, ingredients `{ itemId, quantity, unit, recipeLine }`, `recipeId` and `recipeFactorMilli`.
+  2. `PUT …/dishes/{dsh}/shares` with each eater (you first, then the group's order).
+  3. With the switch on, `PATCH /v1/kitchen/me/recipes/{id}` `{ lines }` or `POST /v1/kitchen/me/recipes` `{ fromDishId }`.
+  4. Then the draft is cleared, the dish page opens, and the toast offers Undo, which cancels the dish (the existing cancel route).
+  - A refusal (409 `insufficient_stock` and the like) closes the sheet, says why above Finish, outlines the line and scrolls to it, and keeps the session. A shares or recipe write that fails leaves the dish cooked and says so in a second toast.
+- **The bar** (`session-bar.tsx`): while a session is open and you are not on it, a dark bar (`#17201B`, radius 18) sits above the tab bar. It holds a pot tile in `#B4471F`, the name, "Cooking · 12 min · 3 of 7 in" and a white **Resume** to `/cook/session`. From 900 px it is in the sidebar's footer. It hides while a field has the keyboard up on a phone, and adds room at the end of the page so it covers nothing.
+
+**Departures.**
+
+- **Just me posts `splitMode: "assign"`**, one portion, and no shares: the server takes claims only in a group (today's dish maker does the same).
+- **An item two lines take from is sent once**: the server refuses an item named twice ("Name each item once"). It is summed, no more than is left, and carries the first line's `recipeLine`.
+- **Ingredients go in the item's base unit** (g, ml, pcs, pack), never in a measure. The next session's Last time therefore reads "300 g" for an onion line cooked this way, where `lastCook` has no label.
+- **The stepper** steps 50 g or 50 ml from 100 up and 10 below 100, so a spoon-sized amount can move. Pieces, spoons, cups, packs and count words step by ½. One step is the least: a line is taken out with Leave them out, not by stepping to 0.
+- **A line's takes follow its amount in proportion**, each capped at what is left, with the rest moving to the next item. When nothing can cover it, the line reads "short" and its note "all there is".
+- **"so far" counts the ticked lines.** Post's total counts what posts: ticked lines, plus the unticked ones on Took them all.
+- **"Save today's amounts"** writes a changed line back at the recipe's own size (today's amount ÷ the factor, on its unit's grid). Every other line stays exactly as written, so ×0.45 doesn't rewrite the whole recipe. It is off by default, and it needs `mine` from the recipe read.
+- **The bar stays off the forms that have their own sticky main button** (`/use`, Bought, an item, a dish, Add a bill), as well as off the session. It does show on `/cook`. Until RC-5 replaces today's dish maker there, the bar can sit over its Cook button on stage.
+- **Desktop shows the session as a page**, not design §1.4's right-hand panel. The bar sits in the sidebar's footer.
+- **The draft keeps a snapshot of each item**, so costs and payers show after a reload and offline. An item is read again whenever the usable-items list changes, or on its own when it isn't in that list (more than 100 items).
+- **An empty blank session stays on the device** but hides from the bar, and its clock restarts when the page opens it again.
+- **Query keys:** `qk.kitchenRecipe(id)` and `qk.kitchenRecipeMatch(id, f)`, the match under `kitchenPantry()` so a stock write refreshes it. RC-5 will want the same reads: merge to one pair.
+- **Offline reads:** the recipe read and the match are not in `API_READS` (RC-5 adds them). Offline, starting from a recipe shows "Couldn't start cooking that recipe"; an open session keeps working.
+- **Edits outside the new files:**
+  - `features.ts` (`/cook/session` → `/home`), `static-pages.mjs`, `back.ts` (parent `/cook`) and `query-keys.ts`;
+  - `sign-out.ts` (`clearCookSessions` in `clearDeviceRecords`);
+  - `sidebar.tsx` (the footer slot), and the comment in `(kitchen)/layout.tsx`;
+  - `SharePicker` gains an optional `title` (default "Share it with": the dish maker is unchanged);
+  - `gestures.test.ts` lists `/cook/session` among the pages that don't pull to refresh. No other existing assertion changed.
+- **Not checked on stage** (nothing deployed). The screens were looked at locally at 375 px and 1280 px, against a temporary in-page mock of the API, so no request left the machine. The mock was removed and never committed. What was checked:
+  - from a recipe;
+  - ticks and the stepper;
+  - the bar on Money and Home, after a reload too;
+  - Resume;
+  - Finish, with the posted body, the shares call and the PATCH;
+  - blank with Cooked before;
+  - Add an item;
+  - the one-at-a-time sheet;
+  - Finish offline;
+  - the sidebar's bar.
+
+  `next build` prerenders `/cook/session` as a static page.
+
+**Tests.**
+
+| Package | New | Total |
+|---|---|---|
+| `tests/web-console-next` | 52 (`kitchen-cook-session.test.ts`): the store 7 (per-account key, a fresh store after a reload, snapshots and subscribers, other versions dropped, one at a time, the discard sheet, cleared on sign-out); from a recipe 7 (lines from the match, takes, where from and last time, missing left out, to taste, the chip and steps, fresh reads); blank with from before 3; ticks 1; the stepper 4; Add an item 2; the Finish sheet 6 (unticked, who ate, post to, the button's cost, the switch, today's amounts); posting 11 (the exact body with `recipeId`/`recipeFactorMilli`/`recipeLine`, leave out and one item once, the shares call, just you, ½ at least, save amounts, save as a recipe, problems, a refusal pointing at its line, shares refused, offline); the bar 5; a row as drawn 3; the address and prod 3 | 1437 (77 suites) |
+
+`pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, and `orun task check RC-6 --base origin/main` passes: 2 changed components, all inside the contract.
+
 ### RC2 — the recipe screens (RC-5)
 
 **What shipped.** The console only; no server, contract or SDK change. Everything new shows only where `newFrame()` is true. With it false, every page renders what it did.
@@ -302,13 +381,17 @@ As-built ≠ intent. This file records what actually shipped, and every place th
   - `sw-routes.test.ts`: the four reads.
 
   No assertion about today's frame changed.
-- **Until RC-6 lands**, Start cooking's `/cook/session` links have no page.
+- **Merged with RC-6** (`/cook/session` and the bar):
+  - **One pair of keys**, which both use: `qk.kitchenRecipe(id)` and `qk.kitchenRecipeMatch(id, f)`. RC-6's `["kitchenRecipe", id]` became RC-5's `["kitchenRecipeBook", "recipe", id]`, so a recipe write, a copy or a delete refreshes the session's read too. After a cook from a recipe, the session now refreshes `qk.kitchenRecipeBook()` (its last cook, My recipes' order) and Cook now, in place of a literal `["kitchenRecipe"]` that would no longer match. Both keep their own hooks over the same entries (`cook-session-data.ts`, `recipes-data.ts`). The data shape is the same `RecipeResponse`.
+  - **The bar stays off the recipe screens.** `/recipes/…` joins RC-6's `BAR_HIDDEN_PAGES`: a recipe's Start cooking and the forms' Save sit where the bar would. On `/cook` the bar shows. The hub has nothing sticky, and the bar brings its own room at the end of the page.
+  - **The session's chip opens the recipe at its size**: `scaleChip`'s link carries `?f=`, which the recipe page reads.
+  - **Shared lists**: `static-pages.mjs`, `features.ts`, `back.ts` and `gestures.test.ts` hold both tasks' pages. RC-6's test lists the recipe screens among the pages without the bar, and its chip's link with `?f=450`.
 - **Not checked on stage** (nothing deployed). The screens were looked at locally at 390 px through a temporary fixture page. Every request off localhost was refused, and none was made. The page was removed and never committed. `next build` prerenders `/recipes/_`, `/recipes/_/edit` and `/recipes/new`.
 
 **Tests.**
 
 | Package | New | Total |
 |---|---|---|
-| `tests/web-console-next` | 95: `kitchen-recipe-page` 35 (hrefs and the session's address, amounts, every line by `scaleLine` over nine factors, main and portions linked, the chip, Use all on the grid and never past the stock, statuses and the have line, bylines, Save/Saved, the views, Save as recipe in both frames); `kitchen-cook-hub` 30 (`/cook` in both frames, the hub's order, Cook now's filter, counts, rows and Start factors, Home's strip, My recipes' order and cards, You's stats, rows and list, delete and Undo on the cache, the cache keys, prod redirects and Back); `kitchen-recipe-form` 24 (the request, amounts, the single main line under every edit, never to taste, validation, 422 mapping, foods and links, moves, serves, steps, the edit round trip); `static-pages` 1, `sw-routes` 5 | 1480 (79 suites) |
+| `tests/web-console-next` | 95: `kitchen-recipe-page` 35 (hrefs and the session's address, amounts, every line by `scaleLine` over nine factors, main and portions linked, the chip, Use all on the grid and never past the stock, statuses and the have line, bylines, Save/Saved, the views, Save as recipe in both frames); `kitchen-cook-hub` 30 (`/cook` in both frames, the hub's order, Cook now's filter, counts, rows and Start factors, Home's strip, My recipes' order and cards, You's stats, rows and list, delete and Undo on the cache, the cache keys, prod redirects and Back); `kitchen-recipe-form` 24 (the request, amounts, the single main line under every edit, never to taste, validation, 422 mapping, foods and links, moves, serves, steps, the edit round trip); `static-pages` 1, `sw-routes` 5 | 1532 (80 suites, after merging RC-6) |
 
 `pnpm typecheck` and `pnpm lint` pass for `apps/web-console-next` and `tests/web-console-next`, and `orun task check RC-5 --base origin/main` passes: 2 changed components, all inside the contract.

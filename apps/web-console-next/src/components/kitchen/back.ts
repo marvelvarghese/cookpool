@@ -48,6 +48,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   // The new frame's pages (RC-2), for a visitor of today's frame: Money sends them Home; settings is You's.
   "/money": () => "/home",
   "/you/settings": () => "/you",
+  // The cooking session (RC-6): minimize goes to the Cook tab when nothing of the app's is behind it.
+  "/cook/session": () => "/cook",
   // The recipe screens (RC-5): a recipe and a new one are Cook's; editing one goes back to it.
   "/recipes/new": () => "/cook",
   "/recipes/:recipeId": () => "/cook",

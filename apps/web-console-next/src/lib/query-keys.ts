@@ -76,17 +76,19 @@ export const qk = {
   // what an ingredient would come from now, may have changed.
   kitchenItemHistory: (q: string) => ["kitchenPantry", "history", q] as const,
   kitchenRecipes: (q: string) => ["kitchenPantry", "recipes", q] as const,
-  // What your pantries hold for recipes (cookpool-recipes RC-5): Cook now and
-  // one recipe's match at a factor. Under `kitchenPantry()`, so every stock
-  // write (a use, an add, cooking) refreshes them; a recipe write refreshes
-  // them by these keys.
+  // Recipes (cookpool-recipes RC-4; RC-5's screens and RC-6's session share
+  // these). What your pantries hold for them: Cook now and one recipe's
+  // match at a factor, under `kitchenPantry()`, so every stock write (a use,
+  // an add, cooking) refreshes them; a recipe write refreshes them by these
+  // keys.
   kitchenCookNow: () => ["kitchenPantry", "cookNow"] as const,
   kitchenRecipeMatches: (recipeId: string) => ["kitchenPantry", "recipeMatch", recipeId] as const,
   kitchenRecipeMatch: (recipeId: string, factorMilli: number) => ["kitchenPantry", "recipeMatch", recipeId, factorMilli] as const,
-  // Recipes themselves (RC-5): yours and your copies (My recipes, You), and
-  // one recipe in full. Both start with `kitchenRecipeBook()`, so one
-  // invalidation after a write, a copy or a delete refreshes every recipe
-  // read. The food list, per typed text, for writing a line.
+  // Recipes themselves: yours and your copies (My recipes, You), and one
+  // recipe in full with the caller's last cook of it (its page, the session).
+  // Both start with `kitchenRecipeBook()`, so one invalidation after a write,
+  // a copy, a delete or a cook refreshes every recipe read. The food list,
+  // per typed text, for writing a line.
   kitchenRecipeBook: () => ["kitchenRecipeBook"] as const,
   kitchenMyRecipes: () => ["kitchenRecipeBook", "mine"] as const,
   kitchenRecipe: (recipeId: string) => ["kitchenRecipeBook", "recipe", recipeId] as const,

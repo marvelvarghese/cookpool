@@ -31,11 +31,14 @@ export function newFrame(config: Pick<AppConfig, "deployEnv"> = appConfig()): bo
  * Pages that exist only in the new frame, and where today's frame sends a
  * visitor instead (design §1.1: a prod visitor goes to Home). `/you/settings`
  * is the new frame's home for today's You rows, so prod is sent to `/you`,
- * where those rows still are.
+ * where those rows still are. The cooking session (RC-6) is the new frame's
+ * too: prod's visitor goes Home.
  */
 export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/money": "/home",
   "/you/settings": "/you",
+  // The cooking session (RC-6).
+  "/cook/session": "/home",
   // The recipe screens (RC-5): a recipe, writing one and editing one.
   "/recipes/new": "/home",
   "/recipes/:recipeId": "/home",
