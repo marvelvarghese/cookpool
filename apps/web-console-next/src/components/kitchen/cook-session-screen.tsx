@@ -251,12 +251,16 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   const refs = React.useMemo(() => toRead, [toReadKey]);
   const read = useItemsByRef(refs);
   const readKey = [...read.entries()].map(([id, item]) => `${id}:${item ? `${item.version}:${item.qtyLeftMilli}` : "x"}`).join(",");
+  // What the draft holds of each item: a line picked or added since needs its item too.
+  const takesKey = session.lines
+    .flatMap((l) => l.takes.map((t) => `${t.itemId}:${t.gone ? "x" : t.item ? `${t.item.version}:${t.item.qtyLeftMilli}` : "?"}`))
+    .join(",");
   React.useEffect(() => {
     const fresh = new Map<string, KitchenItem | null>(listed);
     for (const [id, item] of read) if (!fresh.has(id)) fresh.set(id, item);
     if (fresh.size > 0) save((s) => refreshTakes(s, fresh));
-    // `read` is a new map each render; its key says when it changed.
-  }, [listed, readKey, save]);
+    // `read` is a new map each render; the keys say when it, or the draft's items, changed.
+  }, [listed, readKey, takesKey, save]);
 
   const postTo = postToOf(session, groups, recentSlugs);
   const group = postTo === JUST_ME ? null : (groups.find((g) => g.orgId === postTo) ?? null);
@@ -318,7 +322,8 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   };
 
   return (
-    <div className="space-y-3.5 pb-2">
+    // As tall as the screen, so Finish sits at the bottom (in thumb reach) however short the list.
+    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-8rem)] flex-col gap-3.5 pb-2 min-[900px]:min-h-[calc(100dvh-6rem)]">
       <SessionTopBar elapsed={elapsedText(session.startedAt, now)} onMinimize={minimize} />
 
       <div className="space-y-2">
@@ -358,7 +363,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
         ) : (
           <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">{session.name}</h1>
         )}
-        <SessionMeta chip={chip} progress={progressText(session)} />
+        <SessionMeta chip={chip} progress={session.lines.length > 0 ? progressText(session) : null} />
       </div>
 
       {views.length > 0 ? (
@@ -427,7 +432,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
       {/* The one main button, in thumb reach above the tab bar: Finish, with the cost so far. */}
       <div
         data-toast-above=""
-        className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 space-y-2 min-[900px]:bottom-6"
+        className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 mt-auto space-y-2 pt-1 min-[900px]:bottom-6"
       >
         {alert ? (
           <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">

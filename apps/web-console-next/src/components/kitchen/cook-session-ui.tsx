@@ -57,7 +57,7 @@ export function SessionTopBar({ elapsed, onMinimize }: { elapsed: string; onMini
 }
 
 /** The chip ("For about 2 · ×0.45", opening the recipe) and "3 of 7 in". */
-export function SessionMeta({ chip, progress }: { chip: { label: string; href: string } | null; progress: string }) {
+export function SessionMeta({ chip, progress }: { chip: { label: string; href: string } | null; progress: string | null }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2">
       {chip ? (
@@ -70,9 +70,11 @@ export function SessionMeta({ chip, progress }: { chip: { label: string; href: s
           </span>
         </Link>
       ) : null}
-      <span className="text-[13px] font-bold text-muted-foreground" aria-live="polite">
-        {progress}
-      </span>
+      {progress ? (
+        <span className="text-[13px] font-bold text-muted-foreground" aria-live="polite">
+          {progress}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -338,6 +340,7 @@ export function SaveSwitch({ label, on, onChange }: { label: string; on: boolean
       type="button"
       role="switch"
       aria-checked={on}
+      aria-label={label}
       onClick={() => onChange(!on)}
       className="flex min-h-12 w-full items-center gap-3 rounded-xl text-left text-[15px] font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
