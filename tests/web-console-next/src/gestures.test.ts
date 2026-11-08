@@ -53,6 +53,9 @@ describe("which screens pull to refresh", () => {
     "/recipes/new",
     "/recipes/:recipeId",
     "/recipes/:recipeId/edit",
+    // Recipes travel (cookpool-recipes RC-8): Explore's search and sideways chips, and a link's Save.
+    "/explore",
+    "/r/:code",
   ];
 
   it("decides for every page: a new page must choose", () => {

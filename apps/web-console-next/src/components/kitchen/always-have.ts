@@ -23,8 +23,10 @@ import {
   type KitchenRecipeLine,
   type RecipeMatchResponse,
   type SetFoodAnswerRequest,
+  type SetFoodAnswerResponse,
   type UnlinkedItem,
 } from "@saas/contracts/kitchen";
+import type { ApiErrorBody, ApiResult } from "@/lib/api";
 import type { CachePatch } from "@/lib/optimistic";
 import { qk } from "@/lib/query-keys";
 
@@ -212,6 +214,20 @@ export function foodAsks(
 /** The answers one ask sends: one PUT per pantry holding the name — the food for Yes, null ("none of these") for No. */
 export function foodAnswerBodies(ask: Pick<FoodAsk, "nameKey" | "foodKey" | "orgIds">, yes: boolean): SetFoodAnswerRequest[] {
   return ask.orgIds.map((orgId) => (orgId ? { nameKey: ask.nameKey, foodKey: yes ? ask.foodKey : null, orgId } : { nameKey: ask.nameKey, foodKey: yes ? ask.foodKey : null }));
+}
+
+/**
+ * Send one ask's answers (`PUT /v1/kitchen/me/food-answers`, one per
+ * pantry): null when every one landed, else the first refusal.
+ */
+export async function answerFood(
+  ask: Pick<FoodAsk, "nameKey" | "foodKey" | "orgIds">,
+  yes: boolean,
+  setFoodAnswer: (body: SetFoodAnswerRequest) => Promise<ApiResult<SetFoodAnswerResponse>>,
+): Promise<ApiErrorBody | null> {
+  const results = await Promise.all(foodAnswerBodies(ask, yes).map((body) => setFoodAnswer(body)));
+  for (const r of results) if (!r.ok) return r.error;
+  return null;
 }
 
 /** What an answer changes: every match, Cook now and Explore read again. */

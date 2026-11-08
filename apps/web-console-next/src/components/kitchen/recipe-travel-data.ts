@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AlwaysHaveResponse,
+  CopyRecipeRequest,
   ExploreRecipe,
   ExploreSource,
   KitchenRecipe,
@@ -23,8 +24,10 @@ import { useUndoToast } from "./undo-toast";
 import { recipeAddedPatches, recipeRemovedPatches, savedCopyOf } from "./cook-hub";
 import { useCopyRecipe, useMyRecipes } from "./recipes-data";
 import {
+  saveFromLink,
   sendShare,
   sharedToastTitle,
+  undoSave,
   undoCallFor,
   visibilityAfter,
   visibilityPatches,
@@ -38,7 +41,7 @@ import {
   alwaysHaveKeys,
   alwaysHavePatches,
   alwaysHaveToast,
-  foodAnswerBodies,
+  answerFood,
   inverseChange,
   type AlwaysHaveChange,
   type FoodAsk,
@@ -243,9 +246,17 @@ export function useLinkCopy(code: string, recipe: Pick<RecipeSummary, "id" | "na
   const { toast } = useToast();
   const [saved, setSaved] = React.useState<{ copyId: string | null; sent: Promise<ApiResult<RecipeResponse>> } | null>(null);
 
+  const deps = React.useMemo(
+    () => ({
+      copyRecipe: (body: CopyRecipeRequest) => trackWrite(qc, wrap(() => client.kitchen.copyRecipe(body, { idempotencyKey: crypto.randomUUID() }))),
+      deleteRecipe: (id: string) => trackWrite(qc, wrap(() => client.kitchen.deleteRecipe(id))),
+    }),
+    [client, qc],
+  );
+
   const save = React.useCallback(() => {
     if (refuseIfOffline()) return;
-    const sent = trackWrite(qc, wrap(() => client.kitchen.copyRecipe({ linkCode: code }, { idempotencyKey: crypto.randomUUID() })));
+    const sent = saveFromLink(code, deps);
     setSaved({ copyId: null, sent });
     void sent.then((r) => {
       if (!r.ok) {
@@ -259,22 +270,26 @@ export function useLinkCopy(code: string, recipe: Pick<RecipeSummary, "id" | "na
       void qc.invalidateQueries({ queryKey: qk.kitchenCookNow() });
       setSaved((cur) => (cur?.sent === sent ? { copyId: r.data.recipe.id, sent } : cur));
     });
-  }, [client, qc, toast, code, recipe.name]);
+  }, [deps, qc, toast, code, recipe.name]);
 
   const undo = React.useCallback(() => {
     const current = saved;
     if (!current) return;
     setSaved(null);
-    void current.sent.then(async (r) => {
-      if (!r.ok) return;
-      applyPatches(queryCacheOf(qc), recipeRemovedPatches(r.data.recipe.id));
-      const d = await trackWrite(qc, wrap(() => client.kitchen.deleteRecipe(r.data.recipe.id)));
-      qc.removeQueries({ queryKey: qk.kitchenRecipe(r.data.recipe.id), exact: true });
+    // Off My recipes at once, so nothing reads "Saved" while the delete is on its way.
+    void current.sent.then((r) => {
+      if (r.ok) applyPatches(queryCacheOf(qc), recipeRemovedPatches(r.data.recipe.id));
+    });
+    void undoSave(current.sent, deps).then((d) => {
+      if (!d) return;
+      void current.sent.then((r) => {
+        if (r.ok) qc.removeQueries({ queryKey: qk.kitchenRecipe(r.data.recipe.id), exact: true });
+      });
       void qc.invalidateQueries({ queryKey: qk.kitchenMyRecipes() });
       void qc.invalidateQueries({ queryKey: qk.kitchenCookNow() });
       if (!d.ok) toast({ kind: "error", title: "Couldn't undo it", description: d.error.message });
     });
-  }, [client, qc, toast, saved]);
+  }, [deps, qc, toast, saved]);
 
   return { savedHere: saved ? { copyId: saved.copyId } : null, save, undo };
 }
@@ -378,11 +393,10 @@ export function useAnswerFood() {
   return React.useCallback(
     async (ask: FoodAsk, yes: boolean): Promise<boolean> => {
       if (refuseIfOffline()) return false;
-      const results = await Promise.all(foodAnswerBodies(ask, yes).map((body) => trackWrite(qc, wrap(() => client.kitchen.setFoodAnswer(body)))));
+      const failed = await answerFood(ask, yes, (body) => trackWrite(qc, wrap(() => client.kitchen.setFoodAnswer(body))));
       refreshMatches(qc, FOOD_ANSWER_REFRESHES);
-      const failed = results.find((r) => !r.ok);
-      if (failed && !failed.ok) {
-        toast(refusedToast("Couldn't save that", failed.error.message));
+      if (failed) {
+        toast(refusedToast("Couldn't save that", failed.message));
         return false;
       }
       return true;

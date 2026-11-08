@@ -20,6 +20,7 @@
 
 import {
   RECIPE_LINK_CODE_RE,
+  type CopyRecipeRequest,
   type KitchenRecipe,
   type RecipeLineStatus,
   type RecipeMatchResponse,
@@ -304,6 +305,28 @@ export function linkSaveState(input: {
   if (input.savedHere) return { kind: "saved", copyId: input.savedHere.copyId ?? input.existingCopyId };
   if (input.existingCopyId) return { kind: "had", copyId: input.existingCopyId };
   return { kind: "save" };
+}
+
+/** What saves and unsaves a copy: the SDK's two calls. */
+export interface CopyDeps {
+  copyRecipe: (body: CopyRecipeRequest) => Promise<ApiResult<RecipeResponse>>;
+  deleteRecipe: (recipeId: string) => Promise<ApiResult<RecipeResponse>>;
+}
+
+/** Save to my recipes from a link: `POST /v1/kitchen/me/recipes/copies` with `{ linkCode }`. */
+export function saveFromLink(code: string, deps: Pick<CopyDeps, "copyRecipe">): Promise<ApiResult<RecipeResponse>> {
+  return deps.copyRecipe({ linkCode: code });
+}
+
+/**
+ * Undo a save ("Saved · Undo"): once the save has landed, delete that copy
+ * (`DELETE /v1/kitchen/me/recipes/{copy}`). Null when there was nothing to
+ * delete (the save was refused).
+ */
+export async function undoSave(sent: Promise<ApiResult<RecipeResponse>>, deps: Pick<CopyDeps, "deleteRecipe">): Promise<ApiResult<RecipeResponse> | null> {
+  const r = await sent;
+  if (!r.ok) return null;
+  return deps.deleteRecipe(r.data.recipe.id);
 }
 
 /** Why a link opens nothing: gone (404: turned off, rotated, deleted, or never a code) or a read that failed. */
