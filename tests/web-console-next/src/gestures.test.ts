@@ -62,6 +62,14 @@ describe("which screens pull to refresh", () => {
     // Recipes travel (cookpool-recipes RC-8): Explore's search and sideways chips, and a link's Save.
     "/explore",
     "/r/:code",
+    // Community (cookpool-community CM-5): its shell, search's field, a profile's lists, the forms; CM-6 decides for the feed.
+    "/community",
+    "/community/search",
+    "/community/activity",
+    "/u/:handle",
+    "/p/:postId",
+    "/you/profile",
+    "/you/blocked",
   ];
 
   it("decides for every page: a new page must choose", () => {

@@ -61,6 +61,16 @@ export const STATIC_PAGES = Object.freeze([
   "/recipes/:recipeId/plan",
   "/explore",
   "/r/:code",
+  // Community (cookpool-community CM-5): the feed's shell, people search,
+  // Activity, a profile and a post (the Cook tab's); HandleSetup and blocked
+  // people (the You tab's).
+  "/community",
+  "/community/search",
+  "/community/activity",
+  "/u/:handle",
+  "/p/:postId",
+  "/you/profile",
+  "/you/blocked",
   "/groups",
   "/groups/:orgSlug",
   "/groups/:orgSlug/expense",

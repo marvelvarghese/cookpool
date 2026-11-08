@@ -18,6 +18,7 @@ import type { CachePatch } from "@/lib/optimistic";
 import { qk } from "@/lib/query-keys";
 import { dayText } from "./when";
 import {
+  PUBLIC_WORD,
   VISIBILITY_WORDS,
   WRITTEN_FACTOR,
   clampFactor,
@@ -262,7 +263,7 @@ export interface ProfileRecipeRow {
 export function profileRecipeRows(recipes: readonly RecipeSummary[]): ProfileRecipeRow[] {
   return sortMyRecipes(recipes).map((r) => {
     const extra = fromText(r) ?? (r.savedBy > 0 ? `saved by ${r.savedBy}` : null);
-    return { id: r.id, name: r.name, href: recipeHref(r.id), meta: [VISIBILITY_WORDS[r.visibility], extra].filter(Boolean).join(" · ") };
+    return { id: r.id, name: r.name, href: recipeHref(r.id), meta: [r.listed && r.visibility === "link" ? PUBLIC_WORD : VISIBILITY_WORDS[r.visibility], extra].filter(Boolean).join(" · ") };
   });
 }
 

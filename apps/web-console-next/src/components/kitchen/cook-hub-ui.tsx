@@ -5,6 +5,8 @@ import { myRecipeCards } from "./cook-hub";
 import { CookHubView } from "./cook-hub-views";
 import { useCookNow, useMyRecipes, usePrefetchRecipe, useRecipesInFull } from "./recipes-data";
 import { ExploreButton } from "./explore-views";
+import { CommunityEntry } from "./community-views";
+import { COMMUNITY_HREF } from "./community";
 
 /**
  * The Cook hub (cookpool-recipes RC-5, design §1.2, §5.4, the canvas's
@@ -13,7 +15,8 @@ import { ExploreButton } from "./explore-views";
  * you can make with what you have, "Can make N" | "Missing 1 · N", each row
  * with Start, hidden when there is nothing; My recipes — how many, New recipe
  * and Explore beside it (RC-8), and a card per recipe, last cooked first,
- * with a tinted Start cooking.
+ * with a tinted Start cooking. Above My recipes, Community (cookpool-community
+ * CM-5): following cooks and what they make.
  */
 export function CookHub() {
   const cookNow = useCookNow();
@@ -34,6 +37,7 @@ export function CookHub() {
       onReloadRecipes={recipes.reload}
       prefetch={prefetch}
       extraAction={<ExploreButton />}
+      community={<CommunityEntry href={COMMUNITY_HREF} />}
     />
   );
 }

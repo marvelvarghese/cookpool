@@ -24,15 +24,18 @@ import { useUndoToast } from "./undo-toast";
 import { recipeAddedPatches, recipeRemovedPatches, savedCopyOf } from "./cook-hub";
 import { useCopyRecipe, useMyRecipes } from "./recipes-data";
 import {
+  levelAfter,
+  levelToastTitle,
+  levelVisibility,
   saveFromLink,
   sendShare,
-  sharedToastTitle,
+  shareLevelOf,
   undoSave,
-  undoCallFor,
-  visibilityAfter,
+  undoLevelCallFor,
   visibilityPatches,
   type ShareCall,
   type ShareDeps,
+  type ShareLevel,
 } from "./recipe-share";
 import { exploreQuery, type ExploreKind } from "./explore";
 import {
@@ -133,7 +136,10 @@ function shareDeps(client: Client): ShareDeps {
 function settleShared(qc: QC, r: ApiResult<RecipeResponse>, recipeId: string): void {
   if (r.ok) {
     qc.setQueryData(qk.kitchenRecipe(recipeId), r.data);
-    applyPatches(queryCacheOf(qc), visibilityPatches(recipeId, { visibility: r.data.recipe.visibility, linkCode: r.data.recipe.linkCode }));
+    applyPatches(
+      queryCacheOf(qc),
+      visibilityPatches(recipeId, { visibility: r.data.recipe.visibility, linkCode: r.data.recipe.linkCode, listed: r.data.recipe.listed === true }),
+    );
   }
   // Read again once every write on its way has landed: two quick taps whose answers cross still end on the server's.
   void qc.invalidateQueries({ queryKey: qk.kitchenRecipe(recipeId), exact: true });
@@ -155,15 +161,18 @@ export function useShareRecipe() {
   const offer = useUndoToast();
   const { toast } = useToast();
   return React.useCallback(
-    (input: { recipe: Pick<KitchenRecipe, "id" | "name" | "visibility" | "linkCode">; call: ShareCall }): Promise<ApiResult<RecipeResponse>> => {
+    (input: { recipe: Pick<KitchenRecipe, "id" | "name" | "visibility" | "linkCode" | "listed">; call: ShareCall }): Promise<ApiResult<RecipeResponse>> => {
       const { recipe, call } = input;
       const deps = shareDeps(client);
-      const before = recipe.visibility;
-      const after = visibilityAfter(call, before);
+      // Levels (cookpool-community CM-5): a visibility, or Public — a listed link.
+      const before: ShareLevel = shareLevelOf(recipe);
+      const after = levelAfter(call, before);
+      const patchFor = (level: ShareLevel, linkCode: string | null) =>
+        visibilityPatches(recipe.id, { visibility: levelVisibility(level), linkCode, listed: level === "public" });
 
       if (call.kind === "rotate") {
         if (refuseIfOffline()) return Promise.resolve(OFFLINE);
-        const write = beginWrite(qc, visibilityPatches(recipe.id, { visibility: "link", linkCode: null }));
+        const write = beginWrite(qc, patchFor(before === "public" ? "public" : "link", null));
         return write.track(sendShare(recipe.id, call, deps)).then((r) => {
           if (!r.ok) {
             write.rollback();
@@ -176,13 +185,14 @@ export function useShareRecipe() {
         });
       }
 
-      const keepCode = after === "link" && before === "link" ? recipe.linkCode : null;
-      const write = beginWrite(qc, visibilityPatches(recipe.id, { visibility: after, linkCode: keepCode }));
+      // Link ↔ Public keeps the same link.
+      const keepCode = levelVisibility(after) === "link" && levelVisibility(before) === "link" ? recipe.linkCode : null;
+      const write = beginWrite(qc, patchFor(after, keepCode));
       const sent = write.track(sendShare(recipe.id, call, deps));
-      const back = undoCallFor(call, before);
+      const back = undoLevelCallFor(call, before);
       let undone = false;
       const handle = offer({
-        title: call.kind === "off" ? "Link off" : sharedToastTitle(after),
+        title: call.kind === "off" ? "Link off" : levelToastTitle(after),
         description: call.kind === "off" ? `${recipe.name} · your groups can still see it` : recipe.name,
         undo: async (): Promise<UndoResult> => {
           const r = await sent;
@@ -193,8 +203,8 @@ export function useShareRecipe() {
         },
         restore: () => {
           undone = true;
-          // Back to the link waits for its new code.
-          write.restore(visibilityPatches(recipe.id, { visibility: before, linkCode: null }));
+          // Back to the link waits for its new code (unless it never left: Public ↔ link).
+          write.restore(patchFor(before, keepCode));
         },
       });
       return sent.then((r) => {

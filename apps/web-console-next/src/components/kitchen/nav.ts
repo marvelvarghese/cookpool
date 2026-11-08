@@ -96,10 +96,11 @@ export function kitchenTabs(newFrame: boolean): readonly KitchenNavItem[] {
 // Paths that belong to a new-frame tab besides its own. Use is Home's first
 // field; a dish, and the recipe and session screens still to come, are
 // cooking; people, settling up and groups are money (design §1.3: money
-// lives in Money).
+// lives in Money). Community lives in Cook (cookpool-community CM-5, design
+// §4): the feed, people search, Activity, a profile (`/u/…`) and a post (`/p/…`).
 const NEW_FRAME_PREFIXES: Partial<Record<KitchenNavLink["id"], readonly string[]>> = {
   home: ["/use"],
-  cook: ["/dishes", "/recipes", "/explore", "/r"],
+  cook: ["/dishes", "/recipes", "/explore", "/r", "/community", "/u", "/p"],
   money: ["/people", "/settle", "/groups", "/join"],
 };
 

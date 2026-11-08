@@ -40,6 +40,7 @@ import { profileHref, profileListFrom, profileRecipeRows, recipeStats, type Prof
 import { PersonRecipesView, SaveCopyChip, Segmented, YourRecipes } from "./cook-hub-views";
 import { personHref, personListFrom, personRecipeRows, type PersonList, type PersonRecipeRow } from "./explore";
 import { usePersonRecipes, useSaveCopy } from "./recipe-travel-data";
+import { YouCommunity } from "./community-ui";
 
 /**
  * Your page and a person's in the new frame (cookpool-recipes RC-2, design
@@ -50,7 +51,9 @@ import { usePersonRecipes, useSaveCopy } from "./recipe-travel-data";
  *   and Groups; "Cooks a week" over the last 8 weeks; then Recipes | Cooks
  *   (RC-5): your recipes, each with who can see it, or your recent cooks —
  *   the choice kept in the address (`?list=cooks`). The gear opens settings —
- *   today's You rows.
+ *   today's You rows. Under the header (cookpool-community CM-5): your
+ *   @handle, Followers and Following, follow requests when private, and
+ *   Edit (HandleSetup).
  * - **A person** (`/people/[id]`): their face and name, "In Flat 4B with you";
  *   what is between you two ("You get back ₹40.00") with Settle up; Cooks,
  *   Recipes and Saved by; Recipes | Cooks (RC-8; `?list=cooks`) — the
@@ -102,6 +105,8 @@ export function YourPage() {
           <Settings className="h-5 w-5" strokeWidth={1.9} aria-hidden />
         </Link>
       </header>
+
+      <YouCommunity />
 
       <dl className="grid grid-cols-2 gap-2 min-[480px]:grid-cols-4">
         <Stat label="Cooks" value={dishes.loading ? null : cooks} />

@@ -15,6 +15,10 @@
  *   · 20 min", each line with its dot and amount, "You have 5 of 6 ·
  *   missing paneer", and Save to my recipes.
  *
+ * - **Public** (cookpool-community CM-5): a fourth row, "Listed on your
+ *   profile and in Discover" — a link recipe that is also listed
+ *   (`{ visibility: "link", listed: true }`); the levels are `ShareLevel`s.
+ *
  * Pure and dependency-free (contract types and helpers), so unit-testable.
  */
 
@@ -45,20 +49,68 @@ export function groupNamesText(names: readonly string[]): string {
   return `${shown[0]} and ${shown.length - 1} more`;
 }
 
+/** A level the sheet offers: a visibility, or Public (a listed link recipe, CM-5). */
+export type ShareLevel = RecipeVisibility | "public";
+
 export interface ShareOption {
-  id: RecipeVisibility;
+  id: ShareLevel;
   title: string;
   sub: string;
-  icon: "lock" | "groups" | "link";
+  icon: "lock" | "groups" | "link" | "public";
 }
 
-/** The sheet's three rows, in order, the levels cumulative. */
-export function shareOptions(groupNames: readonly string[]): ShareOption[] {
-  return [
+/** Public's row (cookpool-community CM-5). */
+export const PUBLIC_OPTION: ShareOption = { id: "public", title: "Public", sub: "Listed on your profile and in Discover", icon: "public" };
+
+/** The sheet's rows, in order, the levels cumulative: three, and Public last with `public` (CM-5). */
+export function shareOptions(groupNames: readonly string[], opts: { public?: boolean } = {}): ShareOption[] {
+  const rows: ShareOption[] = [
     { id: "only_me", title: "Only me", sub: "In your recipes, nowhere else", icon: "lock" },
     { id: "groups", title: "My groups", sub: `On your page for ${groupNamesText(groupNames)}`, icon: "groups" },
     { id: "link", title: "Anyone with the link", sub: "They can see it and save a copy", icon: "link" },
   ];
+  return opts.public ? [...rows, PUBLIC_OPTION] : rows;
+}
+
+/** A recipe's level: Public when it is a listed link recipe, else its visibility. */
+export function shareLevelOf(recipe: Pick<RecipeSummary, "visibility" | "listed">): ShareLevel {
+  return recipe.visibility === "link" && recipe.listed === true ? "public" : recipe.visibility;
+}
+
+/** The visibility a level is (Public is a link recipe). */
+export function levelVisibility(level: ShareLevel): RecipeVisibility {
+  return level === "public" ? "link" : level;
+}
+
+/**
+ * Choosing a row, from `from`: Public sends `{ visibility: "link", listed:
+ * true }`; the link from Public sends `listed: false` (unlisted, the same
+ * link); any other row is its visibility alone (the server unlists it).
+ */
+export function levelCall(to: ShareLevel, from: ShareLevel): ShareCall {
+  if (to === "public") return { kind: "visibility", body: { visibility: "link", listed: true } };
+  if (to === "link" && from === "public") return { kind: "visibility", body: { visibility: "link", listed: false } };
+  return visibilityCall(to);
+}
+
+/** The level once a call has landed: Turn off is My groups; New link keeps the level. */
+export function levelAfter(call: ShareCall, before: ShareLevel): ShareLevel {
+  if (call.kind === "visibility") return call.body.listed === true ? "public" : call.body.visibility;
+  if (call.kind === "off") return "groups";
+  return before;
+}
+
+/** What Undo sends: the level before (none for New link, or when nothing changed). */
+export function undoLevelCallFor(call: ShareCall, before: ShareLevel): ShareCall | null {
+  if (call.kind === "rotate") return null;
+  const after = levelAfter(call, before);
+  if (after === before) return null;
+  return levelCall(before, after);
+}
+
+/** The toast a level shows; Public: "Public · on your profile and in Discover". */
+export function levelToastTitle(level: ShareLevel): string {
+  return level === "public" ? "Public · on your profile and in Discover" : sharedToastTitle(level);
 }
 
 /** Whether the share sheet is offered: your own recipe (Cookpool's own is everyone's, and nobody shares it). */
@@ -183,12 +235,16 @@ export function sharedToastTitle(visibility: RecipeVisibility): string {
  * and its link code — kept while it stays a link, null otherwise (and null
  * while a new one is on its way). `linkCode` undefined keeps what is cached.
  */
-export function visibilityPatches(recipeId: string, change: { visibility: RecipeVisibility; linkCode?: string | null }): CachePatch[] {
-  const apply = <T extends Pick<KitchenRecipe, "id" | "visibility"> & { linkCode?: string | null }>(r: T): T => {
+export function visibilityPatches(recipeId: string, change: { visibility: RecipeVisibility; linkCode?: string | null; listed?: boolean }): CachePatch[] {
+  const apply = <T extends Pick<KitchenRecipe, "id" | "visibility"> & { linkCode?: string | null; listed?: boolean }>(r: T): T => {
     if (r.id !== recipeId) return r;
     const linkCode = change.visibility !== "link" ? null : change.linkCode === undefined ? (r.linkCode ?? null) : change.linkCode;
-    if (r.visibility === change.visibility && (!("linkCode" in r) || r.linkCode === linkCode)) return r;
-    return "linkCode" in r ? { ...r, visibility: change.visibility, linkCode } : { ...r, visibility: change.visibility };
+    // Listed (CM-5) only as a link; left as it is when the change doesn't say.
+    const listed = change.visibility !== "link" ? false : change.listed;
+    const listedSame = listed === undefined || (r.listed ?? false) === listed;
+    if (r.visibility === change.visibility && (!("linkCode" in r) || r.linkCode === linkCode) && listedSame) return r;
+    const next = "linkCode" in r ? { ...r, visibility: change.visibility, linkCode } : { ...r, visibility: change.visibility };
+    return listed === undefined || (!("listed" in r) && listed === false) ? next : { ...next, listed };
   };
   return [
     {

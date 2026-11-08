@@ -62,3 +62,50 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - `tests/api-edge`: the facade's route-matching cases gain the new paths (41 in that file).
 
 **Deploy:** kitchen-worker's own files change, so it plans and redeploys. The new migration directory plans `db-migrate` by path. kitchen-worker reads `r.listed` in every recipe read, so migration 430 must apply before this worker serves; kitchen-worker's enforced `db-migrate` edge orders that. The console picks up the contracts and SDK only when its own files change (CM-5).
+
+### CM1 — Profiles and following in the app (CM-5)
+
+**Built** (web-console-next, new frame only; design §4, the canvas row "Community": `HandleSetup`, `PersonProfile`, `PeopleSearch`). Pure models in `components/kitchen/community.ts` (addresses, HandleSetup's note and request, the follow button, the lock, counts, the ⋯ menu's words, the first-time rule) and `community-people.ts` (search, suggestion groups, rows, the cache patches); reads and writes in `community-data.ts`; drawn parts in `community-views.tsx`; screens in `community-setup-ui.tsx` (HandleSetup), `community-profile-ui.tsx` (a profile) and `community-ui.tsx` (Community, search, blocked people, You's section, Activity and post shells). No SDK change: CM-2's methods cover it.
+
+**Routes and navigation** (each a static page; `/u/:handle` and `/p/:postId` one file each, `usePathParam` with a `ParamShell` layout; each in `NEW_FRAME_ONLY`):
+- `/community` — "Community", the bell (→ Activity), the search field (→ search), and a placeholder card where CM-6's Following | Discover goes. HandleSetup instead, the first time it opens without a profile (remembered in `localStorage` `cookpool.community.setupOffered`; afterwards a "Pick a handle" card links to it).
+- `/community/search`, `/community/activity` (CM-6 fills it; for now your follow requests when private and one line), `/u/:handle`, `/p/:postId` (CM-6's; for now "This post isn't here" and a way back).
+- `/you/profile` (HandleSetup) and `/you/blocked` (blocked people, each with Unblock).
+- `nav.ts`: Cook's prefixes gain `/community`, `/u`, `/p`. `back.ts`: Community → Cook; search, Activity, a profile, a post → Community; HandleSetup → You; blocked → HandleSetup. In today's frame Community's five go to `/home`, the two You pages to `/you`.
+- The Cook hub gains a **Community** row (above My recipes); You gains @handle (opens your profile) · Private/Public · Followers · Following (open the lists) · Edit, and with a private profile Follow requests with Accept · Decline. Without a profile, one card to HandleSetup.
+
+**Screens**
+- **HandleSetup:** Name, Handle (normalized and lowercased as typed; local checks for shape and reserved at once, then `handleAvailable` after 350 ms: "@x is yours · you can change it once a month", "@x is taken", "@x is reserved", "3–20 letters, numbers, _ or .", and "You can change your handle again on 5 Dec" from `nextHandleChangeAt`), About · optional, Who can follow you (Anyone · People I approve), Blocked people with its count, See your profile, Save ("Saving…", "Saved ✓"; a refusal's reason under the handle).
+- **A profile:** Back · @handle · ⋯; an initials face on the person's colour; Posts · Recipes · Followers · Following (the last two open `?list=followers|following` when `canSee`); name, about, "Followed by Anu, Dev and Sam", "Follows you"; Follow / Follow back / Ask to follow / Requested / Following (Edit profile on your own) and Share (copies `<origin>/u/<handle>`); the lock when `canSee` is false; else Cooks | Recipes (`?list=`), Recipes from `profileRecipes`, each with Save (your copy). Lists: rows with Follow; on your own followers, Remove. ⋯: Mute/Unmute their posts, Block @handle with "Blocking hides you from each other everywhere. Kabir isn't told."; after Block the page says "You blocked @x" with Unblock.
+- **People search:** the field (name or @handle) with Cancel; empty, From your groups · From recipes · Popular with each person's `why`; typed, People, or "Nobody by that name. Private profiles show by @handle only."; Follow from any row.
+- **Writes** (SM-5, `beginWrite` + `useUndoToast`): follow / ask / unfollow / take back (Undo sends the other way), mute, block and unblock (Undo), accept (Undo removes the follower). Decline and Remove follower have no Undo (only they can ask or follow again) and say so. Without a profile, Follow sends you to HandleSetup first. Every write reads Community again once it lands.
+- **Recipe share sheet:** a fourth row, **Public** — "Listed on your profile and in Discover" (globe) — after Anyone with the link. Choosing it PATCHes `{ visibility: "link", listed: true }`; the link from Public PATCHes `{ visibility: "link", listed: false }` and keeps the same code; Undo sends the level before. You's recipe rows say "Public" for a listed link recipe.
+- **Explore** gains a third source, Public (`?source=public`, "Listed by cooks on their profiles", rows "by Kabir · …").
+
+**Departures**
+- **No cooks-a-week on someone's profile.** The app only knows dishes in your groups (`/me/dishes`), so a stranger's chart would be empty or wrong. The profile shows Recipes, and **Recipes is the default tab** until posts arrive (Cooks reads "No cooks shared yet"); CM-6 can flip `PROFILE_DEFAULT_LIST`.
+- **Report is hidden** from the ⋯ menu until CM-3's `POST /v1/kitchen/reports` exists (CM-6 adds it).
+- **Counts read "Posts"** (the server's `counts.posts`, 0 until CM-3) where the canvas says Cooks.
+- **The canvas's "COOKS YOUR RECIPES OR YOU SAVE THEIRS"** is "From recipes" (today it is only recipes you saved), and "Popular this week" is "Popular" (the server counts 14 days).
+- **"Followed by"** names up to three (the server's `followedBy`), without "and 2 others you know" (no total is sent).
+- **A first profile's Name is prefilled** with your own display name (yours to change, shown only to you); nothing else from identity is used.
+- **Following from search or suggestions keeps the row** (Following, with Undo): those two reads are marked stale rather than read again, or the server would drop whom you now follow from the suggestions under your finger.
+- **Lists show their first page** (30): no "more" yet.
+- **Public in the sheet is new-frame only** by where the sheet lives (recipe pages are new-frame only); `shareOptions(names)` without `{ public: true }` is unchanged.
+- **Pull to refresh:** none of the seven new pages pulls (CM-6 decides for the feed).
+
+**Tests** (`tests/web-console-next`)
+- `kitchen-community.test.ts` (23): the handle's messages (shape, reserved, checking, taken, yours, too soon with the date) and refusals, the draft and what Save sends, relationship → button, follow target and toasts, the lock and counts, Followed by, the menu's words, the address and lists, the first-time rule, the hub entry, the pages' prefixes, files, back parents, and newFrame false sending each away.
+- `kitchen-community-people.test.ts` (15): the search query and view, suggestion groups with why, rows, blocked rows; follow, block, mute, request and follower patches; Public's options, level, PATCH mapping, Undo, cache patch and drawing; Explore's Public source.
+- Changed on purpose: `static-pages.test.ts` (two more redirect rules, 15 → 17), `gestures.test.ts` (the seven pages don't pull).
+- Whole suite: 99 suites, 1989 tests. `typecheck` and `lint` clean for `@saas/web-console-next` and `@saas/web-console-next-tests`. `console-artifact.mjs build`: 38 pages served as files, 17 `_redirects` rules, every new page static (`/u/_`, `/p/_` prerendered).
+
+**Browser check** (390 × 844, `next dev` behind the SM-2 proxy with PN-9's in-page mock plus a CM-5 overlay for the community and recipe routes; the network log shows only localhost; the mock was never committed):
+- Cook showed the Community row under Start cooking; Community without a profile opened HandleSetup ("Rahul Varghese" prefilled). The handle read "@anucooks is taken", "@admin is reserved", then "@rahulcooks is yours · you can change it once a month"; Save → "You're on Community · @rahulcooks" and the shell.
+- Search, empty: From your groups (Dev · "In Flat 4B"), From recipes (Kabir · "You saved their Besan ladoo"), Popular (Sam · "12 new followers"). Follow on Kabir (private) → "Requested" with "Asked to follow Kabir · Undo"; Follow on Dev then Undo → back to Follow, the mock's follows matching. "kab" → the private line; "@kabirbakes" → Kabir; "sam" → Sam.
+- `/u/kabirbakes` while requested: Requested, 318 followers, "Followed by Anu", the lock. Accepted: Following, 319, Cooks | Recipes with Besan ladoo and Shrikhand each with Save; Followers opened the list. ⋯ → Mute Kabir's posts, Block @kabirbakes and the note; Block → "You blocked @kabirbakes" with "Blocked @kabirbakes · They aren't told · Undo"; Undo → the profile back, the follow gone (as the server does), Ask to follow and the lock.
+- You: "@rahulcooks · Private · 2 Followers · 1 Following · Edit", Follow requests · 2; Accept took Priya off. Dal tadka's row read "Public · saved by 2".
+- A recipe's share sheet had four rows; Public sent one PATCH with `listed: true` and kept the same link. Explore's Public listed Kabir's two recipes "by Kabir". HandleSetup with a handle changed 3 days ago read "You can change your handle again on 5 Dec" once the handle was edited. Blocked people: Sam, Unblock → "Nobody blocked" with Undo.
+- Today's frame (`cookpool-prod.localhost`): `/community` and `/u/kabirbakes` went to `/home`, `/you` was today's You, and no community route was asked.
+
+**Deploy:** console files only; the console picks up CM-2's contracts and SDK with this change. It needs CM-2's kitchen-worker (on main as #91) — without it the community reads are 404s and the pages show their errors.

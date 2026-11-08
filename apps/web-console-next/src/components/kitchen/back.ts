@@ -61,6 +61,16 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   // Recipes travel (RC-8): Explore and a recipe's link page are Cook's.
   "/explore": () => "/cook",
   "/r/:code": () => "/cook",
+  // Community (cookpool-community CM-5): the feed is Cook's; search,
+  // Activity, a profile and a post go back to it. HandleSetup and blocked
+  // people are You's; blocked people go back to HandleSetup, its link.
+  "/community": () => "/cook",
+  "/community/search": () => "/community",
+  "/community/activity": () => "/community",
+  "/u/:handle": () => "/community",
+  "/p/:postId": () => "/community",
+  "/you/profile": () => "/you",
+  "/you/blocked": () => "/you/profile",
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // Its stock check (cookpool-pantry PN-7): the item.

@@ -46,6 +46,7 @@ export function CookHubView({
   onReloadRecipes,
   prefetch,
   extraAction,
+  community,
 }: {
   cookNow: readonly CookNowEntry[] | null;
   cards: readonly MyRecipeCard[] | null;
@@ -55,6 +56,8 @@ export function CookHubView({
   prefetch?: ((recipeId: string) => void) | undefined;
   /** Beside New recipe (RC-8: Explore). */
   extraAction?: React.ReactNode;
+  /** Above My recipes (cookpool-community CM-5): the Community entry. */
+  community?: React.ReactNode;
 }) {
   return (
     <div className="flex w-full max-w-xl flex-col gap-4">
@@ -63,6 +66,7 @@ export function CookHubView({
       </header>
       <StartCookingButton />
       {cookNow && showsCookNow(cookNow) ? <CookNowSection entries={cookNow} prefetch={prefetch} /> : null}
+      {community ?? null}
       <MyRecipesSection cards={cards} loading={recipesLoading} failed={recipesFailed} onReload={onReloadRecipes} prefetch={prefetch} extraAction={extraAction} />
     </div>
   );

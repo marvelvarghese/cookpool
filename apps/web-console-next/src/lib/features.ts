@@ -50,6 +50,16 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   // Recipes travel (RC-8): Explore and a recipe's link.
   "/explore": "/home",
   "/r/:code": "/home",
+  // Community (cookpool-community CM-5): the feed, people search, Activity,
+  // a profile and a post are the Cook tab's; HandleSetup and blocked people
+  // are You's (today's You has none, so its visitor goes there).
+  "/community": "/home",
+  "/community/search": "/home",
+  "/community/activity": "/home",
+  "/u/:handle": "/home",
+  "/p/:postId": "/home",
+  "/you/profile": "/you",
+  "/you/blocked": "/you",
   // The stock check (cookpool-pantry PN-7): today's frame has none, so its visitor goes to the Pantry.
   "/pantry/:itemRef/check": "/pantry",
 };
