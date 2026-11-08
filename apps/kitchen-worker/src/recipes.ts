@@ -483,8 +483,8 @@ export interface Stock {
  * something left that link to them, in the caller's own pantry and every
  * group where they hold kitchen.item.use (the role decides here, as on every
  * cross-pantry read; cooking still asks the policy engine), those items'
- * measures, the foods' piece weights and the caller's Always have. Four
- * reads, however many recipes; null when one failed.
+ * measures, the foods' piece weights and densities, and the caller's Always
+ * have. Four reads, however many recipes; null when one failed.
  */
 export async function readStock(
   ctx: RequestContext,
@@ -516,13 +516,27 @@ export async function readStock(
 }
 
 /**
+ * Grams in one base unit of `dimension` of `food` (a gram, a millilitre, a
+ * piece): 1 for mass, the food's density for volume (RC-7), its piece weight
+ * for count; null when the food has none — and for packs, which only a
+ * measure converts.
+ */
+function gramsPerBase(dimension: string, food: KitchenFoodRecord | undefined): number | null {
+  if (dimension === "mass") return 1;
+  if (dimension === "volume") return food?.gPerMl ?? null;
+  if (dimension === "count") return food?.eachG ?? null;
+  return null;
+}
+
+/**
  * How many of an item's base thousandths make one of a line's (a gram, a
  * millilitre, a piece) — or null when they do not meet. The same dimension:
  * 1. A count line meets any item through its measure (the one the line's
- * unit names, else its first: "1 onion ≈ 150 g"), else a mass item through
- * the food's piece weight; a mass line meets a count item through the piece
- * weight. Nothing else converts (no densities: a spoon of a powder bought by
- * weight does not meet it).
+ * unit names, else its first: "1 onion ≈ 150 g"). Otherwise both sides go
+ * through grams: a piece is the food's piece weight (each_g), a millilitre
+ * its density (g_per_ml, RC-7) — so "1 tsp turmeric" meets a 100 g pack,
+ * "50 g ghee" a 500 ml jar, and "2 onions" a kilo of them. A food without
+ * the figure it needs does not meet: a cup of paneer never meets 200 g of it.
  */
 export function itemPerLine(
   lineDimension: FoodDimension,
@@ -535,11 +549,11 @@ export function itemPerLine(
   if (lineDimension === "count") {
     const measure = findMeasure(measures, lineUnit) ?? measures[0];
     if (measure) return measure.amountMilli / measure.count / 1000;
-    if (item.dimension === "mass" && food?.eachG) return food.eachG;
-    return null;
   }
-  if (lineDimension === "mass" && item.dimension === "count" && food?.eachG) return 1 / food.eachG;
-  return null;
+  const lineGrams = gramsPerBase(lineDimension, food);
+  const itemGrams = gramsPerBase(item.dimension, food);
+  if (lineGrams === null || itemGrams === null) return null;
+  return lineGrams / itemGrams;
 }
 
 /** Soonest use-by first (none last), then the caller's own pantry, then the most left, then by id. */
