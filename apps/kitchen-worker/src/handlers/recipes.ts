@@ -61,6 +61,7 @@ import {
   lineFoods,
   readStock,
   resolveSteps,
+  seenInPublic,
   sharesGroup,
   summarize,
   matchLine,
@@ -70,6 +71,7 @@ import {
   type ParsedLine,
 } from "../recipes.js";
 import { Fields, oneOf } from "../validate.js";
+import { profileNames, publicSource, toPublicRecipeSummary } from "../community.js";
 import { foodNameKey } from "@saas/contracts/kitchen";
 
 // Recipes (RC-4, cookpool-recipes design §3, §5, §7):
@@ -83,7 +85,7 @@ import { foodNameKey } from "@saas/contracts/kitchen";
 //   POST   /v1/kitchen/me/recipes/{rcp}/link        its owner: mint or rotate the link
 //   DELETE /v1/kitchen/me/recipes/{rcp}/link        its owner: turn it off
 //   GET    /v1/kitchen/recipes/{rcp}?code=&f=       who may see it, with your last cook of it
-//   GET    /v1/kitchen/recipes?source=&q=&kind=     Explore: Cookpool's, or your groups'
+//   GET    /v1/kitchen/recipes?source=&q=&kind=     Explore: Cookpool's, your groups', or public (CM-2)
 //   GET    /v1/kitchen/recipe-links/{code}?f=       anyone signed in with the code
 //   GET    /v1/kitchen/people/{usr}/recipes         someone you share a group with
 //   GET    /v1/kitchen/me/cook-now                  what you can make, best first
@@ -108,41 +110,51 @@ const SUBJECT_ID_RE = /^[A-Za-z0-9][\w-]{0,127}$/;
 /** A taken link code is drawn again: this many times at most (58^10 codes make a clash all but impossible). */
 const LINK_ATTEMPTS = 3;
 
-/** `{ recipe, lastCook }` as the caller reads it, its steps' learned ranges at `factorMilli` (GC-7). */
+/**
+ * `{ recipe, lastCook }` as the caller reads it, its steps' learned ranges at
+ * `factorMilli` (GC-7). `inPublic` (CM-2): the caller sees it only because it
+ * is public, so its owner and source are named by their profiles, never by
+ * identity.
+ */
 async function recipeResponse(
   ctx: RequestContext,
   repo: KitchenRepository,
   record: KitchenRecipeTemplateRecord,
   status = 200,
   factorMilli = 1000,
+  inPublic = false,
 ): Promise<Response> {
   const [names, last, learned] = await Promise.all([
-    ownerNames(ctx, [record]),
+    inPublic ? profileNames(ctx, repo, [record]) : ownerNames(ctx, [record]),
     ctx.timings.measure("db", () => repo.lastCook(ctx.actor.subjectId, record.id as Uuid)),
     learnedSteps(ctx, repo, record, factorMilli),
   ]);
-  if (!last.ok || !learned) return unavailable(ctx.requestId);
+  if (!names || !last.ok || !learned) return unavailable(ctx.requestId);
+  const recipe = toKitchenRecipe(record, ctx.actor.subjectId, names, learned);
   return successResponse<RecipeResponse>(
-    { recipe: toKitchenRecipe(record, ctx.actor.subjectId, names, learned), lastCook: last.value ? toLastCook(last.value) : null },
+    { recipe: inPublic ? publicSource(recipe, record, names) : recipe, lastCook: last.value ? toLastCook(last.value) : null },
     ctx.requestId,
     status,
   );
 }
 
-/** A recipe the caller may see, by its `rcp_…` id (and link code): the record, or the Response to return. */
+/** A recipe the caller may see, by its `rcp_…` id (and link code), and whether only as a public one (CM-2); or the Response to return. */
 async function visibleRecipe(
   ctx: RequestContext,
   repo: KitchenRepository,
   param: string,
   code: string | null,
-): Promise<KitchenRecipeTemplateRecord | Response> {
+): Promise<{ recipe: KitchenRecipeTemplateRecord; inPublic: boolean } | Response> {
   const recipeId = parsePublicId("rcp", param);
   if (!recipeId) return notFound(ctx.requestId);
   const found = await ctx.timings.measure("db", () => repo.getRecipe(recipeId, ctx.actor.subjectId));
   if (!found.ok) return found.error.kind === "not_found" ? notFound(ctx.requestId) : unavailable(ctx.requestId);
   const allowed = await canSee(ctx, found.value, code);
   if (allowed === null) return unavailable(ctx.requestId);
-  return allowed ? found.value : notFound(ctx.requestId);
+  if (allowed) return { recipe: found.value, inPublic: false };
+  const inPublic = await seenInPublic(ctx, repo, found.value);
+  if (inPublic === null) return unavailable(ctx.requestId);
+  return inPublic ? { recipe: found.value, inPublic: true } : notFound(ctx.requestId);
 }
 
 /** A recipe the caller may change (theirs, live, not Cookpool's): the record, or the Response to return. */
@@ -351,6 +363,8 @@ export async function handleUpdateRecipe(ctx: RequestContext, request: Request, 
             ...(edit.minutes !== undefined ? { minutes: edit.minutes } : {}),
             ...(edit.kind !== undefined ? { kind: edit.kind } : {}),
             ...(edit.visibility !== undefined ? { visibility: edit.visibility, newLinkCode: mintLinkCode() } : {}),
+            // Listed (CM-2): true mints a link when it has none.
+            ...(edit.listed !== undefined ? { listed: edit.listed, newLinkCode: mintLinkCode() } : {}),
             ...(edit.tools !== undefined ? { tools: edit.tools } : {}),
           },
           ...(edit.lines ? { lines: edit.lines } : {}),
@@ -449,9 +463,9 @@ export async function handleGetRecipe(ctx: RequestContext, request: Request, par
   if (!fields.ok) return validationError(ctx.requestId, fields.errors);
   const code = codeParam(url);
   return withKitchenRepo(ctx, async (repo) => {
-    const recipe = await visibleRecipe(ctx, repo, params[0]!, code);
-    if (recipe instanceof Response) return recipe;
-    return recipeResponse(ctx, repo, recipe, 200, factorMilli);
+    const visible = await visibleRecipe(ctx, repo, params[0]!, code);
+    if (visible instanceof Response) return visible;
+    return recipeResponse(ctx, repo, visible.recipe, 200, factorMilli, visible.inPublic);
   });
 }
 
@@ -474,8 +488,9 @@ export async function handleRecipeMatch(ctx: RequestContext, request: Request, p
   const groups = await callerGroups(ctx);
   if (!groups) return unavailable(ctx.requestId);
   return withKitchenRepo(ctx, async (repo) => {
-    const recipe = await visibleRecipe(ctx, repo, params[0]!, code);
-    if (recipe instanceof Response) return recipe;
+    const visible = await visibleRecipe(ctx, repo, params[0]!, code);
+    if (visible instanceof Response) return visible;
+    const recipe = visible.recipe;
     const stock = await readStock(ctx, repo, groups, foodsOf([recipe]));
     if (!stock) return unavailable(ctx.requestId);
     const scope = { ownerSubjectId: ctx.actor.subjectId, orgIds: groups.filter(canUseIn).map((g) => g.orgId) };
@@ -518,16 +533,20 @@ export async function handleCopyRecipe(ctx: RequestContext, request: Request): P
 
   return withKitchenRepo(ctx, async (repo) => {
     let source: KitchenRecipeTemplateRecord;
+    let inPublic = false;
     if (byId) {
       const visible = await visibleRecipe(ctx, repo, body.recipeId as string, null);
       if (visible instanceof Response) return visible;
-      source = visible;
+      source = visible.recipe;
+      inPublic = visible.inPublic;
     } else {
       const found = await ctx.timings.measure("db", () => repo.getRecipeByLinkCode(body.linkCode as string, ctx.actor.subjectId));
       if (!found.ok) return found.error.kind === "not_found" ? notFound(ctx.requestId) : unavailable(ctx.requestId);
       source = found.value;
     }
-    const names = await ownerNames(ctx, [source]);
+    // A public recipe's owner is named by their profile (CM-2), never by identity.
+    const names = inPublic ? await profileNames(ctx, repo, [source]) : await ownerNames(ctx, [source]);
+    if (!names) return unavailable(ctx.requestId);
     const ownerName = source.isSystem ? SYSTEM_RECIPE_OWNER_NAME : (names.get(source.ownerId) ?? null);
     // A copy is its own: owned by the saver, Only me, the same lines, steps (their keys too) and tools, and where it came from.
     const written = await writeRecipe(ctx, repo, {
@@ -606,17 +625,23 @@ export async function handleExploreRecipes(ctx: RequestContext, request: Request
       repo.listRecipes(
         source === "cookpool"
           ? { viewer: me, system: true, q: q || null, kind, limit: EXPLORE_LIMIT }
-          : { viewer: me, sharedBy, q: q || null, kind, limit: EXPLORE_LIMIT },
+          : source === "public"
+            ? // Public (CM-2): listed recipes of public profiles, not the caller's, nobody with a block (in storage).
+              { viewer: me, publicListed: true, q: q || null, kind, limit: EXPLORE_LIMIT }
+            : { viewer: me, sharedBy, q: q || null, kind, limit: EXPLORE_LIMIT },
       ),
     );
     if (!found.ok) return unavailable(ctx.requestId);
     const stock = await readStock(ctx, repo, groups, foodsOf(found.value));
     if (!stock) return unavailable(ctx.requestId);
-    const names = await ownerNames(ctx, found.value);
+    // Strangers' recipes are named by their profiles, never by identity.
+    const names = source === "public" ? await profileNames(ctx, repo, found.value) : await ownerNames(ctx, found.value);
+    if (!names) return unavailable(ctx.requestId);
+    const summaryOf = source === "public" ? toPublicRecipeSummary : toRecipeSummary;
     return successResponse<ExploreRecipesResponse>(
       {
         recipes: found.value.map((r) => ({
-          ...toRecipeSummary(r, me, names),
+          ...summaryOf(r, me, names),
           match: summarize(r, r.lines.map((line) => matchLine(line, 1000, stock))),
         })),
       },

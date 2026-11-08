@@ -115,7 +115,7 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
       const recipeId = dish.recipeId;
       const recipe = await ctx.timings.measure("db", () => repo.getRecipe(recipeId, cook));
       if (!recipe.ok) return recipe.error.kind === "not_found" ? notFound(ctx.requestId) : unavailable(ctx.requestId);
-      const visible = await canSee(ctx, recipe.value);
+      const visible = await canSee(ctx, recipe.value, null, repo);
       if (visible === null) return unavailable(ctx.requestId);
       if (!visible) return notFound(ctx.requestId);
       const lineFields = new Fields();
