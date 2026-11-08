@@ -1,6 +1,6 @@
 import type { KitchenRecipe, KitchenRecipeStep } from "@saas/contracts/kitchen";
 import { longPrepOf } from "@saas/contracts/kitchen";
-import type { GuidedStep, LearnedRange } from "@web-console-next/components/kitchen/guided-steps";
+import type { GuidedStep } from "@web-console-next/components/kitchen/guided-steps";
 import { CURRY_LINES, line, recipe } from "./kitchen-recipe-fixtures";
 
 // Guided recipes for the GC-6 screens' tests (until GC-4 rewrites Cookpool's
@@ -8,8 +8,8 @@ import { CURRY_LINES, line, recipe } from "./kitchen-recipe-fixtures";
 // board's — and a Rajma that soaks overnight first. Times are at the
 // recipe's own size (1 kg of chicken, serves 4).
 
-/** A guided step as the server reads it back; `learned` as GC-7 will send it. */
-export function step(position: number, text: string, patch: Partial<KitchenRecipeStep> & { learned?: LearnedRange | null } = {}): GuidedStep {
+/** A guided step as the server reads it back; `learned` as GC-7 sends it (at the recipe as written, unless the read named a size). */
+export function step(position: number, text: string, patch: Partial<KitchenRecipeStep> = {}): GuidedStep {
   return {
     position,
     key: `key${position}`,
@@ -36,7 +36,7 @@ export const CURRY_STEPS: GuidedStep[] = [
   step(0, "Heat the oil", { heat: 2, lines: [5], minSeconds: 2 * MIN, maxSeconds: 2 * MIN, sense: "look", checkpoint: "it shimmers" }),
   step(1, "Fry the onions with the salt until golden.", {
     heat: 2, lines: [1, 7], minSeconds: 10 * MIN, maxSeconds: 12 * MIN, timeRule: "partly", sense: "look", checkpoint: "golden brown",
-    tip: "Don't rush them: browner onions, deeper curry.", learned: { lowSeconds: 10 * MIN, highSeconds: 13 * MIN, cooks: 23 },
+    tip: "Don't rush them: browner onions, deeper curry.", learned: { lowSeconds: 10 * MIN, highSeconds: 13 * MIN, cooks: 23, samples: 41 },
   }),
   step(2, "Add the ginger-garlic paste", { heat: 1, lines: [4], minSeconds: 1 * MIN, maxSeconds: 1 * MIN, sense: "smell", checkpoint: "the raw smell goes" }),
   step(3, "Tomato and masala, until the oil shows", { heat: 2, lines: [2, 6], minSeconds: 6 * MIN, maxSeconds: 8 * MIN, timeRule: "partly", sense: "look", checkpoint: "the oil shows at the edges" }),

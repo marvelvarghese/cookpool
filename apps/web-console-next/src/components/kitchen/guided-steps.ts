@@ -19,9 +19,12 @@ import {
   longPrepOf,
   scalePortions,
   stepTimeAt,
+  stepTimeMultiplier,
+  wholeStepMinutes,
   type KitchenRecipe,
   type KitchenRecipeLine,
   type KitchenRecipeStep,
+  type LearnedStepRange,
   type LongPrepStep,
   type StepHeat,
   type StepPhase,
@@ -33,55 +36,63 @@ import {
 import { WRITTEN_FACTOR, amountText, clampFactor, lineAmountText, lowerFirst, mainAmountMilli, mainLineOf, minutesText, recipeHref } from "./recipes";
 
 // ── What cooks learned (GC-7) ─────────────────────────────────────
-
-/**
- * The range most cooks took for a step (design §5, GC-7): the 25th–75th
- * percentiles, in seconds, and how many cooks it is from. The recipe read
- * sends it on `guidedSteps[]` once a step has enough times; until GC-7
- * lands it is never there, and nothing is drawn.
- */
-export interface LearnedRange {
-  lowSeconds: number;
-  highSeconds: number;
-  cooks: number;
-}
+//
+// GC-7's read puts `learned` (`LearnedStepRange`: the 25th–75th percentiles
+// of cooks' times, how many cooks and times) on a guided step once its key
+// has 5 times from 3 cooks, at the size the read asks for (`?f=`, default
+// the recipe as written). The recipe page reads without a size — one cache
+// entry for every stepper tap — so its ranges come at × 1 and are scaled
+// here by the step's rule; the plan reads at its size, and shows them as
+// they come (`readAtMilli` says which size a read was at).
 
 /** A guided step as the read gives it, with GC-7's `learned` when there is one. */
-export type GuidedStep = KitchenRecipeStep & { learned?: LearnedRange | null };
+export type GuidedStep = KitchenRecipeStep;
 
 /** A step's learned range when the read sent a sound one; null otherwise. */
-export function learnedOf(step: { learned?: unknown }): LearnedRange | null {
-  const l = step.learned as Partial<LearnedRange> | null | undefined;
+export function learnedOf(step: { learned?: unknown }): LearnedStepRange | null {
+  const l = step.learned as Partial<LearnedStepRange> | null | undefined;
   if (!l || typeof l !== "object") return null;
-  const { lowSeconds, highSeconds, cooks } = l;
+  const { lowSeconds, highSeconds, cooks, samples } = l;
   if (typeof lowSeconds !== "number" || typeof highSeconds !== "number" || typeof cooks !== "number") return null;
   if (!Number.isFinite(lowSeconds) || !Number.isFinite(highSeconds) || !Number.isFinite(cooks)) return null;
   if (lowSeconds < 0 || highSeconds < lowSeconds || cooks < 1) return null;
-  return { lowSeconds, highSeconds, cooks: Math.round(cooks) };
+  return { lowSeconds, highSeconds, cooks: Math.round(cooks), samples: typeof samples === "number" && Number.isFinite(samples) ? samples : cooks };
 }
 
 /**
- * A learned range at `factorMilli`. The console reads a recipe without a
- * size, so the range comes at the recipe's own size; it is scaled here by
- * the step's rule — as GC-7 normalises every time to × 1 by that rule and
- * scales the percentiles back — and rounded as `stepTimeAt` rounds.
+ * A learned range read at `readAtMilli`, at `factorMilli`: as it is when
+ * the two sizes are one; else scaled by the step's rule from the one to the
+ * other — as GC-7 normalises every time to × 1 by that rule and scales the
+ * percentiles back — in whole minutes, at least one (`wholeStepMinutes`).
  */
-export function learnedAt(learned: LearnedRange, rule: StepTimeRule | null | undefined, factorMilli: number): LearnedRange {
-  const at = stepTimeAt({ minSeconds: learned.lowSeconds, maxSeconds: learned.highSeconds, timeRule: rule ?? "fixed" }, factorMilli);
-  if (!at || "whistles" in at) return learned;
-  return { lowSeconds: at.minSeconds, highSeconds: at.maxSeconds, cooks: learned.cooks };
+export function learnedAt(
+  learned: LearnedStepRange,
+  rule: StepTimeRule | null | undefined,
+  factorMilli: number,
+  readAtMilli: number = WRITTEN_FACTOR,
+): LearnedStepRange {
+  const to = clampFactor(factorMilli);
+  const from = clampFactor(readAtMilli);
+  if (to === from) return learned;
+  const m = stepTimeMultiplier(rule, to) / stepTimeMultiplier(rule, from);
+  const lowSeconds = wholeStepMinutes(learned.lowSeconds * m);
+  return { ...learned, lowSeconds, highSeconds: Math.max(lowSeconds, wholeStepMinutes(learned.highSeconds * m)) };
 }
 
 /** The learned badge: "Usually 7–9 min · 23 cooks". */
-export function learnedText(learned: LearnedRange): string {
+export function learnedText(learned: Pick<LearnedStepRange, "lowSeconds" | "highSeconds" | "cooks">): string {
   return `Usually ${rangeText(learned.lowSeconds, learned.highSeconds)} · ${learned.cooks} ${learned.cooks === 1 ? "cook" : "cooks"}`;
 }
 
-/** A step's learned badge at a size, or null when nothing was learned (or the step counts whistles). */
-export function learnedBadge(step: GuidedStep, factorMilli: number): string | null {
+/**
+ * A step's learned badge at `factorMilli`, from a read at `readAtMilli`
+ * (the recipe as written unless said); null when nothing was learned. A
+ * whistle step has one too: the usual time its count takes.
+ */
+export function learnedBadge(step: Pick<GuidedStep, "learned" | "timeRule">, factorMilli: number, readAtMilli: number = WRITTEN_FACTOR): string | null {
   const learned = learnedOf(step);
-  if (!learned || step.whistles !== null) return null;
-  return learnedText(learnedAt(learned, step.timeRule, factorMilli));
+  if (!learned) return null;
+  return learnedText(learnedAt(learned, step.timeRule, factorMilli, readAtMilli));
 }
 
 // ── A recipe's steps ──────────────────────────────────────────────
@@ -251,8 +262,8 @@ export interface StepRow {
   longPrep: boolean;
 }
 
-/** Every step at `factorMilli`, as the recipe page lists them. */
-export function stepRows(recipe: Pick<KitchenRecipe, "steps" | "guidedSteps">, factorMilli: number): StepRow[] {
+/** Every step at `factorMilli`, as the recipe page lists them; the read was at `readAtMilli` (the recipe as written unless said). */
+export function stepRows(recipe: Pick<KitchenRecipe, "steps" | "guidedSteps">, factorMilli: number, readAtMilli: number = WRITTEN_FACTOR): StepRow[] {
   return guidedStepsOf(recipe).map((s, i) => ({
     position: s.position,
     number: i + 1,
@@ -264,13 +275,18 @@ export function stepRows(recipe: Pick<KitchenRecipe, "steps" | "guidedSteps">, f
     sense: s.sense,
     checkpoint: checkpointText(s.sense, s.checkpoint),
     handsOff: s.handsOff,
-    learned: learnedBadge(s, factorMilli),
+    learned: learnedBadge(s, factorMilli, readAtMilli),
     tip: s.tip,
     longPrep: isLongPrep(s),
   }));
 }
 
 // ── The plan (design §3.5, the canvas's `GuideTimeline`) ──────────
+
+/** A recipe read's query: the link code when there is one, and the size its learned ranges are wanted at (GC-7's `f`), when one is said. */
+export function recipeReadQuery(code?: string | null, factorMilli?: number): { code?: string; f?: number } {
+  return { ...(code ? { code } : {}), ...(factorMilli !== undefined ? { f: clampFactor(factorMilli) } : {}) };
+}
 
 /** The plan's page: `/recipes/<id>/plan`, `?f=` when it is not the recipe's own size (and `?code=` for a link holder). */
 export function recipePlanHref(recipeId: string, factorMilli: number = WRITTEN_FACTOR, code?: string | null): string {
@@ -383,9 +399,10 @@ export function meanwhileOf(steps: readonly Pick<KitchenRecipeStep, "text" | "ha
  * The plan at `factorMilli` (design §3.5): every step's range at this size
  * (`stepTimeAt`), its learned badge, its rule in words and a bar; the totals
  * — every timed step's middle, then the hands-on part and the waiting
- * (hands-off) part — with long prep and whistle steps outside them.
+ * (hands-off) part — with long prep and whistle steps outside them. The
+ * learned badges are at this size from a read at `readAtMilli` (GC-7's `f`).
  */
-export function planOf(recipe: Pick<KitchenRecipe, "steps" | "guidedSteps">, factorMilli: number): Plan {
+export function planOf(recipe: Pick<KitchenRecipe, "steps" | "guidedSteps">, factorMilli: number, readAtMilli: number = WRITTEN_FACTOR): Plan {
   const f = clampFactor(factorMilli);
   const steps = guidedStepsOf(recipe);
   const timed = steps.map((s) => {
@@ -414,7 +431,7 @@ export function planOf(recipe: Pick<KitchenRecipe, "steps" | "guidedSteps">, fac
       longPrep: long,
       time: timeAtText(at),
       seconds,
-      learned: learnedBadge(s, f),
+      learned: learnedBadge(s, f, readAtMilli),
       rule: at ? RULE_WORDS["whistles" in at ? "fixed" : s.timeRule] : null,
       bar: seconds > 0 && longest > 0 ? Math.max(4, Math.round((seconds / longest) * 100)) : 0,
       meanwhile: meanwhileOf(steps, i),

@@ -21,6 +21,7 @@ import { beginWrite, queryCacheOf } from "./optimistic-data";
 import { UNDO_MS, refusedToast, type UndoResult } from "./undo";
 import { useUndoToast } from "./undo-toast";
 import { recipeAddedPatches, recipeRemovedPatches } from "./cook-hub";
+import { recipeReadQuery } from "./guided-steps";
 
 /**
  * Recipes' reads and writes (cookpool-recipes RC-5) over the RC-4 routes:
@@ -40,8 +41,8 @@ export function loadMyRecipes(client: Client) {
   return wrap(async () => (await client.kitchen.myRecipes()).recipes);
 }
 
-export function loadRecipe(client: Client, recipeId: string, code?: string | null) {
-  return wrap(() => client.kitchen.getRecipe(recipeId, code ? { code } : {}));
+export function loadRecipe(client: Client, recipeId: string, code?: string | null, factorMilli?: number) {
+  return wrap(() => client.kitchen.getRecipe(recipeId, recipeReadQuery(code, factorMilli)));
 }
 
 function loadMatch(client: Client, recipeId: string, factorMilli: number, code?: string | null) {
@@ -86,6 +87,43 @@ export function useRecipe(recipeId: string | null, code?: string | null): AsyncS
     loading: q.isLoading,
     error: q.error ? { code: q.error.code ?? "error", message: q.error.message ?? "Request failed" } : null,
     reload: () => void q.refetch(),
+  };
+}
+
+/**
+ * One recipe read at a size (cookpool-guided GC-6's plan): its steps'
+ * learned ranges (GC-7) come at `factorMilli`. Until that read answers it
+ * shows what it has — the last size's answer, else the recipe page's (read
+ * at the recipe's own size) — and `readAt` says which size that was, so the
+ * ranges can be scaled meanwhile. Not found is not retried.
+ */
+export function useRecipeAtSize(
+  recipeId: string | null,
+  code: string | null,
+  factorMilli: number,
+): AsyncState<RecipeResponse> & { readAt: number } {
+  const { client } = useSession();
+  const qc = useQueryClient();
+  const key = qk.kitchenRecipeAt(recipeId ?? "", factorMilli);
+  const q = useQuery<RecipeResponse, ApiErrorBody>({
+    queryKey: key,
+    queryFn: afterWrites(qc, key, () => unwrap(loadRecipe(client, recipeId ?? "", code, factorMilli))),
+    enabled: recipeId !== null,
+    retry: (count, error) => error.code !== "not_found" && count < 1,
+    placeholderData: (previous) => previous ?? qc.getQueryData<RecipeResponse>(qk.kitchenRecipe(recipeId ?? "")),
+  });
+  // The size the answer on screen was read at: this one once it is in; meanwhile the last size that was.
+  const settled = React.useRef(1000);
+  const placeholder = q.isPlaceholderData;
+  React.useEffect(() => {
+    if (!placeholder && q.data) settled.current = factorMilli;
+  }, [placeholder, q.data, factorMilli]);
+  return {
+    data: q.data ?? null,
+    loading: q.isLoading,
+    error: q.error ? { code: q.error.code ?? "error", message: q.error.message ?? "Request failed" } : null,
+    reload: () => void q.refetch(),
+    readAt: placeholder ? settled.current : factorMilli,
   };
 }
 

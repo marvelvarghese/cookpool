@@ -2,14 +2,13 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
 import { KCard, K_BUTTON } from "./kit";
 import { BackButton } from "./back-ui";
 import { factorFromQuery, planOf, planSizes } from "./guided-steps";
-import { parseRecipeRef, sessionHref } from "./recipes";
-import { useRecipe } from "./recipes-data";
+import { WRITTEN_FACTOR, parseRecipeRef, sessionHref } from "./recipes";
+import { useRecipeAtSize } from "./recipes-data";
 import { RecipeNotFound } from "./recipe-views";
 import { PlanSkeleton, PlanView } from "./plan-views";
 
@@ -21,9 +20,10 @@ import { PlanSkeleton, PlanView } from "./plan-views";
  * Every range is `stepTimeAt` at the size on screen; Start step by step
  * opens the session at it. `?code=` lets a link holder read it.
  *
- * The recipe is read as the recipe page reads it (one cache entry, no size):
- * what cooks learned (GC-7) comes at the recipe's own size and is scaled to
- * the size on screen by each step's rule (guided-steps.ts's `learnedAt`).
+ * The recipe is read at the size on screen (`?f=`, GC-7), so what cooks
+ * learned comes at that size; until that read answers, the page shows the
+ * last one it has — the other size's, or the recipe page's — with the
+ * learned ranges scaled from the size it was read at (`learnedAt`).
  */
 export function PlanScreen() {
   const recipeId = parseRecipeRef(usePathParam("/recipes/:recipeId", "recipeId"));
@@ -35,7 +35,9 @@ export function PlanScreen() {
 }
 
 function PlanLoader({ recipeId, code, given }: { recipeId: string; code: string | null; given: number | null }) {
-  const recipe = useRecipe(recipeId, code);
+  // The size first shown: the one asked for (planSizes puts it first), else the recipe's own.
+  const [factor, setFactor] = React.useState(given ?? WRITTEN_FACTOR);
+  const recipe = useRecipeAtSize(recipeId, code, factor);
   if (recipe.loading) return <PlanSkeleton />;
   if (recipe.error?.code === "not_found") return <RecipeNotFound />;
   if (recipe.error || !recipe.data) {
@@ -48,12 +50,15 @@ function PlanLoader({ recipeId, code, given }: { recipeId: string; code: string 
       </KCard>
     );
   }
-  return <PlanAtSize recipe={recipe.data.recipe} given={given} />;
-}
-
-function PlanAtSize({ recipe, given }: { recipe: KitchenRecipe; given: number | null }) {
-  const sizes = planSizes(recipe, given);
-  const [factor, setFactor] = React.useState(sizes[0]!.factorMilli);
-  const plan = planOf(recipe, factor);
-  return <PlanView back={<BackButton />} name={recipe.name} plan={plan} sizes={sizes} onSize={setFactor} startHref={sessionHref(recipe.id, factor)} />;
+  const r = recipe.data.recipe;
+  return (
+    <PlanView
+      back={<BackButton />}
+      name={r.name}
+      plan={planOf(r, factor, recipe.readAt)}
+      sizes={planSizes(r, given)}
+      onSize={setFactor}
+      startHref={sessionHref(r.id, factor)}
+    />
+  );
 }

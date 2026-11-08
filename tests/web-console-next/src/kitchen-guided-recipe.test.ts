@@ -21,6 +21,7 @@ import {
   rangeText,
   recipeLongPrep,
   recipePlanHref,
+  recipeReadQuery,
   stepChips,
   stepRows,
   stepTimeText,
@@ -43,6 +44,7 @@ import { GuidedStepItem, LongPrepCardView } from "@web-console-next/components/k
 import { StepsSection } from "@web-console-next/components/kitchen/recipe-views";
 import { PlanView } from "@web-console-next/components/kitchen/plan-views";
 import { sessionHref } from "@web-console-next/components/kitchen/recipes";
+import { qk } from "@web-console-next/lib/query-keys";
 import { CURRY_LINES, CURRY_STEPS, RAJMA_STEPS, guidedCurry, rajma, step } from "./kitchen-guided-fixtures";
 import { recipe } from "./kitchen-recipe-fixtures";
 
@@ -94,16 +96,22 @@ describe("the recipe page's Steps: each step's flame, range at the page's size, 
   it("shows what cooks learned when the read has it, at the page's size by the step's rule — and nothing otherwise", () => {
     expect(stepRows(CURRY, 1000).map((r) => r.learned)).toEqual([null, "Usually 10–13 min · 23 cooks", null, null, null, null, null, null]);
     expect(stepRows(CURRY, 450)[1]!.learned).toBe("Usually 7–9 min · 23 cooks");
+    // A read at 450 (the plan's) has them at 450 already: shown as they came, or scaled back to another size.
+    const at450 = guidedCurry({ guidedSteps: CURRY_STEPS.map((s) => (s.learned ? { ...s, learned: { ...s.learned, lowSeconds: 7 * MIN, highSeconds: 9 * MIN } } : s)) });
+    expect(stepRows(at450, 450, 450)[1]!.learned).toBe("Usually 7–9 min · 23 cooks");
+    expect(stepRows(at450, 1000, 450)[1]!.learned).toBe("Usually 10–13 min · 23 cooks");
+    expect(learnedAt({ lowSeconds: 7 * MIN, highSeconds: 9 * MIN, cooks: 3, samples: 5 }, "partly", 450, 450)).toEqual({ lowSeconds: 7 * MIN, highSeconds: 9 * MIN, cooks: 3, samples: 5 });
     // Before GC-7, no step has one.
     const before = guidedCurry({ guidedSteps: CURRY_STEPS.map(({ learned: _l, ...s }) => s) });
     expect(stepRows(before, 1000).every((r) => r.learned === null)).toBe(true);
     expect(learnedOf({ learned: null })).toBeNull();
-    expect(learnedOf({ learned: { lowSeconds: 600, highSeconds: 500, cooks: 5 } })).toBeNull();
-    expect(learnedOf({ learned: { lowSeconds: "600", highSeconds: 700, cooks: 5 } })).toBeNull();
-    expect(learnedAt({ lowSeconds: 600, highSeconds: 600, cooks: 5 }, "linear", 2000)).toEqual({ lowSeconds: 1200, highSeconds: 1200, cooks: 5 });
-    expect(learnedAt({ lowSeconds: 600, highSeconds: 600, cooks: 5 }, "fixed", 2000)).toEqual({ lowSeconds: 600, highSeconds: 600, cooks: 5 });
-    // A whistle step has no minutes to learn.
-    expect(learnedBadge(step(0, "Cook", { whistles: 3, learned: { lowSeconds: 600, highSeconds: 700, cooks: 9 } }), 1000)).toBeNull();
+    expect(learnedOf({ learned: { lowSeconds: 600, highSeconds: 500, cooks: 5, samples: 5 } })).toBeNull();
+    expect(learnedOf({ learned: { lowSeconds: "600", highSeconds: 700, cooks: 5, samples: 5 } })).toBeNull();
+    const ten = { lowSeconds: 600, highSeconds: 600, cooks: 5, samples: 7 };
+    expect(learnedAt(ten, "linear", 2000)).toEqual({ lowSeconds: 1200, highSeconds: 1200, cooks: 5, samples: 7 });
+    expect(learnedAt(ten, "fixed", 2000)).toEqual(ten);
+    // A whistle step learns the time its count takes (GC-7), and shows it.
+    expect(learnedBadge(step(0, "Cook", { whistles: 3, learned: { lowSeconds: 600, highSeconds: 720, cooks: 9, samples: 12 } }), 2000)).toBe("Usually 10–12 min · 9 cooks");
   });
 
   it("reads a recipe without guidedSteps as its texts", () => {
@@ -356,6 +364,17 @@ describe("the plan: totals, each step at the size, the rule in words, Meanwhile"
     expect(html).toContain("Start step by step");
     // A hands-off step's number is tinted.
     expect(html).toMatch(/bg-cp-herb-tint text-\[#165C3A\][^>]*>6</);
+  });
+
+  it("reads the recipe at its size (GC-7's ?f=), under the recipe's own key so writes reach it", () => {
+    expect(recipeReadQuery(null, 450)).toEqual({ f: 450 });
+    expect(recipeReadQuery("Ab3", 1000)).toEqual({ code: "Ab3", f: 1000 });
+    expect(recipeReadQuery("Ab3")).toEqual({ code: "Ab3" });
+    expect(recipeReadQuery()).toEqual({});
+    expect(recipeReadQuery(null, 99_999)).toEqual({ f: 20_000 });
+    const own = qk.kitchenRecipe("rcp_curry");
+    expect(qk.kitchenRecipeAt("rcp_curry", 450).slice(0, own.length)).toEqual([...own]);
+    expect(qk.kitchenRecipeAt("rcp_curry", 450)).not.toEqual(qk.kitchenRecipeAt("rcp_curry", 1000));
   });
 
   it("starts the session at the size on screen", () => {
