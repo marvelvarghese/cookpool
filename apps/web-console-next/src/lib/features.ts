@@ -48,6 +48,8 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   // Recipes travel (RC-8): Explore and a recipe's link.
   "/explore": "/home",
   "/r/:code": "/home",
+  // The stock check (cookpool-pantry PN-7): today's frame has none, so its visitor goes to the Pantry.
+  "/pantry/:itemRef/check": "/pantry",
 };
 
 /** Where a page (static-pages.mjs's pattern) sends a visitor in this frame, or null when it shows. */
