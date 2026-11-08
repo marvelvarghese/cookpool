@@ -8,8 +8,8 @@
 --
 -- Design rules:
 --   * Additive and idempotent: CREATE … IF NOT EXISTS, one nullable column on
---     kitchen_items with no default (items added before read as NULL: not
---     linked), and the seed rows with INSERT OR IGNORE. SQLite has no ADD
+--     kitchen_items with no default, the seed rows with INSERT OR IGNORE, and
+--     one backfill UPDATE of items still unlinked. SQLite has no ADD
 --     COLUMN IF NOT EXISTS, so the runner's applied ledger keeps the column
 --     add from running twice (as 240, 260, 290 and 300 do).
 --   * A food is keyed by a short ASCII key (`onion`, `toor_dal`) and has one
@@ -26,8 +26,10 @@
 --     matchFood, packages/db kitchen/foods.ts). Nothing that does not match is
 --     guessed: the item stays unlinked (risks RC-B).
 --   * kitchen_items.food_key is written when an item is added (the lookup
---     above, in the add's own batch) and by an answer below. An item that
---     links to nothing reads as NULL.
+--     above, in the add's own batch) and by an answer below; the items
+--     already in pantries are linked once, at the end of this migration, by
+--     the same lookup (re-running it touches only items still unlinked). An
+--     item that links to nothing reads as NULL.
 --   * kitchen_food_answers is "asked once" (design §2): the answer a pantry
 --     gave for a name ("Is Kanda onion?" — yes: onion; no: NULL), kept per
 --     pantry the way kitchen_measures keys it (owner_kind + owner_id: a
@@ -233,6 +235,22 @@ INSERT OR IGNORE INTO kitchen_food_names (name_key, food_key) VALUES
   ('cardamom', 'cardamom'), ('elaichi', 'cardamom'), ('elachi', 'cardamom'), ('green cardamom', 'cardamom'), ('elakkai', 'cardamom'),
   ('hing', 'hing'), ('asafoetida', 'hing'), ('perungayam', 'hing'),
   ('bay leaf', 'bay_leaf'), ('bay leaves', 'bay_leaf'), ('tej patta', 'bay_leaf'), ('tejpatta', 'bay_leaf');
+
+-- Items already in pantries link the way an item added from now on does
+-- (packages/db kitchen/food-link.ts): the name itself, else without a plural
+-- "es" or "s" when those agree on one food. No answers exist yet.
+UPDATE kitchen_items SET food_key = COALESCE(
+  (SELECT n.food_key FROM kitchen_food_names n WHERE n.name_key = lower(trim(kitchen_items.name))),
+  (SELECT CASE WHEN COUNT(DISTINCT n.food_key) = 1 THEN MIN(n.food_key) END
+     FROM kitchen_food_names n
+     WHERE n.name_key IN (
+       CASE WHEN length(lower(trim(kitchen_items.name))) > 2 AND substr(lower(trim(kitchen_items.name)), -2) = 'es'
+         THEN substr(lower(trim(kitchen_items.name)), 1, length(lower(trim(kitchen_items.name))) - 2) END,
+       CASE WHEN length(lower(trim(kitchen_items.name))) > 1 AND substr(lower(trim(kitchen_items.name)), -1) = 's'
+         THEN substr(lower(trim(kitchen_items.name)), 1, length(lower(trim(kitchen_items.name))) - 1) END
+     ))
+)
+WHERE food_key IS NULL;
 
 -- table kitchen_foods: The shared food list (RC-4): what an item is and what a recipe line asks for, one dimension each.
 -- column kitchen_foods.key: Short ASCII key (onion, toor_dal); what items, lines, answers and Always have point at.

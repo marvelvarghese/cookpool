@@ -59,7 +59,10 @@ describe("the foods and recipes migrations (RC-4)", () => {
     expect(sql.match(/\bALTER\b/gi)).toHaveLength(1);
     expect(sql.match(/\bINSERT\b/gi)).toHaveLength(2);
     expect(sql.match(/INSERT OR IGNORE INTO/g)).toHaveLength(2);
-    expect(sql).not.toMatch(/\b(DROP|UPDATE|DELETE)\b/i);
+    // One backfill: items already in pantries, only those still unlinked.
+    expect(sql.match(/\bUPDATE\b/gi)).toHaveLength(1);
+    expect(sql).toMatch(/UPDATE kitchen_items SET food_key = COALESCE\([\s\S]*\)\nWHERE food_key IS NULL;/);
+    expect(sql).not.toMatch(/\b(DROP|DELETE)\b/i);
   });
 
   it("350 creates recipes, lines and steps, and adds three nullable columns to the dish tables", () => {
@@ -76,6 +79,34 @@ describe("the foods and recipes migrations (RC-4)", () => {
     expect(sql).toMatch(/ALTER TABLE kitchen_dish_ingredients ADD COLUMN recipe_line INTEGER/);
     expect(sql.match(/\bALTER\b/gi)).toHaveLength(3);
     expect(sql).not.toMatch(/\b(DROP|UPDATE|DELETE|INSERT)\b/i);
+  });
+
+  it("links the items already in pantries once, by the same lookup an item added later gets", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec("PRAGMA foreign_keys = ON");
+    const apply = (m: (typeof manifest.migrations)[number]) => {
+      for (const statement of D1ApiAdapter.splitStatements(readFileSync(join(MIGRATIONS_ROOT, m.path), "utf8"))) db.exec(statement);
+    };
+    const before = manifest.migrations.filter((m) => Number(m.id.slice(0, 3)) < 340);
+    before.forEach(apply);
+    const insert = db.prepare(
+      `INSERT INTO kitchen_items (id, owner_kind, owner_subject_id, name, category, dimension, display_unit, qty_bought_milli,
+         qty_left_milli, price_minor, currency, paid_by, bought_on, created_by, idem_key)
+       VALUES (?, 'user', 'usr_rahul', ?, 'veg', 'mass', 'kg', 1000, 1000, 100, 'INR', 'usr_rahul', '2026-11-01', 'usr_rahul', ?)`,
+    );
+    const names = ["Onions", " Pyaz ", "Tomatoes", "Green chillies", "Amul taaza", "Toor dal"];
+    names.forEach((name, i) => insert.run(`i${i}`, name, `k${i}`));
+    manifest.migrations.filter((m) => Number(m.id.slice(0, 3)) >= 340).forEach(apply);
+    const linked = () => (db.prepare("SELECT food_key FROM kitchen_items ORDER BY id").all() as { food_key: string | null }[]).map((r) => r.food_key);
+    expect(linked()).toEqual(["onion", "onion", "tomato", "green_chilli", null, "toor_dal"]);
+    // Running 340's backfill again changes nothing that is linked.
+    db.prepare("UPDATE kitchen_items SET food_key = 'potato' WHERE id = 'i0'").run();
+    const backfill = D1ApiAdapter.splitStatements(readFileSync(join(MIGRATIONS_ROOT, "340_kitchen_foods/up.sql"), "utf8")).find((st) =>
+      st.includes("UPDATE kitchen_items"),
+    )!;
+    db.exec(backfill);
+    expect(linked()[0]).toBe("potato");
+    db.close();
   });
 
   describe("against a real SQLite engine", () => {

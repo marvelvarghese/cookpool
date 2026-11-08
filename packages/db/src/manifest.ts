@@ -314,7 +314,7 @@ export const manifest: MigrationManifest = {
       context: "kitchen",
       path: "340_kitchen_foods/up.sql",
       checksum:
-        "feec993c42c0d891541cbeb24244e924c152f10257c08efdcc1cd835a2ec66a4",
+        "072434af6698e1c559793d37db0f073ae2f04ad7e0747a2c60cc2925c423ace5",
       description:
         "The shared food list: kitchen_foods (key, name, mass/volume/count, one piece in grams, category) and kitchen_food_names (every spelling and language → one food), seeded with 70 everyday foods and their English, Hindi and regional names; kitchen_items.food_key (linked when an item is added and exactly one food matches its name); kitchen_food_answers (a pantry's \"asked once\" answer per name, or none); kitchen_always_have and kitchen_always_have_lists (a person's always-have foods; salt and water until they save their own) (Cookpool RC-4)",
     },
