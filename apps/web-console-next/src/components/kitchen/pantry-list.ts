@@ -415,10 +415,14 @@ export function quickUseFieldHref(isNewFrame: boolean): string {
 }
 
 /**
- * + Bought (design §1.1). The shopping run (`/pantry/run`) is PN-6's; until
- * it exists, Bought adds one item, as the Pantry's + did (in the chosen
- * pantry when one is).
+ * + Bought (design §1.1): the shopping run (cookpool-pantry PN-6), every
+ * pantry at once — its Something new adds one item.
  */
-export function boughtHref(show: PantryShow): string {
+export function boughtHref(): string {
+  return "/pantry/run";
+}
+
+/** "Bought it?" under a search or a pantry that shows nothing: add one item (in the chosen pantry when one is). */
+export function addItemHref(show: PantryShow): string {
   return show.kind === "pantry" ? `/pantry/new?pantry=${encodeURIComponent(show.key)}` : "/pantry/new";
 }

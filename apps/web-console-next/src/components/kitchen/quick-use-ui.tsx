@@ -2,20 +2,21 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Face } from "./faces-ui";
 import { useMemberNames } from "./people-data";
 import { useItemsByRef, useLogUse, useUsuals } from "./pantry-data";
 import { doItAgainRows, usualRef, usualsThatFit, type DoItAgainRow } from "./quick-use";
-import { quickUseFieldHref } from "./pantry-list";
+import { boughtHref, quickUseFieldHref } from "./pantry-list";
 import { newFrame } from "@/lib/features";
 
 // Home's "What did you use?" and the row of usuals (CP-13, SM-10). Moved here
 // from the Home page unchanged by cookpool-recipes RC-2, so today's Home and
 // the new frame's Home share it. In the new frame (cookpool-pantry PN-5) the
-// field opens the Pantry with its search ready; the usual chips stay.
+// field opens the Pantry with its search ready; the usual chips stay. Beside
+// it, the new frame's + Bought opens the shopping run (PN-6).
 
 /** Usuals whose items are read for the row: a couple beyond the ones shown, so a usual that no longer fits is replaced. */
 const USUAL_CHIPS = 6;
@@ -52,15 +53,32 @@ export function QuickUse({ meId }: { meId: string | null }) {
     });
   };
 
+  const isNew = newFrame();
+  const field = (
+    <Link
+      href={quickUseFieldHref(isNew)}
+      className="flex h-12 w-full items-center gap-2.5 rounded-2xl border border-input bg-card px-4 text-base text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Search className="h-5 w-5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 truncate">What did you use?</span>
+    </Link>
+  );
   return (
     <section aria-label="Quick use" className="space-y-2">
-      <Link
-        href={quickUseFieldHref(newFrame())}
-        className="flex h-12 w-full items-center gap-2.5 rounded-2xl border border-input bg-card px-4 text-base text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <Search className="h-5 w-5 shrink-0" aria-hidden />
-        <span className="min-w-0 flex-1 truncate">What did you use?</span>
-      </Link>
+      {isNew ? (
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">{field}</div>
+          <Link
+            href={boughtHref()}
+            className="flex h-12 shrink-0 items-center gap-1 rounded-2xl border border-input bg-card px-3.5 text-[15px] font-extrabold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
+            Bought
+          </Link>
+        </div>
+      ) : (
+        field
+      )}
       {usuals.loading ? (
         <div className="flex gap-2" aria-hidden>
           <Skeleton className="h-11 w-32 rounded-full" />

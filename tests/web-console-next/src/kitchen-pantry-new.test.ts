@@ -2,6 +2,7 @@ import type { KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
 import {
   LEVEL_COLORS,
   PANTRY_KINDS,
+  addItemHref,
   boughtHref,
   kindOf,
   kindSections,
@@ -129,9 +130,10 @@ describe("the chips and their counts (design §1.4)", () => {
     expect(showParams({ kind: "all" }, new URLSearchParams("filter=soon")).toString()).toBe("");
   });
 
-  it("put + Bought in the chosen pantry (the shopping run is PN-6's)", () => {
-    expect(boughtHref({ kind: "all" })).toBe("/pantry/new");
-    expect(boughtHref({ kind: "pantry", key: FLAT.orgId })).toBe(`/pantry/new?pantry=${FLAT.orgId}`);
+  it("open the shopping run from + Bought (PN-6), and add one item in the chosen pantry from Bought it?", () => {
+    expect(boughtHref()).toBe("/pantry/run");
+    expect(addItemHref({ kind: "all" })).toBe("/pantry/new");
+    expect(addItemHref({ kind: "pantry", key: FLAT.orgId })).toBe(`/pantry/new?pantry=${FLAT.orgId}`);
   });
 
   it("offer the use-soon card on All with no search, linking to Cook now", () => {

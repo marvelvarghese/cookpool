@@ -662,3 +662,104 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
   - kitchen-worker changes in its own path, so it redeploys.
   - The console has no change here, and picks up the contracts and SDK when PN-9 changes its files.
 - **A bound:** `toAnswer` reads at most 50 live asks before it drops, for an owner or admin, those whose buyer is still a member. A group with more than 50 pending asks could hide some until others are answered.
+
+### PN2 — Restocking in the app (PN-6)
+
+**Built.** Console only, all behind `newFrame()` (design §6.1–§6.3, the canvas's PantryNew and BuyAgain). No route, no migration, no SDK change: it reads and writes PN-3's routes. With `newFrame()` false, `/pantry`, `/pantry/new` and Home render what they did (checked in the browser on a host naming prod), and `/pantry/run` sends its visitor to `/pantry`.
+
+- **Finished this week** (`finished-ui.tsx`, `restock.ts`), in PN-5's slot above Always have:
+  - One row per `restock().finished` line: the name, then "Finished Tue · Flat 4B", or "Went bad Tue" when `why.how` is `wasted`. "today" and "yesterday" read as words, the weekday within six days, else the date, all in the viewer's calendar.
+  - **Bought again** on each row the caller can add to (`canAdd`). A viewer's row shows without it.
+  - The heading folds it like the kinds, in the same device memory (`<prefix>.pantry-folded`, key `finished`). It stays open while searching.
+  - It shows every line on All, a pantry's lines on its chip, and none under Use soon or Running low; the search narrows it. It isn't drawn when empty. It also shows under the empty Pantry, when everything is finished.
+  - The read is `GET /v1/kitchen/me/restock`, keyed `["kitchenPantry","restock"]` (`qk.kitchenRestock`), so every stock write and purchase reads it again.
+- **Bought again** is PN-7's `useBuyAgain` (`buy-again-data.ts`), not a second hook:
+  - A restock line becomes the item it buys like with `boughtAgainItem(line, { today, groupWastePolicy })`: its `last` as an untouched item (the same `itm_` id, name, kind, pantry, amount in its unit, price, currency, the use-by gap from today, and its waste rule).
+  - PN-7's `boughtAgainLine` then writes the one line: `{ pantry, name, category, quantity, unit, priceMinor, currency, fromItemId, expiresOn? }`. The toast reads "Bought Brown bread · ₹45 · Change · Undo".
+  - **Undo** is `undoPurchase`. **Change** undoes it and opens `/pantry/new?from=<itemRef>` of the line's `last.itemId`.
+  - **Added to PN-7's hook:** its optimistic write also takes the name off the restock read (`restockBoughtPatch`), so a finished row leaves Finished at once and its new item shows in its kind. Undo puts both back.
+  - **On a running-low row's More… sheet** (PN-5's `UseSheet`, a new optional `buyAgain` on its target): "Bought again · ₹250" under Finish it · Wasted · Cook with it. It buys like the matching `runningLow` line (by `why.itemId`, else name and pantry), or, for a row that is low only by its usual, like the item itself. A viewer's or a pending row has none.
+- **`/pantry/new?from=<itemRef>`** (new frame only, `addFormFrom`):
+  - It reads that item (`useKitchenItem`), maps it to a From-before entry (`historyEntryOfItem`) and fills the form with the existing `historyFill`. It reads "Filled from last time · change anything", with focus on Add.
+  - The payer is you: Change is you buying it again. A group you no longer add to falls back as `historyFill` does.
+  - An item that can't be read leaves the form empty, after the read's retry.
+- **The shopping run, `/pantry/run`** (`shopping-run.ts`, `shopping-run-ui.tsx`, `app/(kitchen)/pantry/run/page.tsx`):
+  - Header: ✕ Close (the back control's action), "Shopping run" and "Tick what you bought · change what differs".
+  - FINISHED, RUNNING LOW and YOU USUALLY BUY, in the server's order, empty groups left out. Each line reads "Like last time: 2 L · ₹136 · Flat 4B" until ticked, then its why: "Finished Tue", "600 g of 5 kg left", "Every 4 days · last Sun".
+  - **Ticking** (a 44 px tick; nothing ticked to start with) opens:
+    - − [amount] +, starting at last time's amount. The ladder is half of it when that's a whole amount (a gram or ml or more, or whole pieces), then ×1 … ×7. − and + are PN-5's `stepFrom`/`canStep` over `LadderStep`s.
+    - The price: last time's scaled to the amount, to the paisa (`scaledPrice`), editable. A typed price stays until the amount changes. Money is parsed to minor units (`parseMinor`).
+    - The pantry chip, which opens the pantries you add to (yours, and groups where you aren't a viewer). Moving to a pantry in another currency empties the price until one is typed.
+  - A line in a pantry you only view (`!canAdd`) can't be ticked: a lock, and "You only view Lunch club".
+  - **Something new** opens `/pantry/new`.
+  - **The footer:** "Paid by you · each goes to its own pantry" (or "Price for Milk" while a price doesn't read), then **Add 3 · ₹640**, or a muted "Tick what you bought". Currencies total apart ("₹56 + $3.20").
+  - **Add** is one `POST /v1/kitchen/me/purchases`, the ticked lines in the run's order. Each line is `{ pantry, name, category, quantity, unit, priceMinor, currency, fromItemId, wastePolicy?, expiresOn? }`. `wastePolicy` is sent only into the line's own group; `fromItemId` is always sent.
+  - It's optimistic (`useShoppingRun`): every item listed at once and its name off the restock read, then back to where you came from. The toast reads "Added 3 to your pantries · ₹640 · Undo". Undo is one `undoPurchase`; when something was used meanwhile it reads "Someone already used some · Milk stays in the pantry · 2 taken off." A refusal puts it all back and says why in one line.
+- **+ Bought** (`boughtHref`) now opens `/pantry/run`. The empty search's "Bought it?" still adds one item (`addItemHref`).
+- **Home:** in the new frame, a small **+ Bought** beside "What did you use?" (`quick-use-ui.tsx`) opens the run. Today's frame keeps the field alone.
+- **The page's place:** `/pantry/run` is in `STATIC_PAGES` (pinned before the item's rule), `NEW_FRAME_ONLY` (→ `/pantry`), `back.ts` (parent `/pantry`), and doesn't pull to refresh. `console-artifact.mjs build` reports it static (○) and serves 31 pages as files with 15 `_redirects` rules.
+- **Shared files, all additive:**
+  - `query-keys.ts`: `kitchenRestock`.
+  - `use-sheet-ui.tsx`: the optional `buyAgain` and `onBoughtAgain`.
+  - `buy-again-data.ts`: the restock patch.
+  - `pantry-list.ts`: `boughtHref` and `addItemHref`.
+  - `pantry-new-ui.tsx`, `quick-use-ui.tsx`, `pantry/new/page.tsx`, `static-pages.mjs`, `features.ts` and `back.ts`.
+  - The toast's second action (`secondary`, `extra`) was written identically to PN-7's while both were open, so the merge took one copy.
+
+**Departures and decisions:**
+- **No `useBoughtAgain` of PN-6's own.** PN-7 landed `useBuyAgain` first. Finished rows and the sheet call it with `boughtAgainItem(line)`, so there's one Bought again write. Its line sends no `wastePolicy`: the server copies `fromItemId`'s rule into its own group (PN-3), which is the same item.
+- **Running low's why reads "600 g of 5 kg left",** not "lasts about 3 days". The restock read carries no rate, and the item page's `runOutEstimate` needs the moves.
+- **A usual's why** says "Every week", "Every 2 weeks", "Every day · yesterday", and "last 27 Oct" for a date over six days back.
+- **The why shows once ticked, Like last time before** (the canvas does this). The group headings say which group a line is in.
+- **The quantity ladder goes up to ×7,** with half below, because a purchase isn't capped by what's left the way the set row's is.
+- **Change on Bought again opens the last purchase's item** (`last.itemId`), the one the line was copied from, not the new one it undoes.
+- **After Add** the run goes back (the Close action) rather than pushing `/pantry`, so Back doesn't return to a spent run.
+- **The More… sheet's Bought again** shows only on running-low rows, as the design says, not on every row.
+
+**Tests** (`tests/web-console-next`, pure modules): **95 suites, 1,917 tests**, 32 of them new.
+- `kitchen-restock.test.ts` (18):
+  - Finished rows: used up and went bad, the weekday, today, yesterday, a date, the label and price, canAdd, the choices and search, empty, folding.
+  - Bought again's line from `last` through PN-7's `boughtAgainLine`: the amount in its unit (L, kg, ml, dozen, pcs), the price and currency, the pantry ("personal" or the group), `fromItemId`, no payer and no waste rule, and the use-by from today (none, 0, 14 across a month). Also `boughtAgainItem` itself, the toast, and Change's href.
+  - The Undo's words, all removed or some kept; the refusals; the restock patch.
+  - `?from=`: the ref, the new frame only, the mapping to the history entry with you as payer, the fill through `historyFill`, and the fallback pantry.
+  - Today's frame: `/pantry/run` → `/pantry`, Home's field → `/use`.
+- `kitchen-shopping-run.test.ts` (12):
+  - the groups, their order and dropping empty ones;
+  - every why and Like last time;
+  - `!canAdd` untickable;
+  - nothing ticked to start with;
+  - ticking's defaults, and untick;
+  - the ladder (half when whole, ×2 …, its ends);
+  - price scaling and a typed price reset by a step;
+  - pantry change (personal, no waste rule; another currency empties the price and blocks Add until typed);
+  - a price that doesn't read;
+  - the count, total, label and toast;
+  - the request body in order;
+  - no use-by when none, and mixed currencies.
+- `kitchen-restock-fixtures.ts` is new (restock lines).
+- Changed: `kitchen-pantry-new.test.ts` (+ Bought → `/pantry/run`, `addItemHref`); `static-pages.test.ts` (15 rules with PN-7's, and the run's pin); `gestures.test.ts` and `kitchen-back.test.ts` (the run).
+- `typecheck` and `lint` are clean for `@saas/web-console-next` and `@saas/web-console-next-tests`. `orun task check PN-6 --base origin/main`: affects ok.
+
+**Browser check** (390 × 844, `next dev` behind the SM-2 proxy with PN-5's in-page API mock plus finished items, the restock read computed from them, purchases and their Undo; no request left the machine):
+- **Pantry:** FINISHED THIS WEEK 4 read Saffron · Finished yesterday · Lunch club (no button, a viewer), Coriander · Went bad yesterday · Flat 4B, Brown bread · Finished Fri · Flat 4B, and Curd · Finished Thu · Me, in a dashed card.
+- **Bought again:**
+  - With the server held 5 s, Curd left Finished and was listed in Dairy at once. The toast read "Bought Curd · ₹60 · Change · Undo".
+  - On Coriander, Undo took it out of Veg and put it back in Finished at once, then sent `DELETE …/purchases/pur_…`.
+  - Change sent the DELETE and opened `/pantry/new?from=org:…:itm_…` filled from Coriander: Flat 4B, 1 pc, ₹20, Veg, You paid, "Filled from last time".
+  - The line sent: `{ pantry: "org_…f1a", name: "Brown bread", category: "grains", quantity: "1", unit: "pcs", priceMinor: 4500, currency: "INR", fromItemId: "itm_…20", expiresOn: "2026-11-16" }`.
+- **The sheet:** Atta's More… (running low) ended with "Bought again · ₹250", and it toasted "Bought Atta · ₹250 · Change · Undo".
+- **The run:**
+  - It read FINISHED (Saffron locked), RUNNING LOW (Atta) and YOU USUALLY BUY (Potatoes, Coffee), with "Tick what you bought" muted.
+  - I ticked Brown bread, Atta and Coffee ("Add 3 · ₹745"), stepped Atta to 2.5 kg (₹125), typed ₹470 for Coffee, and moved Coffee to Flat 4B. The chips offered Me · Flat 4B · Goa trip, not Lunch club. It read "Add 3 · ₹640".
+  - Moving Brown bread to Goa trip emptied its price to "$" with a red border, and the footer read "Price for Brown bread".
+  - **Add 3** sent one POST with three lines (Coffee into Flat 4B without a waste rule), went back to the Pantry with the three listed, and toasted "Added 3 to your pantries · ₹640 · Undo".
+  - A second run (Curd, Potatoes) had its Undo take both off at once and send one DELETE.
+- **Home:** "+ Bought" beside the field opened the run, and Close went back to Home.
+- **Fit:** no sideways scroll at 390 px, and every control is 44 px or more. The price box is the label around its input.
+- **Fixed on the way:** the pantry chip read 42 px wide.
+- **Today's frame** (`cookpool-prod.localhost`, the mock answering `/api`): the Pantry was today's (All · Soon · Expired, no Finished, no restock read), `/pantry/run` went to `/pantry`, Home's field went to `/use` with no + Bought, and `?from=` read no item and left the form empty.
+
+**For later tasks:**
+- **PN-9:** asks don't touch restocking. A purchase line's `fromItemId` already lets the server copy ask-first (PN-8).
+- **Not done:** the service worker's `API_READS` doesn't keep `/v1/kitchen/me/restock`, so offline the Pantry shows no Finished section. Add it there if wanted.
+- **Deploy:** only console files change, so only the console redeploys. It then also picks up PN-8's contracts and SDK, which are additive. The restock and purchase routes are on main and deployed (#82).

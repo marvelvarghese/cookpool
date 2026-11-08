@@ -14,6 +14,7 @@ import { refusedToast, type UndoResult } from "./undo";
 import type { ItemRef } from "./pantry";
 import { useKitchenRouter } from "./transition-ui";
 import { boughtAgainLine, boughtAgainTitle, buyAgainRefusal, buyLikeHref } from "./item-page";
+import { itemRestockKey, restockBoughtPatch } from "./restock";
 
 /**
  * Bought again (cookpool-pantry PN-7 on the item page, design §6.2): one tap
@@ -22,7 +23,9 @@ import { boughtAgainLine, boughtAgainTitle, buyAgainRefusal, buyLikeHref } from 
  * "Bought Milk · ₹68 · Change · Undo". Undo removes the purchase
  * (`undoPurchase`); Change takes it back the same way and opens Add item
  * filled from this one (`/pantry/new?from=`, PN-6), so changing it never
- * leaves two. PN-6's finished rows can share it.
+ * leaves two. PN-6's Finished this week and a running-low row's More…
+ * sheet share it (a restock line as an item: `boughtAgainItem`); its name
+ * leaves the restock read at once, as it will once the server has it.
  */
 export function useBuyAgain() {
   const { client } = useSession();
@@ -44,7 +47,7 @@ export function useBuyAgain() {
             at: new Date().toISOString(),
           })
         : null;
-      const write = beginWrite(qc, shown ? itemAddedPatches(shown) : []);
+      const write = beginWrite(qc, shown ? [...itemAddedPatches(shown), restockBoughtPatch([itemRestockKey(shown)])] : []);
       const sent = write.track(wrap(() => client.kitchen.buy([line], { idempotencyKey: input.idempotencyKey })));
       let undone = false;
       const takeBack = async (): Promise<UndoResult> => {
