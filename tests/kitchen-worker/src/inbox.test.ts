@@ -138,10 +138,13 @@ describe("GET /v1/kitchen/me/inbox", () => {
     expect(await inbox(LONER)).toEqual({
       items: [],
       counts: { total: 0, claim_dish: 0, finalize_dish: 0, use_soon: 0, payment_due: 0, flag: 0 },
+      // The asks the caller answers (PN-8).
+      asks: [],
     });
     expect(await inbox(RAHUL)).toEqual({
       items: [],
       counts: { total: 0, claim_dish: 0, finalize_dish: 0, use_soon: 0, payment_due: 0, flag: 0 },
+      asks: [],
     });
   });
 
@@ -580,7 +583,7 @@ describe("the whole inbox", () => {
     expect(due.map((p) => [p.groupName, p.amountMinor])).toEqual([["Lunch club", 2500], ["Flat 4B", 300]]);
   });
 
-  it("reads a bounded number of times however much there is: one membership hop, ten D1 reads and one per group, one names lookup", async () => {
+  it("reads a bounded number of times however much there is: one membership hop, eleven D1 reads (ten, and the asks to answer) and one per group, one names lookup", async () => {
     // Count every statement the worker prepares on D1.
     const real = h.env.PLATFORM_DB!;
     let statements = 0;
@@ -604,8 +607,8 @@ describe("the whole inbox", () => {
 
     await everything();
     const few = await measure();
-    // Rahul is in two groups (Flat 4B, the Lunch club): 10 + 2.
-    expect(few).toEqual({ statements: 12, groups: 1, rosters: 0, identity: 1 });
+    // Rahul is in two groups (Flat 4B, the Lunch club): 10 + 2, and the asks he answers (PN-8).
+    expect(few).toEqual({ statements: 13, groups: 1, rosters: 0, identity: 1 });
 
     // Much more of everything, in the same two groups: the same reads.
     for (let i = 0; i < 6; i++) {
@@ -620,7 +623,7 @@ describe("the whole inbox", () => {
     // A third group adds its one ledger read.
     const third = newGroup("Third");
     h.grant(RAHUL, third, "builder");
-    expect((await measure()).statements).toBe(13);
+    expect((await measure()).statements).toBe(14);
   });
 });
 

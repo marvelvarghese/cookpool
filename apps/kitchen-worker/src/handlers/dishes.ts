@@ -8,6 +8,7 @@ import {
 import { asUuid, type Uuid } from "@saas/db/ids";
 import type { CookDishStepTimes, KitchenDishRecord, KitchenDishScope, KitchenDishesCursor, KitchenRepository } from "@saas/db/kitchen";
 import { formatMinor } from "@saas/kitchen-engine/money";
+import { askFirstRefusal } from "../asks.js";
 import { requireGroupAction, requireOrgAction } from "../authz.js";
 import type { OrgContext, RequestContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
@@ -158,6 +159,11 @@ export async function handleCookDish(ctx: RequestContext, request: Request): Pro
         );
         if (denied) return denied;
         allowed.add(orgId);
+      }
+      // An ask-first item (PN-8) is never taken by a dish from someone who must ask: their cook session asks instead.
+      for (const item of found.value) {
+        const refused = await askFirstRefusal(ctx, repo, item);
+        if (refused) return refused;
       }
 
       // An ingredient given in a measure (SM-13) needs the items' measures: one more statement, only then.

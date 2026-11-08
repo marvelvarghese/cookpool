@@ -33,6 +33,7 @@ import {
   wastePolicyOf,
 } from "../pantry.js";
 import { Fields } from "../validate.js";
+import { itemAskFields, readAskRules } from "../asks.js";
 
 // Every pantry the caller can reach, read as one:
 //
@@ -78,11 +79,13 @@ async function present(
 ): Promise<ReachableItem[] | null> {
   const byId = new Map(groups.map((g) => [g.orgId as string, g]));
   const orgIds = [...new Set(records.flatMap((r) => (r.orgId ? [r.orgId] : [])))];
-  const [settings, measures] = await Promise.all([
+  const [settings, measures, asks] = await Promise.all([
     ctx.timings.measure("db", () => repo.listGroupSettings(orgIds)),
     readMeasures(ctx, repo, records),
+    // Who may use an ask-first item (PN-8): one more read, only when some ask first.
+    readAskRules(ctx, repo, records),
   ]);
-  if (!settings.ok || !measures) return null;
+  if (!settings.ok || !measures || !asks) return null;
   const rules = new Map<string, WastePolicy>(settings.value.map((s) => [s.orgId, s.wastePolicy]));
 
   const { today } = todayOf(ctx.now());
@@ -94,8 +97,9 @@ async function present(
     }
     const group = byId.get(record.orgId);
     if (!group) continue; // Not reachable: the scope only reads groups in `groups`.
+    const ask = itemAskFields(record, asks(record), ctx.actor.subjectId, group.role);
     items.push({
-      ...toKitchenItem(record, groupPantryRef(group), rules.get(record.orgId) ?? wastePolicyOf(null), today, measures(record)),
+      ...toKitchenItem(record, groupPantryRef(group), rules.get(record.orgId) ?? wastePolicyOf(null), today, measures(record), ask),
       canUse: canUseIn(group),
     });
   }

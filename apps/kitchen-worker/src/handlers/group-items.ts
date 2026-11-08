@@ -37,6 +37,7 @@ import {
   wastePolicyOf,
 } from "../pantry.js";
 import { notInGroup } from "../roster-client.js";
+import { itemAskFields, readAskRules } from "../asks.js";
 import { Fields } from "../validate.js";
 
 // A group's pantry, /v1/organizations/{org}/kitchen/items…
@@ -44,7 +45,8 @@ import { Fields } from "../validate.js";
 //   GET    …/items             kitchen.pantry.read   (every member)
 //   POST   …/items             kitchen.item.create   (members, owners, admins)
 //   GET    …/items/{itm}       kitchen.pantry.read
-//   PATCH  …/items/{itm}       kitchen.item.edit, and the buyer — or kitchen.item.manage (owner, admin)
+//   PATCH  …/items/{itm}       kitchen.item.edit, and the buyer — or kitchen.item.manage (owner, admin);
+//                              askFirst and allowed (PN-8) the buyer's alone while they are in the group
 //   DELETE …/items/{itm}       the same
 //
 // An item is in the group's currency; adding the group's first item fixes it
@@ -74,7 +76,8 @@ function owner(ctx: OrgContext): KitchenPantryOwner {
 /**
  * The group's items as the API shows them: its waste rule and the items'
  * measures (SM-13) read once each, side by side — two statements however
- * many items.
+ * many items — and, only when some ask first (PN-8), who may use those
+ * without asking, in one more.
  */
 async function present(
   ctx: OrgContext,
@@ -82,14 +85,18 @@ async function present(
   group: MemberGroup,
   records: readonly KitchenItemRecord[],
 ): Promise<KitchenItem[] | null> {
-  const [settings, measures] = await Promise.all([
+  const [settings, measures, rules] = await Promise.all([
     ctx.timings.measure("db", () => repo.getGroupSettings(ctx.orgId)),
     readMeasures(ctx, repo, records),
+    readAskRules(ctx, repo, records),
   ]);
-  if (!settings.ok || !measures) return null;
+  if (!settings.ok || !measures || !rules) return null;
   const pantry = groupPantryRef(group);
   const today = isoDay(ctx.now());
-  return records.map((r) => toKitchenItem(r, pantry, wastePolicyOf(settings.value), today, measures(r)));
+  const me = ctx.actor.subjectId;
+  return records.map((r) =>
+    toKitchenItem(r, pantry, wastePolicyOf(settings.value), today, measures(r), itemAskFields(r, rules(r), me, group.role)),
+  );
 }
 
 async function itemResponse(
@@ -146,12 +153,18 @@ export async function handleCreateGroupItem(ctx: OrgContext, request: Request): 
 
   const actor = ctx.actor.subjectId;
   const paidBy = input.paidBy ?? actor;
-  if (paidBy !== actor) {
+  // "Ask me first" (PN-8) is the buyer's to set: only on an item the caller pays for.
+  const guards = input.askFirst || input.allowed.length > 0;
+  if (guards && paidBy !== actor) {
+    return validationError(ctx.requestId, { [input.askFirst ? "askFirst" : "allowed"]: ["Only whoever pays for it can ask to be asked first"] });
+  }
+  if (paidBy !== actor || input.allowed.length > 0) {
     const roster = await ctx.timings.measure("roster", () => ctx.roster.members(ctx.orgId));
     if (!roster.ok) return unavailable(ctx.requestId);
-    if (notInGroup(roster.members, [paidBy]).length > 0) {
-      return unprocessable(ctx.requestId, "Whoever paid must be in the group", KITCHEN_ERROR_REASONS.NOT_IN_GROUP, {
-        subjectIds: [paidBy],
+    const outsiders = notInGroup(roster.members, [paidBy, ...input.allowed]);
+    if (outsiders.length > 0) {
+      return unprocessable(ctx.requestId, "Whoever paid, and whoever may use it, must be in the group", KITCHEN_ERROR_REASONS.NOT_IN_GROUP, {
+        subjectIds: outsiders,
       });
     }
   }
@@ -190,6 +203,8 @@ export async function handleCreateGroupItem(ctx: OrgContext, request: Request): 
           idemKey: idem.key,
           now,
           note: input.note,
+          askFirst: input.askFirst,
+          allowed: input.allowed,
         },
         audit: ledgerAudit(ctx, {
           type: "kitchen.item.added",
@@ -232,6 +247,24 @@ export async function handleGetGroupItem(ctx: OrgContext, _request: Request, par
   });
 }
 
+/**
+ * May the caller set "Ask me first" and who may use it without asking (PN-8)?
+ * The item's answerer: its buyer while they are in the group, else whoever
+ * holds kitchen.item.manage. Null when they may; otherwise the 403.
+ */
+async function mayGuard(ctx: OrgContext, item: KitchenItemRecord): Promise<Response | null> {
+  const roster = await ctx.timings.measure("roster", () => ctx.roster.members(ctx.orgId));
+  if (!roster.ok) return unavailable(ctx.requestId);
+  const buyerHere = roster.members.some((m) => m.subjectId === item.paidBy);
+  const may = buyerHere ? item.paidBy === ctx.actor.subjectId : await groupAllows(ctx, "kitchen.item.manage");
+  if (may) return null;
+  return forbidden(
+    ctx.requestId,
+    "Only whoever bought it decides who must ask first, or an owner or admin once they have left the group",
+    KITCHEN_ERROR_REASONS.NOT_BUYER,
+  );
+}
+
 /** May the caller change this item? Its buyer may, and so may whoever holds kitchen.item.manage. */
 async function mayChange(ctx: OrgContext, item: KitchenItemRecord): Promise<Response | null> {
   if (item.paidBy === ctx.actor.subjectId || (await groupAllows(ctx, "kitchen.item.manage"))) return null;
@@ -259,8 +292,21 @@ export async function handleUpdateGroupItem(ctx: OrgContext, request: Request, p
   return withKitchenRepo(ctx, async (repo) => {
     const found = await ctx.timings.measure("db", () => repo.getItem(owner(ctx), itemId));
     if (!found.ok) return itemErrorResponse(ctx.requestId, found.error);
-    const refused = await mayChange(ctx, found.value);
+    // Who must ask (PN-8) is the answerer's to set; everything else is the buyer's or a manager's, as ever.
+    const guards = edit.askFirst !== undefined || edit.allowed !== undefined;
+    const others = Object.keys(edit).some((k) => k !== "version" && k !== "askFirst" && k !== "allowed");
+    const refused = (guards ? await mayGuard(ctx, found.value) : null) ?? (others || !guards ? await mayChange(ctx, found.value) : null);
     if (refused) return refused;
+    if (edit.allowed && edit.allowed.length > 0) {
+      const roster = await ctx.timings.measure("roster", () => ctx.roster.members(ctx.orgId));
+      if (!roster.ok) return unavailable(ctx.requestId);
+      const outsiders = notInGroup(roster.members, edit.allowed);
+      if (outsiders.length > 0) {
+        return unprocessable(ctx.requestId, "Whoever may use it must be in the group", KITCHEN_ERROR_REASONS.NOT_IN_GROUP, {
+          subjectIds: outsiders,
+        });
+      }
+    }
     const quantity = resolveQuantity(edit, found.value);
     if (!quantity.ok) return validationError(ctx.requestId, quantity.fields);
 
@@ -274,6 +320,14 @@ export async function handleUpdateGroupItem(ctx: OrgContext, request: Request, p
       }),
     );
     if (!updated.ok) return itemErrorResponse(ctx.requestId, updated.error);
+    if (edit.allowed !== undefined) {
+      // Who never needs to ask, replaced (the item's version moved with the edit above).
+      const allowed = edit.allowed;
+      const replaced = await ctx.timings.measure("db", () =>
+        repo.replaceAllowed({ orgId: ctx.orgId, itemId, members: allowed, now: ctx.now() }),
+      );
+      if (!replaced.ok) return unavailable(ctx.requestId);
+    }
     return itemResponse(ctx, repo, here.group, updated.value);
   });
 }

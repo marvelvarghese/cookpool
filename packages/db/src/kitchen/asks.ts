@@ -76,6 +76,8 @@ export interface KitchenAskRecord {
   /** The approval added the asker to the item's allowed list. */
   granted: boolean;
   idemKey: string;
+  /** What the use its approval posted cost; null unless approved. */
+  moveCostMinor: number | null;
 }
 
 /** An ask with its item as it is now. */
@@ -143,8 +145,8 @@ export interface KitchenAsksQuery {
   now: Date;
   /** Live pending asks to answer: on items `paidBy` bought, and on every item in `adminOrgIds` (the caller keeps those whose buyer has left). */
   answer: { paidBy: string; adminOrgIds: readonly string[] };
-  /** The reader's own asks made at or after `since`, in any state. */
-  mine: { askerId: string; since: Date };
+  /** The reader's own asks made at or after `since`, in any state; absent reads none (Home's inbox). */
+  mine?: { askerId: string; since: Date };
   /** At most this many of each. */
   limit: number;
 }
@@ -174,6 +176,8 @@ export interface AsksRepository {
   /** Null when the ask was not in the state the answer moves it from (or no longer live). */
   answerAsk(input: AnswerAskInput): Promise<KitchenResult<KitchenAskRead | null>>;
   listAsks(query: KitchenAsksQuery): Promise<KitchenResult<KitchenAsksPage>>;
+  /** The approved ask whose use is this move, or posted this transaction, on the item; null when none is. */
+  findApproval(query: { itemId: string; moveId?: string; txnId?: string }): Promise<KitchenResult<KitchenAskRecord | null>>;
 }
 
 // ── Rows ───────────────────────────────────────────────────
@@ -203,7 +207,10 @@ const ASK_COLUMNS = [
   .map((c) => `a.${c} AS ask_${c}`)
   .join(", ");
 
-const ASK_AND_ITEM = `${ASK_COLUMNS}, ${itemColumns("i")}`;
+const ASK_AND_ITEM = `${ASK_COLUMNS}, am.cost_minor AS ask_move_cost_minor, ${itemColumns("i")}`;
+
+/** An ask (`a`), its item (`i`) and the move its approval posted (`am`, when there is one). */
+const ASKS_FROM = "kitchen_asks a JOIN kitchen_items i ON i.id = a.item_id LEFT JOIN kitchen_stock_moves am ON am.id = a.move_id";
 
 /**
  * A pending ask that has not lapsed (the asks aliased `a`, their items `i`):
@@ -251,6 +258,7 @@ export function mapAsk(row: Row): KitchenAskRecord {
     txnId: nullable(row.ask_txn_id),
     granted: Number(row.ask_granted) === 1,
     idemKey: row.ask_idem_key as string,
+    moveCostMinor: row.ask_move_cost_minor === null || row.ask_move_cost_minor === undefined ? null : Number(row.ask_move_cost_minor),
   };
 }
 
@@ -271,7 +279,7 @@ export function createAsksRepository(executor: SqlExecutor): AsksRepository {
 
   async function findAsk(orgId: string, askId: string): Promise<KitchenAskRead | null> {
     const result = await executor.execute(
-      `SELECT ${ASK_AND_ITEM} FROM kitchen_asks a JOIN kitchen_items i ON i.id = a.item_id
+      `SELECT ${ASK_AND_ITEM} FROM ${ASKS_FROM}
        WHERE a.id = $1 AND a.org_id = $2 AND i.owner_kind = 'group' AND i.org_id = $2`,
       [askId, orgId],
     );
@@ -291,7 +299,7 @@ export function createAsksRepository(executor: SqlExecutor): AsksRepository {
   /** The approval this move is: the ask, its item and the move's transaction as they are now. */
   async function replayApproval(orgId: string, move: KitchenStockMoveRecord): Promise<AskResult<ApprovedAsk>> {
     const result = await executor.execute(
-      `SELECT ${ASK_AND_ITEM} FROM kitchen_asks a JOIN kitchen_items i ON i.id = a.item_id
+      `SELECT ${ASK_AND_ITEM} FROM ${ASKS_FROM}
        WHERE a.item_id = $1 AND a.state = 'approved' AND a.move_id = $2 AND a.org_id = $3`,
       [move.itemId, move.id, orgId],
     );
@@ -373,7 +381,7 @@ export function createAsksRepository(executor: SqlExecutor): AsksRepository {
             // The same key again on this item: answer with the ask it made.
             const params = new Params();
             const found = await executor.execute(
-              `SELECT ${ASK_AND_ITEM} FROM kitchen_asks a JOIN kitchen_items i ON i.id = a.item_id
+              `SELECT ${ASK_AND_ITEM} FROM ${ASKS_FROM}
                WHERE a.item_id = ${params.add(input.itemId)} AND a.idem_key = ${params.add(input.idemKey)}`,
               params.values,
             );
@@ -519,6 +527,23 @@ export function createAsksRepository(executor: SqlExecutor): AsksRepository {
       }
     },
 
+    async findApproval({ itemId, moveId, txnId }) {
+      if (!moveId && !txnId) return { ok: true, value: null };
+      const p = new Params();
+      const by = moveId ? `a.move_id = ${p.add(moveId)}` : `a.txn_id = ${p.add(txnId)}`;
+      try {
+        const result = await executor.execute(
+          `SELECT ${ASK_AND_ITEM} FROM ${ASKS_FROM}
+           WHERE a.item_id = ${p.add(itemId)} AND a.state = 'approved' AND ${by}`,
+          p.values,
+        );
+        const row = result.rows[0];
+        return { ok: true, value: row ? mapAsk(row) : null };
+      } catch (err) {
+        return internal(err);
+      }
+    },
+
     async listAsks({ orgIds, now, answer, mine, limit }) {
       if (orgIds.length === 0) return { ok: true, value: { toAnswer: [], mine: [] } };
       try {
@@ -526,6 +551,7 @@ export function createAsksRepository(executor: SqlExecutor): AsksRepository {
         const [toAnswer, own] = await Promise.all([
           executor.execute(
             `SELECT ${ASK_AND_ITEM} FROM kitchen_items i JOIN kitchen_asks a ON a.item_id = i.id
+             LEFT JOIN kitchen_stock_moves am ON am.id = a.move_id
              WHERE i.owner_kind = 'group' AND i.org_id IN (SELECT value FROM json_each($1)) AND i.state = 'active'
                AND i.ask_first = 1 AND (i.paid_by = $2 OR i.org_id IN (SELECT value FROM json_each($3)))
                AND ${liveSql("$4")} AND a.asker_id <> $2
@@ -533,13 +559,15 @@ export function createAsksRepository(executor: SqlExecutor): AsksRepository {
              LIMIT $5`,
             [groups, answer.paidBy, JSON.stringify([...new Set(answer.adminOrgIds)]), now, limit],
           ),
-          executor.execute(
-            `SELECT ${ASK_AND_ITEM} FROM kitchen_asks a JOIN kitchen_items i ON i.id = a.item_id
-             WHERE a.asker_id = $1 AND a.created_at >= $2 AND a.org_id IN (SELECT value FROM json_each($3))
-             ORDER BY a.created_at DESC, a.id DESC
-             LIMIT $4`,
-            [mine.askerId, mine.since, groups, limit],
-          ),
+          mine
+            ? executor.execute(
+                `SELECT ${ASK_AND_ITEM} FROM ${ASKS_FROM}
+                 WHERE a.asker_id = $1 AND a.created_at >= $2 AND a.org_id IN (SELECT value FROM json_each($3))
+                 ORDER BY a.created_at DESC, a.id DESC
+                 LIMIT $4`,
+                [mine.askerId, mine.since, groups, limit],
+              )
+            : Promise.resolve({ rows: [] as Row[] }),
         ]);
         return { ok: true, value: { toAnswer: toAnswer.rows.map(mapRead), mine: own.rows.map(mapRead) } };
       } catch (err) {

@@ -112,7 +112,10 @@ export function displayQuantity(milli: number, unit: string): number {
 /**
  * The item as the API shows it. `groupWastePolicy` is its group's rule (null
  * for a personal item); `today` is the day `daysToUseBy` counts from;
- * `measures` its name's measures in its pantry (SM-13, `readMeasures`).
+ * `measures` its name's measures in its pantry (SM-13, `readMeasures`). A
+ * group item says whether it asks first (PN-8); `ask` adds, for an
+ * ask-first one, who may use it, whether the caller must ask and who
+ * answers (`itemAskFields` in ./asks.ts), where the read resolved them.
  */
 export function toKitchenItem(
   record: KitchenItemRecord,
@@ -120,6 +123,7 @@ export function toKitchenItem(
   groupWastePolicy: WastePolicy | null,
   today: string,
   measures: KitchenMeasure[],
+  ask: Pick<KitchenItem, "allowed" | "mustAsk" | "answerer"> = {},
 ): KitchenItem {
   // What is left of the price is what using all that is left would cost: the
   // engine's last-use rule charges exactly price − cost taken.
@@ -154,6 +158,8 @@ export function toKitchenItem(
     // Whoever can read the item reads its note (RC-3): every route that
     // answers with an item has already scoped it to the caller's pantries.
     note: record.note,
+    // Ask before use (PN-8): every group item says; a personal item never asks.
+    ...(record.ownerKind === "group" ? { askFirst: record.askFirst === true, ...ask } : {}),
   };
 }
 
@@ -339,6 +345,39 @@ export interface ParsedNewItem extends ParsedQuantity {
   wastePolicy: WastePolicy | null;
   /** Trimmed; null when none was sent (or only spaces). */
   note: string | null;
+  /** Ask before use (PN-8), group items only: "Ask me first", and who never needs to ask. */
+  askFirst: boolean;
+  allowed: string[];
+}
+
+/** The most people an item may let use it without asking (PN-8). */
+export const MAX_ALLOWED = 100;
+
+/**
+ * `askFirst` and `allowed` (PN-8): a group item's, as sent; on a personal
+ * item either one is a field error — a personal item never asks.
+ */
+function askFields(fields: Fields, body: Record<string, unknown>, group: boolean): { askFirst?: boolean; allowed?: string[] } {
+  const out: { askFirst?: boolean; allowed?: string[] } = {};
+  if (!group) {
+    if (body.askFirst !== undefined) fields.add("askFirst", "A personal item never asks: only a group item can ask first");
+    if (body.allowed !== undefined) fields.add("allowed", "A personal item never asks: only a group item can ask first");
+    return out;
+  }
+  if (body.askFirst !== undefined) {
+    if (typeof body.askFirst === "boolean") out.askFirst = body.askFirst;
+    else fields.add("askFirst", "Must be true or false");
+  }
+  if (body.allowed !== undefined) {
+    if (body.allowed === null) out.allowed = [];
+    else if (!Array.isArray(body.allowed) || body.allowed.length > MAX_ALLOWED) {
+      fields.add("allowed", `List who may use it without asking: up to ${MAX_ALLOWED} people`);
+    } else {
+      const named = body.allowed.map((v: unknown, i) => subjectId(fields, `allowed[${i}]`, v));
+      if (named.every((v): v is string => v !== undefined)) out.allowed = [...new Set(named)];
+    }
+  }
+  return out;
 }
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; fields: FieldErrors };
@@ -355,6 +394,7 @@ export function parseNewItem(body: Record<string, unknown>, options: { group: bo
   const boughtOn = body.boughtOn === undefined || body.boughtOn === null ? null : isoDate(fields, "boughtOn", body.boughtOn) ?? null;
   const expiresOn = body.expiresOn === undefined || body.expiresOn === null ? null : isoDate(fields, "expiresOn", body.expiresOn) ?? null;
   const note = noteValue(fields, body.note) ?? null;
+  const ask = askFields(fields, body, options.group);
   let paidBy: string | null = null;
   let wastePolicy: WastePolicy | null = null;
   if (options.group) {
@@ -369,7 +409,20 @@ export function parseNewItem(body: Record<string, unknown>, options: { group: bo
   }
   return {
     ok: true,
-    value: { name, category, ...qty, priceMinor, currency, boughtOn, expiresOn, paidBy, wastePolicy, note },
+    value: {
+      name,
+      category,
+      ...qty,
+      priceMinor,
+      currency,
+      boughtOn,
+      expiresOn,
+      paidBy,
+      wastePolicy,
+      note,
+      askFirst: ask.askFirst ?? false,
+      allowed: ask.allowed ?? [],
+    },
   };
 }
 
@@ -383,6 +436,10 @@ export interface ParsedItemEdit {
   wastePolicy?: WastePolicy | null;
   /** Trimmed; null clears it. */
   note?: string | null;
+  /** Ask before use (PN-8), group items only. */
+  askFirst?: boolean;
+  /** Replaces who never needs to ask. */
+  allowed?: string[];
   version?: number;
 }
 
@@ -427,13 +484,14 @@ export function parseItemEdit(body: Record<string, unknown>, options: { group: b
     const note = noteValue(fields, body.note);
     if (note !== undefined) edit.note = note;
   }
+  Object.assign(edit, askFields(fields, body, options.group));
   if (body.version !== undefined) {
     if (typeof body.version === "number" && Number.isSafeInteger(body.version) && body.version >= 1) edit.version = body.version;
     else fields.add("version", "Must be the item's version, a whole number from 1");
   }
   const changes = Object.keys(edit).filter((k) => k !== "version");
   if (fields.ok && changes.length === 0) {
-    fields.add("body", `Provide at least one of: name, category, expiresOn, quantity, priceMinor${options.group ? ", wastePolicy" : ""}, note`);
+    fields.add("body", `Provide at least one of: name, category, expiresOn, quantity, priceMinor${options.group ? ", wastePolicy" : ""}, note${options.group ? ", askFirst, allowed" : ""}`);
   }
   return fields.ok ? { ok: true, value: edit } : { ok: false, fields: fields.errors };
 }
@@ -461,6 +519,7 @@ export function itemChanges(edit: ParsedItemEdit, quantity: ParsedQuantity | und
   if (edit.priceMinor !== undefined) changes.priceMinor = edit.priceMinor;
   if (edit.wastePolicy !== undefined) changes.wastePolicy = edit.wastePolicy;
   if (edit.note !== undefined) changes.note = edit.note;
+  if (edit.askFirst !== undefined) changes.askFirst = edit.askFirst;
   return changes;
 }
 
