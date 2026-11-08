@@ -138,3 +138,6 @@ export type {
   TimersRepository,
 } from "./timers.js";
 export { createTimersRepository } from "./timers.js";
+
+// The stock check (PN-4): what wrote a move, and raising what is left.
+export type { KitchenStockMoveVia, AdjustStockInput } from "./types.js";

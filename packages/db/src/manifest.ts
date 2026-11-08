@@ -363,5 +363,14 @@ export const manifest: MigrationManifest = {
       description:
         "Cookpool's 42 recipes with guided steps: for each of 360's recipes under usr_cookpool, its tools (a JSON array) set by UPDATE, and its step rows replaced — DELETE, then one plain INSERT — by guided steps with fixed keys c00c0390-<recipe>-<step>: prep (chopping, soaking, marinating, resting) before cook, every cook step with a flame, its lines, a time range and rule or a whistle count, hands off where it waits, a checkpoint and a tip where useful; the rajma and chole soaks, sabudana's soak and fried rice's cooled rice are long prep. Lines, names and every other recipe are untouched (Cookpool GC-4)",
     },
+    {
+      id: "410_kitchen_moves_via",
+      context: "kitchen",
+      path: "410_kitchen_moves_via/up.sql",
+      checksum:
+        "858d68fa7595f7e82420e158bf935eefa01ed2dce546d1b24d34655d8d1180c8",
+      description:
+        "What wrote a stock move: a nullable kitchen_stock_moves.via, CHECK in ('check', 'ask') — check on every use, waste and adjust a stock check writes (PN-4), ask reserved for the use an approved ask posts (PN-8); NULL for every move logged directly, every reversal, and every move written before (Cookpool PN-4)",
+    },
   ],
 };

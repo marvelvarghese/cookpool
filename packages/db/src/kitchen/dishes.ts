@@ -406,6 +406,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
           // The dish's own key (unique per cook) covers its moves.
           idemKey: null,
           createdAt: dish.now,
+          via: null,
         };
         statements.push(...takeStockStatements(ingredient.owner, ingredient.expectedVersion, move));
         statements.push({
