@@ -61,6 +61,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/r/:code": () => "/cook",
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
+  // Its stock check (cookpool-pantry PN-7): the item.
+  "/pantry/:itemRef/check": ({ itemRef }) => `/pantry/${itemRef}`,
   // A dish: its group when it is shared (and the group is known), else Home.
   "/dishes/:dishRef": (_, known) => (known.groupSlug ? `/groups/${encodeURIComponent(known.groupSlug)}` : "/home"),
   // A group: Groups; its Settings and Add a bill: the group.

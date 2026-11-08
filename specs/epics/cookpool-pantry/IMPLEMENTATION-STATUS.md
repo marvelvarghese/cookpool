@@ -377,3 +377,147 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - **Deploy:**
   - The new frame asks for `limit=100`, which needs PN-2's kitchen-worker (on main since #81). Today's frame still asks for 10, so prod is unaffected.
   - Only console files change, so only the console redeploys.
+
+### PN3 — The item page and the stock check screen (PN-7)
+
+**Built.** Console only, all behind `newFrame()`. No route, no migration, no SDK or contracts change: it uses PN-4's `checkGroupItem`/`checkPersonalItem`, PN-3's `buy`/`undoPurchase`, and PN-2's `suggestUse`/`isRunningLow`. With `newFrame()` false, the item page renders exactly what it did. `ItemView` picks its frame at the top (`newFrame() ? <NewItemView/> : <TodayItemView/>`), and today's code below it is unchanged. `/pantry/[itemRef]/check` sends a visitor to `/pantry`.
+
+- **The item page** (`app/(kitchen)/pantry/[itemRef]/page.tsx`, with its parts in `item-page-ui.tsx` and its pure model in `item-page.ts`, design §5, the canvas's ItemPage). On a phone it reads top to bottom:
+  - **The level ring** (`levelRing`): what's left, the percentage in the ring, "of 2 L", "₹34 left of ₹68" (`shortMoney`), its price once and who paid, and the use-by chip while anything is left. The ring's colour is the Pantry's level rule: PN-5's `itemStatus`/`levelTone` and `LEVEL_COLORS`.
+  - **The quick-use chips** (`quickChips`): the §2.2 suggestion with its reason under it, the next two steps of the Pantry's ladder (PN-5's `itemLadder`, so the page offers what the row offers), and **More…**, which opens PN-5's `UseSheet`.
+    - When the suggestion is near the top of the ladder (the rest), the chips are the two steps under it.
+    - A tap logs that amount through `useLogUse`, with the ten-second Undo. It's logged for the suggestion's people, else the people from last time (`defaultConsumers`).
+  - **"At this rate it runs out Sat"** with "About 200 ml a day" under it (`runOutEstimate`, in `item-use.ts`).
+  - **Who had it** (`whoHadIt`/`whoHadItLine`). Group items only. One tile per person: their share ("½", "⅓", else "45%"), what they had, and what it cost them.
+  - **History**, with Undo on your own entries. With `stockChecks`, a check's moves read as the check:
+    - "Stock check · 250 ml split with Flat 4B", "… used by Anu", "… went bad", "… more than thought";
+    - the checker's name goes on the line under ("Anu · 2 h ago");
+    - an undo reads "Anu undid a stock check: 250 ml back", or "… off" for an undone raise.
+    - With `adjusts`, a check's raise can be undone. `undoRefusal` reads `insufficient_stock` as "Already used".
+  - **Note and Counted as**: the existing cards.
+  - **Actions:**
+    - **Bought again** (`useBuyAgain`): see below.
+    - **Finish it**: logs the rest for the people from last time.
+    - **Wasted**: the existing confirm.
+    - **Fix how much is left**: opens the check.
+    - **Cook with it**.
+    - **Move to a group**: stays, for your own unused item.
+  - There's no sticky Use some in the new frame. The chips and More… are how you use an item from its page.
+- **Bought again** (`buy-again-data.ts`, design §6.2):
+  - One tap writes `kitchen.buy([boughtAgainLine(item, today)])`. The line is like last time:
+    - the same pantry, name, kind and price;
+    - the amount from `qtyBoughtMilli` in the unit it was bought in;
+    - a use-by as many days from today as it was from the day it was bought;
+    - `fromItemId`, so the server copies the waste rule into its own group.
+  - The new item is listed at once (`pendingItem`/`itemAddedPatches`).
+  - The toast reads "Bought Milk · ₹68 · Change · Undo". **Undo** is `undoPurchase`. **Change** takes the purchase back the same way, then opens `/pantry/new?from=<itemRef>` (`buyLikeHref`).
+- **The stock check** (`/pantry/[itemRef]/check`, a static page with the `[itemRef]` layout's `ParamShell`; `stock-check-ui.tsx`; pure model `stock-check.ts`; write `stock-check-data.ts`; design §7, the canvas's StockCheck):
+  - **The title:** "How much is left?", with "Milk · Flat 4B" under it.
+  - **The level:** a tall level you drag (`levelAt`, pointer capture, `touch-action: none`), with a dashed line at what Cookpool thinks.
+    - The marks are Full, ¾, ½, ¼ and Empty of what was bought (`checkMarks`).
+    - The keys (`levelKeyOf`/`stepLevel`): arrows move a step, Page Up/Down to the next mark, Home to Empty, End to Full.
+    - It's `role="slider"`, with `aria-valuetext` "750 ml of 2 L".
+    - The step suits the item (`checkStep`): 50/25/10/5/1 g or ml, so there are at least 20 steps to Full; for things you count, a piece, a half or a quarter.
+    - A drag lands on a mark, or on what Cookpool thinks, when it's within half a step. Arrow keys stop there on the way. The level never goes above Full.
+  - "Cookpool thinks 1 L · You say 750 ml".
+  - **For less**, "Where did 250 ml go?" (`checkOptions`, a radiogroup). Each answer's money line comes from the engine helpers the use and waste previews use (`shareBreakdown`, `wastePreview`, `eachText`):
+    - **Split with Flat 4B**: "≈ ₹2.13 each", or "₹2.00 each" when it divides evenly. It's the default and comes first for a group item.
+    - **I used it**: "₹8.50 to you · Meera gets it back"; for the buyer, "₹8.50 · you paid, so no money moves"; for your own item, "Logged as yours".
+    - **It went bad**: "Waste · ≈ ₹2.13 each", "Waste · Meera absorbs it", or "Waste · Nothing to split".
+    - Your own item never offers Split.
+    - Split's and waste's lines wait for the group's members, and Fix waits with them.
+  - **For more**, "More than Cookpool thought. Fixing it moves no money."
+  - **The main button** (`fixButton`) reads **Fix to 750 ml** ("Fix to empty" for none).
+    - At the level Cookpool thinks, it reads **It's right**, looks disabled, and goes back without writing anything.
+    - Fix writes the check (`checkRequest`), shows it at once (`checkWrite`), and goes back to the item page.
+    - The request body is `{ left: { quantity: "750", unit: "ml" }, gone }`. `gone` is sent only for less, and never `split` on your own item.
+    - On screen right away: a take shows the use or waste of the difference with its cost; a raise shows `stockReturnPatches` with no money. Either way the history gains a row with `via: "check"`.
+    - The toast: "Fixed Milk to 750 ml · 250 ml split with Flat 4B · ≈ ₹2.13 each" (`checkToast`), or "· No money moved.".
+    - Undo is `reverseTxn` when the answer has a `txn`, else the move undo. A raise's undo answering `insufficient_stock` reads "Already used · What the check added has been used since." (`checkUndoRefusal`).
+    - A refusal puts everything back and says why (`checkRefusal`).
+- **The routes' tables:**
+  - `STATIC_PAGES` gains `/pantry/:itemRef/check`. `next build` prerenders it as `/pantry/_/check` (●).
+  - `console-artifact.mjs build` reports 30 pages served as files and 14 `_redirects` rules. The check's rule comes before the item's.
+  - `back.ts` sends it back to `/pantry/<itemRef>`, at depth 2, and the step there is `forward`.
+  - It's in `NEW_FRAME_ONLY`, sending today's frame to `/pantry`.
+  - It doesn't pull to refresh.
+- **The toast** gains a second, quieter action: `secondary` in `components/ui/toast.tsx`, and `extra` on the `UndoOffer`. A refusal drops it.
+
+**Departures and decisions:**
+- **`runOutEstimate(moves, item, now)`:**
+  - **What counts as used:** the uses and dishes still in effect (a check's use included), less what a check's raise found still there.
+  - **The rule:** at least 2 of them, and at least 2 days since the bought-on day (from its UTC midnight).
+  - **Days** are the viewer's, by `localDayOffset`: "today", "tomorrow", then the weekday up to 6 days ahead.
+  - **Weeks:** from 7 days on it says "in about N weeks", rounded, and "in about a week" for one.
+  - **When there's none:**
+    - a use-by before the estimate's day ends, including one already past;
+    - a finished item;
+    - nothing used, net.
+  - **The rate line** ("About 200 ml a day", the canvas's) is an addition. It's rounded to two figures, and given per week when a day's amount is under 1 g or ml (or a tenth of a piece).
+- **Who had it** counts uses only. Dishes and waste aren't anyone's share. It's shown for group items with at least one use, never for your own pantry. Each tile also shows what that person had and what it cost them (the canvas's tiles).
+- **History** reads check moves in the item's own unit ("1.75 L"), not the unit the check sent.
+- **A raise's Undo isn't latest-only** in history, as the server allows. Its checker, or an owner or admin, can undo it.
+- **Bought again** shows to whoever may add to the pantry, on finished items too, and so does **Fix how much is left**: a check can wake a finished item (PN-4). The note isn't copied: a note is about one pack.
+- **Change undoes the one-tap purchase before opening the form,** so changing it never leaves two. `/pantry/new?from=` doesn't prefill yet. PN-6 adds that, and the link is already in place.
+- **The check's title** is "How much is left?" with the name under it, not "How much milk is left?", so any name reads ("Eggs").
+- **Split comes first** among the answers, as on the canvas. The design lists I used it first.
+- **More… opens PN-5's `UseSheet`.** Its Open goes to the page it's opened from.
+- **The chips show the first step until the usuals arrive** (PN-5's `useUsuals`, per part of the day), then swap to the suggestion, as the Pantry's rows do.
+
+**Tests** (`tests/web-console-next`, pure modules only):
+- The package has 93 suites and **1885 tests**. 46 of the tests are new.
+- `kitchen-item-page.test.ts` is new, with 25 tests:
+  - `runOutEstimate`: the 2-use and 2-day rule, undone uses, the weekday, today and tomorrow, weeks, dishes, a raise taken off, a use-by inside or past, finished items, the weekly rate.
+  - The ring and its worth, tone and dash.
+  - The chips on PN-5's ladder: the first step, a bucket usual with its people, the rest with the two steps under it, never more than is left, and the measure they log in.
+  - Who had it: shares, the engine's split with the odd paisa, ties, a use naming nobody.
+  - Share text.
+  - Check history: every label, the checker line, the unit, an undone raise, and today's labels unchanged with `stockChecks` off.
+  - A raise's Undo in the new frame only.
+  - Bought again's line, toast, links, who sees it, and its refusals.
+- `kitchen-stock-check.test.ts` is new, with 18 tests:
+  - the marks;
+  - the step sizes;
+  - drag snapping and the cap at Full;
+  - every key;
+  - the level's words;
+  - the difference and its words;
+  - the answers for group and personal items, with money previews, among them ₹8.50 four ways (213/213/212/212, checked against `buildUse` and `buildWaste`), ₹2.00 even, empty at ₹34 three ways (1134/1133/1133), the buyer's own answers, buyer absorbs, a group of one, and members still loading;
+  - the Fix label;
+  - the request bodies (group, more, capped, personal, count and mass units);
+  - the optimistic take and raise;
+  - the toasts;
+  - the refusals;
+  - the route's place in the app (static, back parent, depth, transition, the frame redirect).
+- `static-pages.test.ts`: the redirect count goes from 13 to 14, and there's a new test for the check's rule and files. `gestures.test.ts` lists the check as not pulling. `kitchen-back.test.ts` adds its parent.
+- `typecheck` and `lint` are clean for `@saas/web-console-next` and `@saas/web-console-next-tests`. `console-artifact.mjs build` passes, with the check static.
+
+**Browser check** (390 × 844, `next dev` behind the SM-2 proxy with an in-page mock of the API; nothing reached the network, by the network log):
+- **Milk** (2 L, ₹68, 1 L left):
+  - The ring read 50 %, "1 L of 2 L", "₹34 left of ₹68".
+  - The chips read "1 glass · Midday usual · 2 glasses · 3 glasses · More…".
+  - "At this rate it runs out Sat · About 180 ml a day".
+  - Who had it showed five tiles, and the history read "Stock check · 250 ml split with Flat 4B · Anu · Yesterday".
+- **A chip** logged 2 glasses for you and Anu: the ring changed at once and the toast read "₹8.50 each · Undo".
+- **The check:**
+  - Arrow keys, a drag to ⅜ (750 ml) and the marks all set the level.
+  - "Where did 250 ml go?" offered Split (₹1.70 each over five members), I used it (₹8.50 to you · Meera gets it back) and It went bad.
+  - At the thought level the button read "It's right", muted.
+- **Writes:**
+  - **Fix to 750 ml:** sent `{ left: { quantity: "750", unit: "ml" } }`, went back to the page, and the toast read "No money moved". The history row read "Stock check · 250 ml more than thought", and its Undo took it back off.
+  - **Fix to empty, split:** the toast's Undo reversed the transaction and the ring came back at once.
+  - **Raise to Full, then Finish it, then undo the raise:** read "Already used".
+  - **Eggs** (personal): offered I used it and It went bad only, and sent `gone: "me"` in pcs.
+- **Bought again:** sent the line above. The toast read "Bought Milk · ₹68 · Change · Undo", and Change deleted the purchase and opened `/pantry/new?from=…`.
+- **More…** (after merging PN-5) opened the Pantry's sheet.
+- **The old frame**, on a host naming prod: Tomatoes read exactly as before (stock card, Cook with it, Wasted, history, Use some), and `/…/check` went to `/pantry`.
+- **Fixed on the way:** "Fix how much is left" was clipped at 390 px, and the check's title read "How much Eggs is left?".
+
+**For later tasks:**
+- **PN-6:**
+  - Prefill `/pantry/new?from=<itemRef>` with `historyFill`. Bought again's Change already links there.
+  - The finished rows can call `useBuyAgain` (`buy-again-data.ts`) as it is. `boughtAgainLine` builds a line from any item.
+- **PN-9:**
+  - Who can use it goes on the item page's right column.
+  - An ask's use (`via: "ask"`) has no label of its own yet. `checkMoveText` is where one would go.
+- **Deploy:** only console files change, so only the console redeploys. The check route, purchases and usuals it calls are on main and deployed (#81–#83).

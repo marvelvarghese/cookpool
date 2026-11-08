@@ -30,6 +30,7 @@ import type { GroupRole } from "./groups";
 import { isPendingId } from "@/lib/optimistic";
 import { countDecimal, leftInMeasure } from "./measures";
 import { faceOrder, forWhom, eachText } from "./faces";
+import { localDayOffset } from "./when";
 
 type StockFields = Pick<KitchenItem, "priceMinor" | "qtyBoughtMilli" | "qtyLeftMilli" | "worthMinor">;
 
@@ -352,6 +353,12 @@ export function historyRows(
     meId: string | null;
     names?: MemberNames | null;
     now: Date;
+    /**
+     * The new frame (cookpool-pantry PN-7): a stock check's moves read as
+     * one ("Stock check · 250 ml split with Flat 4B", `checkMoveText`), with
+     * who checked on the line under. Off, every row reads as it always has.
+     */
+    stockChecks?: boolean;
   },
 ): HistoryRow[] {
   const { item, meId, names, now } = ctx;
@@ -363,6 +370,11 @@ export function historyRows(
     const said = m.label ?? null;
     const words = said ?? qty;
     const amount = m.costMinor > 0 ? formatMinor(m.costMinor, item.currency) : null;
+    const check = ctx.stockChecks ? checkMoveText(m, { item, meId, names: names ?? null, byId }) : null;
+    if (check) {
+      const when = relativeWhen(m.at, now);
+      return { id: m.id, kind: m.kind, what: check.what, when: check.by ? `${check.by} · ${when}` : when, amount, undone: m.undone };
+    }
     let what: string;
     switch (m.kind) {
       case "use": {
@@ -407,23 +419,75 @@ export function historyRows(
 }
 
 /**
+ * A stock check's move in words (cookpool-pantry PN-7, design §7), or null
+ * for any other move:
+ *  - its use of the difference: "Stock check · 250 ml split with Flat 4B"
+ *    when the group had it, else "Stock check · 250 ml used by Anu";
+ *  - its waste: "Stock check · 250 ml went bad";
+ *  - its raise: "Stock check · 250 ml more than thought";
+ *  - the undo of one: "Anu undid a stock check: 250 ml back".
+ * `by` names who checked when the words don't ("Anu"), for the line under.
+ */
+export function checkMoveText(
+  m: KitchenStockMove,
+  ctx: {
+    item: Pick<KitchenItem, "dimension" | "displayUnit" | "pantry">;
+    meId: string | null;
+    names?: MemberNames | null;
+    byId?: ReadonlyMap<string, KitchenStockMove>;
+  },
+): { what: string; by: string | null } | null {
+  const { item, meId, names } = ctx;
+  // In the item's own unit ("1.75 L"): a check sends its level in the base unit.
+  const qty = formatQuantity(m.qtyMilli, item.dimension, item.displayUnit);
+  const by = memberLabel(m.actor, meId, names);
+  if (m.kind === "reversal") {
+    const original = m.reverses ? ctx.byId?.get(m.reverses) : undefined;
+    if (original?.via !== "check") return null;
+    // Undoing a raise takes it back off; undoing a check's use or waste puts it back.
+    return { what: `${by} undid a stock check: ${qty} ${original.kind === "adjust" ? "off" : "back"}`, by: null };
+  }
+  if (m.via !== "check") return null;
+  switch (m.kind) {
+    case "use": {
+      const people = m.consumers && m.consumers.length > 0 ? m.consumers : [m.actor];
+      const own = people.length === 1 && people[0] === m.actor;
+      if (item.pantry.kind === "group" && !own) return { what: `Stock check · ${qty} split with ${item.pantry.name}`, by };
+      return { what: `Stock check · ${qty} used by ${joinNames(people.map((c) => memberLabelInline(c, meId, names)))}`, by: own ? null : by };
+    }
+    case "waste":
+      return { what: `Stock check · ${qty} went bad`, by };
+    case "adjust":
+      return { what: `Stock check · ${qty} more than thought`, by };
+    default:
+      return null;
+  }
+}
+
+/**
  * Whether a move can be undone from the item page: a use or waste still in
  * effect. One that posted a transaction is undone by reversing it (its
  * logger, or an owner or admin); one that moved no money only while it is the
  * item's latest move still in effect (its logger or an owner or admin in a
  * group; always for your own item). A viewer undoes nothing.
+ *
+ * With `adjusts` (the new frame, cookpool-pantry PN-7), a stock check's raise
+ * (`adjust`) can be undone too, by its checker or an owner or admin, whatever
+ * came after it: it moved no money, and the server takes it back off while
+ * that much is still there (`insufficient_stock` once it isn't).
  */
 export function canUndoMove(
   move: KitchenStockMove,
   moves: readonly KitchenStockMove[],
-  ctx: { meId: string | null; personal: boolean; role: GroupRole | null; canWrite: boolean },
+  ctx: { meId: string | null; personal: boolean; role: GroupRole | null; canWrite: boolean; adjusts?: boolean },
 ): boolean {
   if (!ctx.canWrite) return false;
   // Not on the server yet (SM-5): its toast undoes it.
   if (isPendingId(move.id)) return false;
-  if (move.undone || (move.kind !== "use" && move.kind !== "waste")) return false;
   const manager = ctx.role === "owner" || ctx.role === "admin";
   const mine = ctx.meId !== null && move.actor === ctx.meId;
+  if (ctx.adjusts && move.kind === "adjust") return !move.undone && (ctx.personal || mine || manager);
+  if (move.undone || (move.kind !== "use" && move.kind !== "waste")) return false;
   if (move.txnId) return !ctx.personal && (mine || manager);
   const latest = moves.find((m) => m.kind !== "reversal" && !m.undone);
   if (!latest || latest.id !== move.id) return false;
@@ -438,7 +502,7 @@ export function canUndoMove(
 export function canSwipeUndoMove(
   move: KitchenStockMove,
   moves: readonly KitchenStockMove[],
-  ctx: { meId: string | null; personal: boolean; role: GroupRole | null; canWrite: boolean },
+  ctx: { meId: string | null; personal: boolean; role: GroupRole | null; canWrite: boolean; adjusts?: boolean },
 ): boolean {
   return ctx.meId !== null && move.actor === ctx.meId && canUndoMove(move, moves, ctx);
 }
@@ -603,4 +667,176 @@ export function logRefusal(
     default:
       return { message: error.message, gone: [] };
   }
+}
+
+// ── At this rate (cookpool-pantry PN-7, design §5) ────────────────
+
+/** An estimate needs at least this many uses in effect… */
+export const RUN_OUT_MIN_USES = 2;
+/** …and at least this many days since it was bought. */
+export const RUN_OUT_MIN_DAYS = 2;
+/** Within this many days the estimate names a day ("Tue"); after, weeks. */
+export const RUN_OUT_WEEKDAYS = 7;
+
+const DAY_MS = 86_400_000;
+
+export interface RunOutEstimate {
+  /** When it runs out at this rate. */
+  at: Date;
+  /** How many days from now (fractional). */
+  days: number;
+  /** "today", "tomorrow", "Tue", "in about a week", "in about 3 weeks". */
+  when: string;
+  /** "At this rate it runs out Tue". */
+  line: string;
+  /** "About 250 ml a day" ("About 5 g a week" when a day's is too small to say). */
+  rate: string;
+}
+
+/** The moves that take stock and still stand: uses (a stock check's included) and dishes. */
+function takesInEffect(moves: readonly KitchenStockMove[]): KitchenStockMove[] {
+  return moves.filter((m) => !m.undone && (m.kind === "use" || m.kind === "dish"));
+}
+
+/** Two significant figures of an amount, in thousandths (233 ml → 230 ml, 1.234 L → 1.2 L). */
+function roundAmount(milli: number): number {
+  const base = milli / 1000;
+  if (base <= 0) return 0;
+  const step = Math.pow(10, Math.floor(Math.log10(base)) - 1);
+  return Math.round(Math.round(base / step) * step * 1000);
+}
+
+/** The smallest daily amount worth saying: 1 g or 1 ml, a tenth of a piece or a pack. */
+function smallestDaily(dimension: Dimension): number {
+  return dimension === "mass" || dimension === "volume" ? 1000 : 100;
+}
+
+/**
+ * When an item runs out at the rate it's being used (design §5): what was
+ * used since it was bought (its uses and dishes in effect, less what a stock
+ * check found was still there), over the days since it was bought. It needs
+ * RUN_OUT_MIN_USES uses and RUN_OUT_MIN_DAYS days, something left, and no
+ * use-by inside the estimate (it goes off first, and its use-by chip says
+ * so). It names the day within a week — "today", "tomorrow", "Tue" — and
+ * "in about N weeks" after that. Null when there's no estimate. Days are the
+ * viewer's own (`localDayOffset`); bought-on and use-by are UTC days, as the
+ * server counts them.
+ */
+export function runOutEstimate(
+  moves: readonly KitchenStockMove[],
+  item: Pick<KitchenItem, "qtyLeftMilli" | "dimension" | "displayUnit" | "boughtOn" | "expiresOn" | "state">,
+  now: Date,
+): RunOutEstimate | null {
+  if (item.state !== "active" || item.qtyLeftMilli <= 0) return null;
+  const takes = takesInEffect(moves);
+  if (takes.length < RUN_OUT_MIN_USES) return null;
+  const bought = Date.parse(`${item.boughtOn}T00:00:00Z`);
+  if (Number.isNaN(bought)) return null;
+  const sinceDays = (now.getTime() - bought) / DAY_MS;
+  if (sinceDays < RUN_OUT_MIN_DAYS) return null;
+  const raised = moves.filter((m) => !m.undone && m.kind === "adjust").reduce((s, m) => s + m.qtyMilli, 0);
+  const used = takes.reduce((s, m) => s + m.qtyMilli, 0) - raised;
+  if (used <= 0) return null;
+  const perDay = used / sinceDays;
+  const days = item.qtyLeftMilli / perDay;
+  const at = new Date(now.getTime() + days * DAY_MS);
+  if (item.expiresOn) {
+    const useByEnd = Date.parse(`${item.expiresOn}T00:00:00Z`) + DAY_MS;
+    if (!Number.isNaN(useByEnd) && useByEnd < at.getTime()) return null;
+  }
+  const offset = localDayOffset(at, now);
+  let when: string;
+  if (offset <= 0) when = "today";
+  else if (offset === 1) when = "tomorrow";
+  else if (offset < RUN_OUT_WEEKDAYS) when = at.toLocaleDateString("en-GB", { weekday: "short" });
+  else {
+    const weeks = Math.max(1, Math.round(days / 7));
+    when = weeks === 1 ? "in about a week" : `in about ${weeks} weeks`;
+  }
+  const daily = roundAmount(perDay);
+  const rate =
+    daily >= smallestDaily(item.dimension)
+      ? `About ${formatQuantity(daily, item.dimension, item.displayUnit)} a day`
+      : `About ${formatQuantity(roundAmount(perDay * 7), item.dimension, item.displayUnit)} a week`;
+  return { at, days, when, line: `At this rate it runs out ${when}`, rate };
+}
+
+// ── Who had it (cookpool-pantry PN-7, design §5) ──────────────────
+
+export interface WhoHadItRow {
+  subjectId: string;
+  /** "You", "Anu". */
+  name: string;
+  /** Their part of what was used, 0–1. */
+  share: number;
+  /** "½", "⅓", "45%", "All". */
+  shareText: string;
+  /** What they had, in thousandths (their equal part of each use). */
+  qtyMilli: number;
+  /** "500 ml". */
+  qtyText: string;
+  /** What they were charged for it (the engine's split, odd paisa to the earliest named). */
+  costMinor: number;
+}
+
+const FRACTIONS: readonly [number, number, string][] = [
+  [1, 2, "½"], [1, 3, "⅓"], [2, 3, "⅔"], [1, 4, "¼"], [3, 4, "¾"],
+  [1, 5, "⅕"], [2, 5, "⅖"], [3, 5, "⅗"], [4, 5, "⅘"], [1, 6, "⅙"], [5, 6, "⅚"],
+  [1, 8, "⅛"], [3, 8, "⅜"], [5, 8, "⅝"], [7, 8, "⅞"],
+];
+
+/** A share as the canvas says it: "All", a simple fraction when it is one ("½", "⅓"), else a percentage ("45%"). */
+export function shareText(share: number): string {
+  if (share >= 0.995) return "All";
+  for (const [n, d, glyph] of FRACTIONS) if (Math.abs(share - n / d) < 0.005) return glyph;
+  return `${Math.max(1, Math.round(share * 100))}%`;
+}
+
+/**
+ * Who had this item and their part of what was used (design §5): every use
+ * in effect — logged, or a stock check's — shared equally between the
+ * people who had it (the logger when nobody is named), largest part first,
+ * you first among equals. Its cost is the engine's split of each use, as the
+ * server posted it. Dishes and waste aren't anyone's share. Empty when
+ * nothing was used.
+ */
+export function whoHadIt(
+  moves: readonly KitchenStockMove[],
+  item: Pick<KitchenItem, "dimension" | "displayUnit" | "paidBy">,
+  ctx: { meId: string | null; names?: MemberNames | null },
+): WhoHadItRow[] {
+  const qty = new Map<string, number>();
+  const cost = new Map<string, number>();
+  let total = 0;
+  for (const m of moves) {
+    if (m.undone || m.kind !== "use" || m.qtyMilli <= 0) continue;
+    const people = m.consumers && m.consumers.length > 0 ? [...m.consumers] : [m.actor];
+    total += m.qtyMilli;
+    for (const p of people) qty.set(p, (qty.get(p) ?? 0) + m.qtyMilli / people.length);
+    if (m.costMinor > 0) {
+      for (const s of buildUse({ costMinor: m.costMinor, buyerId: item.paidBy, consumers: people })) {
+        if (s.owedMinor > 0 || people.includes(s.subjectId)) cost.set(s.subjectId, (cost.get(s.subjectId) ?? 0) + s.owedMinor);
+      }
+    }
+  }
+  if (total <= 0) return [];
+  const rows = [...qty.entries()].map(([subjectId, q]): WhoHadItRow => {
+    const share = q / total;
+    const qtyMilli = Math.round(q);
+    return {
+      subjectId,
+      name: memberLabel(subjectId, ctx.meId, ctx.names),
+      share,
+      shareText: shareText(share),
+      qtyMilli,
+      qtyText: formatQuantity(qtyMilli, item.dimension, item.displayUnit),
+      costMinor: cost.get(subjectId) ?? 0,
+    };
+  });
+  return rows.sort((a, b) => b.share - a.share || (a.subjectId === ctx.meId ? -1 : b.subjectId === ctx.meId ? 1 : a.name.localeCompare(b.name)));
+}
+
+/** "Anu ½ · You ⅓ · Dev ⅙". */
+export function whoHadItLine(rows: readonly Pick<WhoHadItRow, "name" | "shareText">[]): string {
+  return rows.map((r) => `${r.name} ${r.shareText}`).join(" · ");
 }
