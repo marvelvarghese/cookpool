@@ -5,11 +5,19 @@
  * pantry (`createPersonalItem`) or a group's (`createGroupItem`, with who paid
  * and the item's own waste rule). Quantities go through the engine's
  * `toMilli`, the same parse the server stores them with, and the price through
- * `parseMoney` (by its digits, never as a float). Dependency-free, so it is
- * unit-testable.
+ * `parseMoney` (by its digits, never as a float). In the new frame (RC-3) it
+ * also takes a note, trimmed and sent only when there is one. Dependency-free,
+ * so it is unit-testable.
  */
 
-import type { CreateGroupItemRequest, CreatePersonalItemRequest, WastePolicy } from "@saas/contracts/kitchen";
+import {
+  ITEM_NOTE_MAX,
+  itemNoteLength,
+  normalizeItemNote,
+  type CreateGroupItemRequest,
+  type CreatePersonalItemRequest,
+  type WastePolicy,
+} from "@saas/contracts/kitchen";
 import { UNITS, UnitError, pricePerUnit, toMilli, type UnitKey } from "@saas/kitchen-engine/units";
 import { formatMinor, moneyInputMessage, parseMoney } from "./money";
 import { ITEM_CATEGORY_LABELS, PERSONAL_PANTRY } from "./pantry";
@@ -48,6 +56,8 @@ export interface ItemForm {
   /** Who paid, for a group item (`usr_…`). */
   paidBy: string | null;
   waste: WasteChoice;
+  /** As typed (RC-3, the new frame's Note field); "" for none. Never filled from last time. */
+  note: string;
 }
 
 /** Today's calendar date where the person is, YYYY-MM-DD. */
@@ -70,28 +80,31 @@ export function initialItemForm(opts: { today: string; pantry?: string | null; m
     pantry: opts.pantry || PERSONAL_PANTRY,
     paidBy: opts.meId,
     waste: "group",
+    note: "",
   };
 }
 
-export type ItemField = "name" | "category" | "quantity" | "price" | "boughtOn" | "expiresOn" | "paidBy";
+export type ItemField = "name" | "category" | "quantity" | "price" | "boughtOn" | "expiresOn" | "paidBy" | "note";
 
 /** Fields in the order the form shows them (the first with an error gets focus). */
-export const ITEM_FIELDS: readonly ItemField[] = ["name", "quantity", "price", "category", "paidBy", "expiresOn", "boughtOn"];
+export const ITEM_FIELDS: readonly ItemField[] = ["name", "quantity", "price", "category", "paidBy", "expiresOn", "boughtOn", "note"];
 
 /** The parts of "Bought", top to bottom. */
-export type BoughtSection = "pantry" | "name" | "amount" | "category" | "paidBy" | "waste" | "useBy";
+export type BoughtSection = "pantry" | "name" | "amount" | "category" | "paidBy" | "waste" | "useBy" | "note";
 
 /**
  * "Bought" in order (SM-15, the audit's §5): **where it goes first** — it
  * changes the form (a group asks who paid and who pays for waste) — then what,
  * how much and the price, its category, the group's two questions, and when
  * to use it by. When it was bought is a quiet "Bought today · Change" under
- * the use-by, not a field.
+ * the use-by, not a field. In the new frame (`notes`, RC-3) an optional Note
+ * sits under all of them.
  */
-export function boughtSections(group: boolean): BoughtSection[] {
-  return group
+export function boughtSections(group: boolean, notes = false): BoughtSection[] {
+  const sections: BoughtSection[] = group
     ? ["pantry", "name", "amount", "category", "paidBy", "waste", "useBy"]
     : ["pantry", "name", "amount", "category", "useBy"];
+  return notes ? [...sections, "note"] : sections;
 }
 
 export type ItemRequest =
@@ -201,6 +214,10 @@ export function previewItemForm(form: ItemForm, ctx: { today: string; currency?:
   const group = form.pantry !== PERSONAL_PANTRY;
   if (group && !form.paidBy) errors.paidBy = "Pick who paid";
 
+  // The field holds 80 (its maxLength); only a paste of wide characters can say more.
+  const note = normalizeItemNote(form.note);
+  if (note !== null && itemNoteLength(note) > ITEM_NOTE_MAX) errors.note = `Keep it to ${ITEM_NOTE_MAX} characters`;
+
   const qtyMilli = qty.ok ? qty.milli : null;
   const priceMinor = money.ok ? money.minor : null;
   const perUnit = qtyMilli !== null && priceMinor !== null ? perUnitLine(priceMinor, qtyMilli, form.unit, currency) : null;
@@ -215,6 +232,7 @@ export function previewItemForm(form: ItemForm, ctx: { today: string; currency?:
       priceMinor: money.minor,
       boughtOn: form.boughtOn,
       ...(expiresOn ? { expiresOn } : {}),
+      ...(note ? { note } : {}),
     };
     if (group) {
       request = {

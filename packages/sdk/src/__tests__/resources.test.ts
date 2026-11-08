@@ -1431,3 +1431,35 @@ describe("KitchenClient — your measures (Cookpool SM-13)", () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
+
+describe("KitchenClient — item notes (Cookpool RC-3)", () => {
+  it("sends a note on the add and on an edit, as it is, under /me and under the group", async () => {
+    const item = { id: "itm_1", note: "For Sunday's curry" };
+    const body = { name: "Paneer", category: "dairy", quantity: "200", unit: "g", priceMinor: 9000, note: "For Sunday's curry" };
+    const mine = captureFetch(jsonResponse(envelope({ item }), { status: 201 }));
+    expect(await client(mine.fetch).kitchen.createPersonalItem(body, { idempotencyKey: "add-note" })).toEqual({ item });
+    expect(mine.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items");
+    expect(JSON.parse(String(mine.calls[0]!.init.body))).toEqual(body);
+
+    const shared = captureFetch(jsonResponse(envelope({ item }), { status: 201 }));
+    await client(shared.fetch).kitchen.createGroupItem("org_1", { ...body, paidBy: "usr_anu" });
+    expect(JSON.parse(String(shared.calls[0]!.init.body))).toMatchObject({ note: "For Sunday's curry", paidBy: "usr_anu" });
+
+    const cleared = captureFetch(jsonResponse(envelope({ item: { ...item, note: null } })));
+    await client(cleared.fetch).kitchen.updatePersonalItem("itm_1", { note: null, version: 2 });
+    expect(cleared.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/items/itm_1");
+    expect(cleared.calls[0]!.init.method).toBe("PATCH");
+    expect(JSON.parse(String(cleared.calls[0]!.init.body))).toEqual({ note: null, version: 2 });
+
+    const edited = captureFetch(jsonResponse(envelope({ item })));
+    await client(edited.fetch).kitchen.updateGroupItem("org_1", "itm_1", { note: "Top shelf" });
+    expect(edited.calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/kitchen/items/itm_1");
+    expect(JSON.parse(String(edited.calls[0]!.init.body))).toEqual({ note: "Top shelf" });
+  });
+
+  it("surfaces a note that is too long as ValidationError", async () => {
+    await expect(
+      client(captureFetch(errorResponse("validation_failed", 422)).fetch).kitchen.updatePersonalItem("itm_1", { note: "x".repeat(81) }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+});

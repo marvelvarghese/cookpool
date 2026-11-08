@@ -321,7 +321,9 @@ describe("the phone's list (SM-10: each item one row)", () => {
   it("says only the name, what is left and one chip — not price, worth, who paid or a bar", () => {
     const row = pantryListRow(milk(), { showPantry: false });
     expect(row).toMatchObject({ name: "Milk", left: "1 L", chip: { label: "Tomorrow", tone: "soon" }, pantry: null, struck: false, pending: false });
-    expect(Object.keys(row).sort()).toEqual(["chip", "href", "id", "left", "name", "pantry", "pending", "struck", "use"]);
+    expect(Object.keys(row).sort()).toEqual(["chip", "href", "id", "left", "name", "note", "pantry", "pending", "struck", "use"]);
+    // The note's line is the new frame's (RC-3): without `notes`, none.
+    expect(row.note).toBeNull();
     expect(row.href).toBe(`/pantry/org:${FLAT.orgId}:${row.id}`);
   });
 

@@ -19,6 +19,8 @@ import { canManageGroup, roleFromKitchen } from "@/components/kitchen/groups";
 import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
 import { useAddItem, useMembersOf, usePantries } from "@/components/kitchen/pantry-data";
 import { MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
+import { NoteField } from "@/components/kitchen/item-note-ui";
+import { newFrame } from "@/lib/features";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { fromBeforeTerm, historyFill, historySuggestion, shownSuggestions } from "@/components/kitchen/from-before";
 import { useItemHistory } from "@/components/kitchen/from-before-data";
@@ -64,6 +66,11 @@ import {
  * field). Picking one fills the form from last time — "Filled from last time
  * · change anything" — and moves to Add, so buying milk again is: type "mi",
  * tap Milk, tap Add.
+ *
+ * In the new frame (RC-3) an optional Note sits under the details: one line,
+ * at most 80 characters, and who will see it — "Only you see it" in your own
+ * pantry, "Everyone in Flat 4B sees it" in a group's. A pick from before
+ * keeps what is typed there.
  */
 export default function AddItemPage() {
   const searchParams = useSearchParams();
@@ -112,6 +119,8 @@ function AddItemForm({
   const router = useRouter();
   const recentSlugs = useRecentGroupSlugs();
   const today = React.useMemo(() => localIsoDay(new Date()), []);
+  // The new frame's Note (RC-3); the page is read in the browser, so the host decides once.
+  const notes = React.useMemo(() => newFrame(), []);
   const [form, setForm] = React.useState<ItemForm>(() => initialItemForm({ today, pantry: start, meId }));
   const [moreUnits, setMoreUnits] = React.useState(() => MORE_UNITS.includes(form.unit));
   const [morePayers, setMorePayers] = React.useState(false);
@@ -191,7 +200,7 @@ function AddItemForm({
       if (first === "expiresOn") setDateOpen(true);
       if (first === "boughtOn") setBoughtOpen(true);
       window.requestAnimationFrame(() =>
-        document.querySelector<HTMLElement>(`[data-field="${first}"] :is(input, button)`)?.focus(),
+        document.querySelector<HTMLElement>(`[data-field="${first}"] :is(input, textarea, button)`)?.focus(),
       );
       return;
     }
@@ -480,6 +489,16 @@ function AddItemForm({
         <FieldError id="item-bought-error" message={err("boughtOn")} />
       </fieldset>
     ),
+    note: notes ? (
+      <NoteField
+        key="note"
+        id="item-note"
+        value={form.note}
+        onChange={(note) => update({ note })}
+        pantry={group ? { kind: "group", name: group.name } : { kind: "personal" }}
+        error={err("note")}
+      />
+    ) : null,
   };
 
   return (
@@ -490,7 +509,7 @@ function AddItemForm({
       </header>
 
       <form onSubmit={submit} noValidate className="max-w-xl space-y-6">
-        {boughtSections(group !== null).map((id) => sections[id])}
+        {boughtSections(group !== null, notes).map((id) => sections[id])}
 
         {serverError ? (
           <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">

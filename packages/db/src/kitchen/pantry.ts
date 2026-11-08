@@ -10,6 +10,10 @@
 // Adding a group item is the group's first money-bearing write when the group
 // has no settings row yet: like the ledger's first transaction, its batch pins
 // the currency first and inserts the item only in that currency.
+//
+// An item's note (RC-3, migration 330) is a column of the item like its name:
+// every read here returns it, so it is read by exactly whoever can read the
+// item, and writing it touches nothing else — no ledger, no stock.
 
 import { executeBatch, type SqlStatement } from "../d1/executor.js";
 import type { SqlExecutor } from "../d1/executor.js";
@@ -46,7 +50,7 @@ export type PantryRepository = Pick<
 
 export const ITEM_COLUMNS = `id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
   qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by, bought_on,
-  expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key, created_at, updated_at`;
+  expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key, created_at, updated_at, note`;
 
 /** ITEM_COLUMNS of the table aliased `alias`, for a join (the row keys stay the bare column names). */
 export function itemColumns(alias: string): string {
@@ -88,6 +92,7 @@ export function mapItem(row: Row): KitchenItemRecord {
     expiresOn: nullableString(row.expires_on),
     wastePolicy: nullableString(row.waste_policy) as KitchenWastePolicy | null,
     sourceDishId: nullableString(row.source_dish_id),
+    note: nullableString(row.note),
     state: row.state as KitchenItemState,
     version: Number(row.version),
     createdBy: row.created_by as string,
@@ -155,7 +160,7 @@ export function insertItemStatement(item: NewKitchenItem): SqlStatement {
              id, owner_kind, owner_subject_id, org_id, name, category, dimension, display_unit,
              qty_bought_milli, qty_left_milli, price_minor, cost_taken_minor, currency, paid_by,
              bought_on, expires_on, waste_policy, source_dish_id, state, version, created_by, idem_key,
-             created_at, updated_at
+             created_at, updated_at, note
            ) VALUES (
              ${params.add(item.id)}, ${params.add(owner.kind)},
              ${params.add(owner.kind === "user" ? owner.subjectId : null)},
@@ -165,7 +170,7 @@ export function insertItemStatement(item: NewKitchenItem): SqlStatement {
              ${params.add(item.priceMinor)}, 0, ${currency}, ${params.add(item.paidBy)},
              ${params.add(item.boughtOn)}, ${params.add(item.expiresOn)}, ${params.add(item.wastePolicy)},
              ${params.add(item.sourceDishId ?? null)}, 'active', 1, ${params.add(item.createdBy)}, ${params.add(item.idemKey)},
-             ${params.add(item.now)}, ${params.add(item.now)}
+             ${params.add(item.now)}, ${params.add(item.now)}, ${params.add(item.note ?? null)}
            )
            RETURNING ${ITEM_COLUMNS}`,
     params: params.values,
@@ -268,6 +273,7 @@ export function createPantryRepository(executor: SqlExecutor): PantryRepository 
       if (changes.category !== undefined) sets.push(`category = ${params.add(changes.category)}`);
       if (changes.expiresOn !== undefined) sets.push(`expires_on = ${params.add(changes.expiresOn)}`);
       if (changes.wastePolicy !== undefined) sets.push(`waste_policy = ${params.add(changes.wastePolicy)}`);
+      if (changes.note !== undefined) sets.push(`note = ${params.add(changes.note)}`);
       if (changes.quantity !== undefined) {
         const qty = params.add(changes.quantity.qtyMilli);
         sets.push(

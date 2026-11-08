@@ -300,5 +300,14 @@ export const manifest: MigrationManifest = {
       description:
         "Push as a preference channel: notifications_notification_preferences rebuilt (same name, rows and unique key) so channel may be 'email' or 'push', with a kinds map (kitchen.portion_set, kitchen.dish_posted, kitchen.paid_you) beside categories; existing rows keep their meaning with kinds '{}' (Cookpool PW-5)",
     },
+    {
+      id: "330_kitchen_item_notes",
+      context: "kitchen",
+      path: "330_kitchen_item_notes/up.sql",
+      checksum:
+        "313f6591b646ce7d6735c904afd7eeb83813b697ef104ba1464076dc6c35e348",
+      description:
+        "Item notes: a nullable kitchen_items.note (at most 80 characters by length(), trimmed and never blank — the worker stores an empty note as NULL; items written before read as NULL), read by whoever can read the item; it moves no money (Cookpool RC-3)",
+    },
   ],
 };

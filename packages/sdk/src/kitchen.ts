@@ -278,7 +278,10 @@ export class KitchenClient {
     );
   }
 
-  /** POST /v1/kitchen/me/items — add to the caller's personal pantry. */
+  /**
+   * POST /v1/kitchen/me/items — add to the caller's personal pantry. An
+   * optional `note` (RC-3, at most 80 characters) is read by the caller alone.
+   */
   createPersonalItem(body: CreatePersonalItemRequest, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
     return this.transport.request<KitchenItemResponse>({ method: "POST", path: this.mePath("items"), body }, opts);
   }
@@ -296,7 +299,8 @@ export class KitchenClient {
    *
    * Quantity and price change only while nothing has been used
    * (`ConflictError`, `reason: "item_used"`); with `version`, only that
-   * version (`reason: "version_conflict"`).
+   * version (`reason: "version_conflict"`). `note` (RC-3) changes at any
+   * time; `null` or "" clears it.
    */
   updatePersonalItem(
     itemId: string,
@@ -334,7 +338,8 @@ export class KitchenClient {
    *
    * Members, owners and admins. In the group's currency; `paidBy` (default:
    * the caller) must be in the group (`ValidationError`, `reason:
-   * "not_in_group"`).
+   * "not_in_group"`). An optional `note` (RC-3) is read by everyone in the
+   * group.
    */
   createGroupItem(orgId: string, body: CreateGroupItemRequest, opts: RequestOptions = {}): Promise<KitchenItemResponse> {
     return this.transport.request<KitchenItemResponse>(
@@ -355,7 +360,8 @@ export class KitchenClient {
    * PATCH /v1/organizations/:orgId/kitchen/items/:itemId
    *
    * Its buyer, or an owner or admin (`ForbiddenError`, `reason:
-   * "not_buyer"`). Quantity and price only while nothing has been used.
+   * "not_buyer"`). Quantity and price only while nothing has been used;
+   * `note` (RC-3) at any time.
    */
   updateGroupItem(
     orgId: string,
