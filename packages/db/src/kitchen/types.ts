@@ -1,3 +1,4 @@
+import type { AsksRepository } from "./asks.js";
 import type { AppendEventWithAuditInput } from "../events/types.js";
 import type { Uuid } from "../ids/index.js";
 
@@ -276,6 +277,11 @@ export interface KitchenItemRecord {
   sourceDishId: string | null;
   /** One line about it (RC-3), at most 80 characters; null when it has none. Read by whoever can read the item. */
   note: string | null;
+  /**
+   * Ask before use (PN-8, migration 420): its buyer asks to be asked first.
+   * Every read sets it; optional only so records typed before PN-8 still check.
+   */
+  askFirst?: boolean;
   state: KitchenItemState;
   version: number;
   createdBy: string;
@@ -315,6 +321,10 @@ export interface NewKitchenItem {
   note?: string | null;
   /** The shopping run that adds it (PN-3, migration 400); absent or null for an item added on its own. */
   purchaseId?: string | null;
+  /** Ask before use (PN-8, migration 420): a group item whose buyer asks to be asked first; absent or false otherwise. */
+  askFirst?: boolean;
+  /** …and the members who never need to ask (`usr_…`); absent or empty for none. */
+  allowed?: readonly string[];
 }
 
 export interface CreateItemInput {
@@ -344,6 +354,8 @@ export interface KitchenItemChanges {
   wastePolicy?: KitchenWastePolicy | null;
   /** Its note (RC-3): trimmed, 1–80 characters, or null to clear it. Words only: it changes no money and no stock. */
   note?: string | null;
+  /** Ask before use (PN-8): group items only. Words only too: it changes no money and no stock. */
+  askFirst?: boolean;
 }
 
 export interface UpdateItemInput {
@@ -636,7 +648,12 @@ export interface KitchenUsualsBucketQuery {
 
 // ── Repository ──────────────────────────────────────────────
 
-export interface KitchenRepository {
+/**
+ * Ask before use (PN-8) is part of the kitchen repository — every use, waste,
+ * dish and check of a group item reads its guard — but its storage is its own
+ * file: ./asks.ts.
+ */
+export interface KitchenRepository extends AsksRepository {
   /** The group's settings row, or `null` when it has none (it uses the defaults). */
   getGroupSettings(orgId: Uuid): Promise<KitchenResult<KitchenGroupSettings | null>>;
   /**

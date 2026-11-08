@@ -18,6 +18,7 @@ import { createHistoryRepository } from "./history.js";
 import { createMeasuresRepository } from "./measures.js";
 import { createFoodsRepository } from "./foods.js";
 import { createRecipesRepository } from "./recipes.js";
+import { createAsksRepository } from "./asks.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -124,5 +125,7 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     ...createMeasuresRepository(executor),
     ...createFoodsRepository(executor),
     ...createRecipesRepository(executor),
+    // Ask before use (PN-8).
+    ...createAsksRepository(executor),
   };
 }

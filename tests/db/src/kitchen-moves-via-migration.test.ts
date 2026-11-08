@@ -131,7 +131,12 @@ describe("410_kitchen_moves_via (PN-4)", () => {
     it("reads every move written before it as logged directly", async () => {
       const db = migrated(ID);
       const item = newItem();
-      await createKitchenRepository(createSqlExecutor(d1Over(db))).createItem({ item });
+      // Written by hand: the repository's item columns are today's (420 adds ask_first, PN-8).
+      db.prepare(
+        `INSERT INTO kitchen_items (id, owner_kind, owner_subject_id, name, category, dimension, display_unit, qty_bought_milli,
+           qty_left_milli, price_minor, currency, paid_by, bought_on, created_by, idem_key)
+         VALUES (?, 'user', 'usr_rahul', 'Milk', 'Dairy', 'volume', 'L', 1000000, 1000000, 6000, 'INR', 'usr_rahul', '2026-11-08', 'usr_rahul', ?)`,
+      ).run(item.id, item.idemKey);
       db.prepare("INSERT INTO kitchen_stock_moves (id, item_id, kind, qty_milli, cost_minor, actor) VALUES (?, ?, 'use', 100, 6, 'usr_rahul')")
         .run(randomUUID(), item.id);
       apply(db, ID);

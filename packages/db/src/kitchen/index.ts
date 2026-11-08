@@ -154,3 +154,24 @@ export { createPurchasesRepository } from "./purchases.js";
 
 // The stock check (PN-4): what wrote a move, and raising what is left.
 export type { KitchenStockMoveVia, AdjustStockInput } from "./types.js";
+
+// Ask before use (PN-8): asks, and who may use an ask-first item without asking.
+export type {
+  KitchenAskState,
+  KitchenAskSource,
+  KitchenAskRecord,
+  KitchenAskRead,
+  NewKitchenAsk,
+  CreatedAsk,
+  ApproveAskInput,
+  ApprovedAsk,
+  AskWriteError,
+  AskResult,
+  KitchenAskAnswer,
+  AnswerAskInput,
+  KitchenAsksQuery,
+  KitchenAsksPage,
+  ReplaceAllowedInput,
+  AsksRepository,
+} from "./asks.js";
+export { askIsLive } from "./asks.js";

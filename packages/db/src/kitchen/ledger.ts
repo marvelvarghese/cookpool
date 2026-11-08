@@ -29,6 +29,7 @@ import type {
   PostedTxn,
 } from "./types.js";
 import { MOVE_COLUMNS, mapMove, newMoveId, restockStatements, reversalRecord } from "./moves.js";
+import { askUndoneStatements } from "./ask-undo.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -336,13 +337,15 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
       // fixed before later uses changed what is left: refused. Log it again.
       if (original.kind === "reversal" && moves.length > 0) return { ok: false, error: { kind: "not_reversible" } };
 
-      const restock = moves.flatMap((move) =>
-        restockStatements(
+      const restock = moves.flatMap((move) => [
+        ...restockStatements(
           move,
           reversalRecord(move, { id: newMoveId(), actor: reversal.createdBy, txnId: reversal.id, idemKey: null, now: reversal.now }),
           "id",
         ),
-      );
+        // An approved ask's use (PN-8): its answer is undone with it.
+        ...askUndoneStatements(move, reversal.createdBy, reversal.now),
+      ]);
       return writeTxn({
         record: {
           id: reversal.id,

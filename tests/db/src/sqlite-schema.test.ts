@@ -2643,7 +2643,8 @@ describe("item notes, against a real SQLite engine (330_kitchen_item_notes)", ()
          VALUES (?, 'user', 'usr_rahul', 'Rice', 'Grains', 'mass', 'kg', 1000000, 1000000, 9000, 'INR', 'usr_rahul', '2026-11-01', 'usr_rahul', 'old')`,
       )
       .run(id);
-    apply("330_kitchen_item_notes");
+    // 330, then every migration after it: the repository reads the schema it is written for (420 adds ask_first, PN-8).
+    for (const dir of migrationDirs().filter((d) => d >= "330_kitchen_item_notes")) apply(dir);
     const read = await repoBefore.getItem(me, id);
     expect(read.ok && read.value).toMatchObject({ name: "Rice", note: null, version: 1 });
     before.close();
