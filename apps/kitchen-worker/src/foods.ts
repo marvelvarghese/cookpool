@@ -29,7 +29,14 @@ type Parsed<T> = { ok: true; value: T } | { ok: false; fields: FieldErrors };
 const FOOD_KEY_RE = /^[a-z0-9_]{1,40}$/;
 
 export function toKitchenFood(record: KitchenFoodRecord): KitchenFood {
-  return { key: record.key, name: record.name, dimension: record.dimension, eachG: record.eachG, category: record.category };
+  return {
+    key: record.key,
+    name: record.name,
+    dimension: record.dimension,
+    eachG: record.eachG,
+    category: record.category,
+    gPerMl: record.gPerMl,
+  };
 }
 
 /**

@@ -1325,6 +1325,8 @@ export interface KitchenFoodRecord {
   /** One piece in whole grams; null when it is not counted. */
   eachG: number | null;
   category: string;
+  /** Grams per millilitre (RC-7), so a spoon of it meets a weight; null when it has none. */
+  gPerMl: number | null;
 }
 
 /** A food a search found, with its name that matched best. */
