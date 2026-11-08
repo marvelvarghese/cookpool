@@ -8,7 +8,7 @@
  *   and every match are read again.
  * - **The food ask**, on a recipe's page: when an item your pantries hold
  *   links to no food and looks like a missing line's ("Kanda onion" for
- *   Onions), one small card asks "Is Kanda onion onion?" — Yes links that
+ *   Onions), one small card asks "Use Kanda onion for Onions?" — Yes links that
  *   name to the line's food, No answers "none of these" — in each pantry
  *   holding that name, once.
  *
@@ -157,7 +157,7 @@ export interface FoodAsk {
   nameKey: string;
   /** The food it may be: the missing line's. */
   foodKey: string;
-  /** "Is Kanda onion onion?" */
+  /** "Use Kanda onion for Onions?": the item's name, then the line's own (as the recipe page shows it). */
   question: string;
   /** Every pantry holding an unlinked item of that name: null for your own, else the group's `org_…`. */
   orgIds: (string | null)[];
@@ -205,7 +205,7 @@ export function foodAsks(
     const foodKey = best.line.foodKey!;
     asks.push({
       at: best.line.position,
-      ask: { itemName: item.name, nameKey, foodKey, question: `Is ${item.name.trim()} ${foodWords(foodKey)}?`, orgIds },
+      ask: { itemName: item.name, nameKey, foodKey, question: `Use ${item.name.trim()} for ${best.line.name.trim()}?`, orgIds },
     });
   }
   return asks.sort((a, b) => a.at - b.at || a.ask.nameKey.localeCompare(b.ask.nameKey)).map((a) => a.ask);

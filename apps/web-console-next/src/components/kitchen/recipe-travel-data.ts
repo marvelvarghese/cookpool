@@ -381,7 +381,7 @@ export function useAnsweredNames(): [ReadonlySet<string>, (nameKey: string) => v
 }
 
 /**
- * "Is Kanda onion onion?" — Yes links that name to the food, No answers
+ * "Use Kanda onion for Onions?" — Yes links that name to the line's food, No answers
  * "none of these" (`foodKey: null`); one PUT per pantry holding the name,
  * each with its owner (`orgId`, or none for your own). Then every match,
  * Cook now and Explore are read again. True when every answer landed.

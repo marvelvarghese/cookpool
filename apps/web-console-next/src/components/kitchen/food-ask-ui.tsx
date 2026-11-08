@@ -9,8 +9,8 @@ import { useAnswerFood, useAnsweredNames } from "./recipe-travel-data";
 /**
  * The food ask on a recipe's page (cookpool-recipes RC-8, design §2): an
  * item your pantries hold that links to no food, and looks like a missing
- * line's ("Kanda onion" beside Onions), gets one small card — "Is Kanda
- * onion onion?", Yes and No — once per name. Either answer is kept for that
+ * line's ("Kanda onion" beside Onions), gets one small card — "Use Kanda
+ * onion for Onions?", Yes and No — once per name. Either answer is kept for that
  * name in each pantry holding it, and the match is read again.
  */
 

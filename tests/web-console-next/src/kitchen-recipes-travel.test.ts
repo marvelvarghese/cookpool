@@ -407,14 +407,14 @@ describe("Always have, at the bottom of Pantry", () => {
 
 // ── The food ask ───────────────────────────────────────────────────
 
-describe("the food ask: Is Kanda onion onion?", () => {
+describe("the food ask: Use Kanda onion for Onions?", () => {
   const LINES = [line(0, "Chicken", 1000, "g", { isMain: true }), line(1, "Onions", 3, "onion", { foodKey: "onion" }), line(2, "Ginger-garlic paste", 2, "tbsp", { foodKey: "ginger_garlic_paste" }), line(3, "Toor dal", 1, "cup", { foodKey: "toor_dal" })];
   const statuses = (missing: number[]) => LINES.map((l) => ({ position: l.position, status: missing.includes(l.position) ? ("missing" as const) : ("have" as const) }));
   const unlinked = (name: string, orgId: string | null = null) => ({ itemId: `itm_${name}`, orgId, name, nameKey: name.toLowerCase() });
 
   it("asks about an unlinked item that looks like a missing line's food", () => {
     const asks = foodAsks({ lines: LINES }, { lines: statuses([1]), unlinked: [unlinked("Kanda onion"), unlinked("Milk")] });
-    expect(asks).toEqual([{ itemName: "Kanda onion", nameKey: "kanda onion", foodKey: "onion", question: "Is Kanda onion onion?", orgIds: [null] }]);
+    expect(asks).toEqual([{ itemName: "Kanda onion", nameKey: "kanda onion", foodKey: "onion", question: "Use Kanda onion for Onions?", orgIds: [null] }]);
   });
 
   it("asks nothing for a line you have, or with nothing unlinked", () => {
@@ -433,8 +433,8 @@ describe("the food ask: Is Kanda onion onion?", () => {
   it("asks once per name, for every pantry holding it, in the recipe's line order", () => {
     const asks = foodAsks({ lines: LINES }, { lines: statuses([1, 3]), unlinked: [unlinked("Tur dal", FLAT.orgId), unlinked("Kanda onion"), unlinked("Kanda Onion", FLAT.orgId)] });
     expect(asks.map((a) => [a.question, a.orgIds])).toEqual([
-      ["Is Kanda onion onion?", [null, FLAT.orgId]],
-      ["Is Tur dal toor dal?", [FLAT.orgId]],
+      ["Use Kanda onion for Onions?", [null, FLAT.orgId]],
+      ["Use Tur dal for Toor dal?", [FLAT.orgId]],
     ]);
   });
 
@@ -472,8 +472,8 @@ describe("the food ask: Is Kanda onion onion?", () => {
   });
 
   it("draws one small card per name with Yes and No", () => {
-    const one = html(React.createElement(FoodAskCard, { ask: { question: "Is Kanda onion onion?" }, busy: false, onAnswer: noop }));
-    expect(one).toContain("Is Kanda onion onion?");
+    const one = html(React.createElement(FoodAskCard, { ask: { question: "Use Kanda onion for Onions?" }, busy: false, onAnswer: noop }));
+    expect(one).toContain("Use Kanda onion for Onions?");
     expect(one).toContain(">Yes<");
     expect(one).toContain(">No<");
     expect(one.match(/min-h-11/g)).toHaveLength(2);
