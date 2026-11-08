@@ -74,6 +74,7 @@ import type {
   MyRecipesResponse,
   PersonRecipesResponse,
   RecipeMatchQuery,
+  RecipeQuery,
   RecipeMatchResponse,
   RecipeResponse,
   SetAlwaysHaveRequest,
@@ -899,10 +900,15 @@ export class KitchenClient {
     return this.transport.request<RecipeResponse>({ method: "POST", path: this.mePath("recipes"), body }, opts);
   }
 
-  /** GET /v1/kitchen/recipes/:recipeId — a recipe the caller may see (`code` lets a link holder in), with their last cook of it. */
-  getRecipe(recipeId: string, query: { code?: string } = {}, opts: RequestOptions = {}): Promise<RecipeResponse> {
+  /**
+   * GET /v1/kitchen/recipes/:recipeId — a recipe the caller may see (`code`
+   * lets a link holder in), with their last cook of it. Its guided steps
+   * carry `learned` once cooks have taught them (GC-7), at size `f`
+   * (thousandths, default 1000: the recipe as written).
+   */
+  getRecipe(recipeId: string, query: RecipeQuery = {}, opts: RequestOptions = {}): Promise<RecipeResponse> {
     return this.transport.request<RecipeResponse>(
-      { method: "GET", path: `/v1/kitchen/recipes/${encodeURIComponent(recipeId)}`, query: { code: query.code } },
+      { method: "GET", path: `/v1/kitchen/recipes/${encodeURIComponent(recipeId)}`, query: { code: query.code, f: query.f } },
       opts,
     );
   }
@@ -968,10 +974,10 @@ export class KitchenClient {
     );
   }
 
-  /** GET /v1/kitchen/recipe-links/:code — the recipe a link opens, for anyone signed in. */
-  recipeByLink(code: string, opts: RequestOptions = {}): Promise<RecipeResponse> {
+  /** GET /v1/kitchen/recipe-links/:code — the recipe a link opens, for anyone signed in; `learned` at size `f`, as on `getRecipe`. */
+  recipeByLink(code: string, query: Pick<RecipeQuery, "f"> = {}, opts: RequestOptions = {}): Promise<RecipeResponse> {
     return this.transport.request<RecipeResponse>(
-      { method: "GET", path: `/v1/kitchen/recipe-links/${encodeURIComponent(code)}` },
+      { method: "GET", path: `/v1/kitchen/recipe-links/${encodeURIComponent(code)}`, query: { f: query.f } },
       opts,
     );
   }

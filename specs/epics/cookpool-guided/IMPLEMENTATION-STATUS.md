@@ -160,3 +160,50 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | `packages/sdk` | 1 (guided steps, tools and the step log as sent), plus `updateStepTimes` on the recipe paths test | 181 |
 
 `pnpm typecheck` passes repo-wide (52 tasks). `pnpm lint` passes for every touched package (`packages/db`, `packages/contracts`, `packages/sdk`, `apps/kitchen-worker`, `tests/db`, `tests/contracts`, `tests/kitchen-worker`). `orun task check GC-2 --base origin/main` passes: 8 changed components, all inside the contract.
+
+### GC4 — learning from cooks (GC-7)
+
+**Built** (design §5, §7's `learned`). The server only: contracts, storage, kitchen-worker and the SDK. No console file and no migration changed.
+
+- **The read.** Each entry of a full recipe's `guidedSteps` gains `learned?: { lowSeconds, highSeconds, cooks, samples }` (`LearnedStepRange`) once its key has 5 times from 3 cooks; otherwise the key is absent (not null). `GET /v1/kitchen/recipes/{rcp}?code=&f=` and `GET /v1/kitchen/recipe-links/{code}?f=` take `f`, the size in thousandths: the match's `factorParam` (a whole number from 10 to 20 000; anything else, `?f=1e3` and `?f=1.5` included, is 422 naming `f`), default 1000. `f` changes only `learned`. Every other `{ recipe, lastCook }` answer (create, copies, PATCH, DELETE, both link routes, step-times) carries `learned` at 1000. Summaries (My recipes, a person's, Explore, Cook now) carry no steps, so no `learned`.
+- **The aggregation** (`packages/contracts/src/kitchen-recipes.ts`, pure, beside `stepTimeAt`). `learnedStepTime(step, samples, f)`:
+  - **drops** (`keepsStepTime`) a time under `LEARNED_MIN_SECONDS` (10 s, skipped); one over `abandonedAfterSeconds(step, f_cooked)` = `LEARNED_ABANDONED_TIMES` (4) × the author's max (else min) × the rule's multiplier at the size it was cooked at — that is, normalised time over 4 × max; for a step with no time (untimed, whistles, or 0 s) the cap is `LEARNED_UNTIMED_MAX_SECONDS` (4 h) of wall clock; and one whose size is null or not a positive number;
+  - **normalises** each kept time to f = 1: `normalizeStepSeconds` = seconds ÷ `stepTimeMultiplier(rule, f)`;
+  - **requires** `LEARNED_MIN_SAMPLES` (5) kept times from `LEARNED_MIN_COOKS` (3) distinct cooks, both counted after the drops;
+  - **takes** `percentile(values, p)` at `LEARNED_LOW_PERCENTILE`/`LEARNED_HIGH_PERCENTILE` (0.25/0.75), linear interpolation between the nearest ranks (type 7: h = (n − 1)p);
+  - **scales** back with `scaleStepSeconds` and rounds with `wholeStepMinutes` (nearest minute, halves up, at least 60 s), which `stepTimeAt` now uses too, unchanged in behaviour;
+  - **returns** `cooks` and `samples` only.
+- **Storage** (`packages/db/src/kitchen/recipes.ts`): `pooledStepTimes({ recipeId, stepKeys, minSeconds })`, ONE statement per recipe for all its keys. It runs the `recipeRootId` walk (now a shared `rootChainSql` CTE) and returns the root's times for those keys from `kitchen_dish_step_times` joined to `kitchen_dishes`. SQL leaves out canceled dishes (`d.state <> 'canceled'`), times under `minSeconds`, and times of no size (`COALESCE(t.factor_milli, d.recipe_factor_milli) IS NULL`). Cook ids never leave storage: each read numbers its cooks 1, 2, 3…. No keys means no statement.
+- **kitchen-worker:** `learnedSteps(ctx, repo, record, f)` in `src/recipes.ts` groups the pool by key and calls `learnedStepTime` with each step's own rule and times. `recipeResponse` runs it in parallel with the last cook, and `toKitchenRecipe` puts the ranges on the steps. A failed pool read is a 503, as a failed last cook is.
+- **SDK:** `getRecipe(id, { code?, f? })` and `recipeByLink(code, { f? }, opts)`. It re-exports `LearnedStepRange`, `RecipeQuery`, `LEARNED_MIN_SAMPLES` and `LEARNED_MIN_COOKS`.
+- **Speed:** there is no new index and no migration 400. The plan (pinned by a test) is:
+  - `SEARCH t USING INDEX kitchen_dish_step_times_root_idx (recipe_root_id=? AND step_key=?)`;
+  - the root is found once, as a scalar subquery over the recipes' primary key;
+  - each time's dish comes by `sqlite_autoindex_kitchen_dishes_1`.
+
+  Rows read grow with the pool: each kept time's row and its dish, plus at most 9 recipes. Nothing caps the pool.
+
+**Departures**
+
+1. **`learned` is on `guidedSteps[]` and adds `samples`.** Design §7 says `steps[].learned` and §5 `{ lowSeconds, highSeconds, cooks }`. `steps` stays text (GC-2), and the task asked for `samples`.
+2. **Every full answer carries `learned`, not only the read.** A write answers at the recipe as written. A copy saved from a learned recipe therefore shows its range at once. A brand-new recipe always reads an empty pool, which costs one cheap indexed statement; it is not skipped, so there is one code path. The link read takes `?f=` too.
+3. **`?f=` is checked before visibility,** as on the match: a bad `f` on a recipe the caller cannot see is 422, not 404.
+4. **Abandoned is judged at the size cooked.** "Over 4 × max" is applied to the normalised time, so a time at twice the size of a linear step may be up to 8 × the written max. "4 × min" applies only when a step has a min alone, which storage never has. A step written as 0 s is treated as untimed. The 4 h cap for untimed and whistle steps is wall clock: it is neither normalised nor scaled.
+5. **The reader's step judges the pool.** The step log does not record the rule or the times a dish was cooked under. Each time is normalised and capped by the step as the recipe being read has it now. A copy that kept a key but changed that step's rule or range (a PATCH sending the key, or Use today's times) reads the shared pool through its own step. Two copies can then show slightly different ranges from the same times.
+6. **A time of no size counts for nothing, fixed steps included,** as the task says, though a fixed step's time does not depend on the size. The dish's own factor is the fallback (`COALESCE`), but GC-2's write always stores the dish's factor on the time, so today the two are the same.
+7. **Drops happen in two places.** Canceled, skipped and sizeless times are dropped in SQL to keep rows off the wire. `learnedStepTime` applies every rule again, so the helper is the whole definition. "Abandoned" is checked only in the helper, because it needs the step's rule (√f).
+8. **Whistle steps learn a time.** They are capped at 4 h and normalised by their rule (fixed unless written otherwise). This is the "usual time for that count" that design §3.4's "Can't hear it?" can use.
+9. **Fixed keys from GC-4's 390.** Times logged against Cookpool's 370 random keys stop counting once 390 gives those steps fixed keys. Nothing is deployed, so no real times are lost.
+
+**Not verified yet.** The milestone's "after 5 recorded cooks by 3 people, a step reads 'usually N–M min at this size · K cooks'" needs GC-5's step screen, GC-6's plan, and a stage deploy. The server half is covered end to end in `tests/kitchen-worker/src/learned.test.ts`: dishes are posted with step logs through the real write, then read back.
+
+**Tests**
+
+| Package | New | Suite |
+|---|---|---|
+| `tests/contracts` | `kitchen-learned.test.ts`: 26 — the percentile (examples, and seeded properties: matches a reference, bounds, monotonic in p, order-free, shift and scale) · normalise and scale round trip by rule, 1000 as identity, fixed at every size, cross-size · whole minutes (examples, = `stepTimeAt`'s rounding, properties) · the drops (10 s, 4 × at the size cooked, 4 h untimed, no size) · the range at 1000/450/2000 for linear, partly and fixed, the minimums counted after drops, no cook token, robustness to an odd cook · properties: whole minutes ≥ 60 and low ≤ high within the kept times, equal times read back, fixed size-free and partly/linear monotonic · the types | 248 |
+| `tests/db` | 4 in `kitchen-guided-steps.test.ts`: one statement, the same pool from the root, a copy and a copy of a copy (one deleted), only the keys asked for, a recipe of its own apart · canceled, skipped and sizeless left out, the dish's factor as fallback · cooks as per-read numbers, no ids · the query plan | 805 |
+| `tests/kitchen-worker` | `learned.test.ts`: 8 — under 5 times or 3 cooks there is no `learned`, and the fifth time and third cook bring it · 5 times from 3 cooks at five sizes give the right range at f = 1, 450 and 2000 for linear, partly and whistle steps, and `f` changes nothing else · canceled, skipped, abandoned (at 1× and 2×) and sizeless times are dropped and kept raw, and a dish canceled later leaves the pool · copies and a copy of a copy pool with the root, through its deletion, and a rewritten step starts over · a recipe of your own pools only with its copies · no cook id or name in the read · `learned` on the link read at `?f=`, on the writes at 1000, never on summaries · `?f=` 422s on both reads | 654 |
+| `packages/sdk` | the recipe-paths test now covers `getRecipe(…, { f })` and `recipeByLink(…, { f })` | 181 |
+
+`pnpm typecheck` passes repo-wide (52 tasks). `pnpm lint` passes for every touched package (`packages/contracts`, `packages/db`, `packages/sdk`, `apps/kitchen-worker`, `tests/contracts`, `tests/db`, `tests/kitchen-worker`). `orun task check GC-7 --base origin/main` passes: 7 changed components, all inside the contract.
