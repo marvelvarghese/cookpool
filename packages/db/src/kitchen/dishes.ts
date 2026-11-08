@@ -335,7 +335,7 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
       }
     },
 
-    async cookDish({ dish, newItems, ingredients, txns, audits }) {
+    async cookDish({ dish, newItems, ingredients, txns, audits, stepTimes }) {
       const txnRecords = txns.map((t) => txnRecordOf(t.txn, t.splits));
       for (const record of txnRecords) {
         const problem = splitsProblem(record.totalMinor, record.splits);
@@ -371,6 +371,18 @@ export function createDishesRepository(executor: SqlExecutor): DishesRepository 
                )`,
         params: d.values,
       });
+
+      // How long each step took (GC-2): one row per step key, beside the dish.
+      if (stepTimes && stepTimes.steps.length > 0) {
+        statements.push({
+          text: `INSERT INTO kitchen_dish_step_times (dish_id, step_key, recipe_root_id, seconds, factor_milli, cook_id, created_at)
+                 SELECT $1, json_extract(value, '$.k'), $2, json_extract(value, '$.s'), $3, $4, $5 FROM json_each($6)`,
+          params: [
+            dish.id, stepTimes.recipeRootId, stepTimes.factorMilli, dish.cook, dish.now,
+            JSON.stringify(stepTimes.steps.map((t) => ({ k: t.key, s: t.seconds }))),
+          ],
+        });
+      }
 
       // What the cook just bought is in their pantry before any of it is taken,
       // linked to its food as any item added is (RC-4).

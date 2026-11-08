@@ -17,17 +17,30 @@
 // by N", through kitchen_recipes_source_idx) and when the viewer last cooked
 // it (their latest dish with it that is not canceled, through
 // kitchen_dishes_cook_recipe_idx).
+//
+// Guided steps (GC-2, migration 370): every step is read and written with its
+// key and guided fields, and a recipe with its tools. A step written without
+// a key gets a random one in SQL, as 370's backfill gave the steps before.
+// "Use today's times" sets some steps' ranges by key; a recipe's root is
+// found by walking its copies' source links, deleted recipes included.
 
 import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executor.js";
+import type { Uuid } from "../ids/index.js";
 import { isCheckViolation, isForeignKeyViolation, isUniqueViolation } from "../d1/errors.js";
 import { mapDishIngredient } from "./dishes.js";
 import { Params, likeEscape } from "./pantry.js";
-import type {
-  KitchenRecipeLineRecord,
-  KitchenRecipeTemplateRecord,
-  KitchenRecipeVisibility,
-  KitchenRepository,
-  KitchenResult,
+import {
+  MAX_RECIPE_ROOT_HOPS,
+  type KitchenRecipeLineRecord,
+  type KitchenRecipeStepPhase,
+  type KitchenRecipeStepRecord,
+  type KitchenRecipeStepSense,
+  type KitchenRecipeStepTimeRule,
+  type KitchenRecipeTemplateRecord,
+  type KitchenRecipeVisibility,
+  type KitchenRepository,
+  type KitchenResult,
+  type NewKitchenRecipeStep,
 } from "./types.js";
 
 /** The recipes part of the kitchen repository. */
@@ -41,10 +54,15 @@ export type RecipesRepository = Pick<
   | "deleteRecipe"
   | "setRecipeLink"
   | "lastCook"
+  | "setRecipeStepTimes"
+  | "recipeRootId"
 >;
 
 const RECIPE_COLUMNS = `r.id, r.owner_id, r.name, r.serves_half, r.minutes, r.visibility, r.link_code, r.source_recipe_id,
-  r.source_owner_id, r.source_owner_name, r.is_system, r.kind, r.created_at, r.updated_at, r.deleted_at`;
+  r.source_owner_id, r.source_owner_name, r.is_system, r.kind, r.tools, r.created_at, r.updated_at, r.deleted_at`;
+
+const STEP_COLUMNS = `recipe_id, position, text, step_key, phase, line_refs, heat, min_seconds, max_seconds, whistles, hands_off,
+  time_rule, checkpoint, sense, tip`;
 
 /** "Saved by N" and the viewer's last cook, for the recipe aliased `r`; `viewer` is the placeholder of the viewer's id. */
 function extrasSql(viewer: string): string {
@@ -79,7 +97,40 @@ function mapLine(row: Row): KitchenRecipeLineRecord {
   };
 }
 
-function mapRecipe(row: Row, lines: KitchenRecipeLineRecord[], steps: string[]): KitchenRecipeTemplateRecord {
+/** A JSON array column ("[0, 3]", '["Pressure cooker"]'); anything else reads as none. */
+function jsonArray<T>(value: unknown, keep: (item: unknown) => item is T): T[] {
+  if (typeof value !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter(keep) : [];
+  } catch {
+    return [];
+  }
+}
+
+const isNumber = (item: unknown): item is number => typeof item === "number" && Number.isInteger(item);
+const isString = (item: unknown): item is string => typeof item === "string";
+
+function mapStep(row: Row): KitchenRecipeStepRecord {
+  return {
+    position: Number(row.position),
+    key: String(row.step_key ?? ""),
+    text: row.text as string,
+    phase: (row.phase ?? "cook") as KitchenRecipeStepPhase,
+    lineRefs: jsonArray(row.line_refs, isNumber),
+    heat: nullableNumber(row.heat),
+    minSeconds: nullableNumber(row.min_seconds),
+    maxSeconds: nullableNumber(row.max_seconds),
+    whistles: nullableNumber(row.whistles),
+    handsOff: Number(row.hands_off) === 1,
+    timeRule: (row.time_rule ?? "fixed") as KitchenRecipeStepTimeRule,
+    sense: nullableString(row.sense) as KitchenRecipeStepSense | null,
+    checkpoint: nullableString(row.checkpoint),
+    tip: nullableString(row.tip),
+  };
+}
+
+function mapRecipe(row: Row, lines: KitchenRecipeLineRecord[], steps: KitchenRecipeStepRecord[]): KitchenRecipeTemplateRecord {
   return {
     id: row.id as string,
     ownerId: row.owner_id as string,
@@ -97,7 +148,9 @@ function mapRecipe(row: Row, lines: KitchenRecipeLineRecord[], steps: string[]):
     updatedAt: new Date(row.updated_at as string),
     deletedAt: row.deleted_at ? new Date(row.deleted_at as string) : null,
     lines,
-    steps,
+    steps: steps.map((s) => s.text),
+    guidedSteps: steps,
+    tools: jsonArray(row.tools, isString),
     savedBy: Number(row.saved_by ?? 0),
     lastCookedAt: row.last_cooked_at ? new Date(row.last_cooked_at as string) : null,
   };
@@ -112,10 +165,10 @@ const NOT_FOUND: KitchenResult<never> = { ok: false, error: { kind: "not_found" 
 /** A refused recipe write: a taken link code, a food not on the list, a value out of range. */
 function writeError(err: unknown): KitchenResult<never> {
   if (isUniqueViolation(err)) {
-    // The one-main index is a unique one too; anything else unique is the link code.
-    if (/kitchen_recipe_lines/.test(err instanceof Error ? err.message : String(err))) {
-      return { ok: false, error: { kind: "invalid", reason: "two_main_lines" } };
-    }
+    // The one-main index and a step's key are unique too; anything else unique is the link code.
+    const message = err instanceof Error ? err.message : String(err);
+    if (/kitchen_recipe_lines/.test(message)) return { ok: false, error: { kind: "invalid", reason: "two_main_lines" } };
+    if (/kitchen_recipe_steps/.test(message)) return { ok: false, error: { kind: "invalid", reason: "duplicate_step_key" } };
     return { ok: false, error: { kind: "conflict", entity: "kitchen_recipe_link" } };
   }
   if (isForeignKeyViolation(err)) return { ok: false, error: { kind: "invalid", reason: "unknown_food" } };
@@ -138,9 +191,42 @@ function insertLines(recipe: string, json: string, guard = ""): string {
           FROM json_each(${json})${guard ? ` WHERE ${guard}` : ""}`;
 }
 
+/**
+ * The steps as one JSON parameter: each one's position is its index; a plain
+ * string is a cook step of text only; a step with no key gets one in SQL.
+ */
+function stepsJson(steps: readonly NewKitchenRecipeStep[]): string {
+  return JSON.stringify(
+    steps.map((step) => {
+      const s = typeof step === "string" ? { text: step } : step;
+      return {
+        k: s.key ?? null,
+        x: s.text,
+        p: s.phase ?? "cook",
+        l: JSON.stringify(s.lineRefs ?? []),
+        h: s.heat ?? null,
+        mn: s.minSeconds ?? null,
+        mx: s.maxSeconds ?? null,
+        w: s.whistles ?? null,
+        o: s.handsOff ? 1 : 0,
+        r: s.timeRule ?? "fixed",
+        c: s.checkpoint ?? null,
+        s: s.sense ?? null,
+        t: s.tip ?? null,
+      };
+    }),
+  );
+}
+
+/** Insert the steps in `$json` (see `stepsJson`) for recipe `$recipe`, when `guard` holds. */
 function insertSteps(recipe: string, json: string, guard = ""): string {
-  return `INSERT INTO kitchen_recipe_steps (recipe_id, position, text)
-          SELECT ${recipe}, CAST(key AS INTEGER), value FROM json_each(${json})${guard ? ` WHERE ${guard}` : ""}`;
+  return `INSERT INTO kitchen_recipe_steps (${STEP_COLUMNS})
+          SELECT ${recipe}, CAST(key AS INTEGER), json_extract(value, '$.x'),
+                 COALESCE(json_extract(value, '$.k'), lower(hex(randomblob(16)))), json_extract(value, '$.p'),
+                 json_extract(value, '$.l'), json_extract(value, '$.h'), json_extract(value, '$.mn'), json_extract(value, '$.mx'),
+                 json_extract(value, '$.w'), json_extract(value, '$.o'), json_extract(value, '$.r'), json_extract(value, '$.c'),
+                 json_extract(value, '$.s'), json_extract(value, '$.t')
+          FROM json_each(${json})${guard ? ` WHERE ${guard}` : ""}`;
 }
 
 export function createRecipesRepository(executor: SqlExecutor): RecipesRepository {
@@ -155,7 +241,7 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
         [ids],
       ),
       executor.execute(
-        `SELECT recipe_id, position, text FROM kitchen_recipe_steps
+        `SELECT ${STEP_COLUMNS} FROM kitchen_recipe_steps
          WHERE recipe_id IN (SELECT value FROM json_each($1)) ORDER BY recipe_id, position`,
         [ids],
       ),
@@ -166,10 +252,10 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
       list.push(mapLine(row));
       linesOf.set(row.recipe_id as string, list);
     }
-    const stepsOf = new Map<string, string[]>();
+    const stepsOf = new Map<string, KitchenRecipeStepRecord[]>();
     for (const row of steps.rows) {
       const list = stepsOf.get(row.recipe_id as string) ?? [];
-      list.push(row.text as string);
+      list.push(mapStep(row));
       stepsOf.set(row.recipe_id as string, list);
     }
     return rows.map((row) => mapRecipe(row, linesOf.get(row.id as string) ?? [], stepsOf.get(row.id as string) ?? []));
@@ -240,15 +326,16 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
         {
           text: `INSERT INTO kitchen_recipes (
                    id, owner_id, name, serves_half, minutes, visibility, link_code, source_recipe_id, source_owner_id,
-                   source_owner_name, is_system, kind, created_at, updated_at
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12, $12)`,
+                   source_owner_name, is_system, kind, tools, created_at, updated_at
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12, $13, $13)`,
           params: [
             input.id, input.ownerId, input.name, input.servesHalf, input.minutes, input.visibility, input.linkCode,
-            input.source?.recipeId ?? null, input.source?.ownerId ?? null, input.source?.ownerName ?? null, input.kind, input.now,
+            input.source?.recipeId ?? null, input.source?.ownerId ?? null, input.source?.ownerName ?? null, input.kind,
+            JSON.stringify(input.tools ?? []), input.now,
           ],
         },
         { text: insertLines("$1", "$2"), params: [input.id, linesJson(input.lines)] },
-        { text: insertSteps("$1", "$2"), params: [input.id, JSON.stringify(input.steps)] },
+        { text: insertSteps("$1", "$2"), params: [input.id, stepsJson(input.steps)] },
       ];
       try {
         await executeBatch(executor, statements);
@@ -272,6 +359,7 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
       if (changes.servesHalf !== undefined) sets.push(`serves_half = ${params.add(changes.servesHalf)}`);
       if (changes.minutes !== undefined) sets.push(`minutes = ${params.add(changes.minutes)}`);
       if (changes.kind !== undefined) sets.push(`kind = ${params.add(changes.kind)}`);
+      if (changes.tools !== undefined) sets.push(`tools = ${params.add(JSON.stringify(changes.tools))}`);
       if (changes.visibility !== undefined) {
         const visibility = params.add(changes.visibility);
         sets.push(`visibility = ${visibility}`);
@@ -289,7 +377,7 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
       if (steps) {
         statements.push(
           { text: `DELETE FROM kitchen_recipe_steps WHERE recipe_id = $1 AND ${OWNED_EXISTS}`, params: [recipeId, ownerId] },
-          { text: insertSteps("$1", "$3", OWNED_EXISTS), params: [recipeId, ownerId, JSON.stringify(steps)] },
+          { text: insertSteps("$1", "$3", OWNED_EXISTS), params: [recipeId, ownerId, stepsJson(steps)] },
         );
       }
       try {
@@ -337,6 +425,55 @@ export function createRecipesRepository(executor: SqlExecutor): RecipesRepositor
       try {
         const recipe = await findRecipe("r.id = $2", [ownerId, recipeId]);
         return recipe ? { ok: true, value: recipe } : NOT_FOUND;
+      } catch (err) {
+        return internal(err);
+      }
+    },
+
+    async setRecipeStepTimes({ recipeId, ownerId, steps, now }) {
+      const json = JSON.stringify(steps.map((s) => ({ k: s.key, mn: s.minSeconds, mx: s.maxSeconds })));
+      const wanted = "(SELECT j.value FROM json_each($3) j WHERE json_extract(j.value, '$.k') = kitchen_recipe_steps.step_key)";
+      const statements: SqlStatement[] = [
+        { text: `UPDATE kitchen_recipes SET updated_at = $3 WHERE ${OWNED} RETURNING id`, params: [recipeId, ownerId, now] },
+        {
+          // Both ends in one statement: the table keeps min ≤ max at every row.
+          text: `UPDATE kitchen_recipe_steps
+                 SET min_seconds = json_extract(${wanted}, '$.mn'), max_seconds = json_extract(${wanted}, '$.mx')
+                 WHERE recipe_id = $1 AND whistles IS NULL
+                   AND step_key IN (SELECT json_extract(value, '$.k') FROM json_each($3))
+                   AND ${OWNED_EXISTS}`,
+          params: [recipeId, ownerId, json],
+        },
+      ];
+      try {
+        const [updated] = await executeBatch(executor, statements);
+        if (!updated || updated.rows.length === 0) return NOT_FOUND;
+      } catch (err) {
+        return writeError(err);
+      }
+      try {
+        const recipe = await findRecipe("r.id = $2", [ownerId, recipeId]);
+        return recipe ? { ok: true, value: recipe } : NOT_FOUND;
+      } catch (err) {
+        return internal(err);
+      }
+    },
+
+    async recipeRootId(recipeId) {
+      try {
+        const result = await executor.execute(
+          `WITH RECURSIVE chain (id, source_id, hops) AS (
+             SELECT id, source_recipe_id, 0 FROM kitchen_recipes WHERE id = $1
+             UNION ALL
+             SELECT r.id, r.source_recipe_id, chain.hops + 1
+             FROM chain JOIN kitchen_recipes r ON r.id = chain.source_id
+             WHERE chain.hops < $2
+           )
+           SELECT id FROM chain ORDER BY hops DESC LIMIT 1`,
+          [recipeId, MAX_RECIPE_ROOT_HOPS],
+        );
+        const row = result.rows[0];
+        return { ok: true, value: row ? (row.id as Uuid) : null };
       } catch (err) {
         return internal(err);
       }
