@@ -5,7 +5,7 @@
  * active-tab matching are unit-testable.
  */
 
-export type KitchenTabId = "home" | "pantry" | "add" | "groups" | "people";
+export type KitchenTabId = "home" | "pantry" | "add" | "groups" | "people" | "cook" | "money" | "you";
 
 export interface KitchenNavLink {
   id: Exclude<KitchenTabId, "add">;
@@ -13,6 +13,8 @@ export interface KitchenNavLink {
   href: string;
   label: string;
   icon: string;
+  /** The new frame's Cook (RC-2): its icon sits in a filled green rounded square. */
+  featured?: boolean;
 }
 
 /** The centre "+ Add" tab: opens the Add sheet instead of navigating. */
@@ -70,6 +72,54 @@ export function isKitchenTabActive(id: KitchenTabId, pathname: string | null | u
   return id !== "add" && activeKitchenTab(pathname) === id;
 }
 
+// ── The new frame's five tabs (cookpool-recipes RC-2, design §1.2) ─
+
+/**
+ * The new frame (`newFrame()`, everywhere but prod): Home · Pantry · Cook ·
+ * Money · You, a bottom bar on phones and the sidebar from 900px. Cook sits
+ * in the middle with a filled icon; the + tab goes (each tab's main action
+ * sits at its top: Bought on Pantry, Bill and Settle up on Money).
+ */
+export const NEW_FRAME_TABS: readonly KitchenNavLink[] = [
+  { id: "home", kind: "link", href: "/home", label: "Home", icon: "House" },
+  { id: "pantry", kind: "link", href: "/pantry", label: "Pantry", icon: "Refrigerator" },
+  { id: "cook", kind: "link", href: "/cook", label: "Cook", icon: "CookingPot", featured: true },
+  { id: "money", kind: "link", href: "/money", label: "Money", icon: "Wallet" },
+  { id: "you", kind: "link", href: "/you", label: "You", icon: "CircleUserRound" },
+];
+
+/** The phone's tabs in a frame: today's five (with + Add) or the new frame's. */
+export function kitchenTabs(newFrame: boolean): readonly KitchenNavItem[] {
+  return newFrame ? NEW_FRAME_TABS : KITCHEN_TABS;
+}
+
+// Paths that belong to a new-frame tab besides its own. Use is Home's first
+// field; a dish, and the recipe and session screens still to come, are
+// cooking; people, settling up and groups are money (design §1.3: money
+// lives in Money).
+const NEW_FRAME_PREFIXES: Partial<Record<KitchenNavLink["id"], readonly string[]>> = {
+  home: ["/use"],
+  cook: ["/dishes", "/recipes", "/explore", "/r"],
+  money: ["/people", "/settle", "/groups", "/join"],
+};
+
+/** The new frame's tab a pathname belongs to: a tab's own path or under it, or one of its extra prefixes. */
+export function activeNewFrameTab(pathname: string | null | undefined): KitchenNavLink["id"] | null {
+  if (!pathname) return null;
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  for (const link of NEW_FRAME_TABS) {
+    const prefixes = [link.href, ...(NEW_FRAME_PREFIXES[link.id] ?? [])];
+    if (prefixes.some((p) => underPrefix(p, path))) return link.id;
+  }
+  return null;
+}
+
+/** Whether a tab is the current page's, in a frame (never + Add). */
+export function isTabActiveIn(newFrame: boolean, id: KitchenTabId, pathname: string | null | undefined): boolean {
+  if (id === "add") return false;
+  return newFrame ? activeNewFrameTab(pathname) === id : isKitchenTabActive(id, pathname);
+}
+
 // ── The sidebar's "Me" (SI-6) ─────────────────────────────────────
 
 /** A sidebar link: the tabs' links, and "Me". */
@@ -78,6 +128,8 @@ export interface KitchenSidebarLink {
   href: string;
   label: string;
   icon: string;
+  /** The new frame's Cook: its icon in a filled green rounded square. */
+  featured?: boolean;
 }
 
 /**
@@ -89,6 +141,11 @@ export const KITCHEN_SIDEBAR_LINKS: readonly KitchenSidebarLink[] = [
   ...KITCHEN_NAV_LINKS,
   { id: "you", href: "/you", label: "Me", icon: "CircleUserRound" },
 ];
+
+/** The sidebar's links in a frame: today's (with "Me"), or the new frame's five tabs. */
+export function sidebarLinks(newFrame: boolean): readonly KitchenSidebarLink[] {
+  return newFrame ? NEW_FRAME_TABS : KITCHEN_SIDEBAR_LINKS;
+}
 
 /** Whether a sidebar link is the current page's: "Me" on /you, the rest as their tabs. */
 export function isSidebarLinkActive(id: KitchenSidebarLink["id"], pathname: string | null | undefined): boolean {

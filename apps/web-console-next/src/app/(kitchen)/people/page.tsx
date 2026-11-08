@@ -7,8 +7,10 @@ import { X } from "lucide-react";
 import type { MyBalancesResponse } from "@saas/contracts/kitchen";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { cn } from "@/lib/cn";
+import { newFrame } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { Face } from "@/components/kitchen/faces-ui";
@@ -42,7 +44,15 @@ export default function PeoplePage() {
   return (
     <div className="space-y-4">
       <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">People</h1>
+        {newFrame() ? (
+          // In the new frame People is reached from Money, not a tab (cookpool-recipes RC-2): it has a Back.
+          <div className="flex min-w-0 items-center gap-1">
+            <BackButton />
+            <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">People</h1>
+          </div>
+        ) : (
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">People</h1>
+        )}
         {group ? (
           <Link
             href="/people"

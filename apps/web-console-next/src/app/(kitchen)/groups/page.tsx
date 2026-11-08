@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Plus, Search, Ticket } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { newFrame } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SkeletonRow } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
+import { BackButton } from "@/components/kitchen/back-ui";
 import { useGroups } from "@/components/kitchen/data";
 import { filterGroups, sortGroups } from "@/components/kitchen/groups";
 import { groupListRow, showGroupSearch } from "@/components/kitchen/group-page";
@@ -71,7 +73,15 @@ export default function GroupsPage() {
   return (
     <div className="space-y-4 min-[900px]:max-w-2xl">
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Groups</h1>
+        {newFrame() ? (
+          // In the new frame Groups is reached from Money, not a tab (cookpool-recipes RC-2): it has a Back.
+          <div className="flex min-w-0 items-center gap-1">
+            <BackButton />
+            <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Groups</h1>
+          </div>
+        ) : (
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Groups</h1>
+        )}
         <button
           type="button"
           aria-label="New group or join"

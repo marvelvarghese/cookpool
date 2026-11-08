@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, RotateCw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { OFFLINE_BANNER_TEXT, isOffline } from "@/lib/connection";
+import { newFrame } from "@/lib/features";
 import {
   EDGE_FRACTION,
   PULL_HOLD_PX,
@@ -184,7 +185,7 @@ export function EdgeSwipeBack({
   const pathname = usePathname();
   const [env, setEnv] = React.useState<EdgeSwipeEnv | null>(null);
   React.useEffect(() => setEnv(readEdgeSwipeEnv()), []);
-  const on = env !== null && edgeSwipeBackOn(env, pathname);
+  const on = env !== null && edgeSwipeBackOn(env, pathname, newFrame());
 
   // The screen's back control's action; the address's rule while none is shown (loading).
   const addressBack = useBack();
