@@ -39,6 +39,7 @@ export type FoodsRepository = Pick<
   | "setAlwaysHave"
   | "listFoodItems"
   | "listUnlinkedItems"
+  | "itemFoods"
 >;
 
 /** What a person always has until they save their own list (contracts' DEFAULT_ALWAYS_HAVE). */
@@ -251,6 +252,19 @@ export function createFoodsRepository(executor: SqlExecutor): FoodsRepository {
           params.values,
         );
         return { ok: true, value: result.rows.map((row) => ({ item: mapItem(row), foodKey: row.food_key as string })) };
+      } catch (err) {
+        return internal(err);
+      }
+    },
+
+    async itemFoods(itemIds) {
+      if (itemIds.length === 0) return { ok: true, value: new Map() };
+      try {
+        const result = await executor.execute(
+          "SELECT id, food_key FROM kitchen_items WHERE id IN (SELECT value FROM json_each($1))",
+          [JSON.stringify([...new Set(itemIds)])],
+        );
+        return { ok: true, value: new Map(result.rows.map((row) => [row.id as string, (row.food_key as string | null) ?? null])) };
       } catch (err) {
         return internal(err);
       }

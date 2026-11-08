@@ -755,6 +755,8 @@ export interface KitchenRepository {
    * pantry (the newest), newest first.
    */
   listUnlinkedItems(scope: KitchenPantryScope, limit: number): Promise<KitchenResult<KitchenItemRecord[]>>;
+  /** The food each of these items links to (null when unlinked; unknown ids are left out). ONE read. */
+  itemFoods(itemIds: readonly string[]): Promise<KitchenResult<Map<string, string | null>>>;
 
   // ── Recipes (RC-4) ──
 
