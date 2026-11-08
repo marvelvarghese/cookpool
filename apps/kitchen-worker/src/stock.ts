@@ -1,12 +1,14 @@
 // What every stock handler shares (CP-11): the public shape of a move, the
 // request bodies of a use and of waste, a quantity in the item's dimension,
 // taking stock with one retry when the item moved on, undoing a move, and how
-// a refused stock write becomes a response.
+// a refused stock write becomes a response. The stock check (PN-4,
+// ./handlers/stock-check.ts) writes through the same takeStock and undoMove.
 
 import { KITCHEN_ERROR_REASONS, type KitchenStockMove } from "@saas/contracts/kitchen";
 import type { AppendEventWithAuditInput } from "@saas/db/events";
 import { asUuid, type Uuid } from "@saas/db/ids";
 import type {
+  AdjustStockInput,
   KitchenItemRecord,
   KitchenPantryOwner,
   KitchenRepository,
@@ -32,8 +34,8 @@ export const MAX_MOVES_LIMIT = 200;
 export const DEFAULT_USUALS_LIMIT = 10;
 export const MAX_USUALS_LIMIT = 50;
 
-/** The kinds of move an undo can put back directly: everything else is not_reversible. */
-const UNDOABLE: ReadonlySet<string> = new Set(["use", "waste"]);
+/** The kinds of move an undo can put back directly: everything else is not_reversible. An adjust is a stock check's (PN-4). */
+const UNDOABLE: ReadonlySet<string> = new Set(["use", "waste", "adjust"]);
 
 // ── Public shapes ──────────────────────────────────────────
 
@@ -60,6 +62,8 @@ export function toStockMove(record: KitchenStockMoveRecord, item: KitchenItemRec
     at: record.createdAt.toISOString(),
     undone: record.undoneBy !== null,
     undoneBy: record.undoneBy ? toPublicId("mov", record.undoneBy) : null,
+    // Only on a move a stock check (PN-4) or an approved ask (PN-8) wrote.
+    ...(record.via ? { via: record.via } : {}),
   };
 }
 
@@ -271,9 +275,23 @@ export function stockErrorResponse(requestId: string, error: KitchenRepositoryEr
   }
 }
 
+/**
+ * What a stock write is: a use or waste logged directly, or a stock check
+ * (PN-4), whose move may be a use, waste or adjust but always says `via: check`.
+ */
+export type StockRequestKind = "use" | "waste" | "check";
+
 /** A replayed move answers the same request only if it is the same kind of move by the same person. */
-function sameRequest(move: KitchenStockMoveRecord, kind: string, actor: string): boolean {
-  return move.kind === kind && move.actor === actor;
+function sameRequest(move: KitchenStockMoveRecord, kind: StockRequestKind, actor: string): boolean {
+  if (move.actor !== actor) return false;
+  return kind === "check" ? move.via === "check" : move.kind === kind && move.via === null;
+}
+
+/** A write `takeStock` plans: take some (a use or waste), or raise what is left (a check's adjust). */
+export type StockWrite = TakeStockInput | AdjustStockInput;
+
+function isAdjust(input: StockWrite): input is AdjustStockInput {
+  return input.move.kind === "adjust";
 }
 
 /** The move a key already made on the item, with the item and its transaction as they are now. */
@@ -295,17 +313,18 @@ async function replayed(
 }
 
 /**
- * Use or waste some of an item. `plan` computes the write from the item as
- * just read — what it costs depends on what is left — or answers a refusal.
- * A write that lost a race (`stale`) is planned again from a fresh read,
- * once; a second loss is 409 `stale`. A key that already made a move on this
- * item answers with that move.
+ * Use or waste some of an item — or check it (PN-4), which uses, wastes or
+ * raises it. `plan` computes the write from the item as just read — what it
+ * costs depends on what is left — or answers a refusal. A write that lost a
+ * race (`stale`) is planned again from a fresh read, once; a second loss is
+ * 409 `stale`. A key that already made a move on this item answers with that
+ * move.
  */
 export async function takeStock(
   ctx: RequestContext,
   repo: KitchenRepository,
-  request: { owner: KitchenPantryOwner; itemId: Uuid; kind: "use" | "waste"; idemKey: string },
-  plan: (item: KitchenItemRecord) => Promise<TakeStockInput | Response>,
+  request: { owner: KitchenPantryOwner; itemId: Uuid; kind: StockRequestKind; idemKey: string },
+  plan: (item: KitchenItemRecord) => Promise<StockWrite | Response>,
 ): Promise<StockMoved | Response> {
   const { owner, itemId, kind, idemKey } = request;
   const prior = await ctx.timings.measure("db", () => repo.getMoveByIdemKey(owner, itemId, idemKey));
@@ -320,7 +339,7 @@ export async function takeStock(
     if (!found.ok) return itemErrorResponse(ctx.requestId, found.error);
     const input = await plan(found.value);
     if (input instanceof Response) return input;
-    const result = await ctx.timings.measure("db", () => repo.takeStock(input));
+    const result = await ctx.timings.measure("db", () => (isAdjust(input) ? repo.adjustStock(input) : repo.takeStock(input)));
     if (result.ok) {
       if (result.value.replayed && !sameRequest(result.value.move, kind, ctx.actor.subjectId)) {
         return idempotencyKeyReused(ctx.requestId);
@@ -346,6 +365,11 @@ export interface UndoOptions {
  * Put back a move that moved no money: only a use or waste, only the latest
  * move still in effect on its item, and once. A move with a transaction is
  * undone by reversing the transaction. One retry when the item moved on.
+ *
+ * A stock check's adjust (PN-4) is taken back off rather than put back. It
+ * cost nothing, so later uses never depend on it: it may be undone whenever
+ * what it added is still all there, latest or not — 409
+ * `insufficient_stock` once it is not.
  */
 export async function undoMove(
   ctx: RequestContext,
@@ -379,7 +403,16 @@ export async function undoMove(
         { txnId: toPublicId("txn", move.txnId) },
       );
     }
-    if (latestMoveId !== move.id) {
+    if (move.kind === "adjust") {
+      if (item.qtyLeftMilli < move.qtyMilli) {
+        return conflict(
+          ctx.requestId,
+          "What the stock check added has been used since: check it again instead",
+          KITCHEN_ERROR_REASONS.INSUFFICIENT_STOCK,
+          { qtyLeftMilli: item.qtyLeftMilli },
+        );
+      }
+    } else if (latestMoveId !== move.id) {
       return conflict(ctx.requestId, "Only the latest change to an item can be undone", KITCHEN_ERROR_REASONS.NOT_LATEST, {
         latestMoveId: latestMoveId ? toPublicId("mov", latestMoveId) : null,
       });

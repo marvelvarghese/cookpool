@@ -801,6 +801,13 @@ export interface KitchenStockMove {
   undone: boolean;
   /** That reversal's `mov_…`. */
   undoneBy: string | null;
+  /**
+   * What wrote it, when it was not logged directly (cookpool-pantry PN-4,
+   * migration 410): `check` on the use, waste or adjust a stock check wrote
+   * (see ./kitchen-stock-check.ts), `ask` on the use an approved ask posts
+   * (PN-8). Absent on every other move, reversals included.
+   */
+  via?: "check" | "ask";
 }
 
 /**
@@ -2038,3 +2045,7 @@ export * from "./kitchen-recipes.js";
 // ./kitchen-timers.ts (also `@saas/contracts/kitchen-timers`).
 
 export * from "./kitchen-timers.js";
+
+// The stock check (cookpool-pantry PN-4): setting what is really left of an
+// item — ./kitchen-stock-check.ts (also through `@saas/contracts/kitchen`).
+export * from "./kitchen-stock-check.js";

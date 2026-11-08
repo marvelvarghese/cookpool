@@ -3,8 +3,17 @@ import {
   type MovesResponse,
   type StockMoveResponse,
 } from "@saas/contracts/kitchen";
-import { asUuid } from "@saas/db/ids";
-import type { KitchenGroupSettings, KitchenPantryOwner, KitchenRepository, KitchenSplit, StockMoved } from "@saas/db/kitchen";
+import { asUuid, type Uuid } from "@saas/db/ids";
+import type {
+  KitchenGroupSettings,
+  KitchenItemRecord,
+  KitchenPantryOwner,
+  KitchenRepository,
+  KitchenSplit,
+  KitchenStockMoveVia,
+  StockMoved,
+  TakeStockInput,
+} from "@saas/db/kitchen";
 import { buildUse, buildWaste, type Split } from "@saas/kitchen-engine/ledger";
 import { costOfUse, formatMinor } from "@saas/kitchen-engine/money";
 import { formatQuantity } from "@saas/kitchen-engine/units";
@@ -84,9 +93,9 @@ function toSplits(splits: readonly Split[]): KitchenSplit[] {
 /**
  * 201 with the item as it is now (in this group's pantry, with its measures —
  * `known` when the write read them already, else read here), the move and its
- * transaction.
+ * transaction. The stock check (PN-4) answers with it too.
  */
-async function moved(
+export async function moved(
   ctx: OrgContext,
   repo: KitchenRepository,
   group: MemberGroup,
@@ -105,6 +114,200 @@ async function moved(
     ctx.requestId,
     201,
   );
+}
+
+/** A use to write, from the item as just read: how much, in which unit and words, and who had it. */
+export interface GroupUse {
+  qtyMilli: number;
+  unit: string;
+  /** "2 onions" for a use in a measure (SM-13); null for one in a unit. */
+  label: string | null;
+  consumers: readonly string[];
+  /** Absent or null: equal shares. */
+  weights?: readonly number[] | null;
+  idemKey: string;
+  /** `check` when a stock check writes it (PN-4); absent when it is logged directly. */
+  via?: KitchenStockMoveVia | null;
+}
+
+/** " · stock check" on what a check writes, so the group's Activity says why it was charged (PN-4). */
+function viaNote(via: KitchenStockMoveVia | null | undefined): string {
+  return via === "check" ? " · stock check" : "";
+}
+
+/**
+ * The write a use of a group item makes (CP-11): the move, and the `use`
+ * transaction paying the buyer back — the consumers owe its cost, equally
+ * or by weight — unless it moves no money (every consumer is the buyer).
+ * …/uses and the stock check's `me` and `split` (PN-4) write it.
+ */
+export function planGroupUse(ctx: OrgContext, item: KitchenItemRecord, use: GroupUse): TakeStockInput {
+  const actor = ctx.actor.subjectId;
+  const { qtyMilli, unit, label, consumers, idemKey } = use;
+  const via = use.via ?? null;
+  // A measure only decides how much is taken: what that costs is the
+  // engine's proportional cost, as for any use.
+  const costMinor = costOfUse(item, qtyMilli);
+  const splits = buildUse({
+    costMinor,
+    buyerId: item.paidBy,
+    consumers,
+    ...(use.weights ? { weights: use.weights } : {}),
+  });
+  const moveId = asUuid(crypto.randomUUID());
+  const txnId = asUuid(crypto.randomUUID());
+  const now = ctx.now();
+  // In the words it was given in: "2 onions", else "250 ml".
+  const what = label ?? formatQuantity(qtyMilli, item.dimension, unit);
+  const posts = movesMoney(splits);
+  return {
+    owner: owner(ctx),
+    itemId: item.id as Uuid,
+    expectedVersion: item.version,
+    move: { id: moveId, kind: "use", qtyMilli, costMinor, unit, label, consumers, actor, idemKey, now, via },
+    txn: posts
+      ? {
+          txn: {
+            id: txnId,
+            orgId: ctx.orgId,
+            kind: "use",
+            title: `${item.name} (${what})${viaNote(via)}`,
+            totalMinor: costMinor,
+            currency: item.currency,
+            occurredAt: now,
+            createdBy: actor,
+            sourceKind: "item",
+            sourceId: item.id,
+            idemKey,
+            now,
+          },
+          splits: toSplits(splits),
+        }
+      : null,
+    audit: ledgerAudit(ctx, {
+      type: "kitchen.item.used",
+      subjectKind: "kitchen_item",
+      subjectId: item.id,
+      idemKey,
+      description:
+        `Use ${toPublicId("mov", moveId)} of item ${toPublicId("itm", item.id)} "${item.name}": ${what} ` +
+        `for ${consumers.join(", ")}, ${formatMinor(costMinor, item.currency)} back to ${item.paidBy}${viaNote(via)}`,
+      payload: {
+        itemId: toPublicId("itm", item.id),
+        moveId: toPublicId("mov", moveId),
+        txnId: posts ? toPublicId("txn", txnId) : null,
+        qtyMilli,
+        unit,
+        label,
+        costMinor,
+        currency: item.currency,
+        paidBy: item.paidBy,
+        consumers,
+        ...(via ? { via } : {}),
+      },
+    }),
+  };
+}
+
+/** Waste to write, from the item as just read. */
+export interface GroupWaste {
+  qtyMilli: number;
+  unit: string;
+  idemKey: string;
+  /** `check` when a stock check writes it (PN-4); absent when it is logged directly. */
+  via?: KitchenStockMoveVia | null;
+}
+
+/**
+ * The write wasting some of a group item makes (CP-11), under its own rule,
+ * else the group's: split equally posts a `waste` transaction every current
+ * member shares; buyer absorbs records the move only. Nothing (or more than
+ * is left) is 409 `insufficient_stock`. …/waste and the stock check's
+ * `waste` (PN-4) write it.
+ */
+export async function planGroupWaste(
+  ctx: OrgContext,
+  item: KitchenItemRecord,
+  waste: GroupWaste,
+  settings: KitchenGroupSettings | null,
+): Promise<TakeStockInput | Response> {
+  const actor = ctx.actor.subjectId;
+  const { qtyMilli, unit, idemKey } = waste;
+  const via = waste.via ?? null;
+  if (qtyMilli === 0 || qtyMilli > item.qtyLeftMilli) return insufficientStock(ctx.requestId, item.qtyLeftMilli);
+
+  // What the wasted part was worth: the buyer absorbs it, or every
+  // current member shares it equally.
+  const costMinor = costOfUse(item, qtyMilli);
+  const policy = item.wastePolicy ?? wastePolicyOf(settings);
+  let splits: Split[] = [];
+  if (policy === "split_equally" && costMinor > 0) {
+    const roster = await ctx.timings.measure("roster", () => ctx.roster.members(ctx.orgId));
+    if (!roster.ok) return unavailable(ctx.requestId);
+    splits = buildWaste({ unusedMinor: costMinor, buyerId: item.paidBy, members: roster.members.map((m) => m.subjectId) });
+  }
+  const moveId = asUuid(crypto.randomUUID());
+  const txnId = asUuid(crypto.randomUUID());
+  const now = ctx.now();
+  const what = formatQuantity(qtyMilli, item.dimension, unit);
+  const posts = movesMoney(splits);
+  return {
+    owner: owner(ctx),
+    itemId: item.id as Uuid,
+    expectedVersion: item.version,
+    move: { id: moveId, kind: "waste", qtyMilli, costMinor, unit, consumers: null, actor, idemKey, now, via },
+    txn: posts
+      ? {
+          txn: {
+            id: txnId,
+            orgId: ctx.orgId,
+            kind: "waste",
+            title: `Wasted: ${item.name} (${what})${viaNote(via)}`,
+            totalMinor: costMinor,
+            currency: item.currency,
+            occurredAt: now,
+            createdBy: actor,
+            sourceKind: "item",
+            sourceId: item.id,
+            idemKey,
+            now,
+          },
+          splits: toSplits(splits),
+        }
+      : null,
+    audit: ledgerAudit(ctx, {
+      type: "kitchen.item.wasted",
+      subjectKind: "kitchen_item",
+      subjectId: item.id,
+      idemKey,
+      description:
+        `Waste ${toPublicId("mov", moveId)} of item ${toPublicId("itm", item.id)} "${item.name}": ${what} worth ` +
+        `${formatMinor(costMinor, item.currency)}, ${posts ? "split equally" : `absorbed by ${item.paidBy}`}${viaNote(via)}`,
+      payload: {
+        itemId: toPublicId("itm", item.id),
+        moveId: toPublicId("mov", moveId),
+        txnId: posts ? toPublicId("txn", txnId) : null,
+        qtyMilli,
+        unit,
+        costMinor,
+        currency: item.currency,
+        paidBy: item.paidBy,
+        wastePolicy: policy,
+        ...(via ? { via } : {}),
+      },
+    }),
+  };
+}
+
+/**
+ * Committed: tell the people a use was logged for (CP-18). A use that moved
+ * no money (everyone who had it bought it) has no transaction and no email,
+ * and neither has waste.
+ */
+export async function emailUse(ctx: OrgContext, result: StockMoved, group: MemberGroup): Promise<void> {
+  const txn = result.txn;
+  if (!txn || result.move.kind !== "use") return;
+  await ctx.defer(() => emailLoggedForYou(ctx, { kind: "use", txn, item: result.item, move: result.move }, group));
 }
 
 export async function handleUseGroupItem(ctx: OrgContext, request: Request, params: readonly string[]): Promise<Response> {
@@ -147,87 +350,10 @@ export async function handleUseGroupItem(ctx: OrgContext, request: Request, para
     const result = await takeStock(ctx, repo, { owner: owner(ctx), itemId, kind: "use", idemKey: idem.key }, async (item) => {
       const qty = await useAmount(ctx.requestId, item, use, async () => (measures = await readMeasures(ctx, repo, [item])));
       if (qty instanceof Response) return qty;
-
-      // A measure only decides how much is taken: what that costs is the
-      // engine's proportional cost, as for any use.
-      const costMinor = costOfUse(item, qty.qtyMilli);
-      const splits = buildUse({
-        costMinor,
-        buyerId: item.paidBy,
-        consumers,
-        ...(use.weights ? { weights: use.weights } : {}),
-      });
-      const moveId = asUuid(crypto.randomUUID());
-      const txnId = asUuid(crypto.randomUUID());
-      const now = ctx.now();
-      // In the words it was given in: "2 onions", else "250 ml".
-      const what = qty.label ?? formatQuantity(qty.qtyMilli, item.dimension, qty.unit);
-      const posts = movesMoney(splits);
-      return {
-        owner: owner(ctx),
-        itemId,
-        expectedVersion: item.version,
-        move: {
-          id: moveId,
-          kind: "use",
-          qtyMilli: qty.qtyMilli,
-          costMinor,
-          unit: qty.unit,
-          label: qty.label,
-          consumers,
-          actor,
-          idemKey: idem.key,
-          now,
-        },
-        txn: posts
-          ? {
-              txn: {
-                id: txnId,
-                orgId: ctx.orgId,
-                kind: "use",
-                title: `${item.name} (${what})`,
-                totalMinor: costMinor,
-                currency: item.currency,
-                occurredAt: now,
-                createdBy: actor,
-                sourceKind: "item",
-                sourceId: item.id,
-                idemKey: idem.key,
-                now,
-              },
-              splits: toSplits(splits),
-            }
-          : null,
-        audit: ledgerAudit(ctx, {
-          type: "kitchen.item.used",
-          subjectKind: "kitchen_item",
-          subjectId: item.id,
-          idemKey: idem.key,
-          description:
-            `Use ${toPublicId("mov", moveId)} of item ${toPublicId("itm", item.id)} "${item.name}": ${what} ` +
-            `for ${consumers.join(", ")}, ${formatMinor(costMinor, item.currency)} back to ${item.paidBy}`,
-          payload: {
-            itemId: toPublicId("itm", item.id),
-            moveId: toPublicId("mov", moveId),
-            txnId: posts ? toPublicId("txn", txnId) : null,
-            qtyMilli: qty.qtyMilli,
-            unit: qty.unit,
-            label: qty.label,
-            costMinor,
-            currency: item.currency,
-            paidBy: item.paidBy,
-            consumers,
-          },
-        }),
-      };
+      return planGroupUse(ctx, item, { ...qty, consumers, weights: use.weights, idemKey: idem.key });
     });
     if (result instanceof Response) return result;
-    // Committed: tell the people it was logged for (CP-18). A use that moved
-    // no money (everyone who had it bought it) has no transaction and no email.
-    const txn = result.txn;
-    if (txn) {
-      await ctx.defer(() => emailLoggedForYou(ctx, { kind: "use", txn, item: result.item, move: result.move }, here.group));
-    }
+    await emailUse(ctx, result, here.group);
     return moved(ctx, repo, here.group, settings.value, result, measures);
   });
 }
@@ -251,7 +377,6 @@ export async function handleWasteGroupItem(ctx: OrgContext, request: Request, pa
   return withKitchenRepo(ctx, async (repo) => {
     const settings = await ctx.timings.measure("db", () => repo.getGroupSettings(ctx.orgId));
     if (!settings.ok) return unavailable(ctx.requestId);
-    const actor = ctx.actor.subjectId;
 
     const result = await takeStock(ctx, repo, { owner: owner(ctx), itemId, kind: "waste", idemKey: idem.key }, async (item) => {
       let qtyMilli = item.qtyLeftMilli;
@@ -261,68 +386,7 @@ export async function handleWasteGroupItem(ctx: OrgContext, request: Request, pa
         if (!qty.ok) return validationError(ctx.requestId, qty.fields);
         ({ qtyMilli, unit } = qty.value);
       }
-      if (qtyMilli === 0 || qtyMilli > item.qtyLeftMilli) return insufficientStock(ctx.requestId, item.qtyLeftMilli);
-
-      // What the wasted part was worth: the buyer absorbs it, or every
-      // current member shares it equally.
-      const costMinor = costOfUse(item, qtyMilli);
-      const policy = item.wastePolicy ?? wastePolicyOf(settings.value);
-      let splits: Split[] = [];
-      if (policy === "split_equally" && costMinor > 0) {
-        const roster = await ctx.timings.measure("roster", () => ctx.roster.members(ctx.orgId));
-        if (!roster.ok) return unavailable(ctx.requestId);
-        splits = buildWaste({ unusedMinor: costMinor, buyerId: item.paidBy, members: roster.members.map((m) => m.subjectId) });
-      }
-      const moveId = asUuid(crypto.randomUUID());
-      const txnId = asUuid(crypto.randomUUID());
-      const now = ctx.now();
-      const what = formatQuantity(qtyMilli, item.dimension, unit);
-      const posts = movesMoney(splits);
-      return {
-        owner: owner(ctx),
-        itemId,
-        expectedVersion: item.version,
-        move: { id: moveId, kind: "waste", qtyMilli, costMinor, unit, consumers: null, actor, idemKey: idem.key, now },
-        txn: posts
-          ? {
-              txn: {
-                id: txnId,
-                orgId: ctx.orgId,
-                kind: "waste",
-                title: `Wasted: ${item.name} (${what})`,
-                totalMinor: costMinor,
-                currency: item.currency,
-                occurredAt: now,
-                createdBy: actor,
-                sourceKind: "item",
-                sourceId: item.id,
-                idemKey: idem.key,
-                now,
-              },
-              splits: toSplits(splits),
-            }
-          : null,
-        audit: ledgerAudit(ctx, {
-          type: "kitchen.item.wasted",
-          subjectKind: "kitchen_item",
-          subjectId: item.id,
-          idemKey: idem.key,
-          description:
-            `Waste ${toPublicId("mov", moveId)} of item ${toPublicId("itm", item.id)} "${item.name}": ${what} worth ` +
-            `${formatMinor(costMinor, item.currency)}, ${posts ? "split equally" : `absorbed by ${item.paidBy}`}`,
-          payload: {
-            itemId: toPublicId("itm", item.id),
-            moveId: toPublicId("mov", moveId),
-            txnId: posts ? toPublicId("txn", txnId) : null,
-            qtyMilli,
-            unit,
-            costMinor,
-            currency: item.currency,
-            paidBy: item.paidBy,
-            wastePolicy: policy,
-          },
-        }),
-      };
+      return planGroupWaste(ctx, item, { qtyMilli, unit, idemKey: idem.key }, settings.value);
     });
     if (result instanceof Response) return result;
     return moved(ctx, repo, here.group, settings.value, result);
