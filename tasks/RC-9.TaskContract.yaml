@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RC-9
+  title: "The recipes epic on stage"
+spec:
+  goal: "The cookpool-recipes epic reads shipped on stage, with what it shipped as, the as-built table, and the follow-ups the tasks reported; RC5 (prod) stays open for the owner."
+  affects:
+    - specs/epics/cookpool-recipes/**
+    - tasks/RC-9.TaskContract.yaml
+  doneWhen:
+    - "the README status reads shipped on stage and Shipped as lists every pull request"
+    - "RC0 to RC4 read shipped in the plan and the status table; RC5 waits for the owner"
+    - "the follow-ups the tasks reported are listed after the epic"
+  gates: []

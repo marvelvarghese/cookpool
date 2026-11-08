@@ -60,6 +60,9 @@ export const API_READS = Object.freeze([
   "/v1/kitchen/recipes/:recipeId", // a recipe
   "/v1/kitchen/me/recipes/:recipeId/match", // what your pantries hold for it, per factor
   "/v1/kitchen/me/cook-now", // what you can make now (Home, Cook)
+  "/v1/kitchen/recipes", // Explore: Cookpool's recipes and your groups' (RC-8)
+  "/v1/kitchen/people/:subjectId/recipes", // a person's recipes (RC-8)
+  "/v1/kitchen/me/always-have", // Always have, at the bottom of Pantry (RC-8)
 ]);
 
 /** Values a `:name` above never takes: these are typed searches (`items/history?q=`, `dishes/recipes?q=`), not screens. */

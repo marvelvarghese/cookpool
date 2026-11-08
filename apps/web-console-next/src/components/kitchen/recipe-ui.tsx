@@ -14,6 +14,10 @@ import { useProfile } from "./data";
 import { savedCopyOf } from "./cook-hub";
 import { WRITTEN_FACTOR, canEditRecipe, clampFactor, ingredientRows, parseRecipeRef, recipeEditHref, recipeHref, sessionHref, startLine } from "./recipes";
 import { useCopyRecipe, useMyRecipes, useRecipe, useRecipeMatch, useSaveDishAsRecipe } from "./recipes-data";
+import { canShareRecipe } from "./recipe-share";
+import { ShareSheet } from "./recipe-share-ui";
+import { ShareIconButton } from "./recipe-share-views";
+import { FoodAsks } from "./food-ask-ui";
 import {
   HowMuchCard,
   IngredientsSection,
@@ -44,6 +48,10 @@ import {
  *
  * `?f=450` opens it scaled (the session's chip links here so); `?code=` lets
  * a link holder read and match it (RC-8's `/r/<code>`).
+ *
+ * RC-8: the owner's Share icon, beside Edit, opens "Who can see it" (Only
+ * me · My groups · Anyone with the link); and under the ingredients, "Is
+ * Kanda onion onion?" for an unlinked item that may be a missing line's.
  */
 export function RecipeScreen() {
   const recipeId = parseRecipeRef(usePathParam("/recipes/:recipeId", "recipeId"));
@@ -93,19 +101,23 @@ function RecipeView({ recipe, code, initialFactor }: { recipe: KitchenRecipe; co
   const settled = useSettled(factor, MATCH_SETTLE_MS);
   const match = useRecipeMatch(recipe.id, settled, code);
   const rows = ingredientRows(recipe, factor, match.data);
+  const [sharing, setSharing] = React.useState(false);
 
   return (
     <div className="flex w-full max-w-xl flex-col gap-4 pb-2">
       <div className="flex items-center justify-between gap-3">
         <BackButton />
         {canEditRecipe(recipe) ? (
-          <Link
-            href={recipeEditHref(recipe.id)}
-            className="-mr-1 flex min-h-11 items-center gap-1.5 rounded-xl border border-[#C9CFC6] bg-card px-3.5 text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Pencil className="h-4 w-4" strokeWidth={2.2} aria-hidden />
-            Edit
-          </Link>
+          <div className="-mr-1 flex items-center gap-1.5">
+            {canShareRecipe(recipe) ? <ShareIconButton onClick={() => setSharing(true)} /> : null}
+            <Link
+              href={recipeEditHref(recipe.id)}
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#C9CFC6] bg-card px-3.5 text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Pencil className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+              Edit
+            </Link>
+          </div>
         ) : recipe.mine ? null : (
           <SaveCopyButton recipe={recipe} code={code} />
         )}
@@ -117,9 +129,13 @@ function RecipeView({ recipe, code, initialFactor }: { recipe: KitchenRecipe; co
 
       <IngredientsSection rows={rows} match={match.data} failed={!!match.error && !match.data} onRetry={match.reload} />
 
+      <FoodAsks recipe={recipe} match={match.data} />
+
       {recipe.steps.length > 0 ? <StepsSection steps={recipe.steps} /> : null}
 
       <StartCookingBar href={sessionHref(recipe.id, factor)} line={startLine(recipe, factor)} />
+
+      {canShareRecipe(recipe) ? <ShareSheet recipe={recipe} open={sharing} onOpenChange={setSharing} /> : null}
     </div>
   );
 }

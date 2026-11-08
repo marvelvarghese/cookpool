@@ -72,6 +72,10 @@ describe("a person's own screens: network first, the last good answer kept per a
     "/api/v1/kitchen/recipes/rcp_1",
     "/api/v1/kitchen/me/recipes/rcp_1/match?f=450",
     "/api/v1/kitchen/me/cook-now",
+    // Recipes travel (cookpool-recipes RC-8): Explore per source, search and kind; a person's recipes; Always have.
+    "/api/v1/kitchen/recipes?source=groups&q=dal&kind=dal_curry",
+    "/api/v1/kitchen/people/usr_1/recipes",
+    "/api/v1/kitchen/me/always-have",
   ];
 
   it.each(reads)("%s", (path) => expect(get(path)).toEqual({ strategy: "data" }));
@@ -83,6 +87,12 @@ describe("a person's own screens: network first, the last good answer kept per a
       ["PATCH", "/api/v1/kitchen/me/recipes/rcp_1"],
       ["DELETE", "/api/v1/kitchen/me/recipes/rcp_1"],
       ["GET", "/api/v1/kitchen/foods?q=oni"],
+      // RC-8's writes and the link read (a link needs signal).
+      ["POST", "/api/v1/kitchen/me/recipes/rcp_1/link"],
+      ["DELETE", "/api/v1/kitchen/me/recipes/rcp_1/link"],
+      ["PUT", "/api/v1/kitchen/me/always-have"],
+      ["PUT", "/api/v1/kitchen/me/food-answers"],
+      ["GET", "/api/v1/kitchen/recipe-links/AbCdEfGh23"],
     ] as const) {
       expect(classify({ method, url: `${ORIGIN}${path}`, mode: "cors" }, ORIGIN)).toEqual({ strategy: "network-only" });
     }
