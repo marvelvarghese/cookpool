@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronRight, CookingPot, Plus } from "lucide-react";
+import { Bookmark, ChevronRight, CookingPot, Plus } from "lucide-react";
 import type { CookNowEntry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KCard, K_BUTTON } from "./kit";
-import { BLANK_SESSION_HREF, NEW_RECIPE_HREF } from "./recipes";
+import { BLANK_SESSION_HREF, NEW_RECIPE_HREF, recipeHref } from "./recipes";
+import type { PersonRecipeRow } from "./explore";
 import {
   cookNowCounts,
   cookNowFilterLabel,
@@ -23,7 +24,8 @@ import {
 
 /**
  * The lists of recipes as they draw (cookpool-recipes RC-5): the Cook hub
- * and its sections, Home's Cook now strip and You's recipes — from what was
+ * and its sections, Home's Cook now strip and You's recipes; and (RC-8) a
+ * person's recipes with Save on each row — from what was
  * read, with no reads or writes of their own, so each is rendered in tests.
  * `cook-hub-ui.tsx`, `cook-now-slot.tsx` and `profile-ui.tsx` put them over
  * the data.
@@ -371,6 +373,109 @@ export function YourRecipes({
                 </span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
               </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// ── Someone else's recipes (RC-8) ────────────────────────────────
+
+/**
+ * Save on a row: your own copy (outline), "Saved" (tinted) once you have
+ * one — then it opens it. 44 px tall; the bookmark before it on a feed card.
+ */
+export function SaveCopyChip({
+  name,
+  savedId,
+  saving,
+  onSave,
+  icon = false,
+}: {
+  name: string;
+  savedId: string | null;
+  saving: boolean;
+  onSave: () => void;
+  icon?: boolean;
+}) {
+  const base = "flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-[15px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const saved = cn(base, "border border-[#B9DCC8] bg-cp-herb-tint text-[#165C3A]");
+  const mark = (filled: boolean) => (icon ? <Bookmark className={cn("h-4 w-4", filled && "fill-current")} strokeWidth={2.2} aria-hidden /> : null);
+  if (savedId) {
+    return (
+      <Link href={recipeHref(savedId)} className={cn(saved, "hover:bg-[#D3EADC]")}>
+        {mark(true)}
+        Saved
+        <span className="sr-only"> · open your copy of {name}</span>
+      </Link>
+    );
+  }
+  if (saving) {
+    return (
+      <span role="status" aria-busy className={saved}>
+        {mark(true)}
+        Saved
+      </span>
+    );
+  }
+  return (
+    <button type="button" onClick={onSave} className={cn(base, "border border-[#C9CFC6] bg-card hover:bg-accent")}>
+      {mark(false)}
+      Save
+      <span className="sr-only"> {name}</span>
+    </button>
+  );
+}
+
+/** A person's recipes you may see: name, "Serves 4 · 30 min", and each row's Save. */
+export function PersonRecipesView({
+  rows,
+  loading,
+  failed,
+  onReload,
+  renderSave,
+  prefetch,
+}: {
+  rows: readonly PersonRecipeRow[];
+  loading: boolean;
+  failed: boolean;
+  onReload?: (() => void) | undefined;
+  renderSave?: ((row: PersonRecipeRow) => React.ReactNode) | undefined;
+  prefetch?: ((recipeId: string) => void) | undefined;
+}) {
+  return (
+    <section aria-label="Their recipes" className="min-w-0">
+      {loading ? (
+        <div className="space-y-px overflow-hidden rounded-[22px] border bg-card" aria-hidden>
+          <Skeleton className="h-16 w-full rounded-none" />
+          <Skeleton className="h-16 w-full rounded-none" />
+        </div>
+      ) : failed ? (
+        <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load their recipes.</p>
+          {onReload ? (
+            <Button variant="outline" className={K_BUTTON} onClick={onReload}>
+              Try again
+            </Button>
+          ) : null}
+        </KCard>
+      ) : rows.length === 0 ? (
+        <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">No recipes they share yet</p>
+      ) : (
+        <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[22px] border bg-card">
+          {rows.map((row) => (
+            <li key={row.id} className="flex min-h-16 items-center gap-3 py-2 pl-4 pr-3">
+              <Link
+                {...pressIn(() => prefetch?.(row.id))}
+                href={row.href}
+                className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="truncate text-base font-extrabold">{row.name}</span>
+                <span className="truncate text-[13px] font-semibold tabular-nums text-muted-foreground">{row.meta}</span>
+              </Link>
+              {renderSave ? renderSave(row) : null}
             </li>
           ))}
         </ul>
