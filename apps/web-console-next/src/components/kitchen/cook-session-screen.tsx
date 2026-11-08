@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { isOffline } from "@/lib/connection";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookSessions, useCookSession } from "@/lib/cook-session-store";
+import { newFrame } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +24,9 @@ import { useRecipes } from "./from-before-data";
 import { SuggestionList, useTypeahead } from "./from-before-ui";
 import { useFreshTakes, useRecipe, useRecipeMatch } from "./cook-session-data";
 import { FinishSheet, SESSION_SHEET } from "./cook-finish-sheet";
+import { guidedScreen, guidedSessionFromRecipe } from "./cook-guided";
+import { useCancelServerTimers, useGuideTimers } from "./cook-guided-data";
+import { GuidedCook } from "./cook-guided-screen";
 import { AddItemButton, DiscardPromptBody, SessionMeta, SessionRow, SessionTopBar, StepsCard, useNow } from "./cook-session-ui";
 import {
   FINISH_OFFLINE_TEXT,
@@ -44,7 +48,6 @@ import {
   scaleChip,
   sessionCurrency,
   sessionDishLines,
-  sessionFromRecipe,
   sessionLineView,
   setName,
   setPostTo,
@@ -93,6 +96,7 @@ export function CookSessionScreen() {
 function SessionGate({ meId, wanted }: { meId: string; wanted: { recipeId: string; f: number } | null }) {
   const router = useRouter();
   const session = useCookSession(meId);
+  const cancelTimers = useCancelServerTimers();
   // Finishing or discarding clears the draft on the way out: nothing new starts behind it.
   const [leaving, setLeaving] = React.useState(false);
   const choice = openChoice(session, wanted ? { recipeId: wanted.recipeId } : null);
@@ -107,12 +111,17 @@ function SessionGate({ meId, wanted }: { meId: string; wanted: { recipeId: strin
       <AskOneAtATime
         session={session}
         onResume={() => router.replace(SESSION_PATH)}
-        onDiscard={() => cookSessions.clear(meId)}
+        onDiscard={() => {
+          cancelTimers(session);
+          cookSessions.clear(meId);
+        }}
       />
     );
   }
   if (choice === "start" && wanted) return <StartFromRecipe meId={meId} recipeId={wanted.recipeId} f={wanted.f} />;
   if (!session || choice === "start") return <SessionSkeleton />;
+  // A recipe with steps cooks step by step (cookpool-guided GC-5), until Just tick what I use.
+  if (guidedScreen(session, newFrame())) return <GuidedCook meId={meId} session={session} onLeave={() => setLeaving(true)} />;
   return <LiveCook meId={meId} session={session} onLeave={() => setLeaving(true)} />;
 }
 
@@ -125,7 +134,7 @@ function StartFromRecipe({ meId, recipeId, f }: { meId: string; recipeId: string
   React.useEffect(() => {
     if (made.current || !recipe.data || !match.data) return;
     made.current = true;
-    cookSessions.write(meId, sessionFromRecipe(recipe.data.recipe, recipe.data.lastCook, match.data, new Date()));
+    cookSessions.write(meId, guidedSessionFromRecipe(recipe.data.recipe, recipe.data.lastCook, match.data, new Date()));
     router.replace(SESSION_PATH);
   }, [meId, recipe.data, match.data, router]);
   const error = recipe.error ?? match.error;
@@ -198,6 +207,9 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   const recentSlugs = useRecentGroupSlugs();
   const names = useMemberNames();
   const save = React.useCallback((change: (s: CookSession) => CookSession) => cookSessions.update(meId, change), [meId]);
+  // Server timers guided mode left to cancel (GC-5: Just tick what I use stops them), and any on leaving.
+  useGuideTimers(meId, session, now, true);
+  const cancelTimers = useCancelServerTimers();
 
   const [openKey, setOpenKey] = React.useState<string | null>(null);
   const [stepsOpen, setStepsOpen] = React.useState(false);
@@ -258,6 +270,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   const finished = (out: FinishOutcome) => {
     if (out.ok) {
       onLeave();
+      cancelTimers(session);
       cookSessions.clear(meId);
       router.push(dishHref(out.dish.id));
       return;
@@ -273,6 +286,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
   };
   const discard = () => {
     onLeave();
+    cancelTimers(session);
     cookSessions.clear(meId);
     router.replace(SESSION_PARENT);
   };
