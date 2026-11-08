@@ -293,7 +293,7 @@ function parseLine(fields: Fields, at: string, value: unknown): (ParsedLine & { 
   let unit: string | null = null;
   const hasAmount = (raw.quantity !== undefined && raw.quantity !== null) || (raw.unit !== undefined && raw.unit !== null);
   if (toTaste) {
-    if (hasAmount) fields.add(`${at}.quantity`, "A to-taste line has no amount: leave quantity and unit out");
+    if (hasAmount) return fields.add(`${at}.quantity`, "A to-taste line has no amount: leave quantity and unit out");
   } else {
     const u = raw.unit === undefined || raw.unit === null ? fields.add(`${at}.unit`, "Required, or say toTaste") : unitValue(fields, `${at}.unit`, raw.unit);
     if (raw.quantity === undefined || raw.quantity === null) fields.add(`${at}.quantity`, "Required, or say toTaste");
