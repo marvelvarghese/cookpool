@@ -359,7 +359,7 @@ export const manifest: MigrationManifest = {
       context: "kitchen",
       path: "390_kitchen_cookpool_guided/up.sql",
       checksum:
-        "33cc710b75a6ee69a4ace49ff0cc90aa4b268bbd793f85cf65e0709df0dbaa9c",
+        "b97920e7a3ffa123bfd078b6927047957b2f8f72ae01c2f3828e653987459a2a",
       description:
         "Cookpool's 42 recipes with guided steps: for each of 360's recipes under usr_cookpool, its tools (a JSON array) set by UPDATE, and its step rows replaced — DELETE, then one plain INSERT — by guided steps with fixed keys c00c0390-<recipe>-<step>: prep (chopping, soaking, marinating, resting) before cook, every cook step with a flame, its lines, a time range and rule or a whistle count, hands off where it waits, a checkpoint and a tip where useful; the rajma and chole soaks, sabudana's soak and fried rice's cooled rice are long prep. Lines, names and every other recipe are untouched (Cookpool GC-4)",
     },
