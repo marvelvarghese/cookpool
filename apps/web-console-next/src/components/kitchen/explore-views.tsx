@@ -5,6 +5,7 @@ import Link from "./link";
 import { Bookmark, Compass, Search } from "lucide-react";
 import type { ExploreSource } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
+import { shareKey, sharePart } from "@/lib/transitions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KCard, K_BUTTON } from "./kit";
@@ -173,13 +174,14 @@ export function ExploreView({
       ) : (
         <ul aria-label="Recipes" className="flex flex-col gap-2">
           {rows.map((r) => (
-            <li key={r.id} className="flex min-h-[72px] items-center gap-3 rounded-[18px] border border-[#E3E6E0] bg-card py-2.5 pl-3 pr-1.5">
-              <RecipeTileView tile={r.tile} className="h-12 w-12 rounded-[14px] text-[19px]" />
+            <li key={r.id} data-vt-card="" className="flex min-h-[72px] items-center gap-3 rounded-[18px] border border-[#E3E6E0] bg-card py-2.5 pl-3 pr-1.5">
+              <RecipeTileView tile={r.tile} className="h-12 w-12 rounded-[14px] text-[19px]" part={sharePart("tile")} />
               <Link
                 href={r.href}
+                share={shareKey("recipe", r.id)}
                 className="flex min-h-11 min-w-0 flex-1 flex-col gap-0.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="truncate text-base font-extrabold">{r.name}</span>
+                <span {...sharePart("title")} className="truncate text-base font-extrabold">{r.name}</span>
                 <span className="truncate text-[13px] font-semibold tabular-nums text-muted-foreground">{r.meta}</span>
                 <span className={cn("truncate text-[13px] font-extrabold", r.tone === "have" ? "text-[#165C3A]" : "text-[#8A5A00]")}>{r.match}</span>
               </Link>

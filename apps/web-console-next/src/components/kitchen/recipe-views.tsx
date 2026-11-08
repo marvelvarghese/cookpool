@@ -5,10 +5,13 @@ import Link from "./link";
 import { Bookmark, BookOpen, ChevronDown, ListOrdered } from "lucide-react";
 import type { KitchenRecipe, RecipeMatchResponse } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
+import { shareKey, shareTarget } from "@/lib/transitions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KCard, K_BUTTON } from "./kit";
 import { Face } from "./faces-ui";
+import { RecipeTileView } from "./cook-hub-views";
+import { recipeTile } from "./cook-hub";
 import { GuidedStepItem } from "./guided-views";
 import type { StepRow } from "./guided-steps";
 import {
@@ -35,12 +38,19 @@ import {
  */
 
 /** Its name, and under it who it is from and how long it takes. */
-export function RecipeHeader({ recipe, meId }: { recipe: Pick<KitchenRecipe, "name" | "minutes" | "isSystem" | "mine" | "source" | "ownerId" | "ownerName">; meId: string | null }) {
+export function RecipeHeader({ recipe, meId }: { recipe: Pick<KitchenRecipe, "id" | "name" | "minutes" | "isSystem" | "mine" | "source" | "ownerId" | "ownerName">; meId: string | null }) {
   const byline = recipeByline(recipe);
   const minutes = recipe.minutes ? minutesText(recipe.minutes) : null;
+  // Its tile and name are where a tapped card's tile and title land (RC-11's page transitions).
+  const key = shareKey("recipe", recipe.id);
   return (
     <header className="-mt-1 flex min-w-0 flex-col gap-1.5">
-      <h1 className="break-words text-[28px] font-extrabold leading-tight tracking-[-0.02em]">{recipe.name}</h1>
+      <div className="flex min-w-0 items-center gap-3">
+        <RecipeTileView tile={recipeTile(recipe)} className="h-12 w-12 rounded-[14px] text-[19px]" part={shareTarget(key, "tile")} />
+        <h1 {...shareTarget(key, "title")} className="min-w-0 break-words text-[28px] font-extrabold leading-tight tracking-[-0.02em]">
+          {recipe.name}
+        </h1>
+      </div>
       {byline.kind !== "none" || minutes ? (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold text-[#3F4842]">
           {byline.kind !== "none" ? <BylineView byline={byline} meId={meId} /> : null}

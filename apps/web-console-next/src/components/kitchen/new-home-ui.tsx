@@ -6,6 +6,7 @@ import { CookingPot } from "lucide-react";
 import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { shareKey, sharePart } from "@/lib/transitions";
 import { useGroups, useProfile } from "./data";
 import { friendlyName, homeGreeting } from "./home";
 import { K_BUTTON } from "./kit";
@@ -156,6 +157,7 @@ function FeedCardLink({ card, meId, names, bare = false }: { card: FeedCard; meI
     <Link
       {...pressIn(() => prefetch.dish(card.dishId, card.orgId))}
       href={card.href}
+      share={shareKey("dish", card.dishId)}
       className={
         bare
           ? "block rounded-t-[22px] p-4 pb-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -174,7 +176,9 @@ function FeedCardLink({ card, meId, names, bare = false }: { card: FeedCard; meI
           </span>
         </span>
       </span>
-      <span className="mt-2.5 block truncate text-lg font-extrabold leading-snug tracking-tight">{card.name}</span>
+      <span {...sharePart("title")} className="mt-2.5 block truncate text-lg font-extrabold leading-snug tracking-tight">
+        {card.name}
+      </span>
       <span className="mt-2 grid grid-cols-3 gap-2">
         <Stat value={card.portions} label="portions" />
         <Stat value={card.each} label="each" />
