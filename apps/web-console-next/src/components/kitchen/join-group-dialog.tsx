@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,13 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { extractJoinCode, joinPath } from "./join-code";
 import { CLOSE_44, K_BUTTON, K_INPUT } from "./kit";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * Join (CP-5): paste a join link or type its code, then continue to that
  * group's join page (`/join/<code>`), which shows the group before joining.
  */
 export function JoinGroupDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const [value, setValue] = React.useState("");
   const [invalid, setInvalid] = React.useState(false);
 

@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "./link";
 import { Check, Clock, CookingPot, Flag, HandCoins, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import type { InboxResponse, KitchenItem, SettlementMethod } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -26,6 +25,7 @@ import { HOME_TODOS, homeTodos, type HomeTodo, type InboxAction, type InboxTone 
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import type { RecentRow } from "./home";
 import type { AsyncState } from "@/lib/query";
+import { useKitchenRouter } from "./transition-ui";
 
 /**
  * Home's to-do list (Cookpool CP-23; SM-10 as the canvas draws it): at most
@@ -137,7 +137,7 @@ function TodoRow({
   const tone = TONES[todo.tone];
   const Icon = tone.icon;
   const prefetch = usePrefetchKitchen();
-  const router = useRouter();
+  const router = useKitchenRouter();
   const { action } = todo;
   // Food to use soon: its Use, shared by the button, the swipe and the held row's menu (PW-8).
   const soon = useSoonUse(todo, meId, names);

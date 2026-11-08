@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "@/components/kitchen/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Plus, Search, Ticket } from "lucide-react";
 import { cn } from "@/lib/cn";

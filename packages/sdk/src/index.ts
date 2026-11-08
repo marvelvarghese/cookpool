@@ -447,6 +447,36 @@ export {
   MAX_DISH_INGREDIENTS,
 } from "@saas/contracts/kitchen";
 
+// Usuals by time of day and by food, and the row's suggestion (Cookpool PN-2).
+export type {
+  UsualBucket,
+  UsualNow,
+  UseSuggestionReason,
+  UseLadderStep,
+  SuggestUsual,
+  SuggestUseInput,
+  UseSuggestion,
+  RunningLowInput,
+} from "@saas/contracts/kitchen-usuals";
+
+export {
+  USUAL_BUCKETS,
+  USUAL_BUCKET_LABELS,
+  USUAL_BUCKET_HOURS,
+  TZ_OFFSET_MIN,
+  TZ_OFFSET_MAX,
+  USUALS_NOW_DAYS,
+  USUAL_NOW_MIN_USES,
+  USUAL_STRIP_MIN_USES,
+  USE_SUGGESTION_REASONS,
+  RUNNING_LOW_PERCENT,
+  usualBucketOfHour,
+  usualBucketAt,
+  isTzOffset,
+  suggestUse,
+  isRunningLow,
+} from "@saas/contracts/kitchen-usuals";
+
 // People across groups (Cookpool CP-9).
 export type {
   KitchenGroupRole,

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "./link";
 import { ChevronDown, X } from "lucide-react";
 import type { PersonGroupView, PersonViewResponse, SettlementMethod } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";

@@ -91,6 +91,7 @@ Each task is one pull request on `orun/RC-k-<slug>`, carrying its contract in `t
 
 - **RC-9:** close the stage part (status, README), after RC-2 to RC-8.
 - **RC-10**, declared when the owner says go: `newFrame()` on in prod, and the old Home, + sheet, Groups and People tabs, and the old cook screen deleted with their tests.
+- **RC-11:** page transitions on phones.
 
 **Done when**
 - the owner has tried it on stage and said go

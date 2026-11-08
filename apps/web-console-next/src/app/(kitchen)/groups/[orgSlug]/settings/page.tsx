@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/kitchen/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Crown, DoorOpen, MoreVertical, RefreshCw, Share2, ShieldCheck } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
@@ -49,6 +48,7 @@ import { Face } from "@/components/kitchen/faces-ui";
 import { Segmented } from "@/components/kitchen/ledger-ui";
 import { memberLabel, type MemberNames } from "@/components/kitchen/members";
 import { useMemberNames } from "@/components/kitchen/people-data";
+import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 
 /**
  * A group's settings (SM-11): everything that is not everyday, off the
@@ -555,7 +555,7 @@ function LeaveCard({
 }) {
   const { client } = useSession();
   const qc = useQueryClient();
-  const router = useRouter();
+  const router = useKitchenRouter();
   const { toast } = useToast();
   const [confirm, setConfirm] = React.useState(false);
   const [lastOwner, setLastOwner] = React.useState(false);

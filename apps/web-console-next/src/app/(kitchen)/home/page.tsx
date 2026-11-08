@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import Link from "@/components/kitchen/link";
 import { ChevronRight, Plus, Ticket } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { newFrame } from "@/lib/features";
