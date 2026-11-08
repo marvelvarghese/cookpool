@@ -204,3 +204,71 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - Today's frame (`cookpool-prod.localhost`): `/community` went to `/home` and no post, feed or Activity route was asked.
 
 **Deploy:** console files only; it needs CM-3's kitchen-worker (main as #93, deployed) — without it the feed, post and Activity reads are 404s and show their errors.
+
+### CM2 — Cooked, then post or split, in the server (CM-8)
+
+**Built** (kitchen-worker; design §2a, the owner's "posting and splitting are two different features"). Contracts in `packages/contracts/src/kitchen-split-later.ts` (re-exported from `@saas/contracts/kitchen`; `KitchenDish.splitAt?` and `InboxResponse.splitReminders?` added in `kitchen.ts`); storage in `packages/db/src/kitchen/split-later.ts` (spread into `KitchenRepository`; `dishes.ts` now exports `DISH_COLUMNS` and `dishesWithParts`, and every dish read carries `splitAt`); the handler in `apps/kitchen-worker/src/handlers/dish-split-later.ts`, the reminder's pure rules in `src/split-later.ts`, three routes in `router.ts` beside the cook's dish routes. api-edge forwards `/v1/kitchen/…` already: no edge change.
+
+**Finishing without a group** already worked and is unchanged: `POST /v1/kitchen/me/dishes` with `orgId: null` (`splitMode: "assign"`) takes ingredients from any pantry the cook may use, charges each group item to the cook as a `use` in its group, and posts no dish transaction. No money code changed.
+
+**Migration 460** `460_kitchen_split_later`: `kitchen_dishes.split_at` (TEXT, `CHECK (split_at IS NULL OR org_id IS NOT NULL)`) and `kitchen_dishes.split_dismissed_at` (TEXT). Both nullable, no default, no new index (the reminder reads through `kitchen_dishes_cook_idx`).
+
+**Routes** (all signed in; refusals on pinned codes with `details.reason`):
+- `POST /v1/kitchen/me/dishes/{dsh}/split` `{ orgId, splitMode?: "claims" | "assign" }` (default `claims`) → 200 `{ dish }`, the dish as a dish cooked into that group stands: `open` for claims (or a `draft` for the cook's shares), `orgId` set, `splitAt` now, `finalizedAt` null, money as cooked. One batch: the group's currency pinned to the dish's (as cooking in would), the guarded dish update (cook, no group, `draft` or `finalized`, at the version read, no `txn_id`/`leftover_item_id`, the group's currency — else the batch fails), and `kitchen.dish.split` (subject `kitchen_dish`, in that group only; payload dishId, name, cook, shared, portionsHalf, splitMode, totalMinor, currency, cookedAt). After the commit, `kitchen.dish_posted` emails the group as a dish cooked for claims does. A dish that changed in between (marked finalized) is read again and split once more; a second loss is 409 `stale`. Refusals, nothing written: another person's dish or none → 404; a group the cook isn't in, or where `kitchen.dish.cook` is denied (a viewer) → 404; a dish with a group (cooked in, or split before) → 409 `already_split` + `details.orgId`; canceled → 409 `dish_not_open` + `state`; a group whose settings count in another currency → 422 `currency_mismatch` + `currency`; a bad body → 422 with `orgId` / `splitMode`.
+- `POST /v1/kitchen/me/dishes/{dsh}/split-reminder/dismiss` → `{ dishId, dismissed: true, dismissedAt }`; `POST …/split-reminder/restore` (Undo) → `{ dishId, dismissed: false, dismissedAt: null }`. The cook's dishes only (404 otherwise). Splitting clears it.
+- `GET /v1/kitchen/me/inbox` gains `splitReminders: SplitReminderInboxItem[]` — `{ kind: "split_reminder", dish: { id, name, portionsHalf, totalMinor, currency, cookedAt, state: draft|finalized, groupItems }, suggest: { orgId, groupName, groupSlug, why: used_items|recent } }`, newest first, at most 10: the caller's own dishes with no group, not canceled, not dismissed, cooked in the last 7 days (`SPLIT_REMINDER_DAYS`), that took a group item or have ≥ 4 half portions (`SPLIT_REMINDER_MIN_PORTIONS_HALF`, two servings). The group: among the ones the cook cooks in (not viewer) that count in the dish's currency or have none yet, the one it took most from by cost (then item count, then name); else the group of their latest non-canceled group dish; else their first by name. No such group, no reminder.
+- Posting (CM-3's rule, relaxed on purpose): `POST /v1/kitchen/me/posts` takes any of the cook's dishes but a canceled one (409 `not_postable` only then), before or after a split, open or finalized. `stats.ate` is the dish's **servings**, `max(1, ceil(portionsHalf / 2))`, not its shares.
+
+**SDK:** `splitDish(dishId, { orgId, splitMode? })`, `dismissSplitReminder(dishId)`, `restoreSplitReminder(dishId)`; the types and constants re-exported (`SplitReminderInboxItem`, `KITCHEN_SPLIT_ERROR_REASONS`, `SPLIT_REMINDER_*`, …).
+
+**Departures and additions**
+- **The reminder is its own list, `splitReminders`, not an `items` kind**, as PN-8's `asks` is, and `counts` leaves it out. Today's console switches over `items`, and today's frame must render exactly what it does now; a new kind in `items` would also have changed `counts.total`. CM-9 reads `splitReminders`.
+- **A "just me" dish its cook marked finalized can be split** and is reminded about: that finalize posted nothing (no transaction, no leftovers), so the split opens it again (`finalized_at` cleared). Only a dish with a dish transaction or leftovers is refused, which a dish with no group never has.
+- **The `finalize_dish` card for a just-me draft is unchanged** (the server is additive), so such a dish shows that card in `items` and a reminder in `splitReminders`. CM-9 should drop "Finalize · Just for you" in the new frame, or hide it where a reminder exists, so Home shows one row.
+- **Restore** (the dismissal's Undo) is a route of its own, not in the brief.
+- **`ate` rounds up** to whole servings (1½ portions serve 2, ½ serves 1), so the stat stays a whole number.
+- **The suggestion's "most recent group"** is the group of the cook's latest dish there (cooked in or split), else their first by name. Membership has no join time to read.
+- The split checks the group's currency up front (422) and again in the batch's guard, and pins it the way cooking does. A group with no settings yet takes the dish's currency.
+- `KitchenPostSource.shares` is still read and is no longer used for `ate` (documented, not removed).
+
+**Tests**
+- `tests/kitchen-worker`:
+  - `split-later.test.ts` (16):
+    - finishing without a group: uses charged per group, no dish transaction, the dish no one else's;
+    - split later → claims → finalize posts the same dish transaction (title, total, currency, splits, creator), the same Flat 4B and Lunch club balances, and the same dish state, amounts and netting as the worked example cooked into the group (two harnesses, compared; design §3's numbers to the paisa);
+    - nothing moves before finalize;
+    - the split answer, the group's reads, the dish-posted email and the single audit event;
+    - assign mode;
+    - a marked-finalized just-me dish;
+    - cancel after a split;
+    - every refusal writes nothing: 404 ×3, `already_split` both ways, `dish_not_open`, 404 non-member/unknown/viewer, `currency_mismatch`, 422 fields;
+    - the race read again (version 3, one event);
+    - posting before a split (and the post kept), while open, once finalized, `ate` = servings (3, 2 for 1½, 4 with 2 eaters), and never a canceled dish.
+  - `split-reminders.test.ts` (14):
+    - group items at any size and the most-by-cost group;
+    - newest first;
+    - two servings or more, not 1 or 1½;
+    - recent then first-by-name, and recent after a split;
+    - the 7-day edge;
+    - no group, viewer only, or another currency;
+    - never others' or grouped dishes, and gone after a split;
+    - a marked-finalized dish stays, a canceled one goes;
+    - items and counts unchanged;
+    - dismiss/restore and split after a dismissal;
+    - 404s;
+    - 401/405;
+    - `suggestGroup` ties and fallbacks, and `servingsOf`.
+  - Changed on purpose:
+    - `community-posts.test.ts`: a group dish still open now posts (201); `ate` is 4 servings where it was 2 shares or 1.
+    - `inbox.test.ts`: the empty inbox carries `splitReminders: []`; the bounded-reads count is 17 (+4: the unsplit list, its ingredients and shares, the latest group) and 18 with a third group.
+  - Whole suite: 44 suites, 946 tests.
+- `tests/db`: `kitchen-split-later-migration.test.ts` (7): registration and order, the text (two columns, nothing else), the CHECK, the split batch, every refusal writing nothing (including the pinned currency and the event), the unsplit list's filters and order, dismiss and Undo, the latest group. Whole suite: 35 suites, 873 tests (checksums included).
+- `tests/contracts`: `kitchen-split-later.test.ts` (3). Whole suite: 30 suites, 300 tests.
+- `packages/sdk`: `kitchen-split-later.test.ts` (4). Whole suite: 212 tests.
+- `tests/api-edge`: the facade's route cases gain the three paths (601).
+- `typecheck` and `lint` are clean for `@saas/db`, `@saas/contracts`, `@saas/sdk`, `@saas/kitchen-worker` and the four test packages, and `@saas/web-console-next` (+ tests) still typechecks.
+
+**Deploy**
+- Migration 460 must apply before this kitchen-worker serves: every dish read now selects `split_at`. kitchen-worker's enforced `db-migrate` edge orders that, and the migration directory plans `db-migrate`.
+- kitchen-worker changes its own files, so it plans. The contracts and SDK reach the console only with CM-9.
+- 450 (CM-4) may land after 460. The runner applies each id not yet applied, and the manifest stays sorted by id.

@@ -636,6 +636,7 @@ export function toKitchenDish(record: KitchenDishRecord, viewer: string): Kitche
     })),
     recipeId: record.recipeId ? toPublicId("rcp", record.recipeId) : null,
     recipeFactorMilli: record.recipeFactorMilli,
+    splitAt: record.splitAt?.toISOString() ?? null,
     fromMineMinor: record.ingredientsMinor - owed,
     owes: [...owes.values()],
     ...dishSplitView(record, viewer),

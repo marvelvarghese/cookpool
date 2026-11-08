@@ -1,0 +1,28 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CM-8
+  title: "Cooked, then split later, in the server"
+spec:
+  goal: "Finishing a cook saves the dish as the cook's own; a later split posts it to a group with Who ate; any finished dish can be posted, with servings for ate; Home gets one split reminder."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - specs/epics/cookpool-community/**
+    - tasks/CM-8.TaskContract.yaml
+  doneWhen:
+    - "finishing a cook can save the dish with no group: group pantry items are charged to the cook as today, and no dish txn is posted"
+    - "a later split attaches the cook's own dish to one group they belong to and continues as Who ate does today, posting the dish txn"
+    - "a dish can be split once; splitting a canceled dish or another person's dish is refused"
+    - "posting accepts any of the cook's dishes that is not canceled, before or after a split, and ate counts the dish's servings"
+    - "Home's inbox gains one split_reminder per unsplit dish that used group items or has two or more servings, until split or dismissed"
+    - "tests cover each rule and that money posts only on the split"
+  gates: []

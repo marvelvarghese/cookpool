@@ -1,6 +1,6 @@
 // Posting a cook (Cookpool CM-3, cookpool-community design §2): only the
-// dish's cook posts it, once it is finalized or as a Just me dish, and one
-// live post per dish; without a profile only Just me; the stats are
+// dish's cook posts it — since CM-8 any dish of theirs but a canceled one,
+// before or after a split, open or finalized — and one live post per dish; without a profile only Just me; the stats are
 // computed in the server from the dish and its step log and carry ONLY the
 // chosen ones — and no post read ever carries a price, a group or who ate.
 // A recipe is linked only when it is public (or the cook's own copy of a
@@ -85,10 +85,11 @@ describe("who posts a dish, and when", () => {
     expect(rows()).toEqual([]);
   });
 
-  it("waits for a group dish to be finalized, and never takes a canceled dish (409 not_postable)", async () => {
+  it("posts a group dish before it is finalized as well as after (CM-8), and never takes a canceled dish (409 not_postable)", async () => {
     const shares = [{ subjectId: MEERA, portionsHalf: 4 }, { subjectId: ANU, portionsHalf: 4 }];
+    // CM-8 on purpose: posting and splitting are separate actions, so a group dish still open for Who ate posts too.
     const draft = await cook(w, MEERA, { group: { publicId: w.flat.publicId, shares, finalize: false } });
-    expect((await share(w, MEERA, { dishId: draft, audience: "followers" })).body.error.details).toEqual({ reason: "not_postable" });
+    expect((await share(w, MEERA, { dishId: draft, audience: "followers" })).status).toBe(201);
     const done = await cook(w, MEERA, { group: { publicId: w.flat.publicId, shares } });
     expect((await share(w, MEERA, { dishId: done, audience: "followers" })).status).toBe(201);
 
@@ -145,7 +146,8 @@ describe("the stats: computed in the server, only the chosen ones", () => {
       size: { factorMilli: 2000, main: { name: "Chicken", qtyMilli: 2_000_000, unit: "kg" }, portionsHalf: 8 },
       // 12 + 18 minutes.
       minutes: 30,
-      ate: 2,
+      // How many it served (CM-8): the dish's 4 portions, not its 2 shares.
+      ate: 4,
       // Prep is never logged: 2 of the 2 cook steps.
       steps: { done: 2, total: 2 },
     });
@@ -154,12 +156,13 @@ describe("the stats: computed in the server, only the chosen ones", () => {
   it("stores only what was chosen, and leaves out a chosen stat it can't compute", async () => {
     const { dishId } = await guidedDish();
     const p = await posted(w, MEERA, dishId, "followers", { show: { time: true, ate: true } });
-    expect(p.stats).toEqual({ minutes: 30, ate: 1 });
-    expect(JSON.parse(rows()[0]!.stats as string)).toEqual({ minutes: 30, ate: 1 });
+    // A Just me dish of 4 portions served 4 (CM-8: servings, not shares).
+    expect(p.stats).toEqual({ minutes: 30, ate: 4 });
+    expect(JSON.parse(rows()[0]!.stats as string)).toEqual({ minutes: 30, ate: 4 });
 
     // No recipe and no step log: time and steps can't be computed, so they aren't there.
     const plain = await posted(w, MEERA, await cook(w, MEERA, { name: "Toast" }), "me", { show: ALL });
-    expect(plain.stats).toEqual({ size: { factorMilli: null, main: null, portionsHalf: 8 }, ate: 1 });
+    expect(plain.stats).toEqual({ size: { factorMilli: null, main: null, portionsHalf: 8 }, ate: 4 });
     expect(plain.show).toEqual({ size: true, time: false, ate: true, steps: false });
   });
 

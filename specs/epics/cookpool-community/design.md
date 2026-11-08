@@ -94,8 +94,8 @@ The canvas row "Community" is the reference for every screen. The rules from ear
 
 **Posting:**
 - `POST /v1/kitchen/me/posts` takes `{ dishId, caption?, audience, show: { size, time, ate, steps } }`.
-- Only the dish's cook can post it, and only once the dish is finalized, or as a Just me dish.
-- The server computes the stats from the dish and its step log. Size is the cook's size against the recipe; time is the step log's total; ate is the count of portions' people; steps is done of total.
+- Only the dish's cook can post it, and only once the dish is finalized, or as a Just me dish. (CM-8 relaxes this: any of the cook's dishes but a canceled one; see §2a.)
+- The server computes the stats from the dish and its step log. Size is the cook's size against the recipe; time is the step log's total; ate is the count of portions' people (since CM-8, the dish's servings; see §2a); steps is done of total.
 - `recipe_id` links the recipe only when it's public, or is the cook's own copy of a public recipe. Otherwise the post shows the name with no link.
 - An author without a profile can only post as `me`.
 - `PATCH /v1/kitchen/me/posts/{pst}` changes the caption, audience or stat choices; `DELETE` removes the post (soft, with Undo).
@@ -139,6 +139,17 @@ The canvas row "Community" is the reference for every screen. The rules from ear
   - "Kabir commented: Roast the spices first…"
   - "Meera said Yum to your Chicken curry"
   - "Dev cooked your Chicken curry · 1 kg"
+
+## 2a. Cooked, then post or split (CM-8 server, CM-9 console)
+
+The owner: "the dish posting and the group splitting are two different features." Cooking ends at **Cooked!** with the dish saved as the cook's own; **Post to Community** and **Split with a group** are separate actions there and on the dish page, in any order or never. Canvas board `CookDone`.
+
+- **Finishing without a group** is today's "just me" dish: `POST /v1/kitchen/me/dishes` with `orgId: null` still takes ingredients from any pantry the cook may use, and every group item is charged to the cook as a `use` in its group, as always. No dish transaction is posted.
+- **Splitting later:** `POST /v1/kitchen/me/dishes/{dsh}/split { orgId, splitMode? }` (default `claims`) attaches the cook's own unsplit dish to one group they cook in and puts it exactly where a dish cooked into that group is: open for Who ate (or a draft for the cook's shares). Then claims, `…/shares` and `…/finalize` post the one `dish` transaction as they always have. The dish's money is what it was at cook time; nothing moves until finalize. One write: the dish row (`org_id`, `split_mode`, state, `split_at`), the group's currency pinned to the dish's, and the audit event `kitchen.dish.split` in that group. The group's members get the dish-posted email.
+  - A dish is split once. Refusals: someone else's dish, a group the cook isn't in or only views → the opaque 404; a dish in a group already → 409 `already_split` (`details.orgId`); a canceled dish → 409 `dish_not_open`; a group counting in another currency → 422 `currency_mismatch`.
+  - A "just me" dish its cook marked finalized (which posted nothing) can still be split: it opens again.
+- **Posting any finished dish:** CM-3's rule is relaxed. Any of the cook's dishes that isn't canceled can be posted, before or after a split, open or finalized. The `ate` stat is the dish's **servings**: its portions, rounded up to whole servings, at least 1. It's no longer its shares.
+- **Home's split reminder:** the inbox gains `splitReminders`, one `split_reminder` row per unsplit dish of the cook's own, cooked in the last 7 days, that took something from a group pantry or made 2+ servings. Each names a group to suggest: the one whose pantry it took most from (by cost), else the group the cook last cooked for, else their first group by name. The group must be one they cook in, in the dish's currency. The row stays until the dish is split, canceled or dismissed: `POST …/dishes/{dsh}/split-reminder/dismiss`, Undo `…/restore`. Migration **460** adds `kitchen_dishes.split_at` and `split_dismissed_at`.
 
 ## 3. Photos (CM-4)
 

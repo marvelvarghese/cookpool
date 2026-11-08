@@ -58,6 +58,7 @@ import { createRoster } from "./roster-client.js";
 import { createPeople } from "./identity-client.js";
 import { handleGroupMembers, handleMyBalances, handlePerson } from "./handlers/people.js";
 import { handleInbox } from "./handlers/inbox.js";
+import { handleDismissSplitReminder, handleRestoreSplitReminder, handleSplitMyDish } from "./handlers/dish-split-later.js";
 import { handleSubjectBalance, isInternalCaller } from "./handlers/internal.js";
 import { handleFoods, handleGetAlwaysHave, handleSetAlwaysHave, handleSetFoodAnswer } from "./handlers/foods.js";
 import {
@@ -403,6 +404,22 @@ const ME_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.dish.finalize",
     pattern: /^\/v1\/kitchen\/me\/dishes\/([^/]+)\/finalize$/,
     methods: { POST: handleFinalizeMyDish },
+  },
+  // Cooked, then split later, and Home's split reminder (CM-8).
+  {
+    name: "kitchen.me.dish.split",
+    pattern: /^\/v1\/kitchen\/me\/dishes\/([^/]+)\/split$/,
+    methods: { POST: handleSplitMyDish },
+  },
+  {
+    name: "kitchen.me.dish.split_reminder.dismiss",
+    pattern: /^\/v1\/kitchen\/me\/dishes\/([^/]+)\/split-reminder\/dismiss$/,
+    methods: { POST: handleDismissSplitReminder },
+  },
+  {
+    name: "kitchen.me.dish.split_reminder.restore",
+    pattern: /^\/v1\/kitchen\/me\/dishes\/([^/]+)\/split-reminder\/restore$/,
+    methods: { POST: handleRestoreSplitReminder },
   },
   // Home's inbox (CP-19).
   {

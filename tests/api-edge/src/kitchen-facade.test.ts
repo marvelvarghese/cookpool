@@ -97,6 +97,10 @@ describe("kitchen route matching", () => {
     "/v1/kitchen/reports",
     "/v1/kitchen/me/feed",
     "/v1/kitchen/me/activity/unread",
+    // Cooked, then split later (CM-8): forwarded with no edge change.
+    "/v1/kitchen/me/dishes/dsh_1/split",
+    "/v1/kitchen/me/dishes/dsh_1/split-reminder/dismiss",
+    "/v1/kitchen/me/dishes/dsh_1/split-reminder/restore",
   ])("%s is a kitchen route, and no other facade's", (path) => {
     expect(isKitchenRoute(path)).toBe(true);
     expect(isOrgRoute(path)).toBe(false);

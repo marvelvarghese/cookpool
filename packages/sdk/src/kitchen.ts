@@ -129,6 +129,8 @@ import type {
   UpdatePostRequest,
   YumResponse,
 } from "@saas/contracts/kitchen";
+// Cooked, then split later (CM-8).
+import type { SplitDishRequest, SplitDishResponse, SplitReminderDismissResponse } from "@saas/contracts/kitchen";
 
 /**
  * Kitchen resource client (Cookpool).
@@ -1498,6 +1500,47 @@ export class KitchenClient {
   /** GET /v1/kitchen/me/activity/unread — `{ count }` for the badge. */
   unreadActivity(opts: RequestOptions = {}): Promise<UnreadActivityResponse> {
     return this.transport.request<UnreadActivityResponse>({ method: "GET", path: this.mePath("activity/unread") }, opts);
+  }
+
+  // Cooked, then split later (CM-8)
+  //
+  // Cooking can end with the dish as the cook's own (`orgId: null`); posting
+  // it and splitting it with a group are separate actions, in any order. A
+  // split puts the dish where one cooked into that group is — open for claims
+  // (or a draft for the cook's shares) — and `setDishShares`, `claimDish` and
+  // `finalizeDish` take it from there. Home's reminders to split ride in
+  // `inbox().splitReminders`.
+
+  /**
+   * POST /v1/kitchen/me/dishes/:dishId/split — split your own dish with one
+   * group you cook in (`splitMode` defaults to `claims`); nothing moves money
+   * until it is finalized. Someone else's dish, or a group you aren't in, is a
+   * `NotFoundError`; a dish in a group already a `ConflictError` with
+   * `reason: "already_split"`; a canceled one `reason: "dish_not_open"`; a
+   * group counting in another currency a `ValidationError` with
+   * `reason: "currency_mismatch"`. Pass `opts.idempotencyKey`.
+   */
+  splitDish(dishId: string, body: SplitDishRequest, opts: RequestOptions = {}): Promise<SplitDishResponse> {
+    return this.transport.request<SplitDishResponse>(
+      { method: "POST", path: this.mePath(`dishes/${encodeURIComponent(dishId)}/split`), body },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/dishes/:dishId/split-reminder/dismiss — Home stops reminding you to split it. */
+  dismissSplitReminder(dishId: string, opts: RequestOptions = {}): Promise<SplitReminderDismissResponse> {
+    return this.transport.request<SplitReminderDismissResponse>(
+      { method: "POST", path: this.mePath(`dishes/${encodeURIComponent(dishId)}/split-reminder/dismiss`), body: {} },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/dishes/:dishId/split-reminder/restore — the dismissal's Undo. */
+  restoreSplitReminder(dishId: string, opts: RequestOptions = {}): Promise<SplitReminderDismissResponse> {
+    return this.transport.request<SplitReminderDismissResponse>(
+      { method: "POST", path: this.mePath(`dishes/${encodeURIComponent(dishId)}/split-reminder/restore`), body: {} },
+      opts,
+    );
   }
 
   private postPath(postId: string, rest: string): string {

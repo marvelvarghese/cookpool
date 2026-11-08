@@ -41,8 +41,9 @@ import { Fields, oneOf } from "../validate.js";
 //   GET    /v1/kitchen/me/feed?tab=&cursor=     → { tab, posts, nextCursor }
 //   GET    /v1/kitchen/profiles/{handle}/posts  canSee → { posts, nextCursor }
 //
-// Only a dish's cook posts it (anyone else's dish is the opaque 404), once
-// it is finalized or as a Just me dish, and one live post per dish. Beyond
+// Only a dish's cook posts it (anyone else's dish is the opaque 404), any
+// dish of theirs but a canceled one — before or after it is split with a
+// group, open or finalized (CM-8) — and one live post per dish. Beyond
 // Just me needs a profile (403 `no_profile`). Who sees a post is storage's
 // `visiblePostSql`, in every read here; a post nobody may see is the opaque
 // 404. A post's stats are `computeStats`'s — only the chosen ones.
@@ -147,7 +148,7 @@ export async function handleCreatePost(ctx: RequestContext, request: Request): P
       return forbidden(ctx.requestId, "Choose a handle and a name to share beyond Just me", KITCHEN_COMMUNITY_ERROR_REASONS.NO_PROFILE);
     }
     const source = found.value;
-    if (!postable(source)) return conflict(ctx.requestId, "Share a dish once everyone's portion is set", R.NOT_POSTABLE);
+    if (!postable(source)) return conflict(ctx.requestId, "A canceled dish can't be shared", R.NOT_POSTABLE);
     if (source.livePostId) {
       return conflict(ctx.requestId, "This dish is already shared", R.ALREADY_POSTED, { postId: toPublicId("pst", source.livePostId) });
     }

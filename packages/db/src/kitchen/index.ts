@@ -232,3 +232,7 @@ export type {
 export { createPostsRepository, visiblePostSql } from "./posts.js";
 export type { KitchenActivityKind, KitchenActivityWrite } from "./activity-write.js";
 export { activityStatement } from "./activity-write.js";
+
+// Cooked, then split later, and Home's split reminder (CM-8): part of KitchenRepository.
+export type { SplitDishLaterInput, UnsplitDishesQuery, SplitLaterRepository } from "./split-later.js";
+export { createSplitLaterRepository } from "./split-later.js";

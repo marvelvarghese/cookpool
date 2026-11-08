@@ -93,7 +93,7 @@ export interface KitchenPostSource {
   name: string;
   portionsHalf: number;
   recipeFactorMilli: number | null;
-  /** How many shares the dish has (how many ate). */
+  /** How many shares the dish has. Since CM-8 a post's `ate` is the dish's servings (`portionsHalf`), not this. */
   shares: number;
   /** Steps with a logged time, and their seconds. */
   stepsLogged: number;
