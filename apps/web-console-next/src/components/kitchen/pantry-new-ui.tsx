@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "./link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronRight, Plus, Refrigerator, Search } from "lucide-react";
+import { Camera, ChevronDown, ChevronRight, Plus, Refrigerator, Search } from "lucide-react";
 import type { KitchenItem, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,8 @@ import { useRestock } from "./restock-data";
 import { useBuyAgain } from "./buy-again-data";
 import { boughtAgainItem, finishedOpen, finishedRows, itemRestockKey, restockKey, toggleFinishedFold, type BoughtAgainSource, type FinishedRow } from "./restock";
 import { FinishedThisWeek } from "./finished-ui";
+import { useReceiptScanShows } from "./receipt-data";
+import { RECEIPT_SCAN_HREF } from "./receipt-run";
 
 type Row = PantryRow & { item: ReachableItem };
 
@@ -64,6 +66,8 @@ export function NewPantry() {
   const meId = profile.data?.id ?? null;
   const names = useMemberNames();
   const pantries = usePantries();
+  // Scan a receipt (cookpool-ai AI-8): a camera beside + Bought, when AI is available and the switch is on.
+  const scanShows = useReceiptScanShows();
   const items = usePantryItems("all");
   const usuals = useUsuals();
   const bucket = useUsualBucket();
@@ -205,13 +209,24 @@ export function NewPantry() {
     <div className="space-y-3 min-[900px]:max-w-[760px] min-[900px]:space-y-4">
       <header className="flex items-center justify-between gap-3">
         <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] min-[900px]:text-[30px]">Pantry</h1>
-        <Link
-          href={boughtHref()}
-          className="flex min-h-11 items-center gap-1.5 rounded-[14px] bg-primary px-3.5 text-[15px] font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
-          Bought
-        </Link>
+        <span className="flex items-center gap-2">
+          {scanShows ? (
+            <Link
+              href={RECEIPT_SCAN_HREF}
+              aria-label="Scan a receipt"
+              className="grid h-11 w-11 place-items-center rounded-[14px] border-[1.5px] border-transparent text-[#165C3A] transition-colors [background:linear-gradient(hsl(var(--card)),hsl(var(--card)))_padding-box,linear-gradient(135deg,#1F7A4D,#B4471F)_border-box] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Camera className="h-5 w-5" strokeWidth={2.2} aria-hidden />
+            </Link>
+          ) : null}
+          <Link
+            href={boughtHref()}
+            className="flex min-h-11 items-center gap-1.5 rounded-[14px] bg-primary px-3.5 text-[15px] font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
+            Bought
+          </Link>
+        </span>
       </header>
 
       <div className="flex items-center gap-2">

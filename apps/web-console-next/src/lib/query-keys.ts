@@ -78,6 +78,10 @@ export const qk = {
   // running low, what you usually buy. Under `kitchenPantry()`, so every
   // stock write and every purchase reads it again.
   kitchenRestock: () => ["kitchenPantry", "restock"] as const,
+  // Cookpool AI (cookpool-ai AI-8; AI-7 shares it): whether AI is available,
+  // the server's features and today's use. Not under `kitchenPantry()`: a
+  // stock write doesn't change it.
+  kitchenAiStatus: () => ["kitchenAi", "status"] as const,
   // The dish maker (CP-15): the items the cook may cook with, under
   // `kitchenPantry()` so any stock write refreshes them.
   kitchenCookable: () => ["kitchenPantry", "cookable"] as const,

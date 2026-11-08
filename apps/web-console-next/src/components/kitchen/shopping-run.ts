@@ -32,11 +32,32 @@ export const RUN_GROUPS: readonly { id: RunGroupId; title: string }[] = [
   { id: "usual", title: "YOU USUALLY BUY" },
 ];
 
+/**
+ * What a run line buys like: a restock line, or (cookpool-ai AI-8) a
+ * receipt's line read into the same shape — its `last` is then the receipt's
+ * own amount and price.
+ */
+export type RunSource = Pick<RestockLine, "name" | "nameKey" | "category" | "pantry" | "canAdd" | "last">;
+
+/**
+ * A line read from a receipt (cookpool-ai AI-8): its printed text, the item
+ * it buys again when the server matched one, and whether last time's waste
+ * rule is sent (only when it came from a restock line in the same pantry;
+ * otherwise the server copies `fromItemId`'s rule itself).
+ */
+export interface RunLineReceipt {
+  text: string;
+  fromItemId: string | null;
+  sendRule: boolean;
+  /** Whether the receipt gave its price; without one the box starts empty. */
+  priced: boolean;
+}
+
 export interface RunLine {
-  /** `restockKey`: one name in one pantry. */
+  /** `restockKey`: one name in one pantry (a receipt's line: `rcpt:<n>`). */
   key: string;
-  group: RunGroupId;
-  line: RestockLine;
+  group: RunGroupId | "receipt";
+  line: RunSource;
   name: string;
   /** "Finished Tue", "600 g of 5 kg left", "Every 4 days · last Wed" — shown once ticked. */
   why: string;
@@ -46,6 +67,8 @@ export interface RunLine {
   tickable: boolean;
   /** Why it can't be ticked: "You only view Flat 4B". */
   locked: string | null;
+  /** Read from a receipt (AI-8). */
+  receipt?: RunLineReceipt;
 }
 
 export interface RunGroup {
@@ -156,6 +179,8 @@ export interface RunPick {
   price: string | null;
   /** Where it goes: "personal" or a group's `org_…`. */
   pantry: string;
+  /** The name as typed (a receipt's line, after Change); absent while it is the line's own. */
+  name?: string;
 }
 
 export type RunPicks = Readonly<Record<string, RunPick>>;
@@ -206,6 +231,8 @@ export function pantryRefOf(p: Pantry): PantryRef {
 
 export interface TickedLine {
   key: string;
+  /** The name it is added as: the line's, or as typed. */
+  name: string;
   step: LadderStep;
   canLess: boolean;
   canMore: boolean;
@@ -221,7 +248,7 @@ export interface TickedLine {
   pantryLabel: string;
   /** Where it goes, as an item's `pantry`. */
   pantryRef: PantryRef;
-  /** The line as the write sends it; null while its price doesn't read. */
+  /** The line as the write sends it; null while its price doesn't read (or its name is blank). */
   request: PurchaseLine | null;
 }
 
@@ -240,26 +267,31 @@ export function tickedLine(line: RunLine, pick: RunPick, ctx: { pantries: readon
   const own = pick.pantry === pantryKey(line.line.pantry);
   const pantryRef = target ? pantryRefOf(target) : line.line.pantry;
   const currency = target?.currency ?? last.currency;
-  const auto = currency === last.currency ? scaledPrice(last, step.qtyMilli) : null;
+  const auto = currency === last.currency && (line.receipt?.priced ?? true) ? scaledPrice(last, step.qtyMilli) : null;
   const priceText = pick.price ?? (auto !== null ? priceInput(auto) : "");
   const priceMinor = parseMinor(priceText);
+  const name = (pick.name ?? line.name).trim();
+  // A receipt's line buys again only what the server matched; a restock line always its last purchase.
+  const fromItemId = line.receipt ? line.receipt.fromItemId : last.itemId;
+  const sendRule = line.receipt ? line.receipt.sendRule : true;
   let request: PurchaseLine | null = null;
-  if (priceMinor !== null) {
+  if (priceMinor !== null && name !== "") {
     request = {
       pantry: pick.pantry,
-      name: line.name,
+      name,
       category: line.line.category,
       quantity: purchaseQuantity(step.qtyMilli, last.unit),
       unit: last.unit,
       priceMinor,
       currency,
-      fromItemId: last.itemId,
     };
-    if (own && pantryRef.kind === "group") request.wastePolicy = last.wastePolicy;
+    if (fromItemId) request.fromItemId = fromItemId;
+    if (own && sendRule && pantryRef.kind === "group") request.wastePolicy = last.wastePolicy;
     if (last.expiresAfterDays !== null) request.expiresOn = addDays(ctx.today, Math.max(0, last.expiresAfterDays));
   }
   return {
     key: line.key,
+    name,
     step,
     canLess: canStep(ladder, step.key, -1),
     canMore: canStep(ladder, step.key, 1),
@@ -306,8 +338,15 @@ export function runSummary(lines: readonly RunLine[], picks: RunPicks, ctx: { pa
   const count = ticked.length;
   const total = totalText(ticked);
   const unread = ticked.find((t) => t.request === null);
-  const name = unread ? lines.find((l) => l.key === unread.key)?.name ?? "it" : null;
-  const problem = count > PURCHASE_MAX_LINES ? `At most ${PURCHASE_MAX_LINES} at once` : name ? `Price for ${name}` : null;
+  const name = unread ? unread.name || (lines.find((l) => l.key === unread.key)?.receipt?.text ?? "it") : null;
+  const problem =
+    count > PURCHASE_MAX_LINES
+      ? `At most ${PURCHASE_MAX_LINES} at once`
+      : unread && unread.name === ""
+        ? `A name for ${name}`
+        : name
+          ? `Price for ${name}`
+          : null;
   const ready = count > 0 && problem === null;
   return {
     count,
