@@ -10,7 +10,7 @@
  * Dependency-free, so it is unit-testable.
  */
 
-import { isRecipeUnit, type StepHeat, type StepSense } from "@saas/contracts/kitchen";
+import { isRecipeUnit, wholeStepMinutes, type StepHeat, type StepSense } from "@saas/contracts/kitchen";
 import { formatMinor } from "./money";
 import {
   amountText,
@@ -708,7 +708,7 @@ export function doneScreen(s: CookSession, now: Date): DoneScreenView | null {
     const at = timeAtSize(st, f);
     let usual: { low: number; high: number; text: string } | null = null;
     if (st.learned && st.learned.highSeconds >= st.learned.lowSeconds) {
-      const range = { minSeconds: Math.max(60, Math.round(st.learned.lowSeconds / 60) * 60), maxSeconds: Math.max(60, Math.round(st.learned.highSeconds / 60) * 60) };
+      const range = { minSeconds: wholeStepMinutes(st.learned.lowSeconds), maxSeconds: wholeStepMinutes(st.learned.highSeconds) };
       usual = { low: range.minSeconds, high: range.maxSeconds, text: `Usually ${rangeText(range)} at this size` };
     } else if (at && "minSeconds" in at) {
       usual = { low: at.minSeconds, high: at.maxSeconds, text: f === 1000 ? `${rangeText(at)} as written` : `${rangeText(at)} at this size` };

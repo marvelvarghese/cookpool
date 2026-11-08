@@ -26,12 +26,18 @@ import { refreshTakes, runFinish, takeRefsToRead, type CookSession, type FinishO
  * through the existing cancel route (SM-5).
  */
 
-/** A recipe the caller may see, with their last cook of it ("last time"). */
-export function useRecipe(recipeId: string | null) {
+/**
+ * A recipe the caller may see, with their last cook of it ("last time") —
+ * read at the session's size `f` (cookpool-guided GC-7: its steps' learned
+ * ranges come at that size). Its own key under the recipe's, so the recipe
+ * page's read (as written) is not mixed up with it, and refreshing the
+ * recipe refreshes both.
+ */
+export function useRecipe(recipeId: string | null, f?: number) {
   const { client } = useSession();
   return useApiQuery<RecipeResponse>(
-    qk.kitchenRecipe(recipeId ?? ""),
-    () => wrap(() => client.kitchen.getRecipe(recipeId ?? "")),
+    f === undefined ? qk.kitchenRecipe(recipeId ?? "") : [...qk.kitchenRecipe(recipeId ?? ""), "f", f],
+    () => wrap(() => client.kitchen.getRecipe(recipeId ?? "", f === undefined ? {} : { f })),
     { enabled: recipeId !== null },
   );
 }

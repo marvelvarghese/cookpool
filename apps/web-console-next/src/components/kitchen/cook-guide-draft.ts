@@ -16,18 +16,11 @@ import { MAX_STEP_LOG, type KitchenRecipeStep, type StepLogEntry } from "@saas/c
 export type GuideMode = "guided" | "tick";
 
 /**
- * A step's learned range (GC-7): the middle half of cooks' times, scaled to
- * the caller's size. The recipe read carries it on `guidedSteps[]` once GC-7
- * lands; until then it is absent, and nothing shows.
+ * A step as the session keeps it: the recipe's own, read at the session's
+ * size — so its learned range (GC-7's `learned`, the middle half of cooks'
+ * times) is at that size too, when the step has one.
  */
-export interface LearnedRange {
-  lowSeconds: number;
-  highSeconds: number;
-  cooks: number;
-}
-
-/** A step as the session keeps it: the recipe's own, with its learned range when the read had one. */
-export type GuideStep = KitchenRecipeStep & { learned?: LearnedRange | null };
+export type GuideStep = KitchenRecipeStep;
 
 /** When a step was started and ticked (ISO); null until then. */
 export interface StepTimes {

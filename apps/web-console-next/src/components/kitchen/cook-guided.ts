@@ -21,6 +21,7 @@ import {
   isLongPrep,
   stepTimeAt,
   stepTimeMultiplier,
+  wholeStepMinutes,
   type CreateKitchenTimerRequest,
   type KitchenRecipe,
   type KitchenTimerResponse,
@@ -146,9 +147,8 @@ function rangeAt(step: GuideStep, factorMilli: number): { minSeconds: number; ma
   return at && "minSeconds" in at ? at : null;
 }
 
-function toMinute(seconds: number): number {
-  return Math.max(60, Math.round(seconds / 60) * 60);
-}
+/** To the nearest whole minute, at least one (as `stepTimeAt` rounds, GC-7's `wholeStepMinutes`). */
+const toMinute = wholeStepMinutes;
 
 /**
  * How long a step's timer runs: the low end of what cooks usually take at

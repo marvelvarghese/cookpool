@@ -128,7 +128,7 @@ function SessionGate({ meId, wanted }: { meId: string; wanted: { recipeId: strin
 /** From a recipe: read it and the match at `f`, then the draft is made from them, and the address drops its query. */
 function StartFromRecipe({ meId, recipeId, f }: { meId: string; recipeId: string; f: number }) {
   const router = useRouter();
-  const recipe = useRecipe(recipeId);
+  const recipe = useRecipe(recipeId, f);
   const match = useRecipeMatch(recipeId, f);
   const made = React.useRef(false);
   React.useEffect(() => {
