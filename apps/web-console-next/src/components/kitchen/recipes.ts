@@ -413,3 +413,14 @@ export function haveLine(summary: Pick<RecipeMatchSummary, "lines" | "have" | "a
   if (toGet === 0) return { text: `Have all ${summary.lines}`, complete: true };
   return { text: `Have ${summary.have + summary.always} of ${summary.lines} · ${toGet} to get`, complete: false };
 }
+
+// ── Save a dish as a recipe (design §3.5) ─────────────────────────
+
+/**
+ * Whether a dish's page offers Save as recipe: in the new frame, for a dish
+ * that was cooked and not canceled (open, being split or final). Its
+ * ingredients become lines at the amounts used, its portions the serves.
+ */
+export function offersSaveAsRecipe(isNewFrame: boolean, dish: { state: string }): boolean {
+  return isNewFrame && dish.state !== "canceled";
+}

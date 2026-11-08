@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Bookmark, BookOpen, ChevronDown, Pencil } from "lucide-react";
 import type { KitchenRecipe, RecipeMatchResponse } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -38,7 +38,7 @@ import {
   type IngredientRow,
   type RecipeByline,
 } from "./recipes";
-import { useCopyRecipe, useMyRecipes, useRecipe, useRecipeMatch } from "./recipes-data";
+import { useCopyRecipe, useMyRecipes, useRecipe, useRecipeMatch, useSaveDishAsRecipe } from "./recipes-data";
 
 /**
  * A recipe (cookpool-recipes RC-5, design §3, the canvas's `Recipe`),
@@ -445,6 +445,44 @@ function RecipeSkeleton() {
       <Skeleton className="h-4 w-32" />
       <Skeleton className="h-[184px] w-full rounded-[22px]" />
       <Skeleton className="h-72 w-full rounded-[22px]" />
+    </div>
+  );
+}
+
+/**
+ * Save as recipe, on a finished dish's page (new frame): the dish becomes a
+ * recipe of yours — every ingredient a line at the amount used, its portions
+ * the serves, the heaviest the main item — and the recipe opens.
+ */
+export function SaveAsRecipeButton({ dishId }: { dishId: string }) {
+  const router = useRouter();
+  const saveDish = useSaveDishAsRecipe();
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  return (
+    <div className="flex flex-col gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        loading={busy}
+        className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-[#C9CFC6] bg-card font-extrabold")}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          const r = await saveDish(dishId);
+          setBusy(false);
+          if (r.ok) router.push(recipeHref(r.data.recipe.id));
+          else if (r.error.reason !== "offline") setError(r.error.reason === "dish_not_open" ? "It was canceled, so there's nothing to save." : r.error.message);
+        }}
+      >
+        <BookOpen className="h-[18px] w-[18px]" aria-hidden />
+        Save as recipe
+      </Button>
+      {error ? (
+        <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
