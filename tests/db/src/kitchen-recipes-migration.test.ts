@@ -20,10 +20,11 @@ const MIGRATIONS_ROOT = resolve(__dirname, "../../..", "packages/db/src/migratio
 const sqlOf = (id: string) =>
   readFileSync(resolve(MIGRATIONS_ROOT, `${id}/up.sql`), "utf8").replace(/--.*$/gm, "");
 
-function migrated(): DatabaseSync {
+/** Every manifest migration applied — or those numbered up to `through` (350: RC-4's seed as it wrote it, before 360 adds to it). */
+function migrated(through = Infinity): DatabaseSync {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
-  for (const m of manifest.migrations) {
+  for (const m of manifest.migrations.filter((x) => Number(x.id.slice(0, 3)) <= through)) {
     for (const statement of D1ApiAdapter.splitStatements(readFileSync(join(MIGRATIONS_ROOT, m.path), "utf8"))) {
       db.exec(statement);
     }
@@ -120,6 +121,9 @@ describe("the foods and recipes migrations (RC-4)", () => {
     const one = <T>(query: string, ...params: unknown[]) => db.prepare(query).get(...(params as never[])) as T;
 
     it("seeds about 60 everyday foods, each in a pantry category, named by its own key and by its common names", () => {
+      // 340's own seed: 360 (RC-7) brings the list to about 300 and is checked on its own.
+      db.close();
+      db = migrated(350);
       const foods = all<{ key: string; name: string; dimension: string; each_g: number | null; category: string }>(
         "SELECT key, name, dimension, each_g, category FROM kitchen_foods ORDER BY key",
       );
@@ -158,7 +162,7 @@ describe("the foods and recipes migrations (RC-4)", () => {
       for (const bad of ["Onion", " onion2", ""]) {
         expect(() => db.prepare("INSERT INTO kitchen_food_names (name_key, food_key) VALUES (?, 'onion')").run(bad)).toThrow(/CHECK constraint failed/);
       }
-      expect(() => db.prepare("INSERT INTO kitchen_food_names (name_key, food_key) VALUES ('shallot', 'no_such_food')").run()).toThrow(
+      expect(() => db.prepare("INSERT INTO kitchen_food_names (name_key, food_key) VALUES ('kohlrabi', 'no_such_food')").run()).toThrow(
         /FOREIGN KEY constraint failed/,
       );
     });
