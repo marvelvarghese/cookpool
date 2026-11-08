@@ -579,7 +579,9 @@ export function matchLine(line: KitchenRecipeLineRecord, factorMilli: number, st
       if (item.foodKey !== line.foodKey) continue;
       const perLine = itemPerLine(dimension, line.unit, item.record, food, stock.measures(item.record));
       if (perLine === null) continue;
-      const available = Math.floor(item.record.qtyLeftMilli / perLine);
+      // A millionth of a thousandth of slack, so a ratio such as 1 ÷ 0.9 never
+      // loses the last thousandth to binary rounding (500 ml of ghee is 450 g).
+      const available = Math.floor(item.record.qtyLeftMilli / perLine + 1e-6);
       if (available > 0) candidates.push({ item, available, perLine });
     }
   }
