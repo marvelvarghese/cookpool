@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CM-9
+  title: "Cooked, then post or split, in the app"
+spec:
+  goal: "In the new frame the cook session ends at Cooked with Post to Community and Split with a group as separate actions, both also on the dish page, plus the Home split reminder."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-community/**
+    - tasks/CM-9.TaskContract.yaml
+  doneWhen:
+    - "both cook session paths end at Cooked with the dish saved as yours, its stats, and Post to Community, Split with a group and Not now"
+    - "Post opens Share this cook for any finished dish; Split opens Who ate for that dish and its group; each shows its done state"
+    - "the dish page offers Post and Split whichever is not done yet, in any order"
+    - "Home shows the split reminder card with Split and Dismiss"
+    - "with newFrame false the cook session and dish page behave as today"
+  gates: []

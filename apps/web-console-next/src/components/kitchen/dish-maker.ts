@@ -703,16 +703,23 @@ function groupOption(g: MyGroupBalance, currency: string | null): ShareOption {
  */
 export function shareOptions(
   groups: readonly MyGroupBalance[],
-  opts: { query?: string; recentSlugs?: readonly string[]; currency?: string | null; limit?: number } = {},
+  opts: {
+    query?: string;
+    recentSlugs?: readonly string[];
+    currency?: string | null;
+    limit?: number;
+    /** Groups only, no Just me (cookpool-community CM-9: splitting a dish of yours later). */
+    groupsOnly?: boolean;
+  } = {},
 ): ShareOptions {
   const currency = opts.currency ?? null;
   const ordered = orderCookingGroups(cookingGroups(groups), opts.recentSlugs);
   const words = foldForSearch(opts.query ?? "").split(" ").filter(Boolean);
-  const me: ShareOption = { ...JUST_ME_OPTION, disabledReason: null };
+  const me: ShareOption[] = opts.groupsOnly ? [] : [{ ...JUST_ME_OPTION, disabledReason: null }];
   if (words.length > 0) {
     const hit = (text: string) => words.every((w) => foldForSearch(text).includes(w));
     const options = [
-      ...(hit("just me don't split") ? [me] : []),
+      ...me.filter(() => hit("just me don't split")),
       ...ordered.filter((g) => hit(g.name)).map((g) => groupOption(g, currency)),
     ];
     return { options, more: 0, heading: "Matches" };
@@ -721,7 +728,7 @@ export function shareOptions(
   const shown = ordered.slice(0, limit);
   const more = ordered.length - shown.length;
   return {
-    options: [me, ...shown.map((g) => groupOption(g, currency))],
+    options: [...me, ...shown.map((g) => groupOption(g, currency))],
     more,
     heading: more > 0 ? `Recent · search to see all ${ordered.length}` : null,
   };

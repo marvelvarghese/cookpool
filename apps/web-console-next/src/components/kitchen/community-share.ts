@@ -2,11 +2,10 @@
  * Share this cook? (cookpool-community CM-6, design §4, the canvas's
  * `ShareCook`), as data:
  *
- * - **When it's offered**: the cook's own dish, once it can be posted — a
- *   Just me dish at once after Finish, a group dish once it is finalized
- *   (the server refuses an open one, `not_postable`) — from the cook session
- *   (RC-6 and GC-5's Finish both land on the dish page with `?share=1`) and
- *   from the dish page's Share.
+ * - **When it's offered**: the cook's own dish that isn't canceled — open
+ *   or finalized, split or not (CM-8 relaxed the server's rule; CM-9 dropped
+ *   the "share on Finalize" gating) — from Cooked!'s Post to Community and
+ *   the dish page's Post (cookpool-community CM-9, `cooked.ts`).
  * - **The composer**: the dish's name and recipe line, the photo slot (CM-4),
  *   the caption, WHAT IT SHOWS (size, time, how many ate, steps — values
  *   previewed from what the app already has; the server computes the real
@@ -31,13 +30,13 @@ import {
 import { amountText, halvesText, minutesText } from "./recipes";
 import { guideStepLog, type CookGuide } from "./cook-guide-draft";
 import { dishHref } from "./dish";
+import { cookedHref, servingsOf } from "./cooked";
 
 // ── When it's offered ─────────────────────────────────────────────
 
-/** Whether a dish can be posted now: not canceled, and a group dish only once finalized (the server's rule). */
+/** Whether a dish can be posted now: any that isn't canceled, before or after a split, open or finalized (CM-8's rule). */
 export function dishPostable(dish: Pick<KitchenDish, "orgId" | "state">): boolean {
-  if (dish.state === "canceled") return false;
-  return dish.orgId === null || dish.state === "finalized";
+  return dish.state !== "canceled";
 }
 
 /** The dish page offers Share: the new frame, your own dish, postable. */
@@ -50,9 +49,9 @@ export function shareHref(dishId: string): string {
   return `${dishHref(dishId)}?share=1`;
 }
 
-/** Where Finish goes once the dish is cooked: the dish, with Share this cook? when it can be posted now (the new frame only). */
+/** Where Finish goes once the dish is cooked: Cooked! in the new frame (CM-9), else the dish as before. */
 export function afterFinishHref(dish: Pick<KitchenDish, "id" | "orgId" | "state">, isNewFrame: boolean): string {
-  return isNewFrame && dishPostable(dish) ? shareHref(dish.id) : dishHref(dish.id);
+  return isNewFrame ? cookedHref(dish.id) : dishHref(dish.id);
 }
 
 // ── What the app knows of the cook ────────────────────────────────
@@ -104,11 +103,10 @@ export const PICK_HANDLE_TO_SHARE = "Pick a handle to share";
 export const CAPTION_PLACEHOLDER = "How did it go?";
 export { POST_CAPTION_MAX };
 
-/** The line above the title: what Finish just did ("✓ Posted to Flat 4B · 4 ate", "✓ Cooked · just you"). */
-export function shareTopLine(dish: Pick<KitchenDish, "orgId" | "shares">, groupName: string | null): string {
+/** The line above the title: where the dish stands ("✓ Cooked · just you", "✓ Split with Flat 4B"). */
+export function shareTopLine(dish: Pick<KitchenDish, "orgId">, groupName: string | null): string {
   if (!dish.orgId) return "✓ Cooked · just you";
-  const ate = Math.max(1, dish.shares.length);
-  return `✓ Posted to ${groupName ?? "your group"} · ${ate} ate`;
+  return `✓ Split with ${groupName ?? "your group"}`;
 }
 
 /** What the composer previews (the server computes the real values from the dish and its step log). */
@@ -131,7 +129,8 @@ export function previewOf(
   return {
     main: extra.main,
     portionsHalf: dish.portionsHalf,
-    ate: dish.orgId ? Math.max(1, dish.shares.length) : 1,
+    // How many ate is the dish's servings (CM-8), as the server counts it.
+    ate: servingsOf(dish.portionsHalf),
     steps: extra.steps,
     hasRecipe: !!dish.recipeId,
     ownRecipe: extra.ownRecipe,
@@ -241,7 +240,7 @@ export const NOT_NOW_TOAST = { title: "Not shared", description: "You can share 
 /** A refused post: open the post that's there already, or say why. */
 export function postRefusal(error: { reason?: string | undefined; message: string; details?: Record<string, unknown> | undefined }): { kind: "open"; postId: string } | { kind: "say"; text: string } {
   if (error.reason === "already_posted" && typeof error.details?.postId === "string") return { kind: "open", postId: error.details.postId };
-  if (error.reason === "not_postable") return { kind: "say", text: "Finalize it first: everyone's portion needs to be set" };
+  if (error.reason === "not_postable") return { kind: "say", text: "It was canceled: there's nothing to post" };
   if (error.reason === "no_profile") return { kind: "say", text: "Pick a handle to share beyond Just me" };
   return { kind: "say", text: error.message };
 }

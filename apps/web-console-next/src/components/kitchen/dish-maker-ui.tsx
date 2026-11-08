@@ -750,6 +750,7 @@ export function SharePicker({
   loading,
   onChange,
   title = "Share it with",
+  groupsOnly = false,
 }: {
   groups: readonly MyGroupBalance[];
   value: string;
@@ -759,12 +760,14 @@ export function SharePicker({
   onChange: (share: string) => void;
   /** Its heading: "Share it with" (the dish maker), "Post to" (a cooking session's Finish, RC-6). */
   title?: string;
+  /** Groups only, no Just me (cookpool-community CM-9's Split with a group). */
+  groupsOnly?: boolean;
 }) {
   const recentSlugs = useRecentGroupSlugs();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const buttonRef = React.useRef<HTMLButtonElement>(null);
-  const list = shareOptions(groups, { query, recentSlugs, currency });
+  const list = shareOptions(groups, { query, recentSlugs, currency, groupsOnly });
   const close = (refocus: boolean) => {
     setOpen(false);
     setQuery("");

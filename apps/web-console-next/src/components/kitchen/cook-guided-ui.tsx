@@ -1028,6 +1028,7 @@ export interface DoneHandlers {
 export function GuideDoneView({
   view,
   whoAteSub,
+  mainTitle = "Who ate?",
   strip,
   savingTimes,
   alert,
@@ -1036,6 +1037,8 @@ export function GuideDoneView({
   view: DoneScreenView;
   /** Under Who ate?: "₹143.96 · post to Flat 4B". */
   whoAteSub: string;
+  /** The main button: "Who ate?", or "Finish" in the new frame (cookpool-community CM-9: the dish is yours; Split comes after). */
+  mainTitle?: string;
   strip: readonly StripItem[];
   savingTimes: boolean;
   alert: string | null;
@@ -1127,7 +1130,7 @@ export function GuideDoneView({
           </p>
         ) : null}
         <Button type="button" onClick={on.onWhoAte} className={cn(MAIN_BUTTON, "min-h-16 bg-[#B4471F] text-white hover:bg-[#9C3C19]")}>
-          <MainButtonLabel title="Who ate?" who={whoAteSub} />
+          <MainButtonLabel title={mainTitle} who={whoAteSub} />
         </Button>
       </div>
     </div>

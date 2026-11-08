@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "@/components/kitchen/link";
+import { useSearchParams } from "next/navigation";
 import { CookingPot, MoreHorizontal } from "lucide-react";
 import type { KitchenDish } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
@@ -29,10 +30,14 @@ import { offersSaveAsRecipe } from "@/components/kitchen/recipes";
 import { SaveAsRecipeButton } from "@/components/kitchen/recipe-ui";
 import { offersShare } from "@/components/kitchen/community-share";
 import { DishShareButton, ShareCookSheet, useSharedPost } from "@/components/kitchen/community-share-ui";
+import { COOKED_PARAM, SPLIT_PARAM, cookedActions, dishNextActions, showsCooked, splitParam } from "@/components/kitchen/cooked";
+import { CookedScreen, NextActionList, SplitSheet } from "@/components/kitchen/cooked-ui";
+import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 import {
   OVER_CLAIMED,
   claimCount,
   dishByline,
+  dishHref,
   dishMoneySummary,
   dishStateChip,
   halfOf,
@@ -157,9 +162,10 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [dish.state, canSplit, startCorrecting]);
 
-  // Share this cook? (cookpool-community CM-6): the cook's own dish, once it
-  // can be posted, in the new frame — from Finish (`?share=1`), after the
-  // cook's Finalize, or Share.
+  // Share this cook? (cookpool-community CM-6): the cook's own dish that
+  // isn't canceled, in the new frame — from Cooked!'s Post to Community, the
+  // page's Post, or `?share=1`. Since CM-9 posting is its own action: a group
+  // dish no longer waits for Finalize.
   const canShare = offersShare(newFrame(), dish, meId);
   const [shareOpen, setShareOpen] = React.useState(false);
   const [sharedPost, setSharedPost] = useSharedPost(dish.id);
@@ -174,6 +180,32 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
     const qs = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [canShare]);
+
+  // Cooked, then post or split (cookpool-community CM-9): Finish lands on
+  // Cooked! here (`?cooked=1`); Split with a group opens from it, from the
+  // page's Split, or from Home's reminder (`?split=1`, `?split=org_…` to
+  // suggest that group).
+  const params = useSearchParams();
+  const router = useKitchenRouter();
+  const cooked = showsCooked(newFrame(), params?.get(COOKED_PARAM) === "1", dish, meId);
+  const next = dishNextActions(newFrame(), dish, meId, sharedPost);
+  const [splitOpen, setSplitOpen] = React.useState(false);
+  const [splitHint, setSplitHint] = React.useState<string | null>(null);
+  const askedToSplit = React.useRef(false);
+  React.useEffect(() => {
+    if (askedToSplit.current || typeof window === "undefined") return;
+    const query = new URLSearchParams(window.location.search);
+    const asked = splitParam(query.get(SPLIT_PARAM));
+    if (!asked.open) return;
+    askedToSplit.current = true;
+    if (next.split) {
+      setSplitHint(asked.orgId);
+      setSplitOpen(true);
+    }
+    query.delete(SPLIT_PARAM);
+    const qs = query.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  }, [next.split]);
 
   // The shares on screen: the cook's edit, or the dish's own (a portion on its
   // way is in it already: SM-5's patch of the cached dish).
@@ -271,6 +303,37 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
   // tab bar, it never sits over the line it acts on.
   const finalizing = !editing && isSplitOpen(dish) && isCook;
 
+  const sheets = (
+    <>
+      {newFrame() && isCook && (shareOpen || canShare) ? (
+        <ShareCookSheet dish={dish} groupName={groupName} open={shareOpen} onClose={() => setShareOpen(false)} onPosted={setSharedPost} />
+      ) : null}
+      {splitOpen && meId && isCook ? (
+        <SplitSheet dish={dish} meId={meId} hint={splitHint} onClose={() => setSplitOpen(false)} onSplit={() => setSplitOpen(false)} />
+      ) : null}
+    </>
+  );
+
+  if (cooked) {
+    return (
+      <>
+        <CookedScreen
+          dish={dish}
+          postId={sharedPost}
+          groupName={groupName}
+          groupNames={groupNames}
+          onPost={() => setShareOpen(true)}
+          onSplit={() => {
+            setSplitHint(null);
+            setSplitOpen(true);
+          }}
+          onDone={() => router.replace(dishHref(dish.id))}
+        />
+        {sheets}
+      </>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -361,7 +424,20 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
           <DishMoney dish={dish} summary={finalizing ? [] : summary} flow={flow} people={people} now={now} />
           {/* The new frame (cookpool-recipes RC-5): a dish that was cooked becomes a recipe of yours. */}
           {!editing && offersSaveAsRecipe(newFrame(), dish) ? <SaveAsRecipeButton dishId={dish.id} /> : null}
-          {!editing && canShare ? <DishShareButton postId={sharedPost} onShare={() => setShareOpen(true)} /> : null}
+          {/* Post and Split, whichever isn't done yet, in any order (CM-9); See your post once posted. */}
+          {!editing && (next.post === "offer" || next.split) ? (
+            <NextActionList
+              actions={cookedActions({ postId: null, orgId: null, groupName: null }).filter((a) => (a.id === "post" ? next.post === "offer" : next.split))}
+              postId={sharedPost}
+              dishId={dish.id}
+              onPost={() => setShareOpen(true)}
+              onSplit={() => {
+                setSplitHint(null);
+                setSplitOpen(true);
+              }}
+            />
+          ) : null}
+          {!editing && next.post === "posted" ? <DishShareButton postId={sharedPost} onShare={() => setShareOpen(true)} /> : null}
         </div>
       </div>
 
@@ -399,10 +475,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
               loading={actions.busy === "finalize"}
               onClick={() =>
                 void actions.finalize(dirty ? draft : undefined).then((ok) => {
-                  if (!ok) return;
-                  setTouched(false);
-                  // Finalized, it can be posted: Share this cook? (the new frame).
-                  if (newFrame() && !sharedPost) setShareOpen(true);
+                  if (ok) setTouched(false);
                 })
               }
             >
@@ -416,9 +489,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
         ) : null}
       </ActionBar>
 
-      {newFrame() && isCook && (shareOpen || canShare) ? (
-        <ShareCookSheet dish={dish} groupName={groupName} open={shareOpen} onClose={() => setShareOpen(false)} onPosted={setSharedPost} />
-      ) : null}
+      {sheets}
 
       <ConfirmDialog
         open={confirmCancel}

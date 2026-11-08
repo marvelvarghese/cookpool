@@ -347,7 +347,7 @@ export interface StepScreenView {
   timer: TimerCardView | null;
   whistles: WhistleView | null;
   tip: string | null;
-  /** "Next · Add the ginger-garlic paste", "Next · Who ate?". */
+  /** "Next · Add the ginger-garlic paste", "Next · Finish". */
   next: string;
   /** "Done", or "Finish" on the last step (or once every other one is ticked). */
   mainLabel: string;
@@ -404,7 +404,7 @@ export function stepScreen(s: CookSession, now: Date): StepScreenView | null {
     timer: timerCard(s, step, now),
     whistles: whistleView(s, step, now),
     tip: step.tip && step.tip.trim() ? step.tip.trim() : null,
-    next: `Next · ${next ? next.text : "Who ate?"}`,
+    next: `Next · ${next ? next.text : "Finish"}`,
     mainLabel: isFinalStep(g, step.key) ? "Finish" : "Done",
     done,
     waiting: !done && ((step.handsOff && t !== null) || step.whistles !== null),
@@ -654,7 +654,7 @@ export function prepScreen(s: CookSession, now: Date): PrepScreenView | null {
     prep,
     ready: { done, of, text: `${done} of ${of} ready` },
     startTitle: g.cookStartedAt ? "Back to cooking" : "Start cooking",
-    startSub: cook.length === 0 || firstOpen < 0 ? "Who ate?" : `Step ${firstOpen + 1} of ${cook.length}`,
+    startSub: cook.length === 0 || firstOpen < 0 ? "Finish" : `Step ${firstOpen + 1} of ${cook.length}`,
   };
 }
 

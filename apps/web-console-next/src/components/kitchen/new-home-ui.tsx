@@ -26,6 +26,8 @@ import { CookNow } from "./cook-now-slot";
 import { HOME_DISH_DAYS, feedCards, type FeedCard } from "./cooks";
 import { useMyDishes } from "./cooks-data";
 import { homeSections, newHomeTodoOrder } from "./new-home";
+import { splitReminders, withoutJustMeFinalize } from "./cooked";
+import { SplitReminderCards } from "./split-reminder-ui";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import { recipeHref } from "./recipes";
 import { useRecipesInFull } from "./recipes-data";
@@ -54,10 +56,20 @@ export function NewHome() {
   const name = user ? friendlyName(user.displayName, user.email) : null;
   const names = useMemberNames();
   const inbox = useInbox();
-  // Dishes first, then Pay X, then use soon (the canvas), each in the server's order.
-  const ordered = React.useMemo(() => (inbox.data ? { ...inbox, data: newHomeTodoOrder(inbox.data) } : inbox), [inbox]);
+  // Dishes first, then Pay X, then use soon (the canvas), each in the server's order; no just-me
+  // "Finalize" (cookpool-community CM-9: it posts nothing; splitting it is the reminder's).
+  const ordered = React.useMemo(() => (inbox.data ? { ...inbox, data: withoutJustMeFinalize(newHomeTodoOrder(inbox.data)) } : inbox), [inbox]);
   // Ask before use (cookpool-pantry PN-9): the asks you answer go first in To do.
   const asks = useHomeAsks(inbox.data?.asks ?? null);
+  // Then "Split Chicken curry with Flat 4B?" (CM-9).
+  const reminders = splitReminders(inbox.data);
+  const lead =
+    asks.count > 0 || reminders.length > 0 ? (
+      <>
+        {asks.count > 0 ? <AskCards asks={inbox.data?.asks ?? []} answered={asks.answered} onAnswered={asks.setAnswered} meId={meId} names={names} highlight={asks.highlight} /> : null}
+        <SplitReminderCards items={reminders} />
+      </>
+    ) : undefined;
 
   return (
     <div className="space-y-4">
@@ -81,7 +93,7 @@ export function NewHome() {
               inbox={ordered}
               meId={meId}
               names={names}
-              lead={asks.count > 0 ? <AskCards asks={inbox.data?.asks ?? []} answered={asks.answered} onAnswered={asks.setAnswered} meId={meId} names={names} highlight={asks.highlight} /> : undefined}
+              lead={lead}
             />
           ) : null}
           {shows.has("cook-now") ? <CookNow meId={meId} /> : null}
