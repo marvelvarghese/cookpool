@@ -60,7 +60,7 @@
         "ENVIRONMENT": "stage",
         "DEBUG_DELIVERY_DOMAINS": "*",
         "GITHUB_OAUTH_CLIENT_ID": "Ov23liKBsjAqJJsmBavV",
-        "GOOGLE_OAUTH_CLIENT_ID": "441163126775-7fabhvpbl9tsga921rklpdlde7mduq34.apps.googleusercontent.com",
+        "GOOGLE_OAUTH_CLIENT_ID": "437655333636-omhv3akn7eul8bc1kpbrijrgfr2v245i.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://cookpool-api-edge-stage.cookpool.workers.dev",
         "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://stage.cookpool.store,https://cookpool-web-console-next-stage.cookpool.workers.dev",
         "SOLO_MODE": "false"
@@ -96,7 +96,7 @@
         "ENVIRONMENT": "prod",
         "DEBUG_DELIVERY_DOMAINS": "",
         "GITHUB_OAUTH_CLIENT_ID": "Ov23lilp2aoyeBDVU8Vc",
-        "GOOGLE_OAUTH_CLIENT_ID": "441163126775-7fabhvpbl9tsga921rklpdlde7mduq34.apps.googleusercontent.com",
+        "GOOGLE_OAUTH_CLIENT_ID": "437655333636-omhv3akn7eul8bc1kpbrijrgfr2v245i.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://cookpool-api-edge-prod.cookpool.workers.dev",
         "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://cookpool.store,https://cookpool-web-console-next-prod.cookpool.workers.dev",
         "SOLO_MODE": "false"

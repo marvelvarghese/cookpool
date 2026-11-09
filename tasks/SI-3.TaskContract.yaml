@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SI-3
+  title: "Google sign-in switched on"
+spec:
+  goal: "Switch Google sign-in on for stage and prod with the owner's Google OAuth client: the client id in identity-worker's config, and the client and state secrets stored by the owner."
+  affects:
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-sign-in/**
+    - tasks/SI-3.TaskContract.yaml
+  doneWhen:
+    - "identity-worker's stage and prod config carry the new Google OAuth client id; the client secret and state secret are stored per environment by the owner"
+    - "the deploy pushes GOOGLE_OAUTH_CLIENT_SECRET and OAUTH_STATE_SECRET, and the sign-in page offers Continue with Google on stage and prod"
+  gates: []
