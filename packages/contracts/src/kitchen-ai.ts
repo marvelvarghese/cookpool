@@ -84,6 +84,23 @@ export function aiCallCostMicros(model: string, tokens: { input: number; cacheRe
   return tokens.input * price.input + tokens.cacheRead * price.cacheRead + tokens.output * price.output;
 }
 
+/**
+ * Transcription (AI-5): Workers AI's Whisper, priced per minute of audio in
+ * USD. A transcription's usage row has no tokens; its cost is its counted
+ * seconds at this rate.
+ */
+export const AI_AUDIO_PRICES_PER_MINUTE = {
+  "@cf/openai/whisper-large-v3-turbo": 0.0005,
+} as const satisfies Record<string, number>;
+export type AiAudioModel = keyof typeof AI_AUDIO_PRICES_PER_MINUTE;
+
+/** `seconds` of audio on `model`, in micro-dollars (unrounded). An unpriced model is priced as the dearest, never as free. */
+export function aiAudioCostMicros(model: string, seconds: number): number {
+  const prices: Record<string, number> = AI_AUDIO_PRICES_PER_MINUTE;
+  const perMinute = prices[model] ?? Math.max(...Object.values(prices));
+  return (Math.max(0, seconds) / 60) * perMinute * 1_000_000;
+}
+
 /** The monthly budget when AI_MONTHLY_BUDGET_USD is unset or not a number ≥ 0, in USD (AI-13). */
 export const AI_MONTHLY_BUDGET_USD_DEFAULT = 5;
 

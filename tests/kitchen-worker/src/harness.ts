@@ -136,6 +136,8 @@ export interface CallOptions {
   body?: unknown;
   /** Sent as is (for malformed bodies); wins over `body`. */
   rawBody?: string;
+  /** Bytes sent as they are (AI-5's voice clips), with `headers`' content-type or none; wins over both. */
+  bytes?: Uint8Array;
   headers?: Record<string, string>;
 }
 
@@ -336,10 +338,13 @@ export function createHarness(options: HarnessOptions = {}): Harness {
         headers.set("x-actor-subject-id", opts.as);
         headers.set("x-actor-subject-type", "user");
       }
-      let body: string | undefined;
-      if (opts.rawBody !== undefined) body = opts.rawBody;
-      else if (opts.body !== undefined) body = JSON.stringify(opts.body);
-      if (body !== undefined) headers.set("content-type", "application/json");
+      let body: string | Uint8Array | undefined;
+      if (opts.bytes !== undefined) body = opts.bytes;
+      else {
+        if (opts.rawBody !== undefined) body = opts.rawBody;
+        else if (opts.body !== undefined) body = JSON.stringify(opts.body);
+        if (body !== undefined) headers.set("content-type", "application/json");
+      }
       const request = new Request(`https://kitchen.internal${path}`, {
         method,
         headers,

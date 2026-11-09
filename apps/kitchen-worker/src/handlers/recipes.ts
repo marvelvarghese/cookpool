@@ -139,7 +139,7 @@ async function recipeResponse(
 }
 
 /** A recipe the caller may see, by its `rcp_…` id (and link code), and whether only as a public one (CM-2); or the Response to return. */
-async function visibleRecipe(
+export async function visibleRecipe(
   ctx: RequestContext,
   repo: KitchenRepository,
   param: string,

@@ -20,6 +20,7 @@ import {
   recordAiAction,
   withAiRepos,
 } from "../ai/usage.js";
+import { transcribeAvailable } from "../ai/transcribe.js";
 import { readUsesContext } from "../ai/uses-context.js";
 import { USES_TASK } from "../ai/uses-task.js";
 
@@ -35,8 +36,8 @@ import { USES_TASK } from "../ai/uses-task.js";
 // model; a refusal, an error or a failed check with no retry left is 502
 // `ai_failed`. Every model call is counted in kitchen_ai_usage, with its cost.
 
-/** What this server offers now, when it has a key. AI-3…AI-6 turn theirs on. */
-const SERVER_FEATURES = { sayIt: true, receipt: true, import: true, voice: false, swaps: false } as const;
+/** What this server offers now, when it has a key. AI-3…AI-6 turn theirs on. Voice also needs the AI binding (AI-5). */
+const SERVER_FEATURES = { sayIt: true, receipt: true, import: true, voice: true, swaps: false } as const;
 
 export async function handleAiStatus(ctx: RequestContext): Promise<Response> {
   const keyed = aiAvailable(ctx.env);
@@ -46,8 +47,10 @@ export async function handleAiStatus(ctx: RequestContext): Promise<Response> {
     // The month's budget (AI-13): read even without a key, so the state is always told.
     const reached = await aiBudgetReached(ctx, usage);
     const available = keyed && !reached;
+    // Voice (AI-5) needs Workers AI's binding for transcription as well as the key.
+    const voiced = transcribeAvailable(ctx.env);
     const features = Object.fromEntries(
-      Object.entries(SERVER_FEATURES).map(([key, on]) => [key, available && on]),
+      Object.entries(SERVER_FEATURES).map(([key, on]) => [key, available && on && (key !== "voice" || voiced)]),
     ) as AiStatus["features"];
     return successResponse<AiStatus>(
       {

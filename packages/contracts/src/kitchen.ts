@@ -2171,3 +2171,8 @@ export * from "./kitchen-split-later.js";
 // daily limits and the AI refusal reasons — ./kitchen-ai.ts (also through
 // `@saas/contracts/kitchen`).
 export * from "./kitchen-ai.js";
+
+// Voice and help at the stove (cookpool-ai AI-5): transcription, ask-step,
+// Check it and rescue — ./kitchen-ai-stove.ts (also through
+// `@saas/contracts/kitchen`).
+export * from "./kitchen-ai-stove.js";

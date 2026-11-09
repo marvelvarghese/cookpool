@@ -90,6 +90,16 @@ import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
 // Cookpool AI (AI-2).
 import type { AiReceiptResponse, AiRecipePhotoResponse, AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
+// Voice and help at the stove (AI-5).
+import type {
+  AiAskStepRequest,
+  AiAskStepResponse,
+  AiCheckStepRequest,
+  AiCheckStepResponse,
+  AiRescueRequest,
+  AiRescueResponse,
+  AiTranscribeResponse,
+} from "@saas/contracts/kitchen";
 // Restocking and shopping runs (PN-3).
 import type { PurchaseLine, PurchaseResponse, RestockResponse, UndoPurchaseResponse } from "@saas/contracts/kitchen";
 // Ask before use (PN-8).
@@ -1184,6 +1194,55 @@ export class KitchenClient {
    */
   aiRecipePhoto(image: string, opts: RequestOptions = {}): Promise<AiRecipePhotoResponse> {
     return this.transport.request<AiRecipePhotoResponse>({ method: "POST", path: this.mePath("ai/recipe-photo"), body: { image } }, opts);
+  }
+
+  // -------------------------------------------------------------------------
+  // Voice and help at the stove (AI-5)
+  //
+  // Nothing here writes, and audio and photos are never stored. Without the
+  // server's Workers AI binding `aiTranscribe` is an `InternalError` (503,
+  // `ai_unavailable`) and `ai()` says `voice: false`; past 30 voice minutes
+  // today a `RateLimitError` with `voice_daily_limit`. The three step calls
+  // count one action each (`ai_daily_limit`); a recipe the caller may not see
+  // is a `NotFoundError`, a step key it lacks a `ValidationError` on `stepKey`.
+  // -------------------------------------------------------------------------
+
+  /**
+   * POST /v1/kitchen/me/ai/transcribe?seconds= — the words of one voice clip
+   * (WebM/Ogg Opus, MP4 AAC or WAV; ≤ AI_TRANSCRIBE_MAX_SECONDS seconds and
+   * AI_TRANSCRIBE_MAX_BYTES). `seconds` is the clip's length; the type is read
+   * from the bytes, `contentType` only labels the request.
+   */
+  aiTranscribe(
+    audio: Blob | ArrayBuffer | Uint8Array,
+    clip: { seconds: number; contentType?: string },
+    opts: RequestOptions = {},
+  ): Promise<AiTranscribeResponse> {
+    const contentType = clip.contentType ?? (audio instanceof Blob && audio.type !== "" ? audio.type : "application/octet-stream");
+    return this.transport.request<AiTranscribeResponse>(
+      {
+        method: "POST",
+        path: this.mePath("ai/transcribe"),
+        query: { seconds: String(clip.seconds) },
+        rawBody: { data: audio as BodyInit, contentType },
+      },
+      opts,
+    );
+  }
+
+  /** POST /v1/kitchen/me/ai/ask-step — a question about the step, answered from the scaled recipe in ≤ 60 words. */
+  aiAskStep(input: AiAskStepRequest, opts: RequestOptions = {}): Promise<AiAskStepResponse> {
+    return this.transport.request<AiAskStepResponse>({ method: "POST", path: this.mePath("ai/ask-step"), body: input }, opts);
+  }
+
+  /** POST /v1/kitchen/me/ai/check-step — Check it: a photo of the dish against the step (`looks_right`, `not_yet`, `problem`, `cant_tell`). */
+  aiCheckStep(input: AiCheckStepRequest, opts: RequestOptions = {}): Promise<AiCheckStepResponse> {
+    return this.transport.request<AiCheckStepResponse>({ method: "POST", path: this.mePath("ai/check-step"), body: input }, opts);
+  }
+
+  /** POST /v1/kitchen/me/ai/rescue — Something wrong?: a fix of ≤ 4 steps for a problem chip (and text or a photo). */
+  aiRescue(input: AiRescueRequest, opts: RequestOptions = {}): Promise<AiRescueResponse> {
+    return this.transport.request<AiRescueResponse>({ method: "POST", path: this.mePath("ai/rescue"), body: input }, opts);
   }
 
   // -------------------------------------------------------------------------
