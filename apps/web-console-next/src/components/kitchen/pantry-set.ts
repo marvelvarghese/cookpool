@@ -3,9 +3,12 @@
  * view-models: the item's **ladder** — the amounts its − [amount] + steps
  * through — the **suggestion** a row makes (contracts' `suggestUse`, fed by
  * the ladder and the caller's usual), the reason under the amount ("Morning
- * usual", "The rest", "Changed from 1 glass"), the **Last** line from the
- * item's moves, the cost line for the faces, and the per-item **draft** the
- * device keeps until Use. Dependency-free (contracts, the engine and other
+ * usual", "The rest"), the **Last** line from the item's moves, the cost
+ * line for the faces, and the per-item **draft** the device keeps until Use.
+ * Since PN-11 the open row, the sheet and the item page pick the amount with
+ * unit chips (`amount-picker.ts`), starting at the ladder's suggestion; the
+ * ladder itself still makes the row's chip, the Now strip and the shopping
+ * run's steps. Dependency-free (contracts, the engine and other
  * pure kitchen modules), so it is unit-testable.
  *
  * The ladder is the Use screen's tiles (`useTiles`, SM-14) without Other,
@@ -24,6 +27,7 @@ import { amountCost } from "./item-use";
 import { amountKey, amountWords, defaultConsumers, measureName, qtyText, useTiles, type UseTile } from "./quick-use";
 import { measureAmount, parseLabel, measuresOf, pluralOf, type UseAmount } from "./measures";
 import { eachText, faceOrder } from "./faces";
+import { isDraftPick, type AmountPick, type DraftPick } from "./amount-picker";
 import { joinNames } from "./pantry";
 import { memberLabelInline, type MemberNames } from "./members";
 import { dayAndTimeText } from "./when";
@@ -105,14 +109,6 @@ function multiplesOf(base: LadderStep, item: SetItem): LadderStep[] {
     }
   }
   return out;
-}
-
-/** `steps` with `extra` added in its place by amount (an amount from the sheet's Other, a remembered draft). */
-export function withStep(steps: readonly LadderStep[], extra: LadderStep): LadderStep[] {
-  if (steps.some((s) => s.key === extra.key || s.qtyMilli === extra.qtyMilli)) return [...steps];
-  const body = steps.filter((s) => !s.rest);
-  const rest = steps.filter((s) => s.rest);
-  return [...[...body, extra].sort((a, b) => a.qtyMilli - b.qtyMilli), ...rest];
 }
 
 /** The amount suggested for a row, with why (design §2.2). */
@@ -202,13 +198,6 @@ export function canStep(steps: readonly LadderStep[], key: string, delta: 1 | -1
   return delta > 0 ? i < steps.length - 1 : i > 0;
 }
 
-/** What the box says under the amount: the suggestion's reason, or "Changed from 1 glass" once moved; null for none. */
-export function setReason(chosen: LadderStep, suggestion: SetSuggestion | null): string | null {
-  if (!suggestion) return null;
-  if (chosen.key === suggestion.step.key) return suggestion.why;
-  return `Changed from ${suggestion.step.words}`;
-}
-
 // ── Last time ─────────────────────────────────────────────────────
 
 /** "you and Anu", "you"; null for nobody. */
@@ -287,14 +276,14 @@ export function setCostLine(item: SetItem & Pick<KitchenItem, "paidBy" | "pantry
 
 // ── The draft, kept on the device until Use ───────────────────────
 
-/** What the set row was left at: its amount and people, per item, until Use. */
+/**
+ * What the set row was left at, per item, until Use (PN-11): the amount as
+ * picked — its unit chip and how many — and the people. Shared by the open
+ * row, the More… sheet and the item page.
+ */
 export interface UseDraft {
-  /** The step's key ("u:250000", "m:onion:2", "rest"). */
-  key: string;
-  qtyMilli: number;
-  words: string;
-  /** A measure's count, when the amount was one ("2 onions"). */
-  measure: { one: string; quantity: number } | null;
+  /** The amount; null when only the people were changed (the amount then follows the suggestion). */
+  pick: DraftPick | null;
   /** Who had it; null when the row was never changed there. */
   consumers: string[] | null;
   /** When it was left so (ISO). */
@@ -304,44 +293,24 @@ export interface UseDraft {
 /** How many items' drafts the device keeps (the oldest go first). */
 export const MAX_DRAFTS = 40;
 
-export function draftOf(step: LadderStep, consumers: readonly string[] | null, at: Date): UseDraft {
+export function draftOf(pick: AmountPick | null, consumers: readonly string[] | null, at: Date): UseDraft {
   return {
-    key: step.key,
-    qtyMilli: step.qtyMilli,
-    words: step.words,
-    measure: step.amount.kind === "measure" ? { one: step.amount.measure.one, quantity: step.amount.quantity } : null,
+    pick: pick ? { unit: pick.unit, count: pick.count, rest: pick.rest, how: pick.how } : null,
     consumers: consumers ? [...consumers] : null,
     at: at.toISOString(),
   };
 }
 
-/**
- * The step a draft comes back as: the ladder's own step of that key (The
- * rest stays the rest), else its amount added to the ladder while it still
- * fits what is left; null when it no longer does.
- */
-export function draftStep(steps: readonly LadderStep[], draft: UseDraft | null | undefined, item: SetItem): LadderStep | null {
-  if (!draft) return null;
-  const own = stepOf(steps, draft.key);
-  if (own) return own;
-  if (draft.measure) {
-    const m = measuresOf(item).find((x) => x.one === draft.measure!.one);
-    const a = m ? measureAmount(item, m, draft.measure.quantity) : null;
-    if (a && a.qtyMilli < item.qtyLeftMilli) return { key: amountKey(a), amount: a, qtyMilli: a.qtyMilli, words: a.label, rest: false };
-    return null;
-  }
-  if (draft.qtyMilli > 0 && draft.qtyMilli < item.qtyLeftMilli) return unitStep(draft.qtyMilli, draft.words);
-  return null;
-}
-
-function isDraft(v: unknown): v is UseDraft {
-  if (!v || typeof v !== "object") return false;
+/** A stored draft; one kept before PN-11 (an amount by ladder step) keeps its people and drops its amount. */
+function readDraft(v: unknown): UseDraft | null {
+  if (!v || typeof v !== "object") return null;
   const d = v as Record<string, unknown>;
-  const measureOk =
-    d["measure"] === null ||
-    (typeof d["measure"] === "object" && typeof (d["measure"] as Record<string, unknown>)["one"] === "string" && typeof (d["measure"] as Record<string, unknown>)["quantity"] === "number");
-  const peopleOk = d["consumers"] === null || (Array.isArray(d["consumers"]) && (d["consumers"] as unknown[]).every((x) => typeof x === "string"));
-  return typeof d["key"] === "string" && typeof d["qtyMilli"] === "number" && typeof d["words"] === "string" && typeof d["at"] === "string" && measureOk && peopleOk;
+  const people = d["consumers"];
+  const peopleOk = people === null || (Array.isArray(people) && people.every((x) => typeof x === "string"));
+  if (typeof d["at"] !== "string" || !peopleOk) return null;
+  const pick = d["pick"];
+  if (pick !== undefined && pick !== null && !isDraftPick(pick)) return null;
+  return { pick: isDraftPick(pick) ? pick : null, consumers: people === null ? null : [...(people as string[])], at: d["at"] };
 }
 
 /** The device's drafts, by `itm_…`, from their stored text; anything unreadable is dropped. */
@@ -355,7 +324,10 @@ export function parseDrafts(raw: string | null | undefined): Record<string, UseD
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
   const out: Record<string, UseDraft> = {};
-  for (const [id, v] of Object.entries(parsed as Record<string, unknown>)) if (/^itm_/.test(id) && isDraft(v)) out[id] = v;
+  for (const [id, v] of Object.entries(parsed as Record<string, unknown>)) {
+    const d = /^itm_/.test(id) ? readDraft(v) : null;
+    if (d) out[id] = d;
+  }
   return out;
 }
 

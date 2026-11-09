@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Minus, Plus } from "lucide-react";
 import type { KitchenItem, KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -14,20 +13,23 @@ import { faceOrder, toggleFace, whoLine } from "./faces";
 import { memberLabel, type MemberNames } from "./members";
 import { useLogUse, useMembersOf, useWasteItem } from "./pantry-data";
 import { useMemberNames } from "./people-data";
-import { RepeatButton } from "./row-gestures-ui";
 import { WasteConfirm } from "./item-actions-ui";
-import { amountCost, amountStep, amountText, initialAmount, shareBreakdown, stepAmount } from "./item-use";
+import { amountCost, shareBreakdown } from "./item-use";
+import { qtyText } from "./quick-use";
 import { expiryText, leftOfBought, pantryLabel } from "./pantry";
 import { formatMinor } from "./money";
 import { cookHref } from "./dish-maker";
 import { LevelBar } from "./pantry-row-ui";
 import { useSetState } from "./set-row-ui";
-import { restStep, type LadderStep } from "./pantry-set";
+import type { pickWrite } from "./amount-picker";
+import { AmountPicker } from "./amount-picker-ui";
 import type { PantryRow } from "./pantry-list";
 import { useAskToUse, useAsks, useCancelAsk, useMinuteNow } from "./ask-data";
 import { askButtonText, askName, askStatus } from "./ask-before-use";
 import { AskLockIcon, AskWaitBox } from "./ask-ui";
 import { shortMoney } from "./from-before";
+
+type PickWrite = ReturnType<typeof pickWrite>;
 
 /** What the sheet is for: a row, its item and its usual. */
 export interface UseSheetTarget {
@@ -50,7 +52,7 @@ const ACTION =
  * The More… sheet (cookpool-pantry PN-5, design §1.2, the canvas's
  * UseSheet). It replaces the held item's menu (`ItemActionsSheet`) on the
  * new Pantry: the name, its level and note, and Open (the item page); How
- * much — the item's four tiles and Other, a stepper in its unit; Who had it
+ * much — the amount with unit chips (PN-11's `AmountPicker`); Who had it
  * and what each pays; the one main button, Log; then Finish it (logs the
  * rest), Wasted (the item page's confirm) and Cook with it. It shares the
  * set row's amount and people (the device's draft), so either can be used.
@@ -118,29 +120,24 @@ function SheetBody({
   const now = useMinuteNow();
   const who = row.ref.kind === "group" ? askName(item, { names }) : null;
   const waiting = askStatus(item.id, asks.data?.mine ?? null, { now, names });
-  const tiles = row.ladder.tiles;
-  const step = set.step;
-  const onTile = step ? tiles.find((t) => t.id === step.key || (!t.rest && t.amount.qtyMilli === step.qtyMilli && !step.rest)) : undefined;
-  const [otherOpen, setOtherOpen] = React.useState(() => step !== null && !onTile);
+  const { pick, write } = set;
   const consumers = set.consumers;
-  const ready = step !== null && (personal || consumers.length > 0);
-  const breakdown = !personal && step ? shareBreakdown({ item, qtyMilli: step.qtyMilli, consumers, meId, names }) : null;
-  const whoText = personal || !step ? null : whoLine({ ids: faceOrder(consumers, meId, names), meId, names, amounts: breakdown?.lines.map((l) => l.amountMinor) ?? null, currency: item.currency });
-  const cost = step ? formatMinor(amountCost(item, step.qtyMilli), item.currency) : null;
+  const ready = write !== null && (personal || consumers.length > 0);
+  const breakdown = !personal && write ? shareBreakdown({ item, qtyMilli: write.qtyMilli, consumers, meId, names }) : null;
+  const whoText = personal || !write ? null : whoLine({ ids: faceOrder(consumers, meId, names), meId, names, amounts: breakdown?.lines.map((l) => l.amountMinor) ?? null, currency: item.currency });
+  const cost = write ? formatMinor(amountCost(item, write.qtyMilli), item.currency) : null;
   const facts = [pantryLabel(item.pantry), personal ? null : `${memberLabel(item.paidBy, meId, names)} paid ${formatMinor(item.priceMinor, item.currency)}`, expiryText(item)]
     .filter(Boolean)
     .join(" · ");
 
-  const log = (s: LadderStep) => {
+  const log = (w: PickWrite) => {
     if (who && row.ref.kind === "group" && consumers.length > 0) {
       void askToUse({
         ref: row.ref,
         item,
-        qtyMilli: s.qtyMilli,
+        ...w,
         consumers,
         idempotencyKey: crypto.randomUUID(),
-        what: s.words,
-        measure: s.amount.kind === "measure" ? { measure: s.amount.measure, quantity: s.amount.quantity } : null,
         meId,
         names,
         who,
@@ -153,11 +150,9 @@ function SheetBody({
       void logUse({
         ref: row.ref,
         item,
-        qtyMilli: s.qtyMilli,
+        ...w,
         consumers,
         idempotencyKey: crypto.randomUUID(),
-        what: s.words,
-        measure: s.amount.kind === "measure" ? { measure: s.amount.measure, quantity: s.amount.quantity } : null,
         meId,
         names,
       });
@@ -166,10 +161,8 @@ function SheetBody({
       onLogged();
     }
   };
-  const otherQty = step && !onTile ? step.qtyMilli : initialAmount(item);
-  // Other, in the item's unit; all that is left is The rest.
-  const pickOther = (qtyMilli: number) =>
-    set.pick(qtyMilli >= item.qtyLeftMilli ? restStep(item) : { key: `u:${qtyMilli}`, amount: { kind: "unit", qtyMilli }, qtyMilli, words: amountText(qtyMilli, item), rest: false });
+  // Finish it: all that is left, in the item's base unit.
+  const theRest: PickWrite = { qtyMilli: item.qtyLeftMilli, what: qtyText(item.qtyLeftMilli, item.dimension), measure: null };
 
   return (
     <div className="flex flex-col gap-4 pt-1">
@@ -207,58 +200,7 @@ function SheetBody({
         <>
           <section aria-label="How much" className="space-y-2">
             <h3 className={SECTION}>How much</h3>
-            <div role="group" aria-label="How much" className="grid grid-cols-4 gap-1.5">
-              {tiles.map((t) => {
-                const on = !otherOpen && onTile?.id === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => {
-                      setOtherOpen(false);
-                      set.pick(t.rest ? restStep(item) : { key: t.id, amount: t.amount, qtyMilli: t.amount.qtyMilli, words: t.amount.kind === "measure" ? t.amount.label : t.words, rest: false });
-                    }}
-                    className={cn(
-                      "flex min-h-[60px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[14px] border px-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      on ? "border-primary bg-primary text-primary-foreground" : "border-[#D5DAD2] bg-card text-foreground hover:bg-accent",
-                    )}
-                  >
-                    <span className="max-w-full truncate text-[15px] font-extrabold leading-tight">{t.label}</span>
-                    <span className={cn("max-w-full truncate text-[11px] font-bold", on ? "text-[#D9F0E3]" : "text-muted-foreground")}>
-                      {t.usual ? (row.ladder.suggestion?.reason === "usual_now" ? row.ladder.suggestion.why : "Your usual") : t.sub.split(" · ")[0]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className={cn("rounded-[14px] bg-card px-3", otherOpen ? "border-2 border-primary pb-3" : "border border-[#D5DAD2]")}>
-              <button
-                type="button"
-                aria-expanded={otherOpen}
-                onClick={() => {
-                  if (!otherOpen) pickOther(otherQty);
-                  setOtherOpen((o) => !o);
-                }}
-                className="flex min-h-11 w-full items-center justify-between text-[15px] font-extrabold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span>Other</span>
-                {otherOpen ? null : <span className="text-sm font-bold text-muted-foreground">in {amountStep(item).unit}</span>}
-              </button>
-              {otherOpen && step ? (
-                <div className="flex items-center gap-2.5">
-                  <RepeatButton aria-label="Less" className={STEPPER} disabled={stepAmount(step.qtyMilli, -1, item) === step.qtyMilli} onStep={() => pickOther(stepAmount(step.qtyMilli, -1, item))}>
-                    <Minus className="h-5 w-5" aria-hidden />
-                  </RepeatButton>
-                  <span role="status" className="min-w-0 flex-1 text-center text-xl font-extrabold tabular-nums">
-                    {amountText(step.qtyMilli, item)}
-                  </span>
-                  <RepeatButton aria-label="More" className={STEPPER} disabled={stepAmount(step.qtyMilli, 1, item) === step.qtyMilli} onStep={() => pickOther(stepAmount(step.qtyMilli, 1, item))}>
-                    <Plus className="h-5 w-5" aria-hidden />
-                  </RepeatButton>
-                </div>
-              ) : null}
-            </div>
+            {pick ? <AmountPicker item={item} name={item.name} pick={pick} start={set.start} why={set.why} onPick={set.setPick} /> : null}
           </section>
 
           {personal ? null : (
@@ -277,12 +219,12 @@ function SheetBody({
 
           {who ? (
             <>
-              <Button type="button" className={cn(MAIN_BUTTON, "bg-[#17201B] hover:bg-[#17201B]/90")} disabled={!ready} onClick={() => step && log(step)}>
-                <MainButtonLabel title={!ready ? "Pick who had it" : `${askButtonText(who)} · ${step!.words}`} who={ready ? whoText : null} />
+              <Button type="button" className={cn(MAIN_BUTTON, "bg-[#17201B] hover:bg-[#17201B]/90")} disabled={!ready} onClick={() => write && log(write)}>
+                <MainButtonLabel title={!ready ? "Pick who had it" : `${askButtonText(who)} · ${write!.what}`} who={ready ? whoText : null} />
               </Button>
               {/* Wasted and Cook with it are the buyer's to do while you must ask (the server refuses them: ask_first). */}
               <div className="grid grid-cols-[auto_1fr] items-center gap-3">
-                <button type="button" className={cn(ACTION, "px-3.5")} disabled={consumers.length === 0} onClick={() => log(restStep(item))}>
+                <button type="button" className={cn(ACTION, "px-3.5")} disabled={consumers.length === 0} onClick={() => log(theRest)}>
                   Ask for the rest
                 </button>
                 <p className="flex items-center gap-1.5 text-[13px] font-bold text-[#8A5A00]">
@@ -293,12 +235,12 @@ function SheetBody({
             </>
           ) : (
             <>
-              <Button type="button" className={MAIN_BUTTON} disabled={!ready} onClick={() => step && log(step)}>
-                <MainButtonLabel title={!ready ? "Pick who had it" : `Log ${step!.words}${personal && cost ? ` · ${cost}` : ""}`} who={ready ? whoText : null} />
+              <Button type="button" className={MAIN_BUTTON} disabled={!ready} onClick={() => write && log(write)}>
+                <MainButtonLabel title={!ready ? "Pick who had it" : `Log ${write!.what}${personal && cost ? ` · ${cost}` : ""}`} who={ready ? whoText : null} />
               </Button>
 
               <div className="grid grid-cols-3 gap-2">
-                <button type="button" className={ACTION} disabled={!(personal || consumers.length > 0)} onClick={() => log(restStep(item))}>
+                <button type="button" className={ACTION} disabled={!(personal || consumers.length > 0)} onClick={() => log(theRest)}>
                   Finish it
                 </button>
                 <button type="button" className={ACTION} onClick={() => setWasting(true)}>
@@ -329,5 +271,3 @@ function SheetBody({
   );
 }
 
-const STEPPER =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#C9CFC6] bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";

@@ -840,3 +840,82 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - **PN-10:** nothing left open here for the epic's done-when; on stage it needs a second person (Meera) to answer.
 - **Not done:** an approver can't undo an approved ask's use from the item page's history unless they're an owner or admin (PN-8 lets `answered_by` reverse it; `canUndoMove` doesn't know who approved). The Home card's Undo covers it.
 - **Deploy:** only console files change, so only the console redeploys; it picks up PN-8's contracts and SDK (already on main). PN-8's kitchen-worker and migration 420 are deployed (#86), and notifications-worker accepts `kitchen.ask`.
+
+### PN1 — Amounts with unit chips (PN-11)
+
+**Built.** Console only, all behind `newFrame()`. No route, no migration, no SDK or contracts change. The owner asked for an amount you can change freely with − and +, and a tag that switches the kind of quantity, instead of one mixed ladder ("½ glass, 1 glass, 2 glasses, 1 L"); the canvas's AmountPicker board (Pantry row) is the approved look. With `newFrame()` false nothing changes: the open row, the More… sheet and the new item page are new-frame components, and today's `/use`, `ItemActionsSheet` and item page are untouched.
+
+- **One control, three places** (`amount-picker.ts`, pure; `amount-picker-ui.tsx`, `AmountPicker`):
+  - the Pantry's **open row** (`SetRow`), the **More… sheet**'s How much (in place of its four tiles and Other), and the **item page** (`QuickUse`, in place of PN-7's quick-use chips);
+  - `− [ amount unit ] +`, the reason under it, then the **unit chips** (a radiogroup) and a dashed **The rest**, then "Step 1 glass · ≈ 500 ml".
+- **The chips** (`amountUnits`), in order:
+  - the item's own measures (`KitchenItem.measures`: glass, cup, onion, slice), each while its least amount fits what is left;
+  - then the plain units of its dimension: ml, L · g, kg · its count word (`wordsForName`: "eggs"; "pcs" when the name isn't a plain plural), dozen · pack. The base unit is always there. L, kg and dozen show for an item bought in them or by at least one of them, while one step of them fits what is left. A plain unit with a measure's word is left out.
+- **Steps** (`pickStep`, `canPickStep`), even in the chosen unit:
+  - a measure 1, with ½ below one for a measure of 100 ml or g or more (`HALF_MEASURE_MILLI`; the existing `stepCount` rule ½ ↔ 1 ↔ 2). Smaller measures (a pinch) and count or pack measures (a slice) step by whole ones from 1;
+  - ml and g 50, L and kg ¼, a piece 1, a dozen ½, a pack ½;
+  - onto the unit's grid (430 g − 50 g → 400 g). − stops at the least amount.
+- **Switching unit** (`pickUnit`) converts the amount, rounded to the new unit's step: 2 glasses → 500 ml → ½ L; 1½ glasses → 400 ml. The rest stays The rest.
+- **Typing** (`parseTyped`, `pickTyped`): a tap on the number clears it to type over (the amount stays as its placeholder and is kept if nothing is typed). It takes "2", "1.5", "1,5", ".5", "½", "1½", "¾", "1/2", "1 1/2". Junk, zero and below keep the last amount, and the line under it reads "Type a number like 2 or 1½". A typed amount is kept to the unit's grain: halves of a measure (as the server takes them), whole ml, g and pieces, a ml or g of L or kg, ½ dozen, a hundredth of a pack.
+- **Never more than what is left:** reaching it by +, typing or switching makes the pick **The rest**, and + disables. − from The rest goes to the most under it on the unit's grid (3.2 kg → 3 kg; exactly 6 glasses → 5). The rest in a measure it doesn't divide into reads "≈ 26½ cups", and is written as exactly what is left.
+- **The reason** (`pickReason`): the suggestion's ("Morning usual", "Your usual", "Use soon", "The rest · only 1 left") while the amount is where it started, and again when stepped back there. Otherwise "Changed" (− + or a switch that changed the amount), "Typed", or "The rest".
+- **Where it starts** (`pickStart`): PN-5's `itemLadder` suggestion (`suggestUse`). A measure's amount starts in that measure. An amount in the unit starts in a measure when it is a whole number of halves of one (`evenCount`: 250 ml with a glass of 250 ml → 1 glass), else in L or kg for whole quarters from 1 up, else in the base unit. The rest starts as The rest. With no suggestion, it's the first chip's least amount.
+- **The draft** (PN-5's, `<prefix>.pantry-drafts`) now keeps the pick: `{ pick: { unit, count, rest, how } | null, consumers, at }`, shared by the row, the sheet and the item page. Changing only the people saves `pick: null`, so the amount still follows the suggestion. A kept pick comes back clamped to what is left (`draftPick`), and is dropped when its unit is no longer offered. A draft saved before PN-11 keeps its people and drops its amount.
+- **The write** (`pickWrite`, `pickRequest`) goes through the existing `useLogUse` / `useAskToUse` and `logRequest`. A measure is sent as `{ quantity: "2", measure: "glass", consumers }`. A plain unit, and The rest, is sent as `{ quantity, unit }` in the item's base unit: ½ L is `{ quantity: "500", unit: "ml" }` and ½ dozen is `{ quantity: "6", unit: "pcs" }`. That is exact, and is what the routes have always taken. A measure takes `measureTakeMilli` (`takeOf`). Your own pantry names nobody.
+- **The item page** (`QuickUse`): the picker, **✓ Use 2 cups** (or Ask Meera), and More… (the sheet). It logs for the suggestion's people, else the people from last time (`setConsumers`). The sheet keeps Finish it (all that is left, in the base unit), Wasted and Cook with it.
+
+**Removed** (dead once the three places stopped using them):
+- `quickChips`, `chipMeasure`, `QUICK_CHIP_STEPS` and `QuickChip` (`item-page.ts`), with their 5 tests;
+- `withStep`, `setReason` and `draftStep` (`pantry-set.ts`), with their 2 tests and the old draft tests (rewritten for the new draft);
+- the sheet's tiles and Other stepper.
+- **Kept**, because they are still used elsewhere:
+  - `itemLadder` and `LadderStep`: the row's chip, the Now strip, PN-9's ask row and the tiles' `suggestUse`;
+  - `stepFrom`, `canStep`, `stepOf` and `LADDER_MULTIPLES`: the shopping run's quantity;
+  - `restStep`: inside `itemLadder`;
+  - `useTiles`, the `other*` helpers and `amountStep`/`stepAmount`: today's `/use`.
+
+**Departures and decisions:**
+- **Halves of a measure:** ½ comes from − only for measures of 100 ml or g or more (½ glass, ½ onion, ½ cup), because the measure helpers and the server take halves of any measure. A typed ½ is taken for any measure.
+- **A typed amount may be under one step** (20 ml of oil): you typed it on purpose. Only − is held to one step.
+- **Plain units are written in the base unit**, not in L, kg or dozen, so the stored amount is exact. The move's words are still the pick's ("½ L") in the toast.
+- **There's no built-in "glass" chip.** The chips are the item's own measures and plain units, as asked. A milk without its own glass measure starts its "1 glass" usual as 250 ml. The Pantry row's chip and the Now strip still say the ladder's words ("1 glass"), because they are outside this task.
+- **The canvas's per-item ✓ Use label** is used on the item page ("Use 2 cups"). The open row keeps its short "Use" beside the faces and the cost line.
+- **The dozen's hint** says the count word ("= 6 eggs").
+
+**Tests** (`tests/web-console-next`, pure modules): **104 suites, 2102 tests**, all passing.
+- `kitchen-amount-picker.test.ts` is new, with 31 tests:
+  - **the chips per item kind:** milk with a glass, atta with a cup, milk without measures, cream and butter (base unit only), L dropped when a quarter doesn't fit, eggs and dozen, too few for a dozen, a name that isn't a plural, a tray that doesn't fit, bread's slices and packs;
+  - **step sizes per unit:** ½ ↔ 1 ↔ 2 glasses and the floor, the grid, kg quarters, ½ dozen, eggs;
+  - **conversion with rounding:** 2 glasses → 500 ml → ½ L and back, 1½ glasses → 400 ml or ½ L, 300 ml → 1 glass, 100 ml → ½ glass, 2 eggs → ½ dozen, 2 cups → 250 g, The rest kept, a unit not offered ignored;
+  - **typing:** decimals, comma, ½, ¾, fractions; junk, zero and below; the grain per unit; "Typed";
+  - **clamping and The rest:** + to The rest and stop, − from The rest, a typed, converted or switched amount past what is left, "≈ 26½ cups", and a sweep over every unit and amount that never takes more than is left;
+  - **the write body per unit and measure:** glass, ½ glass, ml, L, kg, dozen (personal), The rest in a measure;
+  - **the suggestion start state:** bucket usual in a measure with "Morning usual", plain units, kg, onions, The rest, none, nothing left; "Changed", and back to the suggestion's reason;
+  - **draft clamping**, and the box's words and hint;
+  - **newFrame false:** today's `/use` tiles, Another amount and request unchanged.
+- `kitchen-pantry-set.test.ts`: −2 tests (`withStep`, `setReason`), and the draft tests rewritten (3: keeping the pick, old-format drafts, the cap).
+- `kitchen-item-page.test.ts`: −5 tests (the quick-use chips).
+- `typecheck` and `lint` are clean for `@saas/web-console-next` and `@saas/web-console-next-tests`. `console-artifact.mjs build` serves 38 pages as files with 17 `_redirects` rules.
+
+**Browser check** (390 × 844, `next dev` behind a one-origin proxy with PN-9's in-page API mock, plus a glass of 250 ml for Milk and a cup of 120 g for Atta; the proxy answered any `/api` request itself, and the page's resources all came from `cookpool-web-console-next-stage.localhost`, with no workers.dev request):
+- **Milk** (Flat 4B, 1 L left):
+  - The open row read "1 glass · Morning usual" with `glasses · ml · L · The rest` and "Step 1 glass · ≈ 250 ml".
+  - + gave 2 glasses, ml gave 500 ml, and L gave ½ L. + twice gave ¾ L, then 1 L as The rest, with + disabled.
+  - − gave ¾ L, glasses gave 3 glasses, and − gave 2 glasses. ml gave 500 ml, and + gave 550 ml, "Changed".
+  - **Typing:** "abc" showed "Type a number like 2 or 1½" and kept the amount. "333" gave 333 ml, "Typed". ½ in glasses gave ½ glass with − disabled. 9 glasses gave The rest (4 glasses).
+  - **✓ Use at 2 glasses** sent `{ quantity: "2", measure: "glass", consumers: [you, Anu] }`. The row closed, Milk read 500 ml of 1 L, and the toast read "You + Anu · 2 glasses · ₹17.00 each · Undo".
+- **Eggs** (personal, 7 of 12 left):
+  - The row read "2 eggs · Morning usual" with `eggs · dozen`. dozen gave ½ dozen ("= 6 eggs" after the fix), + gave The rest (0.58 dozen), − gave ½ dozen, and eggs gave 6 eggs.
+  - More… opened the sheet on the same draft: "6 eggs · Changed" and "Log 6 eggs · ₹42.00". Log sent `{ quantity: "6", unit: "pcs" }`.
+- **Atta's item page** (600 g of 5 kg):
+  - The picker read 1 cup with `cups · g · kg`. + stepped 2, 3, 4, then 5 cups as The rest (exactly 600 g), with + disabled. − gave 4 cups, kg gave ½ kg, and g gave 500 g. The rest gave 600 g, and cups showed 5 cups.
+  - **✓ Use 2 cups** sent `{ quantity: "2", measure: "cup", consumers: [you] }`, and the picker went back to its start.
+- **Fit:** no sideways scroll at 390 px; − and + are 56 px, the chips 44 px, and ✓ Use and More… 52 px.
+- **Today's frame** (a host naming prod): Atta's page was today's (Counted as, Cook with it, Wasted, history, Use some), with no unit chips.
+- **Fixed during the check:**
+  - The number's select-on-tap didn't hold after the tap (typing went into the old number). A tap now clears it to type over.
+  - The dozen's hint said "= 6 pcs".
+
+**For later tasks:**
+- The Pantry row's one-tap chip and the Now strip still read the ladder's words ("1 glass", "2 pcs"). Moving them to the picker's words ("2 eggs") would make every place say the same thing.
+- **Deploy:** only console files change, so only the console redeploys. No package changes.

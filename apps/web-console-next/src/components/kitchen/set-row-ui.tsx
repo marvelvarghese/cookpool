@@ -1,12 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Check, History, Minus, Plus } from "lucide-react";
-import type { KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
+import { Check, History } from "lucide-react";
+import type { KitchenItem, KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { useItemMoves, useLogUse, useMembersOf } from "./pantry-data";
 import { useMemberNames } from "./people-data";
-import { RepeatButton } from "./row-gestures-ui";
 import { faceColor, faceOrder, toggleFace } from "./faces";
 import { memberInitials, memberLabel, type MemberNames } from "./members";
 import { orderConsumers } from "./item-use";
@@ -15,54 +14,50 @@ import type { PantryRow } from "./pantry-list";
 import { useAskToUse, useCancelAsk } from "./ask-data";
 import { askButtonText, type AskStatus } from "./ask-before-use";
 import { ASK_BUTTON, AskLockIcon, AskWaitBox } from "./ask-ui";
-import {
-  canStep,
-  draftOf,
-  draftStep,
-  lastLine,
-  setConsumers,
-  setCostLine,
-  setReason,
-  stepFrom,
-  withStep,
-  type LadderStep,
-} from "./pantry-set";
+import { draftOf, lastLine, setConsumers, setCostLine } from "./pantry-set";
+import { draftPick, pickStart, pickWrite, type AmountPick } from "./amount-picker";
+import { AmountPicker } from "./amount-picker-ui";
 
 /** Faces the set row shows before "+N" (which opens the sheet's full row). */
 const SET_FACES = 4;
 
-const STEP = "grid h-[52px] w-12 shrink-0 place-items-center rounded-[14px] border border-[#C9CFC6] bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
-
-/** The row's amount and people as the device keeps them (the set row and the sheet share them). */
-export function useSetState(row: PantryRow, item: ReachableItem, roster: readonly string[] | null, meId: string | null) {
+/**
+ * The row's amount and people as the device keeps them (the open row, the
+ * sheet and the item page share them): the amount picked with unit chips
+ * (PN-11), starting at the suggestion, and the people.
+ */
+export function useSetState(row: Pick<PantryRow, "ladder">, item: ReachableItem | KitchenItem, roster: readonly string[] | null, meId: string | null) {
   const drafts = usePantryDrafts();
   const draft = drafts[item.id] ?? null;
-  const fromDraft = draftStep(row.ladder.steps, draft, item);
-  const steps = fromDraft ? withStep(row.ladder.steps, fromDraft) : row.ladder.steps;
-  const step: LadderStep | null = fromDraft ?? row.ladder.suggestion?.step ?? steps[0] ?? null;
+  const suggestion = row.ladder.suggestion;
+  const start = pickStart(item, suggestion);
+  const pick: AmountPick | null = draftPick(item, draft?.pick) ?? start;
   const consumers = orderConsumers(
-    setConsumers({ item, draft: draft?.consumers ?? null, suggestion: row.ladder.suggestion, roster, meId }),
+    setConsumers({ item, draft: draft?.consumers ?? null, suggestion, roster, meId }),
     roster ?? [],
     meId,
   );
-  const keep = (next: LadderStep, people: readonly string[] | null) => saveDraft(item.id, draftOf(next, people, new Date()));
   return {
-    steps,
-    step,
+    pick,
+    start,
+    /** The suggestion's reason ("Morning usual"), shown while the amount is where it started. */
+    why: suggestion?.why ?? null,
     consumers,
+    /** What the pick logs: its amount, its words and its measure. */
+    write: pick ? pickWrite(item, pick) : null,
     /** Set the amount (the people stay). */
-    pick: (next: LadderStep) => keep(next, draft?.consumers ?? null),
+    setPick: (next: AmountPick) => saveDraft(item.id, draftOf(next, draft?.consumers ?? null, new Date())),
     /** Set the people (the amount stays). */
-    people: (next: readonly string[]) => step && keep(step, next),
+    people: (next: readonly string[]) => saveDraft(item.id, draftOf(draft?.pick ? pick : null, next, new Date())),
     /** Logged: forget it. */
     clear: () => saveDraft(item.id, null),
   };
 }
 
 /**
- * The open row (design §1.1, "the set row"): Last; − [amount] + stepping
- * the ladder, from the suggestion with its reason under it ("Morning
- * usual", or "Changed from 1 glass" once moved); for a group's item, the
+ * The open row (design §1.1, "the set row"): Last; the amount with unit
+ * chips (PN-11's `AmountPicker`), from the suggestion with its reason under
+ * it ("Morning usual", then "Changed", "Typed" or "The rest"); for a group's item, the
  * faces (the people from last time) and what it costs each; ✓ Use, which
  * logs it with the Undo toast and closes the row; More…, the sheet. What
  * it is left at is kept on the device until Use.
@@ -101,13 +96,12 @@ export function SetRow({
   const askToUse = useAskToUse();
   const cancelAsk = useCancelAsk();
   const set = useSetState(row, item, roster, me);
-  const { step, steps, consumers } = set;
-  if (!step) return null;
+  const { pick, write, consumers } = set;
+  if (!pick || !write) return null;
   const asking = row.variant === "ask" && askName !== null && row.ref.kind === "group";
 
   const personal = item.pantry.kind === "personal";
   const last = lastLine({ moves: moves.data, usual, item, meId: me, names, now: new Date() });
-  const reason = setReason(step, row.ladder.suggestion);
   const ready = personal || consumers.length > 0;
   const faces = roster ? faceOrder(roster, me, names) : consumers;
   const shown = faces.slice(0, SET_FACES);
@@ -122,11 +116,9 @@ export function SetRow({
       void askToUse({
         ref: row.ref,
         item,
-        qtyMilli: step.qtyMilli,
+        ...write,
         consumers,
         idempotencyKey: crypto.randomUUID(),
-        what: step.words,
-        measure: step.amount.kind === "measure" ? { measure: step.amount.measure, quantity: step.amount.quantity } : null,
         meId: me,
         names,
         who: askName,
@@ -137,11 +129,9 @@ export function SetRow({
     void logUse({
       ref: row.ref,
       item,
-      qtyMilli: step.qtyMilli,
+      ...write,
       consumers,
       idempotencyKey: crypto.randomUUID(),
-      what: step.words,
-      measure: step.amount.kind === "measure" ? { measure: step.amount.measure, quantity: step.amount.quantity } : null,
       meId: me,
       names,
     });
@@ -166,20 +156,7 @@ export function SetRow({
         </p>
       ) : null}
 
-      <div className="flex items-center gap-2">
-        <RepeatButton aria-label={`Less ${row.name}`} className={STEP} disabled={!canStep(steps, step.key, -1)} onStep={() => set.pick(stepFrom(steps, step.key, -1) ?? step)}>
-          <Minus className="h-5 w-5" aria-hidden />
-        </RepeatButton>
-        <span className="flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center rounded-[14px] border-[1.5px] border-primary bg-background px-2">
-          <span role="status" className="max-w-full truncate text-lg font-extrabold tabular-nums">
-            {step.words}
-          </span>
-          {reason ? <span className="max-w-full truncate text-xs font-bold text-[#165C3A]">{reason}</span> : null}
-        </span>
-        <RepeatButton aria-label={`More ${row.name}`} className={STEP} disabled={!canStep(steps, step.key, 1)} onStep={() => set.pick(stepFrom(steps, step.key, 1) ?? step)}>
-          <Plus className="h-5 w-5" aria-hidden />
-        </RepeatButton>
-      </div>
+      <AmountPicker item={item} name={row.name} pick={pick} start={set.start} why={set.why} onPick={set.setPick} />
 
       <div className="flex min-w-0 items-center gap-2">
         {personal ? null : (
@@ -218,7 +195,7 @@ export function SetRow({
           </div>
         )}
         <span className="min-w-0 flex-1 text-right text-[13px] font-bold leading-tight tabular-nums text-foreground/80">
-          {ready ? setCostLine(item, step.qtyMilli, consumers) : "Pick who had it"}
+          {ready ? setCostLine(item, write.qtyMilli, consumers) : "Pick who had it"}
         </span>
       </div>
 
