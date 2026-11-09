@@ -845,6 +845,13 @@ export type {
   AiReceiptResponse,
   AiReceiptLine,
   AiReceiptImageType,
+  // Recipe from a photo (AI-4).
+  AiRecipePhotoRequest,
+  AiRecipePhotoResponse,
+  AiRecipeDraft,
+  AiRecipeDraftLine,
+  AiRecipeDraftStep,
+  AiRecipeCheck,
 } from "@saas/contracts/kitchen";
 export {
   AI_DAILY_ACTIONS,
@@ -857,4 +864,8 @@ export {
   AI_RECEIPT_IMAGE_TYPES,
   AI_RECEIPT_MAX_LINES,
   AI_RECEIPT_NOT_FOOD,
+  AI_RECIPE_PHOTO_MAX_BYTES,
+  AI_RECIPE_PHOTO_MAX_LINES,
+  AI_RECIPE_PHOTO_MAX_STEPS,
+  AI_RECIPE_PHOTO_DEFAULT_SERVES_HALF,
 } from "@saas/contracts/kitchen";

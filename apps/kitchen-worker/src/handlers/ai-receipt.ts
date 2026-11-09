@@ -1,10 +1,8 @@
 import {
-  AI_RECEIPT_MAX_BYTES,
   RESTOCK_FINISHED_DAYS,
   RESTOCK_LOW_PERCENT,
   RESTOCK_USUAL_DAYS,
   RESTOCK_USUAL_MIN_TIMES,
-  type AiReceiptImageType,
   type AiReceiptResponse,
 } from "@saas/contracts/kitchen";
 import type { RequestContext } from "../context.js";
@@ -12,6 +10,7 @@ import type { MemberGroup } from "../groups-client.js";
 import { readJsonObject, successResponse, unavailable, validationError } from "../http.js";
 import { addDays, isoDay } from "../pantry.js";
 import { reachIn } from "../restock.js";
+import { readPhoto } from "../ai/photo.js";
 import { aiProviderFor } from "../ai/provider.js";
 import { aiEscalate, runAiTask } from "../ai/runner.js";
 import { matchReceipt, type PastPurchase } from "../ai/receipt-match.js";
@@ -50,35 +49,6 @@ import { myGroups } from "./dishes.js";
 const DAY_MS = 86_400_000;
 /** How many names of the caller's history the matcher compares against. */
 const HISTORY_LIMIT = 500;
-
-type Photo = { ok: true; image: string; mediaType: AiReceiptImageType } | { ok: false; errors: string[] };
-
-/** The first bytes of a base64 string (at most 12), decoded. */
-function headBytes(base64: string): Uint8Array {
-  const head = atob(base64.slice(0, 16));
-  return Uint8Array.from(head, (c) => c.charCodeAt(0));
-}
-
-/**
- * Read the photo from the body: base64 (a `data:…;base64,` prefix and
- * whitespace are dropped), a JPEG or WebP by its bytes, at most
- * AI_RECEIPT_MAX_BYTES decoded. Only its first bytes are decoded here.
- */
-export function readPhoto(raw: unknown): Photo {
-  if (typeof raw !== "string" || raw.trim() === "") return { ok: false, errors: ["Must be a photo, in base64"] };
-  const image = raw.replace(/^data:[^,]{0,100};base64,/, "").replace(/\s+/g, "");
-  if (image.length < 16 || image.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(image)) {
-    return { ok: false, errors: ["Must be a JPEG or WebP photo, in base64"] };
-  }
-  const padding = image.endsWith("==") ? 2 : image.endsWith("=") ? 1 : 0;
-  const bytes = (image.length / 4) * 3 - padding;
-  if (bytes > AI_RECEIPT_MAX_BYTES) return { ok: false, errors: ["Must be at most 1.5 MB"] };
-  const head = headBytes(image);
-  const ascii = (from: number, to: number) => String.fromCharCode(...head.slice(from, to));
-  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return { ok: true, image, mediaType: "image/jpeg" };
-  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return { ok: true, image, mediaType: "image/webp" };
-  return { ok: false, errors: ["Must be a JPEG or WebP photo, in base64"] };
-}
 
 export async function handleAiReceipt(ctx: RequestContext, request: Request): Promise<Response> {
   const provider = aiProviderFor(ctx);

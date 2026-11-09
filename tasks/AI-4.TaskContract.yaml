@@ -2,9 +2,9 @@ apiVersion: orun.io/v1
 kind: TaskContract
 metadata:
   name: AI-4
-  title: "Recipe import in the server"
+  title: "Recipe from a photo in the server"
 spec:
-  goal: "Turn a link, pasted text or a photo into a guided recipe draft with checks; links fetched safely, JSON-LD first, and cached by URL for everyone."
+  goal: "Turn a photo of a cookbook page, handwritten card or screenshot into a guided recipe draft with checks; Haiku first, Sonnet on a failed check; the image is never stored."
   affects:
     - default/cookpool/db
     - default/cookpool/db-tests
@@ -19,8 +19,11 @@ spec:
     - default/cookpool/config-worker-tests
     - specs/epics/cookpool-ai/**
     - tasks/AI-4.TaskContract.yaml
+    - tasks/AI-9.TaskContract.yaml
+    - tasks/AI-10.TaskContract.yaml
+    - tasks/AI-5.TaskContract.yaml
   doneWhen:
-    - "POST /me/ai/recipe-import accepts a url, text or image and returns a draft in the recipe form shape with guided step fields and checks"
-    - "links are fetched over http(s) only, private addresses refused, size, time and redirects capped, JSON-LD preferred"
-    - "a URL's draft is cached for 30 days and reused for everyone at no model cost; tests stub the fetch and the API"
+    - "POST /me/ai/recipe-photo reads a photo of at most 1.5 MB into a draft in the recipe form shape with guided step fields and checks"
+    - "the draft is validated and retried once on Sonnet when it fails; the image is never stored or logged"
+    - "the epic docs say import is photo only; tests stub the API"
   gates: []

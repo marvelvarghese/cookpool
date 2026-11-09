@@ -2,9 +2,9 @@ apiVersion: orun.io/v1
 kind: TaskContract
 metadata:
   name: AI-5
-  title: "Transcription and step questions in the server"
+  title: "Voice, Check it and rescue in the server"
 spec:
-  goal: "A Workers AI binding for Whisper transcription of short clips counted against voice minutes, and step-aware answers from Haiku with the recipe cached."
+  goal: "Whisper transcription of short clips, step-aware answers, a photo verdict against the step's checkpoint, and fixes for common problems, all from the scaled recipe with Haiku first."
   affects:
     - default/cookpool/db
     - default/cookpool/db-tests
@@ -22,5 +22,7 @@ spec:
   doneWhen:
     - "kitchen-worker has an AI binding and POST /me/ai/transcribe returns text for a clip of at most 15 seconds, counting audio seconds"
     - "POST /me/ai/ask-step answers in at most 60 words from the scaled recipe, current and next step, heat, time, checkpoint and tip"
-    - "audio is never stored; without the binding the routes answer ai_unavailable; tests stub both"
+    - "POST /me/ai/check-step judges a photo against the step: looks_right, not_yet, problem or cant_tell, with what to do"
+    - "POST /me/ai/rescue returns a fix of at most 4 steps for a problem chip or text, fitted to the recipe, size and step"
+    - "no answer says food is safe to eat from a photo; meat doneness answers say how to check; audio and images are never stored"
   gates: []

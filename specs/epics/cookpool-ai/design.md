@@ -14,7 +14,7 @@ The canvas row "Cookpool AI" is the reference for every screen. Earlier rules st
 
 **Prompts.** Each task has a fixed system prompt with `cache_control`. The food list and units (RC-3's foods, kinds and `g_per_ml`) go in a cached block after it. Only the person's input changes from call to call. Model calls never include money, balances, group or org names, or people's names: people are passed as `person 1…n`, and items as `{ ref, name, unit, left }`.
 
-**Limits and usage.** Migration **470** `470_kitchen_ai` adds `kitchen_ai_usage`: `id`, `user_id`, `feature`, `model`, `input_tokens`, `cached_tokens`, `output_tokens`, `audio_seconds`, `ok`, `created_at`, with an index on `(user_id, created_at)`.
+**Limits and usage.** Migration **470** `470_kitchen_ai` adds only `kitchen_ai_usage`: `id`, `user_id`, `feature`, `model`, `input_tokens`, `cached_tokens`, `output_tokens`, `audio_seconds`, `ok`, `created_at`, with an index on `(user_id, created_at)`.
 - Per person per day (UTC): **50 actions** across text and image features, and **30 voice minutes**.
 - Going over answers 429 `rate_limited` with `details.reason` `ai_daily_limit` or `voice_daily_limit`.
 - `GET /v1/kitchen/me/ai` returns `{ available, features: { sayIt, receipt, import, voice, swaps }, today: { actions, actionsLimit, voiceSeconds, voiceSecondsLimit } }`.
@@ -49,18 +49,16 @@ The canvas row "Cookpool AI" is the reference for every screen. Earlier rules st
 
 **In the app:** the console opens the shopping run (PN-6) prefilled. Sure lines are ticked, and check lines sit under "CHECK THESE", unticked. Add uses `buy()` as today.
 
-## 4. Recipe import (AI-4 server, AI-9 app)
+## 4. Recipe from a photo (AI-4 server, AI-9 app)
 
-`POST /v1/kitchen/me/ai/recipe-import` takes `{ url } | { text ≤ 20k chars } | { image }`. It returns `{ draft: RecipeDraft, checks: [{ path, message }] }`. `RecipeDraft` is RC-4's recipe form shape with GC-2's guided step fields: lines with food ids where they match, steps with phase, lines, heat, min/max seconds or whistles, hands-off, time rule, sense, checkpoint and tip, plus tools.
+**The owner's scope: a photo only.** There's no import from links or pasted text.
 
-**Links:**
-- The worker fetches the page server-side: http(s) only, no private IPs, 2 MB, 10 s, and it follows redirects up to 3.
-- It reads a schema.org `Recipe` JSON-LD block when there is one, and otherwise the main text.
-- The result is cached in `kitchen_ai_imports (url_hash, draft, created_at)` (migration 470) for 30 days and **shared by everyone**. A second import of the same URL costs nothing.
+`POST /v1/kitchen/me/ai/recipe-photo { image: base64 JPEG/WebP ≤ 1.5 MB }` takes a photo of a cookbook page, a handwritten card or a screenshot. The console resizes it to 1600 px on the long side first. It returns `{ draft: RecipeDraft, checks: [{ path, message }] }`.
+- `RecipeDraft` is RC-4's recipe form shape with GC-2's guided step fields: lines with food ids where they match, and steps with phase, lines, heat, min/max seconds or whistles, hands-off, time rule, sense, checkpoint and tip, plus tools.
+- **Models:** Haiku first, then Sonnet when the draft fails validation (steps without text, lines that don't parse, times out of range).
+- **The image is never stored.**
 
-**Models:** Haiku first, then Sonnet when the draft fails validation (steps without text, lines that don't parse, times out of range).
-
-**Nothing is saved.** The console opens the recipe form (RC-5/GC-6 editor) prefilled, with the checks marked; Save uses the existing create route. The recipe stores its source URL in its note.
+**Nothing is saved.** The console opens the recipe form (the RC-5/GC-6 editor) prefilled, with the checks marked; Save uses the existing create route.
 
 ## 5. Voice while cooking (AI-5 server, AI-10 app)
 
@@ -69,13 +67,35 @@ The canvas row "Cookpool AI" is the reference for every screen. Earlier rules st
 - **Listening windows:** after a step is read, and while the mic button is held. A window is 6 s, extended while speech continues.
 - **Voice activity detection** through the Web Audio API: only stretches with speech are recorded (`MediaRecorder`, Opus/AAC), at most 15 s a clip.
 - **Commands** match a short local grammar on the *transcript*: next, back, repeat, start/stop timer, pause, how much \<ingredient\>. They go straight to the session.
-- **The whistle counter:** while a whistle step runs, the mic listens with no upload. It detects a pressure-cooker whistle as a sustained high band (about 2–5 kHz) above a threshold, with a 4 s cool-down, and ticks the count. A "+1" and a "−1" correct it. It's on by default only for whistle steps.
+- **Whistles:** there's no listening for whistles, by the owner's choice. GC-5's tap-to-count stays.
 
 **On the server:**
 - `POST /v1/kitchen/me/ai/transcribe` takes the audio body (≤ 15 s, ≤ 1 MB) and returns `{ text }`. It uses Workers AI `@cf/openai/whisper-large-v3-turbo` through an `AI` binding on kitchen-worker, counts `audio_seconds`, and stores nothing.
 - `POST /v1/kitchen/me/ai/ask-step { recipeId, factor, stepKey, question }` returns `{ answer }`. Haiku answers in at most 60 words, given the recipe's lines scaled to the factor, the current step, its heat, time, checkpoint and tip, the next step, and the question. The recipe part of the prompt is cached per recipe. It's never asked about money.
 
 **The flow in the app:** the transcript goes to the local command matcher first, and only if nothing matches is it sent to `ask-step`. The answer is shown and read aloud.
+
+## 5a. Help at the stove: Check it and Something wrong? (AI-5 server, AI-10 app)
+
+The owner's request: AI should help when something goes wrong, including from a photo of the dish as it cooks.
+
+**Check it** (📷 on every step in guided mode):
+- `POST /v1/kitchen/me/ai/check-step { recipeId, factor, stepKey, image }` takes the resized photo (1200 px, ≤ 1.5 MB).
+- It returns `{ verdict: "looks_right" | "not_yet" | "problem" | "cant_tell", say ≤ 60 words, problem? }`.
+- The model gets the step, heat, time range, checkpoint (sense and words), tip, the scaled lines used so far and the next step. The cached recipe block is shared with ask-step.
+- Haiku goes first, and Sonnet is used when Haiku answers `cant_tell` or fails validation. The image is never stored.
+
+**Something wrong?** (chips on every step):
+- The chips are Too salty, Burning, Too watery, Too thick, Split or curdled, Not cooking, Something else (free text).
+- `POST /v1/kitchen/me/ai/rescue { recipeId, factor, stepKey, problem, text?, image? }` returns `{ title, steps: string[] (≤ 4), say }`.
+- The fix fits the recipe, the size and the current step. Burning, for example, says "flame off, move the top to a clean pan, don't scrape".
+
+**Safety:**
+- The prompt and the validator forbid saying food is safe to eat from a photo.
+- Meat, eggs and seafood doneness always answers with how to check: cut the thickest piece; no pink, clear juices; or 74 °C for chicken.
+- The app shows that line under the buttons.
+
+**Answers** show as a card and are read aloud (§5). Each call counts as one action toward the daily limit.
 
 ## 6. Cook now with swaps (AI-6 server, AI-11 app)
 
@@ -86,7 +106,7 @@ The canvas row "Cookpool AI" is the reference for every screen. Earlier rules st
 ## 7. Settings (AI-7)
 
 You → **Cookpool AI**:
-- one switch per feature: Say what you used, Scan receipts, Recipe import, Voice while cooking, Count cooker whistles, Swaps;
+- one switch per feature: Say what you used, Scan receipts, Recipe from a photo, Voice while cooking, Swaps;
 - today's use against the limits;
 - "What is sent".
 
