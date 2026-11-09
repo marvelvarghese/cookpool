@@ -3,7 +3,7 @@ kind: Component
 
 metadata:
   name: cloudflare-kv
-  description: Provisions Cloudflare KV namespaces backing the api-edge idempotency replay store (stage and prod)
+  description: Provisions Cloudflare KV namespaces for the api-edge idempotency replay store and mcp-worker's OAuth store (stage and prod)
   labels:
     domain: infra
     scope: edge-idempotency-replay-store

@@ -7,7 +7,7 @@ A `terraform` component rooted at `infra/terraform/cloudflare-kv/terraform`.
 - **Credentials are brokered per run** from the workspace's Cloudflare
   connection; no long-lived provider secrets exist anywhere in CI.
 - **Outputs are published as job-output secrets** on the environment
-  rungs: `WIRING_CLOUDFLARE_KV` (namespace id/title for deploy-time binding). Downstream deploy lanes resolve them by name.
+  rungs: `WIRING_CLOUDFLARE_KV` (each namespace's id/title for deploy-time binding: `api_edge_idempotency_kv_*` for api-edge, `mcp_oauth_kv_*` for mcp-worker). Downstream deploy lanes resolve them by name.
 - **Self-healing adoption** (`adopt.tf`): when the platform state is
   empty but the resource already exists at the provider, plan-time import
   adopts it instead of failing with "already exists" — safe re-bootstrap

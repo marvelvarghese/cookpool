@@ -25,3 +25,4 @@ Part of the cookpool runtime: a Cloudflare Worker deployed per environment (`sta
 ## Depended on by
 
 - **web-console-next** — Next.js 15 + opennextjs/cloudflare delivery of the cookpool web console (per-environment, Workers + Static Assets)
+- **mcp-worker** — Cloudflare Worker for the MCP server and its OAuth 2.1 authorization server (Cookpool MC-3)

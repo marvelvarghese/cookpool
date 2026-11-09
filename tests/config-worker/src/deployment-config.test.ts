@@ -840,3 +840,102 @@ describe("kitchen-worker AI cost switches", () => {
     });
   }
 });
+
+// ── mcp-worker (Cookpool MC-3) ─────────────────────────────────
+//
+// The MCP server assistants connect to. Unlike the rest of the fleet it has a
+// public workers.dev URL in stage and prod (design §2) until the owner
+// attaches mcp.cookpool.store. Its OAuth store is its own KV namespace from
+// infra/terraform/cloudflare-kv, wired like api-edge's; every tool goes
+// through api-edge (which enforces the delegated token's scopes), and the
+// only other binding is identity's internal delegation refresh.
+
+describe("mcp-worker deployment config (MC-3)", () => {
+  type Service = { binding: string; service: string; props?: Record<string, unknown> };
+  type Section = {
+    workers_dev?: boolean;
+    vars?: Record<string, string>;
+    kv_namespaces?: Array<{ binding: string; id: string }>;
+    services?: Service[];
+    d1_databases?: unknown[];
+  };
+  type Config = Section & { name: string; compatibility_flags?: string[]; env: Record<string, Section> };
+  const templateRaw = fs.readFileSync(path.join(ROOT, "apps/mcp-worker/wrangler.template.jsonc"), "utf-8");
+  const template = parseJsoncStrings(templateRaw) as unknown as Config;
+  const rendered = renderFromFixture("apps/mcp-worker", parseJsoncStrings) as unknown as Config;
+  const component = readYaml("apps/mcp-worker/component.yaml");
+  const kvTerraform = fs.readFileSync(path.join(ROOT, "infra/terraform/cloudflare-kv/terraform/main.tf"), "utf-8");
+  const consoleComponent = readYaml("apps/web-console-next/component.yaml");
+  const subdomain = (consoleComponent.match(/^\s*workersDevSubdomain:\s*([a-z0-9-]+)\s*$/m) ?? [])[1];
+  const KV_TOKEN_RE = /^@@wiring\(cloudflare-kv\/(stage|prod):mcp_oauth_kv_id\)@@$/;
+
+  test("is named cookpool-mcp-worker and fetches CIMD documents only from the public internet", () => {
+    expect(template.name).toBe("cookpool-mcp-worker");
+    expect(template.compatibility_flags).toEqual(expect.arrayContaining(["nodejs_compat", "global_fetch_strictly_public"]));
+  });
+
+  test("the template carries no committed IDs or placeholders", () => {
+    const stripped = templateRaw.replace(/\/\/.*$/gm, "");
+    expect(stripped).not.toMatch(PLACEHOLDER_RE);
+    expect(stripped).not.toMatch(/"(id|database_id)":\s*"[0-9a-f]{32}"/);
+  });
+
+  for (const envName of ["stage", "prod"]) {
+    test(`${envName} is public on workers.dev, on purpose`, () => {
+      expect(rendered.env[envName]?.workers_dev).toBe(true);
+    });
+
+    test(`${envName} binds MCP_OAUTH_KV through the cloudflare-kv wiring token mcp_oauth_kv_id`, () => {
+      const kv = (template.env[envName]?.kv_namespaces ?? []).find((k) => k.binding === "MCP_OAUTH_KV");
+      expect(kv?.id).toMatch(KV_TOKEN_RE);
+      expect(kv?.id).toContain(`cloudflare-kv/${envName}:`);
+      const renderedKv = (rendered.env[envName]?.kv_namespaces ?? []).find((k) => k.binding === "MCP_OAUTH_KV");
+      expect(renderedKv?.id).toMatch(/^[0-9a-f]{32}$/);
+    });
+
+    test(`${envName} binds api-edge with the mcp-worker caller props, and identity, and nothing else`, () => {
+      expect(rendered.env[envName]?.services).toEqual([
+        { binding: "API_EDGE", service: `cookpool-api-edge-${envName}`, props: { caller: "mcp-worker" } },
+        { binding: "IDENTITY_WORKER", service: `cookpool-identity-worker-${envName}` },
+      ]);
+      expect(rendered.env[envName]?.d1_databases).toBeUndefined();
+    });
+
+    test(`${envName} sends people to its console and publishes its own workers.dev origin`, () => {
+      const vars = rendered.env[envName]?.vars ?? {};
+      expect(vars.ENVIRONMENT).toBe(envName);
+      expect(vars.CONSOLE_ORIGIN).toBe(envName === "prod" ? "https://cookpool.store" : `https://${envName}.cookpool.store`);
+      expect(vars.MCP_PUBLIC_ORIGIN).toBe(`https://cookpool-mcp-worker-${envName}.${subdomain}.workers.dev`);
+    });
+  }
+
+  test("the stage and prod stores differ", () => {
+    const id = (env: string) => (rendered.env[env]?.kv_namespaces ?? [])[0]?.id;
+    expect(id("stage")).not.toBe(id("prod"));
+  });
+
+  test("dev (verify-only) carries no bindings", () => {
+    expect(template.env.dev?.kv_namespaces).toBeUndefined();
+    expect(template.env.dev?.services).toBeUndefined();
+  });
+
+  test("terraform creates the namespace and publishes mcp_oauth_kv_id in the wiring document", () => {
+    expect(kvTerraform).toMatch(/resource "cloudflare_workers_kv_namespace" "mcp_oauth" \{/);
+    expect(kvTerraform).toMatch(/mcp_oauth_kv_id\s+= cloudflare_workers_kv_namespace\.mcp_oauth\.id/);
+  });
+
+  test("on main it deploys after the KV namespace, the stubs and api-edge; it reads the KV wiring", () => {
+    const enforcedOnMain = (c: string): boolean =>
+      new RegExp(
+        `- component: ${c}\\n\\s+mode: enforced\\n\\s+modeRules:\\n\\s+- mode: advisory\\n\\s+when:\\n\\s+triggerRef: github-pull-request`,
+      ).test(component);
+    expect(enforcedOnMain("cloudflare-kv")).toBe(true);
+    expect(enforcedOnMain("policy-worker")).toBe(true);
+    expect(enforcedOnMain("api-edge")).toBe(true);
+    expect(component).toContain("- component: identity-worker");
+    expect(component).toMatch(/^\s*wiringComponents: "cloudflare-kv"\s*$/m);
+    expect(component).toContain('WIRING_CLOUDFLARE_KV_STAGE: "secret://ws_QX130J0D/cookpool/stage/WIRING_CLOUDFLARE_KV"');
+    expect(component).toContain('WIRING_CLOUDFLARE_KV_PROD: "secret://ws_QX130J0D/cookpool/prod/WIRING_CLOUDFLARE_KV"');
+    expect(readYaml("apps/api-edge/component.yaml")).not.toMatch(/component: mcp-worker/);
+  });
+});

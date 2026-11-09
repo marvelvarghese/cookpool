@@ -110,6 +110,25 @@ resource "cloudflare_workers_kv_namespace" "api_edge_idempotency" {
   title      = local.idempotency_namespace_title
 }
 
+# --- KV namespace for mcp-worker's OAuth store (Cookpool MC-3) ---
+#
+# Backs @cloudflare/workers-oauth-provider in apps/mcp-worker: registered MCP
+# clients, grants (their props encrypted, holding the user's delegated
+# token), access and refresh tokens (stored only as hashes), and the pending
+# authorization requests the console's /connect page completes. Every record
+# carries its own TTL, set by the Worker on PUT.
+
+locals {
+  # Brand-namespaced like the idempotency namespace above (titles are unique
+  # per account).
+  mcp_oauth_namespace_title = "${var.namespacePrefix}${var.repo}-mcp-oauth-${var.environment}"
+}
+
+resource "cloudflare_workers_kv_namespace" "mcp_oauth" {
+  account_id = var.cloudflare_account_id
+  title      = local.mcp_oauth_namespace_title
+}
+
 # --- Wiring manifest (BF5, via orun secrets) ---
 # The consumable outputs are published by the composition's wire-secrets step
 # as the WIRING_CLOUDFLARE_KV secret on the project/{{env}} rung; worker
@@ -121,6 +140,8 @@ output "wiring" {
   value = jsonencode({
     api_edge_idempotency_kv_id    = cloudflare_workers_kv_namespace.api_edge_idempotency.id
     api_edge_idempotency_kv_title = cloudflare_workers_kv_namespace.api_edge_idempotency.title
+    mcp_oauth_kv_id               = cloudflare_workers_kv_namespace.mcp_oauth.id
+    mcp_oauth_kv_title            = cloudflare_workers_kv_namespace.mcp_oauth.title
   })
 }
 
@@ -134,4 +155,14 @@ output "api_edge_idempotency_kv_id" {
 output "api_edge_idempotency_kv_title" {
   description = "Cloudflare Workers KV namespace title (human-readable identifier)"
   value       = cloudflare_workers_kv_namespace.api_edge_idempotency.title
+}
+
+output "mcp_oauth_kv_id" {
+  description = "Cloudflare Workers KV namespace ID for mcp-worker's OAuth store (MC-3)"
+  value       = cloudflare_workers_kv_namespace.mcp_oauth.id
+}
+
+output "mcp_oauth_kv_title" {
+  description = "Cloudflare Workers KV namespace title for mcp-worker's OAuth store"
+  value       = cloudflare_workers_kv_namespace.mcp_oauth.title
 }

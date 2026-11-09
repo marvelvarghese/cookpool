@@ -1,0 +1,116 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: mcp-worker
+  description: Cloudflare Worker for the MCP server and its OAuth 2.1 authorization server (Cookpool MC-3)
+spec:
+  type: cloudflare-worker-turbo
+  lifecycle: production
+  owner: platform
+  # Its pages, attached to it in the workspace's catalog: what the Docs
+  # library shows for it, and what the catalog's docs and runbook checks read.
+  # Generated from what this manifest declares
+  # (tooling/catalog/gen-component-docs.mjs).
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  domain: starter-runtime
+  path: apps/mcp-worker
+  dependsOn:
+    # ENFORCED ON MAIN: the KV namespace (its wiring) before the worker that
+    # binds it, and policy-worker before anything that holds a service binding
+    # (its pre-deploy places a stub for every binding target that does not
+    # exist yet, tooling/deploy/fleet-stubs.mjs). A pull request deploys
+    # nothing, so nothing on one waits.
+    - component: cloudflare-kv
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+    - component: policy-worker
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+    # Every tool calls api-edge with the user's delegated token; api-edge's
+    # scope allowlist (MC-2) is what keeps a leaked token from moving money.
+    # On main the edge deploys first, so a new tool never goes live before the
+    # edge that enforces its scope.
+    - component: api-edge
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+    # Delegated-token refresh (POST /v1/internal/delegations/refresh, MC-2):
+    # a runtime call, not deploy order.
+    - component: identity-worker
+  # BF6 wiring documents from orun secrets (SEC-JOB): lease-published by
+  # the infra components; wire-live renders the wrangler template from
+  # these instead of Secrets Manager documents.
+  secretEnv:
+    WIRING_CLOUDFLARE_KV_STAGE: "secret://ws_QX130J0D/cookpool/stage/WIRING_CLOUDFLARE_KV"
+    WIRING_CLOUDFLARE_KV_PROD: "secret://ws_QX130J0D/cookpool/prod/WIRING_CLOUDFLARE_KV"
+
+  subscribe:
+    environments:
+      - name: dev
+        profile: verify
+      - name: stage
+        # Peer edges are runtime calls, not deploy order: every binding target
+        # exists before this deploys (policy-worker's pre-deploy places one,
+        # tooling/deploy/fleet-stubs.mjs), so nothing in this lane waits on a
+        # peer. The edges marked `mode: enforced` above still order.
+        dependencyMode: advisory
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+      - name: prod
+        # Peer edges are runtime calls, not deploy order: every binding target
+        # exists before this deploys (policy-worker's pre-deploy places one,
+        # tooling/deploy/fleet-stubs.mjs), so nothing in this lane waits on a
+        # peer. The edges marked `mode: enforced` above still order.
+        dependencyMode: advisory
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+  parameters:
+    nodeVersion: "22"
+    pnpmVersion: "10.12.1"
+    workspaceDir: ../..
+    appDir: .
+    # BF6b: deploy-time wiring — wrangler.jsonc is rendered, never committed.
+    # Verify lanes render from wiring.fixture.json (offline); deploy lanes
+    # resolve real IDs from the wiring document cloudflare-kv publishes.
+    orgName: sourceplane
+    owner: sourceplane
+    repo: cookpool
+
+    turboFilter: "@saas/mcp-worker"
+    wranglerConfig: wrangler.jsonc
+    wranglerTemplate: wrangler.template.jsonc
+    wiringComponents: "cloudflare-kv"
+    wiringEnvs: "stage,prod"
+    wiringFixture: wiring.fixture.json
+    installCommand: pnpm install --frozen-lockfile
+    buildCommand: pnpm exec turbo run build --filter=@saas/mcp-worker
+    typecheckCommand: pnpm exec turbo run typecheck --filter=@saas/mcp-worker
+    dryRunCommand: pnpm exec wrangler deploy --dry-run --config wrangler.jsonc --env prod
+    deployCommand: pnpm exec wrangler deploy --config wrangler.jsonc --env prod
+    preDeployCommand: "echo 'No pre-deploy step configured.'"
+    migrationCommand: "echo 'No migrations configured.'"
+    smokeCommand: "echo 'No smoke test configured.'"
+  labels:
+    team: platform
+    layer: runtime
+    surface: mcp
+    runtime: cloudflare
+# orun: redeploy MC-3 the MCP server's first deploy 2026-11-09T00:00:00Z
