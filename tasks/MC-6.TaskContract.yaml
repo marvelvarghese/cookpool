@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MC-6
+  title: "Suggestion cards on Home"
+spec:
+  goal: "In the new frame, Home shows From your assistant cards with the summary, lines, Discard and Confirm with Undo."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-mcp/**
+    - tasks/MC-6.TaskContract.yaml
+  doneWhen:
+    - "Home shows pending suggestions with what they would do, Discard and Confirm"
+    - "Confirm performs the write with Undo and Discard removes the card; with newFrame false nothing changes"
+  gates: []

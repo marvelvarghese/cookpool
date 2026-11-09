@@ -1,0 +1,30 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MC-5
+  title: "Suggestions in the server"
+spec:
+  goal: "Migration 500 adds suggestions created only by delegated tokens, validated like real writes and expiring in 24 hours; the user confirms or discards them, confirming performs the real write; MCP gains propose tools."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/mcp-worker
+    - default/cookpool/mcp-worker-tests
+    - apps/mcp-worker/**
+    - tests/mcp-worker/**
+    - specs/epics/cookpool-mcp/**
+    - tasks/MC-5.TaskContract.yaml
+  doneWhen:
+    - "migration 500 adds kitchen_suggestions; POST suggestions works only for a delegated token with suggest.write and validates the payload"
+    - "a user session lists, confirms and discards suggestions; confirm performs the real use or purchase through the same rules"
+    - "suggestions expire after 24 hours and a user has at most 20 pending; the inbox lists pending ones"
+    - "mcp-worker offers suggest_use and suggest_purchase resolving items by name; tests cover each rule"
+  gates: []

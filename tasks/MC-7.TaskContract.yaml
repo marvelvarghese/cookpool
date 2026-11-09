@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MC-7
+  title: "Close the MCP epic"
+spec:
+  goal: "Record what MC-2 to MC-6 shipped, fill in Shipped as and After this epic, and mark the epic completed."
+  affects:
+    - specs/epics/cookpool-mcp/**
+    - tasks/MC-7.TaskContract.yaml
+  doneWhen:
+    - "the README status and Shipped as are filled in"
+    - "IMPLEMENTATION-STATUS has every milestone and PR"
+    - "After this epic lists what was left"
+  gates: []

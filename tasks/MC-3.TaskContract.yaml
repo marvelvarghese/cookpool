@@ -1,0 +1,29 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MC-3
+  title: "The MCP server"
+spec:
+  goal: "A new mcp-worker with a KV namespace, OAuth 2.1 with PKCE and dynamic client registration, Streamable HTTP MCP at /mcp, and the read and timer tools calling api-edge with the delegated token."
+  affects:
+    - default/cookpool/mcp-worker
+    - default/cookpool/mcp-worker-tests
+    - default/cookpool/cloudflare-kv
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/config-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - apps/mcp-worker/**
+    - tests/mcp-worker/**
+    - infra/terraform/cloudflare-kv/**
+    - specs/epics/cookpool-mcp/**
+    - tasks/MC-3.TaskContract.yaml
+  doneWhen:
+    - "mcp-worker exists with its own KV namespace from terraform, an API_EDGE binding and a workers.dev host on stage and prod"
+    - "OAuth metadata, dynamic client registration, authorize with PKCE and token work; authorize hands off to the console connect page"
+    - "completing consent stores the delegated token in the grant and redirects back to the client"
+    - "/mcp speaks Streamable HTTP and lists only the tools the granted scopes allow; each tool calls api-edge with the delegated token"
+    - "tests cover the OAuth flow, tool listing by scope, each tool's call and error mapping, and revocation"
+  gates: []
