@@ -37,6 +37,12 @@ export interface AppConfig {
    * `stage=stage.cookpool.store,prod=cookpool.store`.
    */
   customDomains: string;
+  /**
+   * The MCP connector URL assistants add, per environment (cookpool-mcp
+   * MC-4): `stage=https://…/mcp,prod=https://…/mcp`. mcp-worker's own origin
+   * (where the consent page's `/connect/*` calls go) is the URL's origin.
+   */
+  mcpPublicUrls: string;
   /** The single environment this deploy serves; unset offers every target. */
   deployEnv: string | undefined;
 }
@@ -58,6 +64,12 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   storagePrefix: "cookpool.next",
   salesEmail: "sales@sourceplane.ai",
   customDomains: "stage=stage.cookpool.store,prod=cookpool.store",
+  // mcp-worker's workers.dev hosts (MC-3: `workers_dev: true` in stage and prod).
+  // TODO(cookpool-mcp, risk MC-D): once the owner attaches mcp.cookpool.store
+  // (and a stage name) in the Cloudflare dashboard, point these at the custom
+  // domain, with mcp-worker's MCP_PUBLIC_ORIGIN.
+  mcpPublicUrls:
+    "stage=https://cookpool-mcp-worker-stage.cookpool.workers.dev/mcp,prod=https://cookpool-mcp-worker-prod.cookpool.workers.dev/mcp",
   deployEnv: BUILD_DEPLOY_ENV,
 };
 
@@ -70,6 +82,7 @@ export const RUNTIME_KEYS: Record<keyof AppConfig, string> = {
   storagePrefix: "CONSOLE_STORAGE_PREFIX",
   salesEmail: "CONSOLE_SALES_EMAIL",
   customDomains: "CONSOLE_CUSTOM_DOMAINS",
+  mcpPublicUrls: "CONSOLE_MCP_PUBLIC_URLS",
   deployEnv: "CONSOLE_DEPLOY_ENV",
 };
 
@@ -139,6 +152,7 @@ export function resolveAppConfig(
     storagePrefix: pick("storagePrefix") ?? defaults.storagePrefix,
     salesEmail: pick("salesEmail") ?? defaults.salesEmail,
     customDomains,
+    mcpPublicUrls: pick("mcpPublicUrls") ?? defaults.mcpPublicUrls,
     deployEnv: pick("deployEnv") ?? defaults.deployEnv ?? environmentFromHost(host, customDomains),
   };
 }
@@ -191,4 +205,30 @@ export function consoleTitle(config: AppConfig = appConfig()): string {
 /** api-edge workers.dev URL for a given environment name. */
 export function apiEdgeWorkersDevUrl(environment: string, config: AppConfig = appConfig()): string {
   return `https://${config.apiWorkerPrefix}-${environment}.${config.workersDevSubdomain}.workers.dev`;
+}
+
+/**
+ * The MCP connector URL for an environment (cookpool-mcp MC-4): what an
+ * assistant adds, from `mcpPublicUrls`. Only an https URL counts; null when
+ * the environment has none (a local build that names no environment).
+ */
+export function mcpPublicUrl(environment: string | null | undefined, config: AppConfig = appConfig()): string | null {
+  if (!environment) return null;
+  for (const entry of (config.mcpPublicUrls ?? "").split(",")) {
+    const at = entry.indexOf("=");
+    if (at < 0 || entry.slice(0, at).trim().toLowerCase() !== environment) continue;
+    try {
+      const url = new URL(entry.slice(at + 1).trim());
+      return url.protocol === "https:" ? url.toString() : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** mcp-worker's origin for an environment, where the consent page's `/connect/*` calls go; null without one. */
+export function mcpOrigin(environment: string | null | undefined, config: AppConfig = appConfig()): string | null {
+  const url = mcpPublicUrl(environment, config);
+  return url ? new URL(url).origin : null;
 }

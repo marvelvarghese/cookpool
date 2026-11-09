@@ -71,6 +71,10 @@ export const STATIC_PAGES = Object.freeze([
   "/p/:postId",
   "/you/profile",
   "/you/blocked",
+  // Your assistant, connected (cookpool-mcp MC-4): the consent page and
+  // Connected assistants (the You tab's).
+  "/connect",
+  "/you/assistants",
   "/groups",
   "/groups/:orgSlug",
   "/groups/:orgSlug/expense",
