@@ -32,7 +32,7 @@ import {
   useWasteItem,
 } from "@/components/kitchen/pantry-data";
 import { usualFor } from "@/components/kitchen/quick-use";
-import { ItemActionsRow, LevelRingCard, QuickUseChips, RunOutCard, WhoHadItCard } from "@/components/kitchen/item-page-ui";
+import { ItemActionsRow, LevelRingCard, QuickUse, RunOutCard, WhoHadItCard } from "@/components/kitchen/item-page-ui";
 import { StockBar, UseByPill } from "@/components/kitchen/pantry-ui";
 import { WasteConfirm } from "@/components/kitchen/item-actions-ui";
 import { SwipeRow } from "@/components/kitchen/row-gestures-ui";
@@ -228,7 +228,7 @@ function NewItemView(ctx: ItemCtx) {
       <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
         <div className="min-w-0 space-y-4">
           <LevelRingCard item={item} usual={usual} meId={meId} names={names} />
-          {canUseHere ? <QuickUseChips {...parts} /> : null}
+          {canUseHere ? <QuickUse {...parts} /> : null}
           <RunOutCard item={item} moves={moves.data ?? null} />
           <WhoHadItCard item={item} moves={moves.data ?? null} meId={meId} names={names} />
           <HistoryCard {...ctx} fresh />

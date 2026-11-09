@@ -2,8 +2,8 @@
  * The new frame's item page (cookpool-pantry PN-7, design §5, the canvas's
  * ItemPage) as pure view-models: the **level ring** — what is left of what
  * was bought, and what that is worth — in the level colours (§2.3); the
- * **quick-use chips** — the §2.2 suggestion with its reason, the next two
- * steps of the item's ladder, then More…; and **Bought again** — a one-line
+ * amount to use is PN-11's `AmountPicker` (`amount-picker.ts`), from the
+ * §2.2 suggestion; and **Bought again** — a one-line
  * shopping run like last time (`kitchen.buy`), its toast and its Change.
  * Who had it and "At this rate" are `item-use.ts`'s (`whoHadIt`,
  * `runOutEstimate`): they read the item's moves, as its history does.
@@ -12,11 +12,10 @@
  */
 
 import type { KitchenItem, KitchenMeasure, PurchaseLine } from "@saas/contracts/kitchen";
-import type { UseSuggestionReason } from "@saas/contracts/kitchen-usuals";
 import { fromMilli, isUnit } from "@saas/kitchen-engine/units";
 import { leftInMeasure } from "./measures";
 import { boughtText, itemRefParam, leftPercent, leftText, type ItemRef } from "./pantry";
-import { itemLadder, type LadderStep, type SetUsual } from "./pantry-set";
+import type { SetUsual } from "./pantry-set";
 import { LEVEL_COLORS, itemStatus, levelTone, type LevelTone } from "./pantry-list";
 import { addDays, shortMoney } from "./from-before";
 import { costPerText } from "./item-use";
@@ -88,49 +87,6 @@ export function ringDash(percent: number, r: number): string {
   const c = 2 * Math.PI * r;
   const drawn = (c * Math.max(0, Math.min(100, percent))) / 100;
   return `${drawn.toFixed(1)} ${c.toFixed(1)}`;
-}
-
-// ── The quick-use chips ───────────────────────────────────────────
-
-export interface QuickChip extends LadderStep {
-  /** The chip: "1 glass", "2 onions", "100 g"; "The rest" (its amount when it is the suggestion: "300 ml"). */
-  label: string;
-  /** The suggestion (§2.2): the first chip. */
-  suggested: boolean;
-  reason: UseSuggestionReason | null;
-  /** Under the suggestion: "Morning usual", "The rest", "Your usual", "Use soon"; null otherwise. */
-  why: string | null;
-  /** Who had it last time (the bucket usual's people for a bucket usual); null: the default people. */
-  consumerIds: string[] | null;
-}
-
-/** How many ladder steps follow the suggestion as chips (More… is the last). */
-export const QUICK_CHIP_STEPS = 2;
-
-/**
- * The chips under the ring: the suggestion (§2.2, with its reason), then the
- * next QUICK_CHIP_STEPS steps of the item's ladder after it — the ones
- * before it when it is near the top (The rest) — then the page's More….
- * The ladder and the suggestion are the Pantry's set row's (PN-5's
- * `itemLadder`), so the page offers what the row does. Empty when nothing
- * is left.
- */
-export function quickChips(item: PageItem, usual: PageUsual | null | undefined): QuickChip[] {
-  const { steps, suggestion } = itemLadder(item, usual);
-  if (!suggestion) return [];
-  const at = Math.max(0, steps.findIndex((x) => x.key === suggestion.step.key));
-  const after = steps.slice(at + 1, at + 1 + QUICK_CHIP_STEPS);
-  const before = steps.slice(0, at).reverse().slice(0, QUICK_CHIP_STEPS - after.length).reverse();
-  const label = (x: LadderStep, suggested: boolean) => (x.rest && !suggested ? "The rest" : x.words);
-  return [
-    { ...suggestion.step, label: label(suggestion.step, true), suggested: true, reason: suggestion.reason, why: suggestion.why, consumerIds: suggestion.consumerIds },
-    ...[...before, ...after].map((x): QuickChip => ({ ...x, label: label(x, false), suggested: false, reason: null, why: null, consumerIds: null })),
-  ];
-}
-
-/** A chip's amount as `useLogUse` sends it: in the measure it names, else in the unit (null). */
-export function chipMeasure(chip: Pick<LadderStep, "amount">): { measure: KitchenMeasure; quantity: number } | null {
-  return chip.amount.kind === "measure" ? { measure: chip.amount.measure, quantity: chip.amount.quantity } : null;
 }
 
 // ── Where the page's actions go ───────────────────────────────────

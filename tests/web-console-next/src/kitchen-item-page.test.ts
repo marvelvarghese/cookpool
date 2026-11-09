@@ -1,5 +1,5 @@
 import { buildUse } from "@saas/kitchen-engine/ledger";
-import type { KitchenStockMove, KitchenUsual } from "@saas/contracts/kitchen";
+import type { KitchenStockMove } from "@saas/contracts/kitchen";
 import {
   RUN_OUT_MIN_DAYS,
   RUN_OUT_MIN_USES,
@@ -12,7 +12,6 @@ import {
   whoHadItLine,
 } from "@web-console-next/components/kitchen/item-use";
 import {
-  QUICK_CHIP_STEPS,
   RING_COLORS,
   boughtAgainLine,
   boughtAgainTitle,
@@ -21,14 +20,11 @@ import {
   canBuyAgain,
   canCheck,
   checkHref,
-  chipMeasure,
   levelRing,
-  quickChips,
   ringDash,
   ringTone,
 } from "@web-console-next/components/kitchen/item-page";
 import { itemRefOf } from "@web-console-next/components/kitchen/pantry";
-import { itemLadder } from "@web-console-next/components/kitchen/pantry-set";
 import { ANU, DEV, FLAT, ME, MEERA, NAMES, PERSONAL_REF, makeItem, makeMove } from "./kitchen-pantry-fixtures";
 
 // cookpool-pantry PN-7 (design §5, the canvas's ItemPage): the new frame's
@@ -143,64 +139,6 @@ describe("the level ring (levelRing)", () => {
     expect(ringDash(50, 40)).toBe("125.7 251.3");
     expect(ringDash(0, 40)).toBe("0.0 251.3");
     expect(ringDash(140, 40)).toBe("251.3 251.3");
-  });
-});
-
-describe("the quick-use chips (quickChips)", () => {
-  const usual = (o: Partial<KitchenUsual> = {}): KitchenUsual =>
-    ({ itemId: "itm_1", lastQtyMilli: 250_000, lastUnit: "ml", lastLabel: null, consumers: [ME, ANU], ...o }) as KitchenUsual;
-
-  it("leads with the suggestion and its reason, then the next two steps of the Pantry's ladder", () => {
-    const item = milk();
-    // PN-5's ladder: the Use screen's tiles and multiples of the suggestion, smallest first, then the rest.
-    expect(itemLadder(item, null).steps.map((s) => [s.words, s.qtyMilli])).toEqual([
-      ["½ glass", 125_000],
-      ["1 glass", 250_000],
-      ["2 glasses", 500_000],
-      ["3 glasses", 750_000],
-      ["1 L", 1_000_000],
-    ]);
-    const chips = quickChips(item, null);
-    expect(QUICK_CHIP_STEPS).toBe(2);
-    expect(chips.map((c) => [c.label, c.suggested, c.reason, c.why])).toEqual([
-      ["1 glass", true, "first", null],
-      ["2 glasses", false, null, null],
-      ["3 glasses", false, null, null],
-    ]);
-    // The same suggestion as the Pantry's row.
-    expect(chips[0]!.key).toBe(itemLadder(item, null).suggestion!.step.key);
-    expect(quickChips(makeItem({ unit: "pcs", bought: "12", left: "7" }), null).map((c) => c.label)).toEqual(["1 pc", "2 pcs", "3 pcs"]);
-  });
-
-  it("suggests your usual for this part of the day, with its people", () => {
-    const now = { bucket: "morning" as const, qtyMilli: 250_000, quantity: 250, unit: "ml", label: null, consumerIds: [ME, ANU], count: 3 };
-    const chips = quickChips(milk(), usual({ now }));
-    expect(chips[0]).toMatchObject({ label: "1 glass", qtyMilli: 250_000, reason: "usual_now", why: "Morning usual", consumerIds: [ME, ANU] });
-    expect(chips.slice(1).map((c) => c.label)).toEqual(["2 glasses", "3 glasses"]);
-    expect(quickChips(milk(), usual())[0]).toMatchObject({ label: "1 glass", why: "Your usual", reason: "usual", consumerIds: [ME, ANU] });
-    expect(quickChips(milk({ daysToUseBy: 1 }), null)[0]!.why).toBe("Use soon");
-  });
-
-  it("offers the rest when little is left, with the two steps under it", () => {
-    const item = milk({ left: "0.3" });
-    const chips = quickChips(item, usual());
-    // The rest, said as its amount, with why under it.
-    expect(chips[0]).toMatchObject({ rest: true, label: "300 ml", words: "300 ml", reason: "rest", why: "The rest", qtyMilli: 300_000 });
-    expect(chips.slice(1).every((c) => c.qtyMilli < 300_000)).toBe(true);
-    expect(chips.slice(1).map((c) => c.qtyMilli)).toEqual([...chips.slice(1).map((c) => c.qtyMilli)].sort((a, b) => a - b));
-  });
-
-  it("never offers more than is left, and nothing once it's gone", () => {
-    for (const left of ["0.01", "0.2", "0.3", "1", "1.9"]) {
-      for (const c of quickChips(milk({ left }), usual())) expect(c.qtyMilli).toBeLessThanOrEqual(milk({ left }).qtyLeftMilli);
-    }
-    expect(quickChips(milk({ left: "0" }), usual())).toEqual([]);
-  });
-
-  it("logs a chip in the measure it names, else in the unit", () => {
-    const onion = { one: "onion", many: "onions", qtyMilli: 150_000, dimension: "mass" } as never;
-    expect(chipMeasure({ amount: { kind: "unit", qtyMilli: 250_000 } })).toBeNull();
-    expect(chipMeasure({ amount: { kind: "measure", measure: onion, quantity: 2, qtyMilli: 300_000, label: "2 onions" } })).toEqual({ measure: onion, quantity: 2 });
   });
 });
 

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "./link";
-import { CookingPot, SlidersVertical, Timer } from "lucide-react";
+import { Check, CookingPot, SlidersVertical, Timer } from "lucide-react";
 import type { KitchenItem, KitchenStockMove, KitchenUsual } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import type { MemberNames } from "./members";
@@ -21,23 +21,15 @@ import { shortMoney } from "./from-before";
 import { leftText } from "./pantry";
 import { runOutEstimate, whoHadIt } from "./item-use";
 import { useAskToUse, useAsks, useCancelAsk, useMinuteNow } from "./ask-data";
-import { askName, askStatus } from "./ask-before-use";
-import { AskLockIcon, AskStatusLine, AskWaitBox } from "./ask-ui";
-import {
-  RING_COLORS,
-  canBuyAgain,
-  canCheck,
-  checkHref,
-  chipMeasure,
-  levelRing,
-  quickChips,
-  ringDash,
-  type QuickChip,
-} from "./item-page";
+import { askButtonText, askName, askStatus } from "./ask-before-use";
+import { ASK_BUTTON, AskLockIcon, AskStatusLine, AskWaitBox } from "./ask-ui";
+import { RING_COLORS, canBuyAgain, canCheck, checkHref, levelRing, ringDash } from "./item-page";
+import { useSetState } from "./set-row-ui";
+import { AmountPicker } from "./amount-picker-ui";
 
 /**
  * The new frame's item page parts (cookpool-pantry PN-7, design §5, the
- * canvas's ItemPage): the level ring, the quick-use chips, "At this rate",
+ * canvas's ItemPage): the level ring, how much to use, "At this rate",
  * Who had it, and the actions — Bought again, Finish it, Wasted, Fix how
  * much is left, and Cook with it. The page (`/pantry/[itemRef]`) puts them
  * in the design's order; its history, note and measures are its own.
@@ -104,17 +96,17 @@ export function LevelRingCard({ item, usual, meId, names }: Pick<ItemPartsCtx, "
   );
 }
 
-// ── The quick-use chips ────────────────────────────────────────────
-
-const CHIP =
-  "flex min-h-[52px] min-w-0 flex-col items-center justify-center rounded-[14px] border bg-card px-1.5 py-1 text-center transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+// ── How much to use ────────────────────────────────────────────────
 
 /**
- * The suggestion (its reason under it), the next two steps of the ladder,
- * and More…: a tap logs that amount for the people of last time, with the
- * ten-second Undo. More… is the Pantry's sheet (PN-5's `UseSheet`).
+ * How much to use, from the item's page (PN-11): the amount with unit chips
+ * (`AmountPicker`), starting at the suggestion with its reason, then ✓ Use —
+ * which logs it for the people of last time, with the ten-second Undo — and
+ * More…, the Pantry's sheet (PN-5's `UseSheet`) for who had it, Finish it and
+ * the rest. The amount is the device's draft for the item, shared with the
+ * Pantry's open row and the sheet.
  */
-export function QuickUseChips({ itemRef, item, usual, roster, meId, names }: ItemPartsCtx) {
+export function QuickUse({ itemRef, item, usual, roster, meId, names }: ItemPartsCtx) {
   const logUse = useLogUse();
   const [sheet, setSheet] = React.useState<UseSheetTarget | null>(null);
   // Ask before use (cookpool-pantry PN-9): who you must ask first, and your ask while it waits.
@@ -124,61 +116,55 @@ export function QuickUseChips({ itemRef, item, usual, roster, meId, names }: Ite
   const now = useMinuteNow();
   const who = itemRef.kind === "group" ? askName(item, { names }) : null;
   const status = askStatus(item.id, asks.data?.mine ?? null, { now, names });
-  const chips = quickChips(item, usual);
-  if (chips.length === 0) return null;
-  const log = (chip: QuickChip) => {
-    const fromChip = chip.consumerIds?.filter((id) => roster === null || roster.includes(id)) ?? [];
-    const consumers = item.pantry.kind === "personal" ? [] : fromChip.length > 0 ? fromChip : defaultConsumers(usual, roster, meId);
+  const row = pantryRow(item, { usual, showPantry: false, meId, names, askName: who });
+  const set = useSetState(row, item, roster, meId);
+  const { pick, write, consumers } = set;
+  if (!pick || !write) return null;
+  const personal = item.pantry.kind === "personal";
+  const ready = personal || consumers.length > 0;
+  const use = () => {
+    if (!ready) return;
     if (who && itemRef.kind === "group") {
-      void askToUse({ ref: itemRef, item, qtyMilli: chip.qtyMilli, consumers, idempotencyKey: crypto.randomUUID(), what: chip.words, measure: chipMeasure(chip), meId, names, who });
-      return;
+      void askToUse({ ref: itemRef, item, ...write, consumers, idempotencyKey: crypto.randomUUID(), meId, names, who });
+    } else {
+      void logUse({ ref: itemRef, item, ...write, consumers, idempotencyKey: crypto.randomUUID(), meId, names });
     }
-    void logUse({
-      ref: itemRef,
-      item,
-      qtyMilli: chip.qtyMilli,
-      consumers,
-      idempotencyKey: crypto.randomUUID(),
-      what: chip.words,
-      measure: chipMeasure(chip),
-      meId,
-      names,
-    });
+    set.clear();
   };
   if (status?.phase === "waiting") return <AskWaitBox status={status} onCancel={() => void cancelAsk(status.ask)} />;
   return (
-    <div className="flex flex-col gap-2">
-    {status ? <AskStatusLine status={status} className="mt-0 px-1" /> : null}
-    {who ? (
-      <p className="flex items-center gap-1.5 px-1 text-[13px] font-bold text-[#8A5A00]">
-        <AskLockIcon className="h-4 w-4" />
-        Each tap asks {who}
-      </p>
-    ) : null}
-    <div role="group" aria-label={who ? `Ask ${who} for some` : "Use some"} className="grid grid-cols-4 gap-1.5">
-      {chips.map((chip) => (
+    <section aria-label={who ? `Ask ${who} for some` : "Use some"} className="flex flex-col gap-3 rounded-[22px] border bg-card p-3.5">
+      {status ? <AskStatusLine status={status} className="mt-0 px-1" /> : null}
+      <AmountPicker item={item} name={item.name} pick={pick} start={set.start} why={set.why} onPick={set.setPick} />
+      <div className="grid grid-cols-[2fr_1fr] gap-2">
+        {who ? (
+          <button type="button" disabled={!ready} onClick={use} className={ASK_BUTTON}>
+            <AskLockIcon />
+            <span className="truncate">{askButtonText(who)}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!ready}
+            onClick={use}
+            className="flex min-h-[52px] min-w-0 items-center justify-center gap-2 rounded-[14px] bg-primary px-2 text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+          >
+            <Check className="h-5 w-5 shrink-0" strokeWidth={2.8} aria-hidden />
+            <span className="truncate">Use {write.what}</span>
+          </button>
+        )}
         <button
-          key={chip.key}
           type="button"
-          onClick={() => log(chip)}
-          className={cn(CHIP, chip.suggested ? "border-primary/60 bg-[#E4F2EA]" : "border-[#C9CFC6]")}
+          aria-haspopup="dialog"
+          onClick={() => setSheet({ row, item: { ...item, canUse: true }, usual })}
+          className="min-h-[52px] rounded-[14px] border border-[#C9CFC6] bg-card text-[15px] font-extrabold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="max-w-full truncate text-sm font-extrabold">{chip.label}</span>
-          {chip.why ? <span className="max-w-full truncate text-[11px] font-bold text-[#165C3A]">{chip.why}</span> : null}
+          More…
         </button>
-      ))}
-      <button
-        type="button"
-        aria-haspopup="dialog"
-        onClick={() => setSheet({ row: pantryRow(item, { usual, showPantry: false, meId, names, askName: who }), item: { ...item, canUse: true }, usual })}
-        className="col-start-4 flex min-h-[52px] items-center justify-center rounded-[14px] bg-primary px-2 text-sm font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      >
-        More…
-      </button>
+      </div>
       {/* The Pantry's More… sheet (PN-5): how much, who had it, Log, Finish it, Wasted, Cook with it. */}
       <UseSheet target={sheet} onClose={() => setSheet(null)} meId={meId} onLogged={() => undefined} />
-    </div>
-    </div>
+    </section>
   );
 }
 

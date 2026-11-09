@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PN-11
+  title: "Amounts with unit chips"
+spec:
+  goal: "Replace the mixed amount ladder with unit chips and even minus and plus steps in the chosen unit, unit switching that converts, and a typed amount, in the open row, the More sheet and the item page."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-pantry/**
+    - tasks/PN-11.TaskContract.yaml
+  doneWhen:
+    - "the open row, the More sheet and the item page show the amount with unit chips: the item's own measures first, then plain units, plus The rest"
+    - "minus and plus step evenly in the chosen unit, switching unit converts the amount, and tapping the number lets you type it"
+    - "the amount never goes above what is left or below zero, and the use is written in the chosen unit or measure"
+    - "suggestions still start the box with their reason; with newFrame false nothing changes"
+  gates: []

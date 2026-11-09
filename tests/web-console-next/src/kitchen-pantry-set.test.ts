@@ -4,17 +4,14 @@ import {
   MAX_DRAFTS,
   canStep,
   draftOf,
-  draftStep,
   itemLadder,
   lastLine,
   parseDrafts,
   putDraft,
   setConsumers,
   setCostLine,
-  setReason,
   stepFrom,
   stepOf,
-  withStep,
 } from "@web-console-next/components/kitchen/pantry-set";
 import { ANU, DEV, FLAT, ME, MEERA, NAMES, ONION, PERSONAL_REF, makeItem, makeMove, makeUsual as usual, morningUsual as morning } from "./kitchen-pantry-fixtures";
 
@@ -60,15 +57,6 @@ describe("the ladder", () => {
 
   it("is empty with nothing left", () => {
     expect(itemLadder(milk("0"), null)).toEqual({ tiles: [], steps: [], suggestion: null });
-  });
-
-  it("takes an amount from the sheet's Other in its place, before The rest", () => {
-    const steps = itemLadder(milk(), null).steps;
-    const extra = { key: "u:300000", amount: { kind: "unit" as const, qtyMilli: 300_000 }, qtyMilli: 300_000, words: "300 ml", rest: false };
-    const out = withStep(steps, extra).map((s) => s.words);
-    expect(out.indexOf("300 ml")).toBe(out.indexOf("1 glass") + 1);
-    expect(out.at(-1)).toBe("1 L");
-    expect(withStep(steps, { ...extra, key: "u:250000", qtyMilli: 250_000 })).toHaveLength(steps.length);
   });
 });
 
@@ -117,12 +105,6 @@ describe("− [amount] +", () => {
     expect(canStep(ladder.steps, ladder.steps[0]!.key, -1)).toBe(false);
     expect(canStep(ladder.steps, start.key, -1)).toBe(true);
     expect(stepOf(ladder.steps, "nope")).toBeNull();
-  });
-
-  it("says the reason at the suggestion and 'Changed from …' once moved", () => {
-    expect(setReason(start, ladder.suggestion)).toBe("Morning usual");
-    expect(setReason(stepFrom(ladder.steps, start.key, 1)!, ladder.suggestion)).toBe("Changed from 1 glass");
-    expect(setReason(start, null)).toBeNull();
   });
 });
 
@@ -174,32 +156,25 @@ describe("Last, the faces and the cost", () => {
 });
 
 describe("the draft kept on the device until Use", () => {
-  const item = milk();
-  const ladder = itemLadder(item, usual(item));
-  const two = stepFrom(ladder.steps, ladder.suggestion!.step.key, 1)!;
   const at = new Date("2026-11-08T08:00:00.000Z");
+  const two = { unit: "m:glass", count: 2, rest: false, how: "changed" as const };
 
-  it("comes back as the same step, and as its amount when the ladder no longer has it", () => {
-    const d = draftOf(two, [ME, ANU], at);
-    expect(d).toEqual({ key: two.key, qtyMilli: 500_000, words: "2 glasses", measure: null, consumers: [ME, ANU], at: at.toISOString() });
-    expect(draftStep(ladder.steps, d, item)).toBe(two);
-    const other = { ...d, key: "u:300000", qtyMilli: 300_000, words: "300 ml" };
-    expect(draftStep(ladder.steps, other, item)).toMatchObject({ key: "u:300000", words: "300 ml" });
-    expect(draftStep(itemLadder(milk("0.2"), null).steps, other, milk("0.2"))).toBeNull();
-    expect(draftStep(ladder.steps, null, item)).toBeNull();
+  it("keeps the amount as picked (its unit chip and count) and the people", () => {
+    expect(draftOf(two, [ME, ANU], at)).toEqual({ pick: two, consumers: [ME, ANU], at: at.toISOString() });
+    // Only the people changed: the amount follows the suggestion.
+    expect(draftOf(null, [ME], at)).toEqual({ pick: null, consumers: [ME], at: at.toISOString() });
   });
 
-  it("keeps a measure's count, taking what it takes now", () => {
-    const onions = { ...makeItem({ name: "Onions", unit: "kg", bought: "1" }), measures: [ONION] };
-    const d = { key: "m:onion:3", qtyMilli: 450_000, words: "3 onions", measure: { one: "onion", quantity: 3 }, consumers: null, at: at.toISOString() };
-    expect(draftStep([], d, onions)).toMatchObject({ words: "3 onions", qtyMilli: 450_000, amount: { kind: "measure" } });
-  });
-
-  it("reads only well-formed drafts, and keeps the newest MAX_DRAFTS", () => {
+  it("reads only well-formed drafts; one from before PN-11 keeps its people and drops its amount", () => {
     const d = draftOf(two, null, at);
-    expect(parseDrafts(JSON.stringify({ itm_1: d, itm_2: { key: 1 }, bad: d }))).toEqual({ itm_1: d });
+    expect(parseDrafts(JSON.stringify({ itm_1: d, itm_2: { key: 1 }, bad: d, itm_3: { ...d, pick: { unit: "m:glass", count: "2" } } }))).toEqual({ itm_1: d });
+    const before = { key: "u:500000", qtyMilli: 500_000, words: "2 glasses", measure: null, consumers: [ANU], at: at.toISOString() };
+    expect(parseDrafts(JSON.stringify({ itm_4: before }))).toEqual({ itm_4: { pick: null, consumers: [ANU], at: at.toISOString() } });
     expect(parseDrafts("not json")).toEqual({});
     expect(parseDrafts(null)).toEqual({});
+  });
+
+  it("keeps the newest MAX_DRAFTS", () => {
     let all = {};
     for (let i = 0; i < MAX_DRAFTS + 3; i++) all = putDraft(all, `itm_${i}`, draftOf(two, null, new Date(at.getTime() + i * 1000)));
     expect(Object.keys(all)).toHaveLength(MAX_DRAFTS);
