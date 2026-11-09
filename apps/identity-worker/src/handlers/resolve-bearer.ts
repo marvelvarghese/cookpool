@@ -1,6 +1,6 @@
 import type { Env } from "../env.js";
 import { createSqlExecutor } from "@saas/db/d1";
-import { createIdentityRepository } from "@saas/db/identity";
+import { createDelegationsRepository, createIdentityRepository } from "@saas/db/identity";
 import { createAuthService } from "../services/auth.js";
 import { successResponse, errorResponse, extractBearerToken, withTimings } from "../http.js";
 import { createTimings } from "@saas/contracts/timing";
@@ -23,7 +23,7 @@ export async function handleResolveBearer(request: Request, env: Env, requestId:
   const route = "identity.resolve";
   try {
     const repo = createIdentityRepository(executor);
-    const auth = createAuthService({ repo, now: () => new Date() });
+    const auth = createAuthService({ repo, delegations: createDelegationsRepository(executor), now: () => new Date() });
     const result = await timings.measure("resolve", () => auth.resolveBearer(token));
     endTotal();
 
@@ -40,6 +40,8 @@ export async function handleResolveBearer(request: Request, env: Env, requestId:
           ...(result.projectId !== undefined && { projectId: result.projectId }),
           ...(result.displayName !== undefined && { displayName: result.displayName }),
           ...(result.email !== undefined && { email: result.email }),
+          // MC-2: a delegated token's id, scopes and client name.
+          ...(result.delegation !== undefined && { delegation: result.delegation }),
         },
         ...(result.session && {
           session: {

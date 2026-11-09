@@ -106,7 +106,8 @@ describe("Identity Migration Verification", () => {
   describe("280_identity_login_attempts", () => {
     it("is registered under identity, right after 270_kitchen_sweeps", () => {
       const ids = manifest.migrations.map((m) => m.id);
-      expect(identityMigrations.map((m) => m.id).slice(-1)).toEqual(["280_identity_login_attempts"]);
+      // The identity migration after it is 490_identity_delegations (MC-2).
+      expect(identityMigrations.map((m) => m.id).slice(-2)).toEqual(["280_identity_login_attempts", "490_identity_delegations"]);
       expect(ids.indexOf("280_identity_login_attempts")).toBe(ids.indexOf("270_kitchen_sweeps") + 1);
       // The next migration is kitchen's 290_kitchen_dish_share_setter (SM-6).
       expect(ids[ids.indexOf("280_identity_login_attempts") + 1]).toBe("290_kitchen_dish_share_setter");

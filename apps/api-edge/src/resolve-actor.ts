@@ -1,12 +1,41 @@
 import type { Env } from "./env";
 import { errorResponse } from "./http";
 import { cacheApiStore, bearerToken, type ActorCacheStore } from "./actor-cache";
+import { isDelegatedToken, isDelegationAllowed, scopeRefused } from "./delegation-scopes";
+import { isDelegationScope, type DelegationActor } from "@saas/contracts/delegations";
 
 export interface ActorInfo {
   subjectId: string;
   subjectType: string;
   email: string;
   orgId?: string;
+  /**
+   * A delegated token's (cookpool-mcp MC-2): the user acting through an
+   * assistant, within these scopes. Cached with the rest for the same 30 s.
+   */
+  delegation?: DelegationActor;
+}
+
+/** The scope check every resolution passes through: a delegated actor gets only what its scopes allow. */
+function withinScopes(info: ActorInfo, request: Request, requestId: string): ActorInfo | ActorFailure {
+  if (!info.delegation) return info;
+  const { pathname } = new URL(request.url);
+  if (!isDelegationAllowed(request.method, pathname, info.delegation.scopes)) {
+    return { error: scopeRefused(requestId) };
+  }
+  return info;
+}
+
+/** The delegation identity answered, kept only when well formed; scopes this edge does not know are dropped. */
+function readDelegation(raw: unknown): DelegationActor | null {
+  if (!raw || typeof raw !== "object") return null;
+  const d = raw as { id?: unknown; scopes?: unknown; clientName?: unknown };
+  if (typeof d.id !== "string" || !Array.isArray(d.scopes)) return null;
+  return {
+    id: d.id,
+    scopes: d.scopes.filter(isDelegationScope),
+    clientName: typeof d.clientName === "string" ? d.clientName : "",
+  };
 }
 
 export interface ActorFailure {
@@ -48,7 +77,15 @@ export async function resolveActor(
 
   const cache = deps?.cache ?? cacheApiStore();
   const cached = await cache.get(token);
-  if (cached) return cached;
+  if (cached) {
+    // A cached entry for a delegated token without its delegation can only
+    // be stale or foreign: never let it act as the plain user.
+    if (isDelegatedToken(token) && !cached.delegation) {
+      await cache.evict(token);
+    } else {
+      return withinScopes(cached, request, requestId);
+    }
+  }
 
   const headers = new Headers();
   headers.set("authorization", authorization);
@@ -75,6 +112,7 @@ export async function resolveActor(
           actorId?: string;
           email?: string;
           orgId?: string;
+          delegation?: unknown;
         };
         user?: { id?: string; email?: string };
       };
@@ -90,15 +128,25 @@ export async function resolveActor(
     // For user actors, prefer user-level email; for service_principal, use actor email or empty
     const email = json?.data?.user?.email ?? actor.email ?? "";
 
+    // MC-2: a delegated token must come back with its delegation, and a
+    // delegation only ever rides on a user. Anything else fails closed.
+    const delegation = actor.delegation === undefined ? null : readDelegation(actor.delegation);
+    if ((actor.delegation !== undefined || isDelegatedToken(token)) && (!delegation || actor.actorType !== "user")) {
+      return {
+        error: errorResponse("unauthenticated", "Authentication failed", 401, requestId),
+      };
+    }
+
     const info: ActorInfo = {
       subjectId: actor.actorId,
       subjectType: actor.actorType,
       email,
       ...(actor.orgId && { orgId: actor.orgId }),
+      ...(delegation && { delegation }),
     };
     // Cache only successful resolutions (best-effort; never cache a denial).
     await cache.set(token, info);
-    return info;
+    return withinScopes(info, request, requestId);
   } catch {
     return {
       error: errorResponse("internal_error", "Authentication service unavailable", 503, requestId),

@@ -9,6 +9,12 @@ import type {
   SessionResponse,
   UpdateProfileRequest,
 } from "@saas/contracts/auth";
+import type {
+  CreateDelegationRequest,
+  CreateDelegationResponse,
+  DelegationsListResponse,
+  RevokeDelegationResponse,
+} from "@saas/contracts/delegations";
 
 import type { RequestOptions, Transport } from "./transport.js";
 
@@ -142,6 +148,39 @@ export class AuthClient {
         path: "/v1/auth/profile",
         body: input,
       },
+      opts,
+    );
+  }
+
+  // ── Delegated tokens for assistants (cookpool-mcp MC-2) ──────────────
+  // A signed-in session only: the console's consent page mints one for an
+  // MCP client, and Connected assistants lists and disconnects them. A
+  // delegated token calling these is refused (`ForbiddenError`, reason
+  // "session_required" at identity, "scope" at the edge).
+
+  /** GET /v1/auth/delegations — your live delegations, newest first. */
+  delegations(opts: RequestOptions = {}): Promise<DelegationsListResponse> {
+    return this.transport.request<DelegationsListResponse>(
+      { method: "GET", path: "/v1/auth/delegations" },
+      opts,
+    );
+  }
+
+  /** POST /v1/auth/delegations — mint one; the token in the answer is shown this once. */
+  createDelegation(
+    input: CreateDelegationRequest,
+    opts: RequestOptions = {},
+  ): Promise<CreateDelegationResponse> {
+    return this.transport.request<CreateDelegationResponse>(
+      { method: "POST", path: "/v1/auth/delegations", body: input },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/auth/delegations/:id — disconnect: the token stops working within the edge's 30 s actor cache. */
+  revokeDelegation(id: string, opts: RequestOptions = {}): Promise<RevokeDelegationResponse> {
+    return this.transport.request<RevokeDelegationResponse>(
+      { method: "DELETE", path: `/v1/auth/delegations/${encodeURIComponent(id)}` },
       opts,
     );
   }

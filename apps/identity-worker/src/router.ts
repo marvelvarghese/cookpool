@@ -12,12 +12,19 @@ import { handleOAuthStart } from "./handlers/oauth-start.js";
 import { handleOAuthCallback } from "./handlers/oauth-callback.js";
 import { handleCreateApiKey, handleListApiKeys, handleRevokeApiKey } from "./handlers/api-key-admin.js";
 import { handleInternalUsersLookup } from "./handlers/internal-users-lookup.js";
+import {
+  handleCreateDelegation,
+  handleInternalRefreshDelegation,
+  handleListDelegations,
+  handleRevokeDelegation,
+} from "./handlers/delegations.js";
 import { errorResponse, notFound, methodNotAllowed } from "./http.js";
 
 const ORG_API_KEYS_RE = /^\/v1\/organizations\/[^/]+\/api-keys$/;
 const ORG_API_KEY_ID_RE = /^\/v1\/organizations\/[^/]+\/api-keys\/[^/]+$/;
 const OAUTH_START_RE = /^\/v1\/auth\/oauth\/[^/]+\/start$/;
 const OAUTH_CALLBACK_RE = /^\/v1\/auth\/oauth\/[^/]+\/callback$/;
+const DELEGATION_ID_RE = /^\/v1\/auth\/delegations\/[^/]+$/;
 import { generateRequestId } from "./ids.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
@@ -88,6 +95,18 @@ export async function route(request: Request, env: Env): Promise<Response> {
       return handleOAuthCallback(request, env, requestId);
     }
 
+    // Delegated tokens for assistants (cookpool-mcp MC-2): a session only.
+    if (url.pathname === "/v1/auth/delegations") {
+      if (request.method === "POST") return handleCreateDelegation(request, env, requestId);
+      if (request.method === "GET") return handleListDelegations(request, env, requestId);
+      return methodNotAllowed(requestId);
+    }
+
+    if (DELEGATION_ID_RE.test(url.pathname)) {
+      if (request.method === "DELETE") return handleRevokeDelegation(request, env, requestId);
+      return methodNotAllowed(requestId);
+    }
+
     // API-key admin routes (forwarded from api-edge)
     if (ORG_API_KEYS_RE.test(url.pathname)) {
       if (request.method === "POST") return handleCreateApiKey(request, env, requestId);
@@ -105,6 +124,14 @@ export async function route(request: Request, env: Env): Promise<Response> {
     if (url.pathname === "/v1/internal/identity/users/lookup") {
       if (request.method !== "POST") return methodNotAllowed(requestId);
       return handleInternalUsersLookup(request, env, requestId);
+    }
+
+    // Internal: mcp-worker rotates a delegated token (MC-2). Service-binding
+    // only, and the caller names itself (handlers/delegations.ts); the 404
+    // comes before the method is looked at.
+    if (url.pathname === "/v1/internal/delegations/refresh") {
+      if (request.method !== "POST") return notFound(requestId, url.pathname);
+      return handleInternalRefreshDelegation(request, env, requestId);
     }
 
     return notFound(requestId, url.pathname);

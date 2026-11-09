@@ -1,3 +1,5 @@
+import type { DelegationActor } from "./delegations.js";
+
 // Auth contract types for the identity-worker API surface.
 
 export interface LoginStartRequest {
@@ -133,6 +135,12 @@ export interface ActorContext {
   projectId?: string | null;
   displayName?: string | null;
   email?: string | null;
+  /**
+   * Present only for a delegated token (`sps_dlg_…`, cookpool-mcp MC-2): the
+   * user acting through an assistant, within these scopes. api-edge enforces
+   * them (./delegations.ts).
+   */
+  delegation?: DelegationActor;
 }
 
 // Extended session response with optional actor context.
