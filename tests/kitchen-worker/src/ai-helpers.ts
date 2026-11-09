@@ -126,11 +126,18 @@ export interface AiWorld {
 export const me = (rest: string) => `/v1/kitchen/me/${rest}`;
 export const groupPath = (g: Group, rest: string) => `/v1/organizations/${g.publicId}/kitchen/${rest}`;
 
-export function aiWorld(opts: { key?: boolean; now?: () => Date } = {}): AiWorld {
+export function aiWorld(
+  opts: { key?: boolean; now?: () => Date; escalate?: boolean; env?: Record<string, string | undefined> } = {},
+): AiWorld {
   const ai = stubProvider();
   const h = createHarness({
     deps: { now: opts.now ?? (() => NOW), aiProvider: ai },
-    env: { ANTHROPIC_API_KEY: opts.key === false ? undefined : "test-key-not-real" },
+    env: {
+      ANTHROPIC_API_KEY: opts.key === false ? undefined : "test-key-not-real",
+      // AI-13: Sonnet escalation is off unless a test turns it on.
+      ...(opts.escalate ? { AI_ESCALATE: "on" } : {}),
+      ...opts.env,
+    },
   });
   const flat = newGroup("Flat 4B");
   const lunch = newGroup("Lunch club");

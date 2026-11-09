@@ -817,3 +817,26 @@ describe("kitchen-worker Anthropic key", () => {
     });
   }
 });
+
+// ── kitchen-worker's AI cost switches (Cookpool AI-13) ─────────
+//
+// Plain vars, in the top level and every environment (wrangler does not
+// inherit vars): Sonnet escalation off, and a 5 USD monthly AI budget.
+
+describe("kitchen-worker AI cost switches", () => {
+  type Rendered = {
+    vars?: Record<string, string>;
+    env: Record<string, { vars?: Record<string, string> }>;
+  };
+  const rendered = renderFromFixture("apps/kitchen-worker", parseJsoncStrings) as unknown as Rendered;
+
+  test("the top level has escalation off and a 5 USD budget", () => {
+    expect(rendered.vars).toMatchObject({ AI_ESCALATE: "off", AI_MONTHLY_BUDGET_USD: "5" });
+  });
+
+  for (const envName of ["dev", "stage", "prod"]) {
+    test(`${envName} has escalation off and a 5 USD budget`, () => {
+      expect(rendered.env[envName]?.vars).toMatchObject({ AI_ESCALATE: "off", AI_MONTHLY_BUDGET_USD: "5" });
+    });
+  }
+});

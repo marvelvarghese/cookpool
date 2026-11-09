@@ -1,6 +1,8 @@
 import {
   AI_DAILY_ACTIONS,
+  AI_DAILY_RECEIPTS,
   AI_DAILY_VOICE_SECONDS,
+  AI_MONTHLY_BUDGET_USD_DEFAULT,
   KITCHEN_AI_ERROR_REASONS,
 } from "@saas/contracts/kitchen";
 import { createSqlExecutor } from "@saas/db/d1";
@@ -25,6 +27,12 @@ import type { AiRunResult } from "./runner.js";
 // for). The check runs before the model is called; two requests at once can
 // each pass at the last action and both run, so a person may end a day one or
 // two actions over: a soft cap on spend, not a ledger.
+//
+// Cost guardrails (AI-13): receipts have their own cap of AI_DAILY_RECEIPTS
+// a day (inside the 50), every row records its estimated cost_micros, and
+// before any model call the month's cost across everyone is summed: at or
+// over AI_MONTHLY_BUDGET_USD (default 5) AI answers 503 `budget` until the
+// 1st, UTC. A budget that cannot be read counts as reached — never open.
 
 const DAY_MS = 86_400_000;
 
@@ -48,26 +56,78 @@ export function aiFailed(requestId: string): Response {
   });
 }
 
-export type AiLimitKind = "actions" | "voice";
+export type AiLimitKind = "actions" | "voice" | "receipts";
+
+const LIMITS: Record<AiLimitKind, { limit: number; used: (t: KitchenAiUsageTotals) => number; message: string; reason: string }> = {
+  actions: {
+    limit: AI_DAILY_ACTIONS,
+    used: (t) => t.actions,
+    message: "That's today's AI: it comes back at midnight UTC",
+    reason: KITCHEN_AI_ERROR_REASONS.AI_DAILY_LIMIT,
+  },
+  voice: {
+    limit: AI_DAILY_VOICE_SECONDS,
+    used: (t) => t.voiceSeconds,
+    message: "That's today's voice minutes: they come back at midnight UTC",
+    reason: KITCHEN_AI_ERROR_REASONS.VOICE_DAILY_LIMIT,
+  },
+  receipts: {
+    limit: AI_DAILY_RECEIPTS,
+    used: (t) => t.receipts,
+    message: "That's today's receipts: they come back at midnight UTC",
+    reason: KITCHEN_AI_ERROR_REASONS.RECEIPT_DAILY_LIMIT,
+  },
+};
 
 /** 429 `rate_limited` when today's use has reached the limit of `kind`; null while there is room. */
 export function overLimit(requestId: string, kind: AiLimitKind, today: KitchenAiUsageTotals, now: Date): Response | null {
-  const limit = kind === "actions" ? AI_DAILY_ACTIONS : AI_DAILY_VOICE_SECONDS;
-  const used = kind === "actions" ? today.actions : today.voiceSeconds;
+  const { limit, used: usedOf, message, reason } = LIMITS[kind];
+  const used = usedOf(today);
   if (used < limit) return null;
-  const voice = kind === "voice";
-  return errorResponse(
-    "rate_limited",
-    voice ? "That's today's voice minutes: they come back at midnight UTC" : "That's today's AI: it comes back at midnight UTC",
-    429,
-    requestId,
-    {
-      reason: voice ? KITCHEN_AI_ERROR_REASONS.VOICE_DAILY_LIMIT : KITCHEN_AI_ERROR_REASONS.AI_DAILY_LIMIT,
-      limit,
-      used,
-      resetsAt: utcDay(now).to.toISOString(),
-    },
-  );
+  return errorResponse("rate_limited", message, 429, requestId, {
+    reason,
+    limit,
+    used,
+    resetsAt: utcDay(now).to.toISOString(),
+  });
+}
+
+/** The UTC month `now` falls in: [from, to). */
+export function utcMonth(now: Date): { from: Date; to: Date } {
+  return {
+    from: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+    to: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+  };
+}
+
+/** The month's budget in micro-dollars: AI_MONTHLY_BUDGET_USD, else the default when unset or not a number ≥ 0. */
+export function aiMonthlyBudgetMicros(env: { AI_MONTHLY_BUDGET_USD?: string | undefined }): number {
+  const raw = env.AI_MONTHLY_BUDGET_USD?.trim() ?? "";
+  const usd = raw === "" ? Number.NaN : Number(raw);
+  return Math.round((Number.isFinite(usd) && usd >= 0 ? usd : AI_MONTHLY_BUDGET_USD_DEFAULT) * 1_000_000);
+}
+
+/**
+ * Has this month's AI cost, across everyone, reached the budget? One read
+ * over kitchen_ai_usage_created_idx. A read that fails counts as reached —
+ * and is logged — so a broken read never opens the gate.
+ */
+export async function aiBudgetReached(ctx: RequestContext, usage: AiUsageRepository): Promise<boolean> {
+  const { from, to } = utcMonth(ctx.now());
+  const read = await ctx.timings.measure("db", () => usage.aiCostBetween(from, to));
+  if (!read.ok) {
+    console.warn(`[kitchen-worker] ai budget unreadable, AI held off: ${ctx.requestId}`);
+    return true;
+  }
+  return read.value >= aiMonthlyBudgetMicros(ctx.env);
+}
+
+/** 503 `internal_error`, `budget`: this month's AI budget is spent; AI comes back on the 1st, UTC. */
+export function aiBudgetSpent(requestId: string, now: Date): Response {
+  return errorResponse("internal_error", "AI is off for the rest of the month: log it by hand", 503, requestId, {
+    reason: KITCHEN_AI_ERROR_REASONS.BUDGET,
+    resetsAt: utcMonth(now).to.toISOString(),
+  });
 }
 
 /** The caller's use today; null when it could not be read. */
@@ -98,6 +158,7 @@ export async function recordAiAction(
       cachedTokens: result.usage.cachedTokens,
       outputTokens: result.usage.outputTokens,
       audioSeconds,
+      costMicros: Math.round(result.usage.costMicros),
       ok: result.ok,
       now: ctx.now(),
     }),

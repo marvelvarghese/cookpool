@@ -21,10 +21,16 @@
   // deploy from orun secrets (component.yaml: optionalSecretEnv and
   // runtimeSecrets), one per environment — never a var here. Without it every
   // AI route answers 503 ai_unavailable (tests/config-worker asserts so).
+  // AI cost guardrails (AI-13), plain vars in every environment: AI_ESCALATE
+  // "on" retries a failed Haiku read once on Sonnet ("off": no retry), and
+  // AI_MONTHLY_BUDGET_USD turns AI off for everyone once the UTC month's
+  // estimated cost reaches it.
   "vars": {
     "ENVIRONMENT": "local",
     // Where the app is: the links in Cookpool's emails (CP-18) start here.
-    "APP_URL": "http://localhost:3000"
+    "APP_URL": "http://localhost:3000",
+    "AI_ESCALATE": "off",
+    "AI_MONTHLY_BUDGET_USD": "5"
   },
   // Two jobs, picked by scheduled() from controller.cron: the daily use-soon
   // sweep (CP-18) at 02:30 UTC, 08:00 IST, and the timer sweep (GC-3) every
@@ -39,14 +45,18 @@
     "dev": {
       "vars": {
         "ENVIRONMENT": "dev",
-        "APP_URL": "http://localhost:3000"
+        "APP_URL": "http://localhost:3000",
+        "AI_ESCALATE": "off",
+        "AI_MONTHLY_BUDGET_USD": "5"
       }
     },
     "stage": {
       "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "stage",
-        "APP_URL": "https://stage.cookpool.store"
+        "APP_URL": "https://stage.cookpool.store",
+        "AI_ESCALATE": "off",
+        "AI_MONTHLY_BUDGET_USD": "5"
       },
       "d1_databases": [
         {
@@ -78,7 +88,9 @@
       "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "prod",
-        "APP_URL": "https://cookpool.store"
+        "APP_URL": "https://cookpool.store",
+        "AI_ESCALATE": "off",
+        "AI_MONTHLY_BUDGET_USD": "5"
       },
       "d1_databases": [
         {

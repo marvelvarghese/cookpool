@@ -19,4 +19,11 @@ export interface Env {
    * `available: false`.
    */
   ANTHROPIC_API_KEY?: string;
+  /**
+   * Cost guardrails (AI-13), plain vars: `on` retries a failed Haiku check
+   * once on Sonnet (anything else, or unset: no retry), and the month's AI
+   * budget in USD across everyone (unset or not a number ≥ 0: 5).
+   */
+  AI_ESCALATE?: string;
+  AI_MONTHLY_BUDGET_USD?: string;
 }

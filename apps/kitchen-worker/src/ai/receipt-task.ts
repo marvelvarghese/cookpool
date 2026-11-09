@@ -13,10 +13,15 @@ import type { JsonSchema } from "./schema.js";
 //
 // The model is sent the photo and nothing about the caller: no names, no
 // pantries, no history, no money of theirs. The check fails the answer (→ the
-// one Sonnet retry) when a line has no text, a price is not a whole
-// non-negative number of minor units, or an amount does not parse in its
-// unit. A sum that does not meet the printed total is NOT a failure: it is
-// reported (`totalMatches`), since a photo can cut a line off.
+// one Sonnet retry when AI_ESCALATE is on) when a line has no text, a price is
+// not a whole non-negative number of minor units, or an amount does not parse
+// in its unit. A sum that does not meet the printed total is NOT a failure: it
+// is reported (`totalMatches`), since a photo can cut a line off.
+//
+// With escalation off (AI-13, the default) a failed answer is salvaged
+// instead: the lines that pass on their own are kept, marked `unclear` (the
+// matcher makes every food line `check`, reason `unclear`); a total or an
+// adjustment that fails is dropped. No line passes → `ai_failed`.
 
 const SYSTEM = `You read a photo of a shop receipt and write down what is printed on it. Most receipts are from India (kirana shops, supermarkets such as DMart, Reliance Smart, More, Big Bazaar, and delivery apps such as Blinkit, Zepto, Swiggy Instamart, BigBasket), in rupees.
 
@@ -114,6 +119,8 @@ export interface ReadLine {
   milli: number | null;
   priceMinor: number;
   isFood: boolean;
+  /** Salvaged from an answer that failed its check (AI-13): never `sure`. */
+  unclear?: true;
 }
 
 /** The receipt as read, before it is matched to the caller's history. */
@@ -138,66 +145,102 @@ const clip = (text: string | null, max: number): string | null => {
 /** A quantity as JSON can carry it exactly. */
 const plain = (n: number): number => Math.round(n * 1e6) / 1e6;
 
+/** One line checked on its own: what it reads as (when it has text), and what is wrong with it. */
+function checkLine(line: ReceiptAnswer["lines"][number], at: string): { read: ReadLine | null; problems: string[] } {
+  const problems: string[] = [];
+  const text = clip(line.text, TEXT_MAX);
+  if (!text) problems.push(`${at}: the line's text is missing`);
+  if (!Number.isSafeInteger(line.priceMinor) || line.priceMinor < 0) problems.push(`${at}: the price must be whole paise, 0 or more`);
+  let quantity: number | null = null;
+  let unit: UnitKey | null = null;
+  let milli: number | null = null;
+  if ((line.quantity === null) !== (line.unit === null)) {
+    problems.push(`${at}: give both the quantity and its unit, or neither`);
+  } else if (line.quantity !== null) {
+    if (!isUnit(line.unit) || !Number.isFinite(line.quantity) || line.quantity <= 0) {
+      problems.push(`${at}: the quantity does not parse`);
+    } else {
+      try {
+        quantity = plain(line.quantity);
+        unit = line.unit;
+        milli = toMilli(quantity, unit);
+      } catch {
+        problems.push(`${at}: the quantity does not parse`);
+      }
+    }
+  }
+  const read = text
+    ? { text, name: clip(line.name, NAME_MAX), quantity, unit, milli, priceMinor: line.priceMinor, isFood: line.isFood }
+    : null;
+  return { read, problems };
+}
+
+const totalOk = (total: number | null): boolean => total === null || (Number.isSafeInteger(total) && total >= 0);
+
+function shaped(answer: ReceiptAnswer, lines: ReadLine[], total: number | null, adjustments: ReceiptAnswer["adjustments"]): ReceiptRead {
+  const date = answer.date && /^\d{4}-\d{2}-\d{2}$/.test(answer.date.trim()) ? answer.date.trim() : null;
+  return {
+    store: clip(answer.store, STORE_MAX),
+    date,
+    total,
+    lines,
+    adjustmentsMinor: adjustments.reduce((sum, a) => sum + a.amountMinor, 0),
+  };
+}
+
 /** Check the model's lines and shape what was read. */
 export function checkReceipt(answer: ReceiptAnswer): AiCheck<ReceiptRead> {
   const problems: string[] = [];
   const lines: ReadLine[] = [];
   for (const [i, line] of answer.lines.slice(0, AI_RECEIPT_MAX_LINES).entries()) {
-    const at = `lines[${i}]`;
-    const text = clip(line.text, TEXT_MAX);
-    if (!text) problems.push(`${at}: the line's text is missing`);
-    if (!Number.isSafeInteger(line.priceMinor) || line.priceMinor < 0) problems.push(`${at}: the price must be whole paise, 0 or more`);
-    let quantity: number | null = null;
-    let unit: UnitKey | null = null;
-    let milli: number | null = null;
-    if ((line.quantity === null) !== (line.unit === null)) {
-      problems.push(`${at}: give both the quantity and its unit, or neither`);
-    } else if (line.quantity !== null) {
-      if (!isUnit(line.unit) || !Number.isFinite(line.quantity) || line.quantity <= 0) {
-        problems.push(`${at}: the quantity does not parse`);
-      } else {
-        try {
-          quantity = plain(line.quantity);
-          unit = line.unit;
-          milli = toMilli(quantity, unit);
-        } catch {
-          problems.push(`${at}: the quantity does not parse`);
-        }
-      }
-    }
-    if (text) {
-      lines.push({ text, name: clip(line.name, NAME_MAX), quantity, unit, milli, priceMinor: line.priceMinor, isFood: line.isFood });
-    }
+    const checked = checkLine(line, `lines[${i}]`);
+    problems.push(...checked.problems);
+    if (checked.read) lines.push(checked.read);
   }
-  if (answer.total !== null && (!Number.isSafeInteger(answer.total) || answer.total < 0)) problems.push("total: must be whole paise, 0 or more");
+  if (!totalOk(answer.total)) problems.push("total: must be whole paise, 0 or more");
   for (const [i, adj] of answer.adjustments.entries()) {
     if (!Number.isSafeInteger(adj.amountMinor)) problems.push(`adjustments[${i}]: must be whole paise`);
   }
   if (problems.length > 0) return { ok: false, problems };
-  const date = answer.date && /^\d{4}-\d{2}-\d{2}$/.test(answer.date.trim()) ? answer.date.trim() : null;
-  return {
-    ok: true,
-    value: {
-      store: clip(answer.store, STORE_MAX),
-      date,
-      total: answer.total,
-      lines,
-      adjustmentsMinor: answer.adjustments.reduce((sum, a) => sum + a.amountMinor, 0),
-    },
-  };
+  return { ok: true, value: shaped(answer, lines, answer.total, answer.adjustments) };
 }
+
+/**
+ * What of a failed answer is usable (AI-13, escalation off): the lines that
+ * pass on their own, each `unclear`; the total and adjustments that pass.
+ * Null when no line passes.
+ */
+export function salvageReceipt(answer: ReceiptAnswer): ReceiptRead | null {
+  const lines: ReadLine[] = [];
+  for (const [i, line] of answer.lines.slice(0, AI_RECEIPT_MAX_LINES).entries()) {
+    const checked = checkLine(line, `lines[${i}]`);
+    if (checked.read && checked.problems.length === 0) lines.push({ ...checked.read, unclear: true });
+  }
+  if (lines.length === 0) return null;
+  const adjustments = answer.adjustments.filter((a) => Number.isSafeInteger(a.amountMinor));
+  return shaped(answer, lines, totalOk(answer.total) ? answer.total : null, adjustments);
+}
+
+/**
+ * The output cap (AI-13), sized from the schema: a line is about 26 tokens
+ * of compact JSON ({"text":"AASHIRVAAD ATTA 5KG","name":"Atta","quantity":5,
+ * "unit":"kg","priceMinor":27500,"isFood":true}), so AI_RECEIPT_MAX_LINES
+ * lines, plus store, date, time, total and a few adjustments (~140).
+ */
+export const RECEIPT_MAX_TOKENS = AI_RECEIPT_MAX_LINES * 26 + 140;
 
 export const RECEIPT_TASK: AiTask<ReceiptInput, ReceiptRead> = {
   feature: "receipt",
   system: SYSTEM,
   reference: REFERENCE,
   schema: SCHEMA,
-  maxTokens: 8000,
+  maxTokens: RECEIPT_MAX_TOKENS,
   content: (input) => [
     { type: "image", source: { type: "base64", media_type: input.mediaType, data: input.image } },
     { type: "text", text: "Read this receipt." },
   ],
   check: (answer) => checkReceipt(answer as ReceiptAnswer),
+  salvage: (answer) => salvageReceipt(answer as ReceiptAnswer),
 };
 
 /** The kind of amount a unit counts (count, mass, volume, pack). */

@@ -3,7 +3,7 @@
 // the usage rows, through the real router with a stubbed provider.
 
 import type { AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
-import { AI_DAILY_ACTIONS, AI_DAILY_VOICE_SECONDS, KITCHEN_AI_ERROR_REASONS } from "@saas/contracts/kitchen";
+import { AI_DAILY_ACTIONS, AI_DAILY_RECEIPTS, AI_DAILY_VOICE_SECONDS, KITCHEN_AI_ERROR_REASONS } from "@saas/contracts/kitchen";
 import { AI_EFFORT, AI_FIRST_MODEL, AI_RETRY_MODEL, aiRequest, runAiTask, type AiTask } from "@kitchen-worker/ai/runner";
 import { RAHUL, ANU, NOW, aiWorld, answer, contextOf, me, personRef, refOf, stubProvider, type AiWorld } from "./ai-helpers.js";
 
@@ -35,7 +35,15 @@ describe("Cookpool AI: availability (AI-2)", () => {
     expect(res.body.data).toEqual({
       available: false,
       features: { sayIt: false, receipt: false, import: false, voice: false, swaps: false },
-      today: { actions: 0, actionsLimit: AI_DAILY_ACTIONS, voiceSeconds: 0, voiceSecondsLimit: AI_DAILY_VOICE_SECONDS },
+      budget: "ok",
+      today: {
+        actions: 0,
+        actionsLimit: AI_DAILY_ACTIONS,
+        voiceSeconds: 0,
+        voiceSecondsLimit: AI_DAILY_VOICE_SECONDS,
+        receipts: 0,
+        receiptsLimit: AI_DAILY_RECEIPTS,
+      },
     });
     w.close();
   });
@@ -119,7 +127,9 @@ describe("Cookpool AI: the runner (AI-2)", () => {
     expect(content[0]!.cache_control).toEqual({ type: "ephemeral" });
     expect(content[1]!.cache_control).toBeUndefined();
     expect(content[1]!.text).toBe("<sentence>Anu and I had 2 glasses of milk</sentence>");
-    expect(sent).not.toHaveProperty("thinking");
+    // AI-13: no thinking on Haiku, and the task's tight output cap.
+    expect(sent!.thinking).toEqual({ type: "disabled" });
+    expect(sent!.max_tokens).toBe(600);
 
     expect(w.usageRows()).toEqual([
       expect.objectContaining({
@@ -130,6 +140,8 @@ describe("Cookpool AI: the runner (AI-2)", () => {
         cached_tokens: 2100,
         output_tokens: 95,
         audio_seconds: 0,
+        // AI-13: 350 input × 0.10 + 2100 cache reads × 0.01 + 95 output × 0.50 = 103.5 µ$.
+        cost_micros: 104,
         ok: 1,
         created_at: NOW.toISOString(),
       }),
@@ -148,8 +160,8 @@ describe("Cookpool AI: the runner (AI-2)", () => {
     w.close();
   });
 
-  it("an answer that fails its check is retried once on Sonnet, same request, and the row sums both calls", async () => {
-    const w = aiWorld();
+  it("an answer that fails its check is retried once on Sonnet, same request, and the row sums both calls (AI_ESCALATE on)", async () => {
+    const w = aiWorld({ escalate: true });
     await withMilk(w);
     w.ai.script.push(
       answer({ lines: [{ item: "i99", amount: 1, unit: "ml", measure: null, people: ["me"] }], unsure: [] }),
@@ -159,10 +171,22 @@ describe("Cookpool AI: the runner (AI-2)", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.lines[0]).toMatchObject({ measure: "glass", consumers: [RAHUL, ANU] });
     expect(w.ai.sent.map((p) => p.model)).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5"]);
-    expect({ ...w.ai.sent[1]!, model: "same" }).toEqual({ ...w.ai.sent[0]!, model: "same" });
+    // The same request but the model — and Sonnet keeps its default thinking, as before AI-13.
+    const { thinking, ...haiku } = w.ai.sent[0]!;
+    expect(thinking).toEqual({ type: "disabled" });
+    expect(w.ai.sent[1]).not.toHaveProperty("thinking");
+    expect({ ...w.ai.sent[1]!, model: "same" }).toEqual({ ...haiku, model: "same" });
     expect(w.ai.sent[1]!.output_config!.effort).toBe("low");
+    // Cost adds both models: Haiku 300×0.10 + 1200×0.01 + 80×0.50 = 82, Sonnet 300×2 + 1200×0.20 + 80×10 = 1640.
     expect(w.usageRows()).toEqual([
-      expect.objectContaining({ model: "claude-sonnet-5-5", input_tokens: 600, cached_tokens: 2400, output_tokens: 160, ok: 1 }),
+      expect.objectContaining({
+        model: "claude-sonnet-5-5",
+        input_tokens: 600,
+        cached_tokens: 2400,
+        output_tokens: 160,
+        cost_micros: 1722,
+        ok: 1,
+      }),
     ]);
     w.close();
   });
@@ -171,8 +195,8 @@ describe("Cookpool AI: the runner (AI-2)", () => {
     ["not JSON", answer("Sure! Here are your lines")],
     ["off the schema", answer({ lines: [{ item: "i1" }], unsure: [] })],
     ["cut short", answer({ lines: [], unsure: [] }, { stop: "max_tokens" })],
-  ])("an answer %s is retried on Sonnet", async (_label, first) => {
-    const w = aiWorld();
+  ])("an answer %s is retried on Sonnet (AI_ESCALATE on)", async (_label, first) => {
+    const w = aiWorld({ escalate: true });
     await withMilk(w);
     w.ai.script.push(first, twoGlasses({ model: "claude-sonnet-5-5" }));
     const res = await w.call<AiUsesResponse>("POST", USES, RAHUL, { text: "Anu and I had 2 glasses of milk" });
@@ -181,8 +205,8 @@ describe("Cookpool AI: the runner (AI-2)", () => {
     w.close();
   });
 
-  it("when both models fail the check: 502 ai_failed, no answer shown, and a failed usage row", async () => {
-    const w = aiWorld();
+  it("when both models fail the check: 502 ai_failed, no answer shown, and a failed usage row (AI_ESCALATE on)", async () => {
+    const w = aiWorld({ escalate: true });
     await withMilk(w);
     const bad = answer({ lines: [{ item: "i99", amount: 1, unit: "ml", measure: null, people: ["me"] }], unsure: [] });
     w.ai.script.push(bad, bad);
@@ -232,7 +256,7 @@ describe("Cookpool AI: the runner (AI-2)", () => {
       },
     };
     const provider = stubProvider([answer({}), answer({})]);
-    const result = await runAiTask(provider, task, "x");
+    const result = await runAiTask(provider, task, "x", { escalate: true });
     expect(result).toMatchObject({ ok: false, reason: "ai_failed", failure: "invalid", model: AI_RETRY_MODEL });
     expect([AI_FIRST_MODEL, AI_RETRY_MODEL, AI_EFFORT]).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5", "low"]);
     expect(aiRequest(task, "x", AI_FIRST_MODEL).system).toEqual([{ type: "text", text: "s", cache_control: { type: "ephemeral" } }]);
@@ -289,6 +313,8 @@ describe("Cookpool AI: daily limits (AI-2)", () => {
       actionsLimit: AI_DAILY_ACTIONS,
       voiceSeconds: 45,
       voiceSecondsLimit: AI_DAILY_VOICE_SECONDS,
+      receipts: 0,
+      receiptsLimit: AI_DAILY_RECEIPTS,
     });
     // Now at the limit.
     expect((await w.call("POST", USES, RAHUL, { text: "Anu and I had 2 glasses of milk" })).status).toBe(429);
@@ -308,12 +334,12 @@ describe("Cookpool AI: daily limits (AI-2)", () => {
 
   it("30 voice minutes read as voice_daily_limit (the transcription route is AI-5's; the check is here)", async () => {
     const { overLimit } = await import("@kitchen-worker/ai/usage");
-    const at = overLimit("req_1", "voice", { actions: 0, voiceSeconds: AI_DAILY_VOICE_SECONDS }, NOW);
+    const at = overLimit("req_1", "voice", { actions: 0, receipts: 0, voiceSeconds: AI_DAILY_VOICE_SECONDS }, NOW);
     expect(at?.status).toBe(429);
     expect(await at!.json()).toMatchObject({
       error: { code: "rate_limited", details: { reason: KITCHEN_AI_ERROR_REASONS.VOICE_DAILY_LIMIT, limit: 1800, used: 1800 } },
     });
-    expect(overLimit("req_1", "voice", { actions: 999, voiceSeconds: AI_DAILY_VOICE_SECONDS - 1 }, NOW)).toBeNull();
+    expect(overLimit("req_1", "voice", { actions: 999, receipts: 0, voiceSeconds: AI_DAILY_VOICE_SECONDS - 1 }, NOW)).toBeNull();
   });
 
   it("with nothing usable, no model is called and no action is counted", async () => {
@@ -353,7 +379,7 @@ describe("Cookpool AI: the runner takes an image (for AI-3's receipts)", () => {
       },
     };
     const provider = stubProvider([answer({ total: 0 }), answer({ total: 412.5 }, { model: AI_RETRY_MODEL })]);
-    const result = await runAiTask(provider, task, { image: "UklGRgAAAABXRUJQ" });
+    const result = await runAiTask(provider, task, { image: "UklGRgAAAABXRUJQ" }, { escalate: true });
     expect(result).toMatchObject({ ok: true, data: { total: 412.5 }, model: AI_RETRY_MODEL, escalated: true });
     for (const sent of provider.sent) {
       expect(sent.messages[0]!.content).toEqual([

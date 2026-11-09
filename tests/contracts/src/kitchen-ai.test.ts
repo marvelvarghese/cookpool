@@ -45,6 +45,8 @@ describe("contracts: Cookpool AI (AI-2)", () => {
       AI_FAILED: "ai_failed",
       AI_DAILY_LIMIT: "ai_daily_limit",
       VOICE_DAILY_LIMIT: "voice_daily_limit",
+      RECEIPT_DAILY_LIMIT: "receipt_daily_limit",
+      BUDGET: "budget",
     });
     const others: readonly string[] = [
       ...Object.values(KITCHEN_ERROR_REASONS),
@@ -68,7 +70,15 @@ describe("contracts: Cookpool AI (AI-2)", () => {
     const status: AiStatus = {
       available: false,
       features: { sayIt: false, receipt: false, import: false, voice: false, swaps: false },
-      today: { actions: 0, actionsLimit: AI_DAILY_ACTIONS, voiceSeconds: 0, voiceSecondsLimit: AI_DAILY_VOICE_SECONDS },
+      budget: "ok",
+      today: {
+        actions: 0,
+        actionsLimit: AI_DAILY_ACTIONS,
+        voiceSeconds: 0,
+        voiceSecondsLimit: AI_DAILY_VOICE_SECONDS,
+        receipts: 0,
+        receiptsLimit: ai.AI_DAILY_RECEIPTS,
+      },
     };
     expect(Object.keys(status.features)).toEqual([...AI_FEATURE_KEYS]);
 
@@ -133,5 +143,23 @@ describe("contracts: receipts (AI-3)", () => {
     };
     expect(request.image).toBeTruthy();
     expect(response.lines.map((l) => l.confidence)).toEqual(["sure", "check"]);
+  });
+});
+
+describe("contracts: Cookpool AI cost guardrails (AI-13)", () => {
+  it("caps receipts at 10 a day, prices both models per million tokens, and budgets 5 USD a month by default", () => {
+    expect(ai.AI_DAILY_RECEIPTS).toBe(10);
+    expect(ai.AI_PRICES_PER_MTOK).toEqual({
+      "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheRead: 0.01 },
+      "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2 },
+    });
+    expect(ai.AI_MONTHLY_BUDGET_USD_DEFAULT).toBe(5);
+    expect(ai.AI_RECEIPT_UNCLEAR).toBe("unclear");
+  });
+
+  it("estimates a call in micro-dollars: tokens × price per Mtok, an unpriced model at the dearest", () => {
+    expect(ai.aiCallCostMicros("claude-haiku-5-5", { input: 2000, cacheRead: 1000, output: 300 })).toBeCloseTo(200 + 10 + 150);
+    expect(ai.aiCallCostMicros("claude-sonnet-5-5", { input: 2000, cacheRead: 1000, output: 300 })).toBeCloseTo(4000 + 200 + 3000);
+    expect(ai.aiCallCostMicros("unknown", { input: 1, cacheRead: 0, output: 0 })).toBe(2);
   });
 });

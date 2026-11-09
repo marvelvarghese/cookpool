@@ -12,8 +12,11 @@
 //
 // Every AI route that calls a model answers:
 //   503 `internal_error`, details.reason `ai_unavailable` — no key on the server
+//   503 `internal_error`, details.reason `budget` — this month's AI budget is
+//                         spent, across everyone (AI-13)
 //   429 `rate_limited`,   details.reason `ai_daily_limit` — 50 actions today
-//                         (`voice_daily_limit` for transcription: 30 minutes);
+//                         (`voice_daily_limit` for transcription: 30 minutes;
+//                         `receipt_daily_limit`: 10 receipts, AI-13);
 //                         details { limit, used, resetsAt }
 //   502 `internal_error`, details.reason `ai_failed` — the model refused, erred,
 //                         or its answer failed the checks twice; never shown
@@ -36,6 +39,10 @@ export const KITCHEN_AI_ERROR_REASONS = {
   AI_DAILY_LIMIT: "ai_daily_limit",
   /** 429 `rate_limited`: the caller used today's voice minutes (in seconds, as above). */
   VOICE_DAILY_LIMIT: "voice_daily_limit",
+  /** 429 `rate_limited`: the caller read today's receipts (AI_DAILY_RECEIPTS; `details.limit`, `used`, `resetsAt`) (AI-13). */
+  RECEIPT_DAILY_LIMIT: "receipt_daily_limit",
+  /** 503 `internal_error`: this month's AI budget is spent (AI_MONTHLY_BUDGET_USD); AI is off until the 1st, UTC (AI-13). */
+  BUDGET: "budget",
 } as const;
 export type KitchenAiErrorReason = (typeof KITCHEN_AI_ERROR_REASONS)[keyof typeof KITCHEN_AI_ERROR_REASONS];
 
@@ -43,6 +50,41 @@ export type KitchenAiErrorReason = (typeof KITCHEN_AI_ERROR_REASONS)[keyof typeo
 export const AI_DAILY_ACTIONS = 50;
 /** Voice seconds transcribed per person per UTC day: 30 minutes. */
 export const AI_DAILY_VOICE_SECONDS = 30 * 60;
+/** Receipts read per person per UTC day (AI-13), on top of — and counted in — AI_DAILY_ACTIONS. */
+export const AI_DAILY_RECEIPTS = 10;
+
+// ── Cost (AI-13) ────────────────────────────────────────────
+//
+// What one model call costs, in USD per million tokens, by model. `input` is
+// the uncached input (cache writes are priced as input; images are input
+// tokens, as the API's `usage` reports them), `cacheRead` the input read from
+// the prompt cache. kitchen_ai_usage.cost_micros holds each action's estimate
+// in micro-dollars (USD × 1 000 000): tokens × price per Mtok.
+
+export interface AiPrice {
+  input: number;
+  output: number;
+  cacheRead: number;
+}
+
+export const AI_PRICES_PER_MTOK = {
+  "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheRead: 0.01 },
+  "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2 },
+} as const satisfies Record<string, AiPrice>;
+export type AiPricedModel = keyof typeof AI_PRICES_PER_MTOK;
+
+/**
+ * One call's estimated cost in micro-dollars (unrounded). A model missing
+ * from the table is priced as the dearest one, never as free.
+ */
+export function aiCallCostMicros(model: string, tokens: { input: number; cacheRead: number; output: number }): number {
+  const prices: Record<string, AiPrice> = AI_PRICES_PER_MTOK;
+  const price = prices[model] ?? AI_PRICES_PER_MTOK["claude-sonnet-5-5"];
+  return tokens.input * price.input + tokens.cacheRead * price.cacheRead + tokens.output * price.output;
+}
+
+/** The monthly budget when AI_MONTHLY_BUDGET_USD is unset or not a number ≥ 0, in USD (AI-13). */
+export const AI_MONTHLY_BUDGET_USD_DEFAULT = 5;
 
 /** The longest sentence POST /me/ai/uses reads, in characters (after trimming). */
 export const AI_USES_TEXT_MAX = 300;
@@ -58,13 +100,23 @@ export type AiFeatureKey = (typeof AI_FEATURE_KEYS)[number];
  * the caller's UTC day, whether or not AI is available.
  */
 export interface AiStatus {
+  /** False without a key, and while this month's budget is reached (AI-13). */
   available: boolean;
   features: Record<AiFeatureKey, boolean>;
+  /**
+   * This month's AI budget, across everyone (AI-13): `reached` turns AI off
+   * until the 1st, UTC. Always sent since AI-13; optional in the type so
+   * payloads built before it still type-check.
+   */
+  budget?: "ok" | "reached";
   today: {
     actions: number;
     actionsLimit: number;
     voiceSeconds: number;
     voiceSecondsLimit: number;
+    /** Receipts read today, and the cap (AI-13; always sent since, optional as `budget` is). */
+    receipts?: number;
+    receiptsLimit?: number;
   };
 }
 
@@ -147,8 +199,14 @@ export interface AiReceiptRequest {
   image: string;
 }
 
-/** Why a line is `check`: `not_food`, or a few words ("not sure what MLK PNR is"). */
+/** Why a line is `check`: `not_food`, `unclear`, or a few words ("not sure what MLK PNR is"). */
 export const AI_RECEIPT_NOT_FOOD = "not_food";
+/**
+ * Why a line is `check` when the read as a whole failed its checks and was
+ * not retried (AI-13, AI_ESCALATE off): the lines that passed on their own
+ * are returned, every food line `check` with this reason.
+ */
+export const AI_RECEIPT_UNCLEAR = "unclear";
 
 /**
  * One line of the receipt.

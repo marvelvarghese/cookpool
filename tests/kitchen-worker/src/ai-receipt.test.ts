@@ -206,21 +206,23 @@ describe("receipts: the check and the one Sonnet retry (AI-3)", () => {
     ["a unit with no quantity", line("MILK 1L", "Milk", null, "L", 6800)],
     ["a zero quantity", line("MILK 1L", "Milk", 0, "L", 6800)],
   ];
-  it.each(bad)("%s fails Haiku's answer: Sonnet reads it again, and its answer is returned", async (_, wrong) => {
-    const w = aiWorld();
+  it.each(bad)("%s fails Haiku's answer: Sonnet reads it again, and its answer is returned (AI_ESCALATE on)", async (_, wrong) => {
+    const w = aiWorld({ escalate: true });
     w.ai.script.push(read({ lines: [wrong] }), read({ lines: [line("MILK 1L", "Milk", 1, "L", 6800)] }, { model: "claude-sonnet-5-5" }));
     const res = await post(w, jpeg());
     expect(res.status).toBe(200);
     expect(w.ai.sent.map((s) => s.model)).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5"]);
-    // The same request, only the model changed.
-    expect({ ...w.ai.sent[1]!, model: "x" }).toEqual({ ...w.ai.sent[0]!, model: "x" });
+    // The same request, only the model changed (and Haiku's thinking off, AI-13).
+    const { thinking, ...haiku } = w.ai.sent[0]!;
+    expect(thinking).toEqual({ type: "disabled" });
+    expect({ ...w.ai.sent[1]!, model: "x" }).toEqual({ ...haiku, model: "x" });
     expect(res.body.data.lines.map((l) => l.text)).toEqual(["MILK 1L"]);
     expect(w.usageRows()).toEqual([expect.objectContaining({ feature: "receipt", model: "claude-sonnet-5-5", ok: 1 })]);
     w.close();
   });
 
-  it("a price in rupees with decimals (not whole paise) is off the schema: Sonnet", async () => {
-    const w = aiWorld();
+  it("a price in rupees with decimals (not whole paise) is off the schema: Sonnet (AI_ESCALATE on)", async () => {
+    const w = aiWorld({ escalate: true });
     w.ai.script.push(
       answer({ store: null, date: null, time: null, total: null, lines: [{ ...line("MILK 1L", "Milk", 1, "L", 0), priceMinor: 68.5 }], adjustments: [] }),
       read({ lines: [line("MILK 1L", "Milk", 1, "L", 6850)] }, { model: "claude-sonnet-5-5" }),
@@ -230,8 +232,8 @@ describe("receipts: the check and the one Sonnet retry (AI-3)", () => {
     w.close();
   });
 
-  it("both models fail: 502 ai_failed, and the failed action is counted", async () => {
-    const w = aiWorld();
+  it("both models fail: 502 ai_failed, and the failed action is counted (AI_ESCALATE on)", async () => {
+    const w = aiWorld({ escalate: true });
     const wrong = read({ lines: [line("MILK", "Milk", 1, null, 6800)] });
     w.ai.script.push(wrong, wrong);
     const res = await post(w, jpeg());
@@ -291,7 +293,7 @@ describe("receipts: the photo is never stored or logged (AI-3)", () => {
   const TABLES_WITH_ROWS = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'";
 
   it("no image bytes reach the logs, the usage row or any table — on a read, a retry and a failure", async () => {
-    const w = aiWorld();
+    const w = aiWorld({ escalate: true });
     const image = jpeg(5000);
     const needle = image.slice(100, 140);
     const counts = () =>

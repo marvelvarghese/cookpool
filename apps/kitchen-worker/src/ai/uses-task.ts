@@ -20,7 +20,8 @@ import type { UsesInput, UsesItem } from "./uses-context.js";
 // "person n" with a first name; it answers lines of { item, amount, unit |
 // measure, people } and the words it could not place. The check:
 //
-//   * fails the answer (→ the one Sonnet retry) when a line names an item or
+//   * fails the answer (→ the one Sonnet retry when AI_ESCALATE is on, else
+//     `ai_failed`: AI-13) when a line names an item or
 //     a person it was not given, has no amount, or counts in a unit of the
 //     wrong kind or a measure the item does not have;
 //   * then fixes what the sentence may really have said: more than is left
@@ -32,6 +33,13 @@ import type { UsesInput, UsesItem } from "./uses-context.js";
 export const AI_USES_MAX_LINES = 20;
 export const AI_USES_MAX_UNSURE = 10;
 const UNSURE_MAX_CHARS = 60;
+/**
+ * The output cap (AI-13), sized from the schema: a line is about 25 tokens
+ * of compact JSON ({"item":"i12","amount":0.5,"unit":null,"measure":"glass",
+ * "people":["me","person 1"]}), so AI_USES_MAX_LINES lines plus the unsure
+ * words (~100). A one-sentence answer uses far less.
+ */
+export const USES_MAX_TOKENS = AI_USES_MAX_LINES * 25 + 100;
 
 const DIMENSION_UNITS = (["count", "mass", "volume", "pack"] as const)
   .map((dimension) => `${dimension}: ${UNIT_KEYS.filter((u) => UNITS[u].dimension === dimension).join(", ")}`)
@@ -235,7 +243,7 @@ export const USES_TASK: AiTask<UsesInput, AiUsesResponse> = {
   system: SYSTEM,
   reference: REFERENCE,
   schema: SCHEMA,
-  maxTokens: 4000,
+  maxTokens: USES_MAX_TOKENS,
   content: (input) => [
     // The caller's pantries repeat across their sentences: cached with the prompt.
     { type: "text", text: `<pantries>${usesContext(input)}</pantries>`, cache_control: { type: "ephemeral" } },

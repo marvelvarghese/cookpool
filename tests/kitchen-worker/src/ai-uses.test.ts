@@ -36,8 +36,8 @@ interface Pantry {
 }
 
 /** Milk (1 L, in glasses) and Bread (10 pcs) in Flat 4B, Paneer (200 g) in Rahul's own, Rice in the Lunch club, Saffron in the Book club. */
-async function pantry(): Promise<Pantry> {
-  const w = aiWorld();
+async function pantry(opts: { escalate?: boolean } = {}): Promise<Pantry> {
+  const w = aiWorld(opts);
   const milk = await w.addTo(w.flat, { name: "Milk", quantity: "1000", unit: "ml" });
   await w.call("PUT", groupPath(w.flat, `items/${milk.id}/measures`), RAHUL, {
     measures: [{ one: "glass", many: "glasses", count: 1, amountMilli: 250_000 }],
@@ -233,8 +233,8 @@ describe("say what you used: reading a sentence (AI-2)", () => {
     ["neither a unit nor a measure", (ctx) => ({ item: refOf(ctx, "Milk"), amount: 1, unit: null, measure: null, people: ["me"] })],
     ["no amount", (ctx) => ({ item: refOf(ctx, "Milk"), amount: 0, unit: "ml", measure: null, people: ["me"] })],
     ["a negative amount", (ctx) => ({ item: refOf(ctx, "Milk"), amount: -2, unit: "ml", measure: null, people: ["me"] })],
-  ])("a line with %s fails the check: Sonnet is asked once", async (_label, bad) => {
-    const { w } = await pantry();
+  ])("a line with %s fails the check: Sonnet is asked once (AI_ESCALATE on)", async (_label, bad) => {
+    const { w } = await pantry({ escalate: true });
     w.ai.script.push(
       reply((ctx) => ({ lines: [bad(ctx)] })),
       reply((ctx) => ({ lines: [{ item: refOf(ctx, "Bread"), amount: 1, unit: "pcs", measure: null, people: ["me"] }] }), "claude-sonnet-5-5"),

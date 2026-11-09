@@ -119,6 +119,8 @@ describe("470_kitchen_ai (AI-2)", () => {
         "audio_seconds!",
         "ok!",
         "created_at!",
+        // Added by 480_kitchen_ai_cost (AI-13).
+        "cost_micros!",
       ]);
     });
 
@@ -173,6 +175,7 @@ describe("470_kitchen_ai (AI-2)", () => {
       cachedTokens: 2048,
       outputTokens: 120,
       audioSeconds: 0,
+      costMicros: 0,
       ok: true,
       now: NOW,
       ...overrides,
@@ -191,6 +194,7 @@ describe("470_kitchen_ai (AI-2)", () => {
           cachedTokens: 2048,
           outputTokens: 120,
           audioSeconds: 0,
+          costMicros: 0,
           ok: false,
           createdAt: NOW,
         },
@@ -214,8 +218,8 @@ describe("470_kitchen_ai (AI-2)", () => {
       await repo.recordAiUsage(usage(6, { userId: "usr_anu" }));
       await repo.recordAiUsage(usage(7, { now: new Date("2026-11-08T23:59:59.999Z") }));
       await repo.recordAiUsage(usage(8, { now: to }));
-      expect(await repo.aiUsageBetween("usr_dev", from, to)).toEqual({ ok: true, value: { actions: 3, voiceSeconds: 21 } });
-      expect(await repo.aiUsageBetween("usr_nobody", from, to)).toEqual({ ok: true, value: { actions: 0, voiceSeconds: 0 } });
+      expect(await repo.aiUsageBetween("usr_dev", from, to)).toEqual({ ok: true, value: { actions: 3, receipts: 1, voiceSeconds: 21 } });
+      expect(await repo.aiUsageBetween("usr_nobody", from, to)).toEqual({ ok: true, value: { actions: 0, receipts: 0, voiceSeconds: 0 } });
     });
   });
 });

@@ -1142,7 +1142,11 @@ export class KitchenClient {
   // `details.reason: "ai_unavailable"` — `ai()` says so up front with
   // `available: false`. Past today's limit it is a `RateLimitError` with
   // `details.reason: "ai_daily_limit"`; a refusal or a bad read is an
-  // `InternalError` (502) with `details.reason: "ai_failed"`.
+  // `InternalError` (502) with `details.reason: "ai_failed"`. AI-13: past
+  // today's 10 receipts a `RateLimitError` with `receipt_daily_limit`; once
+  // the month's AI budget is spent an `InternalError` (503) with
+  // `details.reason: "budget"`, and `ai()` says `available: false`,
+  // `budget: "reached"`.
   // -------------------------------------------------------------------------
 
   /** GET /v1/kitchen/me/ai — is AI set up, which features the server offers, and today's use against the limits. */
