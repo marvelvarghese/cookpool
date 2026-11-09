@@ -426,5 +426,14 @@ export const manifest: MigrationManifest = {
       description:
         "AI usage: kitchen_ai_usage (id, user_id usr_…, feature uses/receipt/recipe_import/transcribe/ask_step/swaps/idea, model — the last model called, input_tokens uncached, cached_tokens read from the prompt cache, output_tokens, audio_seconds, ok 0 or 1, created_at), one row per AI action with a Sonnet retry's tokens summed into its action's row, indexed by user and time for the daily limits of 50 actions and 30 voice minutes per person per UTC day. Counts only: no group, item, price or text (Cookpool AI-2)",
     },
+    {
+      id: "480_kitchen_ai_cost",
+      context: "kitchen",
+      path: "480_kitchen_ai_cost/up.sql",
+      checksum:
+        "d396b3171b5df8a80b2c999ecf673cf8c72f833aec5ad5d58f7545050b7a4db7",
+      description:
+        "AI cost: kitchen_ai_usage.cost_micros (INTEGER NOT NULL DEFAULT 0, ≥ 0) — each AI action's estimated cost in micro-dollars from its calls' tokens and the price table (escalations add both models) — and kitchen_ai_usage_created_idx (created_at, cost_micros), covering the month's total across everyone that the AI budget is checked against (Cookpool AI-13)",
+    },
   ],
 };

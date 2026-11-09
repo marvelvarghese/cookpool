@@ -1,5 +1,6 @@
 import {
   AI_RECEIPT_NOT_FOOD,
+  AI_RECEIPT_UNCLEAR,
   DEFAULT_KITCHEN_CURRENCY,
   type AiReceiptLine,
   type AiReceiptResponse,
@@ -131,7 +132,7 @@ export function matchReceipt(input: MatchInput): AiReceiptResponse {
   };
 
   const chosenPantries: Array<string | null> = [];
-  const lines: AiReceiptLine[] = read.lines.map((line) => {
+  const matchLine = (line: ReadLine): AiReceiptLine => {
     const base: AiReceiptLine = { text: line.text, confidence: "check" };
     if (line.name) base.name = line.name;
     if (line.quantity !== null && line.unit !== null) {
@@ -183,6 +184,11 @@ export function matchReceipt(input: MatchInput): AiReceiptResponse {
     if (!food) return check(matches.length > 0 ? "no price from before" : `not sure what ${line.text} is`);
     if (!kindFitsFood(kind, food)) return check(`${food.name} isn't counted in ${line.unit}`);
     return { ...base, confidence: "sure" };
+  };
+  // A line salvaged from a read that failed its check (AI-13) is matched as any other, but never `sure`.
+  const lines: AiReceiptLine[] = read.lines.map((line) => {
+    const matched = matchLine(line);
+    return line.unclear && line.isFood ? { ...matched, confidence: "check", reason: AI_RECEIPT_UNCLEAR } : matched;
   });
 
   // The currency: the chosen pantries' (most lines'), INR when none.

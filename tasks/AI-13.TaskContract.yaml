@@ -1,0 +1,26 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-13
+  title: "AI cost guardrails"
+spec:
+  goal: "Cut AI cost to the minimum: thinking off and tight output caps on Haiku, no Sonnet retry by default, per-feature daily caps, recorded cost per call, and a monthly budget that turns AI off when reached."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/config-worker-tests
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-13.TaskContract.yaml
+  doneWhen:
+    - "Haiku tasks run with thinking disabled and a tight max_tokens per task; answers stay valid in tests"
+    - "Sonnet escalation is off unless AI_ESCALATE is on; a failed Haiku check returns its usable lines as check lines or ai_failed"
+    - "each usage row records its estimated cost from a price table; receipts are capped at 10 a day per person"
+    - "when the month's total cost reaches AI_MONTHLY_BUDGET_USD (default 5) AI answers ai_unavailable with reason budget until the 1st"
+    - "the AI status read reports the budget state; kitchen-worker redeploys so the stage key takes effect"
+  gates: []

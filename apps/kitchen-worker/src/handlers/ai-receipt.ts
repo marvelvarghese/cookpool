@@ -13,10 +13,19 @@ import { readJsonObject, successResponse, unavailable, validationError } from ".
 import { addDays, isoDay } from "../pantry.js";
 import { reachIn } from "../restock.js";
 import { aiProviderFor } from "../ai/provider.js";
-import { runAiTask } from "../ai/runner.js";
+import { aiEscalate, runAiTask } from "../ai/runner.js";
 import { matchReceipt, type PastPurchase } from "../ai/receipt-match.js";
 import { RECEIPT_TASK } from "../ai/receipt-task.js";
-import { aiFailed, aiToday, aiUnavailable, overLimit, recordAiAction, withAiRepos } from "../ai/usage.js";
+import {
+  aiBudgetReached,
+  aiBudgetSpent,
+  aiFailed,
+  aiToday,
+  aiUnavailable,
+  overLimit,
+  recordAiAction,
+  withAiRepos,
+} from "../ai/usage.js";
 import { myGroups } from "./dishes.js";
 
 // Receipts (cookpool-ai AI-3, design §3):
@@ -24,11 +33,15 @@ import { myGroups } from "./dishes.js";
 //   POST /v1/kitchen/me/ai/receipt   self: { image } → AiReceiptResponse; writes nothing
 //
 // In order: 503 `ai_unavailable` without a key; 422 on a bad photo (not a
-// base64 JPEG or WebP, or over 1.5 MB decoded); 429 at today's limit; the
+// base64 JPEG or WebP, or over 1.5 MB decoded); 429 at today's limit (50
+// actions, `ai_daily_limit`) or today's receipts (10, `receipt_daily_limit`,
+// AI-13); 503 `budget` once this month's AI budget is spent (AI-13); the
 // caller's groups, restock names, item history and group currencies (one
-// read each); the model reads the photo (Haiku, one Sonnet retry on a failed
-// check); the food list is looked up for the lines in ONE read; the lines are
-// matched locally (../ai/receipt-match.ts). One action is counted.
+// read each); the model reads the photo (Haiku; one Sonnet retry on a failed
+// check only with AI_ESCALATE on — else the lines that pass come back as
+// `check`, reason `unclear`); the food list is looked up for the lines in ONE
+// read; the lines are matched locally (../ai/receipt-match.ts). One action is
+// counted, with its cost.
 //
 // The image is never stored or logged: it is held in this request only, sent
 // to the model, and dropped. Nothing about it but the usage row's counts is
@@ -79,8 +92,10 @@ export async function handleAiReceipt(ctx: RequestContext, request: Request): Pr
   return withAiRepos(ctx, async ({ usage, kitchen, purchases }) => {
     const today = await aiToday(ctx, usage);
     if (!today) return unavailable(ctx.requestId);
-    const limited = overLimit(ctx.requestId, "actions", today, ctx.now());
+    const limited =
+      overLimit(ctx.requestId, "actions", today, ctx.now()) ?? overLimit(ctx.requestId, "receipts", today, ctx.now());
     if (limited) return limited;
+    if (await aiBudgetReached(ctx, usage)) return aiBudgetSpent(ctx.requestId, ctx.now());
 
     // What the caller bought before, where, and in which currency: read before the model is paid for.
     const groups = await myGroups(ctx);
@@ -106,7 +121,7 @@ export async function handleAiReceipt(ctx: RequestContext, request: Request): Pr
     if (!restock.ok || !history.ok || !settings.ok) return unavailable(ctx.requestId);
 
     const result = await ctx.timings.measure("ai", () =>
-      runAiTask(provider, RECEIPT_TASK, { image: photo.image, mediaType: photo.mediaType }),
+      runAiTask(provider, RECEIPT_TASK, { image: photo.image, mediaType: photo.mediaType }, { escalate: aiEscalate(ctx.env) }),
     );
     await recordAiAction(ctx, usage, RECEIPT_TASK.feature, result);
     if (!result.ok) return aiFailed(ctx.requestId);

@@ -74,6 +74,8 @@ describe("KitchenClient — Cookpool AI (AI-2)", () => {
     for (const [httpStatus, reason] of [
       [503, KITCHEN_AI_ERROR_REASONS.AI_UNAVAILABLE],
       [502, KITCHEN_AI_ERROR_REASONS.AI_FAILED],
+      // AI-13: this month's budget is spent.
+      [503, KITCHEN_AI_ERROR_REASONS.BUDGET],
     ] as const) {
       const f = capture(failed("internal_error", httpStatus, { reason }));
       const err = await client(f.fetch).kitchen.aiUses("milk").catch((e: unknown) => e);
