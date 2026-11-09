@@ -60,6 +60,8 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/p/:postId": "/home",
   "/you/profile": "/you",
   "/you/blocked": "/you",
+  // You → Cookpool AI (cookpool-ai AI-7): today's You has none.
+  "/you/ai": "/you",
   // The stock check (cookpool-pantry PN-7): today's frame has none, so its visitor goes to the Pantry.
   "/pantry/:itemRef/check": "/pantry",
   // Your assistant, connected (cookpool-mcp MC-4): the consent page goes Home,

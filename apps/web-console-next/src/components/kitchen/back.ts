@@ -74,6 +74,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   // Your assistant, connected (cookpool-mcp MC-4): both are You's.
   "/connect": () => "/you",
   "/you/assistants": () => "/you",
+  // You → Cookpool AI (cookpool-ai AI-7): Settings, its row.
+  "/you/ai": () => "/you/settings",
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // Its stock check (cookpool-pantry PN-7): the item.

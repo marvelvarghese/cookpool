@@ -72,6 +72,8 @@ describe("which screens pull to refresh", () => {
     // Your assistant, connected (cookpool-mcp MC-4): a consent page and a settings page.
     "/connect",
     "/you/assistants",
+    // You → Cookpool AI (cookpool-ai AI-7): switches, not a list.
+    "/you/ai",
   ];
 
   it("decides for every page: a new page must choose", () => {

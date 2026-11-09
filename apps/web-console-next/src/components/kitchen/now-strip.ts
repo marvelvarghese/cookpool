@@ -130,6 +130,11 @@ export interface TrayEntry {
   item: KitchenItem;
   name: string;
   step: LadderStep;
+  /**
+   * Who had it, in the order sent (Say what you used, cookpool-ai AI-7). Left
+   * out, a group item is logged for you alone, as Log several does.
+   */
+  consumers?: readonly string[];
 }
 
 /** Tap a chip under Log several: in the tray if out, out if in (one entry per item). Never mutates `tray`. */
