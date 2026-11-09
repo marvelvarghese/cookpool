@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MC-1
+  title: "The cookpool-mcp spec"
+spec:
+  goal: "Land the cookpool-mcp doc set and the contracts for MC-2 to MC-7, from the canvas row Your assistant, connected."
+  affects:
+    - specs/epics/cookpool-mcp/**
+    - tasks/MC-1.TaskContract.yaml
+    - tasks/MC-2.TaskContract.yaml
+    - tasks/MC-3.TaskContract.yaml
+    - tasks/MC-4.TaskContract.yaml
+    - tasks/MC-5.TaskContract.yaml
+    - tasks/MC-6.TaskContract.yaml
+    - tasks/MC-7.TaskContract.yaml
+  doneWhen:
+    - "the doc set is merged under specs/epics/cookpool-mcp"
+    - "each of MC-2 to MC-7 has a contract in tasks/"
+  gates: []

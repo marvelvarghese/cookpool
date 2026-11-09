@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MC-4
+  title: "Consent and Connected assistants in the app"
+spec:
+  goal: "In the new frame, /connect shows the client and scope switches with Allow and Cancel after sign-in, and You \u2192 Connected assistants shows the connector URL, how to add it, the list and Disconnect."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-mcp/**
+    - tasks/MC-4.TaskContract.yaml
+  doneWhen:
+    - "/connect requires sign-in, shows the client name and four scope switches, and Allow mints the delegation and completes the hand-off"
+    - "Connected assistants shows the connector URL with Copy, short steps per assistant, the delegations and Disconnect"
+    - "with newFrame false nothing changes"
+  gates: []
