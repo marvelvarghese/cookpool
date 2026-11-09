@@ -66,6 +66,12 @@ export interface AiTask<I, O> {
    * still usable; null when nothing is. Tasks without one fail instead (AI-13).
    */
   salvage?(answer: unknown, input: I): O | null;
+  /**
+   * With escalation on, a Haiku answer that passed its check but is still
+   * worth one Sonnet look (Check it's `cant_tell`, AI-5). Sonnet's answer is
+   * returned when it passes; otherwise Haiku's stands. Off: never asked.
+   */
+  retryWhen?(value: O, input: I): boolean;
 }
 
 export interface AiUsageTally {
@@ -175,7 +181,15 @@ export async function runAiTask<I, O>(
 ): Promise<AiRunResult<O>> {
   const usage: AiUsageTally = { inputTokens: 0, cachedTokens: 0, outputTokens: 0, costMicros: 0 };
   const first = await attempt(provider, task, input, AI_FIRST_MODEL, usage);
-  if (first.kind === "ok") return { ok: true, data: first.value, model: AI_FIRST_MODEL, usage, escalated: false, degraded: false };
+  if (first.kind === "ok") {
+    if (options.escalate && task.retryWhen?.(first.value, input)) {
+      const second = await attempt(provider, task, input, AI_RETRY_MODEL, usage);
+      // The usage row's model is the last one called, as on any escalation.
+      const data = second.kind === "ok" ? second.value : first.value;
+      return { ok: true, data, model: AI_RETRY_MODEL, usage, escalated: true, degraded: false };
+    }
+    return { ok: true, data: first.value, model: AI_FIRST_MODEL, usage, escalated: false, degraded: false };
+  }
   if (first.kind !== "invalid") {
     return { ok: false, reason: "ai_failed", failure: first.kind, model: AI_FIRST_MODEL, usage, problems: [] };
   }

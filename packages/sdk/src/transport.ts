@@ -73,6 +73,11 @@ interface PerformInput {
   query?: Record<string, string | number | undefined> | undefined;
   body?: unknown;
   /**
+   * Bytes sent as they are, with their own content type, instead of a JSON
+   * `body` (AI-5's voice clips). Wins over `body`.
+   */
+  rawBody?: { data: BodyInit; contentType: string };
+  /**
    * Send no credential: the client's `auth` and any `authorization` or
    * `cookie` default header are left off. For the routes that need no session
    * (the signed-out join preview), so a signed-in client does not hand its
@@ -152,7 +157,10 @@ export class Transport {
     }
 
     let body: BodyInit | undefined;
-    if (input.body !== undefined) {
+    if (input.rawBody !== undefined) {
+      headers.set("content-type", input.rawBody.contentType);
+      body = input.rawBody.data;
+    } else if (input.body !== undefined) {
       headers.set("content-type", "application/json");
       body = JSON.stringify(input.body);
     }

@@ -1,3 +1,12 @@
+/**
+ * Workers AI, as kitchen-worker uses it (AI-5): one `run` of a model. The
+ * deployed `AI` binding satisfies it; tests stub it. Never called by a test
+ * against the real service.
+ */
+export interface WorkersAi {
+  run(model: string, inputs: Record<string, unknown>): Promise<unknown>;
+}
+
 export interface Env {
   PLATFORM_DB?: D1Database;
   MEMBERSHIP_WORKER?: Fetcher;
@@ -26,4 +35,11 @@ export interface Env {
    */
   AI_ESCALATE?: string;
   AI_MONTHLY_BUDGET_USD?: string;
+  /**
+   * Voice (AI-5): the Workers AI binding transcription runs Whisper through
+   * (`"ai": { "binding": "AI" }`). Not declared for now (voice off, owner's
+   * choice): POST /me/ai/transcribe answers 503 `ai_unavailable` and the
+   * status read says `voice: false`.
+   */
+  AI?: WorkersAi;
 }

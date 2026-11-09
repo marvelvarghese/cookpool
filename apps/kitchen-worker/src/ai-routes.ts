@@ -1,5 +1,6 @@
 import { handleAiStatus, handleAiUses } from "./handlers/ai.js";
 import { handleAiReceipt } from "./handlers/ai-receipt.js";
+import { handleAiAskStep, handleAiCheckStep, handleAiRescue, handleAiTranscribe } from "./handlers/ai-stove.js";
 import { handleAiRecipePhoto } from "./handlers/ai-recipe-photo.js";
 import type { MeRoute } from "./router.js";
 
@@ -21,6 +22,27 @@ export const AI_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.ai.receipt",
     pattern: /^\/v1\/kitchen\/me\/ai\/receipt$/,
     methods: { POST: handleAiReceipt },
+  },
+  // Voice and help at the stove (AI-5).
+  {
+    name: "kitchen.me.ai.transcribe",
+    pattern: /^\/v1\/kitchen\/me\/ai\/transcribe$/,
+    methods: { POST: handleAiTranscribe },
+  },
+  {
+    name: "kitchen.me.ai.ask-step",
+    pattern: /^\/v1\/kitchen\/me\/ai\/ask-step$/,
+    methods: { POST: handleAiAskStep },
+  },
+  {
+    name: "kitchen.me.ai.check-step",
+    pattern: /^\/v1\/kitchen\/me\/ai\/check-step$/,
+    methods: { POST: handleAiCheckStep },
+  },
+  {
+    name: "kitchen.me.ai.rescue",
+    pattern: /^\/v1\/kitchen\/me\/ai\/rescue$/,
+    methods: { POST: handleAiRescue },
   },
   {
     // Recipe from a photo (AI-4): photo only, by the owner's scope.

@@ -106,6 +106,11 @@ describe("kitchen route matching", () => {
     "/v1/kitchen/me/ai/uses",
     // Receipts (AI-3).
     "/v1/kitchen/me/ai/receipt",
+    // Voice and help at the stove (AI-5).
+    "/v1/kitchen/me/ai/transcribe",
+    "/v1/kitchen/me/ai/ask-step",
+    "/v1/kitchen/me/ai/check-step",
+    "/v1/kitchen/me/ai/rescue",
     // Recipe from a photo (AI-4).
     "/v1/kitchen/me/ai/recipe-photo",
   ])("%s is a kitchen route, and no other facade's", (path) => {
@@ -157,6 +162,22 @@ describe("kitchen routes through the edge", () => {
     expect(k.calls[0]!.init.method).toBe(method);
     expect(await new Response(k.calls[0]!.init.body as BodyInit).json()).toEqual({ wastePolicy: "buyer_absorbs" });
     expect(new Headers(k.calls[0]!.init.headers as HeadersInit).get("content-type")).toBe("application/json");
+  });
+
+  it("forwards a voice clip's bytes as they are, with its Content-Type and ?seconds= (AI-5)", async () => {
+    const k = kitchen();
+    const clip = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x00, 0xff, 0x10, 0x80]);
+    const request = new Request("https://api.cookpool.test/v1/kitchen/me/ai/transcribe?seconds=3.5", {
+      method: "POST",
+      headers: { "x-request-id": "req_edge", authorization: "Bearer sps_ses_abc.secret", "content-type": "audio/webm;codecs=opus" },
+      body: clip,
+    });
+    const res = await worker.fetch(request, env(k.fetcher) as never);
+    expect(res.status).toBe(200);
+    const call = k.calls[0]!;
+    expect(new URL(call.url).search).toBe("?seconds=3.5");
+    expect(new Headers(call.init.headers as HeadersInit).get("content-type")).toBe("audio/webm;codecs=opus");
+    expect(new Uint8Array(await new Response(call.init.body as BodyInit).arrayBuffer())).toEqual(clip);
   });
 
   it("forwards a DELETE without a body", async () => {

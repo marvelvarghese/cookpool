@@ -25,6 +25,12 @@
   // "on" retries a failed Haiku read once on Sonnet ("off": no retry), and
   // AI_MONTHLY_BUDGET_USD turns AI off for everyone once the UTC month's
   // estimated cost reaches it.
+  // Voice (AI-5) is off by the owner's choice: no Workers AI binding `AI` is
+  // declared, so the deploy needs no Workers AI permission, POST
+  // /me/ai/transcribe answers 503 ai_unavailable and the status read says
+  // voice: false (tests/config-worker asserts so). To turn it on, add
+  // "ai": { "binding": "AI" } to each of dev, stage and prod (it is not
+  // inherited) and give the deploy token Workers AI Read and Edit.
   "vars": {
     "ENVIRONMENT": "local",
     // Where the app is: the links in Cookpool's emails (CP-18) start here.

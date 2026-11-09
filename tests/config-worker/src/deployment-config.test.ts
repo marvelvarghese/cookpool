@@ -841,6 +841,34 @@ describe("kitchen-worker AI cost switches", () => {
   }
 });
 
+// ── kitchen-worker's Workers AI binding (Cookpool AI-5) ────────
+//
+// Voice is off by the owner's choice: kitchen-worker declares no Workers AI
+// binding in any environment, so its deploy needs no Workers AI permission
+// on the Cloudflare token, POST /me/ai/transcribe answers 503 ai_unavailable
+// and the status read says voice: false. Turning voice on is adding
+// "ai": { "binding": "AI" } to dev, stage and prod (and the token's Workers AI
+// Read/Edit) — and changing these tests on purpose.
+
+describe("kitchen-worker Workers AI binding (voice off)", () => {
+  type Rendered = {
+    ai?: unknown;
+    env: Record<string, { ai?: unknown; vars?: Record<string, string> }>;
+  };
+  const rendered = renderFromFixture("apps/kitchen-worker", parseJsoncStrings) as unknown as Rendered;
+
+  for (const envName of ["dev", "stage", "prod"]) {
+    test(`${envName} binds no Workers AI`, () => {
+      expect(rendered.env[envName]?.ai).toBeUndefined();
+      expect(rendered.env[envName]?.vars ?? {}).not.toHaveProperty("AI");
+    });
+  }
+
+  test("the top level binds none either", () => {
+    expect(rendered.ai).toBeUndefined();
+  });
+});
+
 // ── mcp-worker (Cookpool MC-3) ─────────────────────────────────
 //
 // The MCP server assistants connect to. Unlike the rest of the fleet it has a
