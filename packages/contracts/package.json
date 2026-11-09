@@ -25,6 +25,7 @@
     "./notifications": "./src/notifications.ts",
     "./integrations": "./src/integrations.ts",
     "./idempotency": "./src/idempotency.ts",
+    "./mcp-connect": "./src/mcp-connect.ts",
     "./kitchen": "./src/kitchen.ts",
     "./kitchen-usuals": "./src/kitchen-usuals.ts",
     "./kitchen-recipes": "./src/kitchen-recipes.ts",

@@ -1,0 +1,8 @@
+{
+  "cloudflare-kv/stage": {
+    "mcp_oauth_kv_id": "00000000000000000000000000000005"
+  },
+  "cloudflare-kv/prod": {
+    "mcp_oauth_kv_id": "00000000000000000000000000000006"
+  }
+}

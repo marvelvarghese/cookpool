@@ -41,3 +41,39 @@ import {
   to       = cloudflare_workers_kv_namespace.api_edge_idempotency
   id       = "${var.cloudflare_account_id}/${each.value}"
 }
+
+# The same self-healing adoption for mcp-worker's OAuth namespace (MC-3): a
+# namespace Cloudflare already has under this title but the state does not
+# track (an apply interrupted between create and state write) is imported
+# instead of colliding on the duplicate-title guard.
+
+data "external" "adopt_mcp_oauth_namespace" {
+  program = ["bash", "-c", <<-EOT
+    set -euo pipefail
+    title="$(jq -r .title)"
+    state_file="$(mktemp)"
+    trap 'rm -f "$state_file"' EXIT
+    code="$(curl -s -o "$state_file" -w '%%{http_code}' \
+      -u "$TF_HTTP_USERNAME:$TF_HTTP_PASSWORD" "$TF_HTTP_ADDRESS" || echo 000)"
+    if [ "$code" = "200" ] && jq -e \
+        '[.resources[]? | select(.type == "cloudflare_workers_kv_namespace" and .name == "mcp_oauth")] | length > 0' \
+        "$state_file" >/dev/null 2>&1; then
+      jq -n '{id: ""}'
+      exit 0
+    fi
+    resp="$(curl -fsS --retry 3 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100")"
+    printf '%s' "$resp" | jq -c --arg t "$title" \
+      '{id: ([.result[] | select(.title == $t) | .id] | first // "")}'
+  EOT
+  ]
+  query = {
+    title = local.mcp_oauth_namespace_title
+  }
+}
+
+import {
+  for_each = toset(compact([data.external.adopt_mcp_oauth_namespace.result.id]))
+  to       = cloudflare_workers_kv_namespace.mcp_oauth
+  id       = "${var.cloudflare_account_id}/${each.value}"
+}

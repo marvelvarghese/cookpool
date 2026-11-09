@@ -1,7 +1,9 @@
 # cloudflare-kv
 
 Provisions Cloudflare Workers KV namespaces consumed by the `api-edge` Worker.
-Today the slice ships exactly one logical store: the **api-edge idempotency
+It ships two logical stores: mcp-worker's **OAuth store** (`MCP_OAUTH_KV`,
+Cookpool MC-3: clients, grants, tokens and pending connect requests, each
+TTL'd by the Worker), and the **api-edge idempotency
 replay store** introduced in Task 0095, which closes the open-risks entry
 where a duplicate POST with a valid `Idempotency-Key` could still create
 duplicate pending invitations.
@@ -53,6 +55,7 @@ bodyEncoding: "utf8"|"base64", storedAt, requestId }`.
 | Resource | Per-env | Description |
 |---|---|---|
 | `cloudflare_workers_kv_namespace.api_edge_idempotency` | stage, prod | KV namespace bound to the `api-edge` Worker as `IDEMPOTENCY_KV` |
+| `cloudflare_workers_kv_namespace.mcp_oauth` | stage, prod | KV namespace bound to the `mcp-worker` Worker as `MCP_OAUTH_KV` (Cookpool MC-3): OAuth clients, grants, tokens and pending connect requests, titled `${namespacePrefix}${repo}-mcp-oauth-${environment}` |
 
 ## Parameters
 
@@ -80,6 +83,8 @@ Standard Orun parameters (matching `cloudflare-hyperdrive`):
 |---|---|---|
 | `api_edge_idempotency_kv_id` | KV namespace ID | Referenced from `apps/api-edge/wrangler.jsonc` `kv_namespaces[*].id` |
 | `api_edge_idempotency_kv_title` | KV namespace title (human-readable) | Cross-checked by the verifier via `wrangler kv namespace list` |
+| `mcp_oauth_kv_id` | KV namespace ID | `@@wiring(cloudflare-kv/<env>:mcp_oauth_kv_id)@@` in `apps/mcp-worker/wrangler.template.jsonc` |
+| `mcp_oauth_kv_title` | KV namespace title (human-readable) | — |
 
 ## Dependencies
 

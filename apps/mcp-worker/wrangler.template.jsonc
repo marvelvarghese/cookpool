@@ -1,0 +1,91 @@
+// Rendered to wrangler.jsonc by tooling/wire/render.mjs (BF6 deploy-time wiring).
+// Resource IDs are NEVER committed: @@wiring(<component>/<env>:<key>)@@ tokens are
+// resolved from the workspace's orun secrets at deploy time (wire-live) or from the
+// committed wiring.fixture.json for offline dry-runs (wire-fixture).
+//
+// mcp-worker (Cookpool MC-3): the MCP server assistants connect to, with its
+// own OAuth 2.1 authorization server. Unlike the rest of the fleet it has a
+// public workers.dev URL in stage and prod (design §2): that is the connector
+// URL until the owner attaches mcp.cookpool.store in the Cloudflare dashboard
+// (then MCP_PUBLIC_ORIGIN changes to it). It reads no database: every tool
+// calls api-edge over API_EDGE with the user's delegated token, so api-edge's
+// scope allowlist (MC-2) is the security boundary.
+{
+  "name": "cookpool-mcp-worker",
+  "compatibility_date": "2025-05-01",
+  // global_fetch_strictly_public: the OAuth provider fetches Client ID
+  // Metadata Documents from the internet only with it (SSRF protection).
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "main": "src/index.ts",
+  "minify": false,
+  "vars": {
+    "ENVIRONMENT": "local",
+    "CONSOLE_ORIGIN": "http://localhost:3000",
+    "MCP_PUBLIC_ORIGIN": "http://localhost:8787"
+  },
+  "env": {
+    "dev": {
+      "vars": {
+        "ENVIRONMENT": "dev",
+        "CONSOLE_ORIGIN": "http://localhost:3000",
+        "MCP_PUBLIC_ORIGIN": "http://localhost:8787"
+      }
+    },
+    "stage": {
+      // Public on purpose: assistants reach it here (design §2).
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "stage",
+        "CONSOLE_ORIGIN": "https://stage.cookpool.store",
+        "MCP_PUBLIC_ORIGIN": "https://cookpool-mcp-worker-stage.cookpool.workers.dev"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "MCP_OAUTH_KV",
+          "id": "@@wiring(cloudflare-kv/stage:mcp_oauth_kv_id)@@"
+        }
+      ],
+      "services": [
+        {
+          "binding": "API_EDGE",
+          "service": "cookpool-api-edge-stage",
+          "props": { "caller": "mcp-worker" }
+        },
+        {
+          // Only for POST /v1/internal/delegations/refresh (MC-2), which
+          // api-edge never routes.
+          "binding": "IDENTITY_WORKER",
+          "service": "cookpool-identity-worker-stage"
+        }
+      ]
+    },
+    "prod": {
+      // Public on purpose: assistants reach it here (design §2).
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "prod",
+        "CONSOLE_ORIGIN": "https://cookpool.store",
+        "MCP_PUBLIC_ORIGIN": "https://cookpool-mcp-worker-prod.cookpool.workers.dev"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "MCP_OAUTH_KV",
+          "id": "@@wiring(cloudflare-kv/prod:mcp_oauth_kv_id)@@"
+        }
+      ],
+      "services": [
+        {
+          "binding": "API_EDGE",
+          "service": "cookpool-api-edge-prod",
+          "props": { "caller": "mcp-worker" }
+        },
+        {
+          // Only for POST /v1/internal/delegations/refresh (MC-2), which
+          // api-edge never routes.
+          "binding": "IDENTITY_WORKER",
+          "service": "cookpool-identity-worker-prod"
+        }
+      ]
+    }
+  }
+}
