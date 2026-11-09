@@ -62,6 +62,10 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/you/blocked": "/you",
   // The stock check (cookpool-pantry PN-7): today's frame has none, so its visitor goes to the Pantry.
   "/pantry/:itemRef/check": "/pantry",
+  // Your assistant, connected (cookpool-mcp MC-4): the consent page goes Home,
+  // Connected assistants to You.
+  "/connect": "/home",
+  "/you/assistants": "/you",
 };
 
 /** Where a page (static-pages.mjs's pattern) sends a visitor in this frame, or null when it shows. */

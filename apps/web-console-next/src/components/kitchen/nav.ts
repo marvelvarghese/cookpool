@@ -102,6 +102,8 @@ const NEW_FRAME_PREFIXES: Partial<Record<KitchenNavLink["id"], readonly string[]
   home: ["/use"],
   cook: ["/dishes", "/recipes", "/explore", "/r", "/community", "/u", "/p"],
   money: ["/people", "/settle", "/groups", "/join"],
+  // The consent page an assistant opens (cookpool-mcp MC-4) is You's, beside Connected assistants.
+  you: ["/connect"],
 };
 
 /** The new frame's tab a pathname belongs to: a tab's own path or under it, or one of its extra prefixes. */

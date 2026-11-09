@@ -35,6 +35,7 @@ describe("resolveAppConfig", () => {
       storagePrefix: "acme-cloud.next",
       salesEmail: "sales@acme.dev",
       customDomains: DEFAULT_APP_CONFIG.customDomains,
+      mcpPublicUrls: DEFAULT_APP_CONFIG.mcpPublicUrls,
       deployEnv: "stage",
     });
   });

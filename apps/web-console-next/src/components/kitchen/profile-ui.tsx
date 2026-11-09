@@ -41,6 +41,7 @@ import { PersonRecipesView, SaveCopyChip, Segmented, YourRecipes } from "./cook-
 import { personHref, personListFrom, personRecipeRows, type PersonList, type PersonRecipeRow } from "./explore";
 import { usePersonRecipes, useSaveCopy } from "./recipe-travel-data";
 import { YouCommunity } from "./community-ui";
+import { AssistantsRow } from "./assistants-ui";
 
 /**
  * Your page and a person's in the new frame (cookpool-recipes RC-2, design
@@ -107,6 +108,8 @@ export function YourPage() {
       </header>
 
       <YouCommunity />
+
+      <AssistantsRow />
 
       <dl className="grid grid-cols-2 gap-2 min-[480px]:grid-cols-4">
         <Stat label="Cooks" value={dishes.loading ? null : cooks} />

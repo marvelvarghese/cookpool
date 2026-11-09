@@ -169,4 +169,6 @@ export const qk = {
   // (null while it has none) and the person's push kinds, in every group.
   pushKey: () => ["push", "key"] as const,
   pushPrefs: () => ["push", "prefs"] as const,
+  // Connected assistants (cookpool-mcp MC-4): the person's live delegations.
+  assistantDelegations: () => ["assistants", "delegations"] as const,
 };

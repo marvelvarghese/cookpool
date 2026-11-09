@@ -69,6 +69,9 @@ describe("which screens pull to refresh", () => {
     "/p/:postId",
     "/you/profile",
     "/you/blocked",
+    // Your assistant, connected (cookpool-mcp MC-4): a consent page and a settings page.
+    "/connect",
+    "/you/assistants",
   ];
 
   it("decides for every page: a new page must choose", () => {

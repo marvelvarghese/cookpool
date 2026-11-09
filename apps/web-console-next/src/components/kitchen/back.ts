@@ -71,6 +71,9 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/p/:postId": () => "/community",
   "/you/profile": () => "/you",
   "/you/blocked": () => "/you/profile",
+  // Your assistant, connected (cookpool-mcp MC-4): both are You's.
+  "/connect": () => "/you",
+  "/you/assistants": () => "/you",
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // Its stock check (cookpool-pantry PN-7): the item.

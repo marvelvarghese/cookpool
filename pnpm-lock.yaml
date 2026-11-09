@@ -4,6 +4,8 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+packageExtensionsChecksum: sha256-7EyWhva5Lcamo6pe18OzfUc27A7xbWt39+G/ofluF9k=
+
 importers:
 
   .:
@@ -411,7 +413,7 @@ importers:
         version: 5.3.0
       '@hookform/resolvers':
         specifier: ^3.9.1
-        version: 3.10.0(react-hook-form@7.90.0(react@19.0.0-rc-66855b96-20241106)(types-react@19.0.0-rc.1))
+        version: 3.10.0(react-hook-form@7.90.0(react@19.0.0-rc-66855b96-20241106)(types-react@19.0.0-rc.1))(zod@3.25.76)
       '@opennextjs/aws':
         specifier: 3.6.2
         version: 3.6.2
@@ -2586,6 +2588,7 @@ packages:
     resolution: {integrity: sha512-79Dv+3mDF7i+2ajj7SkypSKHhl1cbln1OGavqrsF7p6mbUv11xpqpacPsGDCTRvCSjEEIez2ef1NveSVL3b0Ag==}
     peerDependencies:
       react-hook-form: ^7.0.0
+      zod: '*'
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -8173,9 +8176,10 @@ snapshots:
     dependencies:
       hono: 4.13.17
 
-  '@hookform/resolvers@3.10.0(react-hook-form@7.90.0(react@19.0.0-rc-66855b96-20241106)(types-react@19.0.0-rc.1))':
+  '@hookform/resolvers@3.10.0(react-hook-form@7.90.0(react@19.0.0-rc-66855b96-20241106)(types-react@19.0.0-rc.1))(zod@3.25.76)':
     dependencies:
       react-hook-form: 7.90.0(react@19.0.0-rc-66855b96-20241106)(types-react@19.0.0-rc.1)
+      zod: 3.25.76
 
   '@humanfs/core@0.19.2':
     dependencies:
