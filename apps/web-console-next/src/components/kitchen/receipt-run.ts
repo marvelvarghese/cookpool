@@ -52,12 +52,15 @@ export interface ReceiptError {
 
 /**
  * A refusal of the read, by its `details.reason` (design §1): no key on the
- * server hides Scan a receipt; today's limit says to come back tomorrow;
+ * server hides Scan a receipt, and so does the month's budget spent
+ * (`budget`, AI-13: "resting until the 1st"); today's limit says to come back tomorrow;
  * anything else (the model failed, the network, a photo that couldn't be
  * shrunk) offers Retake or adding by hand.
  */
 export function receiptError(error: { code?: string; reason?: string | undefined; details?: Record<string, unknown> | undefined } | null, status = 0): ReceiptError {
   const reason = error?.reason ?? (typeof error?.details?.["reason"] === "string" ? (error.details["reason"] as string) : undefined);
+  // The month's AI budget is spent (AI-13): AI is off for everyone until the 1st, so Scan a receipt hides as it does without a key.
+  if (reason === "budget") return { kind: "unavailable", title: "Cookpool AI is resting until the 1st · add by hand" };
   if (reason === "ai_unavailable" || (status === 503 && reason === undefined)) return { kind: "unavailable", title: "AI isn't set up yet · add by hand" };
   if (reason === "ai_daily_limit" || error?.code === "rate_limited") return { kind: "limit", title: "You've used today's AI scans · try tomorrow" };
   return { kind: "failed", title: "Couldn't read this receipt · Retake or add by hand" };

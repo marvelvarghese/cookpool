@@ -19,6 +19,8 @@ import { KCard, K_BUTTON } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { InstallRow } from "@/components/kitchen/install-ui";
 import { NotificationsRow } from "@/components/kitchen/notify-ui";
+import { AiSettingsRow } from "@/components/kitchen/ai-settings-ui";
+import { newFrame } from "@/lib/features";
 import { GoogleMark, NoticeBox, PersonAvatar, SIGN_IN_INPUT } from "@/components/kitchen/sign-in-ui";
 import { NAME_LABEL, NAME_MAX, cleanDisplayName, namePrefill, saveNameOutcome, type SignInNotice } from "@/components/kitchen/sign-in";
 import {
@@ -89,6 +91,9 @@ export function YouSettings({ title = YOU_TITLE, sub = false }: { title?: string
       )}
 
       <NotificationsRow />
+
+      {/* You → Cookpool AI (cookpool-ai AI-7), in the new frame only. */}
+      {newFrame() ? <AiSettingsRow /> : null}
 
       <InstallRow />
 

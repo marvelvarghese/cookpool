@@ -16,6 +16,7 @@ import { movesPatch, pendingMove, stockPatches, stockReturnPatches, type StockCh
 import { beginWrite } from "./optimistic-data";
 import { refreshPantry, undoRefusal, undoStockMove } from "./pantry-data";
 import { trayToast, type TrayEntry } from "./now-strip";
+import { sendInOrder, undoLastFirst } from "./log-several";
 import type { MemberNames } from "./members";
 
 /**
@@ -33,13 +34,21 @@ export function useLogSeveral() {
   const qc = useQueryClient();
   const offer = useUndoToast();
   return React.useCallback(
-    (tray: readonly TrayEntry[], ctx: { meId: string | null; names?: MemberNames | null }): Promise<void> => {
+    (
+      tray: readonly TrayEntry[],
+      ctx: {
+        meId: string | null;
+        names?: MemberNames | null;
+        /** The toast's words (Say what you used, AI-7: "Logged 2 · ₹42.50"); the tray's own "Logged 3 for you" by default. */
+        toast?: (tray: readonly TrayEntry[], refused?: readonly TrayEntry[]) => { title: string; description?: string };
+      },
+    ): Promise<void> => {
       if (tray.length === 0) return Promise.resolve();
       const { meId } = ctx;
       const at = new Date().toISOString();
       const writes = tray.map((entry) => {
         const { item, ref, step } = entry;
-        const consumers = item.pantry.kind === "personal" || !meId ? [] : [meId];
+        const consumers = item.pantry.kind === "personal" ? [] : entry.consumers ? [...entry.consumers] : meId ? [meId] : [];
         const counted = step.amount.kind === "measure" ? { measure: step.amount.measure, quantity: step.amount.quantity } : null;
         const body = logRequest(item, step.qtyMilli, consumers, counted);
         const change: StockChange = { itemId: item.id, kind: "use", qtyMilli: step.qtyMilli, costMinor: amountCost(item, step.qtyMilli) };
@@ -63,28 +72,31 @@ export function useLogSeveral() {
       });
 
       // One after another: each waits for the one before it.
-      let chain: Promise<unknown> = Promise.resolve();
-      const requests = writes.map((w) => {
-        const r = w.write.track(chain.then(w.send));
-        chain = r;
-        return r;
-      });
+      const requests = sendInOrder(
+        writes.map((w) => w.send),
+        (i, answer) => writes[i]!.write.track(answer),
+      );
       const all = Promise.all(requests);
+      const words = ctx.toast ?? trayToast;
       let undone = false;
       const toast = offer({
-        title: trayToast(tray).title,
+        title: words(tray).title,
         undo: async (): Promise<UndoResult> => {
           const answers = await all;
           let refusal: UndoResult | null = null;
           // The last first: each item's own newest use is the one put back.
-          for (let i = writes.length - 1; i >= 0; i--) {
-            const r = answers[i]!;
-            if (!r.ok) continue;
-            const ref = writes[i]!.entry.ref;
-            const u = await writes[i]!.write.track(undoStockMove(client, ref, { id: r.data.move.id, txnId: r.data.txn?.id ?? r.data.move.txnId }));
-            refreshPantry(qc, ref.kind === "group" ? ref.orgId : null);
-            if (!u.ok && !refusal) refusal = undoRefusal(u.error);
-          }
+          await undoLastFirst(
+            answers,
+            (r) => r.ok,
+            async (i, r) => {
+              if (!r.ok) return false;
+              const ref = writes[i]!.entry.ref;
+              const u = await writes[i]!.write.track(undoStockMove(client, ref, { id: r.data.move.id, txnId: r.data.txn?.id ?? r.data.move.txnId }));
+              refreshPantry(qc, ref.kind === "group" ? ref.orgId : null);
+              if (!u.ok && !refusal) refusal = undoRefusal(u.error);
+              return u.ok;
+            },
+          );
           return refusal ?? { ok: true, description: `${writes.length === 1 ? writes[0]!.entry.name : `${writes.length} things`} back as they were.` };
         },
         restore: () => {
@@ -112,7 +124,7 @@ export function useLogSeveral() {
           toast.refuse(refusedToast(`Couldn't log ${refused.length === 1 ? refused[0]!.name : `these ${refused.length}`}`, why));
           return;
         }
-        toast.update(trayToast(tray, refused));
+        toast.update(words(tray, refused));
       });
     },
     [client, qc, offer],

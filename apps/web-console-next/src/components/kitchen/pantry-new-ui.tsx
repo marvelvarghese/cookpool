@@ -46,6 +46,8 @@ import { boughtAgainItem, finishedOpen, finishedRows, itemRestockKey, restockKey
 import { FinishedThisWeek } from "./finished-ui";
 import { useReceiptScanShows } from "./receipt-data";
 import { RECEIPT_SCAN_HREF } from "./receipt-run";
+import { useSayItShows } from "./say-it-data";
+import { SayItBox, SayItSheet } from "./say-it-ui";
 
 type Row = PantryRow & { item: ReachableItem };
 
@@ -68,6 +70,9 @@ export function NewPantry() {
   const pantries = usePantries();
   // Scan a receipt (cookpool-ai AI-8): a camera beside + Bought, when AI is available and the switch is on.
   const scanShows = useReceiptScanShows();
+  // Say what you used (cookpool-ai AI-7): the box at the top, when AI is available and the switch is on.
+  const sayShows = useSayItShows();
+  const [sayOpen, setSayOpen] = React.useState(false);
   const items = usePantryItems("all");
   const usuals = useUsuals();
   const bucket = useUsualBucket();
@@ -228,6 +233,20 @@ export function NewPantry() {
           </Link>
         </span>
       </header>
+
+      {sayShows ? <SayItBox onOpen={() => setSayOpen(true)} /> : null}
+      {/* Kept while open, so a refusal that hides the entry (no key, the budget) is still read. */}
+      {sayShows || sayOpen ? (
+        <SayItSheet
+          open={sayOpen}
+          onClose={() => setSayOpen(false)}
+          meId={meId}
+          onByHand={() => {
+            setSayOpen(false);
+            window.setTimeout(() => searchRef.current?.focus(), 0);
+          }}
+        />
+      ) : null}
 
       <div className="flex items-center gap-2">
         <label className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 rounded-[14px] border border-[#D5DAD2] bg-card px-3.5 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">

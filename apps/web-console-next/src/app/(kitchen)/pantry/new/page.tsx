@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import { addFormName } from "@/components/kitchen/say-it";
 import { History } from "lucide-react";
 import type { KitchenItem, Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
@@ -113,7 +114,9 @@ export default function AddItemPage() {
   const viewerOnly = asked !== ALL_PANTRIES && asked !== PERSONAL_PANTRY && start === PERSONAL_PANTRY
     ? (pantries.data.find((p) => pantryKey(p) === asked) ?? null)
     : null;
-  return <AddItemForm pantries={writable} start={start} meId={meId} viewerOf={viewerOnly} from={fromRef ? from.data : null} />;
+  // `?name=` (Say what you used's Add it, cookpool-ai AI-7) fills the name, in the new frame only.
+  const name = addFormName(searchParams?.get("name"), newFrame());
+  return <AddItemForm pantries={writable} start={start} meId={meId} viewerOf={viewerOnly} from={fromRef ? from.data : null} name={name} />;
 }
 
 function AddItemForm({
@@ -122,6 +125,7 @@ function AddItemForm({
   meId,
   viewerOf,
   from = null,
+  name = null,
 }: {
   pantries: readonly Pantry[];
   start: string;
@@ -130,6 +134,8 @@ function AddItemForm({
   viewerOf: Pantry | null;
   /** The item `?from=` names (PN-6): the form starts filled from it. */
   from?: KitchenItem | null;
+  /** The name `?name=` gives (AI-7's Add it), when the form isn't filled from an item. */
+  name?: string | null;
 }) {
   const router = useKitchenRouter();
   const recentSlugs = useRecentGroupSlugs();
@@ -140,7 +146,7 @@ function AddItemForm({
   const [startFill] = React.useState(() =>
     from ? historyFill(historyEntryOfItem(from, meId), initialItemForm({ today, pantry: start, meId }), { today, pantries, fallbackPantry: start, meId }) : null,
   );
-  const [form, setForm] = React.useState<ItemForm>(() => startFill?.form ?? initialItemForm({ today, pantry: start, meId }));
+  const [form, setForm] = React.useState<ItemForm>(() => startFill?.form ?? { ...initialItemForm({ today, pantry: start, meId }), ...(name ? { name } : {}) });
   const [moreUnits, setMoreUnits] = React.useState(() => startFill?.moreUnits ?? MORE_UNITS.includes(form.unit));
   const [morePayers, setMorePayers] = React.useState(false);
   const [showErrors, setShowErrors] = React.useState(false);

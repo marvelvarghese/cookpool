@@ -75,6 +75,8 @@ export const STATIC_PAGES = Object.freeze([
   // Connected assistants (the You tab's).
   "/connect",
   "/you/assistants",
+  // You → Cookpool AI (cookpool-ai AI-7).
+  "/you/ai",
   "/groups",
   "/groups/:orgSlug",
   "/groups/:orgSlug/expense",
