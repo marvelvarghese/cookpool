@@ -4,6 +4,7 @@ export * from "./errors.js";
 export * from "./idempotency.js";
 export * from "./tenancy.js";
 export * from "./auth.js";
+export * from "./delegations.js";
 export * from "./membership.js";
 export * from "./policy.js";
 export * from "./events.js";

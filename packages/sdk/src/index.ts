@@ -343,6 +343,18 @@ export type {
   AuthUser,
 } from "@saas/contracts/auth";
 
+// Delegated tokens for assistants (cookpool-mcp MC-2).
+export type {
+  CreateDelegationRequest,
+  CreateDelegationResponse,
+  Delegation,
+  DelegationActor,
+  DelegationScope,
+  DelegationsListResponse,
+  RevokeDelegationResponse,
+} from "@saas/contracts/delegations";
+export { DELEGATION_SCOPES } from "@saas/contracts/delegations";
+
 export type {
   KitchenAction,
   KitchenErrorReason,

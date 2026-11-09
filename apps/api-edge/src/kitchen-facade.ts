@@ -3,6 +3,7 @@ import { errorResponse, withEdgeTimings } from "./http.js";
 import { replayOrExecute } from "./idempotency.js";
 import { resolveActor } from "./resolve-actor.js";
 import { createTimings } from "@saas/contracts/timing";
+import { ACTOR_DELEGATION_ID_HEADER, ACTOR_SCOPES_HEADER } from "@saas/contracts/delegations";
 
 // Cookpool's kitchen (cookpool-kitchen epic) → kitchen-worker:
 //   /v1/kitchen/…                          the caller across every group (/v1/kitchen/me/…)
@@ -47,6 +48,12 @@ export async function handleKitchenRoute(
     headers.set("x-actor-subject-id", session.subjectId);
     headers.set("x-actor-subject-type", session.subjectType);
     headers.set("x-actor-email", session.email);
+    // A delegated actor (MC-2) — and only one — carries its delegation, so a
+    // route can require an assistant (MC-5's suggestions) or refuse one.
+    if (session.delegation) {
+      headers.set(ACTOR_DELEGATION_ID_HEADER, session.delegation.id);
+      headers.set(ACTOR_SCOPES_HEADER, session.delegation.scopes.join(","));
+    }
     for (const name of FORWARDED_HEADERS) {
       const value = request.headers.get(name);
       if (value) headers.set(name, value);

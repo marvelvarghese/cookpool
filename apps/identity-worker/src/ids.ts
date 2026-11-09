@@ -106,3 +106,36 @@ export function parseProjectPublicId(publicId: string): Uuid | null {
 export function parseSubjectUuid(publicId: string): Uuid | null {
   return uuidFromPublicId(publicId);
 }
+
+// Delegated tokens for assistants (cookpool-mcp MC-2): `sps_dlg_<32 hex>.<secret>`,
+// the id being the delegation's (`dlg_<32 hex>` in public).
+
+export function generateDelegationId(): string {
+  return crypto.randomUUID();
+}
+
+export function delegationPublicId(uuid: string): string {
+  return `dlg_${uuidToHex(uuid)}`;
+}
+
+export function parseDelegationPublicId(publicId: string): string | null {
+  if (!publicId.startsWith("dlg_")) return null;
+  return hexToUuid(publicId.slice(4));
+}
+
+export function buildDelegationToken(delegationUuid: string, secret: string): string {
+  return `sps_dlg_${uuidToHex(delegationUuid)}.${secret}`;
+}
+
+export function parseDelegationToken(token: string): { delegationId: string; secret: string } | null {
+  if (!token.startsWith("sps_dlg_")) return null;
+  const payload = token.slice(8);
+  const dotIndex = payload.indexOf(".");
+  if (dotIndex < 1) return null;
+  const hexId = payload.slice(0, dotIndex);
+  const secret = payload.slice(dotIndex + 1);
+  if (!hexId || !secret) return null;
+  const uuid = hexToUuid(hexId);
+  if (!uuid) return null;
+  return { delegationId: uuid, secret };
+}

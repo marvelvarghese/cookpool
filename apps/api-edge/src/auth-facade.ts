@@ -16,7 +16,13 @@ const AUTH_ROUTES: Record<string, string> = {
 
 const AUTH_MULTI_METHOD_ROUTES: Record<string, Set<string>> = {
   "/v1/auth/profile": new Set(["GET", "PATCH"]),
+  // Delegated tokens for assistants (MC-2): a signed-in session only. The
+  // edge refuses a delegated token on every /v1/auth/ route (index.ts).
+  "/v1/auth/delegations": new Set(["GET", "POST"]),
 };
+
+// DELETE /v1/auth/delegations/{dlg} (MC-2): revoke one.
+const DELEGATION_ID_RE = /^\/v1\/auth\/delegations\/[^/]+$/;
 
 // OAuth sign-in routes (all GET). `start` and `callback` are browser-redirect
 // navigations; `providers` is a JSON read. The `:provider` segment is dynamic,
@@ -45,7 +51,12 @@ const FORWARDED_HEADERS = [
 ];
 
 export function isAuthRoute(pathname: string): boolean {
-  return pathname in AUTH_ROUTES || pathname in AUTH_MULTI_METHOD_ROUTES || isOAuthRoute(pathname);
+  return (
+    pathname in AUTH_ROUTES ||
+    pathname in AUTH_MULTI_METHOD_ROUTES ||
+    isOAuthRoute(pathname) ||
+    DELEGATION_ID_RE.test(pathname)
+  );
 }
 
 export async function handleAuthRoute(
@@ -57,12 +68,17 @@ export async function handleAuthRoute(
   const expectedMethod = AUTH_ROUTES[pathname];
   const allowedMethods = AUTH_MULTI_METHOD_ROUTES[pathname];
   const oauth = isOAuthRoute(pathname);
+  const delegation = DELEGATION_ID_RE.test(pathname);
 
-  if (!expectedMethod && !allowedMethods && !oauth) {
+  if (!expectedMethod && !allowedMethods && !oauth && !delegation) {
     return errorResponse("not_found", `Route not found: ${pathname}`, 404, requestId);
   }
 
-  if (oauth) {
+  if (delegation) {
+    if (request.method !== "DELETE") {
+      return errorResponse("unsupported", "Method not allowed", 405, requestId);
+    }
+  } else if (oauth) {
     if (request.method !== "GET") {
       return errorResponse("unsupported", "Method not allowed", 405, requestId);
     }

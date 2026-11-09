@@ -435,5 +435,14 @@ export const manifest: MigrationManifest = {
       description:
         "AI cost: kitchen_ai_usage.cost_micros (INTEGER NOT NULL DEFAULT 0, ≥ 0) — each AI action's estimated cost in micro-dollars from its calls' tokens and the price table (escalations add both models) — and kitchen_ai_usage_created_idx (created_at, cost_micros), covering the month's total across everyone that the AI budget is checked against (Cookpool AI-13)",
     },
+    {
+      id: "490_identity_delegations",
+      context: "identity",
+      path: "490_identity_delegations/up.sql",
+      checksum:
+        "3400cf03300b2584b6eab111aec2abb661c4dd8ca25971a6ad96aa3799e08677",
+      description:
+        "Delegated tokens for assistants: identity_delegations (id, user_id, client_name 1–80, client_id 1–128 — the MCP client's id, scopes a JSON array of at least one scope name, token_hash the SHA-256 of the token's secret, created_at, last_used_at moved at most hourly, expires_at 90 days after minting or the last rotation, revoked_at), indexed by user and time. Tokens are sps_dlg_<id>.<secret>; the raw token is never stored (Cookpool MC-2)",
+    },
   ],
 };

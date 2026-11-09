@@ -23,6 +23,8 @@ import { isKitchenRoute, handleKitchenRoute } from "./kitchen-facade";
 import { isJoinPreviewRoute, handleJoinPreviewRoute } from "./join-preview-facade";
 import { isSoloMode, isSoloSuppressed } from "./solo-mode";
 import { withTrustedClientIp, type ClientIpSource } from "./client-ip";
+import { hasDelegatedBearer, isDelegationRoute, scopeRefused } from "./delegation-scopes";
+import { resolveActor } from "./resolve-actor";
 
 // Durable Object class backing the PERF5 Stage B rate-limit counters. Must be
 // exported from the Worker entry so the runtime can instantiate it for the
@@ -44,7 +46,24 @@ export default {
 
     let response: Response;
 
-    if (url.pathname === "/health") {
+    // Assistants (cookpool-mcp MC-2): a delegated token reaches only the
+    // allowlisted methods and paths (./delegation-scopes.ts). Anything else is
+    // refused here, before any facade — the auth routes included — sees it;
+    // an allowlisted one is resolved and held to its own scopes before the
+    // facade's idempotency replay can answer from a stored response.
+    let delegatedRefusal: Response | null = null;
+    if (url.pathname !== "/health" && hasDelegatedBearer(request)) {
+      if (!isDelegationRoute(request.method, url.pathname)) {
+        delegatedRefusal = scopeRefused(requestId);
+      } else {
+        const actor = await resolveActor(request, env, requestId);
+        if ("error" in actor) delegatedRefusal = actor.error;
+      }
+    }
+
+    if (delegatedRefusal) {
+      response = delegatedRefusal;
+    } else if (url.pathname === "/health") {
       response = await handleHealth(env, clientIpSource);
     } else if (isSoloMode(env) && isSoloSuppressed(url.pathname, request.method)) {
       // M0 / Solo profile: org/team/project and platform-plumbing surfaces are

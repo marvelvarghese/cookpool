@@ -1,4 +1,6 @@
-import type { IdentityRepository, IdentityResult, User } from "@saas/db/identity";
+import type { DelegationsRepository, IdentityRepository, IdentityResult, User } from "@saas/db/identity";
+import type { DelegationActor } from "@saas/contracts/delegations";
+import { resolveDelegatedToken } from "./delegations.js";
 import {
   AUTH_ERROR_REASONS,
   LOGIN_CODES_PER_WINDOW,
@@ -32,6 +34,11 @@ export interface AuthServiceDeps {
   repo: IdentityRepository;
   now: () => Date;
   ctx?: RequestContext;
+  /**
+   * Delegated tokens (cookpool-mcp MC-2). Without it a `sps_dlg_` token
+   * resolves as nothing — only /v1/auth/resolve needs to pass it.
+   */
+  delegations?: DelegationsRepository;
 }
 
 export interface StartLoginResult {
@@ -110,6 +117,8 @@ export interface ResolveBearerResult {
   email?: string | null;
   session?: { id: string; expiresAt: Date; createdAt: Date };
   user?: { id: string; email: string; displayName: string | null };
+  /** A delegated token's (MC-2): the user acts through an assistant, within these scopes. No session. */
+  delegation?: DelegationActor;
 }
 
 export interface ResolveBearerError {
@@ -139,7 +148,7 @@ function emailHint(email: string): string {
 }
 
 export function createAuthService(deps: AuthServiceDeps) {
-  const { repo, now, ctx } = deps;
+  const { repo, now, ctx, delegations } = deps;
 
   function eventBase() {
     return {
@@ -615,6 +624,27 @@ export function createAuthService(deps: AuthServiceDeps) {
           displayName: sessionResult.user.displayName,
           session: sessionResult.session,
           user: sessionResult.user,
+        };
+      }
+
+      // A delegated token (sps_dlg_ prefix, MC-2): the user plus the
+      // delegation's scopes, while it is live. Never falls through to the
+      // API-key lookup.
+      if (token.startsWith("sps_dlg_")) {
+        const resolved = delegations ? await resolveDelegatedToken(delegations, token, now()) : null;
+        if (!resolved) return { error: "unauthenticated", message: "Invalid bearer token" };
+        const user = {
+          id: userPublicId(resolved.user.id),
+          email: resolved.user.email,
+          displayName: resolved.user.displayName,
+        };
+        return {
+          actorType: "user",
+          actorId: user.id,
+          email: user.email,
+          displayName: user.displayName,
+          user,
+          delegation: resolved.delegation,
         };
       }
 

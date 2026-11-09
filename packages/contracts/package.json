@@ -10,6 +10,7 @@
     "./errors": "./src/errors.ts",
     "./tenancy": "./src/tenancy.ts",
     "./auth": "./src/auth.ts",
+    "./delegations": "./src/delegations.ts",
     "./membership": "./src/membership.ts",
     "./policy": "./src/policy.ts",
     "./projects": "./src/projects.ts",
