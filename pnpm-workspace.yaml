@@ -3,3 +3,12 @@ packages:
   - "packages/*"
   - "tests/*"
   - "tooling/*"
+
+# @hookform/resolvers imports `zod` without declaring it. With zod 3 (console)
+# and zod 4 (mcp-worker) in the tree, it otherwise resolves the hoisted zod 4
+# and the console's zod-form types break. Declaring the peer makes it use the
+# consumer's own zod.
+packageExtensions:
+  "@hookform/resolvers":
+    peerDependencies:
+      zod: "*"
