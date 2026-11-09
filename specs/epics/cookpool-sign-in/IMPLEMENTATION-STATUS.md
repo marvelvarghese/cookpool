@@ -370,3 +370,10 @@ package changed.
   environment; `CONSOLE_DEPLOY_ENV` still wins. A config test keeps the map
   equal to api-edge's `CONSOLE_CUSTOM_DOMAIN` per environment.
 
+
+### SI1 — Google sign-in switched on (SI-3)
+
+- identity-worker's stage and prod `GOOGLE_OAUTH_CLIENT_ID` is now the owner's Google OAuth client (`437655333636-…apps.googleusercontent.com`, project `gen-lang-client-0788776472`). The client id is public; the old placeholder id is gone.
+- The owner stored `GOOGLE_OAUTH_CLIENT_SECRET` and `OAUTH_STATE_SECRET` for stage and prod with `orun secrets set`. The deploy pushes both as runtime secrets, which component.yaml already lists. `listEnabledProviderInfos` then reports Google, so the sign-in page shows **Continue with Google**. GitHub stays hidden, because its secret isn't set.
+- **Redirect URIs** registered in Google by the owner: `https://cookpool-api-edge-{stage,prod}.cookpool.workers.dev/v1/auth/oauth/google/callback`.
+- The secret file the owner shared during setup put the old secret into a chat transcript, so resetting it in Google Cloud was recommended before storing the new one. This record doesn't verify whether that was done.
