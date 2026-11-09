@@ -2,9 +2,9 @@ apiVersion: orun.io/v1
 kind: TaskContract
 metadata:
   name: AI-9
-  title: "Import in the recipe form"
+  title: "Recipe from a photo in the app"
 spec:
-  goal: "In the new frame, Import from a link, text or photo opens the recipe form prefilled with guided steps and the checks marked."
+  goal: "In the new frame, My recipes offers From a photo: take or pick a photo, resize, then the recipe form opens prefilled with guided steps and the checks marked."
   affects:
     - default/cookpool/web-console-next
     - default/cookpool/web-console-next-tests
@@ -12,7 +12,7 @@ spec:
     - specs/epics/cookpool-ai/**
     - tasks/AI-9.TaskContract.yaml
   doneWhen:
-    - "My recipes offers Import with Link, Paste text and Photo, showing progress while it reads"
+    - "My recipes offers From a photo with camera or library, showing progress while it reads"
     - "the recipe form opens prefilled with lines and guided steps, each check marked where it applies; Save uses the existing route"
     - "with newFrame false or AI unavailable nothing changes"
   gates: []

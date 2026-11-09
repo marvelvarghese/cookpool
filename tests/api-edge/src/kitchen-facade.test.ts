@@ -106,6 +106,8 @@ describe("kitchen route matching", () => {
     "/v1/kitchen/me/ai/uses",
     // Receipts (AI-3).
     "/v1/kitchen/me/ai/receipt",
+    // Recipe from a photo (AI-4).
+    "/v1/kitchen/me/ai/recipe-photo",
   ])("%s is a kitchen route, and no other facade's", (path) => {
     expect(isKitchenRoute(path)).toBe(true);
     expect(isOrgRoute(path)).toBe(false);

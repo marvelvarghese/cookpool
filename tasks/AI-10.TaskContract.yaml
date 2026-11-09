@@ -2,9 +2,9 @@ apiVersion: orun.io/v1
 kind: TaskContract
 metadata:
   name: AI-10
-  title: "Voice and whistles in guided mode"
+  title: "Voice, Check it and Something wrong in guided mode"
 spec:
-  goal: "In the new frame, guided mode listens briefly after reading a step and while the mic is held, matches commands locally, asks the step question otherwise, and counts cooker whistles by ear."
+  goal: "In the new frame, guided mode listens briefly and matches commands locally, asks the step question otherwise, and offers Check it with a photo and Something wrong chips, with answers read aloud."
   affects:
     - default/cookpool/web-console-next
     - default/cookpool/web-console-next-tests
@@ -14,6 +14,7 @@ spec:
   doneWhen:
     - "after a step is read, a short listening window records only speech; next, back, repeat, timer and how much are matched locally"
     - "other speech goes to ask-step and the answer shows and is read aloud"
-    - "on whistle steps the whistle counter ticks by sound with plus and minus corrections, with no upload"
-    - "voice and whistles each have a switch, the mic shows only while listening; with newFrame false nothing changes"
+    - "every step has Check it, which takes a photo, resizes it and shows the verdict card read aloud"
+    - "every step has Something wrong with the problem chips and free text, showing the fix card read aloud"
+    - "voice has its own switch and the mic shows only while listening; with newFrame false nothing changes"
   gates: []

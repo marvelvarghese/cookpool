@@ -89,7 +89,7 @@ import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 // Timers that find you (GC-3).
 import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
 // Cookpool AI (AI-2).
-import type { AiReceiptResponse, AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
+import type { AiReceiptResponse, AiRecipePhotoResponse, AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
 // Restocking and shopping runs (PN-3).
 import type { PurchaseLine, PurchaseResponse, RestockResponse, UndoPurchaseResponse } from "@saas/contracts/kitchen";
 // Ask before use (PN-8).
@@ -1173,6 +1173,17 @@ export class KitchenClient {
    */
   aiReceipt(image: string, opts: RequestOptions = {}): Promise<AiReceiptResponse> {
     return this.transport.request<AiReceiptResponse>({ method: "POST", path: this.mePath("ai/receipt"), body: { image } }, opts);
+  }
+
+  /**
+   * POST /v1/kitchen/me/ai/recipe-photo (AI-4) — read one recipe photo
+   * (`image`: base64 JPEG or WebP, ≤ AI_RECIPE_PHOTO_MAX_BYTES decoded) into
+   * a draft in the create route's shape, lines matched to the food list, and
+   * the `checks` to mark in the form. Nothing is saved: Save the edited draft
+   * with `createRecipe`. A bad photo is a `ValidationError` on field `image`.
+   */
+  aiRecipePhoto(image: string, opts: RequestOptions = {}): Promise<AiRecipePhotoResponse> {
+    return this.transport.request<AiRecipePhotoResponse>({ method: "POST", path: this.mePath("ai/recipe-photo"), body: { image } }, opts);
   }
 
   // -------------------------------------------------------------------------

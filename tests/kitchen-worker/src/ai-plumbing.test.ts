@@ -48,11 +48,11 @@ describe("Cookpool AI: availability (AI-2)", () => {
     w.close();
   });
 
-  it("GET /me/ai with a key offers say what you used and receipts, and nothing that has not shipped", async () => {
+  it("GET /me/ai with a key offers say what you used, receipts and recipe from a photo (AI-4), and nothing that has not shipped", async () => {
     const w = aiWorld();
     const res = await w.call<AiStatus>("GET", me("ai"), RAHUL);
     expect(res.body.data.available).toBe(true);
-    expect(res.body.data.features).toEqual({ sayIt: true, receipt: true, import: false, voice: false, swaps: false });
+    expect(res.body.data.features).toEqual({ sayIt: true, receipt: true, import: true, voice: false, swaps: false });
     w.close();
   });
 

@@ -28,6 +28,7 @@
 // name — the one exception, needed to read "Anu and I" (design §2).
 
 import type { PantryRef } from "./kitchen.js";
+import type { RecipeKind, StepHeat, StepPhase, StepSense, StepTimeRule } from "./kitchen-recipes.js";
 
 /** Pinned codes stay pinned: AI refusals ride on them with one of these as `details.reason`. */
 export const KITCHEN_AI_ERROR_REASONS = {
@@ -255,4 +256,99 @@ export interface AiReceiptResponse {
   sumMinor: number;
   totalMatches: boolean;
   lines: AiReceiptLine[];
+}
+
+// ── Recipe from a photo (AI-4, design §4) ───────────────────
+//
+//   POST /v1/kitchen/me/ai/recipe-photo   { image } → AiRecipePhotoResponse
+//
+// One photo — a cookbook page, a handwritten card, a screenshot — read into a
+// recipe draft in the create route's own shape (CreateRecipeRequest with
+// GC-2's guided steps), lines matched to the food list on the server, and the
+// places to look at again as `checks`. The owner's scope: a photo only, no
+// links or pasted text. Nothing is saved and the image is never stored or
+// logged: the console opens the recipe form prefilled, the checks marked, and
+// Save is POST /v1/kitchen/me/recipes as today. Counts one AI action.
+
+/** The largest recipe photo, decoded: 1.5 MB, as a receipt's. The console resizes it to 1600 px on the long side first. */
+export const AI_RECIPE_PHOTO_MAX_BYTES = AI_RECEIPT_MAX_BYTES;
+/** The most lines a draft keeps; more are dropped, with a check. */
+export const AI_RECIPE_PHOTO_MAX_LINES = 30;
+/** The most steps a draft keeps (MAX_RECIPE_STEPS); more are dropped, with a check. */
+export const AI_RECIPE_PHOTO_MAX_STEPS = 20;
+/** Serves × 2 when the photo says nothing: serves 2, with a check. */
+export const AI_RECIPE_PHOTO_DEFAULT_SERVES_HALF = 4;
+
+/**
+ * POST /v1/kitchen/me/ai/recipe-photo. `image` as AiReceiptRequest's: base64
+ * JPEG or WebP, ≤ AI_RECIPE_PHOTO_MAX_BYTES decoded, the type read from the
+ * bytes. A bad image is 422 `validation_failed` with field errors on `image`.
+ */
+export interface AiRecipePhotoRequest {
+  image: string;
+}
+
+/**
+ * One line of the draft: RecipeLineInput with every field set. `foodKey` is
+ * the food-list key when the ingredient is a food; `name` carries any note
+ * ("Onions, finely sliced"). `quantity` (a decimal in `unit`) and `unit` are
+ * null on a to-taste line — and on a line whose amount could not be read,
+ * which carries a check and must be filled before Save. Exactly one line is
+ * main when any line has an amount (the create route's rule: the first by
+ * weight, else the first with an amount).
+ */
+export interface AiRecipeDraftLine {
+  foodKey: string | null;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  toTaste: boolean;
+  isMain: boolean;
+}
+
+/** One step of the draft: RecipeStepInput (GC-2) with every field but `key` set. `lines` are positions in the draft's lines. */
+export interface AiRecipeDraftStep {
+  text: string;
+  phase: StepPhase;
+  lines: number[];
+  heat: StepHeat | null;
+  minSeconds: number | null;
+  maxSeconds: number | null;
+  whistles: number | null;
+  handsOff: boolean;
+  timeRule: StepTimeRule;
+  sense: StepSense | null;
+  checkpoint: string | null;
+  tip: string | null;
+}
+
+/**
+ * The draft: a CreateRecipeRequest without `visibility` (the form's default
+ * applies). `name` is "" when the photo shows none (with a check);
+ * `servesHalf` is AI_RECIPE_PHOTO_DEFAULT_SERVES_HALF when it says nothing.
+ */
+export interface AiRecipeDraft {
+  name: string;
+  servesHalf: number;
+  minutes: number | null;
+  kind: RecipeKind | null;
+  lines: AiRecipeDraftLine[];
+  steps: AiRecipeDraftStep[];
+  tools: string[];
+}
+
+/**
+ * Something to look at again before Save. `path` is the draft field as the
+ * create route names its field errors ("name", "servesHalf",
+ * "lines[2].quantity", "steps[3].heat", "steps[0].lines"; "lines" or "steps"
+ * for the list); `message` is a few words for the form.
+ */
+export interface AiRecipeCheck {
+  path: string;
+  message: string;
+}
+
+export interface AiRecipePhotoResponse {
+  draft: AiRecipeDraft;
+  checks: AiRecipeCheck[];
 }

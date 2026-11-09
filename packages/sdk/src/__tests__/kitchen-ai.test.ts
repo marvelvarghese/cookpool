@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { AI_DAILY_ACTIONS, AI_RECEIPT_MAX_BYTES, AI_RECEIPT_NOT_FOOD, AI_USES_TEXT_MAX, Cookpool, KITCHEN_AI_ERROR_REASONS } from "../index.js";
+import { AI_DAILY_ACTIONS, AI_RECEIPT_MAX_BYTES, AI_RECEIPT_NOT_FOOD, AI_RECIPE_PHOTO_MAX_BYTES, AI_USES_TEXT_MAX, Cookpool, KITCHEN_AI_ERROR_REASONS } from "../index.js";
 import { InternalError, RateLimitError, ValidationError } from "../errors.js";
 
 interface CapturedCall {
@@ -128,5 +128,38 @@ describe("KitchenClient — receipts (AI-3)", () => {
     const f = capture(failed("validation_failed", 422, { fields: { image: ["Must be at most 1.5 MB"] } }));
     const err = await client(f.fetch).kitchen.aiReceipt("x").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ValidationError);
+  });
+});
+
+describe("KitchenClient — recipe from a photo (AI-4)", () => {
+  const result = {
+    draft: {
+      name: "Jeera rice",
+      servesHalf: 4,
+      minutes: null,
+      kind: "rice",
+      lines: [{ foodKey: "rice", name: "Rice", quantity: 1, unit: "cup", toTaste: false, isMain: true }],
+      steps: [],
+      tools: [],
+    },
+    checks: [{ path: "servesHalf", message: "Serves isn't on the page: check it" }],
+  };
+
+  it("sends the photo as given and returns the draft and its checks", async () => {
+    const f = capture(ok(result));
+    expect(await client(f.fetch).kitchen.aiRecipePhoto("/9j/4AAQSkZJRg==")).toEqual(result);
+    expect(f.calls[0]!.url).toBe("https://api.test/v1/kitchen/me/ai/recipe-photo");
+    expect(f.calls[0]!.init.method).toBe("POST");
+    expect(JSON.parse(String(f.calls[0]!.init.body))).toEqual({ image: "/9j/4AAQSkZJRg==" });
+    expect(AI_RECIPE_PHOTO_MAX_BYTES).toBe(AI_RECEIPT_MAX_BYTES);
+  });
+
+  it("decodes a bad photo, and a read with nothing usable", async () => {
+    const bad = capture(failed("validation_failed", 422, { fields: { image: ["Must be a JPEG or WebP photo, in base64"] } }));
+    expect(await client(bad.fetch).kitchen.aiRecipePhoto("x").catch((e: unknown) => e)).toBeInstanceOf(ValidationError);
+    const empty = capture(failed("internal_error", 502, { reason: KITCHEN_AI_ERROR_REASONS.AI_FAILED }));
+    const err = await client(empty.fetch).kitchen.aiRecipePhoto("x").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(InternalError);
+    expect((err as InternalError).details.reason).toBe("ai_failed");
   });
 });

@@ -26,6 +26,11 @@ import {
   AI_RECEIPT_NOT_FOOD,
   type AiReceiptRequest,
   type AiReceiptResponse,
+  MAX_RECIPE_LINES,
+  MAX_RECIPE_STEPS,
+  type AiRecipePhotoRequest,
+  type AiRecipePhotoResponse,
+  type CreateRecipeRequest,
 } from "@saas/contracts";
 import * as ai from "@saas/contracts/kitchen-ai";
 
@@ -161,5 +166,53 @@ describe("contracts: Cookpool AI cost guardrails (AI-13)", () => {
     expect(ai.aiCallCostMicros("claude-haiku-5-5", { input: 2000, cacheRead: 1000, output: 300 })).toBeCloseTo(200 + 10 + 150);
     expect(ai.aiCallCostMicros("claude-sonnet-5-5", { input: 2000, cacheRead: 1000, output: 300 })).toBeCloseTo(4000 + 200 + 3000);
     expect(ai.aiCallCostMicros("unknown", { input: 1, cacheRead: 0, output: 0 })).toBe(2);
+  });
+});
+
+describe("contracts: recipe from a photo (AI-4)", () => {
+  it("takes the receipt's photo limit, and keeps at most 30 lines and the recipe's 20 steps", () => {
+    expect(ai.AI_RECIPE_PHOTO_MAX_BYTES).toBe(AI_RECEIPT_MAX_BYTES);
+    expect(ai.AI_RECIPE_PHOTO_MAX_LINES).toBe(30);
+    expect(ai.AI_RECIPE_PHOTO_MAX_STEPS).toBe(MAX_RECIPE_STEPS);
+    expect(ai.AI_RECIPE_PHOTO_MAX_LINES).toBeLessThanOrEqual(MAX_RECIPE_LINES);
+    expect(ai.AI_RECIPE_PHOTO_DEFAULT_SERVES_HALF).toBe(4);
+  });
+
+  it("shapes a draft the create route takes as it is, with its checks", () => {
+    const request: AiRecipePhotoRequest = { image: "/9j/4AAQ" };
+    const response: AiRecipePhotoResponse = {
+      draft: {
+        name: "Jeera rice",
+        servesHalf: 4,
+        minutes: 25,
+        kind: "rice",
+        lines: [
+          { foodKey: "basmati_rice", name: "Basmati rice, soaked", quantity: 1, unit: "cup", toTaste: false, isMain: true },
+          { foodKey: "salt", name: "Salt", quantity: null, unit: null, toTaste: true, isMain: false },
+        ],
+        steps: [
+          {
+            text: "Simmer covered on low until the water is gone.",
+            phase: "cook",
+            lines: [0, 1],
+            heat: 1,
+            minSeconds: 600,
+            maxSeconds: 720,
+            whistles: null,
+            handsOff: true,
+            timeRule: "partly",
+            sense: "look",
+            checkpoint: "water absorbed",
+            tip: null,
+          },
+        ],
+        tools: ["Pot with a lid"],
+      },
+      checks: [{ path: "steps[0].heat", message: "The flame isn't on the page: check it" }],
+    };
+    // The draft is a create body: the console saves it as it is (after the form).
+    const body: CreateRecipeRequest = response.draft;
+    expect(request.image).toBeTruthy();
+    expect(body.lines).toHaveLength(2);
   });
 });
