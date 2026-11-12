@@ -12,6 +12,7 @@ import {
   switchMode,
 } from "@/lib/itemized";
 import type { ItemForm } from "@/lib/split-form";
+import * as itemizedLib from "@/lib/itemized";
 
 const PEOPLE = ["usr_a", "usr_b", "usr_c", "usr_d"];
 const item = (over: Partial<ItemForm> = {}): ItemForm => ({ key: "i", name: "Kingfisher", qtyText: "6", unitText: "180", totalText: "", shares: {}, ...over });
@@ -81,5 +82,32 @@ describe("the line under an item", () => {
     const { amounts } = itemAmounts(it, PEOPLE);
     expect([...amounts.values()].reduce((s, v) => s + v, 0)).toBe(108_000);
     expect([...amounts.values()]).toEqual([36_000, 36_000, 36_000]);
+  });
+});
+
+describe("V2Itemized (SL4)", () => {
+  const it1 = (over: Partial<ItemForm> = {}): ItemForm => ({ key: "i1", name: "Prawns", qtyText: "2", unitText: "380", totalText: "", shares: {}, ...over });
+  it("badges a face only when not one portion: ¼ ½ 2 % ₹", () => {
+    const { faceBadge } = itemizedLib;
+    expect(faceBadge({ mode: "portion", value: 1000 })).toBe("");
+    expect(faceBadge({ mode: "portion", value: 250 })).toBe("¼");
+    expect(faceBadge({ mode: "portion", value: 500 })).toBe("½");
+    expect(faceBadge({ mode: "portion", value: 2000 })).toBe("2");
+    expect(faceBadge({ mode: "portion", value: 1500 })).toBe("1.5");
+    expect(faceBadge({ mode: "pct", value: 2500 })).toBe("25%");
+    expect(faceBadge({ mode: "exact", value: 12000 })).toBe("₹");
+    expect(faceBadge(undefined)).toBe("");
+  });
+  it("shows qty × unit over the name", () => {
+    expect(itemizedLib.qtyLine(it1())).toBe("2 × ₹380");
+    expect(itemizedLib.qtyLine(it1({ unitText: "", qtyText: "3" }))).toBe("Qty 3");
+  });
+  it("totals each person on some item: the engine's when it adds up, else the item parts", () => {
+    const a = it1({ shares: { A: { mode: "portion", value: 1000 }, B: { mode: "portion", value: 1000 } } });
+    expect(itemizedLib.personTotals({ members: ["A", "B", "C"], items: [a] }, null)).toEqual([
+      { subjectId: "A", minor: 38000 },
+      { subjectId: "B", minor: 38000 },
+    ]);
+    expect(itemizedLib.personTotals({ members: ["A", "B", "C"], items: [a] }, new Map([["A", 40000], ["B", 40000]]))[0]).toEqual({ subjectId: "A", minor: 40000 });
   });
 });

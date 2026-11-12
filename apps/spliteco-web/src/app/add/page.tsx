@@ -9,25 +9,23 @@ import {
   type SplitecoGroupSummary,
   type SplitecoSplitMethod,
 } from "@saas/contracts/spliteco";
-import { buildSplitecoSplits } from "@saas/kitchen-engine/splits";
 import { Icon } from "@/components/icons";
 import { Avatar, Screen, Sheet, useQueryParams } from "@/components/ui";
 import { PaidByView } from "@/components/add/paid-by";
-import { SplitView } from "@/components/add/split-view";
+import { AddSheet } from "@/components/add/add-sheet";
 import { ItemizedView } from "@/components/add/itemized";
-import { formatMoney, formatShort, currencySymbol } from "@/lib/money";
 import { namesFrom, nameOf } from "@/lib/people";
 import type { FormCtx } from "@/components/add/types";
 import { CATEGORY_LABELS, CATEGORY_TINTS, guessCategory } from "@/lib/activity-text";
-import { METHOD_LABELS, buildRequest, emptyItem, switchFromItems, formFromInput, newForm, payersOf, splitInput, toSpec, totalOf, type ExpenseForm } from "@/lib/split-form";
-import { problemText } from "@/lib/problems";
+import { buildRequest, formFromInput, newForm, payersOf, todayIso, totalOf, type ExpenseForm } from "@/lib/split-form";
+import { AMOUNT, payerChip, saveLabel, type Selected } from "@/lib/add-split";
 import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
 import { useMe } from "@/lib/me";
 import { applyScan, takeScan, type ScanHandoff } from "@/lib/scan";
 import { liveDraftFrom } from "@/lib/live";
 import { sessionStore } from "@/lib/return-to";
 
-type View = "main" | "paid" | "split" | "items";
+type View = "main" | "paid" | "items";
 
 
 export default function AddPage() {
@@ -68,11 +66,12 @@ function Add() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const [picker, setPicker] = React.useState<"group" | "category" | null>(null);
+  const [picker, setPicker] = React.useState<"group" | "details" | null>(null);
+  // What the keypad types into: the amount, or the selected person's field.
+  const [sel, setSel] = React.useState<Selected>(AMOUNT);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const keyRef = React.useRef<string | null>(null);
-  const titleTouchedCategory = React.useRef(false);
   // A scanned receipt handed over by /scan (SE4), read once and kept for this form.
   const scanRef = React.useRef<ScanHandoff | null | undefined>(undefined);
   const [liveBusy, setLiveBusy] = React.useState(false);
@@ -151,7 +150,6 @@ function Add() {
           });
           if (params.get("method") === "items" && !openedItems.current) {
             openedItems.current = true;
-            open("split");
             open("items");
           }
         }
@@ -233,31 +231,16 @@ function Add() {
   }
 
   if (view === "paid") return <PaidByView ctx={ctx} onDone={back} />;
-  if (view === "split") {
-    return (
-      <SplitView
-        ctx={ctx}
-        onDone={back}
-        onItems={() => {
-          setForm((f) => ({ ...f, method: "items", items: f.items.length ? f.items : [{ ...emptyItem(), name: f.title, totalText: f.amountText }] }));
-          open("items");
-        }}
-      />
-    );
-  }
   if (view === "items") {
     return (
       <ItemizedView
         ctx={ctx}
-        title={form.title || "Itemized bill"}
+        title={form.title}
         groupName={group.group.kind === "direct" ? "Outside groups" : group.group.name}
         onBack={back}
-        onSwitch={(method) => {
-          setForm((f) => switchFromItems(f, method, true));
-          back();
-        }}
         onSave={save}
         canSave={built.ok}
+        saveLabel={busy ? "Saving…" : saveLabel(form, built, names, me, currency)}
         busy={busy}
         error={error}
         {...(editId ? {} : { onLive: openLive, liveBusy })}
@@ -266,135 +249,63 @@ function Add() {
   }
 
   const total = totalOf(form);
-  const preview = total && total > 0 ? buildSplitecoSplits(total, payersOf(form, total), toSpec(splitInput(form))) : null;
-  const owedBy = new Map(preview?.ok ? preview.result.owed.map((o) => [o.subjectId, o.owedMinor]) : []);
-  const payerLabel =
-    form.payerMode === "one" ? nameOf(names, form.payer, me) : `${payersOf(form, total ?? 0).length} people`;
-  const groupLabel = group.group.kind === "direct" ? `Just you & ${form.members.filter((m) => m !== me).map((m) => nameOf(names, m, me)).join(", ")}` : `${group.group.name} · all ${form.members.length}`;
+  const groupLabel = group.group.kind === "direct" ? form.members.filter((m) => m !== me).map((m) => nameOf(names, m, me)).join(", ") || "Just you" : group.group.name;
   const cat = form.category ?? guessCategory(form.title);
-  const catTint = CATEGORY_TINTS[cat ?? "other"];
-  const touched = form.title.trim() !== "" || form.amountText.trim() !== "";
-  const firstProblem = !built.ok && touched ? built.problems[0] : null;
+  const label = busy ? "Saving…" : saveLabel(form, built, names, me, currency);
+  const firstPayer = form.payerMode === "one" ? form.payer : (payersOf(form, total ?? 0)[0]?.subjectId ?? me ?? form.members[0] ?? "");
 
   return (
     <>
-      <div className="page form" style={{ padding: 0 }}>
-        <header className="hdr">
-          <button className="iconbtn" aria-label="Close without saving" onClick={() => router.back()}>
-            <Icon name="close" />
-          </button>
-          <div className="hdr-title">
-            <h1>{editId ? "Edit expense" : "Add expense"}</h1>
-          </div>
-          <span style={{ width: 44 }} />
-        </header>
-
-        <div className="inline">
-          <span className="small dim bold" style={{ fontSize: 13 }}>With</span>
-          <button className="chip on" onClick={() => (editId ? undefined : setPicker("group"))} disabled={!!editId} aria-label={`Group: ${groupLabel}${editId ? "" : ". Change"}`}>
-            <Icon name={group.group.kind} size={16} />
-            {groupLabel}
-          </button>
-          {editId ? null : (
-            <button className="chip" style={{ marginLeft: "auto" }} onClick={() => router.push(`/scan?group=${encodeURIComponent(group.group.id)}`)}>
-              <Icon name="camera" size={16} />
-              Scan a receipt
+      <AddSheet
+        ctx={ctx}
+        sel={sel}
+        setSel={setSel}
+        onClose={() => router.back()}
+        keysOff={picker !== null}
+        head={
+          <header className="add-head">
+            <button className="add-round" aria-label="Close without saving" onClick={() => router.back()}>
+              <Icon name="close" size={18} />
             </button>
-          )}
-        </div>
-
-        <section className="card" style={{ gap: 12, padding: 18 }}>
-          <label className="inline" style={{ gap: 12, flexWrap: "nowrap" }}>
-            <span className="sr">Amount</span>
-            <span style={{ height: 52, padding: "0 12px", borderRadius: 14, background: "var(--raised)", border: "1px solid var(--line)", color: "var(--money)", fontSize: 15, fontWeight: 500, display: "flex", alignItems: "center", flex: "none" }}>
-              {currencySymbol(currency).trim()} {currency}
-            </span>
-            {form.method === "items" ? (
-              <span style={{ flex: 1, fontSize: 40, fontWeight: 600, letterSpacing: "-0.03em" }}>{formatShort(total ?? 0, currency).replace(/^[^\d]+/, "")}</span>
+            <button className="add-group" onClick={() => (editId ? undefined : setPicker("group"))} disabled={!!editId} aria-label={`Group: ${groupLabel}${editId ? "" : ". Change"}`}>
+              <Icon name={group.group.kind} size={16} />
+              <span className="ellipsis">{groupLabel}</span>
+              {editId ? null : <span aria-hidden="true" className="dim">▾</span>}
+            </button>
+            {editId ? (
+              <span style={{ width: 38 }} />
             ) : (
-              <input
-                inputMode="decimal"
-                placeholder="0"
-                value={form.amountText}
-                onChange={(e) => setForm((f) => ({ ...f, amountText: e.target.value }))}
-                style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: "var(--text)", fontSize: 44, fontWeight: 600, letterSpacing: "-0.03em" }}
-              />
+              <button className="add-round money" aria-label="Scan a bill" onClick={() => router.push(`/scan?group=${encodeURIComponent(group.group.id)}`)}>
+                <Icon name="camera" size={18} />
+              </button>
             )}
-          </label>
-          <label className="inline" style={{ gap: 12, borderTop: "1px solid var(--line)", paddingTop: 12, flexWrap: "nowrap" }}>
-            <button
-              type="button"
-              aria-label={`Category: ${cat ? CATEGORY_LABELS[cat] : "none"}. Change`}
-              onClick={() => setPicker("category")}
-              style={{ width: 44, height: 44, borderRadius: 14, background: catTint.tint, color: catTint.ink, border: 0, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}
-            >
-              <Icon name={cat ?? "other"} />
+          </header>
+        }
+        chips={
+          <div className="add-chips">
+            <button className="add-chip" onClick={() => open("paid")} aria-label={`${payerChip(form, names, me)} — tap to change`}>
+              <Avatar id={firstPayer} name={nameOf(names, firstPayer, me)} me={me} size={24} />
+              {payerChip(form, names, me)}
             </button>
-            <span className="sr">What was it for?</span>
-            <input
-              placeholder="What was it for?"
-              value={form.title}
-              maxLength={200}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: "var(--text)", fontSize: 18, fontWeight: 500 }}
-            />
-          </label>
-          {cat && !form.category && !titleTouchedCategory.current ? (
-            <span className="small dim" style={{ paddingLeft: 56 }}>
-              Category guessed: <b style={{ color: catTint.ink }}>{CATEGORY_LABELS[cat]}</b> · tap the icon to change
-            </span>
-          ) : null}
-        </section>
-
-        <section aria-label="How it is split" className="panel">
-          <p style={{ margin: 0, fontSize: 16, lineHeight: 1.9, color: "var(--text-2)" }}>
-            Paid by{" "}
-            <button className="pick payer" onClick={() => open("paid")}>{payerLabel}</button>{" "}
-            and split{" "}
-            <button className="pick split" onClick={() => {
-                open("split");
-                if (form.method === "items") open("items");
-              }}>{METHOD_LABELS[form.method].phrase}</button>
-          </p>
-          {owedBy.size > 0 ? (
-            <div className="grid4">
-              {[...owedBy.entries()].slice(0, 8).map(([id, owed]) => (
-                <div key={id} className="stack" style={{ alignItems: "center", gap: 6, padding: "10px 4px", borderRadius: 14, background: "var(--raised)" }}>
-                  <Avatar id={id} name={nameOf(names, id, me)} me={me} size={34} />
-                  <span className="small muted ellipsis" style={{ maxWidth: "100%" }}>{nameOf(names, id, me)}</span>
-                  <span className="money" style={{ fontSize: 13, fontWeight: 500 }}>{formatShort(owed, currency)}</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
-
-        <div className="grid2" style={{ gap: 8 }}>
-          <label className="field" style={{ height: 48, padding: "0 12px" }}>
-            <Icon name="calendar" size={18} />
-            <span className="sr">Date</span>
-            <input type="date" value={form.occurredOn} onChange={(e) => setForm((f) => ({ ...f, occurredOn: e.target.value || f.occurredOn }))} style={{ fontSize: 13, fontWeight: 500 }} />
-          </label>
-          <label className="field" style={{ height: 48, padding: "0 12px" }}>
-            <Icon name="noteIcon" size={18} />
-            <span className="sr">Note</span>
-            <input placeholder="Add a note" maxLength={500} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} style={{ fontSize: 13, fontWeight: 500 }} />
-          </label>
-        </div>
-        {error ? <p className="error" role="alert">{error}</p> : null}
-      </div>
-
-      <div className="footer-fixed">
-        <div>
-          <div className="inline" style={{ justifyContent: "center", gap: 6, fontSize: 13, fontWeight: 500, color: built.ok ? "var(--ok)" : "var(--owe)" }} aria-live="polite">
-            {built.ok ? <Icon name="check" size={16} /> : null}
-            {built.ok ? `Adds up to ${formatMoney(built.request.totalMinor, currency)}` : firstProblem ? problemText(firstProblem, names, me, currency) : ""}
+            <button className="add-chip" onClick={() => setPicker("details")} aria-label={`${cat ? CATEGORY_LABELS[cat] : "No category"}, ${dayLabel(form.occurredOn)}${form.note.trim() ? ", with a note" : ""} — tap to change`}>
+              <span className="add-cat" style={{ background: CATEGORY_TINTS[cat ?? "other"].tint, color: CATEGORY_TINTS[cat ?? "other"].ink }}>
+                <Icon name={cat ?? "other"} size={14} />
+              </span>
+              {dayLabel(form.occurredOn)}
+              {form.note.trim() ? <Icon name="noteIcon" size={14} /> : null}
+            </button>
           </div>
-          <button className="btn big" onClick={save} disabled={!built.ok || busy}>
-            {busy ? "Saving…" : editId ? "Save changes" : "Save expense"}
-          </button>
-        </div>
-      </div>
+        }
+        onItems={() => open("items")}
+        save={
+          <>
+            {error ? <p className="error" role="alert" style={{ margin: "6px 0 0" }}>{error}</p> : null}
+            <button className="btn big round add-save" onClick={save} disabled={!built.ok || busy} aria-live="polite">
+              {label}
+            </button>
+          </>
+        }
+      />
 
       {picker === "group" && groups ? (
         <Sheet label="Which group" onClose={() => setPicker(null)}>
@@ -421,9 +332,22 @@ function Add() {
           <p className="note">To split with one friend outside groups, open them under Groups → Friends.</p>
         </Sheet>
       ) : null}
-      {picker === "category" ? (
-        <Sheet label="Category" onClose={() => setPicker(null)}>
-          <h2 className="h1" style={{ fontSize: 22 }}>Category</h2>
+      {picker === "details" ? (
+        <Sheet label="Details" onClose={() => setPicker(null)}>
+          <h2 className="h1" style={{ fontSize: 22 }}>Details</h2>
+          <div className="grid2" style={{ gap: 8 }}>
+            <label className="field" style={{ height: 48, padding: "0 12px" }}>
+              <Icon name="calendar" size={18} />
+              <span className="sr">Date</span>
+              <input type="date" value={form.occurredOn} onChange={(e) => setForm((f) => ({ ...f, occurredOn: e.target.value || f.occurredOn }))} style={{ fontSize: 13, fontWeight: 500 }} />
+            </label>
+            <label className="field" style={{ height: 48, padding: "0 12px" }}>
+              <Icon name="noteIcon" size={18} />
+              <span className="sr">Note</span>
+              <input placeholder="Add a note" maxLength={500} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} style={{ fontSize: 13, fontWeight: 500 }} />
+            </label>
+          </div>
+          <span className="small dim">Category{form.category ? "" : cat ? " · guessed from the title" : ""}</span>
           <div className="grid2" style={{ gap: 8 }}>
             {SPLITECO_CATEGORIES.map((c: SplitecoCategory) => (
               <button
@@ -431,11 +355,7 @@ function Add() {
                 className="prow"
                 aria-pressed={cat === c}
                 style={{ color: "var(--text)", borderColor: cat === c ? "var(--cobalt-ring)" : undefined, minHeight: 52 }}
-                onClick={() => {
-                  titleTouchedCategory.current = true;
-                  setForm((f) => ({ ...f, category: c }));
-                  setPicker(null);
-                }}
+                onClick={() => setForm((f) => ({ ...f, category: c }))}
               >
                 <span className="cat" style={{ width: 32, height: 32, borderRadius: 10, background: CATEGORY_TINTS[c].tint, color: CATEGORY_TINTS[c].ink }}>
                   <Icon name={c} size={16} />
@@ -444,8 +364,20 @@ function Add() {
               </button>
             ))}
           </div>
+          <button className="btn big" onClick={() => setPicker(null)}>Done</button>
         </Sheet>
       ) : null}
     </>
   );
+}
+
+/** "Today", "Yesterday", or "12 Nov" for the details chip. */
+function dayLabel(iso: string, now = new Date()): string {
+  const today = todayIso(now);
+  if (iso === today) return "Today";
+  const y = new Date(now);
+  y.setDate(y.getDate() - 1);
+  if (iso === todayIso(y)) return "Yesterday";
+  const d = new Date(`${iso}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }

@@ -5,7 +5,7 @@
 
 import type { SplitecoItemShareMode } from "@saas/contracts/spliteco";
 import { splitItem, type ItemResult } from "@saas/kitchen-engine/splits";
-import { formatShort } from "./money";
+import { formatShort, parseMoney } from "./money";
 import { itemTotal, type ItemForm, type ItemShareForm } from "./split-form";
 
 export const PORTION_CHIPS: readonly { label: string; value: number }[] = [
@@ -120,4 +120,58 @@ export function modeHint(mode: SplitecoItemShareMode, qty: number): string {
   }
   if (mode === "pct") return "Their percentage comes off the top; everyone on portions shares the rest.";
   return "A fixed amount for them; everyone on portions shares the rest.";
+}
+
+// ── V2Itemized (spliteco-calm SL4) ───────────────────────────────
+
+/** The adjust sheet's chips: Portions ¼ ½ 1 2 3, Percent 10–100. */
+export const FACE_PORTION_CHIPS: readonly { label: string; value: number }[] = [
+  { label: "¼", value: 250 },
+  { label: "½", value: 500 },
+  { label: "1", value: 1000 },
+  { label: "2", value: 2000 },
+  { label: "3", value: 3000 },
+];
+export const FACE_PCT_CHIPS: readonly { label: string; value: number }[] = [
+  { label: "10%", value: 1000 },
+  { label: "25%", value: 2500 },
+  { label: "50%", value: 5000 },
+  { label: "75%", value: 7500 },
+  { label: "100%", value: 10000 },
+];
+/** The ₹ − / + step: ₹10. */
+export const FACE_EXACT_STEP = 1000;
+
+/** The badge on a face when it is not one portion: ¼, ½, ⅓, 2, 25%, ₹. */
+export function faceBadge(share: ItemShareForm | undefined): string {
+  if (!share) return "";
+  if (share.mode === "exact") return "₹";
+  if (share.mode === "pct") return share.value === 3333 ? "⅓" : `${Math.round(share.value) / 100}%`;
+  if (share.value === 1000) return "";
+  const chip = PORTION_CHIPS.find((c) => c.value === share.value);
+  if (chip) return chip.label;
+  return String(Math.round(share.value / 10) / 100);
+}
+
+/** The line over an item's name: "2 × ₹380", or "Qty 3" with no price of one. */
+export function qtyLine(item: ItemForm, currency = "INR"): string {
+  const qty = Number(item.qtyText);
+  const q = Number.isFinite(qty) && qty > 0 ? qty : 1;
+  const unit = item.unitText.trim() ? parseMoney(item.unitText) : null;
+  if (unit !== null) return `${q} × ${formatShort(unit, currency)}`;
+  return `Qty ${q}`;
+}
+
+/**
+ * Each person's total for the strip at the bottom: what the engine works out
+ * (tax and discount spread in) when the bill adds up, else the sum of their
+ * item parts so far. Only people on some item.
+ */
+export function personTotals(form: { members: string[]; items: ItemForm[] }, owed: ReadonlyMap<string, number> | null): { subjectId: string; minor: number }[] {
+  const sums = new Map<string, number>();
+  for (const it of form.items) {
+    const { amounts } = itemAmounts(it, form.members);
+    for (const m of form.members) if (it.shares[m]) sums.set(m, (sums.get(m) ?? 0) + (amounts.get(m) ?? 0));
+  }
+  return form.members.filter((m) => sums.has(m)).map((m) => ({ subjectId: m, minor: owed?.get(m) ?? sums.get(m) ?? 0 }));
 }

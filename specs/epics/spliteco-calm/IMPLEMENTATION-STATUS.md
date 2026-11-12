@@ -8,7 +8,7 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | SL1 — the calm foundation | ✅ shipped | #149 (0f1e695) |
 | SL2 — Home, Groups, Activity | ✅ shipped | this PR (SL-3) |
 | SL3 — Group and expense | ✅ shipped | this PR (SL-4) |
-| SL4 — Add and Itemized | planned | |
+| SL4 — Add and Itemized | ✅ shipped | this PR (SL-5) |
 | SL5 — Settle | planned | |
 | SL6 — close-out | planned | |
 
@@ -63,4 +63,24 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **Balances keeps a compact Remind** on a payment someone owes you, and your own payment row opens Settle for that person — the board shows plain rows.
 - **The Delete action is the trash icon alone** (labelled for screen readers), as on the board; there is no mouse swipe — the twin is the bill page's Delete.
 - **A settled net reads "settled"** rather than ₹0 in the Group head.
+
+## SL4 as built (SL-5)
+
+- **Add, keypad first** (`components/add/add-sheet.tsx`, rules in `lib/add-split.ts`): grabber, ✕ · group chip (the existing picker) · scan; the 46 px amount (saffron when set) is a button that selects it; "What for?"; a "<face> You paid" chip (the existing Who paid view, several payers included: "2 people paid") and a details chip (category · date · note in a sheet). Add drags down to close (`useSheetDrag`) — ✕ is the twin.
+- **Method strip:** six pills (Equally · Exact ₹ · Percent · Shares · + / − · Itemized), the chosen one centred; it swipes (`listenForDrags`, one pill per 112 px or one on a flick, `stripRelease`) and every pill taps. One line under it (`METHOD_LINES`).
+- **One row per person (§4)** from `rowsOf`: face, name, what the share comes to, then the control — Equally a ✓ toggle (out rows dim, "out"); Exact ₹ a ₹ field; Percent a % field with its ₹; Shares − n + that repeat on hold (`components/gestures/repeat.ts` `useRepeat`, 400 ms then every 140 ms; Enter/Space step once); + / − a signed field (teal +, coral −) with the result. The list scrolls inside the card; the keypad and Save stay put.
+- **Footer** from `footerOf`: "4 of 4 in · ₹600 each", "₹1,200 of ₹2,400 · ₹1,200 left / ₹200 over / Adds up ✓", "80% of 100% · 20% left", "5 shares · ₹480 a share", "₹575 each, then ± · Someone is below ₹0"; green when it adds up, coral when not; "Type the amount" with no amount.
+- **One keypad** (`keypadKeys`, `pressKey`, `typeInto`): 1–9, ".", 0, ⌫; "." is "±" while a + / − field is selected. It types into the amount or the selected person's field (cobalt ring and caret); two decimals at most, one point, a lone 0 replaced, 7 whole digits (3 for %). Choosing Exact, Percent or + / − selects the first person (`selectionFor`). The fields are buttons (focusable, labelled, no OS keyboard); the hardware keyboard types into the selected field (`keyFromKeyboard`: digits, "." ",", Backspace/Delete, + − as ±), and Tab/focus selects a field. The keypad keeps focus on the field (mousedown is not a focus).
+- **Save** (`saveLabel`): "Save" when `buildRequest` is ok; otherwise the amount first ("Type the amount"), then the footer's verdict ("₹400 left", "20% left", "Someone is below ₹0", "Pick someone"), then "Say what it was for", then whatever else the engine refuses (who paid). Edit (`/add?edit=`) loads into the same screen. The keypad writes the same text fields the old per-row inputs did, so every method sends the same request (a test pins it per method).
+- **Itemized** (`components/add/itemized.tsx`): header with the title (editable) and bill total; dots (current saffron, coral = not fully assigned); one card per item on `usePager` (`leaveEdge`); the card shows qty × unit (`qtyLine`), name, total, the faces on it with their share and a badge when not one portion (`faceBadge`: ¼ ½ 2 % ₹), and a dashed + that opens **Who had it?** (grid of the group to toggle, Everyone, Same as last item). Tapping or holding a face opens its sheet: Portions / % / ₹ (chips ¼ ½ 1 2 3 and 10–100 %; ₹ − / + by ₹10, repeating on hold) and Remove from item. The card's ⋯ opens the item sheet (name, qty, each, total; Everyone · Split evenly · Reset · Remove item); "+ Item", "Adjustments" (tax, service, discount in a sheet) and Live sit under the deck. Bottom: each person's total (`personTotals`) and Save ("Save" / "N items left to assign").
+- Scan → `/add?from=scan&method=items` still opens Itemized with the draft; Live still opens from Itemized.
+
+### Departures
+
+- **The old Split screen is gone** (`split-view.tsx`): the strip and rows on Add replace it. Leaving Itemized keeps the items, unused (the old "Change ▾" that cleared them is gone); the bill total becomes the amount.
+- **Category, date and note** moved into a Details sheet behind a chip next to Who paid — V2Add has none of them.
+- **+ / −:** "±" on an empty field leaves a lone "−" waiting for digits; `split-form.ts` now reads a lone sign as 0 (it was an invalid value) — no valid request changes.
+- **Hold on a face** is touch/pen only (as every hold); a mouse taps, which opens the same sheet.
+- **Shares** stop at 99 a person.
+- **Who had it?** has no search; the grid scrolls in the sheet for large groups.
 
