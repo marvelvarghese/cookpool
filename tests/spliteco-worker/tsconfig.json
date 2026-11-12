@@ -45,6 +45,15 @@
       ],
       "@kitchen-worker/*": [
         "../../apps/kitchen-worker/src/*.ts"
+      ],
+      "@api-edge/*": [
+        "../../apps/api-edge/src/*.ts"
+      ],
+      "@mcp-worker/*": [
+        "../../apps/mcp-worker/src/*.ts"
+      ],
+      "zod": [
+        "../../apps/mcp-worker/node_modules/zod"
       ]
     }
   },

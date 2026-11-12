@@ -16,6 +16,13 @@ export interface Env {
   CONSOLE_ORIGIN: string;
   /** This worker's own origin: the OAuth issuer, and the MCP resource is `${MCP_PUBLIC_ORIGIN}/mcp`. */
   MCP_PUBLIC_ORIGIN: string;
+  /**
+   * The Spliteco app's origin (cookpool-spliteco SE-6): settle_up's and
+   * save_expense's links point there, and its AI assistants page may call
+   * /connect/disconnect. Optional: without it the links are derived from
+   * the workers.dev host, and only the console may disconnect.
+   */
+  SPLITECO_ORIGIN?: string;
 }
 
 /** What the provider library sees: the KV under its own name, and its helpers. */

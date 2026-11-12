@@ -45,7 +45,10 @@
       "^@spliteco-worker/(.*)$": "<rootDir>/../../apps/spliteco-worker/src/$1.ts",
       "^@membership-worker/(.*)$": "<rootDir>/../../apps/membership-worker/src/$1.ts",
       "^@saas/notifications-client$": "<rootDir>/../../packages/notifications-client/src/index.ts",
-      "^@kitchen-worker/(.*)$": "<rootDir>/../../apps/kitchen-worker/src/$1.ts"
+      "^@kitchen-worker/(.*)$": "<rootDir>/../../apps/kitchen-worker/src/$1.ts",
+      "^@api-edge/(.*)$": "<rootDir>/../../apps/api-edge/src/$1.ts",
+      "^@mcp-worker/(.*)$": "<rootDir>/../../apps/mcp-worker/src/$1.ts",
+      "^zod$": "<rootDir>/../../apps/mcp-worker/node_modules/zod"
     },
     "transform": {
       "^.+\\.ts$": [

@@ -7,7 +7,7 @@ Part of the cookpool runtime: a Cloudflare Worker deployed per environment (`sta
 - `https://cookpool-mcp-worker-stage.cookpool.workers.dev/mcp`
 - `https://cookpool-mcp-worker-prod.cookpool.workers.dev/mcp`
 
-It reads the person's pantry, recipes, shopping list and balances, and sets kitchen timers, always through `api-edge` with the person's delegated token, so api-edge's scope allowlist decides what an assistant may do. Nothing here moves money.
+It reads the person's pantry, recipes, shopping list and balances, sets kitchen timers and, with money.write, logs Spliteco expenses from a draft the person confirms, always through `api-edge` with the person's delegated token, so api-edge's scope allowlist decides what an assistant may do. No tool records a payment: settling up happens in an app.
 
 ## Depends on
 

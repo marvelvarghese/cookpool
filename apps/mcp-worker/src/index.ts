@@ -8,7 +8,8 @@
 //   POST /register                                   dynamic client registration   (provider)
 //   POST /token                                      code and refresh exchange, revocation (provider)
 //   GET  /authorize                                  PKCE S256 required → the console's /connect (connect.ts)
-//   *    /connect/*                                  the console's hand-off, CORS for CONSOLE_ORIGIN only (connect.ts)
+//   *    /connect/*                                  the console's hand-off, CORS for CONSOLE_ORIGIN only (connect.ts);
+//                                                    /connect/disconnect also for SPLITECO_ORIGIN (SE-6)
 //   POST /mcp                                        MCP, Streamable HTTP, stateless, bearer required (mcp.ts)
 //   GET  /health
 //
@@ -73,10 +74,21 @@ function isConnectPath(pathname: string): boolean {
   return pathname.startsWith(CONNECT_PREFIX);
 }
 
-/** CORS for /connect/* only, and only for the console's origin. */
+/**
+ * The browser origins /connect/* answers: the console's, and for Disconnect
+ * also the Spliteco app's AI assistants page (cookpool-spliteco SE-6).
+ * Consent itself is only ever the console's.
+ */
+export function connectOriginAllowed(env: Env, pathname: string, origin: string): boolean {
+  if (origin === env.CONSOLE_ORIGIN) return true;
+  const spliteco = (env.SPLITECO_ORIGIN ?? "").replace(/\/+$/, "");
+  return pathname === "/connect/disconnect" && spliteco !== "" && origin === spliteco;
+}
+
+/** CORS for /connect/* only, and only for the origins allowed there. */
 function connectCors(request: Request, env: Env, response: Response): Response {
   const origin = request.headers.get("origin");
-  if (!origin || origin !== env.CONSOLE_ORIGIN) return response;
+  if (!origin || !connectOriginAllowed(env, new URL(request.url).pathname, origin)) return response;
   const headers = new Headers(response.headers);
   headers.set("access-control-allow-origin", origin);
   headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
@@ -111,7 +123,7 @@ export default {
       const origin = request.headers.get("origin");
       if (request.method === "OPTIONS") return connectCors(request, env, new Response(null, { status: 204 }));
       // A browser on any other origin is refused outright; callers without an Origin (none are browsers) go on.
-      if (origin && origin !== env.CONSOLE_ORIGIN) {
+      if (origin && !connectOriginAllowed(env, url.pathname, origin)) {
         return errorResponse("forbidden", "Not allowed from this origin", 403, requestIdOf(request), { reason: "origin" });
       }
       const response = await providerFor(env).fetch(request, providerEnv(env), ctx);
