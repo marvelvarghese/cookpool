@@ -12,7 +12,7 @@ Spliteco is for anyone who shares costs: flatmates, a trip, a dinner table. They
 | Cluster | **SE** (SE0–SE5) |
 | Owner(s) | **The money API:** a new `apps/spliteco-worker` behind `apps/api-edge`. **The ledger:** `packages/db` (tables, statements) and `packages/kitchen-engine` (the maths), shared with `apps/kitchen-worker`. **The app:** a new `apps/spliteco-web`. **The wire:** `packages/contracts`, `packages/sdk`. **Groups:** `apps/membership-worker`. **Assistants:** `apps/mcp-worker`. |
 | Builds on | `cirrus-baseline` (v27) — identity, membership, policy, notifications; `cookpool-kitchen` (the ledger: `kitchen_txns`, splits, settlements, the settle plan); `cookpool-ai` (receipt reading); `cookpool-mcp` (delegated tokens and the MCP server). |
-| Changes | Adds an app, a worker and one migration (520). Cookpool keeps posting its own costs; in SE3 its Money tab is rebuilt on Spliteco's worker and shared screens, and gains "More in Spliteco". |
+| Changes | Adds an app, a worker and one migration (530). Cookpool keeps posting its own costs; in SE3 its Money tab is rebuilt on Spliteco's worker and shared screens, and gains "More in Spliteco". |
 | Decisions locked | (1) **Inside Cookpool**, not a separate product. (2) **One ledger:** the tables and maths stay shared; Spliteco reads and writes them through `packages/db`. (3) **A group is a membership organization**; Spliteco-made groups are marked and hidden from Cookpool. (4) **Append-only:** edit, delete and move are reversals plus new entries. (5) **Cookpool keeps kitchen money** (two balances: Kitchen in both apps, Other in Spliteco only); settling up happens in either app, never from an assistant. (6) **One MCP server** for both apps; assistants may add and edit expenses but never record a payment. |
 | Design | Claude Design canvas: https://claude.ai/artifact/SyrCkQEe95pwPdQTFkqLWH (21 screens, Deep ocean theme) |
 | Needs from the owner | Later, a custom domain for the app. Each person enters their own UPI ID (SE2). |
@@ -32,7 +32,7 @@ Spliteco is for anyone who shares costs: flatmates, a trip, a dinner table. They
 | Milestone | What it lands | Done when |
 |---|---|---|
 | SE0 — the spec | this doc set and the six contracts | merged |
-| SE1 — groups, expenses, balances | spliteco-worker, migration 520, the Spliteco app | you sign in, see every group (kitchens too), add an expense six ways, and balances match Cookpool to the paisa |
+| SE1 — groups, expenses, balances | spliteco-worker, migration 530, the Spliteco app | you sign in, see every group (kitchens too), add an expense six ways, and balances match Cookpool to the paisa |
 | SE2 — settle up and reminders | UPI, cash and bank payments; "not received"; reminders; simplify debts | a UPI payment is recorded only after "I paid", and a reminder arrives at most once a day |
 | SE3 — Cookpool's money runs on Spliteco | Cookpool's Money tab on spliteco-worker and shared screens; Kitchen and Other balances; More in Spliteco | a payment in either app shows in both, and Cookpool shows only the Kitchen balance |
 | SE4 — bills from a photo, split together | receipt scan into an itemized draft; live split with a join code | a photo becomes a checked draft, and people at the table claim their items live |

@@ -19,6 +19,7 @@ import { handlePublicJoinPreview } from "./handlers/join-preview-public.js";
 import { handleLeaveOrganization } from "./handlers/leave.js";
 import { handleInternalMembers } from "./handlers/internal-members.js";
 import { handleInternalSubjectOrganizations } from "./handlers/internal-subject-organizations.js";
+import { DIRECT_GROUPS_PATH, handleDirectGroup } from "./handlers/direct-groups.js";
 import { errorResponse, notFound, methodNotAllowed } from "./http.js";
 import { generateRequestId } from "./ids.js";
 
@@ -113,7 +114,17 @@ export async function route(request: Request, env: Env): Promise<Response> {
     const internalSubjectOrgsMatch = url.pathname.match(INTERNAL_SUBJECT_ORGS_RE);
     if (internalSubjectOrgsMatch) {
       if (request.method === "GET") {
-        return handleInternalSubjectOrganizations(env, requestId, internalSubjectOrgsMatch[1]!);
+        return handleInternalSubjectOrganizations(env, requestId, internalSubjectOrgsMatch[1]!, undefined, url.searchParams.get("view"));
+      }
+      return methodNotAllowed(requestId);
+    }
+
+    // Internal: the hidden two-person group two friends split in outside any
+    // group (cookpool-spliteco SE1): spliteco-worker finds or makes it.
+    // Service-binding only — not routed by api-edge.
+    if (url.pathname === DIRECT_GROUPS_PATH) {
+      if (request.method === "POST") {
+        return handleDirectGroup(request, env, requestId);
       }
       return methodNotAllowed(requestId);
     }

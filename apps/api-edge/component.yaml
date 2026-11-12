@@ -59,6 +59,7 @@ spec:
     - component: metering-worker
     - component: notifications-worker
     - component: kitchen-worker
+    - component: spliteco-worker
     - component: policy-worker
       mode: enforced
       modeRules:

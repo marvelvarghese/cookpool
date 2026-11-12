@@ -35,11 +35,14 @@ export async function handleListOrganizations(
     }
 
     const { items, nextCursor } = result.value;
-    const organizations = items.map((org) => ({
+    // The hidden two-person groups (cookpool-spliteco) are never listed.
+    const organizations = items.filter((org) => org.kind !== "direct").map((org) => ({
       id: orgPublicId(org.id),
       name: org.name,
       slug: org.slug,
       status: org.status,
+      madeIn: org.madeIn ?? "cookpool",
+      kind: org.kind ?? "kitchen",
       createdAt: org.createdAt.toISOString(),
     }));
 

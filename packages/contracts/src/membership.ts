@@ -241,8 +241,41 @@ export interface SubjectOrganization {
   name: string;
   /** owner > admin > builder > viewer > billing_admin; null when they hold no organization-scoped role. */
   role: string | null;
+  /** Where the group was made (cookpool-spliteco, migration 530): `cookpool` or `spliteco`. */
+  madeIn?: string;
+  /** kitchen | trip | home | couple | other | direct (migration 530). */
+  kind?: string;
+  /**
+   * With `?view=spliteco` only: the organization's active members and each
+   * one's highest organization role (null when they hold none).
+   */
+  members?: { subjectId: string; subjectType: string; role: string | null }[];
 }
 
 export interface SubjectOrganizationsResponse {
   organizations: SubjectOrganization[];
+}
+
+/**
+ * `GET /v1/internal/membership/subjects/:subjectId/organizations?view=spliteco`
+ * (cookpool-spliteco SE1): the hidden two-person `direct` groups are left out
+ * of the default answer (and of every Cookpool list); this view includes them
+ * and each organization's members.
+ */
+export const SUBJECT_ORGANIZATIONS_SPLITECO_VIEW = "spliteco";
+
+/**
+ * `POST /v1/internal/membership/direct-groups` (cookpool-spliteco SE1,
+ * service-internal): find or make the hidden two-person organization
+ * (`kind = 'direct'`, `made_in = 'spliteco'`) two people share expenses
+ * outside any group in. Both are owners. The same pair always gets the same
+ * organization.
+ */
+export interface DirectGroupRequest {
+  subjects: [{ id: string; type: string }, { id: string; type: string }];
+}
+
+export interface DirectGroupResponse {
+  organization: { orgId: string; slug: string; name: string; madeIn: string; kind: string };
+  created: boolean;
 }

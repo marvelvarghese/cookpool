@@ -688,8 +688,9 @@ describe("listEffectivePermissions", () => {
 
     const allowed = result.permissions.filter((p) => p.allow);
     // 31 baseline actions + organization.join_code.{read,rotate} (Cookpool CP-3)
-    // + the 15 kitchen.* actions (Cookpool CP-4).
-    expect(allowed.length).toBe(48);
+    // + the 15 kitchen.* actions (Cookpool CP-4) + the 2 spliteco.* actions
+    // (cookpool-spliteco SE1).
+    expect(allowed.length).toBe(50);
   });
 
   it("returns limited permissions for viewer", () => {
@@ -710,6 +711,7 @@ describe("listEffectivePermissions", () => {
       "organization.webhook.read",
       "project.list",
       "project.webhook.read",
+      "spliteco.ledger.read",
     ]);
   });
 
@@ -1144,5 +1146,26 @@ describe("kitchen actions (Cookpool CP-4)", () => {
         authorize(authReq(action, ORG, [projectFact("project_admin", ORG, "p1")], "p1")).allow,
       ).toBe(false);
     }
+  });
+});
+
+describe("spliteco actions (cookpool-spliteco SE1)", () => {
+  const decide = (role: string, action: string) =>
+    authorize({
+      subject,
+      action,
+      resource: { kind: "organization", orgId: "org_1" },
+      context: { memberships: [orgFact(role as never, "org_1")] },
+    }).allow;
+
+  it("every group role reads the ledger; members, admins and owners write expenses; billing admins neither", () => {
+    for (const role of ["owner", "admin", "builder"]) {
+      expect(decide(role, "spliteco.ledger.read")).toBe(true);
+      expect(decide(role, "spliteco.expense.write")).toBe(true);
+    }
+    expect(decide("viewer", "spliteco.ledger.read")).toBe(true);
+    expect(decide("viewer", "spliteco.expense.write")).toBe(false);
+    expect(decide("billing_admin", "spliteco.ledger.read")).toBe(false);
+    expect(decide("billing_admin", "spliteco.expense.write")).toBe(false);
   });
 });

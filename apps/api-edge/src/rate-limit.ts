@@ -59,6 +59,7 @@ export type RouteFamily =
   | "notifications"
   | "integrations"
   | "kitchen"
+  | "spliteco"
   | "join_preview";
 
 interface BucketLimits {
@@ -125,6 +126,11 @@ const LIMITS: Record<RouteFamily, FamilyConfig> = {
   // Cookpool's kitchen (CP-4): the same budget as projects — interactive app
   // reads and writes (logging uses, cooking, settling up).
   kitchen: {
+    identity: { limit: 60, windowSec: 60 },
+    org: { limit: 300, windowSec: 60 },
+  },
+  // Spliteco (cookpool-spliteco SE1): the same budget as the kitchen.
+  spliteco: {
     identity: { limit: 60, windowSec: 60 },
     org: { limit: 300, windowSec: 60 },
   },

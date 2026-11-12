@@ -37,7 +37,7 @@ import {
   normalizeJoinCode,
 } from "../ids.js";
 import { isSoloMode } from "../solo-mode.js";
-import { MAX_GROUPS_PER_PERSON, isOpenGroups } from "../open-groups.js";
+import { MAX_GROUPS_PER_PERSON, countsTowardCap, isDirectGroup, isOpenGroups } from "../open-groups.js";
 
 /** The role a join link grants: a member who cooks, logs and splits. */
 export const JOIN_ROLE = "builder";
@@ -305,6 +305,8 @@ export async function resolveGroup(
   // A suspended or deleted group is not joinable; say so the same way as an
   // unknown code rather than revealing its state.
   if (org.value.status !== "active") return { ok: false, response: unknownCode(requestId) };
+  // Nobody joins the hidden two-person group of two friends (cookpool-spliteco).
+  if (isDirectGroup(org.value)) return { ok: false, response: unknownCode(requestId) };
   return { ok: true, org: org.value };
 }
 
@@ -407,7 +409,7 @@ export async function handleJoin(
     if (isOpenGroups(env)) {
       const mine = await repo.listOrganizationsForSubject(actor.subjectId);
       if (!mine.ok) return errorResponse("internal_error", "Service unavailable", 503, requestId);
-      if (mine.value.length >= MAX_GROUPS_PER_PERSON) {
+      if (countsTowardCap(mine.value) >= MAX_GROUPS_PER_PERSON) {
         return errorResponse(
           "precondition_failed",
           `A person can be in at most ${MAX_GROUPS_PER_PERSON} groups`,

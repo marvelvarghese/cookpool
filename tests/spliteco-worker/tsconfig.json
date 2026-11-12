@@ -1,0 +1,62 @@
+{
+  "extends": "../../tooling/tsconfig/base.json",
+  "compilerOptions": {
+    "types": [
+      "jest",
+      "node",
+      "@cloudflare/workers-types"
+    ],
+    "allowSyntheticDefaultImports": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "baseUrl": ".",
+    "paths": {
+      "@saas/contracts": [
+        "../../packages/contracts/src/index.ts"
+      ],
+      "@saas/contracts/*": [
+        "../../packages/contracts/src/*.ts"
+      ],
+      "@saas/policy-engine": [
+        "../../packages/policy-engine/src/index.ts"
+      ],
+      "@saas/db": [
+        "../../packages/db/src/index.ts"
+      ],
+      "@saas/db/*": [
+        "../../packages/db/src/*/index.ts"
+      ],
+      "@saas/kitchen-engine": [
+        "../../packages/kitchen-engine/src/index.ts"
+      ],
+      "@saas/kitchen-engine/*": [
+        "../../packages/kitchen-engine/src/*.ts"
+      ],
+      "@spliteco-worker/*": [
+        "../../apps/spliteco-worker/src/*.ts"
+      ],
+      "@membership-worker/*": [
+        "../../apps/membership-worker/src/*.ts"
+      ],
+      "@saas/notifications-client": [
+        "../../packages/notifications-client/src/index.ts"
+      ],
+      "@kitchen-worker/*": [
+        "../../apps/kitchen-worker/src/*.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../apps/spliteco-worker/src/**/*.ts",
+    "../../packages/kitchen-engine/src/**/*.ts",
+    "../../apps/kitchen-worker/src/**/*.ts",
+    "../../apps/membership-worker/src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

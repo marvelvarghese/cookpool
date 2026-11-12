@@ -81,9 +81,9 @@ describe("membership-worker: a person's groups", () => {
   it("lists active organizations by name, each with the highest organization role, in two reads", async () => {
     const repo = fakeRepo(orgs, roles);
     expect(await organizations(await handleInternalSubjectOrganizations(env, "req_1", "usr_rahul", { repo }))).toEqual([
-      { orgId: pub(FLAT), slug: "flat-4b", name: "Flat 4B", role: "owner" },
-      { orgId: pub(TRIP), slug: "goa-trip", name: "Goa trip", role: null },
-      { orgId: pub(LUNCH), slug: "lunch-club", name: "Lunch club", role: "viewer" },
+      { orgId: pub(FLAT), slug: "flat-4b", name: "Flat 4B", role: "owner", madeIn: "cookpool", kind: "kitchen" },
+      { orgId: pub(TRIP), slug: "goa-trip", name: "Goa trip", role: null, madeIn: "cookpool", kind: "kitchen" },
+      { orgId: pub(LUNCH), slug: "lunch-club", name: "Lunch club", role: "viewer", madeIn: "cookpool", kind: "kitchen" },
     ]);
     expect(repo.calls).toEqual(["orgs:usr_rahul", "all-roles:usr_rahul"]);
   });

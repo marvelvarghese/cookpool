@@ -1,0 +1,81 @@
+// Rendered to wrangler.jsonc by tooling/wire/render.mjs (BF6 deploy-time wiring).
+// Resource IDs are NEVER committed: @@wiring(<component>/<env>:<key>)@@ tokens are
+// resolved from the workspace's orun secrets at deploy time (wire-live) or from the
+// committed wiring.fixture.json for offline dry-runs (wire-fixture).
+//
+// Spliteco (cookpool-spliteco SE1): the money API under /v1/spliteco/…, reached
+// only through api-edge's SPLITECO_WORKER binding (workers_dev off on stage and
+// prod). It reads and writes the same D1 ledger kitchen-worker does.
+{
+  "name": "cookpool-spliteco-worker",
+  "compatibility_date": "2025-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/index.ts",
+  "minify": false,
+  // Smart Placement, as kitchen-worker: run next to the Asia–Pacific database.
+  "placement": { "mode": "smart" },
+  "vars": {
+    "ENVIRONMENT": "local"
+  },
+  "env": {
+    "dev": {
+      "vars": {
+        "ENVIRONMENT": "dev"
+      }
+    },
+    "stage": {
+      "workers_dev": false,
+      "vars": {
+        "ENVIRONMENT": "stage"
+      },
+      "d1_databases": [
+        {
+          "binding": "PLATFORM_DB",
+          "database_name": "cookpool-stage-apac",
+          "database_id": "@@wiring(cloudflare-d1/stage:d1_database_id)@@"
+        }
+      ],
+      "services": [
+        {
+          "binding": "MEMBERSHIP_WORKER",
+          "service": "cookpool-membership-worker-stage"
+        },
+        {
+          "binding": "POLICY_WORKER",
+          "service": "cookpool-policy-worker-stage"
+        },
+        {
+          "binding": "IDENTITY_WORKER",
+          "service": "cookpool-identity-worker-stage"
+        }
+      ]
+    },
+    "prod": {
+      "workers_dev": false,
+      "vars": {
+        "ENVIRONMENT": "prod"
+      },
+      "d1_databases": [
+        {
+          "binding": "PLATFORM_DB",
+          "database_name": "cookpool-prod-apac",
+          "database_id": "@@wiring(cloudflare-d1/prod:d1_database_id)@@"
+        }
+      ],
+      "services": [
+        {
+          "binding": "MEMBERSHIP_WORKER",
+          "service": "cookpool-membership-worker-prod"
+        },
+        {
+          "binding": "POLICY_WORKER",
+          "service": "cookpool-policy-worker-prod"
+        },
+        {
+          "binding": "IDENTITY_WORKER",
+          "service": "cookpool-identity-worker-prod"
+        }
+      ]
+    }
+  }
+}

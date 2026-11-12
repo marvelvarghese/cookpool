@@ -21,3 +21,17 @@ export const MAX_GROUPS_PER_PERSON = 50;
 export function isOpenGroups(env: Env): boolean {
   return env.OPEN_GROUPS === "true";
 }
+
+/**
+ * The hidden two-person groups friends share expenses in outside any group
+ * (cookpool-spliteco, `kind = 'direct'`) are not groups anyone chose to join,
+ * so they never count toward the cap (risk SE-H).
+ */
+export function countsTowardCap(orgs: readonly { kind?: string }[]): number {
+  return orgs.filter((org) => org.kind !== "direct").length;
+}
+
+/** A direct group is never listed, joined by code or made through the public route. */
+export function isDirectGroup(org: { kind?: string }): boolean {
+  return org.kind === "direct";
+}

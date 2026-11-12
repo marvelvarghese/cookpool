@@ -29,6 +29,8 @@ function mapOrganization(row: Record<string, unknown>): Organization {
     status: row.status as string,
     parentOrgId: (row.parent_org_id as string | null) ?? null,
     joinCode: (row.join_code as string | null) ?? null,
+    madeIn: (row.made_in as string | null) ?? "cookpool",
+    kind: (row.kind as string | null) ?? "kitchen",
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -292,10 +294,13 @@ export function createMembershipRepository(executor: SqlExecutor): MembershipRep
       try {
         const [orgResult, memberResult, roleResult] = await executeBatch(executor, [
           {
-            text: `INSERT INTO membership_organizations (id, name, slug, slug_lower, parent_org_id, created_at, updated_at)
-                   VALUES ($1, $2, $3, $4, $5, $6, $6)
+            text: `INSERT INTO membership_organizations (id, name, slug, slug_lower, parent_org_id, created_at, updated_at, made_in, kind)
+                   VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8)
                    RETURNING *`,
-            params: [org.id, org.name, org.slug, org.slugLower, org.parentOrgId ?? null, org.createdAt.toISOString()],
+            params: [
+              org.id, org.name, org.slug, org.slugLower, org.parentOrgId ?? null, org.createdAt.toISOString(),
+              org.madeIn ?? "cookpool", org.kind ?? "kitchen",
+            ],
           },
           {
             text: `INSERT INTO membership_organization_members (id, org_id, subject_id, subject_type, created_at, updated_at)
@@ -884,6 +889,36 @@ export function createMembershipRepository(executor: SqlExecutor): MembershipRep
         return { ok: true, value: result.rows.map(mapRoleAssignment) };
       } catch (err) {
         return safeError("Failed to list role assignments for subject", err);
+      }
+    },
+
+    async listActiveMembersForOrganizations(orgIds: readonly string[]) {
+      if (orgIds.length === 0) return { ok: true as const, value: [] };
+      try {
+        const result = await executor.execute<Record<string, unknown>>(
+          `SELECT m.org_id, m.subject_id, m.subject_type, r.role
+           FROM membership_organization_members m
+           LEFT JOIN membership_role_assignments r
+             ON r.org_id = m.org_id AND r.subject_id = m.subject_id
+            AND r.revoked_at IS NULL AND r.scope_kind = 'organization'
+           WHERE m.org_id IN (SELECT value FROM json_each($1)) AND m.status = 'active'
+           ORDER BY m.org_id, m.created_at, m.subject_id`,
+          [JSON.stringify(orgIds)],
+        );
+        const out: { orgId: string; subjectId: string; subjectType: string; roles: string[] }[] = [];
+        for (const row of result.rows) {
+          const orgId = row.org_id as string;
+          const subjectId = row.subject_id as string;
+          let entry = out.find((e) => e.orgId === orgId && e.subjectId === subjectId);
+          if (!entry) {
+            entry = { orgId, subjectId, subjectType: row.subject_type as string, roles: [] };
+            out.push(entry);
+          }
+          if (typeof row.role === "string") entry.roles.push(row.role);
+        }
+        return { ok: true as const, value: out };
+      } catch (err) {
+        return safeError("Failed to list members for organizations", err);
       }
     },
 

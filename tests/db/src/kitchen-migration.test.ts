@@ -22,6 +22,11 @@ describe("kitchen migrations", () => {
     expect(ids.indexOf("210_kitchen_settings")).toBe(ids.indexOf("200_membership_join_codes") + 1);
   });
 
+  // Spliteco's migration (530, cookpool-spliteco SE-2) is the one exception, by
+  // design §1: its tables are the shared ledger's `ledger_*` explanation
+  // tables, and it marks groups with membership_organizations.made_in / kind.
+  const SPLITECO = "530_spliteco_ledger";
+
   it("only creates, alters or writes kitchen_* tables, each create guarded with IF NOT EXISTS", () => {
     for (const m of kitchen) {
       // Statements only: the header comments may name what they describe, and a seed's words may say anything.
@@ -34,9 +39,9 @@ describe("kitchen migrations", () => {
       expect(creates.length + alters.length + writes.length).toBeGreaterThan(0);
       for (const [, kind, guard, name] of creates) {
         expect(guard).toBeDefined();
-        if (kind!.toUpperCase() === "TABLE") expect(name).toMatch(/^kitchen_/);
+        if (kind!.toUpperCase() === "TABLE") expect(name).toMatch(m.id === SPLITECO ? /^(kitchen_|ledger_)/ : /^kitchen_/);
       }
-      for (const [, table] of alters) expect(table).toMatch(/^kitchen_/);
+      for (const [, table] of alters) expect(table).toMatch(m.id === SPLITECO ? /^(kitchen_txns|membership_organizations)$/ : /^kitchen_/);
       for (const [, table] of writes) expect([m.id, table]).toEqual([m.id, expect.stringMatching(/^kitchen_/)]);
     }
   });

@@ -19,3 +19,4 @@ export * from "./billing.js";
 export * from "./notifications.js";
 export * from "./integrations.js";
 export * from "./kitchen.js";
+export * from "./spliteco.js";

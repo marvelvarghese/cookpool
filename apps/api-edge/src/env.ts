@@ -13,6 +13,8 @@ export interface Env {
   // Cookpool's kitchen bounded context (CP-4): /v1/kitchen/… and
   // /v1/organizations/{org}/kitchen/… (./kitchen-facade.ts).
   KITCHEN_WORKER?: Fetcher;
+  // Spliteco (cookpool-spliteco SE1): /v1/spliteco/… (./spliteco-facade.ts).
+  SPLITECO_WORKER?: Fetcher;
   // Optional KV binding backing the Stripe-style idempotency replay store
   // (Task 0095). Absent on `dev` (no live worker) and absent on the older
   // verify-only stages. When unbound, `replayOrExecute` degrades to a

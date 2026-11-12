@@ -34,6 +34,23 @@ export function splitByWeights(total: number, weights: readonly number[]): numbe
     if (!(x >= 0) || !Number.isFinite(x)) throw new MoneyError("invalid_weights", "weights must be non-negative");
     return BigInt(Math.round(x * scale));
   });
+  return splitByIntegerWeights(total, w);
+}
+
+/**
+ * `splitByWeights` for weights that are already whole numbers, as BigInts of
+ * any size (Spliteco's itemized maths builds exact rational shares over a
+ * common denominator). The same largest-remainder rule: floor each share,
+ * then the paise left over go one each to the largest remainders, ties to
+ * the earlier position; a zero weight never gets one.
+ */
+export function splitByIntegerWeights(total: number, weights: readonly bigint[]): number[] {
+  assertMinor(total, "total");
+  if (weights.length === 0) throw new MoneyError("invalid_weights", "no one to split between");
+  const w = weights.map((x) => {
+    if (x < 0n) throw new MoneyError("invalid_weights", "weights must be non-negative");
+    return x;
+  });
   const sum = w.reduce((a, b) => a + b, 0n);
   if (sum === 0n) throw new MoneyError("invalid_weights", "at least one weight must be positive");
   const t = BigInt(total);

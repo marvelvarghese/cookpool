@@ -32,7 +32,8 @@
     "./kitchen-recipes": "./src/kitchen-recipes.ts",
     "./kitchen-timers": "./src/kitchen-timers.ts",
     "./kitchen-ai": "./src/kitchen-ai.ts",
-    "./kitchen-ai-stove": "./src/kitchen-ai-stove.ts"
+    "./kitchen-ai-stove": "./src/kitchen-ai-stove.ts",
+    "./spliteco": "./src/spliteco.ts"
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",

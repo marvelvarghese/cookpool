@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./money": "./src/money.ts",
     "./units": "./src/units.ts",
-    "./ledger": "./src/ledger.ts"
+    "./ledger": "./src/ledger.ts",
+    "./splits": "./src/splits.ts"
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",

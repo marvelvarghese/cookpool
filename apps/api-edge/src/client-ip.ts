@@ -38,9 +38,20 @@ export const EDGE_CLIENT_IP_HEADER = "cf-connecting-ip";
 /** Where the address in force came from; `/health` reports it. */
 export type ClientIpSource = "cloudflare" | "console" | "none";
 
-/** True when the request came over the console Worker's service binding. */
+/**
+ * The Spliteco app's Worker (cookpool-spliteco SE1) forwards `/api/*` the
+ * same way, over its own API_EDGE binding with these props.
+ */
+export const SPLITECO_CALLER = "spliteco-web";
+
+/** The callers whose binding props make the forwarded address trustworthy. */
+export const TRUSTED_CALLERS: readonly string[] = [CONSOLE_CALLER, SPLITECO_CALLER];
+
+/** True when the request came over the console's (or the Spliteco app's) service binding. */
 export function fromConsoleBinding(props: unknown): boolean {
-  return typeof props === "object" && props !== null && (props as { caller?: unknown }).caller === CONSOLE_CALLER;
+  if (typeof props !== "object" || props === null) return false;
+  const caller = (props as { caller?: unknown }).caller;
+  return typeof caller === "string" && TRUSTED_CALLERS.includes(caller);
 }
 
 const IPV4_RE = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
