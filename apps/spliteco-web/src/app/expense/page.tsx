@@ -47,6 +47,24 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
   const writable = data.canWrite && !e.locked;
   const current = e.state === "current";
   const itemized = e.method === "items" && e.items.length > 0;
+  // SE2: a payment to me that is still in effect can be marked not received.
+  const paidToMe = e.kind === "settlement" && current && e.splits.some((s) => s.subjectId === me && s.owedMinor > 0);
+  const [notReceived, setNotReceived] = React.useState(false);
+
+  async function markNotReceived() {
+    setBusy(true);
+    setError(null);
+    try {
+      await client.spliteco.notReceived(e.id, { idempotencyKey: key("not-received") });
+      setNotReceived(false);
+      say("Marked not received — it no longer counts");
+      reload();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function act(kind: "delete" | "restore") {
     setBusy(true);
@@ -114,7 +132,15 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
           This is an older version — open the current one →
         </Link>
       ) : null}
-      {e.state === "reversed" ? <p className="infobox">This was reversed, so it no longer counts.</p> : null}
+      {e.state === "reversed" ? (
+        <p className="infobox">{e.kind === "settlement" ? "Marked not received, so it no longer counts." : "This was reversed, so it no longer counts."}</p>
+      ) : null}
+      {paidToMe ? (
+        <div className="warnbox row-between" role="note">
+          <span style={{ fontSize: 14 }}>Didn&apos;t get this payment?</span>
+          <button className="btn ghost" style={{ height: 44 }} onClick={() => setNotReceived(true)} disabled={busy}>Not received</button>
+        </div>
+      ) : null}
       {e.locked && e.kind !== "settlement" ? (
         <p className="infobox" style={{ margin: 0 }}>
           <Icon name="lock" size={14} /> Cookpool posted this. It&apos;s edited, deleted and moved in Cookpool only.
@@ -127,6 +153,11 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
             <span className="badge" style={{ background: "rgba(255,200,87,0.14)", color: "#FFC857" }}>{CATEGORY_LABELS[e.category].toUpperCase()}</span>
           ) : e.app === "cookpool" ? (
             <span className="badge" style={{ background: "rgba(76,201,138,0.14)", color: "#6FD9A3" }}>COOKPOOL</span>
+          ) : null}
+          {e.paymentMethod ? (
+            <span className="badge" style={{ background: "rgba(127,216,176,0.14)", color: "#7FD8B0" }}>
+              {e.paymentMethod === "upi" ? "UPI" : e.paymentMethod === "bank" ? "BANK TRANSFER" : e.paymentMethod === "cash" ? "CASH" : "PAYMENT"}
+            </span>
           ) : null}
           {e.method && METHOD_LABELS[e.method].tag ? <span className="badge" style={{ background: "#1A3050", color: "#93C5FD" }}>{METHOD_LABELS[e.method].tag!.toUpperCase()}</span> : null}
         </div>
@@ -231,6 +262,19 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
           <div className="inline" style={{ flexWrap: "nowrap" }}>
             <button className="btn ghost flex1" onClick={() => setConfirm(false)}>Keep it</button>
             <button className="btn danger flex1" onClick={() => act("delete")} disabled={busy}>{busy ? "Deleting…" : "Delete"}</button>
+          </div>
+        </Sheet>
+      ) : null}
+      {notReceived ? (
+        <Sheet label="Mark not received" onClose={() => setNotReceived(false)}>
+          <h2 className="h1" style={{ fontSize: 22 }}>Didn&apos;t get {formatMoney(e.totalMinor, cur)}?</h2>
+          <p className="muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+            The payment is reversed, so what {payer && payer.subjectId !== me ? nameOf(names, payer.subjectId, me) : "they"} owed you before it comes back. Everyone in {e.groupName} sees it in Activity.
+          </p>
+          {error ? <p className="error" role="alert">{error}</p> : null}
+          <div className="inline" style={{ flexWrap: "nowrap" }}>
+            <button className="btn ghost flex1" onClick={() => setNotReceived(false)}>I got it</button>
+            <button className="btn danger flex1" onClick={markNotReceived} disabled={busy}>{busy ? "Saving…" : "Not received"}</button>
           </div>
         </Sheet>
       ) : null}

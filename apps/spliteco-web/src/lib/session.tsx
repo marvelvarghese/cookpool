@@ -138,6 +138,16 @@ const REASON_COPY: Record<string, string> = {
   currency_mismatch: "This group counts in another currency.",
   no_shared_group: "You can only split with people you share a group with.",
   groups_per_person: "You're in as many groups as one person can be.",
+  // SE2.
+  over_settled: "That's more than you owe them here.",
+  nothing_owed: "There's nothing owed between you here right now.",
+  split_mismatch: "Kitchen and Other must add up to the amount.",
+  not_the_payee: "Only the person paid can say it didn't arrive.",
+  not_a_settlement: "Only a payment can be marked not received.",
+  already_reversed: "This payment was already marked not received.",
+  reminded_recently: "You reminded them in the last 24 hours. Try again tomorrow.",
+  not_from_an_assistant: "Payments are recorded in the app only.",
+  same_person: "A payment needs two different people.",
 };
 
 /** A key per user action: kept across retries of the same press. */

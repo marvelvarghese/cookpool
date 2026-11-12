@@ -12,6 +12,7 @@ import { namesFrom } from "@/lib/people";
 import { shortDate } from "@/lib/activity-text";
 import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
 import { useMe } from "@/lib/me";
+import { RemindButton } from "@/components/remind";
 
 export default function FriendPage() {
   const id = useQueryParam("id");
@@ -22,12 +23,12 @@ export default function FriendPage() {
       <header className="hdr">
         <BackButton href="/groups?tab=friends" label="Back to friends" />
       </header>
-      {id ? <Loading load={load}>{load.data ? <Friend data={load.data} me={me?.id ?? null} /> : null}</Loading> : null}
+      {id ? <Loading load={load}>{load.data ? <Friend data={load.data} me={me?.id ?? null} reload={load.reload} /> : null}</Loading> : null}
     </Screen>
   );
 }
 
-function Friend({ data, me }: { data: SplitecoFriendResponse; me: string | null }) {
+function Friend({ data, me, reload }: { data: SplitecoFriendResponse; me: string | null; reload: () => void }) {
   const { client } = useSession();
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -40,6 +41,10 @@ function Friend({ data, me }: { data: SplitecoFriendResponse; me: string | null 
   const n = main.amountMinor;
   const shared = data.byGroup.filter((g) => g.kind !== "direct").map((g) => g.groupName);
   const outside = data.expenses.filter((e) => e.groupId === data.directGroupId).length;
+  // SE2: what the plans say — I pay them (Settle up) or they pay me (Remind), largest first.
+  const iPay = data.plans.filter((p) => p.fromSubjectId !== data.friend.subjectId);
+  const theyPay = data.plans.filter((p) => p.fromSubjectId === data.friend.subjectId);
+  const remindFor = theyPay[0] ?? null;
 
   async function addWith() {
     setBusy(true);
@@ -81,12 +86,36 @@ function Friend({ data, me }: { data: SplitecoFriendResponse; me: string | null 
           </div>
         ) : null}
         <div className="inline" style={{ flexWrap: "nowrap" }}>
-          <button className="btn flex1" disabled aria-disabled="true" title="Coming soon">Settle up <span className="tag">Soon</span></button>
+          {iPay[0] ? (
+            <Link
+              href={iPay.length === 1 ? `/settle?group=${encodeURIComponent(iPay[0].groupId)}&to=${encodeURIComponent(data.friend.subjectId)}` : "/settle"}
+              className="btn flex1"
+            >
+              Settle up
+            </Link>
+          ) : remindFor ? (
+            <RemindButton
+              onSent={reload}
+              target={{
+                to: data.friend.subjectId,
+                toName: name,
+                amountMinor: remindFor.amountMinor,
+                currency: remindFor.currency,
+                groupId: remindFor.groupId,
+                groupName: remindFor.groupName === "Outside groups" ? null : remindFor.groupName,
+                lastSentAt: data.lastRemindedAt,
+              }}
+            />
+          ) : (
+            <button className="btn flex1" disabled aria-disabled="true" title="Nothing to settle">Settle up</button>
+          )}
           <button className="btn ghost flex1" onClick={addWith} disabled={busy}>
             <Icon name="plus" size={18} />
             {busy ? "Opening…" : "Add expense"}
           </button>
         </div>
+        {remindFor && data.lastRemindedAt ? <span className="note">Last reminded {shortDate(data.lastRemindedAt)}.</span> : null}
+        {iPay.length > 1 ? <span className="note">You pay {name} in {iPay.length} groups; Settle up lists each.</span> : null}
         <span className="note">“Add expense” splits with {name} outside any group.</span>
         {error ? <p className="error" role="alert">{error}</p> : null}
       </section>
