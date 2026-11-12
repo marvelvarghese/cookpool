@@ -462,5 +462,14 @@ export const manifest: MigrationManifest = {
       description:
         "Passkeys: identity_passkeys rebuilt with an id check D1 can run (20 characters, pky_ then 0-9a-f only, every pattern under D1's 50-byte LIKE/GLOB limit) in place of 510's 132-character GLOB, which made every insert fail on D1; columns, constraints and index otherwise unchanged (Cookpool PK-7)",
     },
+    {
+      id: "530_spliteco_ledger",
+      context: "kitchen",
+      path: "530_spliteco_ledger/up.sql",
+      checksum:
+        "78049d8f4bb99e10c61a2189cb2a536fa2b39574cbe33fca8d484d0c3313c09a",
+      description:
+        "Spliteco on Cookpool's ledger: membership_organizations.made_in (cookpool default | spliteco) and kind (kitchen default | trip | home | couple | other | direct); kitchen_txns.app (cookpool default | spliteco), bucket (kitchen default | other: two balances per kitchen group), category, revises and moved_from (each unique when set: a version is replaced or moved once), deleted_at (on a delete's reversal), via_delegation and split_spec (JSON); ledger_txn_items, ledger_txn_item_shares (portion ×1000, basis points or minor units), ledger_txn_adjustments (tax, service, discount) and ledger_comments (cmt_ ids). Append-only (cookpool-spliteco SE-2)",
+    },
   ],
 };

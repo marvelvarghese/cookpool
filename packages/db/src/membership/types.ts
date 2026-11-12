@@ -34,6 +34,10 @@ export interface Organization {
    * first reads it (minted lazily); rotating replaces it. Unique while set.
    */
   joinCode: string | null;
+  /** Where it was made (cookpool-spliteco, migration 530): `cookpool` (every kitchen) or `spliteco`. Absent reads as `cookpool`. */
+  madeIn?: string;
+  /** kitchen | trip | home | couple | other | direct (migration 530). `direct` is a hidden two-person group. Absent reads as `kitchen`. */
+  kind?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -81,6 +85,10 @@ export interface CreateOrganizationInput {
   slugLower: string;
   /** Optional billing parent (MO3). NULL/absent = standalone org. */
   parentOrgId?: string | null;
+  /** cookpool (default) | spliteco (migration 530). */
+  madeIn?: string;
+  /** kitchen (default) | trip | home | couple | other | direct (migration 530). */
+  kind?: string;
   createdAt: Date;
 }
 
@@ -249,6 +257,13 @@ export interface MembershipRepository {
    * callers and fakes fall back to `listRoleAssignments` per organization.
    */
   listRoleAssignmentsForSubjectAcrossOrgs?(subjectId: string): Promise<MembershipResult<RoleAssignment[]>>;
+  /**
+   * Every ACTIVE member of these organizations with their active
+   * organization-scoped roles (cookpool-spliteco SE1: who is in each of a
+   * person's groups, in one read). A member holding no such role comes back
+   * with `roles: []`.
+   */
+  listActiveMembersForOrganizations?(orgIds: readonly string[]): Promise<MembershipResult<{ orgId: string; subjectId: string; subjectType: string; roles: string[] }[]>>;
   revokeRoleAssignment(orgId: Uuid, assignmentId: string, revokedAt: Date): Promise<MembershipResult<RoleAssignment>>;
   revokeAllRoleAssignments(orgId: Uuid, subjectId: string, revokedAt: Date): Promise<MembershipResult<RoleAssignment[]>>;
   countActiveOwners(orgId: Uuid): Promise<MembershipResult<number>>;

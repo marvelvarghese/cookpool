@@ -341,7 +341,7 @@ describe("MembershipRepository", () => {
       });
 
       expect(queries[0]!.text).toContain("parent_org_id");
-      expect(queries[0]!.params).toEqual([ORG1, "Acme Corp", "acme-corp", "acme-corp", null, NOW.toISOString()]);
+      expect(queries[0]!.params).toEqual([ORG1, "Acme Corp", "acme-corp", "acme-corp", null, NOW.toISOString(), "cookpool", "kitchen"]);
       expect(queries[1]!.params).toEqual(["mem-001", ORG1, "usr-001", "user", NOW.toISOString()]);
       expect(queries[2]!.params).toEqual(["ra-001", ORG1, "usr-001", "user", "owner", "organization", null, NOW.toISOString()]);
     });
