@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { SplitecoExpenseSummary, SplitecoMoney } from "@saas/contracts/spliteco";
@@ -11,7 +12,7 @@ import { CATEGORY_TINTS } from "@/lib/activity-text";
 import { errorText, useSession } from "@/lib/session";
 import { rememberReturn, sessionStore } from "@/lib/return-to";
 import { readBack } from "@/lib/handoff";
-import { TABS, nearestTab, pillPosition, showsAdd, tabIndexOf } from "@/lib/tabs";
+import { PAGER_TABS, TABS, nearestTab, pillPosition, showsAdd, tabIndexOf } from "@/lib/tabs";
 import { useSheetDrag } from "./gestures/sheet-drag";
 import { useEdgeBack } from "./gestures/edge-back";
 
@@ -21,7 +22,8 @@ export interface Load<T> {
   data: T | null;
   error: string | null;
   loading: boolean;
-  reload(): void;
+  /** Read again; resolves once the new read has landed (or failed). The data shown stays until then. */
+  reload(): Promise<void>;
 }
 
 /** Run `fn` with the session's client once signed in, again on `reload()` or when `deps` change. */
@@ -29,19 +31,41 @@ export function useLoad<T>(fn: (client: ReturnType<typeof useSession>["client"])
   const { client, token, ready } = useSession();
   const [state, setState] = React.useState<{ data: T | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true });
   const [tick, setTick] = React.useState(0);
+  const waiting = React.useRef<(() => void)[]>([]);
   React.useEffect(() => {
     if (!ready || !token) return;
     let live = true;
     setState((s) => ({ ...s, loading: true, error: null }));
+    const done = () => {
+      if (!live) return; // a newer read answers the waiters
+      const w = waiting.current;
+      waiting.current = [];
+      for (const resolve of w) resolve();
+    };
     fn(client).then(
-      (data) => live && setState({ data, error: null, loading: false }),
-      (err: unknown) => live && setState({ data: null, error: errorText(err), loading: false }),
+      (data) => {
+        if (live) setState({ data, error: null, loading: false });
+        done();
+      },
+      (err: unknown) => {
+        // A re-read that fails keeps what was shown (pull to refresh); a first read shows the error.
+        if (live) setState((s) => ({ data: s.data, error: errorText(err), loading: false }));
+        done();
+      },
     );
     return () => {
       live = false;
     };
   }, [client, ready, token, tick, ...deps]);
-  return { ...state, reload: () => setTick((t) => t + 1) };
+  const reload = React.useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        waiting.current.push(resolve);
+        setTick((t) => t + 1);
+      }),
+    [],
+  );
+  return { ...state, reload };
 }
 
 /** Pages behind sign-in: Sign in first when there is no token. */
@@ -69,7 +93,7 @@ export function Loading({ load, children }: { load: Load<unknown>; children: Rea
     return (
       <div className="stack" role="alert">
         <p className="error">{load.error}</p>
-        <button className="btn ghost" onClick={load.reload}>Try again</button>
+        <button className="btn ghost" onClick={() => void load.reload()}>Try again</button>
       </div>
     );
   }
@@ -137,7 +161,11 @@ export function Brand() {
   );
 }
 
-/** A bottom sheet: it closes from the scrim, Escape, or by dragging it down (design §2). */
+/**
+ * A bottom sheet: it closes from the scrim, Escape, or by dragging it down
+ * (design §2). It is drawn on the body, so a page that moves (the tab pager,
+ * pull to refresh) never carries it along.
+ */
 export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -145,7 +173,7 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   const drag = useSheetDrag(onClose);
-  return (
+  const sheet = (
     <div className="scrim" ref={drag.scrim} onClick={onClose}>
       <section ref={drag.sheet} role="dialog" aria-modal="true" aria-label={label} className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="grabber" aria-hidden="true" />
@@ -153,6 +181,7 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
       </section>
     </div>
   );
+  return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
 
 export function useToast(): [React.ReactNode, (text: string) => void] {
@@ -190,8 +219,10 @@ export function AddsUpBar({ left, right, ok, ratio }: { left: string; right: str
  * swipes (SL2); left out, it is the address's tab. It is also set as the
  * bar's `--tab` CSS variable, which is all the pill reads. The round + floats
  * above the bar on Home, Groups and Activity: the one main action.
+ * With `onTab` (the pager, SL2), tapping Home, Groups or Activity turns the
+ * pager instead of loading the page: the swipe's twin. You stays a link.
  */
-export function TabBar({ position, dragging = false }: { position?: number; dragging?: boolean }) {
+export function TabBar({ position, dragging = false, onTab }: { position?: number; dragging?: boolean; onTab?: (index: number) => void }) {
   const path = usePathname();
   const current = tabIndexOf(path);
   const at = pillPosition(position ?? (current < 0 ? 0 : current));
@@ -206,7 +237,17 @@ export function TabBar({ position, dragging = false }: { position?: number; drag
       <nav className={`tabbar ${dragging ? "dragging" : ""}`} aria-label="Main" style={{ "--tab": at } as React.CSSProperties}>
         {current >= 0 ? <span className="pill" aria-hidden="true" /> : null}
         {TABS.map((t, i) => (
-          <Link key={t.href} href={t.href} aria-current={i === current ? "page" : undefined} className={i === on && !dragging ? "on" : undefined}>
+          <Link
+            key={t.href}
+            href={t.href}
+            aria-current={i === current ? "page" : undefined}
+            className={i === on && !dragging ? "on" : undefined}
+            onClick={(e) => {
+              if (!onTab || i >= PAGER_TABS || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              onTab(i);
+            }}
+          >
             <Icon name={t.icon} size={22} />
             <span>{t.label}</span>
           </Link>

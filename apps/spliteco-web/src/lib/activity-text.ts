@@ -143,3 +143,65 @@ export function guessCategory(title: string): SplitecoCategory | null {
   for (const [c, re] of rules) if (re.test(t)) return c;
   return null;
 }
+
+// ── One line per change (spliteco-calm SL2, V2Home page 3) ─────────
+
+/** What a change was, short, for its one line: the bill's title, or "Edited …", "Paid you". The full sentence is `activityLine`. */
+export function activityWhat(entry: Pick<SplitecoActivityEntry, "action" | "title" | "myEffectMinor">): string {
+  const t = entry.title;
+  switch (entry.action) {
+    case "added":
+    case "cookpool":
+      return t;
+    case "edited":
+      return `Edited ${t}`;
+    case "deleted":
+      return `Deleted ${t}`;
+    case "restored":
+      return `Restored ${t}`;
+    case "moved_in":
+    case "moved_out":
+      return `Moved ${t}`;
+    case "reversed":
+      return `Reversed ${t}`;
+    case "settled":
+      return entry.myEffectMinor < 0 ? "Paid you" : entry.myEffectMinor > 0 ? "You paid" : "Payment";
+  }
+}
+
+/**
+ * The amount on a change's line: what it did to you, signed (`+₹` you get
+ * back, `−₹` you owe); a payment, or a change that did nothing to you, shows
+ * its total plain.
+ */
+export function activityAmount(entry: Pick<SplitecoActivityEntry, "action" | "myEffectMinor" | "totalMinor" | "currency">): { text: string; tone: "get" | "owe" | "even" } {
+  const e = entry.myEffectMinor;
+  if (entry.action === "settled" || e === 0) return { text: formatShort(Math.abs(entry.totalMinor), entry.currency), tone: "even" };
+  return e > 0 ? { text: `+${formatShort(e, entry.currency)}`, tone: "get" } : { text: formatShort(e, entry.currency), tone: "owe" };
+}
+
+/** "· Claude" after a change an assistant made; null for a person's own. */
+export function viaName(entry: Pick<SplitecoActivityEntry, "viaDelegation" | "viaAssistant">): string | null {
+  if (!entry.viaDelegation && !entry.viaAssistant) return null;
+  return entry.viaAssistant?.trim() || "Assistant";
+}
+
+/** The small day header: "Today", "Yesterday", "8 November" (with the year when it is not this one), in local time. */
+export function dayLabel(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const y = new Date(now);
+  y.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString()) return "Today";
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return `${d.getDate()} ${MONTHS_LONG[d.getMonth()]}${d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`}`;
+}
+
+/** Changes under their day, newest day first as they come: [["Today", rows], ["Yesterday", rows], …]. */
+export function byDay<T extends { at: string }>(entries: readonly T[], now = new Date()): [string, T[]][] {
+  const out = new Map<string, T[]>();
+  for (const e of entries) {
+    const k = dayLabel(e.at, now);
+    (out.get(k) ?? out.set(k, []).get(k)!).push(e);
+  }
+  return [...out.entries()];
+}
