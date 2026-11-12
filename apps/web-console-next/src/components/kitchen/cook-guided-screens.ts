@@ -230,6 +230,8 @@ export interface StripItem {
   phase: "prep" | "cook";
   /** "Simmer · step 6", "Rest · prep", "Pressure cooker · step 2". */
   label: string;
+  /** The pill's own words (RV-25, `RvCookStep`): "Step 6", or the prep timer's name ("Rest"). */
+  pill: string;
   /** "12:04", "Paused · 4:59", "Ready", "1 of 3 whistles". */
   left: string;
   ended: boolean;
@@ -259,6 +261,7 @@ export function timerStrip(s: CookSession, now: Date, shownStep: string | null):
       stepKey: step.key,
       phase: step.phase,
       label: `${timerName(g, step)} · ${where}`,
+      pill: step.phase === "prep" ? timerName(g, step) : `Step ${stepNumber(g, step.key)}`,
       left: state === "ended" ? "Ready" : state === "paused" ? `Paused · ${clockText(timerLeftMs(t, now))}` : clockText(timerLeftMs(t, now)),
       ended: state === "ended",
       order: state === "paused" ? Number.MAX_SAFE_INTEGER : timerLeftMs(t, now),
@@ -273,6 +276,7 @@ export function timerStrip(s: CookSession, now: Date, shownStep: string | null):
       stepKey: step.key,
       phase: "cook",
       label: `Pressure cooker · step ${stepNumber(g, step.key)}`,
+      pill: `Step ${stepNumber(g, step.key)}`,
       left: `${count} of ${step.whistles} ${step.whistles === 1 ? "whistle" : "whistles"}`,
       ended: false,
       order: Number.MAX_SAFE_INTEGER - 1,
@@ -325,7 +329,7 @@ export interface MeanwhileItem {
   kind: "prep" | "step";
   key: string;
   text: string;
-  /** "Prep · about 2 min", "Step 7". */
+  /** "Prep · 2 min", "Step 7 · 1 min" (RV-25). */
   sub: string;
   done: boolean;
 }
@@ -429,14 +433,14 @@ export function meanwhile(s: CookSession, key: string): MeanwhileItem[] {
   const f = factorOf(s);
   const prep: MeanwhileItem[] = prepSteps(g)
     .filter((st) => !isDone(g, st.key))
-    .map((st) => ({ kind: "prep", key: st.key, text: st.text, sub: `Prep · about ${durationText(estimateSeconds(st, f))}`, done: false }));
+    .map((st) => ({ kind: "prep", key: st.key, text: st.text, sub: `Prep · ${durationText(estimateSeconds(st, f))}`, done: false }));
   const cook = cookSteps(g);
   const i = cook.findIndex((st) => st.key === key);
   const after: MeanwhileItem[] = [];
   for (const st of cook.slice(i + 1)) {
     if (st.handsOff) break;
     if (isDone(g, st.key)) continue;
-    after.push({ kind: "step", key: st.key, text: st.text, sub: `Step ${cook.indexOf(st) + 1}`, done: false });
+    after.push({ kind: "step", key: st.key, text: st.text, sub: `Step ${cook.indexOf(st) + 1} · ${durationText(estimateSeconds(st, f))}`, done: false });
   }
   return [...prep, ...after];
 }
@@ -581,7 +585,7 @@ export function promptView(s: CookSession, now: Date): PromptView | null {
     sub: waiting.length > 0 ? "Starts after the long prep" : "Each step, its flame, a timer and when it's done",
     stats: [
       { value: String(cookSteps(g).length), label: cookSteps(g).length === 1 ? "Step" : "Steps" },
-      { value: `about ${total}`, label: "Minutes" },
+      { value: String(total), label: "Minutes" },
       { value: String(hands), label: "Hands on" },
     ],
     bar,
@@ -592,6 +596,17 @@ export function promptView(s: CookSession, now: Date): PromptView | null {
 }
 
 // ── Before you start (GuidePrep) ──────────────────────────────────
+
+/**
+ * Before you start's Back (RV-25, `RvCookPrep` → `RvCookStart`): back to the
+ * prompt while no step has started (its timers and ticks stay); null once
+ * cooking began, when Back minimizes as before.
+ */
+export function backToPrompt(s: CookSession): CookSession | null {
+  const g = s.guide;
+  if (!g || g.mode !== "guided" || g.cookStartedAt) return null;
+  return { ...s, guide: { ...g, mode: null, screen: "prep", current: null } };
+}
 
 export interface PrepRowView {
   key: string;
@@ -680,7 +695,7 @@ export interface DoneRowView {
   name: string;
   /** "11 min", "40 s", "Not ticked". */
   time: string;
-  /** "Usually 7–9 min at this size", "8–10 min as written", "3 whistles"; null when there is nothing to go by. */
+  /** "Usual 8–10 min" (RV-25, `RvCookDone`), "3 whistles"; null when there is nothing to go by. */
   usual: string | null;
   /** Today took longer than the usual range. */
   slow: boolean;
@@ -729,9 +744,9 @@ export function doneScreen(s: CookSession, now: Date): DoneScreenView | null {
     let usual: { low: number; high: number; text: string } | null = null;
     if (st.learned && st.learned.highSeconds >= st.learned.lowSeconds) {
       const range = { minSeconds: wholeStepMinutes(st.learned.lowSeconds), maxSeconds: wholeStepMinutes(st.learned.highSeconds) };
-      usual = { low: range.minSeconds, high: range.maxSeconds, text: `Usually ${rangeText(range)} at this size` };
+      usual = { low: range.minSeconds, high: range.maxSeconds, text: `Usual ${rangeText(range)}` };
     } else if (at && "minSeconds" in at) {
-      usual = { low: at.minSeconds, high: at.maxSeconds, text: f === 1000 ? `${rangeText(at)} as written` : `${rangeText(at)} at this size` };
+      usual = { low: at.minSeconds, high: at.maxSeconds, text: `Usual ${rangeText(at)}` };
     }
     const whistles = at && "whistles" in at ? `${at.whistles} ${at.whistles === 1 ? "whistle" : "whistles"}` : null;
     return { st, real, usual, whistles };
@@ -744,7 +759,7 @@ export function doneScreen(s: CookSession, now: Date): DoneScreenView | null {
       key: st.key,
       name: st.text,
       time: real === null ? "Not ticked" : realText(real),
-      usual: usual ? `${usual.text}${slow ? " · slower today" : ""}` : whistles,
+      usual: usual ? usual.text : whistles,
       slow,
       bar: real === null ? null : { lowPct: usual ? pct(usual.low) : 0, highPct: usual ? pct(usual.high) : 0, markPct: pct(real) },
     };

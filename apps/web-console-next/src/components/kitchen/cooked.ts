@@ -103,6 +103,16 @@ export function finishSub(totalMinor: number, currency: string, portionsHalf: nu
   return `${cost} · ${servingsText(portionsHalf)} · yours`;
 }
 
+/**
+ * The Finish sheet's one-line button (RV-25, `RvCookFinish`): "Finish · ₹186";
+ * "Finish · ₹0" when no line has an amount (`lineCount` 0); "Finish" while
+ * it costs nothing.
+ */
+export function finishLabel(totalMinor: number, currency: string, lineCount?: number): string {
+  if (lineCount === 0) return `${FINISH_TITLE} · ${shortMoney(0, currency)}`;
+  return totalMinor > 0 ? `${FINISH_TITLE} · ${shortMoney(totalMinor, currency)}` : FINISH_TITLE;
+}
+
 /** The guided Done screen's main button in the new frame (GC-5's "Who ate?" is now Split's, after Cooked). */
 export const FINISH_TITLE = "Finish";
 

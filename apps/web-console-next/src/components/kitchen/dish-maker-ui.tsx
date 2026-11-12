@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
-import { GroupAvatar, K_BUTTON, K_INPUT } from "./kit";
+import { GroupAvatar, K_BUTTON, K_BUTTON_QUIET, K_INPUT } from "./kit";
 import { Money } from "./ledger-ui";
 import { PantryBadge } from "./pantry-ui";
 import { MAIN_UNITS, MORE_UNITS } from "./item-form";
@@ -41,13 +41,13 @@ import {
  * The dish maker's visual pieces (Cookpool CP-15): an ingredient as a phone
  * card and as a desktop table row, the amount stepper, the extras and
  * portions steppers, the dark cost card, "Take from any pantry" (a search over
- * every pantry you cook from, with the "Bought it just now?" form), the "Share
+ * every pantry you cook from, with the "Got it just now?" form), the "Share
  * it with" picker, the two ways to split and who ate what. Colors come from
  * the `.cookpool` tokens; the cost card is the canvas's ink card.
  */
 
 const STEP_BUTTON =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-input bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-cp-accent-tint text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 
 // ── The amount stepper ────────────────────────────────────────────
 
@@ -106,13 +106,13 @@ export function AmountStepper({
           aria-invalid={parsed !== null && !parsed.ok}
           title={parsed && !parsed.ok ? parsed.message : undefined}
           className={cn(
-            "rounded-lg border border-transparent bg-background text-center text-[15px] font-bold tabular-nums",
+            "rounded-lg border border-transparent bg-background text-center text-[15px] font-medium tabular-nums",
             "focus-visible:border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             "aria-[invalid=true]:border-destructive aria-[invalid=true]:text-destructive",
             compact ? "h-9 w-12" : "h-10 w-16",
           )}
         />
-        {hideUnit ? null : <span className="text-sm font-semibold text-muted-foreground">{view.step.unit}</span>}
+        {hideUnit ? null : <span className="text-sm font-normal text-muted-foreground">{view.step.unit}</span>}
       </span>
       <RepeatButton
         className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")}
@@ -131,7 +131,7 @@ function SourcePill({ view, className }: { view: LineView; className?: string })
     <span
       title={view.chip.label}
       className={cn(
-        "inline-block max-w-full rounded-full px-2.5 py-0.5 text-xs font-bold",
+        "inline-block max-w-full rounded-full px-2.5 py-0.5 text-xs font-medium",
         view.chip.tone === "mine" ? "bg-cp-herb-tint text-primary" : "bg-cp-owed-tint text-cp-owed",
         className,
       )}
@@ -150,7 +150,7 @@ export function CountStepper({ view, onCount, compact = false }: { view: LineVie
       <RepeatButton className={cn(STEP_BUTTON, compact && "h-9 w-9 rounded-[10px]")} aria-label={view.lessLabel} canRepeat={!view.atSmallest} onStep={() => onCount(-1)}>
         <Minus className="h-4 w-4" aria-hidden />
       </RepeatButton>
-      <span aria-live="polite" className={cn("text-center font-extrabold tabular-nums", compact ? "min-w-8 text-[15px]" : "min-w-10 text-lg")}>
+      <span aria-live="polite" className={cn("text-center font-medium tabular-nums", compact ? "min-w-8 text-[15px]" : "min-w-10 text-lg")}>
         <span className="sr-only">
           {counted.count} {counted.word} of {view.name}
         </span>
@@ -200,15 +200,15 @@ export function LineCard({
   onSwitch?: (side: "measure" | "unit") => void;
 }) {
   return (
-    <li className="space-y-2.5 rounded-[18px] border bg-card py-3 pl-3.5 pr-3">
+    <li className="space-y-2.5 rounded-[18px] bg-card py-3 pl-3.5 pr-3 shadow-cp-card">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col items-start gap-1.5">
-          <span className="max-w-full break-words text-[15px] font-bold leading-snug">{view.name}</span>
+          <span className="max-w-full break-words text-[15px] font-medium leading-snug">{view.name}</span>
           <SourcePill view={view} className="truncate" />
         </div>
         <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-          <Money minor={view.costMinor} currency={currency} className="text-[15px] font-bold" />
-          <span className={cn("text-xs font-semibold", view.mine ? "text-muted-foreground" : "text-cp-owe")}>{view.owe}</span>
+          <Money minor={view.costMinor} currency={currency} className="text-[15px] font-medium" />
+          <span className={cn("text-xs font-medium", view.mine ? "text-muted-foreground" : "text-cp-owe")}>{view.owe}</span>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -218,7 +218,7 @@ export function LineCard({
           <AmountStepper view={view} onChange={onChange} id={`dish-line-${view.key}`} hideUnit={view.sides !== null && onSwitch !== undefined} />
         )}
         <LineSides view={view} onSwitch={onSwitch} />
-        <span className="ml-auto text-right text-[13px] font-semibold text-muted-foreground">{view.leftNote}</span>
+        <span className="ml-auto text-right text-[13px] font-normal text-muted-foreground">{view.leftNote}</span>
       </div>
     </li>
   );
@@ -240,11 +240,11 @@ export function LineTable({
   onCount?: (key: string, delta: 1 | -1) => void;
   onSwitch?: (key: string, side: "measure" | "unit") => void;
 }) {
-  const th = "border-b px-3 pb-2 pt-1 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground";
+  const th = "border-b border-cp-line px-3 pb-2 pt-1 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground";
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[520px] border-collapse text-sm">
-        <caption className="px-[18px] pb-2 pt-4 text-left text-base font-extrabold">{heading}</caption>
+        <caption className="px-[18px] pb-2 pt-4 text-left text-base font-medium">{heading}</caption>
         <thead>
           <tr>
             <th scope="col" className={cn(th, "pl-[18px]")}>
@@ -266,9 +266,9 @@ export function LineTable({
         </thead>
         <tbody>
           {views.map((v) => (
-            <tr key={v.key} className="border-b last:border-b-0">
+            <tr key={v.key} className="border-b border-cp-line last:border-b-0">
               <td className="py-2 pl-[18px] pr-3 align-middle">
-                <span className="block font-bold">{v.name}</span>
+                <span className="block font-medium">{v.name}</span>
                 <span className="block text-xs text-muted-foreground">{v.leftNote}</span>
               </td>
               <td className="px-3 py-2">
@@ -284,10 +284,10 @@ export function LineTable({
                   <LineSides view={v} onSwitch={onSwitch ? (side) => onSwitch(v.key, side) : undefined} />
                 </div>
               </td>
-              <td className="px-3 py-2 text-right font-bold">
+              <td className="px-3 py-2 text-right font-medium">
                 <Money minor={v.costMinor} currency={currency} />
               </td>
-              <td className={cn("py-2 pl-3 pr-[18px] text-right font-bold", v.mine ? "text-muted-foreground" : "text-cp-owe")}>
+              <td className={cn("py-2 pl-3 pr-[18px] text-right font-medium", v.mine ? "text-muted-foreground" : "text-cp-owe")}>
                 {v.mine ? (
                   "—"
                 ) : (
@@ -332,8 +332,8 @@ export function ValueStepper({
   className?: string;
 }) {
   return (
-    <div role="group" aria-label={label} className={cn("flex flex-col gap-2 rounded-[18px] border bg-card px-3.5 py-3", className)}>
-      <span className="text-[13px] font-bold">
+    <div role="group" aria-label={label} className={cn("flex flex-col gap-2 rounded-[18px] bg-card px-3.5 py-3 shadow-cp-card", className)}>
+      <span className="text-[13px] font-medium">
         {label}
         {hint ? <span className="font-medium text-muted-foreground"> {hint}</span> : null}
       </span>
@@ -341,7 +341,7 @@ export function ValueStepper({
         <RepeatButton className={STEP_BUTTON} aria-label={lessLabel} disabled={!canLess} onStep={onLess}>
           <Minus className="h-4 w-4" aria-hidden />
         </RepeatButton>
-        <span aria-live="polite" className="text-base font-extrabold tabular-nums">
+        <span aria-live="polite" className="text-base font-medium tabular-nums">
           {value}
         </span>
         <RepeatButton className={STEP_BUTTON} aria-label={moreLabel} disabled={!canMore} onStep={onMore}>
@@ -370,7 +370,7 @@ const BROWSE_LIMIT = 30;
  * "Take from any pantry": a search over every pantry you cook from (quick
  * use's search, `usable=1`), and before you type, your items soonest use-by
  * first. Each row says where it is, who paid and what is left, with Add.
- * Nothing matching offers "Bought it just now?" — a small form that adds it
+ * Nothing matching offers "Got it just now?" — a small form that adds it
  * to your pantry and the dish in the same write. `buy` opens that form from
  * outside, prefilled (a dish cooked before whose ingredient is in no pantry
  * now, SM-9).
@@ -408,7 +408,7 @@ export function PantryPanel({
   newKey: () => string;
   /** Phones: close the panel. */
   onClose?: () => void;
-  /** Open "Bought it just now?" with this draft (each new `seq` opens it again). */
+  /** Open "Got it just now?" with this draft (each new `seq` opens it again). */
   buy?: { draft: NewItemDraft; seq: number } | null;
   autoFocus?: boolean;
   className?: string;
@@ -455,7 +455,7 @@ export function PantryPanel({
             const preview = previewNewItem(draft, newKey(), dishCurrency);
             if (!preview.line) return false;
             onAddNew(preview.line);
-            setSaid(`Added ${preview.line.name}, just bought.`);
+            setSaid(`Added ${preview.line.name}, just got.`);
             setBuying(null);
             setQuery("");
             return true;
@@ -472,17 +472,17 @@ export function PantryPanel({
       ) : results.length === 0 ? (
         searching ? (
           <div className="space-y-2.5 px-1 py-1">
-            <p className="text-sm font-semibold text-muted-foreground">Not in a pantry</p>
+            <p className="text-sm font-normal text-muted-foreground">Not in a pantry</p>
             <Button type="button" className={cn(K_BUTTON, "w-full")} onClick={() => setBuying(emptyNewItem(query.trim()))}>
-              Bought &ldquo;{query.trim()}&rdquo; just now
+              Got &ldquo;{query.trim()}&rdquo; just now
             </Button>
           </div>
         ) : (
-          <p className="px-1 text-sm font-semibold text-muted-foreground">Nothing to cook with yet</p>
+          <p className="px-1 text-sm font-normal text-muted-foreground">Nothing to cook with yet</p>
         )
       ) : (
         <>
-          <p className="px-1 text-xs font-bold text-muted-foreground">{searching ? "Matches" : "Use soonest first"}</p>
+          <p className="px-1 text-xs font-medium text-muted-foreground">{searching ? "Matches" : "Use soonest first"}</p>
           <ul
             aria-label="Items to cook with"
             className={cn("-mx-1", !sheet && "max-h-[420px] overflow-y-auto min-[900px]:max-h-[min(560px,calc(100dvh-20rem))]")}
@@ -498,10 +498,10 @@ export function PantryPanel({
         <button
           type="button"
           onClick={() => setBuying(emptyNewItem(query.trim()))}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ShoppingBasket className="h-4 w-4" aria-hidden />
-          Bought something just now?
+          Got something just now?
         </button>
       )}
     </>
@@ -511,10 +511,10 @@ export function PantryPanel({
     <section
       aria-labelledby={sheet ? undefined : headingId}
       aria-label={sheet ? "Take from any pantry" : undefined}
-      className={cn(sheet ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3 rounded-[22px] border bg-card p-4", className)}
+      className={cn(sheet ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3 rounded-[22px] bg-card p-4 shadow-cp-card", className)}
     >
       <div className={cn("flex items-center justify-between gap-2", sheet && "hidden")}>
-        <h2 id={headingId} className="text-base font-extrabold">
+        <h2 id={headingId} className="text-base font-medium">
           Take from any pantry
         </h2>
         {onClose ? (
@@ -551,7 +551,7 @@ export function PantryPanel({
       <p className="sr-only" aria-live="polite">
         {said}
       </p>
-      {full ? <p className="text-[13px] font-semibold text-muted-foreground">30 ingredients · the most a dish takes</p> : null}
+      {full ? <p className="text-[13px] font-normal text-muted-foreground">30 ingredients · the most a dish takes</p> : null}
 
       {sheet ? <div className="-mx-4 min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-2">{body}</div> : body}
     </section>
@@ -565,14 +565,14 @@ function ResultRow({ result, full, onAdd }: { result: PantryResult; full: boolea
     <li className="flex items-center gap-2.5 rounded-xl px-1 py-2">
       <PantryBadge kind={kind} label={result.pantry} badge={pantryBadge(result.item.pantry)} className="h-8 w-8 rounded-[9px] text-[11px]" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-bold">{result.name}</span>
+        <span className="block truncate text-[15px] font-medium">{result.name}</span>
         <span className="block truncate text-xs text-muted-foreground">
           {result.meta}
           {blocked ? ` · ${result.disabledReason}` : ""}
         </span>
       </span>
       {result.added ? (
-        <span className="inline-flex min-h-10 items-center gap-1 px-2 text-sm font-bold text-primary">
+        <span className="inline-flex min-h-10 items-center gap-1 px-2 text-sm font-medium text-primary">
           <Check className="h-4 w-4" aria-hidden />
           Added
         </span>
@@ -582,7 +582,7 @@ function ResultRow({ result, full, onAdd }: { result: PantryResult; full: boolea
           onClick={onAdd}
           disabled={blocked || full}
           aria-label={`Add ${result.name} from ${result.pantry}`}
-          className="min-h-11 shrink-0 rounded-[10px] border border-primary bg-card px-3.5 text-sm font-bold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:border-input disabled:text-muted-foreground"
+          className="min-h-11 shrink-0 rounded-[10px] bg-cp-accent-tint px-3.5 text-sm font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-cp-line disabled:text-muted-foreground"
         >
           Add
         </button>
@@ -591,7 +591,7 @@ function ResultRow({ result, full, onAdd }: { result: PantryResult; full: boolea
   );
 }
 
-/** "Bought it just now?": name, how much and in what, what you paid. */
+/** "Got it just now?": name, how much and in what, what you paid. */
 function NewItemForm({
   idPrefix,
   draft,
@@ -630,7 +630,7 @@ function NewItemForm({
   return (
     <form
       noValidate
-      aria-label="Bought it just now"
+      aria-label="Got it just now"
       onSubmit={(e) => {
         e.preventDefault();
         setTried(true);
@@ -641,9 +641,9 @@ function NewItemForm({
       }}
       className="space-y-3 rounded-[18px] bg-background p-3.5"
     >
-      <p className="text-[15px] font-bold">Bought it just now?</p>
+      <p className="text-[15px] font-medium">Got it just now?</p>
       <div className={field}>
-        <label htmlFor={`${idPrefix}-name`} className="text-xs font-semibold text-muted-foreground">
+        <label htmlFor={`${idPrefix}-name`} className="text-xs font-normal text-muted-foreground">
           What
         </label>
         <Input
@@ -661,7 +661,7 @@ function NewItemForm({
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2.5">
         <div className={field}>
-          <label htmlFor={`${idPrefix}-qty`} className="text-xs font-semibold text-muted-foreground">
+          <label htmlFor={`${idPrefix}-qty`} className="text-xs font-normal text-muted-foreground">
             How much
           </label>
           <div className="flex gap-1.5">
@@ -683,7 +683,7 @@ function NewItemForm({
               id={`${idPrefix}-unit`}
               value={draft.unit}
               onChange={(e) => set({ unit: e.target.value as NewItemDraft["unit"] })}
-              className="h-11 shrink-0 rounded-xl border border-input bg-card px-2 text-[15px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-11 shrink-0 rounded-xl border-0 bg-background px-2 text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {[...MAIN_UNITS, ...MORE_UNITS].map((u) => (
                 <option key={u} value={u}>
@@ -695,11 +695,11 @@ function NewItemForm({
           {err("quantity")}
         </div>
         <div className={field}>
-          <label htmlFor={`${idPrefix}-price`} className="text-xs font-semibold text-muted-foreground">
+          <label htmlFor={`${idPrefix}-price`} className="text-xs font-normal text-muted-foreground">
             You paid
           </label>
           <div className="relative">
-            <span aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-semibold text-muted-foreground">
+            <span aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-normal text-muted-foreground">
               {currencyPrefix(currency)}
             </span>
             <Input
@@ -722,7 +722,7 @@ function NewItemForm({
         <Button type="submit" className={cn(K_BUTTON, "flex-1")} disabled={disabled}>
           Add to the dish
         </Button>
-        <Button type="button" variant="outline" className={K_BUTTON} onClick={onCancel}>
+        <Button type="button" variant="ghost" className={K_BUTTON_QUIET} onClick={onCancel}>
           Cancel
         </Button>
       </div>
@@ -775,19 +775,19 @@ export function SharePicker({
   };
   return (
     <div className="space-y-2">
-      <h2 className="text-[17px] font-extrabold">{title}</h2>
+      <h2 className="text-[17px] font-medium">{title}</h2>
       <button
         ref={buttonRef}
         type="button"
         aria-expanded={open}
         aria-controls="dish-share-panel"
         onClick={() => (open ? close(false) : setOpen(true))}
-        className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-input bg-card px-3.5 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-14 w-full items-center gap-3 rounded-2xl bg-card px-3.5 py-2 text-left shadow-cp-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ShareBadge option={{ kind: value === JUST_ME ? "me" : "group", name: choice.name }} />
         <span className="min-w-0 flex-1">
           <span className="sr-only">{title}: </span>
-          <span className="block truncate text-base font-extrabold">{choice.name}</span>
+          <span className="block truncate text-base font-medium">{choice.name}</span>
           <span className="block truncate text-xs text-muted-foreground">{choice.meta}</span>
         </span>
         <ChevronDown className={cn("h-5 w-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
@@ -801,7 +801,7 @@ export function SharePicker({
               close(true);
             }
           }}
-          className="space-y-1.5 rounded-[18px] border border-input bg-card p-2.5 shadow-[0_12px_32px_rgba(23,32,27,0.14)]"
+          className="space-y-1.5 rounded-[18px] bg-card p-2.5 shadow-cp-card"
         >
           <div className="relative">
             <label htmlFor="dish-share-search" className="sr-only">
@@ -819,7 +819,7 @@ export function SharePicker({
               className={cn(K_INPUT, "border-transparent bg-background pl-10")}
             />
           </div>
-          {list.heading ? <p className="px-2 pt-1.5 text-xs font-bold text-muted-foreground">{list.heading}</p> : null}
+          {list.heading ? <p className="px-2 pt-1.5 text-xs font-medium text-muted-foreground">{list.heading}</p> : null}
           {loading ? (
             <div className="space-y-1.5 p-1" aria-hidden>
               <Skeleton className="h-11 w-full rounded-xl" />
@@ -847,7 +847,7 @@ export function SharePicker({
                   >
                     <ShareBadge option={o} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-bold">{o.name}</span>
+                      <span className="block truncate text-[15px] font-medium">{o.name}</span>
                       <span className="block truncate text-xs text-muted-foreground">{o.meta}</span>
                     </span>
                     {selected ? <Check className="h-5 w-5 shrink-0 text-primary" aria-hidden /> : null}
@@ -882,7 +882,7 @@ export function SplitModeCards({
 }) {
   return (
     <div className="space-y-2">
-      <h2 id="dish-split-mode" className="text-[17px] font-extrabold">
+      <h2 id="dish-split-mode" className="text-[17px] font-medium">
         Who ate?
       </h2>
       <div role="radiogroup" aria-labelledby="dish-split-mode" className="grid grid-cols-2 gap-2">
@@ -896,8 +896,8 @@ export function SplitModeCards({
               aria-checked={on}
               onClick={() => onChange(m.id)}
               className={cn(
-                "min-h-12 rounded-2xl px-3 text-[15px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                on ? "border-2 border-primary bg-accent text-primary" : "border border-input bg-card text-foreground",
+                "min-h-12 rounded-2xl px-3 text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                on ? "bg-cp-accent-tint text-cp-accent-text ring-2 ring-inset ring-primary" : "bg-card text-foreground shadow-cp-card",
               )}
             >
               {m.label}
@@ -936,23 +936,23 @@ export function EaterList({
   const shown = all ? view.rows : view.rows.filter((r, i) => i < EATERS_SHOWN || r.half > 0);
   const hidden = view.rows.length - shown.length;
   const btn =
-    "grid h-11 w-10 shrink-0 place-items-center rounded-[10px] border border-input bg-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+    "grid h-11 w-10 shrink-0 place-items-center rounded-[10px] bg-cp-accent-tint text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <div className="space-y-2">
-      <ul aria-label="Who ate what" className="divide-y rounded-[18px] border bg-card">
+      <ul aria-label="Who ate what" className="divide-y divide-cp-line rounded-[18px] bg-card shadow-cp-card">
         {shown.map((r) => (
           <li key={r.subjectId} className="flex items-center gap-1.5 py-2 pl-3.5 pr-3">
-            <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{r.label}</span>
+            <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{r.label}</span>
             <RepeatButton className={btn} aria-label={`Half a portion less for ${r.label}`} disabled={!r.canLess} onStep={() => onStep(r.subjectId, -1)}>
               <Minus className="h-4 w-4" aria-hidden />
             </RepeatButton>
-            <span className="min-w-[2.25rem] text-center text-[15px] font-extrabold tabular-nums" aria-label={`${r.portions} portions`}>
+            <span className="min-w-[2.25rem] text-center text-[15px] font-medium tabular-nums" aria-label={`${r.portions} portions`}>
               {r.portions}
             </span>
             <RepeatButton className={btn} aria-label={`Half a portion more for ${r.label}`} disabled={!r.canMore} onStep={() => onStep(r.subjectId, 1)}>
               <Plus className="h-4 w-4" aria-hidden />
             </RepeatButton>
-            <Money minor={r.amountMinor} currency={currency} className={cn("min-w-[4.75rem] text-right text-sm font-bold", r.half === 0 && "text-muted-foreground")} />
+            <Money minor={r.amountMinor} currency={currency} className={cn("min-w-[4.75rem] text-right text-sm font-medium", r.half === 0 && "text-muted-foreground")} />
           </li>
         ))}
       </ul>
@@ -960,13 +960,13 @@ export function EaterList({
         <button
           type="button"
           onClick={() => setAll(true)}
-          className="min-h-11 rounded-xl px-2 text-sm font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-11 rounded-xl px-2 text-sm font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Show everyone ({view.rows.length})
         </button>
       ) : null}
       {view.unclaimedHalf > 0 ? (
-        <p className="px-1 text-sm font-semibold tabular-nums text-muted-foreground">
+        <p className="px-1 text-sm font-normal tabular-nums text-muted-foreground">
           {portionsText(view.unclaimedHalf)} {view.unclaimedHalf <= 2 ? "portion" : "portions"} left over · yours · {formatMinor(view.unclaimedMinor, currency)}
         </p>
       ) : null}

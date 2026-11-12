@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useProfile } from "@/components/kitchen/data";
-import { CLOSE_44, KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { CLOSE_44, KCard, K_BUTTON, K_BUTTON_QUIET } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { MAIN_BUTTON, MainButtonLabel } from "@/components/kitchen/faces-ui";
@@ -135,7 +135,7 @@ function CookScreen({ linked }: { linked: ItemRef | null }) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load your account. {profile.error.message}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={profile.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={profile.reload}>
           Try again
         </Button>
       </KCard>
@@ -433,7 +433,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-1">
             <BackButton />
-            <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Cook</h1>
+            <h1 className="text-[26px] font-medium leading-tight tracking-tight">Cook</h1>
           </div>
           {cta("hidden w-auto min-w-72 min-[900px]:inline-flex")}
         </div>
@@ -445,7 +445,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
         {linkNote ? <p className="rounded-xl bg-cp-soon-tint p-3 text-sm font-medium text-cp-soon">{linkNote}</p> : null}
         <div className="space-y-2">
           <div ref={nameFieldRef} className="space-y-2">
-            <label htmlFor="dish-name" className="text-sm font-bold">
+            <label htmlFor="dish-name" className="text-sm font-medium">
               Dish
             </label>
             <Input
@@ -464,7 +464,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
               placeholder="What are you making?"
               autoComplete="off"
               aria-invalid={showProblem && problem?.field === "name"}
-              className="h-[52px] rounded-[14px] bg-card px-3.5 text-lg font-bold sm:h-[52px] sm:text-lg"
+              className="h-[52px] rounded-[14px] bg-card px-3.5 text-lg font-medium sm:h-[52px] sm:text-lg"
             />
           </div>
           <SuggestionList
@@ -480,7 +480,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
 
         <section aria-labelledby="dish-ingredients" className="space-y-2.5">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 id="dish-ingredients" ref={ingredientsRef} tabIndex={-1} className="rounded text-[17px] font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <h2 id="dish-ingredients" ref={ingredientsRef} tabIndex={-1} className="rounded text-[17px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               Ingredients
             </h2>
             {/* From 1200px the table's own heading says it (no duplicates). */}
@@ -501,13 +501,13 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
                   />
                 ))}
               </ul>
-              <div className="hidden rounded-[22px] border bg-card min-[1200px]:block">
+              <div className="hidden rounded-[22px] bg-card shadow-cp-card min-[1200px]:block">
                 <LineTable
                   views={views}
                   currency={currency}
                   heading={
                     <>
-                      In the dish{fromText ? <span className="font-semibold text-muted-foreground"> · {fromText}</span> : null}
+                      In the dish{fromText ? <span className="font-normal text-muted-foreground"> · {fromText}</span> : null}
                     </>
                   }
                   onChange={setQty}
@@ -520,8 +520,8 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
           {pending.length > 0 || missing.length > 0 ? (
             <ul aria-label="Not in the dish yet" className="space-y-2">
               {pending.map((p) => (
-                <li key={p.key} className="flex min-h-11 items-center gap-3 rounded-[18px] border bg-card px-3.5 py-2.5">
-                  <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{p.ingredient.name}</span>
+                <li key={p.key} className="flex min-h-11 items-center gap-3 rounded-[18px] bg-card px-3.5 py-2.5 shadow-cp-card">
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{p.ingredient.name}</span>
                   <Skeleton className="h-4 w-16" aria-hidden />
                 </li>
               ))}
@@ -530,13 +530,13 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
                   <button
                     type="button"
                     onClick={() => buyMissing(m)}
-                    className="flex min-h-11 w-full items-center gap-3 rounded-[18px] border border-dashed border-[#A9B2A6] bg-card px-3.5 py-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-h-11 w-full items-center gap-3 rounded-[18px] bg-cp-owe-tint px-3.5 py-2.5 text-left transition-colors hover:bg-cp-owe-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-bold text-muted-foreground">{m.name}</span>
-                      <span className="block text-xs font-bold text-cp-tomato">Not in a pantry · add it</span>
+                      <span className="block truncate text-[15px] font-medium text-foreground">{m.name}</span>
+                      <span className="block text-xs font-normal text-cp-owe">Not in a pantry · add it</span>
                     </span>
-                    <Plus className="h-5 w-5 shrink-0 text-cp-tomato" aria-hidden />
+                    <Plus className="h-5 w-5 shrink-0 text-cp-owe" aria-hidden />
                   </button>
                 </li>
               ))}
@@ -549,7 +549,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
               aria-haspopup="dialog"
               aria-expanded={panelOpen}
               onClick={openPanel}
-              className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[14px] border border-dashed border-[#A9B2A6] text-[15px] font-bold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-[900px]:hidden"
+              className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[14px] bg-cp-accent-tint text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-[900px]:hidden"
             >
               <Plus className="h-5 w-5" aria-hidden />
               Add from any pantry
@@ -567,10 +567,10 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
       ) : (
         <Sheet open={panelOpen} onOpenChange={(open) => (open ? setPanelOpen(true) : closePanel())}>
           <SheetContent side="bottom" aria-describedby={undefined} className={cn(PICKER_SHEET, CLOSE_44)}>
-            <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-            <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-extrabold">Add from a pantry</SheetTitle>
+            <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-cp-line" />
+            <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-medium">Add from a pantry</SheetTitle>
             {panel("sheet")}
-            <Button type="button" className={cn(K_BUTTON, "mb-[env(safe-area-inset-bottom)] h-12 w-full shrink-0 text-base font-extrabold")} onClick={closePanel}>
+            <Button type="button" className={cn(K_BUTTON, "mb-[env(safe-area-inset-bottom)] h-12 w-full shrink-0 text-base font-medium")} onClick={closePanel}>
               {lines.length > 0 ? `Done · ${lines.length} in the dish` : "Done"}
             </Button>
           </SheetContent>
@@ -617,7 +617,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
         {balances.error ? (
           <p className="text-[13px] text-muted-foreground">
             Couldn&apos;t load your groups, so only &ldquo;Just me&rdquo; is offered.{" "}
-            <button type="button" onClick={balances.reload} className="font-semibold text-primary underline-offset-2 hover:underline">
+            <button type="button" onClick={balances.reload} className="font-medium text-cp-accent-text underline-offset-2 hover:underline">
               Try again
             </button>
           </p>
@@ -638,7 +638,7 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
           members.error ? (
             <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
               <p className="text-sm text-muted-foreground">Couldn&apos;t load who&apos;s in {shareGroup?.name}. {members.error.message}</p>
-              <Button variant="outline" className={K_BUTTON} onClick={members.reload}>
+              <Button variant="ghost" className={K_BUTTON_QUIET} onClick={members.reload}>
                 Try again
               </Button>
             </KCard>
@@ -656,8 +656,8 @@ function DishMaker({ linked, meId }: { linked: ItemRef | null; meId: string }) {
       </div>
 
       {/* Phones: the button stays above the tab bar, however long the dish. */}
-      <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:hidden">
-        {cta("shadow-[0_8px_24px_rgba(23,32,27,0.18)]")}
+      <div data-toast-above="" className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 min-[900px]:hidden">
+        {cta("shadow-cp-nav")}
       </div>
     </div>
   );

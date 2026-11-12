@@ -144,6 +144,11 @@ describe("the recipe page's Steps: each step's flame, range at the page's size, 
     expect(html).toContain("Hands off");
     expect(html).toContain("Usually 7–9 min · 23 cooks");
     expect(html).toContain("Don&#x27;t rush them");
+    // RV-25 (RvRecipe): number and words, then quiet muted lines; no pills.
+    expect(html).toContain("Medium flame · 7–8 min");
+    expect(html).not.toContain("rounded-full bg-cp-owed-tint");
+    expect(html).not.toMatch(/rounded-full bg-cp-(line|accent-tint) px-2 text-xs/);
+    expect(html).not.toContain("lucide-eye");
     const folded = renderToStaticMarkup(React.createElement(StepsSection, { steps: CURRY.steps, rows, planHref: null }));
     expect(folded).not.toContain("The plan");
     expect(folded).not.toContain("Heat the oil");

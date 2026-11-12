@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Clock, Ear, Eye, Flame, Hand, Timer, Utensils, Wind, type LucideIcon } from "lucide-react";
+import { Clock, Ear, Eye, Flame, Hand, Utensils, Wind, type LucideIcon } from "lucide-react";
 import type { StepHeat, StepSense } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import type { StepRow } from "./guided-steps";
@@ -38,26 +38,27 @@ export const SENSE_ICONS: Readonly<Record<StepSense, LucideIcon>> = {
   taste: Utensils,
 };
 
-/** The learned badge (GC-7), in money-back's blue tint: "Usually 7–9 min · 23 cooks". */
+/** The learned badge (GC-7) as a quiet muted line: "Usually 7–9 min · 23 cooks" (RV-25: no pill). */
 export function LearnedBadge({ text }: { text: string }) {
-  return <span className="inline-flex min-h-6 items-center rounded-full bg-cp-owed-tint px-2 text-xs font-medium text-cp-owed">{text}</span>;
+  return <span className="text-[13px] font-normal text-muted-foreground">{text}</span>;
 }
 
-/** The hands-off tag. */
+/** The hands-off tag, as quiet muted words (RV-25: no pill). */
 export function HandsOffTag() {
-  return <span className="inline-flex min-h-6 items-center rounded-full bg-cp-accent-tint px-2 text-xs font-medium text-cp-accent-text">Hands off</span>;
+  return <span className="text-[13px] font-normal text-muted-foreground">Hands off</span>;
 }
 
 /**
- * One step in the recipe page's Steps card (RV-16, the canvas's `RvRecipe`):
- * a row of the card, its number on the tint, its words at 15 px Regular;
- * then, quiet, its flame, its range at the page's size, Prep and Hands off,
- * what to watch for, the learned badge and the tip — each only when the step
- * says it.
+ * One step in the recipe page's Steps card (RV-16, RV-25; the canvas's
+ * `RvRecipe`): a row of the card, its number on the tint, its words at
+ * 15 px Regular; then quiet muted lines, only when the step says them —
+ * its flame, its range at the page's size, Prep and Hands off on one line;
+ * what to watch for; what cooks learned; the tip. No pills, no icons.
  */
 export function GuidedStepItem({ row }: { row: StepRow }) {
-  const SenseIcon = row.sense ? SENSE_ICONS[row.sense] : Eye;
-  const hasMeta = row.flame || row.time || row.handsOff || row.phase === "prep";
+  const meta = [row.flame && row.heat !== null ? row.flame : null, row.time, row.phase === "prep" ? "Prep" : null, row.handsOff ? "Hands off" : null].filter(
+    (x): x is string => !!x,
+  );
   return (
     <li className="flex items-start gap-3 px-4 py-3">
       <span
@@ -66,37 +67,11 @@ export function GuidedStepItem({ row }: { row: StepRow }) {
       >
         {row.number}
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-[15px] font-normal leading-snug">{row.text}</span>
-        {hasMeta ? (
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-normal text-muted-foreground">
-            {row.flame && row.heat !== null ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Flames heat={row.heat} />
-                {row.flame}
-              </span>
-            ) : null}
-            {row.time ? (
-              <span className="inline-flex items-center gap-1 tabular-nums">
-                <Timer className="h-4 w-4" aria-hidden />
-                {row.time}
-              </span>
-            ) : null}
-            {row.phase === "prep" ? <span className="inline-flex min-h-6 items-center rounded-full bg-cp-line px-2 text-xs font-medium text-muted-foreground">Prep</span> : null}
-            {row.handsOff ? <HandsOffTag /> : null}
-          </span>
-        ) : null}
-        {row.checkpoint ? (
-          <span className="inline-flex items-start gap-1.5 text-[13px] font-normal text-muted-foreground">
-            <SenseIcon className="mt-px h-4 w-4 shrink-0" aria-hidden />
-            {row.checkpoint}
-          </span>
-        ) : null}
-        {row.learned ? (
-          <span>
-            <LearnedBadge text={row.learned} />
-          </span>
-        ) : null}
+        {meta.length > 0 ? <span className="text-[13px] font-normal tabular-nums text-muted-foreground">{meta.join(" · ")}</span> : null}
+        {row.checkpoint ? <span className="text-[13px] font-normal text-muted-foreground">{row.checkpoint}</span> : null}
+        {row.learned ? <LearnedBadge text={row.learned} /> : null}
         {row.tip ? <span className="text-[13px] font-normal text-muted-foreground">{row.tip}</span> : null}
       </div>
     </li>

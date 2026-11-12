@@ -175,7 +175,7 @@ export function SwipeRow({
         <div
           aria-hidden
           className={cn(
-            "absolute inset-0 flex items-center justify-end gap-2 pr-5 text-[15px] font-extrabold",
+            "absolute inset-0 flex items-center justify-end gap-2 pr-5 text-[15px] font-medium",
             shown.tone === "undo" ? "bg-foreground text-background" : "bg-primary text-primary-foreground",
           )}
         >

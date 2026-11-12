@@ -4,7 +4,7 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET } from "./kit";
 import { BackButton } from "./back-ui";
 import { factorFromQuery, planOf, planSizes } from "./guided-steps";
 import { WRITTEN_FACTOR, parseRecipeRef, sessionHref } from "./recipes";
@@ -44,7 +44,7 @@ function PlanLoader({ recipeId, code, given }: { recipeId: string; code: string 
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this recipe. {recipe.error?.message ?? ""}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={recipe.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={recipe.reload}>
           Try again
         </Button>
       </KCard>

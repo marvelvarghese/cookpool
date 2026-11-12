@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CLOSE_44, KCard, K_BUTTON, K_BUTTON_QUIET } from "./kit";
-import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
+import { MAIN_BUTTON, MAIN_BUTTON_56, MainButtonLabel } from "./faces-ui";
 import { useBack } from "./back-ui";
 import { useProfile } from "./data";
 import { useMemberNames, useMyBalances } from "./people-data";
@@ -94,7 +94,7 @@ export function CookSessionScreen() {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load your account. {profile.error.message}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={profile.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={profile.reload}>
           Try again
         </Button>
       </KCard>
@@ -160,8 +160,8 @@ function StartFromRecipe({ meId, recipeId, f }: { meId: string; recipeId: string
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
-            variant="outline"
-            className={K_BUTTON}
+            variant="ghost"
+            className={K_BUTTON_QUIET}
             onClick={() => {
               recipe.reload();
               match.reload();
@@ -357,7 +357,13 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
 
   return (
     // As tall as the screen, so Finish sits at the bottom (in thumb reach) however short the list.
-    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-2.75rem-var(--cp-tabbar-space,84px))] flex-col gap-3.5 pb-2 min-[900px]:min-h-[calc(100dvh-6rem)]">
+    <div
+      className={cn(
+        "flex min-h-[calc(100dvh-env(safe-area-inset-top)-2.75rem-var(--cp-tabbar-space,84px))] flex-col pb-2 min-[900px]:min-h-[calc(100dvh-6rem)]",
+        // The new look's page gap is 18 px (RV-25, the canvas's RvCookLines); today's frame keeps 14.
+        ownDish ? "gap-[18px]" : "gap-3.5",
+      )}
+    >
       {ownDish ? (
         // The new look (cookpool-revamp RV-16, the canvas's RvCookLines): Back, the name, "For 4 · 3 of 7 in", Steps.
         <SessionHeader
@@ -496,7 +502,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
             {alert}
           </p>
         ) : null}
-        <Button type="button" className={cn(MAIN_BUTTON, "rounded-[18px] shadow-cp-nav")} onClick={openFinish}>
+        <Button type="button" className={cn(ownDish ? MAIN_BUTTON_56 : MAIN_BUTTON, "rounded-[18px] shadow-cp-nav")} onClick={openFinish}>
           <MainButtonLabel title="Finish" who={ownDish ? cookFinishText(session) : finishButtonText(session, group?.name ?? null, group?.currency ?? null)} />
         </Button>
       </div>
@@ -506,7 +512,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
         if (!open) window.requestAnimationFrame(() => addRef.current?.focus());
       }}>
         <SheetContent side="bottom" aria-describedby={undefined} className={cn(PICKER_SHEET, CLOSE_44)}>
-          <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border" />
+          <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-cp-line" />
           <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-medium">{ownDish ? "Add an ingredient" : "Add an item"}</SheetTitle>
           <PantryPanel
             variant="sheet"

@@ -230,7 +230,7 @@ export function addPantryLine(lines: readonly DishLine[], item: KitchenItem): Di
   return [...lines, pantryLine(item)];
 }
 
-/** The inline "Bought it just now?" form, as typed. */
+/** The inline "Got it just now?" form, as typed. */
 export interface NewItemDraft {
   name: string;
   /** In `unit`: "1", "1.5". */
@@ -255,14 +255,14 @@ export interface NewItemPreview {
 }
 
 /**
- * Check the "Bought it just now?" form (name, how much in a unit, what you
+ * Check the "Got it just now?" form (name, how much in a unit, what you
  * paid) — the quantity by the engine's `toMilli`, the price by its digits —
  * and make it a line: all of it goes in, until the stepper says less.
  */
 export function previewNewItem(draft: NewItemDraft, key: string, currency: string): NewItemPreview {
   const errors: Partial<Record<NewItemField, string>> = {};
   const name = draft.name.trim().replace(/\s+/g, " ");
-  if (!name) errors.name = "Say what you bought";
+  if (!name) errors.name = "Say what you got";
   else if (name.length > ITEM_NAME_MAX) errors.name = `Keep it under ${ITEM_NAME_MAX} characters`;
   const qty = parseQuantity(draft.quantity, draft.unit);
   if (!qty.ok) errors.quantity = qty.message;
@@ -320,14 +320,14 @@ export function pantriesText(lines: readonly DishLine[]): string | null {
 // ── One line, as shown ────────────────────────────────────────────
 
 export interface SourceChip {
-  /** "Your pantry", "Just bought", "Flat 4B · Anu paid". */
+  /** "Your pantry", "Just got", "Flat 4B · Anu paid". */
   label: string;
   /** Green for what is yours, blue for a group's. */
   tone: "mine" | "group";
 }
 
 export function sourceChip(line: DishLine, meId: string, names?: MemberNames | null): SourceChip {
-  if (line.kind === "new") return { label: "Just bought", tone: "mine" };
+  if (line.kind === "new") return { label: "Just got", tone: "mine" };
   const pantry = line.item.pantry;
   if (pantry.kind === "personal") return { label: "Your kitchen", tone: "mine" };
   return { label: `${pantry.name} · ${memberLabelInline(line.item.paidBy, meId, names)} paid`, tone: "group" };
@@ -915,7 +915,7 @@ export function dishProblem(input: { form: DishForm; currency: string; eaters: E
   const { form } = input;
   if (form.lines.length === 0) return { field: "lines", label: "Add an ingredient", message: null };
   if (form.lines.length > MAX_DISH_INGREDIENTS) {
-    return { field: "lines", label: `At most ${MAX_DISH_INGREDIENTS} ingredients`, message: `A dish takes at most ${MAX_DISH_INGREDIENTS} ingredients, with what you just bought.` };
+    return { field: "lines", label: `At most ${MAX_DISH_INGREDIENTS} ingredients`, message: `A dish takes at most ${MAX_DISH_INGREDIENTS} ingredients, with what you just got.` };
   }
   const empty = form.lines.find((l) => l.kind === "pantry" && l.item.qtyLeftMilli <= 0);
   if (empty && empty.kind === "pantry") {

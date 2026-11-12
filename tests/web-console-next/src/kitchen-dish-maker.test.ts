@@ -341,7 +341,7 @@ describe("the lines: steps, amounts and what they say", () => {
     expect(p).toMatchObject({ name: "Paneer", chip: { label: "Your kitchen", tone: "mine" }, owe: "yours", oweColumn: "—", amount: "200 g", leftNote: "uses it all", lessLabel: "Less paneer" });
     expect(t).toMatchObject({ chip: { label: "Flat 4B · Anu paid", tone: "group" }, owe: "you owe Anu", oweColumn: "Anu ₹12.00", amount: "300 g", leftNote: "100 g left" });
     const n = lineView(newCoriander({ useMilli: 30_000 }), { meId: ME, currency: "INR" });
-    expect(n).toMatchObject({ chip: { label: "Just bought", tone: "mine" }, owe: "yours", leftNote: "70 g stays in your kitchen", href: null });
+    expect(n).toMatchObject({ chip: { label: "Just got", tone: "mine" }, owe: "yours", leftNote: "70 g stays in your kitchen", href: null });
     const smallest = lineView(pantryLine(onions, 50_000), { meId: ME, names: NAMES, currency: "INR" });
     expect(smallest.lessLabel).toBe("Take out onions");
   });
@@ -392,9 +392,9 @@ describe("taking from any pantry", () => {
     expect(pantryResults([coffee], { lines: [], currency: null, meId: ME })[0]!.disabledReason).toBeNull();
   });
 
-  it("checks what was just bought, and makes it a line with all of it in the dish", () => {
+  it("checks what was just got, and makes it a line with all of it in the dish", () => {
     const empty = previewNewItem({ name: " ", quantity: "", unit: "g", price: "" }, "new:1", "INR");
-    expect(empty.errors).toEqual({ name: "Say what you bought", quantity: "Enter how much you got", price: "Enter what you paid" });
+    expect(empty.errors).toEqual({ name: "Say what you got", quantity: "Enter how much you got", price: "Enter what you paid" });
     expect(empty.line).toBeNull();
     const ok = previewNewItem({ name: " Paneer ", quantity: ".5", unit: "kg", price: "190" }, "new:3", "INR");
     expect(ok.perUnit).toBe("₹380.00 per kg · ₹38.00 per 100 g");

@@ -62,6 +62,7 @@ import {
   writtenStepTimes,
 } from "./cook-guided";
 import {
+  backToPrompt,
   doneScreen,
   prepScreen,
   promptView,
@@ -281,6 +282,8 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
                     names={names}
                     now={now}
                     save={save}
+                    first={3}
+                    header={false}
                     onAsk={(key, who) => cookAsk(session, key, who)}
                     onCancelAsk={(key) => {
                       const a = session.lines.find((l) => l.key === key)?.ask;
@@ -297,6 +300,7 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
           banner={bannerCard}
           on={{
             onMinimize: minimize,
+            onBack: backToPrompt(session) ? () => save((s) => backToPrompt(s) ?? s) : null,
             onTickLine: (key) => save((s) => tickLine(s, key)),
             onAskLine: (key, who) => cookAsk(session, key, who),
             onCancelAskLine: (key) => {

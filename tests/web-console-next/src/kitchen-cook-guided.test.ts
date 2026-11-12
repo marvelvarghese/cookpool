@@ -36,6 +36,7 @@ import {
   writtenStepTimes,
 } from "@web-console-next/components/kitchen/cook-guided";
 import {
+  backToPrompt,
   chipLabel,
   doneScreen,
   meanwhile,
@@ -239,7 +240,7 @@ describe("the prompt (GuidePrompt, design §3.1)", () => {
     expect(v.sub).toBe("Each step, its flame, a timer and when it's done");
     expect(v.stats).toEqual([
       { value: "8", label: "Steps" },
-      { value: "about 54", label: "Minutes" },
+      { value: "54", label: "Minutes" },
       { value: "19", label: "Hands on" },
     ]);
     // Prep, then the cook steps, each its time at this size; the rest and the simmer wait.
@@ -267,10 +268,10 @@ describe("the prompt (GuidePrompt, design §3.1)", () => {
   it("offers Step by step (the main button, on the accent since RV-4) and Just tick what I use", () => {
     const view = promptView(curry(), NOW)!;
     const out = html(React.createElement(GuidePromptView, { view, lockState: "off", pushHint: false, on: promptOn }));
-    // RV-16 (RvCookStart): Back to recipe, the name, "8 steps · about N min" and the bar; no card, no Before you start list.
+    // RV-16 (RvCookStart): Back to recipe, the name, "8 steps · N min" (RV-25: no "about") and the bar; no card, no Before you start list.
     expect(out).toContain('aria-label="Back to recipe"');
     expect(out).toContain(`>${promptLine(view)}<`);
-    expect(promptLine(view)).toMatch(/^8 steps · about \d+ min$/);
+    expect(promptLine(view)).toMatch(/^8 steps · \d+ min$/);
     expect(out).toContain("Step by step");
     expect(out).toContain(">Just tick what I use<");
     expect(out).toContain("bg-primary text-primary-foreground");
@@ -363,6 +364,15 @@ describe("long prep, with the recipe page (GC-6)", () => {
 describe("Before you start (GuidePrep, design §3.2)", () => {
   const prep = () => chooseMode(curry(), "guided", NOW);
 
+  it("goes Back to the prompt until a step has started (RV-25, RvCookPrep → RvCookStart); then Back minimizes", () => {
+    const back = backToPrompt(tickTool(prep(), 0))!;
+    expect(back.guide).toMatchObject({ mode: null, current: null });
+    // What was ticked stays.
+    expect(back.guide!.toolsDone).toEqual([0]);
+    expect(backToPrompt(curry())).toBeNull();
+    expect(backToPrompt(startCooking(prep(), at(300)))).toBeNull();
+  });
+
   it("lists Gather (the session's lines, the same ticks), Tools and Prep, and counts what is ready", () => {
     const v = prepScreen(prep(), NOW)!;
     expect(v.header).toBe("CHICKEN CURRY · FOR ABOUT 2 · ×0.45");
@@ -394,7 +404,7 @@ describe("Before you start (GuidePrep, design §3.2)", () => {
   it("starts a hands-off prep step's timer, which joins the strip", () => {
     const s = startTimer(prep(), "p-rub", NOW);
     expect(prepScreen(s, at(60))!.prep[1]!.timer).toEqual({ label: "14:00", state: "running", timerId: "t1" });
-    expect(timerStrip(s, at(60), null)).toEqual([{ id: "t1", stepKey: "p-rub", phase: "prep", label: "Rest · prep", left: "14:00", ended: false }]);
+    expect(timerStrip(s, at(60), null)).toEqual([{ id: "t1", stepKey: "p-rub", phase: "prep", label: "Rest · prep", pill: "Rest", left: "14:00", ended: false }]);
     expect(prepScreen(s, at(900))!.prep[1]!.timer!.label).toBe("Ready");
     // Ticking it stops the timer.
     const ticked = tickPrep(s, "p-rub", at(910));
@@ -582,9 +592,11 @@ describe("hands off: Start and go on, and the timer strip (design §3.3, §3.4)"
     expect(later.guide).toMatchObject({ current: "c-check" });
     expect(stepScreen(later, at(480))!.segments).toEqual(["done", "done", "done", "done", "running", "done", "current", "todo"]);
     const strip = timerStrip(later, at(480), "c-check");
-    expect(strip).toEqual([{ id: "t1", stepKey: "c-simmer", phase: "cook", label: "Simmer · step 5", left: "16:00", ended: false }]);
+    expect(strip).toEqual([{ id: "t1", stepKey: "c-simmer", phase: "cook", label: "Simmer · step 5", pill: "Step 5", left: "16:00", ended: false }]);
     const out = html(React.createElement(GuideStepView, { view: stepScreen(later, at(480))!, strip, pushHint: false, on: stepOn }));
     expect(out).toContain("Simmer · step 5");
+    // RV-25 (RvCookStep): the pill reads "Step 5 · 16:00".
+    expect(out).toMatch(/>Step 5<\/span><span aria-hidden="true">·<\/span><span role="timer"[^>]*>16:00</);
     // RV-4: other steps' timers are card pills.
     expect(out).toMatch(/aria-label="Simmer · step 5: 16:00. Open it" class="[^"]*rounded-full[^"]*bg-card/);
     // The strip never shows the step's own timer.
@@ -602,7 +614,7 @@ describe("hands off: Start and go on, and the timer strip (design §3.3, §3.4)"
     });
   });
 
-  it("waits with a big ring, +1 min, Pause and Done early, the ping line, Keep the screen on, and Meanwhile", () => {
+  it("waits with a big ring, +1 min and Pause, the ping line, Keep the screen on, Meanwhile, and Done · next", () => {
     const s = goToStep(startAndGoOn(atSimmer(), "c-simmer", at(240)), "c-simmer", at(300));
     const v = stepScreen(s, at(300))!;
     const out = html(
@@ -613,11 +625,15 @@ describe("hands off: Start and go on, and the timer strip (design §3.3, §3.4)"
     expect(out).toContain("of 20:00");
     expect(out).toContain(">+1 min<");
     expect(out).toContain(">Pause<");
-    expect(out).toContain(">Done early<");
+    // RV-25 (RvCookWait): two pills; the main button is "Done · next" on the accent, and Meanwhile's step rows go on (the timer keeps running).
+    expect(out).not.toContain("Done early");
     expect(out).toContain("ping you when it");
     expect(out).toMatch(/role="switch" aria-checked="true"[^>]*>.*Keep the screen on/);
     expect(out).toContain("Meanwhile");
-    expect(out).toContain("Go on to step 6 · the timer keeps running");
+    expect(out).toContain('aria-label="Do it: Chop the coriander"');
+    expect(out).toContain(">Step 6 · 1 min<");
+    expect(out).toMatch(/bg-primary text-primary-foreground[^"]*"[^>]*><span class="truncate">Done · next</);
+    expect(out).not.toContain("lucide-chevron-left h-5 w-5 rotate-180");
   });
 
   it("rings in a banner when it ends away from its step, until dismissed or its step ticked", () => {
@@ -642,11 +658,11 @@ describe("Meanwhile (design §3.4)", () => {
   it("offers prep not ticked yet, then the steps after this one up to the next hands-off step, each with Do it", () => {
     const s = goToStep(cooking(), "c-onions", NOW);
     expect(meanwhile(s, "c-oil").map((m) => [m.kind, m.key, m.sub])).toEqual([
-      ["prep", "p-chop", "Prep · about 3 min"],
-      ["prep", "p-rub", "Prep · about 15 min"],
-      ["step", "c-onions", "Step 2"],
-      ["step", "c-sear", "Step 3"],
-      ["step", "c-yogurt", "Step 4"],
+      ["prep", "p-chop", "Prep · 3 min"],
+      ["prep", "p-rub", "Prep · 15 min"],
+      ["step", "c-onions", "Step 2 · 8 min"],
+      ["step", "c-sear", "Step 3 · 2 min"],
+      ["step", "c-yogurt", "Step 4 · 1 min"],
     ]);
     const ticked = markStepDone(tickPrep(s, "p-chop", NOW), "c-onions", at(10));
     expect(meanwhile(ticked, "c-simmer").map((m) => m.key)).toEqual(["p-rub", "c-coriander", "c-check", "c-salt"]);
@@ -709,7 +725,7 @@ describe("whistles (design §3.4)", () => {
   it("shows in the strip while the cook goes on", () => {
     const s = goToStep(countWhistle(cooker(), "r-cooker", at(400)), "r-drop", at(410));
     expect(timerStrip(s, at(410), "r-drop")).toEqual([
-      { id: "w:r-cooker", stepKey: "r-cooker", phase: "cook", label: "Pressure cooker · step 1", left: "1 of 3 whistles", ended: false },
+      { id: "w:r-cooker", stepKey: "r-cooker", phase: "cook", label: "Pressure cooker · step 1", pill: "Step 1", left: "1 of 3 whistles", ended: false },
     ]);
   });
 
@@ -735,11 +751,11 @@ describe("Done (GuideDone, design §3.6)", () => {
       ["Cost", "₹140.78"],
     ]);
     expect(v.rows.map((r) => [r.name, r.time, r.usual, r.slow])).toEqual([
-      ["Heat the oil", "2 min", "1–2 min at this size", false],
-      ["Add the onions and a pinch of salt. Stir now and then.", "11 min", "Usually 7–9 min at this size · slower today", true],
-      ["Add the chicken and sear it", "2 min", "2 min at this size", false],
+      ["Heat the oil", "2 min", "Usual 1–2 min", false],
+      ["Add the onions and a pinch of salt. Stir now and then.", "11 min", "Usual 7–9 min", true],
+      ["Add the chicken and sear it", "2 min", "Usual 2 min", false],
       ["Stir in the yogurt and garam masala", "1 min", null, false],
-      ["Add the water, cover and simmer", "21 min", "20 min at this size", false],
+      ["Add the water, cover and simmer", "21 min", "Usual 20 min", false],
       ["Chop the coriander", "1 min", null, false],
       ["Cut the thickest piece open", "1 min", null, false],
       ["Turn off the flame and taste for salt", "20 min", null, false],
