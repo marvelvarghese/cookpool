@@ -7,7 +7,7 @@ import type { KitchenDish } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_ROWS } from "./kit";
 import { Money } from "./ledger-ui";
 import { Face } from "./faces-ui";
 import { RepeatButton } from "./row-gestures-ui";
@@ -46,7 +46,7 @@ const CHIP_TONES: Record<DishChip["tone"], string> = {
 
 export function DishChipPill({ chip, className }: { chip: DishChip; className?: string }) {
   return (
-    <span className={cn("inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-bold", CHIP_TONES[chip.tone], className)}>
+    <span className={cn("inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium", CHIP_TONES[chip.tone], className)}>
       {chip.label}
     </span>
   );
@@ -296,7 +296,7 @@ export function GroupDishesPanel({
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load the dishes.</p>
-        <Button variant="outline" className={K_BUTTON} onClick={() => void dishes.refetch()}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={() => void dishes.refetch()}>
           Try again
         </Button>
       </KCard>
@@ -304,25 +304,25 @@ export function GroupDishesPanel({
   }
   const list = dishes.data.pages.flatMap((p) => p.dishes);
   if (list.length === 0) {
-    return <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">No dishes yet</p>;
+    return <p className={cn(K_CARD, "flex min-h-14 items-center px-4 text-sm font-normal text-muted-foreground")}>No dishes yet</p>;
   }
   const shown = limit && !all ? list.slice(0, limit) : list;
   return (
     <div className="space-y-2">
-      <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
+      <ul className={K_ROWS}>
         {shown.map((d) => {
           const row = dishRow(d, { meId, names, now });
           return (
             <li key={row.id}>
               <Link
                 href={row.href}
-                className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className="flex min-h-14 items-center gap-3 px-3.5 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1">
-                  <span className={cn("block truncate text-[15px] font-bold", d.state === "canceled" && "text-muted-foreground line-through")}>
+                  <span className={cn("block truncate text-[15px] font-medium", d.state === "canceled" && "text-muted-foreground line-through")}>
                     {row.name}
                   </span>
-                  <span className="block truncate text-[13px] text-muted-foreground">{row.sub}</span>
+                  <span className="block truncate text-[13px] font-normal text-muted-foreground">{row.sub}</span>
                 </span>
                 <DishChipPill chip={row.chip} />
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -332,11 +332,11 @@ export function GroupDishesPanel({
         })}
       </ul>
       {limit && !all && list.length > limit ? (
-        <Button variant="ghost" className={cn(K_BUTTON, "w-full text-primary")} onClick={() => setAll(true)}>
+        <Button variant="ghost" className={cn(K_BUTTON, "w-full text-cp-accent-text")} onClick={() => setAll(true)}>
           See all {list.length}
         </Button>
       ) : dishes.hasNextPage && (all || !limit) ? (
-        <Button variant="outline" className={cn(K_BUTTON, "w-full")} loading={dishes.isFetchingNextPage} onClick={() => void dishes.fetchNextPage()}>
+        <Button variant="ghost" className={cn(K_BUTTON_QUIET, "w-full")} loading={dishes.isFetchingNextPage} onClick={() => void dishes.fetchNextPage()}>
           Show older dishes
         </Button>
       ) : null}

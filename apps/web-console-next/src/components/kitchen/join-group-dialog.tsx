@@ -71,7 +71,7 @@ export function JoinGroupDialog({ open, onOpenChange }: { open: boolean; onOpenC
                 That isn&apos;t a join link or code. A code is 8 letters and numbers, like KTCH-2345.
               </p>
             ) : (
-              <p id="join-code-hint" className="text-xs text-muted-foreground">
+              <p id="join-code-hint" className="sr-only">
                 Dashes and spaces don&apos;t matter.
               </p>
             )}

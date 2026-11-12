@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { extractJoinCode, joinFailureKind, type JoinFailure } from "@/components/kitchen/join-code";
-import { GroupAvatar, IconBubble, KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { GroupAvatar, IconBubble, KCard, K_BUTTON, K_BUTTON_QUIET, K_TITLE } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 
@@ -135,9 +135,9 @@ function JoinFlow({ code }: { code: string }) {
     if (preview.error.code === "not_found") return <LinkNotFound />;
     return (
       <KCard className="p-6">
-        <h1 className="text-lg font-bold">Couldn&apos;t open this link</h1>
+        <h1 className="text-[17px] font-medium">Couldn&apos;t open this link</h1>
         <p className="mt-1 text-sm text-muted-foreground">{preview.error.message}</p>
-        <Button variant="outline" className={cn(K_BUTTON, "mt-4")} onClick={preview.reload}>
+        <Button variant="ghost" className={cn(K_BUTTON_QUIET, "mt-4")} onClick={preview.reload}>
           Try again
         </Button>
       </KCard>
@@ -150,9 +150,9 @@ function JoinFlow({ code }: { code: string }) {
   if (autoJoining && !outcome) {
     return (
       <KCard className="p-6" role="status">
-        <GroupAvatar name={group.name} size="lg" />
-        <p className="mt-5 text-sm font-semibold text-primary">You&apos;re signed in</p>
-        <h1 className="mt-1 text-[28px] font-extrabold leading-tight tracking-tight">Joining {group.name}…</h1>
+        <GroupAvatar name={group.name} id={group.orgId} size="lg" />
+        <p className="mt-5 text-sm font-medium text-cp-accent-text">You&apos;re signed in</p>
+        <h1 className={cn(K_TITLE, "mt-1")}>Joining {group.name}…</h1>
         <p className="mt-2 text-sm text-muted-foreground">Your own kitchen comes with you.</p>
       </KCard>
     );
@@ -164,7 +164,7 @@ function JoinFlow({ code }: { code: string }) {
     return (
       <KCard className="p-6 text-center">
         <IconBubble icon={CircleCheck} className="mx-auto h-16 w-16 [&_svg]:h-8 [&_svg]:w-8" />
-        <h1 className="mt-5 text-[26px] font-extrabold leading-tight tracking-tight">You&apos;re in.</h1>
+        <h1 className={cn(K_TITLE, "mt-5")}>You&apos;re in.</h1>
         <p className="mt-1 text-base text-muted-foreground">Your own kitchen comes with you.</p>
         <Button asChild className={cn(K_BUTTON, "mt-6 h-12 w-full")}>
           <Link href={openHref}>Open {group.name}</Link>
@@ -176,11 +176,8 @@ function JoinFlow({ code }: { code: string }) {
   if (group.alreadyMember || (outcome?.kind === "joined" && outcome.alreadyMember)) {
     return (
       <KCard className="p-6 text-center">
-        <GroupAvatar name={group.name} size="lg" className="mx-auto" />
-        <h1 className="mt-5 text-2xl font-extrabold leading-tight tracking-tight">
-          You&apos;re already in {group.name}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Nothing to do here — it&apos;s in your groups.</p>
+        <GroupAvatar name={group.name} id={group.orgId} size="lg" className="mx-auto" />
+        <h1 className={cn(K_TITLE, "mt-5")}>You&apos;re already in {group.name}</h1>
         <Button asChild className={cn(K_BUTTON, "mt-6 h-12 w-full")}>
           <Link href={openHref}>Open {group.name}</Link>
         </Button>
@@ -192,9 +189,9 @@ function JoinFlow({ code }: { code: string }) {
 
   return (
     <KCard className="p-6">
-      <GroupAvatar name={group.name} size="lg" />
-      <p className="mt-5 text-sm font-semibold text-primary">You&apos;re invited to join</p>
-      <h1 className="mt-1 text-[28px] font-extrabold leading-tight tracking-tight">{group.name}</h1>
+      <GroupAvatar name={group.name} id={group.orgId} size="lg" />
+      <p className="mt-5 text-sm font-medium text-cp-accent-text">You&apos;re invited to join</p>
+      <h1 className={cn(K_TITLE, "mt-1")}>{group.name}</h1>
       <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
         <UsersRound className="h-4 w-4" aria-hidden />
         <span>
@@ -205,12 +202,12 @@ function JoinFlow({ code }: { code: string }) {
 
       {failure === "full" ? (
         <div role="alert" className="mt-5 rounded-xl bg-cp-soon-tint p-3 text-sm text-cp-soon">
-          <p className="font-bold">This group is full</p>
+          <p className="font-medium">This group is full</p>
           <p className="mt-0.5">It has as many members as it can have. Ask someone in it to make room.</p>
         </div>
       ) : failure === "too_many_groups" ? (
         <div role="alert" className="mt-5 rounded-xl bg-cp-soon-tint p-3 text-sm text-cp-soon">
-          <p className="font-bold">You&apos;re in as many groups as you can be</p>
+          <p className="font-medium">You&apos;re in as many groups as you can be</p>
           <p className="mt-0.5">Leave a group you no longer use, then open this link again.</p>
         </div>
       ) : null}
@@ -223,9 +220,6 @@ function JoinFlow({ code }: { code: string }) {
       >
         Join {group.name}
       </Button>
-      <p className="mt-3 text-center text-xs text-muted-foreground">
-        You&apos;ll join as a member, and you can leave any time.
-      </p>
     </KCard>
   );
 }
@@ -234,7 +228,7 @@ function LinkNotFound() {
   return (
     <KCard className="p-6 text-center">
       <IconBubble icon={Link2Off} tone="neutral" className="mx-auto h-14 w-14" />
-      <h1 className="mt-5 text-2xl font-extrabold leading-tight tracking-tight">This link doesn&apos;t work</h1>
+      <h1 className={cn(K_TITLE, "mt-5")}>This link doesn&apos;t work</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         It may have been mistyped, or the group made a new link. Ask someone in the group for the latest one.
       </p>

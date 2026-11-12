@@ -51,9 +51,15 @@ describe("the Money tab on spliteco-worker", () => {
     expect(data).not.toMatch(/client\.spliteco\.group\(/);
   });
 
-  it("Money has the Kitchen balance with its why, + Add a bill, and More in Spliteco last", () => {
+  // RV-17 (RvMoney): one net card, People, Groups, then More in Spliteco; a kitchen's balance and its why moved one tap away (`MoneyGroupScreen`).
+  it("Money has the net card, People, Groups and More in Spliteco last; a kitchen's balance and why are one tap away", () => {
     const money = read("components/kitchen/money-ui.tsx");
-    const order = ["<NetCard", "<KitchenMoney", "<People", "<Groups", "<MoreInSpliteco"].map((s) => money.indexOf(s));
+    const order = ["<NetCard", "<People", "<Groups", "<MoreInSpliteco"].map((s) => money.indexOf(s));
+    expect(money).toContain("<MoneyGroupScreen");
+    const group = read("components/kitchen/money-group-ui.tsx");
+    expect(group).toContain("useKitchenGroup(group.id)");
+    expect(group).toContain("balanceView(data, me, names)");
+    expect(group).toContain("whyRows(data.expenses, me, names)");
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(money).toContain("kitchenGroupsOf(");

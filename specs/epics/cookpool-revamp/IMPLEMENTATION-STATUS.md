@@ -812,3 +812,61 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - The migrations folder changes, so the `db-migrate` component (path `packages/db/src/migrations`) applies 590 to stage and then prod. The contract's `affects` gained `default/cookpool/db-migrate` for this.
 - The console is unchanged.
 - Deploy order: if 590 runs before the new worker, the old worker briefly suggests makeable-or-not recipes from the 13. That is harmless.
+
+### RV1 — Money, groups and people match the boards (RV-17)
+
+**Built** (`apps/web-console-next` only; no route, contract, SDK, worker or migration). Spec: the owner-approved boards `RvMoney`, `RvMoneyGroup`, `RvGroups`, `RvGroup`, and the revamp audit's Money, Groups, Group, People and settle sections (owner decision 6 lifted: the Money board is approved).
+
+- **The one settle path (the choice).** Every Settle up in the new frame goes to `/money/settle?group=&to=[&back=]` — spliteco-worker's `POST /v1/spliteco/groups/{org}/settlements` with `bucket: "kitchen"` (`payKitchen`, the shared `SettleUp`: UPI with `upi://pay` then "I paid", cash or bank). Chosen because it is the path the Spliteco rules are written for (spliteco design §0.11; SE3): a Cookpool payment settles Kitchen only, never more than the Kitchen plan between the two, the payer confirms it, the payee is told (`spliteco.paid_you`) and can say "not received". kitchen-worker's `POST …/kitchen/settlements` (Record → UPI · Cash · Bank) also caps at Kitchen but is a compatibility route (SE3 departure); the new frame no longer calls it from Money, a person's page, a group's page or People. `settleHref` / `safeSettleBack` (`money-page.ts`) build the address; `back` is only Money, a person's or a group's page.
+- **Money** (`money-ui.tsx`, board `RvMoney`, new frame only as before):
+  - Header: the 26 px title, a Scan a bill button on the accent tint (only where Scan a receipt runs; opens Add a bill straight on the photo step, `AddBillSheet startScan`) and **+ Add a bill** (the main button; the shared form on spliteco-worker, as SE3).
+  - **One net card**: the figure per currency, whole rupees where whole ("+₹62.50", "+₹52"), blue/orange/muted, and the **only Settle up** (tint), shown when any payment you can record is open. It opens a sheet: each payment that involves you, what you pay first — "You pay Dev ₹25 · Lunch club" with **Pay** (the settle path) or "Anu pays you ₹54" with **Remind**. `?settle=1` opens it.
+  - **People**: three, then All / Less in place. One line, "Anu · owes you ₹54" / "Dev · you owe ₹25" / "Priya · square", the fact coloured; Pay goes straight to Settle up when you owe them in one group (else the sheet), Remind shares the note. A row opens the person's balance and why.
+  - **Groups**: three (recent first), then All (`/groups`); "+₹87" / "−₹25" / "Square" from your view; a row opens that group's balance and why, `/money?group=org_…`.
+  - **More in Spliteco**: one quiet row (the icon, "More in Spliteco", "Trips, insights, live split…", Open ↗); the same one-time handoff, now without a group (`next=/`).
+  - Removed per owner decision 3: the per-kitchen chips. The Kitchen balance card and its Why moved one tap away (below).
+- **A group's balance and why** (new `money-group-ui.tsx`, board `RvMoneyGroup`): `/money?group=org_…` (static; the Money page reads the query). Back to Money, the group tile, the 26 px name, "N people"; the balance card (spliteco-worker's Kitchen-only read, so what you see is what Settle up pays against) with Settle up (accent) opening who pays whom in place; **Why**: three rows, then See all / Show less — an icon by kind (bill, dish, use, waste, payment on the tint), title, one fact ("your portion · Yesterday"), the signed amount. A viewer sees "View only" and no Settle up.
+- **A person's balance and why** (`profile-ui.tsx` `NewPerson`, same parts): Back, face, name, "In Flat 4B with you"; the balance per currency with Settle up listing each group (Pay / Remind); **Why** across shared groups, newest first, "Bill · Lunch club · Yesterday" (the group named only when you share several), undone lines struck through. Their Cooks / Recipes / Saved by and Recipes | Cooks stay below, restyled (no borders, 400/500). `/you/cooks`' chart labels are 400/500.
+- **People** (`/people`) in the new frame leads to Money: `/people` → `/money?settle=1`, `/people?group=<slug>` → `/money?group=org_…` (Home, a dish, `/settle` and the leave guard still link it). Prod renders today's page unchanged (`TodayPeople`).
+- **Group** (`group-detail-ui.tsx`, board `RvGroup`):
+  - **Latest**: one line per row (`ActivityFeed variant="line"`): the face of who logged it, "Meera cooked Egg fried rice" / "Dev used Oil" / "You paid Gas cylinder" / "Spinach went to waste" / "Anu paid you · UPI", one coloured fact from your view ("+₹825", "−₹200"; the total muted when it isn't yours; "Undone" struck through). Undo and Flag are behind the row (a tap opens them); your own use or waste still swipes to Undo. **See all** sits beside the heading (controlled `expanded`); Load more stays under the rows once expanded.
+  - **Money tab**: everyone from your view in the Kitchen plan — "+₹610" blue (they owe you), "−₹24" orange (you owe them), "Square" — three, then See all to the group's balance and why. The header pill ("+₹842", whole) opens the same.
+  - **Pantry tab**: "Expired" alone in the expired colour.
+  - **Dishes** (`dish-ui.tsx` `GroupDishesPanel`): borderless rows, 400/500, quiet buttons. Add's sticky bar is on `--cp-bottom-bar`.
+- **Groups** (`groups/page.tsx`): unchanged layout (RV-5/RV-19), now "6 people · +₹842" in whole rupees.
+- **Restyled to tokens**: group settings (17 px section titles, quiet Copy link / Share / Try again, Leave on the expired tint instead of a red outline, `cp-line` member rows; Segmented is RV-19's borderless one), the old add-bill page (quiet tint steppers, the token nav shadow, the sticky bar on `--cp-bottom-bar`), New group (the waste rule as one card of radio rows on the tint; the dialog line and the currency hint kept for screen readers only), Join with link (the "Dashes and spaces" hint screen-reader only), `/join/[code]` (26 px titles, 400/500, quiet Retry, the "You'll join as a member…" and "Nothing to do here" lines dropped, `GroupAvatar` given the group's id), `/money/settle` (quiet Back to Money; Back and Done go where it was opened). `ActivityFeed`'s card rows are capped at 500.
+
+**Departures.**
+- **"Got it" (recording that someone paid you) is not offered in the new frame.** Spliteco records only the payer's confirmation; a "pays you" row offers Remind. An owner or admin recording a payment between two others (People's group plan) is not in the new frame either. Both stay in prod's frame, and Home's "Paid" (RV-15's `inbox-ui`) still records through kitchen-worker — follow-up.
+- **Method chips are on the settle screen, not inline in the sheet.** UPI must open the UPI app and wait for "I paid", which the shared `SettleUp` does; Cash and Bank there record in one tap. No Undo toast: a spliteco payment is reversed by the payee's "not received".
+- **The settle sheet's amounts come from `/me/balances`** (kitchen-worker's per-group plan, Kitchen only); the settle screen pays spliteco-worker's plan amount. They are the same rows with the same simplify rule; if they ever differ, the screen's amount is the one paid.
+- **The group's Why is a flat list with See all**, not This week / Earlier sections (the board's).
+- **Group's "Expense" (Add) still opens the old add-bill page** (several payers, Exact, %, Shares; kitchen-worker, Kitchen) restyled, because Money's form is equal-split only. Scan stays on Money's Add a bill.
+- **Group settings stay cards with headings**, not one sheet of rows; Join link has no on/off switch (there is no such setting).
+- **Latest rows don't link** to a recipe or item (the transaction carries neither); the tap opens Undo / Flag. No long-press.
+- **Money has no "Archived" groups** (no archive), as RV-5.
+
+**Pinned copy and pins changed (each deliberate).**
+- `kitchen-revamp-money-groups.test.ts`: Groups' meta "+₹87.00"/"−₹25.00" → "+₹87"/"−₹25"; the pill "+₹842.00" → "+₹842" (and "+₹24.50" stays decimal).
+- `kitchen-money-spliteco.test.ts`: Money's order is NetCard, People, Groups, More in Spliteco (no `<KitchenMoney`); the Kitchen balance and its why are checked in `money-group-ui.tsx`.
+- Words: People's "See all"/"Show less" → "All"/"Less"; a person row "Owes you ₹54.00" → "Anu · owes you ₹54"; "Settled" → "square"/"Square"; "Kitchen money" heading and "powered by Spliteco" are gone; Spliteco's four tiles became "Trips, insights, live split…"; "Open Spliteco" → "Open".
+
+**Tests.**
+- `tests/web-console-next`: 128 suites, 2,526 tests, all passing. New `kitchen-revamp-rv17.test.ts` (39): whole rupees; the net; People's facts; Groups from your view with Square; `settleHref`/`safeSettleBack` (refuses other hosts and pages); the sheet's rows (you pay first, viewers' groups left out); direct Pay; Remind; a person's and a group's Why; a person's settle rows; Latest titles and facts; Money-tab balances; the expired tone; and the sources — no raw hex, `rgba(` or weight above 500 in the 13 restyled files, no kitchen-worker Record in Money, the balance pages or the group page, one Settle up button on Money, scan, the settle screen's back, People's redirect, the group's line feed and bottom-bar variable.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 45 pages served as files.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 49370 behind RV-19's in-memory mock (copied, plus Spliteco kitchen reads, a person and a Kitchen payment; never committed) on `cookpool-stage.localhost:49371`. The network log listed only that host and `cookpool-prod.localhost:49371`.
+- `/money` (light): "+₹62.50", Settle up, Meera/Anu with Remind and Dev with Pay, Flat 4B "+₹842", Goa trip "Square", the Spliteco row. The sheet listed "You pay Dev ₹25 · Lunch club" first with Pay to `/money/settle?…&back=%2Fmoney`, then two Reminds.
+- `/money/settle`: Dev, ₹25.00, UPI / cash / bank; cash → "Recorded ₹25.00 to Dev" (one POST to spliteco-worker's settlements).
+- `/money?group=<Flat 4B>` (dark): "+₹842" in light blue, Settle up in green, Dev ₹610 and Meera ₹232 with Remind, Why with three rows (pink −₹54) and See all.
+- `/people/<Anu>` (dark): "+₹54", Settle up, Why "Paneer tikka · Dish · Yesterday".
+- `/groups/flat-4b` (dark): one-line Latest with See all, Dishes borderless, Add above the tab bar; `?tab=money`: Dev +₹610, Meera +₹232, Anu Square.
+- `/people?group=lunch-club` landed on `/money?group=<Lunch club>`. Today's frame (`cookpool-prod.localhost`): `/people` is today's page with Record buttons.
+- Not opened: Scan a bill (the mock has no `/me/ai`), More in Spliteco's handoff.
+
+**Follow-ups.**
+- Home's "Paid" (RV-15) and the dish page's Settle up link (RV-16) still use kitchen-worker's Record or `/people?group=`; pointing them at `settleHref` makes the new frame's settle path single everywhere.
+- RV-19's `back.ts` maps `/people/:subjectId`'s parent to `/money` already; `/money?group=` returns to `/money` by its own Back.
+
+**Deploy.** Only the console changes; nothing to redeploy elsewhere.

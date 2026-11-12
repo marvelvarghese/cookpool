@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GROUP_CURRENCIES, GROUP_NAME_MAX, WASTE_RULES, groupSlug, validateGroupName } from "./groups";
-import { CLOSE_44, K_BUTTON, K_INPUT } from "./kit";
+import { CLOSE_44, K_BUTTON, K_INPUT, K_ROWS } from "./kit";
 import { useKitchenRouter } from "./transition-ui";
 
 /** Six random base-36 characters for a new group's slug. */
@@ -122,7 +122,7 @@ export function NewGroupDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       <DialogContent className={cn("max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[22px] sm:max-w-md", CLOSE_44)}>
         <DialogHeader>
           <DialogTitle className="text-xl font-medium">New group</DialogTitle>
-          <DialogDescription>For a flat, a lunch club, or anyone you cook and shop with.</DialogDescription>
+          <DialogDescription className="sr-only">For a flat, a lunch club, or anyone you cook and shop with.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-5" noValidate>
@@ -161,19 +161,20 @@ export function NewGroupDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 </option>
               ))}
             </select>
-            <p id="new-group-currency-hint" className="text-xs text-muted-foreground">
+            <p id="new-group-currency-hint" className="sr-only">
               Every amount in the group uses it. It can&apos;t be changed later.
             </p>
           </div>
 
           <fieldset className="space-y-2">
             <legend className="mb-2 text-sm font-medium">When food goes to waste</legend>
+            <div className={K_ROWS}>
             {WASTE_RULES.map((rule) => (
               <label
                 key={rule.id}
                 className={cn(
-                  "flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors",
-                  waste === rule.id ? "border-primary bg-accent" : "hover:bg-accent/60",
+                  "flex min-h-14 cursor-pointer items-center gap-3 px-3.5 py-2.5 transition-colors",
+                  waste === rule.id ? "bg-cp-accent-tint" : "hover:bg-accent/60",
                 )}
               >
                 <input
@@ -182,14 +183,15 @@ export function NewGroupDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                   value={rule.id}
                   checked={waste === rule.id}
                   onChange={() => setWaste(rule.id)}
-                  className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
+                  className="h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
                 />
                 <span>
                   <span className="block text-[15px] font-medium">{rule.label}</span>
-                  <span className="block text-xs text-muted-foreground">{rule.hint}</span>
+                  <span className="block text-[13px] font-normal text-muted-foreground">{rule.hint}</span>
                 </span>
               </label>
             ))}
+            </div>
           </fieldset>
 
           {serverError ? (

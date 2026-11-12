@@ -6,7 +6,8 @@
  * Dependency-free apart from the app's pure helpers, so it is unit-testable.
  */
 
-import type { BalancesResponse, MyGroupBalance } from "@saas/contracts/kitchen";
+import type { BalancesResponse, KitchenTxn, MyGroupBalance } from "@saas/contracts/kitchen";
+import { settlementTitle, yourPartMinor } from "./activity";
 import type { GroupRole } from "./groups";
 import { moneyLine, type MoneyLine } from "./home";
 import { memberLabel, type MemberNames } from "./members";
@@ -145,11 +146,12 @@ export function groupFaces(subjectIds: readonly string[], meId: string | null, m
   return { shown: ordered.slice(0, max), more: Math.max(0, ordered.length - max) };
 }
 
-/** The header's balance pill: "+₹842.00", "−₹24.00", "Settled". */
+/** The header's balance pill: "+₹842", "−₹24.50", "Settled". */
 export function groupPill(data: Pick<BalancesResponse, "currency" | "balances">, meId: string | null): { tone: "owed" | "owe" | "settled"; text: string } {
   const minor = meId ? (data.balances.find((b) => b.subjectId === meId)?.balanceMinor ?? 0) : 0;
   if (minor === 0) return { tone: "settled", text: "Settled" };
-  const amount = formatMinor(Math.abs(minor), data.currency);
+  // Whole rupees where whole, as RvGroup writes it (RV-17): "+₹842".
+  const amount = whole(minor, data.currency);
   return minor > 0 ? { tone: "owed", text: `+${amount}` } : { tone: "owe", text: `−${amount}` };
 }
 
@@ -165,4 +167,73 @@ export function groupAddChoices(group: { slug: string; id: string }): { id: stri
     { id: "item", label: "Pantry item", href: `/pantry/new?pantry=${encodeURIComponent(group.id)}` },
     { id: "cook", label: "Dish I cooked", href: "/cook" },
   ];
+}
+
+// ── The approved board (RV-17, RvGroup) ─────────────────────────────
+
+/** A group's balance and its why, on Money (the pill, the Money tab's See all). */
+export function groupMoneyHref(orgId: string): string {
+  return `/money?group=${encodeURIComponent(orgId)}`;
+}
+
+function firstWord(label: string): string {
+  return label.split(" ")[0] || label;
+}
+
+function whole(minor: number, currency: string): string {
+  const text = formatMinor(Math.abs(minor), currency);
+  return minor % 100 === 0 ? text.replace(/\.00$/, "") : text;
+}
+
+/**
+ * A Latest row's one line (RvGroup): who did what, first names — "Meera
+ * cooked Egg fried rice", "Dev used Oil", "You paid Gas cylinder", "Spinach
+ * went to waste", "Anu paid you · UPI".
+ */
+export function latestTitle(
+  txn: Pick<KitchenTxn, "kind" | "title" | "createdBy" | "splits" | "method">,
+  meId: string | null,
+  names?: MemberNames | null,
+): string {
+  const who = (id: string) => firstWord(memberLabel(id, meId, names));
+  switch (txn.kind) {
+    case "expense": {
+      const payer = txn.splits.find((s) => s.paidMinor > 0)?.subjectId ?? txn.createdBy;
+      return `${who(payer)} paid ${txn.title}`;
+    }
+    case "dish":
+      return `${who(txn.createdBy)} cooked ${txn.title}`;
+    case "use":
+      return `${who(txn.createdBy)} used ${txn.title}`;
+    case "waste":
+      return `${txn.title} went to waste`;
+    case "settlement":
+      return settlementTitle(txn, meId, names);
+    default:
+      return txn.title;
+  }
+}
+
+/**
+ * A Latest row's one coloured fact, from your view: what it did to your
+ * balance, "+₹92" (blue) or "−₹38" (orange); a payment, the money that moved
+ * ("Anu paid you" is +); the total, muted, when it doesn't name you.
+ */
+export function latestFact(txn: Pick<KitchenTxn, "kind" | "splits" | "totalMinor" | "currency">, meId: string | null): { text: string; tone: "owed" | "owe" | "settled" } {
+  const mine = yourPartMinor(txn, meId);
+  if (mine === null) return { text: whole(txn.totalMinor, txn.currency), tone: "settled" };
+  const shown = txn.kind === "settlement" ? -mine : mine;
+  if (shown === 0) return { text: whole(0, txn.currency), tone: "settled" };
+  return { text: `${shown > 0 ? "+" : "−"}${whole(shown, txn.currency)}`, tone: shown > 0 ? "owed" : "owe" };
+}
+
+/** The Money tab's rows from your view (spliteco-worker's Kitchen plan): "+₹610" they owe you, "−₹24" you owe them, "Square" at zero. */
+export function balanceFromYou(minor: number, currency: string): { text: string; tone: "owed" | "owe" | "settled" } {
+  if (minor === 0) return { text: "Square", tone: "settled" };
+  return { text: `${minor > 0 ? "+" : "−"}${whole(minor, currency)}`, tone: minor > 0 ? "owed" : "owe" };
+}
+
+/** A Pantry tab fact: "1 L · Tomorrow"; the expired colour only for "Expired". */
+export function pantryFactTone(chip: { tone: string } | null): "expired" | "muted" {
+  return chip?.tone === "expired" ? "expired" : "muted";
 }
