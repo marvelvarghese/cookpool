@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "./link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Camera, ChevronDown, Plus, Refrigerator, Search } from "lucide-react";
+import { Camera, Plus, Refrigerator, Search } from "lucide-react";
 import type { KitchenItem, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -19,24 +19,15 @@ import { usePantries, usePantryItems, useUsualBucket, useUsuals } from "./pantry
 import { USUAL_BUCKET_LABELS } from "@saas/contracts/kitchen-usuals";
 import { AlwaysHaveCard } from "./always-have-ui";
 import { usualFor } from "./quick-use";
-import { itemRefOf } from "./pantry";
-import {
-  addItemHref,
-  boughtHref,
-  kindSections,
-  parseOpenParam,
-  parseShow,
-  pantryRow,
-  sectionOpen,
-  showChips,
-  showParams,
-  toggleFold,
-  type PantryRow,
-  type PantryShow,
-} from "./pantry-list";
+import { itemRefOf, pantryChips } from "./pantry";
+import { addItemHref, boughtHref, pantrySections, parseOpenParam, parseShow, pantryRow, showChips, showParams, type PantryRow, type PantryShow } from "./pantry-list";
 import { TickHeader } from "./tick-row-ui";
-import { tickLoggedText } from "./tick-row";
-import { KitchenTickRow, useKitchenTicks } from "./kitchen-tick-ui";
+import { tickPickedText } from "./tick-row";
+import { KitchenLogBar, KitchenTickRow, kitchenTickAmount, pickable, useKitchenTicks, useLogPicks } from "./kitchen-tick-ui";
+import type { PickLine } from "./kitchen-picks";
+import { useCookSession } from "@/lib/cook-session-store";
+import { sessionBarShows } from "./cook-session";
+import { useMinWidth } from "./use-min-width";
 import { useAsks, useMinuteNow } from "./ask-data";
 import { askName, askStatus } from "./ask-before-use";
 import { localIsoDay } from "./item-form";
@@ -56,15 +47,19 @@ type Row = PantryRow & { item: ReachableItem };
  * canvas's PantryNew). Top to bottom: "Pantry" with + Bought; the search,
  * on phones too (`?q=` fills it, `?focus=1` focuses it);
  * the Now strip; the chips with their counts (`?filter=`, `?pantry=`); the
- * use-soon card; the sections by kind, each folding on a tap (remembered on
- * the device); Finished this week (PN-6: Bought again, like last time); and
- * Always have. + Bought opens the shopping run (PN-6).
+ * use-soon card; the sections; Finished this week (PN-6: Bought again, like
+ * last time); and Always have. + Bought opens the shopping run (PN-6).
  *
  * Since RV-10 (the canvas's RvKitchen "Tick to log") every row is a tick
  * row: the name with its last use, the usual amount in grey with its unit,
- * and a tick that logs it with Undo. "Usual now · Morning" takes the Now
- * strip's place, and Log several is gone: a tick is one already. `?open=`
+ * and a tick. "Usual now · Morning" takes the Now strip's place. `?open=`
  * still shows (and scrolls to) the row it names.
+ *
+ * Since RV-13 (the board's "Tick to pick, Log once"): a tick only picks the
+ * row, and one Log button above the tab bar logs every picked row with one
+ * Undo. The list is flat — Usual now, then one section per pantry (each
+ * group by its name, then yours as "Mine"), three rows and See all, with the
+ * picked count on the right — never folding and never by kind.
  */
 export function NewPantry() {
   const pathname = usePathname();
@@ -83,6 +78,11 @@ export function NewPantry() {
   const bucket = useUsualBucket();
   const recentSlugs = useRecentGroupSlugs();
   const ticks = useKitchenTicks();
+  const logPicks = useLogPicks(ticks, { meId, names });
+  // The cooking bar (RC-6) sits where the Log button would: the button goes above it while it shows.
+  const cookSession = useCookSession(meId);
+  const wide = useMinWidth(900);
+  const sessionUp = !wide && sessionBarShows(pathname, cookSession);
   const [folded, setFolded] = useFoldedSections();
   // Ask before use (cookpool-pantry PN-9): your asks, for the rows that must ask.
   const asks = useAsks();
@@ -137,7 +137,6 @@ export function NewPantry() {
   );
   const statuses = React.useMemo(() => new Map(rows.map((r) => [r.id, r.status] as const)), [rows]);
   const searching = query.trim() !== "";
-  const sections = kindSections(rows, { show, query });
   const chips = list ? showChips({ items: rows.map((r) => r.item), statuses, pantries: list, recentSlugs, show }) : [];
   // Use soon (RV-3, the board's strip of three): past its date first, then the soonest.
   const soon = useSoonTiles(rows, { show, query });
@@ -145,6 +144,19 @@ export function NewPantry() {
   // Usual now (RV-10): what you usually use at this part of the day.
   const usualNow = bucket ? usualNowRows(rows, usualList, { show, query }) : [];
   const byId = React.useMemo(() => new Map(rows.map((r) => [r.id, r] as const)), [rows]);
+  // One section per pantry (RV-13), in the pantry chips' order; a row Usual now lists shows only there.
+  const order = React.useMemo(() => (list ? pantryChips(list, recentSlugs).map((p) => p.key) : []), [list, recentSlugs]);
+  const sections = pantrySections(rows, { show, query, order, exclude: new Set(usualNow.map((r) => r.id)) });
+  // What the Log button logs: the picked rows, in the order they were picked.
+  const pickedRows = [...ticks.picked].flatMap((id) => {
+    const r = byId.get(id);
+    return r && pickable(r, kitchenTickAmount(r, ticks)) ? [r] : [];
+  });
+  const pickLines: PickLine[] = pickedRows.map((r) => {
+    const a = kitchenTickAmount(r, ticks)!;
+    return { id: r.id, name: r.name, number: a.number, word: a.word };
+  });
+  const pickedIn = (of: readonly Row[]) => tickPickedText(of.filter((r) => ticks.picked.has(r.id)).length);
   const finished = finishedRows(restock.data, { show, query, now });
   const groupPolicy = (orgId: string) => {
     const p = (list ?? []).find((x) => x.kind === "group" && x.orgId === orgId);
@@ -277,7 +289,7 @@ export function NewPantry() {
                 <h2 id="pantry-usual-now" className={K_SECTION}>
                   Usual now <span className="font-normal text-muted-foreground">· {USUAL_BUCKET_LABELS[bucket]}</span>
                 </h2>
-                <span className="text-[13px] font-normal text-muted-foreground">{tickLoggedText(usualNow.filter((r) => ticks.done.has(r.id)).length)}</span>
+                <span className="text-[13px] font-normal text-muted-foreground">{pickedIn(usualNow)}</span>
               </div>
               <div className={K_ROWS}>
                 <TickHeader />
@@ -313,51 +325,43 @@ export function NewPantry() {
             <NothingShown show={show} query={query} />
           ) : (
             sections.map((s) => {
-              const holdsOpen = openId !== null && s.rows.some((r) => r.id === openId);
-              const open = sectionOpen(s.kind, { folded, searching, holdsOpenRow: holdsOpen });
-              const headingId = `pantry-kind-${s.kind}`;
+              const headingId = `pantry-section-${s.key}`;
               // Three, then See all (RV-3); all of them while searching, or when the opened row is further down.
-              const shownRows = sectionRows(s.rows, { all: allIn.has(s.kind), searching, openId });
+              const shownRows = sectionRows(s.rows, { all: allIn.has(s.key), searching, openId });
               return (
-                <section key={s.kind} aria-labelledby={headingId} className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    aria-expanded={open}
-                    onClick={() => setFolded(toggleFold(folded, s.kind))}
-                    className="flex min-h-11 items-center gap-2 rounded-lg px-0.5 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <span id={headingId} className={cn(K_SECTION, "flex-1 text-left")}>
+                <section key={s.key} aria-labelledby={headingId} className="flex flex-col gap-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h2 id={headingId} className={cn(K_SECTION, "min-w-0 truncate")}>
                       {s.label} <span className="font-normal tabular-nums text-muted-foreground">· {s.count}</span>
-                    </span>
-                    <span className="text-[13px] font-normal text-muted-foreground">{tickLoggedText(s.rows.filter((r) => ticks.done.has(r.id)).length)}</span>
-                    <ChevronDown className={cn("h-[18px] w-[18px] text-muted-foreground transition-transform motion-reduce:transition-none", !open && "-rotate-90")} aria-hidden />
-                  </button>
-                  {open ? (
-                    <div className={K_ROWS}>
+                    </h2>
+                    <span className="shrink-0 text-[13px] font-normal text-muted-foreground">{pickedIn(s.rows)}</span>
+                  </div>
+                  <div className={K_ROWS}>
                     <TickHeader />
-                    <ul className="divide-y divide-cp-line">
-                      {shownRows.rows.map((r) => rowFor(r))}
-                    </ul>
+                    <ul className="divide-y divide-cp-line">{shownRows.rows.map((r) => rowFor(r))}</ul>
                     {shownRows.more ? (
                       <SeeAllButton
                         label={shownRows.label}
-                        all={allIn.has(s.kind)}
+                        all={allIn.has(s.key)}
                         onToggle={() =>
                           setAllIn((cur) => {
                             const next = new Set(cur);
-                            if (next.has(s.kind) || shownRows.label === "Show less") next.delete(s.kind);
-                            else next.add(s.kind);
+                            if (next.has(s.key) || shownRows.label === "Show less") next.delete(s.key);
+                            else next.add(s.key);
                             return next;
                           })
                         }
                       />
                     ) : null}
-                    </div>
-                  ) : null}
+                  </div>
                 </section>
               );
             })
           )}
+
+          <p className="px-2 text-center text-[13px] font-normal text-muted-foreground">
+            Tick what you used, then Log once. Type over the grey amount, or tap the unit to measure another way.
+          </p>
 
           {/* Finished this week (PN-6, design §6.1), just above Always have. */}
           {finishedSection}
@@ -367,6 +371,8 @@ export function NewPantry() {
       )}
 
       <AlwaysHaveCard />
+
+      <KitchenLogBar lines={pickLines} onLog={() => logPicks(pickedRows)} aboveSessionBar={sessionUp} />
 
     </div>
   );

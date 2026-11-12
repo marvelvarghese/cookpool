@@ -57,7 +57,7 @@ export function useLogSaid() {
   const logSeveral = useLogSeveral();
   return React.useCallback(
     (rows: readonly SaidLogRow[], ctx: { meId: string | null; names?: MemberNames | null }): Promise<void> =>
-      logSeveral(saidEntries(rows), { meId: ctx.meId, names: ctx.names ?? null, toast: saidToast }),
+      logSeveral(saidEntries(rows), { meId: ctx.meId, names: ctx.names ?? null, toast: saidToast }).then(() => undefined),
     [logSeveral],
   );
 }

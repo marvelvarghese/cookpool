@@ -2,8 +2,8 @@
  * The new Pantry (cookpool-pantry PN-5, design §1, §2.3, §4) as pure
  * view-models: what each row says — its tag, its level bar and colour, the
  * suggestion chip — the filter chips with their counts (All · Use soon N ·
- * Running low N · a pantry N), the sections by kind in the design's order
- * (Dairy, Veg, Fruit, Grains, Protein, Spices, Leftovers, Other), the use-soon
+ * Running low N · a pantry N), the sections (by pantry since RV-13: the
+ * kinds only name a typed category now), the use-soon
  * card, `?filter=`/`?pantry=`/`?q=`/`?open=`, and where Home's field and
  * `/use` lead in the new frame. In the old frame none of this is used.
  * Dependency-free (contracts, the engine and the pure kitchen modules), so it
@@ -30,6 +30,7 @@ import {
   pantryKey,
   parseItemRef,
   parsePantryParam,
+  PERSONAL_PANTRY,
   type ItemRef,
 } from "./pantry";
 import { itemLadder, type ItemLadder, type SetUsual } from "./pantry-set";
@@ -302,11 +303,15 @@ export function pantryRow(
   };
 }
 
-// ── Sections by kind (design §1.6) ────────────────────────────────
+// ── Sections by pantry (RV-13, the canvas's RvKitchen) ───────────
 
-export interface KindSection<T> {
-  kind: PantryKind;
-  /** "Dairy" (drawn in capitals). */
+/** The personal pantry's section title (the board's "Mine"). */
+export const MINE_LABEL = "Mine";
+
+export interface PantrySection<T> {
+  /** `pantryKey`: "personal" or the group's `org_…`. */
+  key: string;
+  /** "Mine", or the group's name. */
   label: string;
   count: number;
   rows: T[];
@@ -319,55 +324,56 @@ function rank(status: ItemStatus): number {
   return 2;
 }
 
+function byUrgencyThenName<T extends { item: Pick<KitchenItem, "name" | "daysToUseBy">; status: ItemStatus }>(a: T, b: T): number {
+  const ra = rank(a.status);
+  const rb = rank(b.status);
+  if (ra !== rb) return ra - rb;
+  if (ra === 0) {
+    const da = a.item.daysToUseBy ?? 0;
+    const db = b.item.daysToUseBy ?? 0;
+    if (da !== db) return da - db;
+  }
+  return a.item.name.localeCompare(b.item.name, "en", { sensitivity: "base" });
+}
+
 /**
- * The list: the items the choice and the search show, in one section per
- * kind in the design's order (empty kinds left out), each use soon first
- * (soonest, so expired, first), then running low, then by name.
+ * The Kitchen's one flat list (RV-13; "Tick to log — the rules" 7): the
+ * items the chip and the search show, one section per pantry — each group by
+ * its name, in `order` (the pantry chips' keys: groups opened last first),
+ * then yours as "Mine", as the board has them — never folding and never by
+ * kind. Each is use soon first (soonest, so expired, first), then running
+ * low, then by name. `exclude` (the rows Usual now lists) are left out, so a
+ * row shows once; empty pantries are left out.
  */
-export function kindSections<T extends { item: Pick<KitchenItem, "name" | "category" | "daysToUseBy" | "pantry">; status: ItemStatus }>(
+export function pantrySections<T extends { id: string; item: Pick<KitchenItem, "name" | "category" | "daysToUseBy" | "pantry">; status: ItemStatus }>(
   rows: readonly T[],
-  opts: { show: PantryShow; query?: string },
-): KindSection<T>[] {
+  opts: { show: PantryShow; query?: string; order?: readonly string[]; exclude?: ReadonlySet<string> },
+): PantrySection<T>[] {
   const query = opts.query ?? "";
-  const shown = rows.filter((r) => showsItem(opts.show, r.item, r.status) && matchesQuery(r.item, query));
-  const byKind = new Map<PantryKind, T[]>();
-  for (const r of shown) {
-    const k = kindOf(r.item.category);
-    const list = byKind.get(k);
-    if (list) list.push(r);
-    else byKind.set(k, [r]);
+  const byKey = new Map<string, PantrySection<T>>();
+  for (const r of rows) {
+    if (opts.exclude?.has(r.id)) continue;
+    if (!showsItem(opts.show, r.item, r.status) || !matchesQuery(r.item, query)) continue;
+    const key = pantryKey(r.item.pantry);
+    let section = byKey.get(key);
+    if (!section) {
+      section = { key, label: r.item.pantry.kind === "personal" ? MINE_LABEL : r.item.pantry.name, count: 0, rows: [] };
+      byKey.set(key, section);
+    }
+    section.rows.push(r);
   }
-  const out: KindSection<T>[] = [];
-  for (const { key, label } of PANTRY_KINDS) {
-    const list = byKind.get(key);
-    if (!list || list.length === 0) continue;
-    list.sort((a, b) => {
-      const ra = rank(a.status);
-      const rb = rank(b.status);
-      if (ra !== rb) return ra - rb;
-      if (ra === 0) {
-        const da = a.item.daysToUseBy ?? 0;
-        const db = b.item.daysToUseBy ?? 0;
-        if (da !== db) return da - db;
-      }
-      return a.item.name.localeCompare(b.item.name, "en", { sensitivity: "base" });
-    });
-    out.push({ kind: key, label, count: list.length, rows: list });
+  const order = opts.order ?? [];
+  const place = (s: PantrySection<T>) => {
+    if (s.key === PERSONAL_PANTRY) return Number.MAX_SAFE_INTEGER;
+    const i = order.indexOf(s.key);
+    return i === -1 ? order.length : i;
+  };
+  const out = [...byKey.values()];
+  for (const s of out) {
+    s.rows.sort(byUrgencyThenName);
+    s.count = s.rows.length;
   }
-  return out;
-}
-
-/** A section shows its rows unless folded on this device — never while searching, nor with the opened row in it. */
-export function sectionOpen(kind: PantryKind, ctx: { folded: ReadonlySet<string>; searching: boolean; holdsOpenRow: boolean }): boolean {
-  return ctx.searching || ctx.holdsOpenRow || !ctx.folded.has(kind);
-}
-
-/** Fold or unfold a section (what the device remembers). Never mutates `folded`. */
-export function toggleFold(folded: ReadonlySet<string>, kind: PantryKind): Set<string> {
-  const next = new Set(folded);
-  if (next.has(kind)) next.delete(kind);
-  else next.add(kind);
-  return next;
+  return out.sort((a, b) => place(a) - place(b) || a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
 }
 
 // ── The use-soon card (design §1.5) ───────────────────────────────

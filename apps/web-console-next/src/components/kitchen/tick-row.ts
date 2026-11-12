@@ -14,7 +14,9 @@
  *   item's own measures and its dimension's plain units (PN-11's
  *   `amountUnits`). Picking one converts the ghost (`pickUnit`), clears what
  *   was typed, and becomes the usual unit (`tickUnitChoice`).
- * - **The tick** logs the amount the box shows (`tickWrite`).
+ * - **The tick** logs the amount the box shows (`tickWrite`) — in the cook
+ *   session at once; in the Kitchen (RV-13) it only picks the row, and one
+ *   Log button logs every picked row (kitchen-picks.ts).
  *
  * Built on amount-picker.ts, so a tick logs exactly what PN-11's picker
  * would. Dependency-free (contract types only), so it is unit-testable.
@@ -120,6 +122,15 @@ export function tickAmount(item: PickItem, start: AmountPick | null, state: Tick
   };
 }
 
+/**
+ * Whether the unit button opens its chips (and shows its ▾): whenever the
+ * box is editable — unpicked or picked (RV-13), with one unit or several —
+ * and never once `done` (the cook session's logged line, locked on it).
+ */
+export function unitPickerOn(amount: Pick<TickAmount, "units"> | null, done: boolean): boolean {
+  return !done && !!amount && amount.units.length > 0;
+}
+
 /** The amount as `useLogUse` takes it: a count of a measure, else an amount in the base unit (PN-11's `pickWrite`). */
 export function tickWrite(item: PickItem, amount: Pick<TickAmount, "pick">): { qtyMilli: number; what: string; measure: { measure: KitchenMeasure; quantity: number } | null } {
   return pickWrite(item, amount.pick);
@@ -127,8 +138,12 @@ export function tickWrite(item: PickItem, amount: Pick<TickAmount, "pick">): { q
 
 // ── The line under the name ───────────────────────────────────────
 
-/** Muted, amber for use soon, red once expired; the money-you-owe tone for what isn't there (RV-11's "Not in your kitchen"). */
-export type TickTone = "muted" | "soon" | "expired" | "owe";
+/**
+ * Muted, amber for use soon, red once expired; the money-you-owe tone for
+ * what isn't there (RV-11's "Not in your kitchen"); the accent text once
+ * logged from the Kitchen (RV-13's "Logged 1 glass · just now").
+ */
+export type TickTone = "muted" | "soon" | "expired" | "owe" | "logged";
 
 export interface TickMeta {
   /** "1 glass · yesterday, 8:10 pm", "Expired · 100 g left", "50 g · 3 Nov · use by tomorrow". */
@@ -218,7 +233,7 @@ export function putUsualUnit(units: Readonly<Record<string, string>>, key: strin
 
 // ── The section's count ───────────────────────────────────────────
 
-/** The heading's right side: "2 logged"; empty while none is. */
-export function tickLoggedText(n: number): string {
-  return n > 0 ? `${n} logged` : "";
+/** The heading's right side: "2 ticked" (RV-13: the rows picked for the next Log); empty while none is. */
+export function tickPickedText(n: number): string {
+  return n > 0 ? `${n} ticked` : "";
 }

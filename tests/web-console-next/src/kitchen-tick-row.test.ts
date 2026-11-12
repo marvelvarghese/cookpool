@@ -7,7 +7,7 @@ import {
   parseUsualUnits,
   putUsualUnit,
   tickAmount,
-  tickLoggedText,
+  tickPickedText,
   tickMeta,
   tickStart,
   tickStartAt,
@@ -163,9 +163,9 @@ describe("the line under the name", () => {
     expect(tickMeta({ last: "2 eggs · yesterday, 8:10 am", left: "10 left", expired: false, soon: false, useBy: null }).text).toBe("2 eggs · yesterday, 8:10 am");
   });
 
-  it("counts what is logged in a section", () => {
-    expect(tickLoggedText(0)).toBe("");
-    expect(tickLoggedText(2)).toBe("2 logged");
+  it("counts what is picked in a section (RV-13: \"2 ticked\")", () => {
+    expect(tickPickedText(0)).toBe("");
+    expect(tickPickedText(2)).toBe("2 ticked");
   });
 });
 

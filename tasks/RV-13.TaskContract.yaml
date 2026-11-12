@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-13
+  title: "Kitchen: tick to pick, Log once, one flat list"
+spec:
+  goal: "Kitchen ticks pick rows and one Log button logs them all with one Undo; the unit picker works on picked rows; sections are Usual now then each pantry, never folding, as on the RvKitchen board."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-13.TaskContract.yaml
+  doneWhen:
+    - "a Kitchen tick only picks the row (green); amount and unit stay editable; ticking again unpicks; nothing is written until Log"
+    - "with rows picked, a Log N items button above the tab bar lists them; one tap logs all, one toast with Undo undoes all"
+    - "the unit button with its chevron opens the item's own measures on picked and unpicked rows"
+    - "sections are Usual now, then one per pantry (three rows, See all), with no fold chevron and no category sections"
+    - "cook session tick rows (RV-11) behave as before; prod's old frame unchanged"
+  gates: []
