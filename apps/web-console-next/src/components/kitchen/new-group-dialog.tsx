@@ -121,7 +121,7 @@ export function NewGroupDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     >
       <DialogContent className={cn("max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[22px] sm:max-w-md", CLOSE_44)}>
         <DialogHeader>
-          <DialogTitle className="text-xl font-extrabold">New group</DialogTitle>
+          <DialogTitle className="text-xl font-medium">New group</DialogTitle>
           <DialogDescription>For a flat, a lunch club, or anyone you cook and shop with.</DialogDescription>
         </DialogHeader>
 
@@ -185,7 +185,7 @@ export function NewGroupDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                   className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
                 />
                 <span>
-                  <span className="block text-[15px] font-semibold">{rule.label}</span>
+                  <span className="block text-[15px] font-medium">{rule.label}</span>
                   <span className="block text-xs text-muted-foreground">{rule.hint}</span>
                 </span>
               </label>

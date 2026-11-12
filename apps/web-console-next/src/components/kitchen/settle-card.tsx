@@ -211,19 +211,19 @@ export function PaymentRow({
           {involvesMe ? (
             <Link
               href={`/people/${encodeURIComponent(counterpart)}`}
-              className="block truncate rounded text-[15px] font-bold leading-snug underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="block truncate rounded text-[15px] font-medium leading-snug underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {sentence}
             </Link>
           ) : (
-            <p className="truncate text-[15px] font-bold leading-snug">{sentence}</p>
+            <p className="truncate text-[15px] font-medium leading-snug">{sentence}</p>
           )}
           <p className="truncate text-sm text-muted-foreground">
             <Money
               minor={payment.amountMinor}
               currency={currency}
               className={cn(
-                "font-bold",
+                "font-medium",
                 payment.fromSubjectId === meId ? "text-cp-owe" : payment.toSubjectId === meId ? "text-cp-owed" : "text-foreground",
               )}
             />
@@ -231,7 +231,7 @@ export function PaymentRow({
           </p>
         </div>
         {recorded ? (
-          <span role="status" className="shrink-0 px-2 text-sm font-semibold text-muted-foreground">
+          <span role="status" className="shrink-0 px-2 text-sm font-medium text-muted-foreground">
             Recorded
           </span>
         ) : canRecord ? (
@@ -250,7 +250,7 @@ export function PaymentRow({
             </Button>
           )
         ) : why ? (
-          <span className="shrink-0 text-right text-[13px] font-semibold text-muted-foreground">{why}</span>
+          <span className="shrink-0 text-right text-[13px] font-medium text-muted-foreground">{why}</span>
         ) : null}
       </div>
       {choosing && !recorded ? (

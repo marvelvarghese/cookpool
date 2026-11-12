@@ -98,7 +98,7 @@ function SettingsView({ group, onLeft }: { group: PublicOrganization; onLeft: ()
     <div className="space-y-4">
       <header className="flex min-h-11 items-center gap-1">
         <BackButton />
-        <h1 className="min-w-0 flex-1 truncate text-[26px] font-extrabold leading-tight tracking-tight">Settings</h1>
+        <h1 className="min-w-0 flex-1 truncate text-[26px] font-medium leading-tight tracking-tight">Settings</h1>
       </header>
 
       <div className="grid gap-4 min-[900px]:grid-cols-2 min-[900px]:items-start">
@@ -133,7 +133,7 @@ function SettingsView({ group, onLeft }: { group: PublicOrganization; onLeft: ()
   );
 }
 
-const CARD_TITLE = "text-base font-extrabold tracking-tight";
+const CARD_TITLE = "text-base font-medium tracking-tight";
 
 // ── Invite ─────────────────────────────────────────────────────────
 
@@ -182,7 +182,7 @@ function InviteCard({ group }: { group: PublicOrganization }) {
         <>
           {/* The code, never the wrapping link: the buttons carry the link. */}
           <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="whitespace-nowrap font-mono text-[22px] font-bold tracking-wider">
+            <p className="whitespace-nowrap font-mono text-[22px] font-medium tracking-wider">
               <span className="sr-only">Join code </span>
               {code.data ? formatJoinCode(code.data) : ""}
             </p>
@@ -192,7 +192,7 @@ function InviteCard({ group }: { group: PublicOrganization }) {
             </Button>
           </div>
           <div className={cn("mt-2 grid gap-2", canShare && "grid-cols-2")}>
-            <CopyButton value={link} label="Copy link" copiedLabel="Copied" className="h-11 w-full rounded-xl px-4 text-[15px] font-semibold" />
+            <CopyButton value={link} label="Copy link" copiedLabel="Copied" className="h-11 w-full rounded-xl px-4 text-[15px] font-medium" />
             {canShare ? (
               <Button className={cn(K_BUTTON, "w-full")} onClick={share}>
                 <Share2 aria-hidden />
@@ -386,7 +386,7 @@ function MembersCard({
     <KCard className="scroll-mt-6 p-4" id="group-members">
       <h2 className={CARD_TITLE}>
         People
-        {members ? <span className="font-semibold text-muted-foreground"> · {members.length}</span> : null}
+        {members ? <span className="font-medium text-muted-foreground"> · {members.length}</span> : null}
       </h2>
       {loading ? (
         <div aria-hidden>
@@ -412,7 +412,7 @@ function MembersCard({
             const who = (
               <>
                 <Face subjectId={m.subjectId} meId={myId} names={names} className="h-9 w-9 text-xs" />
-                <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{label}</span>
+                <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{label}</span>
               </>
             );
             return (
@@ -427,7 +427,7 @@ function MembersCard({
                     {who}
                   </Link>
                 )}
-                {words ? <span className="shrink-0 text-[13px] font-semibold text-muted-foreground">{words}</span> : null}
+                {words ? <span className="shrink-0 text-[13px] font-medium text-muted-foreground">{words}</span> : null}
                 {canPromote ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -601,12 +601,12 @@ function LeaveCard({
   return (
     <div className="space-y-2">
       {lastOwner ? (
-        <div role="alert" className="rounded-xl bg-cp-soon-tint p-3 text-sm font-semibold text-cp-soon">
+        <div role="alert" className="rounded-xl bg-cp-soon-tint p-3 text-sm font-medium text-cp-soon">
           <p>You&apos;re the last owner. Make someone else an owner first.</p>
           {owner ? (
             <a
               href="#group-members"
-              className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-lg font-bold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-lg font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               People
               <ChevronRight className="h-4 w-4" aria-hidden />
@@ -616,10 +616,10 @@ function LeaveCard({
       ) : null}
       {unsettled ? (
         <div role="alert" className="rounded-xl bg-cp-soon-tint p-3 text-sm text-cp-soon">
-          <p className="font-bold">{unsettled.title}</p>
+          <p className="font-medium">{unsettled.title}</p>
           <Link
             href={unsettled.settleHref}
-            className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-lg font-bold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-lg font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Settle up
             <ChevronRight className="h-4 w-4" aria-hidden />
@@ -641,8 +641,8 @@ function LeaveCard({
         description={
           owing ? (
             <>
-              <span className="block font-semibold text-foreground">{owing.title}.</span>
-              <Link href={owing.settleHref} className="font-semibold text-primary underline underline-offset-2">
+              <span className="block font-medium text-foreground">{owing.title}.</span>
+              <Link href={owing.settleHref} className="font-medium text-primary underline underline-offset-2">
                 Settle up first
               </Link>
             </>
@@ -662,7 +662,7 @@ function LeaveCard({
 function NotInGroup() {
   return (
     <KCard className="flex flex-col items-center px-6 py-10 text-center">
-      <h1 className="text-lg font-bold tracking-tight">You&apos;re not in this group</h1>
+      <h1 className="text-lg font-medium tracking-tight">You&apos;re not in this group</h1>
       <Button asChild className={cn(K_BUTTON, "mt-4")}>
         <Link href="/groups">Your groups</Link>
       </Button>

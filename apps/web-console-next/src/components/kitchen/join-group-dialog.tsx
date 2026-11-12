@@ -45,7 +45,7 @@ export function JoinGroupDialog({ open, onOpenChange }: { open: boolean; onOpenC
     >
       <DialogContent className={cn("rounded-[22px] sm:max-w-md", CLOSE_44)}>
         <DialogHeader>
-          <DialogTitle className="text-xl font-extrabold">Join a group</DialogTitle>
+          <DialogTitle className="text-xl font-medium">Join a group</DialogTitle>
           <DialogDescription>Paste the link someone sent you, or type its code.</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>

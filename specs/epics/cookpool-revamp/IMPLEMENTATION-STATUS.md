@@ -85,3 +85,58 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - The Pantry rows card is borderless with `line` dividers; `KCard` has a shadow in light and none in dark.
 - In today's frame (`cookpool-prod.localhost`) with a dark device, the page stays light and keeps its old bar with + Add.
 - The resource log listed only the local host; no request went to workers.dev or any cookpool host.
+
+### RV1 — Money, Groups and Group (RV-5)
+
+**Built** (`apps/web-console-next`, console only; no route, contract or migration). The reads, the numbers and every write are today's: only layout, words and look changed. Money's fetching and maths are untouched (SE3 will rebuild Money on its own worker).
+
+- **Money** (`components/kitchen/money-ui.tsx`, board `RvMoney`; new frame only, as before):
+  - The big net figure, one per currency (`moneyNets`): "You get back" / "You owe" / "All settled", the amount signed (`+₹817.00`) and coloured by direction (`cp-owed`, `cp-owe`, muted), 48 px Medium.
+  - One main button under it, **Add expense**: today's Bill flow (which group, straight there with one, then Add a bill).
+  - **People**: three rows, then See all / Show less in place. Each row is one line ("Owes you ₹54.00", "You owe ₹25.00", "Settled"; " · " between currencies) and one quiet button: **Pay** (the person's page, where Settle up is) when you owe them anything, **Remind** when they owe you, none when settled.
+  - **Groups**: each row has the tile, the name and your signed balance ("+₹842.00", "−₹25.00", "Settled"), with **All** opening the Groups page.
+  - Gone from Money: the Settle up / Bill pair, the People | Groups switch (`?list=` is now ignored), and New group / Join under Groups (they're on the Groups page and in the no-groups state).
+- **Groups** (`app/(kitchen)/groups/page.tsx`, board `RvGroups`): New group and Join with link are two quiet buttons at the top (the round + and its sheet are gone), then the search card, then rows reading "6 people · +₹842.00" with the amount coloured ("settled" at zero). `?new=1` / `?join=1` still open the dialogs.
+- **Group** (new `components/kitchen/group-detail-ui.tsx`, board `RvGroup`; the page renders it when `newFrame()`, and today's `GroupView` otherwise):
+  - The header has Back, the name (24 px) and a gear to Settings. Under it, the avatar stack (you first, four faces, then "+N", one `role="img"` with the names) and your balance as a pill ("+₹842.00" on the money-back tint, "−…" on the owe tint, "Settled" muted). The pill opens Settle up for the group when money is open.
+  - **Activity · Pantry · Money** is a tab list, kept in `?tab=`:
+    - **Activity**: Latest, today's `ActivityFeed` with three rows and its See all, then Dishes (three).
+    - **Pantry**: Use soon, the group pantry's first three items soonest first (today's `usePantryItems`), each "1 L · Tomorrow". See all opens Pantry on the group.
+    - **Money**: Balances, everyone else with money open, three rows, signed ("−₹610.00"). See all opens Settle up on the group.
+  - One main button, **Add**, sticky above the floating tab bar, opens "Add to {group}": Expense (Add a bill), Pantry item (`/pantry/new?pantry=org_…`) or Dish I cooked (`/cook`). A viewer has no Add.
+- **Pure helpers** (unit-tested):
+  - `money-page.ts`: `signedMoney`, `moneyNets`, `personLine`, `personTone`, `personAction`, `remindText`, `groupFact`, `groupMeta`, `MONEY_PEOPLE_ROWS`; `MoneyGroupRow` gains `fact`.
+  - `group-page.ts`: `GROUP_TABS`, `groupTabFrom`, `groupTabHref`, `GROUP_TAB_ROWS`, `groupFaces`, `groupPill`, `balanceFact`, `groupAddChoices`.
+- **Weights:** `font-semibold`/`bold`/`extrabold` became `font-medium` in the group page, its settings and expense pages, `settle-card`, `new-group-dialog` and `join-group-dialog`. That's no visible change, since RV-2's cap already rendered them at 500. None of these files has raw hex.
+
+**Departures.**
+- **Remind** has no server behind it in the kitchen, since reminders are spliteco's (SE2), and this task doesn't touch it. It opens the phone's share sheet with "Hi Anu, a reminder from Cookpool: you owe me ₹54.00." Where there's no share sheet, it copies that text and shows "Reminder copied". Nothing is sent by the app and the ledger doesn't change.
+- **Pay** opens the person's page (Settle up there), not a payment sheet in the row.
+- **Money's See all** expands in place, as the board does. People (`/people`) stays reachable from a person's page and a group's Settle up.
+- **Groups' search** is always shown in the new frame, as the board does; today's frame keeps "past 8 groups". The board's placeholder "Search groups or people" is "Search groups", because the list has no member names to search. "Archived · 2" isn't built: groups have no archive.
+- **Group's Pantry tab** heads its three items "Use soon", as the board does, even when none is near its date. They're the pantry's soonest-first items.
+- **Activity's See all** is the feed's own button under the rows (in `activity-feed.tsx`, left untouched), not in the heading.
+- **Dishes** stay under Activity, so no content is lost. The board's group settings sheet stays today's Settings page behind the gear.
+- **Today's frame:** Groups takes the new layout there too, without Back and with the search past 8. The group page keeps today's view. Money remains new-frame only.
+
+**Pinned copy changed:** none. No existing test pin needed changing. The words that changed live in the views and are pinned by the new test:
+- Money: "Settle up" + "Bill" became one "Add expense".
+- Money: "Join with a link" became "Join with link".
+- Money: "settled" became "All settled", and "you get back ₹40.00" in a row became "Owes you ₹40.00".
+- Groups: "Join with a code" (in the + sheet) became "Join with link".
+- Group: "Add a bill" became "Add".
+- Group: "Settings" (aria-label) became "Group settings".
+- Group: "Activity" (heading) became "Latest".
+
+**Tests.**
+- `tests/web-console-next`: 115 suites, 2,272 tests, all passing. The new file is `src/kitchen-revamp-money-groups.test.ts` (22 tests). It covers the net figure and signs, the people rows' line, colour and one button, Remind's text, the group facts and "N people · ±₹" meta, the tabs in the address, the face stack, the pill, signed balances and the Add choices. It also checks that the four views have no raw hex and no weight above 500, that Money has one main button and no switch, and that Groups has no round +.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 43 pages served as files, with `/money` and `/groups` `○` static and `/groups/[orgSlug]` `●` (the `_` shell).
+
+**Browser check** (390 × 844, light and dark). The setup was `next dev` behind an in-memory API mock that was never committed, on `cookpool-stage.localhost:4961`; the token was a dummy in localStorage.
+- Money: the net figure in blue/light blue, three people with Remind/Pay, then Show less with all four, and the group rows signed.
+- Groups: the quiet buttons, the search and "6 people · +₹842.00".
+- Group: the stack, the pill and all three tabs (`?tab=` updates), and the Add sheet.
+- Dark: Gold main buttons, tint pills and a pink owe.
+- Today's frame (`cookpool-prod.localhost`): the group page is today's, and Groups has its new rows.
+- The resource log listed only the local host.
