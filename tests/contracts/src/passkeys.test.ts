@@ -6,6 +6,7 @@ import {
   PASSKEY_ID_PREFIX,
   PASSKEY_ID_RE,
   PASSKEY_MAX_PER_USER,
+  PASSKEY_REGISTER_STEPS,
   type LoginCompleteResponse,
   type Passkey,
   type PasskeyLoginVerifyResponse,
@@ -38,6 +39,19 @@ describe("contracts: passkeys (cookpool-passkeys PK-2)", () => {
     const codes = Object.values(ERROR_CODES) as string[];
     for (const reason of Object.values(PASSKEY_ERROR_REASONS)) expect(codes).not.toContain(reason);
     expect(codes).toHaveLength(10);
+  });
+
+  it("names the steps a registration is refused at (PK-6), none of them an error code", () => {
+    expect(Object.values(PASSKEY_REGISTER_STEPS)).toEqual([
+      "invalid_challenge",
+      "not_verified",
+      "not_user_verified",
+      "store_failed",
+      "duplicate",
+      "too_many",
+    ]);
+    const codes = Object.values(ERROR_CODES) as string[];
+    for (const step of Object.values(PASSKEY_REGISTER_STEPS)) expect(codes).not.toContain(step);
   });
 
   it("answers a passkey sign-in with the login/complete session body", () => {

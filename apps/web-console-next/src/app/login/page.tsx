@@ -80,8 +80,8 @@ import {
 import { WelcomeHero } from "@/components/kitchen/sign-in-screens-ui";
 import { CodeStep, StartStep } from "@/components/kitchen/sign-in-steps-ui";
 import { authenticate, markDeviceHasPasskey, markOfferDue, shouldOfferPasskey } from "@/lib/passkey-device";
-import { passkeyHere, passkeySignInLabel, signInWithPasskey } from "@/components/kitchen/passkeys";
-import { PasskeyOfferScreen, usePasskeysHere } from "@/components/kitchen/passkey-ui";
+import { PASSKEY_TAP_AGAIN_NOTICE, passkeyHere, passkeySignInLabel, signInWithPasskey } from "@/components/kitchen/passkeys";
+import { PasskeyOfferScreen, usePasskeysHere, usePrefetchedOptions } from "@/components/kitchen/passkey-ui";
 
 /**
  * Sign-in (Cookpool SI-5, design §5): one page for Cookpool and the admin
@@ -296,6 +296,13 @@ function SignInPage({ params }: { params: LoginParams }) {
   const [passkeyNotice, setPasskeyNotice] = React.useState<string | null>(null);
   // Turn on Face ID, full screen, before landing: the first name it greets.
   const [offer, setOffer] = React.useState<{ firstName: string | null } | null>(null);
+  // PK-6: login options are fetched while the Sign in tab shows, so a tap on
+  // Sign in with a passkey (or the remembered card's Face ID) opens the sheet
+  // at once; iPhone Safari refuses a sheet opened after an await.
+  const loginOptions = usePrefetchedOptions(
+    () => wrap(() => clientRef.current.auth.passkeyLoginOptions()),
+    passkeysRun && state.mode === "in" && state.step === "start" && offer === null,
+  );
 
   /**
    * Go on to `next`, by way of Turn on Face ID when a code or Google sign-in
@@ -450,24 +457,30 @@ function SignInPage({ params }: { params: LoginParams }) {
     }
   };
 
-  /** Sign in with a passkey (PK-4): options, the browser's sheet, verify; then as a code sign-in finishes. */
-  const startPasskey = async () => {
+  /**
+   * Sign in with a passkey (PK-4): the browser's sheet with the options
+   * fetched ahead, verify; then as a code sign-in finishes. Called straight
+   * from the tap, with no await before the sheet opens (PK-6).
+   */
+  const startPasskey = () => {
     if (passkeyBusy || state.busy !== null || leaving) return;
     setPasskeyNotice(null);
     setPasskeyBusy(true);
-    const out = await signInWithPasskey({
-      loginOptions: () => wrap(() => clientRef.current.auth.passkeyLoginOptions()),
+    void signInWithPasskey({
+      options: loginOptions,
       authenticate,
       loginVerify: (response) => wrap(() => clientRef.current.auth.passkeyLoginVerify({ response })),
+    }).then(async (out) => {
+      setPasskeyBusy(false);
+      if (out.kind === "signed_in") {
+        markDeviceHasPasskey();
+        await signedIn(out.session.token, out.session.user, "passkey");
+        return;
+      }
+      // A closed sheet leaves the screen as it was; options that were not ready ask for another tap.
+      if (out.kind === "failed") setPasskeyNotice(out.notice);
+      else if (out.kind === "retry") setPasskeyNotice(PASSKEY_TAP_AGAIN_NOTICE);
     });
-    setPasskeyBusy(false);
-    if (out.kind === "signed_in") {
-      markDeviceHasPasskey();
-      await signedIn(out.session.token, out.session.user, "passkey");
-      return;
-    }
-    // A closed sheet leaves the screen as it was.
-    if (out.kind === "failed") setPasskeyNotice(out.notice);
   };
 
   const startGoogle = () => {
@@ -486,7 +499,7 @@ function SignInPage({ params }: { params: LoginParams }) {
     if (!remembered || state.busy !== null || leaving || passkeyBusy) return;
     const how = continueMethod(remembered, withGoogle, passkeysRun);
     if (how === "passkey") {
-      void startPasskey();
+      startPasskey();
       return;
     }
     if (how === "google") {
@@ -602,7 +615,7 @@ function SignInPage({ params }: { params: LoginParams }) {
                   onContinue={continueAsRemembered}
                   onForget={forgetRemembered}
                   continuing={state.busy === "send" || leaving || passkeyBusy}
-                  passkey={passkeysRun ? { busy: passkeyBusy, onClick: () => void startPasskey() } : null}
+                  passkey={passkeysRun ? { busy: passkeyBusy, onClick: startPasskey } : null}
                   withGoogle={withGoogle}
                   googleBusy={leaving}
                   onGoogle={startGoogle}

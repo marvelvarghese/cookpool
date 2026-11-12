@@ -132,8 +132,20 @@ export const PASSKEY_SIGN_IN_HELPER = "No password. A passkey uses Face ID or yo
 
 export const PASSKEY_FAILED_NOTICE = "That passkey didn't work. Try again, or use Google or an email code.";
 export const PASSKEY_UNREACHABLE_NOTICE = "Couldn't sign in with a passkey just now. Try again, or use Google or an email code.";
-export const PASSKEY_LIMIT_NOTICE = `You have ${PASSKEY_MAX_PER_USER} passkeys, the most there can be. Remove one to add another.`;
-export const PASSKEY_ADD_FAILED_NOTICE = "That passkey wasn't saved. Try again.";
+/** A refused passkey sign-in (401) also says this (PK-6): passkeys saved before the fix were never stored. */
+export const PASSKEY_READD_HINT = "If you turned on Face ID before today, open Sign-in and security after signing in and add it again.";
+export const PASSKEY_REFUSED_NOTICE = `${PASSKEY_FAILED_NOTICE} ${PASSKEY_READD_HINT}`;
+/** The options were not ready at the tap (PK-6): they have been fetched now, so the next tap opens the sheet. */
+export const PASSKEY_TAP_AGAIN_NOTICE = "That took a moment. Tap again to carry on.";
+export const PASSKEY_LIMIT_NOTICE = `You have ${PASSKEY_MAX_PER_USER} passkeys. Remove one under Sign-in and security first.`;
+export const PASSKEY_ADD_FAILED_NOTICE = "Couldn't save the passkey. Try again, or carry on with Google or an email code.";
+
+/** InvalidStateError on register: this device already holds one for this account. */
+export function passkeyAlreadyNotice(device: PasskeyDevice): string {
+  if (device === "iphone" || device === "android") return "This phone already has a Cookpool passkey.";
+  if (device === "ipad") return "This iPad already has a Cookpool passkey.";
+  return "This device already has a Cookpool passkey.";
+}
 export const PASSKEY_REMOVE_FAILED_NOTICE = "Couldn't remove that passkey. It still works; try again.";
 export const PASSKEY_REMOVED = "Passkey removed. Also delete it from your phone's passwords.";
 
@@ -367,8 +379,97 @@ export function isAlreadyRegistered(error: unknown): boolean {
   return false;
 }
 
+
+/**
+ * The browser's name for what went wrong (`NotAllowedError`,
+ * `InvalidStateError`, `SecurityError`, …), looking through
+ * SimpleWebAuthn's wrapper to the error the browser threw.
+ */
+export function ceremonyErrorName(error: unknown): string {
+  let e: unknown = error;
+  for (let i = 0; i < 3 && e && typeof e === "object"; i += 1) {
+    const rec = e as { name?: unknown; cause?: unknown };
+    if (typeof rec.name === "string" && rec.name !== "Error" && rec.name !== "WebAuthnError") return rec.name;
+    e = rec.cause;
+  }
+  return "Error";
+}
+
+/** What the server said, small enough to read out: the step (register), else the reason or code, and the status. */
+export function serverFailureDetail(r: { status: number; error: { code: string; reason?: string | undefined; details?: Record<string, unknown> | undefined } }): string {
+  const step = r.error.details?.["step"];
+  const what = typeof step === "string" ? step : (r.error.reason ?? r.error.code);
+  return r.status > 0 ? `${what} · ${r.status}` : what;
+}
+
+// ── Options before the tap (PK-6) ─────────────────────────────────
+//
+// iPhone Safari opens the passkey sheet only from the tap itself: a
+// `navigator.credentials.create/get` after an `await` is refused with
+// NotAllowedError. So the ceremony options are fetched when the screen
+// shows, kept while fresh, and the tap opens the sheet with no `await`
+// before it.
+
+/** Options fetched ahead are used for this long; the challenge itself lives PASSKEY_CHALLENGE_TTL_SECONDS (5 min). */
+export const PASSKEY_OPTIONS_FRESH_MS = 4 * 60 * 1000;
+
+type OptionsFailure = Extract<ApiResult<unknown>, { ok: false }>;
+
+export interface OptionsPrefetch<T> {
+  /** Fetch options unless fresh ones are held or a fetch is under way. Answers this fetch's failure, or null. */
+  refresh: () => Promise<OptionsFailure | null>;
+  /** Synchronous: the held options when fresh, taken (a challenge is good once); null otherwise. */
+  take: () => T | null;
+  /** When the held options stop being fresh (ms), or null when none are held. */
+  staleAt: () => number | null;
+}
+
+export function createOptionsPrefetch<T>(
+  fetchOptions: () => Promise<ApiResult<{ options: T }>>,
+  now: () => number = Date.now,
+): OptionsPrefetch<T> {
+  let held: { options: T; at: number } | null = null;
+  let inflight: Promise<OptionsFailure | null> | null = null;
+  const fresh = () => held !== null && now() - held.at < PASSKEY_OPTIONS_FRESH_MS;
+  return {
+    refresh: () => {
+      if (fresh()) return Promise.resolve(null);
+      if (inflight) return inflight;
+      const asked = now();
+      inflight = fetchOptions()
+        .then((r) => {
+          if (!r.ok) return r;
+          held = { options: r.data.options, at: asked };
+          return null;
+        })
+        .catch(() => ({ ok: false as const, status: 0, error: { code: "network_error" } }) as OptionsFailure)
+        .finally(() => {
+          inflight = null;
+        });
+      return inflight;
+    },
+    take: () => {
+      if (!fresh()) {
+        held = null;
+        return null;
+      }
+      const out = held!.options;
+      held = null;
+      return out;
+    },
+    staleAt: () => (held ? held.at + PASSKEY_OPTIONS_FRESH_MS : null),
+  };
+}
+
+// ── The ceremonies ────────────────────────────────────────────────
+//
+// Both start the browser's sheet synchronously, in the caller's tap, with
+// options from the prefetch. If none are ready they fetch them and answer
+// `retry` (tap again) instead of opening the sheet after an await. After
+// each attempt the prefetch is refilled for the next.
+
 export interface PasskeySignInDeps {
-  loginOptions: () => Promise<ApiResult<{ options: PasskeyRequestOptionsJSON }>>;
+  options: Pick<OptionsPrefetch<PasskeyRequestOptionsJSON>, "take" | "refresh">;
   /** The browser's sheet (`startAuthentication`). */
   authenticate: (options: PasskeyRequestOptionsJSON) => Promise<PasskeyAuthenticationResponseJSON>;
   loginVerify: (response: PasskeyAuthenticationResponseJSON) => Promise<ApiResult<LoginCompleteResponse>>;
@@ -377,20 +478,33 @@ export interface PasskeySignInDeps {
 export type PasskeySignInOutcome =
   | { kind: "signed_in"; session: LoginCompleteResponse }
   | { kind: "cancelled" }
+  /** The options were not ready: fetched now; the next tap opens the sheet. */
+  | { kind: "retry" }
   | { kind: "failed"; notice: string };
 
 /**
- * Sign in with a passkey: login options, the browser's sheet, login verify.
- * A cancelled sheet is `cancelled` (the screen stays as it was); a refused
- * passkey reads PASSKEY_FAILED_NOTICE; anything else (the network, a limit)
- * PASSKEY_UNREACHABLE_NOTICE.
+ * Sign in with a passkey: the browser's sheet (opened before this returns),
+ * then login verify. A cancelled sheet is `cancelled`; a refused passkey
+ * (401) reads PASSKEY_REFUSED_NOTICE, nothing about why; a browser error
+ * PASSKEY_FAILED_NOTICE; the network or a limit PASSKEY_UNREACHABLE_NOTICE.
  */
-export async function signInWithPasskey(deps: PasskeySignInDeps): Promise<PasskeySignInOutcome> {
-  const opts = await deps.loginOptions();
-  if (!opts.ok) return { kind: "failed", notice: PASSKEY_UNREACHABLE_NOTICE };
+export function signInWithPasskey(deps: PasskeySignInDeps): Promise<PasskeySignInOutcome> {
+  const options = deps.options.take();
+  if (!options) {
+    return deps.options.refresh().then((failed) => (failed ? { kind: "failed", notice: PASSKEY_UNREACHABLE_NOTICE } : { kind: "retry" }));
+  }
+  const sheet = deps.authenticate(options);
+  return finishSignIn(sheet, deps).then((out) => {
+    // Signed in: this page is leaving, so no new challenge is asked for.
+    if (out.kind !== "signed_in") void deps.options.refresh();
+    return out;
+  });
+}
+
+async function finishSignIn(sheet: Promise<PasskeyAuthenticationResponseJSON>, deps: PasskeySignInDeps): Promise<PasskeySignInOutcome> {
   let response: PasskeyAuthenticationResponseJSON;
   try {
-    response = await deps.authenticate(opts.data.options);
+    response = await sheet;
   } catch (error) {
     if (isCeremonyCancel(error)) return { kind: "cancelled" };
     return { kind: "failed", notice: PASSKEY_FAILED_NOTICE };
@@ -398,11 +512,11 @@ export async function signInWithPasskey(deps: PasskeySignInDeps): Promise<Passke
   const verified = await deps.loginVerify(response);
   if (verified.ok) return { kind: "signed_in", session: verified.data };
   const refused = verified.status === 401 || verified.error.reason === PASSKEY_ERROR_REASONS.PASSKEY_FAILED;
-  return { kind: "failed", notice: refused ? PASSKEY_FAILED_NOTICE : PASSKEY_UNREACHABLE_NOTICE };
+  return { kind: "failed", notice: refused ? PASSKEY_REFUSED_NOTICE : PASSKEY_UNREACHABLE_NOTICE };
 }
 
 export interface AddPasskeyDeps {
-  registerOptions: () => Promise<ApiResult<{ options: PasskeyCreationOptionsJSON }>>;
+  options: Pick<OptionsPrefetch<PasskeyCreationOptionsJSON>, "take" | "refresh">;
   /** The browser's sheet (`startRegistration`). */
   register: (options: PasskeyCreationOptionsJSON) => Promise<PasskeyRegistrationResponseJSON>;
   registerVerify: (input: { response: PasskeyRegistrationResponseJSON; deviceName?: string }) => Promise<
@@ -418,25 +532,37 @@ export type AddPasskeyOutcome =
   | { kind: "already" }
   /** At PASSKEY_MAX_PER_USER. */
   | { kind: "limit" }
-  | { kind: "failed" };
+  /** The options were not ready: fetched now; the next tap opens the sheet. */
+  | { kind: "retry" }
+  /** `detail`: the browser's error name, or the server's step and status, shown small for the owner to read out. */
+  | { kind: "failed"; detail: string };
 
 function isLimit(r: { ok: false; status: number; error: { reason?: string | undefined } }): boolean {
   return r.error.reason === PASSKEY_ERROR_REASONS.TOO_MANY_PASSKEYS;
 }
 
-/** Add a passkey on this device: register options, the browser's sheet, register verify with a device name. */
-export async function addPasskey(deps: AddPasskeyDeps): Promise<AddPasskeyOutcome> {
-  const opts = await deps.registerOptions();
-  if (!opts.ok) return isLimit(opts) ? { kind: "limit" } : { kind: "failed" };
+function optionsRefused(r: OptionsFailure): AddPasskeyOutcome {
+  return isLimit(r) ? { kind: "limit" } : { kind: "failed", detail: serverFailureDetail(r) };
+}
+
+/** Add a passkey on this device: the browser's sheet (opened before this returns), then register verify with a device name. */
+export function addPasskey(deps: AddPasskeyDeps): Promise<AddPasskeyOutcome> {
+  const options = deps.options.take();
+  if (!options) return deps.options.refresh().then((failed) => (failed ? optionsRefused(failed) : { kind: "retry" }));
+  const sheet = deps.register(options);
+  return finishAdd(sheet, deps).finally(() => void deps.options.refresh());
+}
+
+async function finishAdd(sheet: Promise<PasskeyRegistrationResponseJSON>, deps: AddPasskeyDeps): Promise<AddPasskeyOutcome> {
   let response: PasskeyRegistrationResponseJSON;
   try {
-    response = await deps.register(opts.data.options);
+    response = await sheet;
   } catch (error) {
     if (isAlreadyRegistered(error)) return { kind: "already" };
     if (isCeremonyCancel(error)) return { kind: "cancelled" };
-    return { kind: "failed" };
+    return { kind: "failed", detail: ceremonyErrorName(error) };
   }
   const verified = await deps.registerVerify(deps.deviceName ? { response, deviceName: deps.deviceName } : { response });
   if (verified.ok) return { kind: "added", passkey: verified.data.passkey };
-  return isLimit(verified) ? { kind: "limit" } : { kind: "failed" };
+  return isLimit(verified) ? { kind: "limit" } : { kind: "failed", detail: serverFailureDetail(verified) };
 }

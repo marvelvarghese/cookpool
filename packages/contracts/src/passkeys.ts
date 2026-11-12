@@ -23,7 +23,10 @@
 //     /v1/auth/ route before it gets here (reason `scope`).
 //   - 409 `conflict`, reason `too_many_passkeys`: register at PASSKEY_MAX_PER_USER.
 //   - 422 `precondition_failed`, reason `passkey_failed`: a registration that
-//     did not verify (challenge, origin, RP ID, user verification).
+//     did not verify (challenge, origin, RP ID, user verification), with
+//     `details.step` naming the step that refused it (PASSKEY_REGISTER_STEPS,
+//     PK-6). Registration takes a session, so saying why is safe; sign-in
+//     never says.
 //   - 401 `unauthenticated`, reason `passkey_failed`: any sign-in that did not
 //     verify, whatever the cause, with no more detail.
 //   - 404 `not_found` on DELETE: not one of your passkeys.
@@ -52,6 +55,27 @@ export const PASSKEY_ERROR_REASONS = {
   SESSION_REQUIRED: "session_required",
 } as const;
 export type PasskeyErrorReason = (typeof PASSKEY_ERROR_REASONS)[keyof typeof PASSKEY_ERROR_REASONS];
+
+/**
+ * The step a registration was refused at (PK-6). It is the outcome of the
+ * `passkey.add.failed` security event, and `details.step` on the 422 for
+ * the steps that answer 422 (the challenge and verification steps).
+ */
+export const PASSKEY_REGISTER_STEPS = {
+  /** The challenge was not issued here for this person, was used, or expired. */
+  INVALID_CHALLENGE: "invalid_challenge",
+  /** The attestation did not verify: origin, RP ID hash, signature or format. */
+  NOT_VERIFIED: "not_verified",
+  /** It verified but the authenticator did not verify the user. */
+  NOT_USER_VERIFIED: "not_user_verified",
+  /** It verified but could not be stored (500). */
+  STORE_FAILED: "store_failed",
+  /** This credential is already stored (409). */
+  DUPLICATE: "duplicate",
+  /** The person already holds PASSKEY_MAX_PER_USER (409 `too_many_passkeys`). */
+  TOO_MANY: "too_many",
+} as const;
+export type PasskeyRegisterStep = (typeof PASSKEY_REGISTER_STEPS)[keyof typeof PASSKEY_REGISTER_STEPS];
 
 /** A passkey as the person sees it under Sign-in and security. Never the key or credential id. */
 export interface Passkey {

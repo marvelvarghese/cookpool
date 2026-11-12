@@ -116,3 +116,71 @@ Console only (`apps/web-console-next`, `tests/web-console-next`); no server, con
 **For later tasks:**
 - **Deploy:** console only. It needs PK-2's routes live (they are on main); on a host where they 404, the button would say "Couldn't sign in with a passkey just now" — only on the RP ID hosts, which PK-2 already configures.
 - The `passkey-here` flag is per device and is not cleared when the person removes this device's passkey under Sign-in and security (the page cannot tell which passkey is this device's), so the offer will not come back on that device by itself; Add a passkey on this device still works.
+
+### PK1 — Passkey fixes from the first phone test (PK-6)
+
+**What happened.** On stage, in iPhone Safari, Turn on Face ID after a code or Google sign-in saved nothing on the server, so passkey sign-in failed afterwards. There were two causes. First, both buttons fetched the ceremony options *after* the tap, and Safari allows `navigator.credentials.create/get` only straight from a tap (after an `await` it throws `NotAllowedError`, which the console read as a closed sheet). Second, the server refused any registration whose `credProps.rk` was `false`, and Safari can report that for a passkey it has just saved. Nothing was recorded either way: registration failures wrote no event, and the offer moved on quietly after any failure.
+
+**Server (`apps/identity-worker/src/services/passkeys.ts`).**
+- `registerVerify` no longer refuses on `credProps.rk === false`. `residentKey: required` in the options is what asks for a passkey, and by the time `credProps` arrives the device already holds the passkey.
+- Every refused registration writes the security event **`passkey.add.failed`**. Its `outcome` (and `metadata.step`) is the step that refused it: `invalid_challenge`, `not_verified`, `not_user_verified`, `store_failed`, `duplicate` or `too_many`. The event also carries `metadata.method: "passkey"`, the user and the session. It never carries a credential id, a public key, or the attestation.
+- The 422 for a registration that doesn't verify keeps `precondition_failed` / `details.reason: "passkey_failed"` and adds **`details.step`** (`invalid_challenge`, `not_verified` or `not_user_verified`). The 409s (`too_many_passkeys`, already added) and the 500 (store failed) are unchanged; only their event is new. `too_many` is recorded both at options and at verify.
+- User verification is still required. The library is now called with `requireUserVerification: false` and the service checks `info.userVerified` itself, so that refusal can name its own step. The library still checks user presence.
+- Login refusals are exactly as before: the bare 401 `passkey_failed`, with `login.complete.failed` events.
+- **Contracts:** `PASSKEY_REGISTER_STEPS` and `PasskeyRegisterStep` in `packages/contracts/src/passkeys.ts`. No new error code.
+
+**Console.**
+- **Options before the tap.** `createOptionsPrefetch` in `components/kitchen/passkeys.ts` holds one set of options. They count as fresh for `PASSKEY_OPTIONS_FRESH_MS` (4 minutes; the challenge lives 5). Fetches that overlap share one request, and taking the options spends them. `usePrefetchedOptions` / `useRegisterOptions` in `passkey-ui.tsx` fetch while their screen shows, again when the options go stale, and when the tab becomes visible. A failed fetch is not retried on a timer; the next tap fetches again. Where they run:
+  - **Turn on Face ID** (`PasskeyOfferScreen`): register options, from the moment the offer shows.
+  - **Add a passkey on this device:** register options, while the button shows.
+  - **Sign in with a passkey and the remembered card's Face ID button:** login options, while the Sign in tab's start step shows, only where passkeys run.
+- **The tap rule.** `signInWithPasskey` and `addPasskey` take the prefetch, not an options call, and start `startAuthentication` / `startRegistration` synchronously; the tap handlers (`turnOn`, `add`, `startPasskey`, `continueAsRemembered`) have no `await` before them. If no fresh options are held at the tap, they fetch them and answer `retry`: the screen shows "That took a moment. Tap again to carry on." and the button reads Try again, instead of opening the sheet after an await. Each attempt that does not sign in refills the prefetch.
+- **Turn on Face ID and Add a passkey never move on silently.** What each outcome shows:
+  - **A closed sheet:** stays on the screen, with no notice.
+  - **Any other failure:** "Couldn't save the passkey. Try again, or carry on with Google or an email code.", **Try again**, and on the offer **Not now** too. Under it, in small muted mono text, is the browser's error name (`NotAllowedError`, `SecurityError`, …, seen through SimpleWebAuthn's wrapper) or the server's `step · status` (e.g. `not_user_verified · 422`).
+  - **The limit:** "You have 10 passkeys. Remove one under Sign-in and security first."; on the offer the main button becomes Go on (which snoozes the offer).
+  - **`InvalidStateError`:** still counted as set up (the device is marked, and the offer shows its done state with Go on), and it now says "This phone already has a Cookpool passkey." (iPad: "This iPad …", otherwise "This device …").
+- **Refused passkey sign-in (401)** now reads "That passkey didn't work. Try again, or use Google or an email code. If you turned on Face ID before today, open Sign-in and security after signing in and add it again." A browser error keeps the shorter notice; options or network failures keep "Couldn't sign in with a passkey just now. …".
+
+**Departures**
+- `PASSKEY_LIMIT_NOTICE` and `PASSKEY_ADD_FAILED_NOTICE` changed their words, on purpose, on Sign-in and security too. The security page's old "This device already has a passkey for you." became the device-aware notice above.
+- On the offer, the limit replaces Turn on with Go on, rather than offering Try again, which could not succeed.
+- On the offer, `InvalidStateError` now shows the done screen with the "already has" line, instead of landing straight away.
+- The prefetch spends one request from the auth family's per-IP limit (10 a minute) each time the Sign in tab shows, plus one every 4 minutes while it stays open and visible.
+
+**Tests**
+- `tests/identity-worker`: 19 suites, **290 tests**.
+  - New: `passkeys-register-failures.test.ts` (11 tests):
+    - `credProps.rk` false is stored and then signs in;
+    - each verify step's 422 carries `details.step` and writes one `passkey.add.failed` with that outcome;
+    - a replayed challenge gives `invalid_challenge`;
+    - the same credential twice gives `duplicate`;
+    - a failed store gives `store_failed`;
+    - the limit gives `too_many` at options and at verify;
+    - the event holds no id, rawId, attestationObject or clientDataJSON;
+    - login refusals stay the bare 401 and write no `passkey.add.failed`.
+  - Changed on purpose: `passkeys-refusals.test.ts` lost its "not resident" refusal row.
+- `tests/contracts`: 34 suites, **329 tests** (+1: the register steps, none of them an error code).
+- `tests/web-console-next`: 113 suites, **2,235 tests**.
+  - New: `kitchen-passkey-tap.test.ts` (9 tests):
+    - the sheet starts synchronously in the tap, with no network call before it, for add and for sign-in;
+    - with no options at the tap, it fetches and answers `retry` without opening the sheet;
+    - after an attempt it fetches again, and a challenge is never reused;
+    - a source check that the four tap handlers have no `await`, `.then(` or fetch before the ceremony;
+    - options stay fresh for 4 minutes, and overlapping fetches share one;
+    - the notices, the detail line and `addNotice`'s mapping.
+  - `kitchen-passkeys.test.ts`: the ceremony tests were moved to the prefetch, the refused-sign-in notice was added, and failures now carry their detail.
+- `typecheck` and `lint` are clean for `@saas/contracts`, `@saas/identity-worker`, `@saas/web-console-next` and the three test packages.
+- `console-artifact.mjs build`: "43 pages served as files, 17 _redirects rules". `/login`, `/auth/callback` and `/you/security` are static.
+
+**Browser check** (`next dev` on 47961 behind a local mock and proxy on `cookpool-stage.localhost:47962`; every resource went to that origin; an **uncommitted** change mapped stage's custom domain to that host and was reverted afterwards).
+- `navigator.credentials` was stubbed to act like Safari: it rejects with `NotAllowedError` if any `fetch` ran between the click and the call.
+- `/login` fetched login options on load.
+- Sign in with a passkey opened the sheet with no fetch first. The mock's 401 showed the new notice, and login options were fetched again.
+- A code sign-in opened the offer, which fetched register options as it showed.
+  - A cancelled sheet stayed on the offer.
+  - A mock 422 with `not_user_verified` showed the failure notice, `not_user_verified · 422`, Try again and Not now, still on `/login`.
+- On `/you/security`, register options were fetched once Add showed. A 422 gave Try again and the detail; Try again with the server accepting added "iPhone" with a new challenge; `InvalidStateError` showed "This device already has a Cookpool passkey." (desktop user agent).
+- Not run: a real iPhone, a real authenticator, the limit notice in a browser (unit-tested).
+
+**Deploy.** identity-worker and the console both change in this PR, so each redeploys on its own path. The order doesn't matter: the console reads `details.step` when it is there and shows the code otherwise. Passkeys that people "turned on" before this fix were never stored. The new sign-in notice tells them to add the passkey again. Their phones may still hold an orphan passkey; the server cannot clean those up.

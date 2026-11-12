@@ -1,7 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 // Passkeys (Cookpool PK-2): everything that must not sign anyone in or add a
 // passkey. A failed sign-in is always the same bare 401 (reason
-// passkey_failed); a failed registration a 422 with the same reason. Signed
+// passkey_failed); a failed registration a 422 with the same reason (PK-6
+// adds its step: passkeys-register-failures.test.ts). Signed
 // by a software authenticator that gets one thing wrong at a time.
 
 import { route } from "../../../apps/identity-worker/src/router";
@@ -154,7 +155,6 @@ describe("a registration that must fail, as 422 passkey_failed", () => {
     ["a wrong origin", { origin: "https://evil.test" }],
     ["a wrong RP ID", { rpId: "evil.test" }],
     ["no user verification", { uv: false }],
-    ["a credential that is not resident", { rk: false }],
     ["a challenge it never issued", { challenge: "bm90LWlzc3VlZA" }],
   ])("refuses %s", async (_name, knobs) => {
     const w = world();
