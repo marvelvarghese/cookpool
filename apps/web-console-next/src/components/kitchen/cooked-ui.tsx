@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { CLOSE_44, KCard, K_BUTTON, K_CARD } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON_QUIET, K_CARD } from "./kit";
 import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { useMemberNames, useMyBalances } from "./people-data";
 import { useMembersOf } from "./pantry-data";
@@ -79,7 +79,7 @@ export function CookedScreen({
   const post = actions.find((a) => a.id === "post")!;
 
   return (
-    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-2.75rem-var(--cp-tabbar-space,84px))] flex-col gap-[22px] pb-2 pt-10 min-[900px]:mx-auto min-[900px]:max-w-xl">
+    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-2.75rem-var(--cp-tabbar-space,84px))] flex-col gap-[22px] pb-2 pt-[76px] min-[900px]:mx-auto min-[900px]:max-w-xl">
       <div className="flex flex-col items-center gap-3.5 text-center">
         <span aria-hidden className="grid h-[72px] w-[72px] place-items-center rounded-full bg-cp-accent-tint text-cp-accent-text">
           <Check className="h-[34px] w-[34px]" strokeWidth={2.6} />
@@ -298,14 +298,14 @@ export function SplitSheet({
   return (
     <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, CLOSE_44)}>
-        <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-border" />
+        <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-cp-line" />
         <SheetTitle className="pr-12 text-[22px] font-medium">Who ate?</SheetTitle>
         <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
           {!balances.loading && usable.length === 0 ? (
             <KCard className="space-y-2 p-4">
               <p className="text-[15px] font-medium">No group to split it with</p>
               <p className="text-sm text-muted-foreground">You need a group you cook in that counts in {dish.currency}.</p>
-              <Button asChild variant="outline" className={K_BUTTON}>
+              <Button asChild variant="ghost" className={K_BUTTON_QUIET}>
                 <Link href="/groups">Your groups</Link>
               </Button>
             </KCard>
@@ -327,7 +327,7 @@ export function SplitSheet({
               {members.error ? (
                 <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
                   <p className="text-sm text-muted-foreground">Couldn&apos;t load who&apos;s in {group?.name ?? "the group"}. {members.error.message}</p>
-                  <Button variant="outline" className={K_BUTTON} onClick={members.reload}>
+                  <Button variant="ghost" className={K_BUTTON_QUIET} onClick={members.reload}>
                     Try again
                   </Button>
                 </KCard>

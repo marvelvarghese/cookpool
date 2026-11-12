@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-25
+  title: "Cook flow polish"
+spec:
+  goal: "Cook, recipe, guided cook, the tick session, its sheets, Cooked and Cook with it close the 13 Nov re-audit's remaining gaps."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-25.TaskContract.yaml
+  doneWhen:
+    - "recipe steps, guided prompt, prep, step, wait and Done follow the boards' words and layout"
+    - "the Add an ingredient sheet, Finish sheet, Who ate sheet, Cooked and Cook with it use the tokens with quiet buttons"
+    - "every gap in this task's section of the 13 Nov re-audit is fixed or recorded as a departure; no Bought wording remains in its screens"
+    - "prod's old frame unchanged; tests, typecheck, lint and the static build pass"
+  gates: []

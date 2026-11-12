@@ -567,7 +567,7 @@ export function addItemLine(s: CookSession, item: KitchenItem): CookSession {
   return { ...s, lines: [...s.lines, line] };
 }
 
-/** Add something just bought ("Bought it just now?" in the item picker): it goes in all of it, until the amount says less. */
+/** Add something just got ("Got it just now?" in the item picker): it goes in all of it, until the amount says less. */
 export function addBoughtLine(s: CookSession, bought: NewLine): CookSession {
   const line: SessionLine = {
     key: `b:${s.seq}`,
@@ -716,9 +716,9 @@ function lineCurrency(line: SessionLine): string | null {
   return null;
 }
 
-/** Where a line comes from: "Your pantry", "Flat 4B · Meera paid", "Flat 4B + Your pantry", "Just bought", "Always have". */
+/** Where a line comes from: "Your pantry", "Flat 4B · Meera paid", "Flat 4B + Your pantry", "Just got", "Always have". */
 export function linePantryText(line: SessionLine, meId: string | null, names?: MemberNames | null): string {
-  if (line.bought) return "Just bought";
+  if (line.bought) return "Just got";
   if (line.takes.length === 0) return "Always have";
   const live = lineTakes(line).filter((t) => t.milli > 0);
   if (live.length === 0) return "None left now";
@@ -1248,6 +1248,19 @@ export function saveSwitch(s: CookSession): { kind: "amounts" | "recipe"; label:
 }
 
 /**
+ * The new frame's Finish switch (RV-25, the owner's call on `RvCookFinish`):
+ * **Save to my recipes**, on to start, wherever saving makes sense — a blank
+ * session, or one from a recipe that isn't yours (it saves from the dish,
+ * as "Save as a recipe" does). From your own recipe there is nothing new to
+ * save, so only today's amounts switch shows (off), when an amount differs.
+ */
+export function finishSaveSwitch(s: CookSession): { kind: "amounts" | "recipe"; label: string; on: boolean } | null {
+  if (s.recipeId === null || !s.mine) return { kind: "recipe", label: "Save to my recipes", on: true };
+  const sw = saveSwitch(s);
+  return sw ? { ...sw, on: false } : null;
+}
+
+/**
  * The recipe's lines with today's amounts, for its PATCH (lines replace the
  * whole list): a line changed today is today's amount brought back to the
  * recipe's own size (÷ the factor, on its unit's grid); every other line is
@@ -1282,6 +1295,8 @@ export interface FinishChoices {
   meId: string;
   /** The save switch is on. */
   save: boolean;
+  /** The new frame's switch (`finishSaveSwitch`, RV-25) rather than today's (`saveSwitch`). */
+  newSwitch?: boolean;
   /**
    * Just you: how many it made, in half portions (cookpool-community CM-9:
    * the new frame's Finish asks, so the dish can be split later). Absent, one
@@ -1413,7 +1428,7 @@ export function finishPlan(
   const shares: SetDishSharesRequest | null =
     eaters.length > 0 ? { shares: eaters.map((e) => ({ subjectId: e.subjectId, portionsHalf: e.portionsHalf! })) } : null;
 
-  const sw = saveSwitch(s);
+  const sw = choices.newSwitch ? finishSaveSwitch(s) : saveSwitch(s);
   let recipe: RecipeWrite | null = null;
   if (choices.save && sw?.kind === "amounts" && s.recipeId) recipe = { kind: "update", recipeId: s.recipeId, body: { lines: todaysRecipeLines(s) } };
   else if (choices.save && sw?.kind === "recipe") recipe = { kind: "create", body: {} };

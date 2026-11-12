@@ -6,7 +6,7 @@ import type { FoodMatch, KitchenFood } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { K_BUTTON } from "./kit";
+import { K_BUTTON_QUIET } from "./kit";
 import { ALWAYS_HAVE_LINE, ALWAYS_HAVE_TITLE, type FoodAsk } from "./always-have";
 
 /**
@@ -35,12 +35,12 @@ export function AlwaysHaveCardView({
   onAdd: () => void;
 }) {
   return (
-    <section aria-labelledby="always-have-h" className="flex flex-col gap-3 rounded-[22px] border bg-card px-4 py-3.5">
+    <section aria-labelledby="always-have-h" className="flex flex-col gap-3 rounded-cp-card bg-card px-4 py-3.5 shadow-cp-card">
       <div className="flex flex-col">
-        <h2 id="always-have-h" className="text-lg font-extrabold tracking-tight">
+        <h2 id="always-have-h" className="text-[17px] font-medium">
           {ALWAYS_HAVE_TITLE}
         </h2>
-        <p className="text-[13px] font-semibold text-muted-foreground">{ALWAYS_HAVE_LINE}</p>
+        <p className="text-[13px] font-normal text-muted-foreground">{ALWAYS_HAVE_LINE}</p>
       </div>
       {loading ? (
         <div className="flex gap-2" aria-hidden>
@@ -51,7 +51,7 @@ export function AlwaysHaveCardView({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load it.</p>
           {onReload ? (
-            <Button variant="outline" className={K_BUTTON} onClick={onReload}>
+            <Button variant="ghost" className={K_BUTTON_QUIET} onClick={onReload}>
               Try again
             </Button>
           ) : null}
@@ -59,8 +59,8 @@ export function AlwaysHaveCardView({
       ) : (
         <ul aria-label={ALWAYS_HAVE_TITLE} className="flex flex-wrap gap-2">
           {(foods ?? []).map((f) => (
-            <li key={f.key} className="flex min-h-11 items-center rounded-full border border-[#D5DAD2] bg-background pl-3.5">
-              <span className="text-[15px] font-bold">{f.name}</span>
+            <li key={f.key} className="flex min-h-11 items-center rounded-full bg-cp-line pl-3.5">
+              <span className="text-[15px] font-medium">{f.name}</span>
               <button
                 type="button"
                 aria-label={`Remove ${f.name}`}
@@ -76,7 +76,7 @@ export function AlwaysHaveCardView({
               <button
                 type="button"
                 onClick={onAdd}
-                className="flex min-h-11 items-center gap-1.5 rounded-full border border-dashed border-[#9AA39D] px-4 text-[15px] font-extrabold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-11 items-center gap-1.5 rounded-full bg-cp-accent-tint px-4 text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Plus className="h-4 w-4" strokeWidth={2.4} aria-hidden />
                 Add
@@ -103,16 +103,16 @@ export function FoodResults({ foods, have, onPick }: { foods: readonly FoodMatch
               disabled={on}
               onClick={() => onPick(f)}
               className={cn(
-                "flex min-h-12 w-full items-center gap-3 rounded-2xl border px-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                on ? "border-[#B9DCC8] bg-cp-herb-tint" : "border-[#E3E6E0] bg-card hover:bg-accent",
+                "flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                on ? "bg-cp-accent-tint" : "bg-card shadow-cp-card hover:bg-accent",
               )}
             >
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] font-extrabold">{f.name}</span>
-                {alias ? <span className="truncate text-[13px] font-semibold text-muted-foreground">{alias}</span> : null}
+                <span className="truncate text-[15px] font-medium">{f.name}</span>
+                {alias ? <span className="truncate text-[13px] font-normal text-muted-foreground">{alias}</span> : null}
               </span>
               {on ? (
-                <span className="flex items-center gap-1 text-[13px] font-extrabold text-[#165C3A]">
+                <span className="flex items-center gap-1 text-[13px] font-medium text-cp-accent-text">
                   <Check className="h-4 w-4" strokeWidth={2.4} aria-hidden />
                   Added
                 </span>
@@ -130,14 +130,14 @@ export function FoodResults({ foods, have, onPick }: { foods: readonly FoodMatch
 /** One ask as it draws. */
 export function FoodAskCard({ ask, busy, onAnswer }: { ask: Pick<FoodAsk, "question">; busy: boolean; onAnswer: (yes: boolean) => void }) {
   return (
-    <div role="group" aria-label={ask.question} className="flex flex-wrap items-center gap-2 rounded-[18px] border border-[#F0DDB0] bg-[#FFF8E6] py-2 pl-4 pr-2">
-      <p className="min-w-0 flex-1 text-[15px] font-extrabold">{ask.question}</p>
+    <div role="group" aria-label={ask.question} className="flex flex-wrap items-center gap-2 rounded-[18px] bg-cp-soon-tint py-2 pl-4 pr-2">
+      <p className="min-w-0 flex-1 text-[15px] font-medium">{ask.question}</p>
       <div className="flex shrink-0 gap-1.5">
         <button
           type="button"
           disabled={busy}
           onClick={() => onAnswer(true)}
-          className="min-h-11 rounded-xl bg-primary px-4 text-[15px] font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="min-h-11 rounded-xl bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           Yes
         </button>
@@ -145,7 +145,7 @@ export function FoodAskCard({ ask, busy, onAnswer }: { ask: Pick<FoodAsk, "quest
           type="button"
           disabled={busy}
           onClick={() => onAnswer(false)}
-          className="min-h-11 rounded-xl border border-[#C9CFC6] bg-card px-4 text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="min-h-11 rounded-xl bg-card px-4 text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           No
         </button>

@@ -26,6 +26,7 @@ import {
   recipeAddedPatches,
   recipeRemovedPatches,
   recipeStats,
+  RECIPE_TILE_COLORS,
   recipeTile,
   savedCopyOf,
   savedHubRows,
@@ -209,6 +210,12 @@ describe("Cook now's filter", () => {
     const tile = recipeTile({ id: "rcp_curry", name: "chicken curry" });
     expect(tile.initial).toBe("C");
     expect(recipeTile({ id: "rcp_curry", name: "Other" }).bg).toBe(tile.bg);
+    // RV-25 (RvCook): the board's seven tint pairs, as tokens, never raw hex.
+    expect(RECIPE_TILE_COLORS).toHaveLength(7);
+    for (const c of RECIPE_TILE_COLORS) {
+      expect(c.bg).toMatch(/^hsl\(var\(--cp-/);
+      expect(c.fg).toMatch(/^hsl\(var\(--cp-/);
+    }
   });
 });
 

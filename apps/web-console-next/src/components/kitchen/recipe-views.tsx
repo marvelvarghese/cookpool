@@ -132,13 +132,13 @@ export function ServingsStepper({
   const more = stepPortions(recipe, factorMilli, 1);
   return (
     <div role="group" aria-label="Servings" className={cn(K_CARD, "flex items-center gap-0.5 rounded-[14px] p-0.5")}>
-      <button type="button" aria-label="Fewer portions" disabled={fewer === factorMilli} onClick={() => onFactor(fewer)} className={STEP_BUTTON}>
+      <button type="button" aria-label="Fewer servings" disabled={fewer === factorMilli} onClick={() => onFactor(fewer)} className={STEP_BUTTON}>
         <Minus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
       </button>
       <span aria-live="polite" className="min-w-7 text-center text-[15px] font-medium tabular-nums">
         {portions.label}
       </span>
-      <button type="button" aria-label="More portions" disabled={more === factorMilli} onClick={() => onFactor(more)} className={STEP_BUTTON}>
+      <button type="button" aria-label="More servings" disabled={more === factorMilli} onClick={() => onFactor(more)} className={STEP_BUTTON}>
         <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
       </button>
     </div>
@@ -325,7 +325,7 @@ export function StartCookingBar({ href, line }: { href: string; line: string }) 
   return (
     <div
       data-toast-above=""
-      className="sticky bottom-[var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+76px))] z-30 -mx-4 bg-gradient-to-t from-background from-70% to-transparent px-4 pb-2 pt-3.5 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:bg-none min-[900px]:px-0"
+      className="sticky bottom-[var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+76px))] z-30 -mx-[var(--cp-gutter,1rem)] bg-gradient-to-t from-background from-70% to-transparent px-[var(--cp-gutter,1rem)] pb-2 pt-3.5 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:bg-none min-[900px]:px-0"
     >
       <Link
         href={href}

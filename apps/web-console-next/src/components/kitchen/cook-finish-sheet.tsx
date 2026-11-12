@@ -5,7 +5,7 @@ import type { MyGroupBalance } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { CLOSE_44, KCard, K_BUTTON } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON_QUIET } from "./kit";
 import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { useMemberNames } from "./people-data";
 import { useMembersOf } from "./pantry-data";
@@ -131,7 +131,7 @@ export function FinishSheet({
             members.error ? (
               <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <p className="text-sm text-muted-foreground">Couldn&apos;t load who&apos;s in {group?.name ?? "the group"}. {members.error.message}</p>
-                <Button variant="outline" className={K_BUTTON} onClick={members.reload}>
+                <Button variant="ghost" className={K_BUTTON_QUIET} onClick={members.reload}>
                   Try again
                 </Button>
               </KCard>

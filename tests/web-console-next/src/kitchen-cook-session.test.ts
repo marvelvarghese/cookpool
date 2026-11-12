@@ -42,6 +42,7 @@ import {
   refreshTakes,
   runFinish,
   saveSwitch,
+  finishSaveSwitch,
   scaleChip,
   sessionBarShows,
   sessionBarView,
@@ -504,7 +505,7 @@ describe("Add an item", () => {
       useMilli: 100_000,
     });
     expect(s.lines[0]).toMatchObject({ key: "b:1", name: "Coriander", unit: "g", qtyMilli: 100_000 });
-    expect(sessionLineView(s.lines[0]!, { meId: ME })).toMatchObject({ sub: "Just bought", costNote: "₹10" });
+    expect(sessionLineView(s.lines[0]!, { meId: ME })).toMatchObject({ sub: "Just got", costNote: "₹10" });
     const half = stepLine(s, "b:1", -1);
     const planned = finishPlan(setName(half, "Chutney"), { unticked: "all", postTo: JUST_ME, halves: {}, roster: null, meId: ME, save: false }, { groups: GROUPS });
     expect(planned).toMatchObject({
@@ -566,6 +567,18 @@ describe("the Finish sheet", () => {
     expect(saveSwitch(changed)).toEqual({ kind: "amounts", label: "Save today's amounts to my recipe" });
     expect(saveSwitch({ ...changed, mine: false })).toBeNull();
     expect(saveSwitch(blankSession(NOW))).toEqual({ kind: "recipe", label: "Save as a recipe" });
+  });
+
+  it("offers Save to my recipes, on, wherever a session isn't from your own recipe (RV-25, the owner's call on RvCookFinish)", () => {
+    const s = curry();
+    expect(finishSaveSwitch({ ...s, mine: false })).toEqual({ kind: "recipe", label: "Save to my recipes", on: true });
+    expect(finishSaveSwitch(blankSession(NOW))).toEqual({ kind: "recipe", label: "Save to my recipes", on: true });
+    // Your own recipe: nothing new to save; today's amounts, off, once one differs.
+    expect(finishSaveSwitch(s)).toBeNull();
+    expect(finishSaveSwitch(stepLine(s, "r:1", 1))).toEqual({ kind: "amounts", label: "Save today's amounts to my recipe", on: false });
+    // The finish plan follows the new switch only when asked; today's frame keeps saveSwitch.
+    expect(plan({ ...s, mine: false }, { save: true, newSwitch: true }).recipe).toEqual({ kind: "create", body: {} });
+    expect(plan({ ...s, mine: false }, { save: true }).recipe).toBeNull();
   });
 
   it("brings today's changed amounts back to the recipe's own size, every other line as written", () => {

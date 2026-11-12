@@ -45,6 +45,8 @@ export function CookTickList({
   onAsk,
   onCancelAsk,
   add,
+  first = null,
+  header = true,
 }: {
   session: CookSession;
   meId: string;
@@ -60,14 +62,21 @@ export function CookTickList({
   onCancelAsk?: (key: string) => void;
   /** Add an ingredient, at the card's foot. */
   add?: React.ReactNode;
+  /** Show this many rows, then See all (RV-25: Before you start's Gather shows 3, as `RvCookPrep`); null: every row. */
+  first?: number | null;
+  /** The column header (INGREDIENT · FROM · AMOUNT · ✓); Gather has none (RV-25). */
+  header?: boolean;
 }) {
   const [boxes, setBoxes] = React.useState<ReadonlyMap<string, TickState>>(() => new Map());
+  const [all, setAll] = React.useState(false);
   const units = useUsualUnits();
+  const folds = first !== null && session.lines.length > first;
+  const shown = folds && !all ? session.lines.slice(0, first) : session.lines;
   return (
     <section aria-label="Ingredients" className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
-      {session.lines.length > 0 ? <TickHeader item="INGREDIENT · FROM" /> : null}
+      {header && session.lines.length > 0 ? <TickHeader item="INGREDIENT · FROM" /> : null}
       <ul>
-        {session.lines.map((line, i) => (
+        {shown.map((line, i) => (
           <li
             key={line.key}
             id={lineId(line.key)}
@@ -91,6 +100,16 @@ export function CookTickList({
           </li>
         ))}
       </ul>
+      {folds ? (
+        <button
+          type="button"
+          aria-expanded={all}
+          onClick={() => setAll((x) => !x)}
+          className="min-h-12 w-full border-t border-cp-line text-sm font-medium text-cp-accent-text transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          {all ? "Show less" : `See all ${session.lines.length}`}
+        </button>
+      ) : null}
       {add}
     </section>
   );

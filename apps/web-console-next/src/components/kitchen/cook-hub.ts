@@ -43,13 +43,22 @@ export function cookPageShows(isNewFrame: boolean, itemParam: string | null | un
 
 // ── A recipe's tile ───────────────────────────────────────────────
 
-/** Tile colours (the canvas's): a tint and a dark ink on it, 4.5:1 or more. */
+/**
+ * Tile colours: the board's seven tint pairs (`RvCook`), as the `cp-*`
+ * tokens (CSS colour values, so the light and dark values follow the
+ * theme): orange, green, purple, amber, blue, pink and teal, a dark ink on
+ * each tint. There is no pink token, so pink is the face colour on a
+ * tenth of itself. In dark, the tiles paint the line colour with ink
+ * (each view's own dark rule).
+ */
 export const RECIPE_TILE_COLORS: readonly { bg: string; fg: string }[] = [
-  { bg: "#FDF1D6", fg: "#8A5A00" },
-  { bg: "#E4F2EA", fg: "#165C3A" },
-  { bg: "#EDE7F6", fg: "#5B3A9A" },
-  { bg: "#FBE9DF", fg: "#A3470F" },
-  { bg: "#E6EEF8", fg: "#1D4F91" },
+  { bg: "hsl(var(--cp-owe-tint))", fg: "hsl(var(--cp-owe))" },
+  { bg: "hsl(var(--cp-accent-tint))", fg: "hsl(var(--cp-accent-text))" },
+  { bg: "hsl(var(--cp-purple-tint))", fg: "hsl(var(--cp-purple))" },
+  { bg: "hsl(var(--cp-soon-tint))", fg: "hsl(var(--cp-soon))" },
+  { bg: "hsl(var(--cp-owed-tint))", fg: "hsl(var(--cp-owed))" },
+  { bg: "hsl(var(--cp-face-2) / 0.12)", fg: "hsl(var(--cp-face-2))" },
+  { bg: "hsl(var(--cp-teal-tint))", fg: "hsl(var(--cp-teal))" },
 ];
 
 /** A recipe's tile: its initial on its colour, the same everywhere (by its id). */

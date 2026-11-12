@@ -310,8 +310,8 @@ describe("the page as it draws", () => {
   it("has the servings stepper and Use all", () => {
     const html = renderToStaticMarkup(React.createElement(ServingsStepper, { recipe: CURRY, factorMilli: 1000, onFactor: () => undefined }));
     expect(html).toContain('aria-label="Servings"');
-    expect(html).toContain('aria-label="Fewer portions"');
-    expect(html).toContain('aria-label="More portions"');
+    expect(html).toContain('aria-label="Fewer servings"');
+    expect(html).toContain('aria-label="More servings"');
     expect(html).toContain(">4<");
     expect(renderToStaticMarkup(React.createElement(ServingsStepper, { recipe: CURRY, factorMilli: 450, onFactor: () => undefined }))).toContain("about 2");
     expect(renderToStaticMarkup(React.createElement(UseAllChip, { recipe: CURRY, factorMilli: 1000, match: curryMatch(1000), onFactor: () => undefined }))).toContain("Use all 450 g you have");

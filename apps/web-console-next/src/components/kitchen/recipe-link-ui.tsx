@@ -4,7 +4,7 @@ import * as React from "react";
 import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET } from "./kit";
 import { BackButton } from "./back-ui";
 import { useProfile } from "./data";
 import { savedCopyOf } from "./cook-hub";
@@ -50,7 +50,7 @@ function LinkLoader({ code }: { code: string }) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t open this link. {read.error?.message ?? ""}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={read.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={read.reload}>
           Try again
         </Button>
       </KCard>

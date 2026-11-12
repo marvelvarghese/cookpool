@@ -6,14 +6,14 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CLOSE_44 } from "./kit";
-import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
+import { MAIN_BUTTON } from "./faces-ui";
 import { RepeatButton } from "./row-gestures-ui";
 import { JUST_ME, dishTotals } from "./dish-maker";
 import { useFinishSession } from "./cook-session-data";
 import { SESSION_SHEET } from "./cook-finish-sheet";
 import { SaveSwitch } from "./cook-session-ui";
-import { finishPlan, includedLines, saveSwitch, sessionCurrency, sessionDishLines, type CookSession, type FinishOutcome, type UntickedChoice } from "./cook-session";
-import { FINISH_TITLE, finishSub, servingsText, startingServingsHalf, stepServings } from "./cooked";
+import { finishPlan, finishSaveSwitch, includedLines, sessionCurrency, sessionDishLines, type CookSession, type FinishOutcome, type UntickedChoice } from "./cook-session";
+import { FINISH_TITLE, finishLabel, finishSub, servingsText, startingServingsHalf, stepServings } from "./cooked";
 
 /**
  * Finish in the new frame (cookpool-community CM-9, design §2a): the dish is
@@ -21,7 +21,9 @@ import { FINISH_TITLE, finishSub, servingsText, startingServingsHalf, stepServin
  * (cookpool-revamp RV-11: tick what went in; unticked rows aren't charged),
  * how many servings it made (the recipe's at this size to
  * start; Split shares them out later), the save switch, and Finish with the
- * cost. RC-6's screen and guided mode's Done both open it; it lands on Cooked!.
+ * cost on one line ("Finish · ₹186", RV-25). In dark the sheet is #0A0A0A,
+ * half the card on the black ground (no token of its own). RC-6's screen
+ * and guided mode's Done both open it; it lands on Cooked!.
  * Today's frame keeps `FinishSheet` (Who ate?, Post to).
  */
 export function CookFinishSheet({
@@ -41,7 +43,8 @@ export function CookFinishSheet({
   // RV-11: the rows say what went in; an unticked row is never charged.
   const unticked: UntickedChoice = "out";
   const [servings, setServings] = React.useState(() => startingServingsHalf(session));
-  const [saveOn, setSaveOn] = React.useState(false);
+  // RV-25: "Save to my recipes" starts on where it shows (the owner's call); today's amounts start off.
+  const [saveOn, setSaveOn] = React.useState(() => finishSaveSwitch(session)?.on ?? false);
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState<string | null>(null);
 
@@ -49,14 +52,14 @@ export function CookFinishSheet({
   const currency = sessionCurrency(session);
   const dishLines = sessionDishLines(lines);
   const totals = dishTotals({ lines: dishLines, extrasMinor: 0, portionsHalf: servings, meId, currency });
-  const sw = saveSwitch(session);
+  const sw = finishSaveSwitch(session);
 
   const post = async () => {
     if (busy) return;
     setProblem(null);
     const planned = finishPlan(
       session,
-      { unticked, postTo: JUST_ME, halves: {}, roster: null, meId, save: saveOn && sw !== null, portionsHalf: servings },
+      { unticked, postTo: JUST_ME, halves: {}, roster: null, meId, save: saveOn && sw !== null, newSwitch: true, portionsHalf: servings },
       { groups: [] },
     );
     if (!planned.ok) {
@@ -80,7 +83,7 @@ export function CookFinishSheet({
   const stepper = "grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-cp-accent-tint text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50";
   return (
     <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, "gap-[18px] rounded-t-[26px] bg-background", CLOSE_44)}>
+      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, "gap-[18px] rounded-t-[26px] bg-background [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-[color-mix(in_srgb,hsl(var(--cp-card))_50%,hsl(var(--background)))]", CLOSE_44)}>
         <div aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-cp-line" />
         <SheetTitle className="flex min-h-11 items-center pr-12 text-[22px] font-medium tracking-[-0.01em]">{FINISH_TITLE}</SheetTitle>
         <div className="-mx-5 min-h-0 flex-1 space-y-[18px] overflow-y-auto px-5 pb-1">
@@ -120,7 +123,8 @@ export function CookFinishSheet({
           loading={busy}
           onClick={() => void post()}
         >
-          <MainButtonLabel title={FINISH_TITLE} who={finishSub(totals.totalMinor, currency, servings, dishLines.length)} />
+          <span className="truncate text-lg font-medium">{finishLabel(totals.totalMinor, currency, dishLines.length)}</span>
+          <span className="sr-only"> · {finishSub(totals.totalMinor, currency, servings, dishLines.length)}</span>
         </Button>
       </SheetContent>
     </Sheet>

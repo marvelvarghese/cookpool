@@ -1332,3 +1332,52 @@ The 13 Nov re-audit's "TASK RV-24" section, console only: no routes, no migratio
   - Home in light.
 
 **Deploy.** Console only; it redeploys on its own path.
+
+### RV1 — Cook flow polish: the 13 Nov re-audit's cook gaps (RV-25)
+
+**Built** (`apps/web-console-next`; boards `RvCook`, `RvRecipe`, `RvCookStart`, `RvCookPrep`, `RvCookStep`, `RvCookWait`, `RvCookDone`, `RvCookLines`, `RvCookFinish`, `RvCooked`; the "TASK RV-25" section of the 13 Nov re-audit). **Console-only:** no route, no migration, no contracts, SDK or worker change. Guided cook keeps every screen.
+
+- **Cook tiles** (`cook-hub.ts` `RECIPE_TILE_COLORS`): the board's seven tint pairs (orange, green, purple, amber, blue, pink, teal) as `hsl(var(--cp-…))` values, so every consumer's `--tile-bg`/`--tile-fg` stays as it is. No raw hex.
+- **Recipe** (`guided-views.tsx`, `recipe-views.tsx`, `recipe-ui.tsx`, `recipe-share-views.tsx`): a step row is its number and words, then quiet 13 px muted lines: "Medium flame · 7–8 min · Prep · Hands off", the checkpoint, what cooks learned (`LearnedBadge` is now a muted line, the plan's too), the tip. No pills, flames or sense icons. Share and Edit are in ink. The servings stepper reads "Fewer servings" / "More servings".
+- **Is this the same food?** and Always have (`always-have-views.tsx`): on tokens (the use-soon tint card, borderless chips, the Add chip on the tint), Medium/Regular only, quiet No and Try again. `plan-ui.tsx`, `recipe-link-ui.tsx`: quiet Try again.
+- **Prompt:** "8 steps · 54 min" (no "about"; the stat value is the number).
+- **Before you start:** Gather shows 3 rows, then See all N / Show less, with no column header (new optional `first` and `header` on `CookTickList`). **Back returns to the prompt** while no step has started (`backToPrompt` in `cook-guided-screens.ts`: mode back to null, ticks and timers kept); once cooking began it minimizes as before.
+- **Step:** no sense icon on the checkpoint; the timer strip pill reads "Step 5 · 19:59" (new `StripItem.pill`, the prep timer's name for prep; the full label stays the aria label); the main button reads "Done".
+- **Waiting:** the main button is **Done · next** on the accent (it ticks the step); the timer card has Pause/Resume and +1 min only; Meanwhile subs read "Step 7 · 1 min" / "Prep · 3 min" and every row ends in a ✓; read aloud stays as the header's small icon.
+- **Done:** rows say "Usual 8–10 min"; Finish is one line (the cost is screen-reader text); the switch's off track is `bg-input`, here and in `SaveSwitch`. The timer banner's shadow is `shadow-cp-nav`.
+- **Tick session:** Finish is 56 px (`MAIN_BUTTON_56` in `faces-ui.tsx`); the new look's page gap is 18 px and the header is centred; Try again (two) and "Discard and start" are quiet. `faces-ui.tsx` and `row-gestures-ui.tsx` use Medium/Regular only (the dashed "+N" face is now a filled one).
+- **Add an ingredient sheet / Cook with it** (`dish-maker-ui.tsx`, `cook/page.tsx`): steppers borderless on the tint, cards with the card shadow instead of borders, the select borderless, Add and Cancel quiet, the split-mode chips on the tint with an inset ring, the share picker without borders or the rgba shadow, a `cp-line` handle, no dashed Add (Add from any pantry is a tint button, a missing line is on the owe tint), Medium/Regular only, the bar on `--cp-bottom-bar` with `shadow-cp-nav`.
+- **No "Bought":** "Just got" (`cook-tick.ts`, `cook-session.ts`, `dish-maker.ts`), "Got it just now?" and its aria, "Got "x" just now", "Got something just now?", "Added x, just got.", "Say what you got", "…with what you just got."
+- **Finish sheet** (`cooked-finish-sheet.tsx`, `cooked.ts`, `cook-session.ts`): **Save to my recipes** (new `finishSaveSwitch`) shows, on by default, for a blank session or one from a recipe that isn't yours; it saves through the existing `createRecipe({ fromDishId })` (`finishPlan`'s new `newSwitch` choice). From your own recipe only "Save today's amounts to my recipe" shows, off, when an amount differs. Today's frame keeps `saveSwitch` unchanged. The button is one line, "Finish · ₹186" (`finishLabel`; "Finish · ₹0" with no amounts). The dark sheet is #0A0A0A, mixed from the tokens (half `--cp-card` on `--background`); there is no #0A0A0A token. `cook-finish-sheet.tsx` (today's frame): quiet Try again.
+- **Cooked** (`cooked-ui.tsx`, dish page): 96 px above the tick (76 px plus the layout's 20); Done goes to `/home`; the Who ate? sheet has a `cp-line` handle and quiet Your groups / Try again. Dish page: quiet Cancel, Save for later, Try again and Your groups.
+- **Gutter** (RV-23's `--cp-gutter`): the recipe's Start cooking bar and the dish page's action bar bleed with `-mx-[var(--cp-gutter,1rem)]`.
+
+**Departures**
+- **Cooked's "Add amounts"** is not added: a cooked dish's ingredients can't be changed (no route), and this task is console-only. Follow-up: a route to add amounts to a ₹0 dish.
+- **Pink tile:** no pink token exists (`globals.css` is RV-23's), so it is `--cp-face-2` on a tenth of itself.
+- **Waiting's "Go on to step N · the timer keeps running"** is no longer the main button (the board's is Done · next). Meanwhile's step rows still open the next step with the timer running, so nothing is lost. Done early is gone with it (Done · next does the same). A pressure cooker still counting keeps the main button on the card, so Count a whistle stays the one accent button.
+- **Before you start's prep sub-lines** keep "about 3 min" (only the prompt's line was asked).
+- **The Done screen's off track** uses `bg-input` (#8A928C light, #6B6B6B dark) rather than the board's #B9B2A6 / #525252: there is no exact token.
+- **`MAIN_BUTTON`** stays a string; the 56 px size is a second constant, `MAIN_BUTTON_56`.
+- A session from someone else's recipe that you already saved a copy of still offers Save to my recipes (the session doesn't know about the copy).
+
+**Pinned copy and pins changed** (`tests/web-console-next`)
+- `kitchen-cook-guided.test.ts`: the prompt's minutes `"about 54"` → `"54"` and the line `8 steps · N min`; `pill` added to the three strip expectations; the waiting render (no "Done early", no "Go on to step 6 …"; Done · next on the accent, "Step 6 · 1 min", ✓ marks); Meanwhile subs ("Prep · 3 min", "Step 2 · 8 min" …); Done rows ("Usual 1–2 min", "Usual 7–9 min" without " · slower today", "Usual 2 min", "Usual 20 min").
+- `kitchen-recipe-page.test.ts`: "Fewer portions"/"More portions" → "Fewer servings"/"More servings".
+- `kitchen-dish-maker.test.ts`: "Say what you bought" → "Say what you got"; "Just bought" → "Just got". ("Enter how much you bought" comes from `item-form.ts`, RV-24's; left as is.)
+- `kitchen-cook-session.test.ts`: "Just bought" → "Just got".
+- `kitchen-community-posts.test.ts`: the tile's bg is a token (`/^hsl\(var\(--cp-/`), not hex.
+- New: `backToPrompt` (guided), `finishSaveSwitch` and the plan's `newSwitch` (session), `finishLabel` (cooked), quiet step rows (guided recipe), seven token tiles (cook hub).
+
+**Tests.** `tests/web-console-next`: 131 suites, 2,591 tests, all passing (after merging origin/main). Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`. `console-artifact.mjs build` passes: 55 pages generated static.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 48251 behind RV-16's in-memory mock (copied to the scratchpad, never committed, with the Kerala names; Chilli chicken made not-yours, and a recipe create added) on `cookpool-stage.localhost:48252`; every request went to that host.
+- Light: Cook (the seven tints), Chicken curry (Kerala style)'s steps as quiet lines, the prompt ("8 steps · 54 min"), Before you start (Gather · 0 of 6, three rows and See all 6, no header), Back → the prompt, then Start step 1. Cook with it: tint steppers, quiet Add from any pantry, Got it just now? with the borderless unit select and quiet Cancel.
+- Dark: step 1 (no sense icon, Done, Back off), step 5's Start and go on → step 6 with the pill "Step 5 · 19:59" → the waiting screen (two pills, ✓ Meanwhile rows, "Step 6 · 1 min", Done · next), Done ("Usual 1–2 min", one-line Finish), the Finish sheet ("Finish · ₹0"), Cooked (96 px, no amounts line), Who ate?, Done → `/home`. The tick session for Chilli chicken: centred header, 56 px Finish; its Finish sheet showed Save to my recipes on, and Finish sent `POST /me/dishes` then `POST /me/recipes {"fromDishId":…}`.
+
+**Follow-ups**
+- A route to add amounts to a cooked ₹0 dish (Cooked's Add amounts).
+- Tokens for pink tiles and #0A0A0A sheets (RV-23's `globals.css`).
+- `kitchen-dish-maker.test.ts` and `kitchen-community-posts.test.ts` are touched by this task and may be by RV-24/RV-23: merge by hand if they clash.
+
+**Deploy.** Only the console changes; there is no package or worker to redeploy.

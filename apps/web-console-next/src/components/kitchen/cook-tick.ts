@@ -171,13 +171,13 @@ export function setLineFromTick(s: CookSession, key: string, t: CookTickItem, am
 
 /**
  * Where a line comes from, under its name: "Flat 4B · Dev paid", "Mine",
- * "Flat 4B + Mine", "Just bought", "Always have", "None left now", and "Not
+ * "Flat 4B + Mine", "Just got", "Always have", "None left now", and "Not
  * in your kitchen" in the money-you-owe tone; "· short" when its items have
  * less than it wants.
  */
 export function cookLineMeta(line: SessionLine, meId: string | null, names?: MemberNames | null): TickMeta {
   if (line.missing) return { text: "Not in your kitchen", tone: "owe" };
-  if (line.bought) return { text: "Just bought", tone: "muted" };
+  if (line.bought) return { text: "Just got", tone: "muted" };
   if (line.takes.length === 0) return { text: "Always have", tone: "muted" };
   const live = lineTakes(line).filter((t) => t.milli > 0);
   if (live.length === 0) return { text: "None left now", tone: "muted" };

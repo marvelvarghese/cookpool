@@ -14,6 +14,7 @@ import {
   cookedSeedOf,
   cookedView,
   dishNextActions,
+  finishLabel,
   finishSub,
   groupItemsNote,
   parseCookedSeed,
@@ -441,6 +442,10 @@ describe("a dish with no amounts", () => {
   it("says ₹0 · nothing taken from the pantry under Finish and Post, and the costs otherwise", () => {
     expect(finishSub(0, "INR", 4, 0)).toBe("₹0 · nothing taken from the pantry");
     expect(finishSub(21_200, "INR", 8, 3)).toBe("₹212.00 · 4 servings · yours");
+    // RV-25 (RvCookFinish): the button is one line.
+    expect(finishLabel(18_600, "INR", 3)).toBe("Finish · ₹186");
+    expect(finishLabel(0, "INR", 0)).toBe("Finish · ₹0");
+    expect(finishLabel(0, "INR", 2)).toBe("Finish");
     expect(finishSub(0, "INR", 2, 1)).toBe("Nothing costed · 1 serving · yours");
     const totals = { totalMinor: 0, portionsHalf: 2, perPortionMinor: 0, perPortionExact: true, currency: "INR" };
     expect(postSub(totals, 0)).toBe("₹0 · nothing taken from the pantry");

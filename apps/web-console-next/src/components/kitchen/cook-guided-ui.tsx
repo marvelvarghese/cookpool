@@ -8,23 +8,17 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
-  Ear,
-  Eye,
   Flame,
-  Hand,
   ListChecks,
   ListOrdered,
   Plus,
   Smartphone,
   Timer,
-  Utensils,
   Pause,
   Play,
   Volume2,
-  Wind,
   X,
 } from "lucide-react";
-import type { StepSense } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
@@ -173,7 +167,7 @@ export function TimerStrip({ items, onOpen }: { items: readonly StripItem[]; onO
             )}
           >
             <Timer className="h-4 w-4 shrink-0" strokeWidth={2.2} aria-hidden />
-            <span className="min-w-0 truncate">{t.ended ? `Done: ${t.label}` : t.label}</span>
+            <span className="min-w-0 truncate">{t.pill}</span>
             <span aria-hidden>·</span>
             <span role="timer" className="shrink-0 tabular-nums">
               {t.left}
@@ -190,7 +184,7 @@ export function TimerBannerCard({ banner, onOpen, onDismiss }: { banner: TimerBa
   return (
     <div
       role="alert"
-      className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-40 flex items-start gap-3 rounded-[18px] p-3 text-cp-cook-ink shadow-[0_8px_24px_rgba(23,32,27,0.28)]"
+      className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-40 flex items-start gap-3 rounded-[18px] p-3 text-cp-cook-ink shadow-cp-nav"
       style={{ backgroundColor: INK }}
     >
       <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px]" style={{ backgroundColor: COOK }}>
@@ -214,14 +208,6 @@ export function TimerBannerCard({ banner, onOpen, onDismiss }: { banner: TimerBa
     </div>
   );
 }
-
-const SENSE_ICONS: Readonly<Record<StepSense, typeof Eye>> = {
-  look: Eye,
-  smell: Wind,
-  sound: Ear,
-  feel: Hand,
-  taste: Utensils,
-};
 
 // ── The heat, the check, the timer and the chips (RV-4) ───────────
 
@@ -257,13 +243,11 @@ export function chipTime(range: string | null | undefined): string | null {
   return range.replace(/ at this size$/, "");
 }
 
-/** What to watch for, in one muted line (RV-4): its sense's icon and "Until golden brown". */
+/** What to watch for, in one muted line (RV-4; RV-25: no sense icon, as `RvCookStep`): "Until golden brown". */
 export function CheckLine({ checkpoint }: { checkpoint: CheckpointView }) {
-  const Icon = checkpoint.sense ? SENSE_ICONS[checkpoint.sense] : Eye;
   const word = checkpoint.word.charAt(0) + checkpoint.word.slice(1).toLowerCase();
   return (
-    <p className="flex items-start gap-2 text-[17px] font-normal leading-snug text-muted-foreground" data-sense={checkpoint.sense ?? "none"}>
-      <Icon className="mt-[3px] h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden />
+    <p className="text-[17px] font-normal leading-snug text-muted-foreground" data-sense={checkpoint.sense ?? "none"}>
       <span>
         <span className="sr-only">{word}: </span>
         {checkpoint.text}
@@ -538,7 +522,7 @@ export function GuideStepView({
       {view.tip && !timerHint(view.timer, pushHint) ? <StepTip tip={view.tip} /> : null}
       <StepBottom
         next={view.next}
-        mainLabel={view.done && view.mainLabel === "Done" ? "Done · next" : view.mainLabel}
+        mainLabel={view.mainLabel}
         backDisabled={view.number <= 1}
         onBack={on.onBack}
         onMain={on.onDone}
@@ -562,7 +546,8 @@ export interface WaitHandlers extends StepHandlers {
 /**
  * The timer card (RV-16, the canvas's `RvCookWait`): the time left in 64 px,
  * "of 20:00" beside it, a thin bar filling with the accent, then Pause (or
- * Resume), +1 min and Done early as pills on the tint; "Done" once it ends.
+ * Resume) and +1 min as pills on the tint (RV-25: Done is the main button,
+ * "Done · next", as `RvCookWait`).
  */
 export function WaitRing({ ring, on }: { ring: NonNullable<WaitScreenView["ring"]>; on: Pick<WaitHandlers, "onPlus" | "onPause" | "onResume" | "onDone"> }) {
   const pill = cn(SMALL_BUTTON, QUIET, "min-h-11 rounded-[14px] px-4");
@@ -595,9 +580,6 @@ export function WaitRing({ ring, on }: { ring: NonNullable<WaitScreenView["ring"
             +1 min
           </button>
         ) : null}
-        <button type="button" onClick={on.onDone} className={pill}>
-          {ring.state === "ended" ? "Done" : "Done early"}
-        </button>
       </div>
     </div>
   );
@@ -692,7 +674,7 @@ export function ScreenOnSwitch({ on, onChange }: { on: boolean; onChange: (on: b
 /** A switch's track and knob (52 × 32), the accent when on. */
 function SwitchTrack({ on }: { on: boolean }) {
   return (
-    <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-muted-foreground/40")}>
+    <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-input")}>
       <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-cp-card transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
     </span>
   );
@@ -726,7 +708,7 @@ export function MeanwhileList({ items, onDo }: { items: readonly MeanwhileItem[]
                   <span className="text-[13px] font-normal text-muted-foreground">{m.sub}</span>
                 </span>
                 <span aria-hidden className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", m.done ? "bg-primary text-primary-foreground" : "bg-cp-line text-muted-foreground")}>
-                  {m.kind === "step" ? <ChevronLeft className="h-5 w-5 rotate-180" strokeWidth={2.4} /> : <Check className="h-5 w-5" strokeWidth={2.4} />}
+                  <Check className="h-5 w-5" strokeWidth={2.4} />
                 </span>
               </button>
             </li>
@@ -764,7 +746,6 @@ export function GuideWaitView({
   on: WaitHandlers;
   banner?: React.ReactNode;
 }) {
-  const ended = wait.ring?.state === "ended";
   const pushNote = view.timer?.pushNote ?? null;
   const showHint = !pushNote && pushHint && !!wait.ring;
   return (
@@ -788,11 +769,11 @@ export function GuideWaitView({
       {view.tip && !pushNote && !showHint ? <StepTip tip={view.tip} /> : null}
       <StepBottom
         next={view.next}
-        mainLabel={wait.goOn ? wait.goOn.label : view.mainLabel}
-        mainTone={wait.goOn || (view.whistles && !ended) ? "outline" : "herb"}
+        mainLabel={view.mainLabel === "Done" ? "Done · next" : view.mainLabel}
+        mainTone={view.whistles && wait.ring?.state !== "ended" ? "outline" : "herb"}
         backDisabled={view.number <= 1}
         onBack={on.onBack}
-        onMain={() => (wait.goOn ? on.onGoOn(wait.goOn.key) : on.onDone())}
+        onMain={on.onDone}
       />
     </div>
   );
@@ -1003,6 +984,8 @@ function PrepSection({ title, count, children }: { title: string; count?: string
 
 export interface PrepHandlers {
   onMinimize: () => void;
+  /** Back to the prompt (RV-25), while no step has started; else Back minimizes. */
+  onBack?: (() => void) | null | undefined;
   onTickLine: (key: string) => void;
   /** Ask before use (cookpool-pantry PN-9): a line's Ask Meera, and Cancel while it waits. */
   onAskLine?: (key: string, who: string) => void;
@@ -1048,7 +1031,7 @@ export function GuidePrepView({
   return (
     <div className={cn(SCREEN, "gap-5")} data-guide="prep">
       {banner}
-      <GuideHeader label={view.title} title onMinimize={on.onMinimize} back={{ label: "Back", onClick: on.onMinimize }} />
+      <GuideHeader label={view.title} title onMinimize={on.onMinimize} back={{ label: "Back", onClick: on.onBack ?? on.onMinimize }} />
       <span className="sr-only">{view.header}</span>
       <TimerStrip items={strip} onOpen={on.onStrip} />
       <div className="flex flex-col gap-2.5">
@@ -1159,7 +1142,8 @@ export const DONE_FIRST = 3;
  * Done (design §3.6; RV-16, the canvas's `RvCookDone`): Back to the steps,
  * a ✓ on the tint, the dish's name at 30 px and "37 min · 8 steps"; How each
  * step went, three rows then See all; Remember times; the one footnote; and
- * the one main button, Finish, with what it costs under it.
+ * the one main button, Finish, on one line (RV-25; what it costs is said to
+ * a screen reader).
  */
 export function GuideDoneView({
   view,
@@ -1263,7 +1247,8 @@ export function GuideDoneView({
           </p>
         ) : null}
         <Button type="button" onClick={on.onWhoAte} className={cn(MAIN_BUTTON, "min-h-[60px] rounded-[18px] bg-primary text-primary-foreground hover:bg-primary/90")}>
-          <MainButtonLabel title={mainTitle} who={whoAteSub} />
+          <span className="truncate text-lg font-medium">{mainTitle}</span>
+          <span className="sr-only"> · {whoAteSub}</span>
         </Button>
       </div>
     </div>

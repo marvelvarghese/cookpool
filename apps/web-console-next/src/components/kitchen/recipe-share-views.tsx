@@ -22,7 +22,7 @@ export function ShareIconButton({ onClick }: { onClick: () => void }) {
       aria-label="Share"
       aria-haspopup="dialog"
       onClick={onClick}
-      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Share className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
     </button>

@@ -79,7 +79,7 @@ export function SessionHeader({
   onMinimize: () => void;
 }) {
   return (
-    <div className="flex items-start gap-2.5">
+    <div className="flex items-center gap-2.5">
       <button
         type="button"
         onClick={onMinimize}
@@ -442,7 +442,7 @@ export function SaveSwitch({ label, on, onChange }: { label: string; on: boolean
       className="flex min-h-[52px] w-full items-center gap-3 rounded-xl text-left text-base font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span className="flex-1">{label}</span>
-      <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-muted-foreground/40")}>
+      <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-input")}>
         <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-cp-card transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
       </span>
     </button>
@@ -474,7 +474,7 @@ export function DiscardPromptBody({
       <button
         type="button"
         onClick={onDiscard}
-        className="min-h-[52px] w-full rounded-[18px] border border-input bg-card px-4 text-base font-medium text-cp-expired transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-[52px] w-full rounded-[18px] bg-cp-expired-tint px-4 text-base font-medium text-cp-expired transition-colors hover:bg-cp-expired-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {prompt.discard}
       </button>

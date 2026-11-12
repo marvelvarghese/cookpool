@@ -182,7 +182,7 @@ describe("the post card", () => {
     expect(postCard(post(), NOW, new Set(["rcp_curry"])).recipeLine).toBe("Your recipe · cooked at 450 g");
     expect(postCard(post({ recipe: null, stats: {} }), NOW, new Set()).recipeLine).toBeNull();
     expect(c.tile.initial).toBe("C");
-    expect(c.tile.bg).toMatch(/^#/);
+    expect(c.tile.bg).toMatch(/^hsl\(var\(--cp-/);
     expect(postCard(post({ caption: "  " }), NOW, new Set()).caption).toBeNull();
     expect(c.yum).toEqual({ on: false, label: "Yum · 12", count: 12 });
   });

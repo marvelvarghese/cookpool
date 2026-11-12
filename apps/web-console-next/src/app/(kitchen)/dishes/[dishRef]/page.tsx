@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_BUTTON_QUIET } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { canManageGroup, canWriteInGroup, roleFromKitchen } from "@/components/kitchen/groups";
 import { memberLabel, sortMembers } from "@/components/kitchen/members";
@@ -39,7 +39,6 @@ import {
   OVER_CLAIMED,
   claimCount,
   dishByline,
-  dishHref,
   dishMoneySummary,
   dishStateChip,
   halfOf,
@@ -85,7 +84,7 @@ function DishLoader({ dishId }: { dishId: string }) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this dish. {dish.error?.message ?? ""}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={dish.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={dish.reload}>
           Try again
         </Button>
       </KCard>
@@ -331,7 +330,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
             setSplitHint(null);
             setSplitOpen(true);
           }}
-          onDone={() => router.replace(dishHref(dish.id))}
+          onDone={() => router.replace("/home")}
           onUnpost={
             sharedPost
               ? () => {
@@ -463,7 +462,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
       <ActionBar above={finalizing && summary.length > 0 ? <MoneyLines summary={summary} /> : null}>
         {editing === "correct" || (editing === "assign" && (dish.state === "open" || !isCook)) ? (
           <>
-            <Button variant="outline" className={cn(K_BUTTON, "h-[52px] flex-1 bg-card")} onClick={stopEditing} disabled={actions.busy !== null}>
+            <Button variant="ghost" className={cn(K_BUTTON_QUIET, "h-[52px] flex-1")} onClick={stopEditing} disabled={actions.busy !== null}>
               Cancel
             </Button>
             <Button
@@ -478,7 +477,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
         ) : isSplitOpen(dish) && isCook ? (
           <>
             {dirty ? (
-              <Button variant="outline" className={cn(K_BUTTON, "h-[52px] flex-1 bg-card")} loading={actions.busy === "shares"} disabled={split.over || actions.busy !== null} onClick={() => void saveEdit()}>
+              <Button variant="ghost" className={cn(K_BUTTON_QUIET, "h-[52px] flex-1")} loading={actions.busy === "shares"} disabled={split.over || actions.busy !== null} onClick={() => void saveEdit()}>
                 Save for later
               </Button>
             ) : null}
@@ -551,7 +550,7 @@ function ActionBar({ children, above }: { children: React.ReactNode; above?: Rea
   return (
     <div
       data-toast-above=""
-      className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.25rem))] z-30 -mx-4 space-y-2 bg-background px-4 pb-2 pt-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px] min-[900px]:border min-[900px]:px-4"
+      className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.25rem))] z-30 -mx-[var(--cp-gutter,1rem)] space-y-2 bg-background px-[var(--cp-gutter,1rem)] pb-2 pt-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px] min-[900px]:border min-[900px]:px-4"
     >
       {above}
       <div className="flex gap-2.5">{children}</div>
@@ -565,7 +564,7 @@ function DishNotFound() {
       <CookingPot className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0 space-y-3">
         <h1 className="text-lg font-medium">This dish isn&apos;t here</h1>
-        <Button asChild variant="outline" className={K_BUTTON}>
+        <Button asChild variant="ghost" className={K_BUTTON_QUIET}>
           <Link href="/groups">Your groups</Link>
         </Button>
       </div>
