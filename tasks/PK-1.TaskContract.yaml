@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PK-1
+  title: "The cookpool-passkeys spec"
+spec:
+  goal: "Land the cookpool-passkeys doc set and the PK task contracts."
+  affects:
+    - specs/epics/cookpool-passkeys/**
+    - tasks/PK-1.TaskContract.yaml
+    - tasks/PK-2.TaskContract.yaml
+    - tasks/PK-3.TaskContract.yaml
+    - tasks/PK-4.TaskContract.yaml
+    - tasks/PK-5.TaskContract.yaml
+  doneWhen:
+    - "specs/epics/cookpool-passkeys holds README, design, implementation plan, risks and status, linked to the approved canvas row Getting in"
+    - "PK-2 to PK-5 have contracts"
+  gates: []
