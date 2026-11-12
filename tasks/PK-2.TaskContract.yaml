@@ -1,0 +1,27 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PK-2
+  title: "Passkeys in the server"
+spec:
+  goal: "identity-worker registers, lists, removes and signs in with WebAuthn passkeys (migration 510), behind api-edge's auth facade, with contracts and SDK methods."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - specs/epics/cookpool-passkeys/**
+    - tasks/PK-2.TaskContract.yaml
+  doneWhen:
+    - "migration 510 adds identity_passkeys and identity_passkey_challenges; challenges are one-time and expire after 5 minutes"
+    - "a session can get register options, verify a registration, list and remove its passkeys; at most 10 per person"
+    - "login options and verify return the same session body as login/complete; any failure is 401 passkey_failed"
+    - "origin and RP ID are checked exactly per environment; an empty PASSKEY_RP_ID turns every route off; delegated tokens get 403"
+    - "tests sign real WebAuthn responses with a software authenticator and cover replay, wrong origin, counter and removal"
+  gates: []

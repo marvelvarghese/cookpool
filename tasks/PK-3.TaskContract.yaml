@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PK-3
+  title: "The getting-in screens"
+spec:
+  goal: "The redesigned Sign in, Create account, code screen, Can't sign in and desktop sign-in, as drawn on the canvas row Getting in, on the existing sign-in routes."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-passkeys/**
+    - tasks/PK-3.TaskContract.yaml
+  doneWhen:
+    - "Sign in has Sign in and Create account tabs, the welcome panel and the remembered account; Use another account forgets it"
+    - "Create account takes name and email first and saves the name after the code only when the account has none"
+    - "the code screen fills six boxes from one input, signs in at six digits, takes a paste, and offers resend with a countdown"
+    - "Can't sign in? at /login/help shows the four problems and never reveals whether an email has an account"
+    - "join links, the safe next path, Google and the stage test code keep working; the static build still serves every page"
+  gates: []

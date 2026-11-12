@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PK-4
+  title: "Passkey screens"
+spec:
+  goal: "Sign in with a passkey or Face ID, the one-time Turn on Face ID offer after sign-in, and You then Sign-in and security to list, add and remove passkeys."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-passkeys/**
+    - tasks/PK-4.TaskContract.yaml
+  doneWhen:
+    - "Sign in with a passkey signs in through the PK-2 routes and lands where login/complete would"
+    - "Turn on Face ID shows once after a code or Google sign-in only where passkeys run; Not now waits 30 days"
+    - "Sign-in and security lists passkeys with last use, adds one on this device, and removes one with Undo"
+    - "on hosts that are not the RP ID or without WebAuthn every passkey control is hidden and nothing else changes"
+  gates: []
