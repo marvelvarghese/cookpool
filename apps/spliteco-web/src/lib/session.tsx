@@ -9,6 +9,7 @@
 
 import * as React from "react";
 import { Cookpool, CookpoolError } from "@saas/sdk";
+import { oauthBaseFor } from "./oauth";
 
 export const TOKEN_KEY = "spliteco.token";
 
@@ -38,6 +39,8 @@ export function makeClient(token: string | null, onUnauthorized?: () => void): C
   const base = typeof fetch === "function" ? fetch.bind(globalThis) : undefined;
   return new Cookpool({
     baseUrl: apiBase(),
+    // OAuth's start stays on api-edge's own host, where its callback lands (SE-8).
+    oauthBaseUrl: typeof window === "undefined" ? apiBase() : oauthBaseFor(window.location.origin),
     ...(token ? { auth: { kind: "bearer" as const, token } } : {}),
     fetch: async (input, init) => {
       const response = await base!(input, init);

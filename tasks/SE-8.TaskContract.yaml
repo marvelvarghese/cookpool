@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-8
+  title: "Google sign-in works on Spliteco"
+spec:
+  goal: "Continue with Google on Spliteco starts on api-edge's own host, so the state cookie it sets is there when Google returns to api-edge's callback, and the person lands signed in."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-8.TaskContract.yaml
+  doneWhen:
+    - "On stage, Spliteco's Google start URL is on cookpool-api-edge-stage.cookpool.workers.dev, not the Spliteco host"
+    - "A test pins the start host for stage, prod, dev, local and other hosts"
+    - "IMPLEMENTATION-STATUS records the fix and its PR"
+  gates: []
