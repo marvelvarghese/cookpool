@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { sessionStore, takeReturn } from "@/lib/return-to";
 import { useSession } from "@/lib/session";
 
-// Where Google returns (only on a build with NEXT_PUBLIC_SPLITECO_GOOGLE=on):
+// Where Google returns:
 // identity-worker redirects here with `#token=…` or `#error=…` in the
 // fragment, as it does for the console. The fragment is read once and scrubbed.
 

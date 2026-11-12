@@ -10,6 +10,7 @@ import { initialOf, tintOf } from "@/lib/people";
 import { CATEGORY_TINTS } from "@/lib/activity-text";
 import { errorText, useSession } from "@/lib/session";
 import { rememberReturn, sessionStore } from "@/lib/return-to";
+import { readBack } from "@/lib/handoff";
 
 // ── Data ───────────────────────────────────────────────
 
@@ -213,13 +214,31 @@ export function BottomNav() {
 }
 
 /** A page under the bottom nav, with the canvas's background glow. */
+/**
+ * "← Back to Cookpool" (SE3): shown on every screen of a tab that was opened
+ * from Cookpool's "More in Spliteco", returning to the exact Cookpool page.
+ */
+export function BackToCookpool() {
+  const [href, setHref] = React.useState<string | null>(null);
+  React.useEffect(() => setHref(readBack(sessionStore(), window.location.host)), []);
+  if (!href) return null;
+  return (
+    <a href={href} className="cookpool-back">
+      <span aria-hidden="true">←</span> Back to Cookpool
+    </a>
+  );
+}
+
 export function Screen({ children, nav = true, tight }: { children: React.ReactNode; nav?: boolean; tight?: boolean }) {
   return (
     <SignedIn>
       <div className="app">
         <div className="glow a" aria-hidden="true" />
         <div className="glow b" aria-hidden="true" />
-        <main className={`page ${tight ? "tight" : ""}`}>{children}</main>
+        <main className={`page ${tight ? "tight" : ""}`}>
+          <BackToCookpool />
+          {children}
+        </main>
       </div>
       {nav ? <BottomNav /> : null}
     </SignedIn>

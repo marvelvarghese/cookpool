@@ -6,14 +6,14 @@ import { Mark } from "@/components/icons";
 import { errorText, makeClient, useSession } from "@/lib/session";
 import { useMe } from "@/lib/me";
 import { sessionStore, takeReturn } from "@/lib/return-to";
+import { passkeySignIn, passkeysRunHere } from "@/lib/passkey";
 
 // Sign in with your Cookpool account: an email, then the 6-digit code sent to
-// it. Google is offered only on a build with NEXT_PUBLIC_SPLITECO_GOOGLE=on —
-// identity-worker must first allow this app's address as a return target.
-// Passkeys are not offered yet (identity's PASSKEY_ORIGINS names Cookpool's
-// address only).
-
-const GOOGLE = process.env.NEXT_PUBLIC_SPLITECO_GOOGLE === "on";
+// it; Google; or a passkey made in Cookpool (SE3: identity-worker lists this
+// app's address as a return target and a passkey origin, and Cookpool's
+// /.well-known/webauthn names it as a related origin, so the same passkeys
+// work here). From Cookpool's "More in Spliteco" nobody signs in at all: its
+// one-time code comes in through /handoff.
 
 export default function SignInPage() {
   const router = useRouter();
@@ -62,6 +62,24 @@ export default function SignInPage() {
     }
   }
 
+  const [passkeys, setPasskeys] = React.useState(false);
+  React.useEffect(() => setPasskeys(passkeysRunHere()), []);
+
+  async function passkey() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await passkeySignIn(client);
+      if (!r) return;
+      setMe(r.user);
+      signIn(r.token);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function google() {
     const origin = window.location.origin;
     window.location.assign(makeClient(null).auth.oauthStartUrl("google", `${origin}/auth/callback`));
@@ -90,9 +108,12 @@ export default function SignInPage() {
             <button className="btn big" type="submit" disabled={busy || !email.trim()}>
               {busy ? "Sending…" : "Email me a code"}
             </button>
-            {GOOGLE ? (
-              <button type="button" className="btn ghost big" onClick={google}>
-                Continue with Google
+            <button type="button" className="btn ghost big" onClick={google}>
+              Continue with Google
+            </button>
+            {passkeys ? (
+              <button type="button" className="btn ghost big" onClick={() => void passkey()} disabled={busy}>
+                Use a passkey
               </button>
             ) : null}
           </form>

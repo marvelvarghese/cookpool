@@ -168,9 +168,10 @@ describe("the revamped screens' source", () => {
     expect(src).not.toMatch(/font-(semibold|bold|extrabold|black)\b/);
   });
 
-  it("Money has one main button, Add expense, and no People | Groups switch", () => {
+  // cookpool-spliteco SE3: the one main button says "Add a bill" (CookpoolMoney), as the owner's brief asks.
+  it("Money has one main button, Add a bill, and no People | Groups switch", () => {
     const src = readFileSync(`${root}/components/kitchen/money-ui.tsx`, "utf8");
-    expect(src).toContain("Add expense");
+    expect(src).toContain("Add a bill");
     expect(src).not.toContain("ListSwitch");
     expect(src).not.toContain("MAIN_BUTTON");
   });

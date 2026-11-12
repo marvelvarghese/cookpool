@@ -10,7 +10,7 @@ const nextConfig = {
   // their exports point at TypeScript with NodeNext-style `./*.js`
   // specifiers, so they go through SWC with a .js → .ts alias (as in
   // apps/web-console-next).
-  transpilePackages: ["@saas/sdk", "@saas/kitchen-engine"],
+  transpilePackages: ["@saas/sdk", "@saas/kitchen-engine", "@saas/spliteco-ui"],
   webpack(config) {
     config.resolve = config.resolve || {};
     config.resolve.extensionAlias = {
@@ -30,9 +30,6 @@ const nextConfig = {
     if (process.env.NODE_ENV !== "development") return [];
     const api = process.env.SPLITECO_DEV_API ?? "http://localhost:8787";
     return [{ source: "/api/:path*", destination: `${api}/:path*` }];
-  },
-  env: {
-    NEXT_PUBLIC_SPLITECO_GOOGLE: process.env.NEXT_PUBLIC_SPLITECO_GOOGLE ?? "off",
   },
 };
 

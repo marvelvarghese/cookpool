@@ -153,6 +153,10 @@ describe("the switches", () => {
       ["kitchen.commented", "Comments"],
       ["kitchen.yum", "Yums"],
       ["kitchen.cooked_yours", "Cooked your recipe"],
+      // Spliteco's three (cookpool-spliteco SE3): the one account's push switches.
+      ["spliteco.reminder", "Payment reminders"],
+      ["spliteco.paid_you", "Paid in Spliteco"],
+      ["spliteco.expense_for_you", "Expenses you're on"],
     ]);
     expect(BADGE_ROW).toEqual({ title: "To-dos on the app icon", example: "3" });
     expect(qk.pushKey()).toEqual(["push", "key"]);
@@ -170,6 +174,10 @@ describe("the switches", () => {
       "kitchen.commented": false,
       "kitchen.yum": false,
       "kitchen.cooked_yours": false,
+      // Spliteco's three (SE3).
+      "spliteco.reminder": false,
+      "spliteco.paid_you": false,
+      "spliteco.expense_for_you": false,
     });
     const email = { ...push({ "kitchen.paid_you": true }), channel: "email" as const };
     expect(kindsOn([email])["kitchen.paid_you"]).toBe(false);

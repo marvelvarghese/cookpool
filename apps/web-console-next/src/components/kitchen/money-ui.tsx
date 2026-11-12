@@ -1,19 +1,19 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "./link";
 import { Plus, Ticket } from "lucide-react";
 import type { MyBalancesResponse } from "@saas/contracts/kitchen";
+import type { PublicOrganization } from "@saas/contracts/membership";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useGroups, useProfile } from "./data";
-import { CLOSE_44, GroupAvatar, KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "./kit";
+import { GroupAvatar, KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "./kit";
 import { Face } from "./faces-ui";
-import { GroupPickerList } from "./group-picker";
 import { NewGroupDialog } from "./new-group-dialog";
 import { JoinGroupDialog } from "./join-group-dialog";
 import { useMemberNames, useMyBalances, useMyRoles } from "./people-data";
@@ -33,21 +33,32 @@ import {
   type MoneyPersonRow,
 } from "./money-page";
 import { useKitchenRouter } from "./transition-ui";
+import { AddBillSheet, KitchenMoney, MoreInSpliteco, kitchenGroupsOf } from "./kitchen-money-ui";
 
 /**
- * Money (cookpool-recipes RC-2; the revamp RV-5, the canvas's `RvMoney`): the
- * new frame's tab, and the one place money lives. The big net figure, one per
- * currency, coloured by direction, with the one main button, Add expense
- * (which group, then today's Add a bill); then People — three, then See all —
- * each with one button: Pay (their page, where Settle up is) when you owe
- * them, Remind (a short note through the share sheet) when they owe you; then
- * Groups, each with your signed balance there, and All (the Groups page).
- * The reads and the numbers are today's: only the look and words changed.
+ * Money (cookpool-recipes RC-2; the revamp RV-5, the canvas's `RvMoney`; on
+ * Spliteco since cookpool-spliteco SE3, the canvas's CookpoolMoney): the new
+ * frame's tab, and the one place money lives. The big net figure, one per
+ * currency, coloured by direction, with the one main button, + Add a bill
+ * (which kitchen, then the shared add-a-bill form, saved by spliteco-worker on
+ * the Kitchen balance); then Kitchen money — one kitchen at a time (`?group=`),
+ * its Kitchen balance with Settle up and its "why", from spliteco-worker's
+ * Kitchen-only read; then People — three, then See all — each with one
+ * button: Pay when you owe them, Remind when they owe you; then Groups; and
+ * last, More in Spliteco, which opens that kitchen in Spliteco signed in.
+ * Every number is the Kitchen balance: Cookpool never shows a kitchen's
+ * Other balance, friends outside it, or groups made in Spliteco.
  */
 export function MoneyScreen() {
   const balances = useMyBalances();
   const profile = useProfile();
+  const groups = useGroups();
+  const router = useKitchenRouter();
   const data = balances.data;
+  const kitchens = React.useMemo(() => kitchenGroupsOf(groups.data ?? []), [groups.data]);
+  const asked = useSearchParams()?.get("group") ?? null;
+  const orgId = kitchens.find((g) => g.id === asked)?.id ?? kitchens[0]?.id ?? null;
+  const pick = React.useCallback((id: string) => router.replace(`/money?group=${encodeURIComponent(id)}`, { scroll: false }), [router]);
 
   return (
     <div className="space-y-[22px] min-[900px]:max-w-2xl">
@@ -71,9 +82,11 @@ export function MoneyScreen() {
         <NoGroups />
       ) : (
         <>
-          <NetCard nets={moneyNets(data)} />
+          <NetCard nets={moneyNets(data)} kitchens={kitchens} preferred={orgId} />
+          {orgId ? <KitchenMoney groups={kitchens} orgId={orgId} onPick={pick} /> : null}
           <People data={data} meId={profile.data?.id ?? null} />
           <Groups data={data} />
+          <MoreInSpliteco orgId={orgId} />
         </>
       )}
     </div>
@@ -82,9 +95,11 @@ export function MoneyScreen() {
 
 const TONE: Record<NetTone, string> = { owed: "text-cp-owed", owe: "text-cp-owe", settled: "text-muted-foreground" };
 
-/** The big net figure (one per currency), coloured by direction, and Add expense, the one main button. */
-function NetCard({ nets }: { nets: readonly MoneyNet[] }) {
+/** The big net figure (one per currency), coloured by direction, and + Add a bill, the one main button. */
+function NetCard({ nets, kitchens, preferred }: { nets: readonly MoneyNet[]; kitchens: readonly PublicOrganization[]; preferred: string | null }) {
   const [billOpen, setBillOpen] = React.useState(false);
+  const { roles } = useMyRoles();
+  const addable = React.useMemo(() => kitchens.filter((g) => roles.get(g.id) !== "viewer"), [kitchens, roles]);
   return (
     <section aria-label="Your money" className={cn(K_CARD, "flex flex-col items-center gap-3.5 px-[18px] pb-[18px] pt-[22px]")}>
       <div className={cn("grid w-full gap-4", nets.length > 1 && "grid-cols-2")}>
@@ -105,9 +120,9 @@ function NetCard({ nets }: { nets: readonly MoneyNet[] }) {
       </div>
       <Button aria-haspopup="dialog" onClick={() => setBillOpen(true)} className="h-auto min-h-[54px] w-full gap-2 rounded-2xl text-[17px] font-medium">
         <Plus className="h-5 w-5" strokeWidth={2.4} aria-hidden />
-        Add expense
+        Add a bill
       </Button>
-      <BillSheet open={billOpen} onOpenChange={setBillOpen} />
+      <AddBillSheet open={billOpen} onOpenChange={setBillOpen} groups={addable} preferred={preferred} />
     </section>
   );
 }
@@ -285,58 +300,5 @@ function NoGroups() {
       <NewGroupDialog open={newOpen} onOpenChange={setNewOpen} />
       <JoinGroupDialog open={joinOpen} onOpenChange={setJoinOpen} />
     </KCard>
-  );
-}
-
-/**
- * Bill: which group (leaving out groups you only view), then today's Add a
- * bill there — straight there when there is one group. The + Add sheet's
- * "Paid a bill", now Money's.
- */
-function BillSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const router = useKitchenRouter();
-  const allGroups = useGroups();
-  const { roles } = useMyRoles();
-  const groups = React.useMemo(() => allGroups.data?.filter((g) => roles.get(g.id) !== "viewer") ?? null, [allGroups.data, roles]);
-  const go = React.useCallback(
-    (slug: string) => {
-      onOpenChange(false);
-      router.push(`/groups/${encodeURIComponent(slug)}/expense`);
-    },
-    [onOpenChange, router],
-  );
-
-  // One group: nothing to pick.
-  const only = groups?.length === 1 ? groups[0]!.slug : null;
-  React.useEffect(() => {
-    if (open && only) go(only);
-  }, [open, only, go]);
-
-  return (
-    <Sheet open={open && !only} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        aria-describedby={undefined}
-        className={cn(
-          "mx-auto max-h-[92dvh] max-w-xl gap-0 overflow-hidden rounded-t-[28px] border-x-0 bg-background px-4 pt-2.5 shadow-2xl focus:outline-none min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
-          CLOSE_44,
-        )}
-      >
-        <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
-        <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-medium">Which group?</SheetTitle>
-        <div className="-mx-4 mt-2 min-h-0 flex-1 overflow-y-auto px-4 pb-5">
-          {allGroups.loading || !groups ? (
-            <div className="space-y-2" aria-hidden>
-              <Skeleton className="h-14 w-full rounded-[18px]" />
-              <Skeleton className="h-14 w-full rounded-[18px]" />
-            </div>
-          ) : groups.length === 0 ? (
-            <p className={cn(K_CARD, "p-4 text-[15px] font-normal")}>No group you can add to</p>
-          ) : (
-            <GroupPickerList groups={groups} idPrefix="money-bill-group" onPick={go} />
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
   );
 }

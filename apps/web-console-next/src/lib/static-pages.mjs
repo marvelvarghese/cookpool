@@ -49,6 +49,8 @@ export const STATIC_PAGES = Object.freeze([
   // You → Sign-in and security (cookpool-passkeys PK-4), in every frame.
   "/you/security",
   "/money",
+  // Settle up in a kitchen, on spliteco-worker (cookpool-spliteco SE3).
+  "/money/settle",
   "/people",
   "/people/:subjectId",
   "/pantry",

@@ -1,0 +1,6 @@
+{
+  "origins": [
+    "https://cookpool-spliteco-web-stage.cookpool.workers.dev",
+    "https://cookpool-spliteco-web-prod.cookpool.workers.dev"
+  ]
+}

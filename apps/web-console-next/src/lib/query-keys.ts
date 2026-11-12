@@ -41,6 +41,8 @@ export const qk = {
   kitchenActivityAll: (orgId: string) => ["kitchenLedger", orgId, "activityAll"] as const,
   kitchenBalances: (orgId: string) => ["kitchenLedger", orgId, "balances"] as const,
   kitchenSettlePlan: (orgId: string) => ["kitchenLedger", orgId, "settlePlan"] as const,
+  // A kitchen group as Cookpool's Money tab reads it from spliteco-worker (SE3).
+  kitchenSplitecoGroup: (orgId: string) => ["kitchenLedger", orgId, "spliteco"] as const,
   // Cookpool's people (CP-9): the caller's balances across every group and
   // the "why" for one person, both under `kitchenMe()` so a ledger write
   // refreshes them together; a group's members, by name and role.

@@ -148,6 +148,11 @@ const REASON_COPY: Record<string, string> = {
   reminded_recently: "You reminded them in the last 24 hours. Try again tomorrow.",
   not_from_an_assistant: "Payments are recorded in the app only.",
   same_person: "A payment needs two different people.",
+  // SE3: opened from Cookpool.
+  handoff_expired: "That link from Cookpool has expired. Open Spliteco from Cookpool again.",
+  handoff_used: "That link from Cookpool was already used. Open Spliteco from Cookpool again.",
+  handoff_invalid: "That link from Cookpool isn't valid. Open Spliteco from Cookpool again.",
+  handoff_wrong_origin: "That link was made for another app. Open Spliteco from Cookpool again.",
 };
 
 /** A key per user action: kept across retries of the same press. */
