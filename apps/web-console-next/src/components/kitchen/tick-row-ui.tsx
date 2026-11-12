@@ -32,6 +32,7 @@ const META_TONE: Record<TickMeta["tone"], string> = {
   muted: "text-muted-foreground",
   soon: "text-cp-soon",
   expired: "text-cp-expired",
+  owe: "text-cp-owe",
 };
 
 /** The small column header: ITEM · LAST TIME | AMOUNT | ✓ (decorative; each control has its own name). */
@@ -53,8 +54,13 @@ export interface TickRowProps {
   href?: string | null;
   /** The line under the name: the last use, amber for use soon, red once expired. */
   meta: TickMeta | null;
-  /** The box (tick-row.ts `tickAmount`); null draws no box and no tick (nothing to log). */
+  /** The box (tick-row.ts `tickAmount`); null draws no box and no tick (nothing to log), unless `fixed`. */
   amount: TickAmount | null;
+  /**
+   * With no `amount`: words drawn in the box's place, with the tick still
+   * there ("To taste", RV-11's cook lines). Without it, no box and no tick.
+   */
+  fixed?: string | null;
   state: TickState;
   onState: (next: TickState) => void;
   /** A unit chip was picked (after `onState`): keep it as the usual. */
@@ -75,12 +81,13 @@ export interface TickRowProps {
 
 const defaultTickLabel = (words: string, name: string, done: boolean) => (done ? `Logged ${words} of ${name}, undo` : `Log ${words} of ${name}`);
 
-export function TickRow({ id, name, href, meta, amount, state, onState, onUnit, done, onTick, end, busy = false, tickLabel = defaultTickLabel, children }: TickRowProps) {
+export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, onTick, end, busy = false, tickLabel = defaultTickLabel, children }: TickRowProps) {
   const [unitsOpen, setUnitsOpen] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const chipsId = React.useId();
   const showUnits = unitsOpen && !done && !!amount && amount.units.length > 1;
-  const words = done ? `${done.number} ${done.word}` : (amount?.words ?? "");
+  const words = done ? `${done.number} ${done.word}` : (amount?.words ?? fixed ?? "");
+  const fixedOnly = !amount && fixed !== null;
   const nameBody = (
     <>
       <span className="truncate text-base font-medium leading-snug">{name}</span>
@@ -99,7 +106,9 @@ export function TickRow({ id, name, href, meta, amount, state, onState, onUnit, 
           <span className="flex min-h-11 min-w-0 flex-col justify-center gap-0.5">{nameBody}</span>
         )}
 
-        {amount || done ? (
+        {fixedOnly ? (
+          <span className={cn("truncate px-1 text-right text-[15px] font-normal", done ? "text-cp-accent-text" : "text-muted-foreground")}>{fixed}</span>
+        ) : amount || done ? (
           <div
             onClick={() => inputRef.current?.focus()}
             className={cn(
@@ -157,7 +166,7 @@ export function TickRow({ id, name, href, meta, amount, state, onState, onUnit, 
 
         {end ? (
           <span className="flex justify-center">{end}</span>
-        ) : amount || done ? (
+        ) : amount || done || fixedOnly ? (
           <button
             type="button"
             aria-pressed={!!done}

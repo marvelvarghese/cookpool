@@ -941,6 +941,7 @@ export interface PrepHandlers {
 export function GuidePrepView({
   view,
   gather,
+  gatherList,
   openKey,
   strip,
   on,
@@ -949,6 +950,8 @@ export function GuidePrepView({
   view: PrepScreenView;
   /** The session's lines, as RC-6's rows show them (the same ticks and amounts). */
   gather: readonly SessionLineView[];
+  /** In their place, the new frame's tick rows (cookpool-revamp RV-11), drawn by the screen. */
+  gatherList?: React.ReactNode;
   openKey: string | null;
   strip: readonly StripItem[];
   on: PrepHandlers;
@@ -972,7 +975,12 @@ export function GuidePrepView({
         </div>
       </div>
 
-      {gather.length > 0 ? (
+      {gatherList ? (
+        <section aria-label="Gather" className="flex flex-col gap-2">
+          <h2 className="text-[13px] font-medium tracking-[0.04em] text-muted-foreground">GATHER</h2>
+          {gatherList}
+        </section>
+      ) : gather.length > 0 ? (
         <section aria-label="Gather" className="flex flex-col gap-2">
           <h2 className="text-[13px] font-medium tracking-[0.04em] text-muted-foreground">GATHER</h2>
           <ul className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
