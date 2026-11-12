@@ -171,4 +171,6 @@ export const qk = {
   pushPrefs: () => ["push", "prefs"] as const,
   // Connected assistants (cookpool-mcp MC-4): the person's live delegations.
   assistantDelegations: () => ["assistants", "delegations"] as const,
+  // Sign-in and security (cookpool-passkeys PK-4): your passkeys.
+  passkeys: () => ["auth", "passkeys"] as const,
 };

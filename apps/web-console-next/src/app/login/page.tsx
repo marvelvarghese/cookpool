@@ -11,7 +11,7 @@ import { qk } from "@/lib/query-keys";
 import { readStoredToken, useSession } from "@/lib/session";
 import { nameStepFrom, postLoginDestination, signedOutFrom } from "@/lib/safe-next";
 import { rememberJoinAfterSignIn, rememberLoginNext, rememberOAuthProvider } from "@/lib/login-return";
-import { markNameAsked, rememberSignInMethod } from "@/lib/first-run";
+import { markNameAsked, rememberSignInMethod, type SignInMethod } from "@/lib/first-run";
 import {
   forgetRememberedAccount,
   readRememberedAccount,
@@ -79,6 +79,9 @@ import {
 } from "@/components/kitchen/sign-in-ui";
 import { WelcomeHero } from "@/components/kitchen/sign-in-screens-ui";
 import { CodeStep, StartStep } from "@/components/kitchen/sign-in-steps-ui";
+import { authenticate, markDeviceHasPasskey, markOfferDue, shouldOfferPasskey } from "@/lib/passkey-device";
+import { passkeyHere, passkeySignInLabel, signInWithPasskey } from "@/components/kitchen/passkeys";
+import { PasskeyOfferScreen, usePasskeysHere } from "@/components/kitchen/passkey-ui";
 
 /**
  * Sign-in (Cookpool SI-5, design §5): one page for Cookpool and the admin
@@ -108,6 +111,13 @@ import { CodeStep, StartStep } from "@/components/kitchen/sign-in-steps-ui";
  * "Use another account"); Create account takes the name up front and saves
  * it after the code only when the account has none; the code fills six boxes
  * from one input; and "Can't sign in?" opens `/login/help`.
+ *
+ * Passkeys (PK-4), where they run (WebAuthn, and the host is the RP ID):
+ * "Sign in with a passkey" above Google, and a remembered passkey account's
+ * "Sign in with Face ID". It finishes as a code sign-in does (the session,
+ * the remembered account, the join, the Name step, `next`). After a code
+ * (or, from the Name step, a Google) sign-in, "Turn on Face ID" may show
+ * once, full screen, before landing (`land`).
  */
 
 type JoinLookup =
@@ -227,7 +237,7 @@ function SignInPage({ params }: { params: LoginParams }) {
       if (r.ok) qc.setQueryData(qk.profile(), r.data.user);
       const check = nameCheck(r.ok ? { ok: true, user: r.data.user } : { ok: false, status: r.status });
       if (check.kind === "go") {
-        router.replace(destination);
+        void land(r.ok ? r.data.user : null);
         return;
       }
       if (check.kind === "ask") {
@@ -279,15 +289,37 @@ function SignInPage({ params }: { params: LoginParams }) {
   const withGoogle = offersGoogle(providers);
   const [leaving, setLeaving] = React.useState(false);
 
+  // Passkeys (PK-4): decided after mount; null until then hides every passkey control.
+  const passkeys = usePasskeysHere();
+  const passkeysRun = passkeys.runs === true;
+  const [passkeyBusy, setPasskeyBusy] = React.useState(false);
+  const [passkeyNotice, setPasskeyNotice] = React.useState<string | null>(null);
+  // Turn on Face ID, full screen, before landing: the first name it greets.
+  const [offer, setOffer] = React.useState<{ firstName: string | null } | null>(null);
+
+  /**
+   * Go on to `next`, by way of Turn on Face ID when a code or Google sign-in
+   * just happened and every condition holds (`shouldOfferPasskey`).
+   */
+  const land = async (user?: { displayName?: string | null } | null) => {
+    if (await shouldOfferPasskey()) {
+      setOffer({ firstName: cleanDisplayName(user?.displayName).split(" ")[0] || null });
+      return;
+    }
+    router.replace(destination);
+  };
+
   /** The join page may join at once only if this person saw the group's card. */
   const rememberJoin = () => {
     if (joinCode && join.state === "found") rememberJoinAfterSignIn(joinCode);
   };
 
-  const signedIn = async (token: string, user: AuthUser) => {
+  const signedIn = async (token: string, user: AuthUser, method: Extract<SignInMethod, "code" | "passkey"> = "code") => {
     setToken(token);
-    rememberSignInMethod("code");
-    rememberAccount(user, "code");
+    rememberSignInMethod(method);
+    rememberAccount(user, method);
+    // A code sign-in may be offered Face ID before landing; a passkey one never is.
+    if (method === "code") markOfferDue();
     rememberJoin();
     // Create account (PK-3): the name typed up front, saved now, only when
     // this account has none. If it cannot be saved, the Name step asks again.
@@ -298,7 +330,7 @@ function SignInPage({ params }: { params: LoginParams }) {
       if (r.ok) {
         applyNewName(qc, r.data.user);
         rememberAccountName(user.email, toSave);
-        router.replace(destination);
+        void land(r.data.user);
         return;
       }
       markNameAsked(user.id);
@@ -313,7 +345,7 @@ function SignInPage({ params }: { params: LoginParams }) {
       dispatch({ type: "ask_name", email: user.email });
       return;
     }
-    router.replace(destination);
+    void land(user);
   };
 
   const saveName = async () => {
@@ -327,7 +359,7 @@ function SignInPage({ params }: { params: LoginParams }) {
       rememberAccountName(r.data.user.email, displayName);
       // "Join Flat 4B" is a yes to joining: the join page joins without asking again.
       rememberJoin();
-      router.replace(destination);
+      void land(r.data.user);
       return;
     }
     const outcome = saveNameOutcome(r.error, r.status);
@@ -418,7 +450,28 @@ function SignInPage({ params }: { params: LoginParams }) {
     }
   };
 
+  /** Sign in with a passkey (PK-4): options, the browser's sheet, verify; then as a code sign-in finishes. */
+  const startPasskey = async () => {
+    if (passkeyBusy || state.busy !== null || leaving) return;
+    setPasskeyNotice(null);
+    setPasskeyBusy(true);
+    const out = await signInWithPasskey({
+      loginOptions: () => wrap(() => clientRef.current.auth.passkeyLoginOptions()),
+      authenticate,
+      loginVerify: (response) => wrap(() => clientRef.current.auth.passkeyLoginVerify({ response })),
+    });
+    setPasskeyBusy(false);
+    if (out.kind === "signed_in") {
+      markDeviceHasPasskey();
+      await signedIn(out.session.token, out.session.user, "passkey");
+      return;
+    }
+    // A closed sheet leaves the screen as it was.
+    if (out.kind === "failed") setPasskeyNotice(out.notice);
+  };
+
   const startGoogle = () => {
+    setPasskeyNotice(null);
     setLeaving(true);
     // The round trip leaves the app: `next` rides in the returnTo and, as
     // before, in this tab's storage; the callback re-checks whichever it reads.
@@ -430,11 +483,17 @@ function SignInPage({ params }: { params: LoginParams }) {
 
   /** "Continue as Rahul": the way this device signed in last, Google or a code to the remembered address. */
   const continueAsRemembered = () => {
-    if (!remembered || state.busy !== null || leaving) return;
-    if (continueMethod(remembered, withGoogle) === "google") {
+    if (!remembered || state.busy !== null || leaving || passkeyBusy) return;
+    const how = continueMethod(remembered, withGoogle, passkeysRun);
+    if (how === "passkey") {
+      void startPasskey();
+      return;
+    }
+    if (how === "google") {
       startGoogle();
       return;
     }
+    setPasskeyNotice(null);
     dispatch({ type: "email", value: remembered.email });
     void sendCode("first", remembered.email);
   };
@@ -443,12 +502,14 @@ function SignInPage({ params }: { params: LoginParams }) {
   const forgetRemembered = () => {
     forgetRememberedAccount();
     setRemembered(null);
+    setPasskeyNotice(null);
     dispatch({ type: "email", value: "" });
     window.requestAnimationFrame(() => emailRef.current?.focus());
   };
 
   const submitStart = () => {
-    if (state.busy !== null) return;
+    if (state.busy !== null || passkeyBusy) return;
+    setPasskeyNotice(null);
     if (state.mode === "new" && !canStartSignUp(state)) return;
     void sendCode("first");
   };
@@ -460,6 +521,19 @@ function SignInPage({ params }: { params: LoginParams }) {
   const starting = state.step === "start" && !naming && !checkingName;
   const helpHref = helpPathFor(rawNext);
   const panelTitle = heroTitle(state.mode, remembered !== null, null);
+
+  if (offer) {
+    return (
+      <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground")}>
+        <PasskeyOfferScreen
+          client={client}
+          device={passkeys.device}
+          firstName={offer.firstName}
+          onFinish={() => router.replace(destination)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
@@ -503,7 +577,7 @@ function SignInPage({ params }: { params: LoginParams }) {
                 name={state.name}
                 onName={(value) => dispatch({ type: "name", value })}
                 onSubmit={() => void saveName()}
-                onLater={() => router.replace(destination)}
+                onLater={() => void land(null)}
                 action={nameStepAction(preview)}
                 canSave={canSaveName(state)}
                 saving={state.busy === "save"}
@@ -517,10 +591,18 @@ function SignInPage({ params }: { params: LoginParams }) {
                   mode={state.mode}
                   onMode={(mode) => dispatch({ type: "tab", mode })}
                   title={state.mode === "in" ? desktopTitle(preview) : formTitle("new")}
-                  remembered={remembered ? rememberedCard(remembered) : null}
+                  remembered={
+                    remembered
+                      ? rememberedCard(
+                          remembered,
+                          passkeysRun ? { label: passkeySignInLabel(passkeys.device), here: passkeyHere(passkeys.device) } : null,
+                        )
+                      : null
+                  }
                   onContinue={continueAsRemembered}
                   onForget={forgetRemembered}
-                  continuing={state.busy === "send" || leaving}
+                  continuing={state.busy === "send" || leaving || passkeyBusy}
+                  passkey={passkeysRun ? { busy: passkeyBusy, onClick: () => void startPasskey() } : null}
                   withGoogle={withGoogle}
                   googleBusy={leaving}
                   onGoogle={startGoogle}
@@ -528,6 +610,7 @@ function SignInPage({ params }: { params: LoginParams }) {
                   onEmail={(value) => dispatch({ type: "email", value })}
                   signUpName={state.signUpName}
                   onSignUpName={(value) => dispatch({ type: "sign_up_name", value })}
+                  passkeyNotice={passkeyNotice}
                   notice={state.notice}
                   sending={state.busy === "send"}
                   canSignUp={canStartSignUp(state)}

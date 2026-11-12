@@ -107,8 +107,8 @@ export function signUpNameToSave(
 
 // ── The remembered account ─────────────────────────────────────────
 
-/** How the remembered account signed in last on this device. */
-export type RememberedMethod = "google" | "code";
+/** How the remembered account signed in last on this device (a passkey since PK-4). */
+export type RememberedMethod = "google" | "code" | "passkey";
 
 /** Who signed in on this device last (localStorage), for "Welcome back". */
 export interface RememberedAccount {
@@ -129,7 +129,7 @@ export function parseRememberedAccount(raw: string | null | undefined): Remember
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
   if (typeof v.email !== "string" || !looksLikeEmail(v.email)) return null;
-  if (v.method !== "google" && v.method !== "code") return null;
+  if (v.method !== "google" && v.method !== "code" && v.method !== "passkey") return null;
   return { name: cleanDisplayName(typeof v.name === "string" ? v.name : ""), email: v.email.trim(), method: v.method };
 }
 
@@ -149,23 +149,39 @@ export interface RememberedCard {
   action: string;
 }
 
-/** "Welcome back, Rahul" · "rahul@gmail.com · Google" · "Continue as Rahul". */
-export function rememberedCard(account: RememberedAccount): RememberedCard {
+/**
+ * "Welcome back, Rahul" · "rahul@gmail.com · Google" · "Continue as Rahul".
+ * A passkey account (PK-4), where passkeys run (`passkey`), reads
+ * "rahul@gmail.com · passkey on this phone" and its button is the device's
+ * own ("Sign in with Face ID"); where they do not, it falls back to the code.
+ */
+export function rememberedCard(
+  account: RememberedAccount,
+  passkey: { label: string; here: string } | null = null,
+): RememberedCard {
   const first = account.name.split(" ")[0] ?? "";
-  const how = account.method === "google" ? "Google" : "email code";
+  const withPasskey = account.method === "passkey" && passkey !== null;
+  const how =
+    account.method === "google" ? "Google" : account.method === "passkey" ? (passkey?.here ?? "passkey") : "email code";
   return {
     initials: account.name ? nameInitials(account.name) : (account.email.charAt(0).toLocaleUpperCase() || "?"),
     title: first ? `Welcome back, ${first}` : "Welcome back",
     subtitle: `${account.email} · ${how}`,
-    action: first ? `Continue as ${first}` : "Continue",
+    action: withPasskey ? passkey.label : first ? `Continue as ${first}` : "Continue",
   };
 }
 
 /**
- * How "Continue as" signs in: Google when that is how this device signed in
- * and Google is offered, else a code to the remembered address.
+ * How "Continue as" signs in: a passkey when that is how this device signed
+ * in and passkeys run here, Google when that is how and Google is offered,
+ * else a code to the remembered address.
  */
-export function continueMethod(account: RememberedAccount, googleOffered: boolean): RememberedMethod {
+export function continueMethod(
+  account: RememberedAccount,
+  googleOffered: boolean,
+  passkeysRun: boolean = false,
+): RememberedMethod {
+  if (account.method === "passkey" && passkeysRun) return "passkey";
   return account.method === "google" && googleOffered ? "google" : "code";
 }
 

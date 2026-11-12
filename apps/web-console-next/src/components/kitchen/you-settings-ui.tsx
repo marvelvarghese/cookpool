@@ -20,6 +20,7 @@ import { BackButton } from "@/components/kitchen/back-ui";
 import { InstallRow } from "@/components/kitchen/install-ui";
 import { NotificationsRow } from "@/components/kitchen/notify-ui";
 import { AiSettingsRow } from "@/components/kitchen/ai-settings-ui";
+import { SecurityRow } from "@/components/kitchen/passkey-ui";
 import { newFrame } from "@/lib/features";
 import { GoogleMark, NoticeBox, PersonAvatar, SIGN_IN_INPUT } from "@/components/kitchen/sign-in-ui";
 import { NAME_LABEL, NAME_MAX, cleanDisplayName, namePrefill, saveNameOutcome, type SignInNotice } from "@/components/kitchen/sign-in";
@@ -77,6 +78,8 @@ export function YouSettings({ title = YOU_TITLE, sub = false }: { title?: string
         <>
           <MeCard user={user} />
           <SignInWays email={user.email} />
+          {/* You → Sign-in and security (PK-4), only where passkeys run. */}
+          <SecurityRow />
         </>
       ) : (
         <KCard className="flex flex-wrap items-center justify-between gap-3 rounded-3xl p-5">
@@ -246,7 +249,8 @@ function MeCard({ user }: { user: AuthUser }) {
 function SignInWays({ email }: { email: string }) {
   // Read once: every sign-in on this device overwrites it, and You is reached signed in.
   const [last] = React.useState(lastSignInMethod);
-  const rows = signInRows(email, last);
+  // A passkey sign-in (PK-4) is listed under Sign-in and security, not here.
+  const rows = signInRows(email, last === "passkey" ? null : last);
   return (
     <section aria-labelledby="you-how" className="rounded-3xl border bg-card px-5 py-1.5">
       <h2 id="you-how" className="mb-1.5 mt-3.5 text-[13px] font-bold uppercase tracking-[0.06em] text-muted-foreground">

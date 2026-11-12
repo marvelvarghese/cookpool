@@ -87,6 +87,19 @@ describe("the request api-edge gets", () => {
     expect(new URL(apiEdgeRequest(new Request(`${ORIGIN}${from}`)).url).pathname).toBe(to);
   });
 
+  it("passes the browser's user-agent through, which names a passkey nobody named (PK-4)", () => {
+    const ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+    const r = apiEdgeRequest(
+      new Request(`${ORIGIN}/api/v1/auth/passkeys/register/verify`, {
+        method: "POST",
+        headers: { "user-agent": ua, "content-type": "application/json" },
+        body: "{}",
+      }),
+    );
+    expect(new URL(r.url).pathname).toBe("/v1/auth/passkeys/register/verify");
+    expect(r.headers.get("user-agent")).toBe(ua);
+  });
+
   it("keeps a doubled slash a path on this origin, never another host", () => {
     const url = new URL(apiEdgeRequest(new Request(`${ORIGIN}/api//evil.test/v1/x`)).url);
     expect(url.host).toBe("cookpool.store");

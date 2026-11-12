@@ -45,6 +45,8 @@ describe("which screens pull to refresh", () => {
     "/you",
     "/you/settings",
     "/you/notifications",
+    // You → Sign-in and security (cookpool-passkeys PK-4): Remove with Undo, not a list to refresh.
+    "/you/security",
     "/pantry/new",
     // The shopping run (cookpool-pantry PN-6): ticks and steppers, which a pull would fight.
     "/pantry/run",

@@ -9,7 +9,9 @@ import { loginPathFor, nextParamFrom } from "@/lib/safe-next";
 import { takeLoginNext, takeOAuthProvider } from "@/lib/login-return";
 import { rememberSignInMethod } from "@/lib/first-run";
 import { rememberAccount } from "@/lib/remembered-account";
-import { afterOAuthPath } from "@/components/kitchen/sign-in";
+import { afterOAuthPath, cleanDisplayName, needsName } from "@/components/kitchen/sign-in";
+import { markOfferDue, shouldOfferPasskey, thisDevice } from "@/lib/passkey-device";
+import { PasskeyOfferScreen } from "@/components/kitchen/passkey-ui";
 import { Button } from "@/components/ui/button";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
@@ -46,11 +48,17 @@ const ERROR_COPY: Record<string, string> = {
  * A read that fails goes straight on. It also records that this device signed
  * in with Google (You's "How you sign in"), and (PK-3) remembers the account
  * for Sign in's "Welcome back".
+ *
+ * Turn on Face ID (PK-4) may show here, full screen, before going on, when
+ * the account has a name and every condition holds; with no name the Name
+ * step goes first and the sign-in page offers it after (`markOfferDue`).
  */
 export default function OAuthCallbackPage() {
   useKitchenBodyTheme();
   const router = useRouter();
-  const { setToken, target } = useSession();
+  const { setToken, target, client } = useSession();
+  // Turn on Face ID before going on (PK-4): where to, and whom it greets.
+  const [offer, setOffer] = React.useState<{ path: string; firstName: string | null } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [next, setNext] = React.useState<string | null>(null);
   // The fragment is read once: a second run (React's dev double effects)
@@ -82,11 +90,19 @@ export default function OAuthCallbackPage() {
     if (token) {
       setToken(token);
       rememberSignInMethod(provider === "google" ? "google" : null);
+      markOfferDue();
       // The session's client still has the old token on this render: ask with the new one.
-      void wrap(() => createClient(target, token).auth.getProfile()).then((r) => {
+      void wrap(() => createClient(target, token).auth.getProfile()).then(async (r) => {
         // Sign in's "Welcome back" (PK-3): who this device just signed in as, with Google.
         if (r.ok && provider === "google") rememberAccount(r.data.user, "google");
-        router.replace(afterOAuthPath(r.ok ? { ok: true, user: r.data.user } : { ok: false, status: r.status }, destination));
+        const path = afterOAuthPath(r.ok ? { ok: true, user: r.data.user } : { ok: false, status: r.status }, destination);
+        // No name yet: the Name step asks first, and the sign-in page offers Face ID after it.
+        const naming = r.ok && needsName(r.data.user);
+        if (!naming && (await shouldOfferPasskey())) {
+          setOffer({ path, firstName: r.ok ? cleanDisplayName(r.data.user.displayName).split(" ")[0] || null : null });
+          return;
+        }
+        router.replace(path);
       });
       return;
     }
@@ -94,6 +110,14 @@ export default function OAuthCallbackPage() {
     setNext(destination);
     setError(err ?? "oauth_failed");
   }, [router, setToken, target]);
+
+  if (offer) {
+    return (
+      <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground")}>
+        <PasskeyOfferScreen client={client} device={thisDevice()} firstName={offer.firstName} onFinish={() => router.replace(offer.path)} />
+      </div>
+    );
+  }
 
   return (
     <div className={cn(...KITCHEN_THEME_CLASSES, "grid min-h-dvh place-items-center bg-background px-5 text-foreground")}>
