@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-2
+  title: "The new look's foundation"
+spec:
+  goal: "Fresh green and Gold tokens in light and dark, Outfit self-hosted, weights no heavier than 500, borderless cards and the floating tab bar, for every kitchen screen."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-2.TaskContract.yaml
+  doneWhen:
+    - "the cp tokens carry the design table's light and dark values and dark follows prefers-color-scheme"
+    - "Outfit replaces Plus Jakarta Sans as --font-cookpool, self-hosted, and kitchen screens use no weight above 500"
+    - "cards have no border, the soft shadow and radius 22; the tab bar floats with the current tab filled"
+    - "the static build serves every page; today's frame on prod keeps working"
+  gates: []

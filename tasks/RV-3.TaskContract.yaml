@@ -1,0 +1,16 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-3
+  title: "Revamp: Home, Pantry and Item"
+spec:
+  goal: "Rebuild Home, Pantry and Item in the new look to match the canvas boards HomeRevamp, RvPantry, RvItem, with less text and one action per row."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-3.TaskContract.yaml
+  doneWhen:
+    - "each page matches its board at 390 px in light and dark: one line per row, one button per row, three then See all, one main button"
+    - "behaviour and data are unchanged; pinned copy changes are deliberate and recorded"
+  gates: []

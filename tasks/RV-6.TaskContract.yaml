@@ -1,0 +1,16 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-6
+  title: "Revamp: You, Community and Sign in"
+spec:
+  goal: "Rebuild You, Community and Sign in in the new look to match the canvas boards RvYou, RvCommunity, RvSignIn, with less text and one action per row."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-6.TaskContract.yaml
+  doneWhen:
+    - "each page matches its board at 390 px in light and dark: one line per row, one button per row, three then See all, one main button"
+    - "behaviour and data are unchanged; pinned copy changes are deliberate and recorded"
+  gates: []
