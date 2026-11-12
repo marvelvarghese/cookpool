@@ -850,8 +850,9 @@ describe("the bar on every tab (design §4.4)", () => {
     expect(html).toContain("Cooking · 12 min · 1 of 5 in");
     expect(html).toContain('href="/cook/session"');
     expect(html).toContain(">Resume<");
-    expect(html).toContain("background-color:#17201B");
-    expect(html).toContain("bg-[#B4471F]");
+    // RV-4: the cook strip's tokens (ink in light, the tint in dark), the pot in the cook colour.
+    expect(html).toContain("background-color:hsl(var(--cp-cook-bg))");
+    expect(html).toContain("bg-cp-cook text-cp-on-cook");
     expect(html).toContain("data-toast-above");
     const side = renderToStaticMarkup(React.createElement(SessionBarCard, { view: sessionBarView(s, later)!, placement: "sidebar" }));
     expect(side).not.toContain("fixed");
@@ -881,7 +882,7 @@ describe("a row, as drawn", () => {
   it("tints a ticked row and fills its 44 px tick", () => {
     const html = row("r:0");
     expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain("bg-[#EEF7F1]");
+    expect(html).toContain("bg-cp-accent-tint");
     expect(html).toContain("h-11 w-11");
     expect(html).toContain('aria-label="Untick Chicken"');
   });

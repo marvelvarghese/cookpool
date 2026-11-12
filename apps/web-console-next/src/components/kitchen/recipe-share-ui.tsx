@@ -62,8 +62,8 @@ export function ShareSheet({
           CLOSE_44,
         )}
       >
-        <div aria-hidden className="mx-auto mb-2 h-[5px] w-10 shrink-0 rounded-full bg-[#D5DAD2] min-[900px]:hidden" />
-        <SheetTitle id="share-recipe-h" className="mb-3.5 flex min-h-11 items-center pr-12 text-[22px] font-extrabold">
+        <div aria-hidden className="mx-auto mb-2 h-[5px] w-10 shrink-0 rounded-full bg-muted min-[900px]:hidden" />
+        <SheetTitle id="share-recipe-h" className="mb-3.5 flex min-h-11 items-center pr-12 text-[22px] font-medium">
           Who can see it
         </SheetTitle>
         <ShareSheetBody

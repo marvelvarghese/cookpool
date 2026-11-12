@@ -259,11 +259,11 @@ describe("Explore: rows, fewest missing first", () => {
   });
 
   it("sits beside New recipe in the Cook hub", () => {
-    const out = html(React.createElement(CookHubView, { cookNow: null, cards: [], recipesLoading: false, recipesFailed: false, extraAction: React.createElement(ExploreButton) }));
+    const out = html(React.createElement(CookHubView, { cookNow: null, saved: [], recipesLoading: false, recipesFailed: false, extraAction: React.createElement(ExploreButton) }));
     expect(out).toContain('href="/explore"');
     expect(out.indexOf("New recipe")).toBeLessThan(out.indexOf(">Explore"));
     // Without it the hub draws as RC-5 left it.
-    expect(html(React.createElement(CookHubView, { cookNow: null, cards: [], recipesLoading: false, recipesFailed: false }))).not.toContain("Explore");
+    expect(html(React.createElement(CookHubView, { cookNow: null, saved: [], recipesLoading: false, recipesFailed: false }))).not.toContain("Explore");
   });
 });
 

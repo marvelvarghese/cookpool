@@ -42,7 +42,7 @@ import {
  */
 
 const ENTRY =
-  "flex min-h-12 w-full items-center gap-2.5 rounded-[14px] px-3.5 text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex min-h-12 w-full items-center gap-2.5 rounded-[14px] px-3.5 text-[15px] font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function EntryInside() {
   return (
@@ -122,21 +122,21 @@ function Header({ onBack }: { onBack: () => void }) {
     <header className="flex items-center gap-2">
       <BackControl onClick={onBack} />
       <AiChip />
-      <h1 className="min-w-0 flex-1 truncate text-xl font-extrabold">Recipe from a photo</h1>
+      <h1 className="min-w-0 flex-1 truncate text-xl font-medium">Recipe from a photo</h1>
     </header>
   );
 }
 
 const SHIMMER = `
 @keyframes cookpool-photo-shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
-.cookpool-photo-sk{background:linear-gradient(90deg,#ECEEE9 0,#F6F7F4 40px,#ECEEE9 80px);background-size:400px 100%;animation:cookpool-photo-shimmer 1.2s linear infinite}
+.cookpool-photo-sk{background:linear-gradient(90deg,hsl(var(--muted)) 0,hsl(var(--background)) 40px,hsl(var(--muted)) 80px);background-size:400px 100%;animation:cookpool-photo-shimmer 1.2s linear infinite}
 @media (prefers-reduced-motion: reduce){.cookpool-photo-sk{animation:none}}`;
 
 function Thumb({ url, className }: { url: string | null; className?: string }) {
   return url ? (
     <img src={url} alt="" className={cn("shrink-0 rounded-[10px] object-cover", className)} />
   ) : (
-    <span aria-hidden className={cn("block shrink-0 rounded-[10px] bg-[repeating-linear-gradient(#F3EAD9_0_9px,#E5D9C2_9px_10px)]", className)} />
+    <span aria-hidden className={cn("block shrink-0 rounded-[10px] bg-[repeating-linear-gradient(hsl(var(--cp-soon-tint))_0_9px,hsl(var(--border))_9px_10px)]", className)} />
   );
 }
 
@@ -284,8 +284,8 @@ export function RecipePhotoFlow({ onBack, onTypeIt }: { onBack: () => void; onTy
           <div className={cn("flex gap-3 rounded-[20px] p-3", AI_EDGE)}>
             <Thumb url={photoUrl} className="h-[84px] w-16" />
             <span className="flex flex-1 flex-col justify-center gap-2">
-              <span className="text-[15px] font-extrabold">Reading the page…</span>
-              <span role="status" className="text-[13px] font-bold text-[#165C3A]">
+              <span className="text-[15px] font-medium">Reading the page…</span>
+              <span role="status" className="text-[13px] font-normal text-cp-accent-text">
                 {readingText(elapsed)}
               </span>
             </span>
@@ -301,7 +301,7 @@ export function RecipePhotoFlow({ onBack, onTypeIt }: { onBack: () => void; onTy
       {phase === "problem" && error ? (
         <div className="flex flex-col gap-3">
           <Thumb url={photoUrl} className="h-[120px] w-[92px] opacity-60" />
-          <p role="alert" className="rounded-2xl bg-[#FDF1D6] px-4 py-3 text-[15px] font-extrabold text-[#5C3D00]">
+          <p role="alert" className="rounded-2xl bg-cp-soon-tint px-4 py-3 text-[15px] font-medium text-cp-soon">
             {error.title}
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -332,7 +332,7 @@ export function RecipePhotoFlow({ onBack, onTypeIt }: { onBack: () => void; onTy
   );
 }
 
-const BIG = "flex min-h-14 items-center justify-center gap-2 rounded-2xl text-base font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const BIG = "flex min-h-14 items-center justify-center gap-2 rounded-2xl text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function Pick({ problem, onPhoto }: { problem: string | null; onPhoto: (file: File) => void }) {
   const camera = React.useRef<HTMLInputElement>(null);
@@ -361,23 +361,23 @@ function Pick({ problem, onPhoto }: { problem: string | null; onPhoto: (file: Fi
         }}
         className={cn(
           "flex h-[300px] flex-col items-center justify-center gap-2.5 rounded-3xl border-2 border-dashed bg-card p-5 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          over ? "border-[#1F7A4D] bg-[#E4F2EA]" : "border-[#C9CFC6]",
+          over ? "border-primary bg-cp-accent-tint" : "border-border",
         )}
       >
         <span aria-hidden className="text-[44px]">📖</span>
-        <span className="text-lg font-extrabold">A cookbook page, a handwritten card, a screenshot</span>
-        <span className="text-[13px] font-semibold text-muted-foreground">One recipe per photo</span>
+        <span className="text-lg font-medium">A cookbook page, a handwritten card, a screenshot</span>
+        <span className="text-[13px] font-normal text-muted-foreground">One recipe per photo</span>
       </button>
       {problem ? (
-        <p role="alert" className="rounded-xl bg-[#FDF1D6] px-3 py-2 text-center text-sm font-bold text-[#5C3D00]">
+        <p role="alert" className="rounded-xl bg-cp-soon-tint px-3 py-2 text-center text-sm font-normal text-cp-soon">
           {problem}
         </p>
       ) : null}
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => camera.current?.click()} className={cn(BIG, "bg-[#17201B] text-white hover:bg-[#2A332E]")}>
+        <button type="button" onClick={() => camera.current?.click()} className={cn(BIG, "bg-cp-cook-bg text-cp-cook-ink hover:bg-cp-cook-bg/90")}>
           <span aria-hidden>📷</span> Take a photo
         </button>
-        <button type="button" onClick={() => photos.current?.click()} className={cn(BIG, "border border-[#C9CFC6] bg-card hover:bg-accent")}>
+        <button type="button" onClick={() => photos.current?.click()} className={cn(BIG, "border border-border bg-card hover:bg-accent")}>
           From photos
         </button>
       </div>
@@ -416,16 +416,16 @@ function Result({
       <div className={cn("flex items-center gap-3 rounded-[20px] p-3", AI_EDGE)}>
         <Thumb url={photoUrl} className="h-[68px] w-[52px]" />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-lg font-extrabold">{card.title}</span>
-          <span className="text-[13px] font-bold text-[#3F4842]">{card.meta}</span>
+          <span className="text-lg font-medium">{card.title}</span>
+          <span className="text-[13px] font-normal text-muted-foreground">{card.meta}</span>
           {card.general.map((g) => (
-            <span key={g} className="text-xs font-extrabold text-[#8A5A00]">
+            <span key={g} className="text-xs font-medium text-cp-soon">
               ⚠ {g}
             </span>
           ))}
         </span>
       </div>
-      <div role="tablist" className="grid grid-cols-2 gap-1 rounded-[14px] bg-[#ECEEE9] p-1">
+      <div role="tablist" className="grid grid-cols-2 gap-1 rounded-[14px] bg-muted p-1">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -433,7 +433,7 @@ function Result({
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => onTab(t.key)}
-            className={cn("min-h-11 rounded-[11px] text-sm font-extrabold", tab === t.key ? "bg-card text-foreground" : "text-muted-foreground")}
+            className={cn("min-h-11 rounded-[11px] text-sm font-medium", tab === t.key ? "bg-card text-foreground" : "text-muted-foreground")}
           >
             {t.label}
           </button>
@@ -444,14 +444,14 @@ function Result({
           {card.steps.map((s, i) => (
             <li
               key={s.n}
-              className={cn("flex gap-2.5 rounded-2xl bg-card px-3 py-2.5", s.check ? "border-[1.5px] border-[#E8C77A]" : "border border-[#E3E6E0]")}
+              className={cn("flex gap-2.5 rounded-2xl bg-card px-3 py-2.5", s.check ? "border-[1.5px] border-transparent" : "border border-border")}
             >
-              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full bg-[#17201B] text-xs font-extrabold text-white">{s.n}</span>
+              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full bg-cp-cook-bg text-xs font-medium text-cp-cook-ink">{s.n}</span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-[15px] font-bold">{s.text}</span>
-                {s.meta ? <span className="text-xs font-extrabold text-[#B4471F]">{s.meta}</span> : null}
+                <span className="text-[15px] font-medium">{s.text}</span>
+                {s.meta ? <span className="text-xs font-medium text-cp-cook">{s.meta}</span> : null}
                 {s.check ? (
-                  <span className="text-xs font-extrabold text-[#8A5A00]">
+                  <span className="text-xs font-medium text-cp-soon">
                     ⚠ {s.check} ·{" "}
                     <button type="button" className="min-h-6 underline" onClick={() => onEdit(`${read.start.stepIds[i]}-step`)}>
                       Change
@@ -461,17 +461,17 @@ function Result({
               </span>
             </li>
           ))}
-          {card.steps.length === 0 ? <li className="text-sm font-semibold text-muted-foreground">No steps on the page</li> : null}
+          {card.steps.length === 0 ? <li className="text-sm font-normal text-muted-foreground">No steps on the page</li> : null}
         </ol>
       ) : (
-        <ul className="overflow-hidden rounded-[18px] border border-[#E3E6E0] bg-card">
+        <ul className="overflow-hidden rounded-[18px] bg-card shadow-cp-card">
           {card.lines.map((l) => (
-            <li key={l.key} className="flex min-h-12 items-center gap-2.5 border-b border-[#ECEEE9] px-3.5 py-1.5 last:border-b-0">
-              <span aria-hidden className={cn("h-2.5 w-2.5 shrink-0 rounded-full", l.check ? "bg-[#D97706]" : "bg-[#1F7A4D]")} />
+            <li key={l.key} className="flex min-h-12 items-center gap-2.5 border-b border-cp-line px-3.5 py-1.5 last:border-b-0">
+              <span aria-hidden className={cn("h-2.5 w-2.5 shrink-0 rounded-full", l.check ? "bg-cp-soon" : "bg-primary")} />
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="text-[15px] font-bold">{l.name}</span>
+                <span className="text-[15px] font-medium">{l.name}</span>
                 {l.check ? (
-                  <span className="text-xs font-extrabold text-[#8A5A00]">
+                  <span className="text-xs font-medium text-cp-soon">
                     ⚠ {l.check} ·{" "}
                     <button type="button" className="min-h-6 underline" onClick={() => onEdit(`${l.key}-name`)}>
                       Change
@@ -479,7 +479,7 @@ function Result({
                   </span>
                 ) : null}
               </span>
-              <span className="text-sm font-extrabold tabular-nums">{l.amount}</span>
+              <span className="text-sm font-medium tabular-nums">{l.amount}</span>
             </li>
           ))}
         </ul>
@@ -488,17 +488,17 @@ function Result({
         data-toast-above=""
         className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 flex flex-col gap-2 bg-gradient-to-t from-background from-75% to-transparent px-4 pb-3 pt-3 min-[900px]:static min-[900px]:bg-none min-[900px]:px-0"
       >
-        <p className={cn("text-center text-xs font-bold", read.checks.length > 0 ? "text-[#8A5A00]" : "text-muted-foreground")}>{card.footer}</p>
+        <p className={cn("text-center text-xs font-normal", read.checks.length > 0 ? "text-cp-soon" : "text-muted-foreground")}>{card.footer}</p>
         {saveError ? (
-          <p role="alert" className="text-center text-sm font-bold text-cp-expired">
+          <p role="alert" className="text-center text-sm font-normal text-cp-expired">
             {saveError}
           </p>
         ) : null}
         <div className="mx-auto grid w-full max-w-xl grid-cols-[1fr_2fr] gap-2">
-          <Button type="button" variant="outline" className="min-h-14 rounded-[18px] text-[15px] font-extrabold" onClick={() => onEdit(null)}>
+          <Button type="button" variant="outline" className="min-h-14 rounded-[18px] text-[15px] font-medium" onClick={() => onEdit(null)}>
             Open in editor
           </Button>
-          <Button type="button" className="min-h-14 rounded-[18px] text-base font-extrabold" loading={saving} onClick={onSave}>
+          <Button type="button" className="min-h-14 rounded-[18px] text-base font-medium" loading={saving} onClick={onSave}>
             Save recipe
           </Button>
         </div>

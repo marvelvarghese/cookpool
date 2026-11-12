@@ -250,3 +250,84 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - Passkeys don't run on a `*.localhost` host (PK-4), so Passkey beside Google was checked by the render test, not in the browser. Google's round trip leaves for the real API and was not opened.
 
 **Deploy.** Only the console changes; nothing on the server.
+
+### RV1 — Cook, Recipe, Cook step and Cooked (RV-4)
+
+**Built** (`apps/web-console-next`, new frame only; every screen here already rendered only with `newFrame()` true). No routes, no migrations, no contracts or SDK change.
+
+- **Cook tab** (`cook-hub-ui.tsx`, `cook-hub-views.tsx`, `cook-hub.ts`; board `RvCook`):
+  - "Cook" and the one main button, **New dish** (a blank session, `/cook/session`, on the accent). It replaces the full-width cook-colour Start cooking.
+  - **Find a recipe** filters both lists by name, any case (`hubMatches`), shows every row while typing, and says "Nothing matches".
+  - **Cook now · N**: what you have everything for, tag "Have all" (`cookNowHubRows`). Each row opens its recipe at the size the stock allows (`/recipes/<id>?f=` from `cookNowStartFactor`), so "for 3" still carries over.
+  - **Saved recipes · N**: yours and your copies not in Cook now, last cooked first, one tag each (`savedHubRows`): "Need yogurt" (Cook now's missing-1), else "From Anu", else "Cooked <day>", else "Serves 4".
+  - Each list is a card of rows (tile, name, tag), three then "See all N" / "Show less" (`HubList`, `HUB_FIRST` = 3).
+  - Under the lists, quiet: New recipe and Explore (tint pills), From a photo (AI-9) and Community (CM-5).
+  - Recipe tiles keep their per-recipe tint in light and take the line and ink in dark, as the boards do (CSS variables plus a dark arbitrary variant in `RecipeTileView`).
+- **Recipe** (`recipe-ui.tsx`, `recipe-views.tsx`, `recipes.ts`; board `RvRecipe`):
+  - Back, then Share and Edit as 44 px icons (owner), or Save (quiet tint).
+  - The name in 28 px. Under it, one line: **"Serves 4 · 35 min · Have 7 of 9"** (`recipeMetaLine`, `haveShort`; "Have all 9" when nothing is short). The byline with its face follows when the recipe is someone's.
+  - "Use all 450 g you have" stays, as a quiet chip.
+  - **Ingredients** with the servings stepper **− 4 +** beside it (`ServingsStepper`, the same factor as before).
+  - **Dot rows**: a filled muted dot when you have it, a ring in the money-you-owe colour when it is short or missing; the amount in the same tone. What the pantries hold is screen-reader text.
+  - **Steps** open on the page, numbered on the tint (the guided rows are unchanged). **Start cooking** is 60 px on the accent, with the pot.
+- **Cook step** (`cook-guided-ui.tsx`, `cook-guided-screens.ts`, `cook-guided-screen.tsx`; board `RvCookStep`):
+  - The header shows the dish's name (new `title`), with read aloud and the plan.
+  - A **thin progress bar with "3 of 7"** (`StepProgress`, new `countText`).
+  - Other steps' timers are card pills.
+  - **One heat/time chip**, e.g. "Medium flame · 5–7 min" (`HeatChip`).
+  - The **step text** at 30 px, and what to watch for in one muted line (`CheckLine`).
+  - The **timer chip** (`TimerChip`): "Start 7:00" (or "Start and go on"), then "6:59 · Pause" on the cook strip, "· Resume" when paused, and +1 min. It keeps the learned line, the push note and the push hint.
+  - The lines as chips (struck through on the tint once in), then **"Add amounts"** as a quiet link. It opens Before you start (`showPrep`), where the lines take their amounts.
+  - **Back** is quiet text; **Done/Finish** is the one main button, 60 px on the accent, always enabled (RV-7's behaviour is kept).
+  - The waiting screen takes the same header, bar, chip and type, and keeps its ring, whistles, ping, keep-screen-on and Meanwhile.
+  - The prompt, prep and done screens are on the tokens; their main buttons moved from the cook colour to the accent.
+- **Cooked** (`cooked-ui.tsx`, `cooked.ts`; board `RvCooked`):
+  - ✓, the dish's name at 30 px ("Cooked!" is screen-reader text), **"₹124 · 4 portions"** (new `CookedView.fact`; RV-7's "₹0 · nothing taken from the pantry" for a dish with no amounts), and the group-items note.
+  - **Split with a group** is the main button on the accent; **Post to Community** is quiet on the tint. Each becomes a ✓ card row once done ("Split with Flat 4B"; "Posted to Community" opens the post). Then Done, as quiet text.
+- **Finish sheets** (`cook-finish-sheet.tsx`, `cooked-finish-sheet.tsx`): the main button is on the accent. Both sheets still use `finishPlan` and RV-7's no-amounts line.
+- **Tokens:** no raw hex is left in the files above except `RECIPE_TILE_COLORS` (`cook-hub.ts`), the tile data that community's gradient reads.
+  - Class colours map to `cp-*` and the shadcn tokens.
+  - The guided `INK`/`COOK`/`HERB`/`TINT` constants are now `hsl(var(--…))`, as is the session bar's ink.
+  - Every weight is `font-medium` or `font-normal`, and bordered cards became the borderless card with the shadow.
+  - The same token pass covers `cook-session-screen.tsx`/`cook-session-ui.tsx` (styling only), `recipe-form-ui.tsx`, `recipe-photo-ui.tsx`, `recipe-share-*`, `recipe-link-views.tsx`.
+
+**Departures**
+- **Recipe — the main item's − amount + is gone** (the old How much card, `HowMuchCard`, removed). Scaling is by the servings stepper, Use all, or `?f=`. The factor chip ("×0.45 · every line follows") is no longer shown.
+- **Recipe:** "For about 2 · chicken 450 g" under Start cooking is now screen-reader text only. The per-line status words ("Short · you have 450 g") are screen-reader text, so each row stays one line. The recipe tile is no longer beside the title, so a tapped card's tile doesn't travel into the page (the title still does).
+- **Cook tab:**
+  - Cook now's "Can make N | Missing 1 · N" switch and each row's Start are gone; a missing-one recipe shows in Saved recipes as "Need yogurt".
+  - My recipes' cards (ingredients line, meta, tinted Start cooking) became one-line rows.
+  - The hub no longer reads every recipe in full for its ingredient names (`useRecipesInFull` is dropped there).
+  - The pure helpers `cookNowRows`, `cookNowCounts`, `myRecipeCards`, `ingredientNames` and `ingredientsTeaser` are now unused by the app; they are kept with their tests.
+- **Cook step:** the per-step segments and the 72 px ring on the step are replaced by the bar and the timer chip. The view-model still computes `segments`. The waiting screen keeps its 196 px ring.
+- **Cooked:** the tiles (steps/servings/cost) and the "What next" heading are folded into the fact line (`NEXT_HEADING` removed). The board's "Add amounts" link on a finished dish is not built, since there is no flow to add amounts to a posted dish. The Split ✓ row has no Undo (there is no unsplit).
+- **Not touched:** in `cook-hub-views.tsx`, the parts other screens render (Home's `CookNowStrip`, You's `YourRecipes`, `PersonRecipesView`, `SaveCopyChip`, `FeedRecipeRowView`, `Segmented`) are left to their own tasks.
+
+**Pinned copy and pins changed** (`tests/web-console-next`)
+- `kitchen-cook-hub.test.ts`:
+  - The hub test is now "New dish (a blank session), Find a recipe, Cook now and Saved recipes" ("Start cooking" → "New dish", "My recipes" → "Saved recipes").
+  - The empty-hub test passes `saved: []`.
+  - Removed: the `CookNowSection` segments render test and the `MyRecipesSection` render test (components removed).
+  - New: 4 tests for the lists.
+- `kitchen-community.test.ts`: "a Community entry, above My recipes" → "after New recipe".
+- `kitchen-recipes-travel.test.ts`, `kitchen-recipe-photo.test.ts`: `cards` → `saved`; the photo entry is checked on `CookHubView`.
+- `kitchen-recipe-page.test.ts`:
+  - The How much test → the servings stepper and Use all.
+  - The ingredients test no longer pins "Have 6 of 8 · 2 to get" (now "Have 6 of 8" in the header, pinned in a new header test) and pins the ring dot.
+  - "For about 2 · chicken 450 g" is pinned as screen-reader text.
+- `kitchen-cook-guided.test.ts`:
+  - The step render test: `text-[26px]` → `text-[30px]`; "LOOK FOR" → "Look for: "; the flame/ring/hex pins → `data-heat="2"`, "Medium flame · 5–7 min", the progress bar and "2 of 8", ">Add amounts<".
+  - Prompt and Done main buttons `bg-[#B4471F]` → `bg-primary text-primary-foreground`.
+  - Long prep `bg-[#FDF1D6]` → `bg-cp-soon-tint`.
+  - The strip `background-color:#17201B` → a card pill.
+- `kitchen-cook-guided-timers.test.ts`: `TimerCard` → `TimerChip` (same assertions).
+- `kitchen-cook-session.test.ts`: `background-color:#17201B` → `hsl(var(--cp-cook-bg))`; `bg-[#B4471F]` → `bg-cp-cook`; `bg-[#EEF7F1]` → `bg-cp-accent-tint`.
+- `kitchen-recipe-share.test.ts`: `bg-[#B42318]` → `bg-destructive`.
+
+**Tests.** `tests/web-console-next`: 114 suites, 2,253 tests, all passing. Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`. `console-artifact.mjs build` passes: 43 pages served as files, `/cook` and `/cook/session` `○` static.
+
+**Browser check** (390 × 844, light and dark). The setup was `next dev` behind a local in-memory API mock (never committed) on `cookpool-stage.localhost:4862`. Every resource came from that host.
+- Cook: New dish, search, Cook now · 4 and Saved recipes · 5 with See all, tags, and dark tiles.
+- The curry recipe: "Serves about 2 · 45 min · Have 5 of 6", Use all, − about 2 +, dot rows with the yogurt ring, Start cooking.
+- Guided step 2 of 8: the chip, 30 px text, the check line, "Start 7:00" → "6:59 · Pause" with +1 min and the push note, and Add amounts → Before you start.
+- Cooked: "₹12 · 4 portions"; Split opened the sheet, and after splitting showed "✓ Split with Flat 4B", Post quiet, Done.

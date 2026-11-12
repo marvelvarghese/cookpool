@@ -11,6 +11,8 @@ import {
   cookNowCounts,
   cookNowFilterLabel,
   cookNowRows,
+  HUB_FIRST,
+  cookNowHubRows,
   cookNowStartFactor,
   cookPageShows,
   defaultCookNowFilter,
@@ -26,10 +28,12 @@ import {
   recipeStats,
   recipeTile,
   savedCopyOf,
+  savedHubRows,
+  hubMatches,
   showsCookNow,
   sortMyRecipes,
 } from "@web-console-next/components/kitchen/cook-hub";
-import { CookHubView, CookNowSection, CookNowStrip, MyRecipesSection, YourRecipes } from "@web-console-next/components/kitchen/cook-hub-views";
+import { CookHubView, CookNowStrip, HubList, YourRecipes } from "@web-console-next/components/kitchen/cook-hub-views";
 import { ANU, cookNow, recipe, summary } from "./kitchen-recipe-fixtures";
 
 // cookpool-recipes RC-5 (design §1.2, §1.4, §5.4, §8; the canvas's
@@ -80,25 +84,82 @@ describe("/cook in each frame", () => {
     expect(cookPageShows(false, "me:itm_1")).toBe("dish-maker");
   });
 
-  it("draws Cook, Start cooking (a blank session), Cook now and My recipes", () => {
-    const cards = myRecipeCards([summary()], new Map(), NOW);
-    const out = html(React.createElement(CookHubView, { cookNow: ENTRIES, cards, recipesLoading: false, recipesFailed: false }));
+  // RV-4 (the canvas's `RvCook`): the one main button is New dish (a blank
+  // session), then Find a recipe, Cook now and Saved recipes.
+  it("draws Cook, New dish (a blank session), Find a recipe, Cook now and Saved recipes", () => {
+    const saved = savedHubRows([summary()], ENTRIES, NOW);
+    const out = html(React.createElement(CookHubView, { cookNow: ENTRIES, saved, recipesLoading: false, recipesFailed: false }));
     expect(out).toContain(">Cook</h1>");
-    expect(out).toContain('href="/cook/session"');
-    expect(out).toContain("Start cooking");
+    expect(out).toMatch(/href="\/cook\/session"[^>]*>.*New dish/);
+    expect(out).toContain('placeholder="Find a recipe"');
     expect(out).toContain("Cook now");
-    expect(out).toContain("My recipes");
+    expect(out).toContain("Saved recipes");
     expect(out).toContain('href="/recipes/new"');
-    expect(out.indexOf("Start cooking")).toBeLessThan(out.indexOf("Cook now"));
-    expect(out.indexOf("Cook now")).toBeLessThan(out.indexOf("My recipes"));
+    expect(out.indexOf("New dish")).toBeLessThan(out.indexOf("Find a recipe"));
+    expect(out.indexOf("Cook now")).toBeLessThan(out.indexOf("Saved recipes"));
+    expect(out).not.toContain("font-extrabold");
+    expect(out).not.toMatch(/class="[^"]*#[0-9A-Fa-f]{6}/);
   });
 
   it("hides Cook now when there is nothing to make (or nothing read yet)", () => {
     for (const cookNowData of [[], null, [cookNow("rcp_x", "X", 2)]]) {
-      const out = html(React.createElement(CookHubView, { cookNow: cookNowData, cards: [], recipesLoading: false, recipesFailed: false }));
+      const out = html(React.createElement(CookHubView, { cookNow: cookNowData, saved: [], recipesLoading: false, recipesFailed: false }));
       expect(out).not.toContain("Cook now");
       expect(out).toContain("No recipes yet");
     }
+  });
+});
+
+describe("the Cook tab's lists (RV-4)", () => {
+  it("Cook now: what you have everything for, Have all, at the size the stock allows", () => {
+    const rows = cookNowHubRows(ENTRIES);
+    expect(rows.map((r) => [r.name, r.tag, r.tone, r.href])).toEqual([
+      ["Egg fried rice", "Have all", "have", "/recipes/rcp_efr"],
+      ["Jeera rice", "Have all", "have", "/recipes/rcp_jeera"],
+      ["Masala chai", "Have all", "have", "/recipes/rcp_chai?f=2000"],
+    ]);
+  });
+
+  it("Saved recipes: the rest, last cooked first, each with one tag", () => {
+    const rows = savedHubRows(
+      [
+        summary({ id: "rcp_efr", name: "Egg fried rice" }),
+        summary({ id: "rcp_curry", name: "Chicken curry" }),
+        summary({ id: "rcp_copy", name: "Paneer bhurji", source: { recipeId: "rcp_0", ownerId: ANU, ownerName: "Anu Thomas" } }),
+        summary({ id: "rcp_alo", name: "Aloo paratha", lastCookedAt: "2026-11-08T08:00:00.000Z" }),
+        summary({ id: "rcp_poha", name: "Poha", servesHalf: 6 }),
+      ],
+      ENTRIES,
+      NOW,
+    );
+    expect(rows.map((r) => [r.name, r.tag, r.tone])).toEqual([
+      ["Aloo paratha", "Cooked today", "plain"],
+      ["Paneer bhurji", "From Anu", "plain"],
+      ["Chicken curry", "Need yogurt", "need"],
+      ["Poha", "Need poha", "need"],
+    ]);
+    expect(savedHubRows([summary({ id: "rcp_new", servesHalf: 6 })], null, NOW)[0]!.tag).toBe("Serves 3");
+  });
+
+  it("shows three, then See all N; all of them while searching", () => {
+    const rows = cookNowHubRows([...ENTRIES, cookNow("rcp_dal", "Dal tadka", 0)]);
+    const out = html(React.createElement(HubList, { id: "h", title: "Cook now", rows }));
+    expect(rows).toHaveLength(HUB_FIRST + 1);
+    expect(out).toContain("· 4");
+    expect(out.match(/<li /g)).toHaveLength(HUB_FIRST);
+    expect(out).toMatch(/aria-expanded="false"[^>]*>See all 4</);
+    const searching = html(React.createElement(HubList, { id: "h", title: "Cook now", rows, searching: true }));
+    expect(searching.match(/<li /g)).toHaveLength(4);
+    expect(searching).not.toContain("See all");
+  });
+
+  it("finds a recipe by any part of its name, in any case", () => {
+    expect(hubMatches({ name: "Egg fried rice" }, " FRIED ")).toBe(true);
+    expect(hubMatches({ name: "Egg fried rice" }, "")).toBe(true);
+    expect(hubMatches({ name: "Egg fried rice" }, "dal")).toBe(false);
+    const out = html(React.createElement(CookHubView, { cookNow: ENTRIES, saved: [], recipesLoading: false, recipesFailed: false, initialQuery: "zzz" }));
+    expect(out).toContain("Nothing matches");
+    expect(out).not.toContain("Cook now");
   });
 });
 
@@ -142,17 +203,6 @@ describe("Cook now's filter", () => {
   it("starts a stock-limited recipe at the portions the row says (for 1½ of 4: × 0.375)", () => {
     expect(cookNowStartFactor(cookNow("rcp_a", "A", 0, { forPortionsHalf: 3, servesHalf: 8 }))).toBe(375);
     expect(cookNowStartFactor(cookNow("rcp_b", "B", 1))).toBe(1000);
-  });
-
-  it("draws the segments with the one shown pressed, and Start on each row", () => {
-    const out = html(React.createElement(CookNowSection, { entries: ENTRIES, initialFilter: "one" }));
-    expect(out).toContain("Can make 3");
-    expect(out).toContain("Missing 1 · 2");
-    expect(out).toMatch(/aria-pressed="true"[^>]*>Missing 1 · 2</);
-    expect(out).toContain("Missing yogurt · for 2");
-    expect(out).not.toContain("Egg fried rice");
-    expect(out).toContain('href="/cook/session?recipe=rcp_curry&amp;f=1000"');
-    expect(html(React.createElement(CookNowSection, { entries: ENTRIES }))).toContain("Have all 5 · for 3");
   });
 
   it("gives each recipe one tile, its initial on its colour, the same every time", () => {
@@ -225,15 +275,6 @@ describe("My recipes", () => {
     expect(ingredientsTeaser(summary())).toBe("Chicken + 7 more");
     expect(ingredientsTeaser(summary({ lineCount: 1 }))).toBe("Chicken");
     expect(ingredientNames(recipe())).toMatch(/^Chicken, onions/);
-  });
-
-  it("draws the count, New recipe, and a tinted Start cooking per card", () => {
-    const cards = myRecipeCards([summary(), summary({ id: "rcp_2", name: "Poha" })], new Map(), NOW);
-    const out = html(React.createElement(MyRecipesSection, { cards, loading: false, failed: false }));
-    expect(out).toContain(">2<");
-    expect(out).toContain("New recipe");
-    expect(out.match(/bg-cp-herb-tint/g)).toHaveLength(2);
-    expect(out).toContain('href="/cook/session?recipe=rcp_2&amp;f=1000"');
   });
 
   it("knows your copy of a recipe (Saved)", () => {

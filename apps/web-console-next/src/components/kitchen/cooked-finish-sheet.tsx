@@ -80,21 +80,21 @@ export function CookFinishSheet({
     <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, CLOSE_44)}>
         <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-        <SheetTitle className="pr-12 text-[22px] font-extrabold">{FINISH_TITLE}</SheetTitle>
+        <SheetTitle className="pr-12 text-[22px] font-medium">{FINISH_TITLE}</SheetTitle>
         <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
           {notTicked ? <UntickedChoiceBox text={notTicked} value={unticked} onChange={setUnticked} /> : null}
 
           <div className="flex min-h-14 items-center gap-3">
             <span className="flex min-w-0 flex-1 flex-col">
-              <span id="finish-servings" className="text-base font-extrabold">
+              <span id="finish-servings" className="text-base font-medium">
                 Servings
               </span>
-              <span className="text-xs font-semibold text-muted-foreground">How many it made · split them later</span>
+              <span className="text-xs font-normal text-muted-foreground">How many it made · split them later</span>
             </span>
             <RepeatButton className={STEP_BUTTON} aria-label="Half a serving less" disabled={servings <= 1} onStep={() => setServings((h) => stepServings(h, -1))}>
               <Minus className="h-5 w-5" aria-hidden />
             </RepeatButton>
-            <span aria-label={servingsText(servings)} className="min-w-[4.5rem] text-center text-lg font-extrabold tabular-nums">
+            <span aria-label={servingsText(servings)} className="min-w-[4.5rem] text-center text-lg font-medium tabular-nums">
               {servingsText(servings).replace(/ servings?$/, "")}
             </span>
             <RepeatButton className={STEP_BUTTON} aria-label="Half a serving more" onStep={() => setServings((h) => stepServings(h, 1))}>
@@ -112,7 +112,7 @@ export function CookFinishSheet({
         </div>
         <Button
           type="button"
-          className={cn(MAIN_BUTTON, "shrink-0 bg-[#B4471F] text-white hover:bg-[#9C3C19]")}
+          className={cn(MAIN_BUTTON, "shrink-0 bg-primary text-primary-foreground hover:bg-primary/90")}
           loading={busy}
           onClick={() => void post()}
         >

@@ -1,46 +1,47 @@
 "use client";
 
 import * as React from "react";
-import { myRecipeCards } from "./cook-hub";
-import { CookHubView } from "./cook-hub-views";
-import { useCookNow, useMyRecipes, usePrefetchRecipe, useRecipesInFull } from "./recipes-data";
-import { ExploreButton } from "./explore-views";
+import Link from "./link";
+import { Compass } from "lucide-react";
+import { savedHubRows } from "./cook-hub";
+import { CookHubView, HUB_QUIET } from "./cook-hub-views";
+import { useCookNow, useMyRecipes, usePrefetchRecipe } from "./recipes-data";
+import { EXPLORE_HREF } from "./explore";
 import { CommunityEntry } from "./community-views";
 import { COMMUNITY_HREF } from "./community";
 import { RecipePhotoEntry } from "./recipe-photo-ui";
 
 /**
- * The Cook hub (cookpool-recipes RC-5, design §1.2, §5.4, the canvas's
- * `CookTab`): `/cook` in the new frame. From the top: "Cook"; Start cooking
- * (the one main button, in the cook colour: a blank session); Cook now — what
- * you can make with what you have, "Can make N" | "Missing 1 · N", each row
- * with Start, hidden when there is nothing; My recipes — how many, New recipe
- * and Explore beside it (RC-8), and a card per recipe, last cooked first,
- * with a tinted Start cooking. Above My recipes, Community (cookpool-community
- * CM-5): following cooks and what they make.
+ * The Cook tab (cookpool-recipes RC-5; revamped in RV-4, the canvas's
+ * `RvCook`): `/cook` in the new frame. "Cook" and New dish (a blank
+ * session, the one main button); Find a recipe; Cook now (what you have
+ * everything for) and Saved recipes, each row its tile, name and one tag,
+ * three then See all; then New recipe and Explore (RC-8), From a photo
+ * (cookpool-ai AI-9) and Community (cookpool-community CM-5), quiet.
  */
 export function CookHub() {
   const cookNow = useCookNow();
   const recipes = useMyRecipes();
-  // Their ingredients' names, as each recipe is read in full (also warming its page).
-  const ids = React.useMemo(() => (recipes.data ?? []).map((r) => r.id), [recipes.data]);
-  const full = useRecipesInFull(ids);
   const [now] = React.useState(() => new Date());
-  const cards = React.useMemo(() => (recipes.data ? myRecipeCards(recipes.data, full, now) : null), [recipes.data, full, now]);
+  const saved = React.useMemo(() => (recipes.data ? savedHubRows(recipes.data, cookNow.data, now) : null), [recipes.data, cookNow.data, now]);
   const prefetch = usePrefetchRecipe();
 
   return (
     <CookHubView
       cookNow={cookNow.data}
-      cards={cards}
+      saved={saved}
       recipesLoading={recipes.loading}
       recipesFailed={!!recipes.error && !recipes.data}
       onReloadRecipes={recipes.reload}
       prefetch={prefetch}
-      extraAction={<ExploreButton />}
+      extraAction={
+        <Link href={EXPLORE_HREF} className={HUB_QUIET}>
+          <Compass className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
+          Explore
+        </Link>
+      }
       photoAction={<RecipePhotoEntry />}
       community={<CommunityEntry href={COMMUNITY_HREF} />}
     />
   );
 }
-

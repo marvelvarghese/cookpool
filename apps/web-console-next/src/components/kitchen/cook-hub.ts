@@ -231,6 +231,66 @@ export function savedCopyOf(recipeId: string, mine: readonly Pick<RecipeSummary,
   return mine?.find((r) => r.source?.recipeId === recipeId)?.id ?? null;
 }
 
+// ── The Cook tab, revamped (RV-4, the canvas's `RvCook`) ──────────
+
+/** A row on the Cook tab: its tile, its name and one tag. */
+export interface HubRow {
+  id: string;
+  name: string;
+  tile: { initial: string; bg: string; fg: string };
+  /** "Have all", "Need yogurt", "From Anu", "Cooked Sat", "Serves 4". */
+  tag: string;
+  /** The tag's colour: the accent's tint, money-you-owe's, or plain. */
+  tone: "have" | "need" | "plain";
+  href: string;
+}
+
+/** Each list shows this many, then "See all N". */
+export const HUB_FIRST = 3;
+
+/** The recipe at the size the stock allows ("for 3"), or as written. */
+function cookNowHref(entry: CookNowEntry): string {
+  const f = cookNowStartFactor(entry);
+  return f === WRITTEN_FACTOR ? recipeHref(entry.recipe.id) : `${recipeHref(entry.recipe.id)}?f=${f}`;
+}
+
+/** Cook now: what you have everything for, "Have all", each opening its recipe at the size the stock allows. */
+export function cookNowHubRows(entries: readonly CookNowEntry[]): HubRow[] {
+  return entries
+    .filter((e) => e.match.missing === 0)
+    .map((e) => ({ id: e.recipe.id, name: e.recipe.name, tile: recipeTile(e.recipe), tag: "Have all", tone: "have" as const, href: cookNowHref(e) }));
+}
+
+/**
+ * Saved recipes: yours and your copies not already in Cook now, last cooked
+ * first, each with one tag — "Need yogurt" when one thing is missing, else
+ * "From Anu", else "Cooked Sat", else "Serves 4".
+ */
+export function savedHubRows(recipes: readonly RecipeSummary[], cookNow: readonly CookNowEntry[] | null, now: Date): HubRow[] {
+  const byId = new Map((cookNow ?? []).map((e) => [e.recipe.id, e]));
+  return sortMyRecipes(recipes)
+    .filter((r) => byId.get(r.id)?.match.missing !== 0)
+    .map((r) => {
+      const e = byId.get(r.id);
+      const need = e && e.match.missing === 1 ? e.match.missingNames[0] : undefined;
+      const from = fromText(r);
+      const [tag, tone]: [string, HubRow["tone"]] = need
+        ? [`Need ${lowerFirst(need)}`, "need"]
+        : from
+          ? [upperFirst(from), "plain"]
+          : r.lastCookedAt
+            ? [`Cooked ${dayText(r.lastCookedAt, now)}`, "plain"]
+            : [`Serves ${halvesText(r.servesHalf)}`, "plain"];
+      return { id: r.id, name: r.name, tile: recipeTile(r), tag, tone, href: recipeHref(r.id) };
+    });
+}
+
+/** The search: a row stays when its name holds what was typed (any case). */
+export function hubMatches(row: Pick<HubRow, "name">, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  return q === "" || row.name.toLowerCase().includes(q);
+}
+
 // ── You (design §1.4) ─────────────────────────────────────────────
 
 /** You's numbers: how many recipes you have, and how many copies people saved of them. */

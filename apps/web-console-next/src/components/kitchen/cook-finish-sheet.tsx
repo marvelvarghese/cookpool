@@ -123,7 +123,7 @@ export function FinishSheet({
     <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, CLOSE_44)}>
         <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-        <SheetTitle className="pr-12 text-[22px] font-extrabold">{shared ? "Who ate?" : "Finish"}</SheetTitle>
+        <SheetTitle className="pr-12 text-[22px] font-medium">{shared ? "Who ate?" : "Finish"}</SheetTitle>
         <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
           {notTicked ? <UntickedChoiceBox text={notTicked} value={unticked} onChange={setUnticked} /> : null}
 
@@ -170,7 +170,7 @@ export function FinishSheet({
         </div>
         <Button
           type="button"
-          className={cn(MAIN_BUTTON, "shrink-0 bg-[#B4471F] text-white hover:bg-[#9C3C19]")}
+          className={cn(MAIN_BUTTON, "shrink-0 bg-primary text-primary-foreground hover:bg-primary/90")}
           loading={busy}
           disabled={waiting || (shared && members.error !== null)}
           onClick={() => void post()}

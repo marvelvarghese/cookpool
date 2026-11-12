@@ -379,7 +379,7 @@ describe("/r/<code>: the page a link opens", () => {
     expect(out).toContain("Paneer bhurji");
     expect(out).toContain("Serves 2 · 20 min");
     expect(out).toContain("You have 5 of 6 · missing paneer");
-    expect(out.match(/bg-\[#B42318\]/g)).toHaveLength(1);
+    expect(out.match(/bg-destructive/g)).toHaveLength(1);
     expect(out.match(/h-2\.5 w-2\.5 shrink-0 rounded-full bg-primary/g)).toHaveLength(5);
     expect(out).toContain(">Save to my recipes<");
     expect(out).toContain("You get your own copy. Anu&#x27;s edits won&#x27;t change it.");
