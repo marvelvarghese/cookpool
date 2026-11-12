@@ -7,6 +7,7 @@ import { manifest } from "@saas/db";
 import { createSqlExecutor, type D1Binding } from "@saas/db/d1";
 import { createPasskeysRepository, type CreatePasskeyInput, type PasskeysRepository } from "@saas/db/identity";
 import { D1ApiAdapter } from "@saas/db/runner";
+import { openD1Sqlite } from "./d1-sqlite.js";
 
 // Passkeys (cookpool-passkeys PK-2): 510_identity_passkeys. Checked as text
 // (two new tables and two indexes, nothing else), against a real SQLite engine
@@ -22,8 +23,8 @@ const raw = () => readFileSync(resolve(MIGRATIONS_ROOT, `${ID}/up.sql`), "utf8")
 const sqlOf = () => raw().replace(/--.*$/gm, "");
 
 function migrated(): DatabaseSync {
-  const db = new DatabaseSync(":memory:");
-  db.exec("PRAGMA foreign_keys = ON");
+  // D1's limits, not plain SQLite's (PK-7): see ./d1-sqlite.ts.
+  const db = openD1Sqlite();
   for (const m of manifest.migrations) {
     for (const statement of D1ApiAdapter.splitStatements(readFileSync(join(MIGRATIONS_ROOT, m.path), "utf8"))) db.exec(statement);
   }

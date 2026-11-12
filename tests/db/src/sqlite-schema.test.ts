@@ -14,6 +14,7 @@ import { createKitchenRepository, type NewKitchenItem, type NewKitchenTxn } from
 import type { AppendEventWithAuditInput } from "@saas/db/events";
 import { asUuid } from "@saas/db";
 import { D1ApiAdapter } from "@saas/db/runner";
+import { D1_LIKE_PATTERN_LIMIT, likePatternsOver, openD1Sqlite } from "./d1-sqlite.js";
 
 // The runner's own statement splitter — the same one that will feed D1 over
 // the REST API — so this suite exercises the production path, not a copy.
@@ -71,8 +72,8 @@ function d1Over(db: DatabaseSync): D1Binding {
 }
 
 function migratedDatabase(): DatabaseSync {
-  const db = new DatabaseSync(":memory:");
-  db.exec("PRAGMA foreign_keys = ON");
+  // D1's limits, not plain SQLite's (PK-7): see ./d1-sqlite.ts.
+  const db = openD1Sqlite();
   for (const dir of migrationDirs()) {
     const sql = readFileSync(join(MIGRATIONS_ROOT, dir, "up.sql"), "utf8");
     for (const statement of splitStatements(sql)) db.exec(statement);
@@ -100,6 +101,15 @@ describe("migrations against a real SQLite engine", () => {
         }
       }
     }
+    db.close();
+  });
+
+  it(`keep every LIKE and GLOB pattern in the schema within D1's ${D1_LIKE_PATTERN_LIMIT} bytes`, () => {
+    // D1 refuses a longer pattern at run time ("LIKE or GLOB pattern too
+    // complex"), so a CHECK holding one fails every insert into its table,
+    // while plain SQLite accepts it (PK-7: identity_passkeys.id, until 520).
+    const db = migratedDatabase();
+    expect(likePatternsOver(db)).toEqual([]);
     db.close();
   });
 

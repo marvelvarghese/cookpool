@@ -29,6 +29,7 @@ import {
   type PasskeyDevice,
 } from "@web-console-next/components/kitchen/passkeys";
 import { continueMethod, parseRememberedAccount, rememberedCard } from "@web-console-next/components/kitchen/sign-in-screens";
+import { addNotice } from "@web-console-next/components/kitchen/passkey-ui";
 
 // cookpool-passkeys PK-4: where passkeys run, the words that follow the
 // device, Turn on Face ID's conditions, Sign-in and security's rows, Remove
@@ -412,6 +413,12 @@ describe("adding a passkey on this device", () => {
       error: { code: "precondition_failed", message: "x", reason: "passkey_failed", details: { reason: "passkey_failed", step: "not_verified" } },
     });
     expect(await addPasskey(failed as never)).toEqual({ kind: "failed", detail: "not_verified · 422" });
+    // PK-7: stage's 500 now says which step broke, and the error line shows it.
+    const stored = await deps();
+    stored.registerVerify.resolveOnce({ ok: false, status: 500, error: { code: "internal_error", message: "Failed to store passkey" } });
+    const outcome = await addPasskey(stored as never);
+    expect(outcome).toEqual({ kind: "failed", detail: "Failed to store passkey · internal_error · 500" });
+    expect(addNotice(outcome, "iphone")).toMatchObject({ detail: "Failed to store passkey · internal_error · 500", tone: "error", retry: true });
     const browser = await deps();
     browser.register.rejectOnce(named("WebAuthnError", { code: "ERROR_INVALID_DOMAIN", cause: named("SecurityError") }));
     expect(await addPasskey(browser as never)).toEqual({ kind: "failed", detail: "SecurityError" });

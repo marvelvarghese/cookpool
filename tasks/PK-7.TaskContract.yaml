@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PK-7
+  title: "Saving a passkey answers 500 on stage"
+spec:
+  goal: "Find and fix why Add a passkey answers 500 internal_error on stage, reproduced under wrangler dev with local D1, and pin it with a test that runs on D1 semantics."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-passkeys/**
+    - tasks/PK-7.TaskContract.yaml
+  doneWhen:
+    - "a register options then verify round trip with a software authenticator succeeds under wrangler dev against local D1 with every migration applied"
+    - "the cause of the 500 is fixed and a test fails without the fix"
+    - "a 500 on saving shows the server message in the small error line"
+  gates: []

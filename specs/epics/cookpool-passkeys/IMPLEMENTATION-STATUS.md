@@ -184,3 +184,66 @@ Console only (`apps/web-console-next`, `tests/web-console-next`); no server, con
 - Not run: a real iPhone, a real authenticator, the limit notice in a browser (unit-tested).
 
 **Deploy.** identity-worker and the console both change in this PR, so each redeploys on its own path. The order doesn't matter: the console reads `details.step` when it is there and shows the code otherwise. Passkeys that people "turned on" before this fix were never stored. The new sign-in notice tells them to add the passkey again. Their phones may still hold an orphan passkey; the server cannot clean those up.
+
+### PK1 — Saving a passkey answers 500 on stage (PK-7)
+
+**Root cause.** Migration 510 checked `identity_passkeys.id` with a single GLOB of 132 characters: `'pky_'` followed by sixteen `'[0-9a-f]'`. D1 limits a LIKE or GLOB pattern to 50 bytes (`SQLITE_LIMIT_LIKE_PATTERN_LENGTH`), while plain SQLite allows 50,000. So on D1, every `INSERT` into `identity_passkeys` failed with `D1_ERROR: LIKE or GLOB pattern too complex: SQLITE_ERROR`. The repository's `create` caught it as "Failed to create passkey", and `registerVerify` answered 500 `internal_error` "Failed to store passkey", with `passkey.add.failed` / `store_failed`. No passkey was ever stored on stage, whatever the device sent. The iPhone response shape, the foreign keys, `RETURNING`, the JSON CHECKs, the challenge and the security events were all fine. The tests passed because `tests/db` runs on `node:sqlite` with default limits, and `tests/identity-worker` uses an in-memory fake store.
+
+**Reproduced locally.**
+- Ran `wrangler dev --local` with miniflare's local D1. A scratch config was used: the rendered `wrangler.jsonc`'s local vars plus a top-level `PLATFORM_DB` binding, because the template binds D1 only under stage and prod. `PASSKEY_RP_ID=localhost`, `PASSKEY_ORIGINS=http://localhost:3000`.
+- Every manifest migration was applied in order with `wrangler d1 execute --local --file`. The repo's runner speaks only D1's REST API, so it has no local mode.
+- A script signed in through the on-screen code, then sent register options and then verify, with an iPhone-shaped ES256 credential:
+  - `fmt: none`, AAGUID all zeros;
+  - flags UP, UV, BE, BS, AT;
+  - `transports ["hybrid","internal"]`, `authenticatorAttachment: platform`;
+  - `clientExtensionResults` `{credProps:{rk:true}}` and `{}`.
+- Before the fix, verify answered 500 "Failed to store passkey". A temporary `console.error` (since removed) showed the D1 error.
+- After the fix, verify answered 201 for both `clientExtensionResults` shapes. Sign-in with the new passkey answered 200, and the list showed the passkey with its last use. `passkey.added`, `passkey.used` and `session.created` were recorded with their session ids. This was checked on the migrated local D1 and again on a fresh one with all 51 migrations.
+- Nothing touched stage or prod.
+
+**Fix: migration 520, `520_identity_passkeys_id_check`** (identity, after 510).
+- It rebuilds `identity_passkeys` the same way 320 rebuilt its table: create `identity_passkeys_next`, `INSERT OR IGNORE` every row, `DROP`, `RENAME`, and re-create `identity_passkeys_user_idx`.
+- The id CHECK is now `length(id) = 20 AND substr(id, 1, 4) = 'pky_' AND substr(id, 5) NOT GLOB '*[^0-9a-f]*'`. It is the same rule, and its longest pattern is 11 bytes.
+- Every other column, default, constraint and the foreign key are unchanged, so the worker needs no change. Nothing references the table, so the DROP breaks no foreign key. On stage and prod the table is empty, so the copy moves nothing.
+- `identity_passkey_challenges` is untouched.
+- Checked on local D1: the new CHECK refuses uppercase, non-hex and short ids.
+
+**Console** (`components/kitchen/passkeys.ts`, `serverFailureDetail`). On a 5xx, the small detail line now puts the server's message first, for example `Failed to store passkey · internal_error · 500`, so a future failure says which step broke.
+- The message is cut at 120 characters.
+- The SDK's stand-in `HTTP 5xx` is left out.
+- Below 500 nothing changes (`not_user_verified · 422`).
+- identity-worker's 500 messages were already generic and named their step ("Failed to store passkey", "Failed to read passkeys", "Failed to create passkey challenge"), and none carries a credential. They are unchanged.
+
+**Departures**
+- The task named `apps/db-migrate` or `wrangler d1 migrations` for applying migrations locally. Neither exists for this repo's layout: db-migrate is `infra/db-migrate` over `packages/db/src/runner`, which talks to the REST API only. So the manifest's `up.sql` files were applied in order with `wrangler d1 execute --local`. No repo script was added.
+- No identity-worker source change: the fix is the schema.
+
+**Tests**
+- **The test databases now follow D1's rules.** New `tests/db/src/d1-sqlite.ts`: `openD1Sqlite()` turns foreign keys on and sets D1's 50-byte pattern limit through `node:sqlite`'s `limits` option. Node 25 enforces that option; older Node ignores it. `likePatternsOver()` finds any LIKE or GLOB literal in the schema longer than 50 bytes, on any Node version. `sqlite-schema.test.ts` and `identity-passkeys-migration.test.ts` now open their databases with `openD1Sqlite()`; this matches production.
+- `tests/db`: 40 suites, **937 tests**.
+  - New `identity-passkeys-id-check-migration.test.ts` (8 tests):
+    - registered after 510, with its checksum;
+    - only the rebuild statements;
+    - after 510 the schema holds one 132-character pattern, and after 520 none;
+    - the iPhone-shaped passkey stores through the repository on D1 limits;
+    - 510's id rule still holds;
+    - the other constraints, the FK and the index still hold;
+    - a 510 table's rows are copied;
+    - 510 alone refuses the insert where the limit applies.
+  - New in `sqlite-schema.test.ts`: every LIKE or GLOB pattern in the final schema is within 50 bytes. This guards every table, now and later.
+  - Changed on purpose: `identity-migration.test.ts` lists 520 after 510.
+- `tests/identity-worker`: 20 suites, **292 tests**. New `passkeys-d1-store.test.ts` (2 tests):
+  - register verify and then sign-in on the real passkeys repository, over SQLite with every migration, foreign keys and D1's limit, with the iPhone shape and both `clientExtensionResults`;
+  - a failed store answers 500 "Failed to store passkey" without the credential id.
+- **Fails without the fix.** With 520 taken out of the manifest:
+  - `sqlite-schema`'s pattern check fails on any Node version;
+  - six `identity-passkeys-migration` tests fail with "LIKE or GLOB pattern too complex" on Node 25;
+  - the identity-worker iPhone test fails with stage's exact 500, "Failed to store passkey".
+- `tests/web-console-next`: 113 suites, **2,235 tests** (the 500 cases were added to existing tests in `kitchen-passkey-tap` and `kitchen-passkeys`).
+- `typecheck` and `lint` are clean for `@saas/db`, `@saas/db-tests`, `@saas/identity-worker-tests`, `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build`: "43 pages served as files, 17 _redirects rules". `/login` and `/you/security` are static.
+
+**Deploy.**
+- db-migrate applies 520 on its own path. It is the whole server fix: identity-worker needs no redeploy, since its code is unchanged.
+- The console redeploys on its own files, for the detail line.
+- After 520 is on stage, Add a passkey should save. Passkeys that people "turned on" before this fix were never stored. Their phones may hold orphan Cookpool passkeys; adding again saves a new one.

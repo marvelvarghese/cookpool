@@ -395,11 +395,28 @@ export function ceremonyErrorName(error: unknown): string {
   return "Error";
 }
 
-/** What the server said, small enough to read out: the step (register), else the reason or code, and the status. */
-export function serverFailureDetail(r: { status: number; error: { code: string; reason?: string | undefined; details?: Record<string, unknown> | undefined } }): string {
+/** The longest server message the detail line repeats. */
+const SERVER_MESSAGE_MAX = 120;
+
+/**
+ * What the server said, small enough to read out: the step (register), else
+ * the reason or code, and the status. On a 5xx the server's message goes
+ * first (PK-7: "Failed to store passkey · internal_error · 500"), so a
+ * failure names what broke; it is the step's own generic words, never a
+ * credential. The SDK's stand-in for an unreadable body ("HTTP 500") is left
+ * out, since the status already says it.
+ */
+export function serverFailureDetail(r: {
+  status: number;
+  error: { code: string; message?: string | undefined; reason?: string | undefined; details?: Record<string, unknown> | undefined };
+}): string {
   const step = r.error.details?.["step"];
   const what = typeof step === "string" ? step : (r.error.reason ?? r.error.code);
-  return r.status > 0 ? `${what} · ${r.status}` : what;
+  const base = r.status > 0 ? `${what} · ${r.status}` : what;
+  const message = r.error.message?.trim() ?? "";
+  if (r.status < 500 || !message || /^HTTP \d+$/.test(message)) return base;
+  const said = message.length > SERVER_MESSAGE_MAX ? `${message.slice(0, SERVER_MESSAGE_MAX - 1)}…` : message;
+  return `${said} · ${base}`;
 }
 
 // ── Options before the tap (PK-6) ─────────────────────────────────

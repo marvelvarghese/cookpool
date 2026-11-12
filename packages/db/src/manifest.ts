@@ -453,5 +453,14 @@ export const manifest: MigrationManifest = {
       description:
         "Passkeys: identity_passkeys (id pky_ plus 16 hex, user_id, credential_id base64url unique, public_key COSE base64url, sign_count ≥ 0, transports a JSON array, aaguid, device_name 1–60, backed_up 0 or 1, created_at, last_used_at), indexed by user, at most 10 per person; and identity_passkey_challenges (id, kind register or login, user_id set for register and null for login, challenge unique, created_at, expires_at 5 minutes later, used_at), used once, indexed by expiry for pruning. Public keys only (Cookpool PK-2)",
     },
+    {
+      id: "520_identity_passkeys_id_check",
+      context: "identity",
+      path: "520_identity_passkeys_id_check/up.sql",
+      checksum:
+        "06a110d21309ecd17bbd6dac9d05771f1ade967f99de5cb7f55a68ac3d81f598",
+      description:
+        "Passkeys: identity_passkeys rebuilt with an id check D1 can run (20 characters, pky_ then 0-9a-f only, every pattern under D1's 50-byte LIKE/GLOB limit) in place of 510's 132-character GLOB, which made every insert fail on D1; columns, constraints and index otherwise unchanged (Cookpool PK-7)",
+    },
   ],
 };

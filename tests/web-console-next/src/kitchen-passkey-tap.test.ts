@@ -177,6 +177,14 @@ describe("what an add that did not save shows", () => {
     const step = { status: 422, error: { code: "precondition_failed", reason: "passkey_failed", details: { step: "not_user_verified" } } };
     expect(serverFailureDetail(step)).toBe("not_user_verified · 422");
     expect(serverFailureDetail({ status: 500, error: { code: "internal_error" } })).toBe("internal_error · 500");
+    // PK-7: a 5xx says what broke, in the server's own words, before the code.
+    expect(serverFailureDetail({ status: 500, error: { code: "internal_error", message: "Failed to store passkey" } })).toBe(
+      "Failed to store passkey · internal_error · 500",
+    );
+    expect(serverFailureDetail({ status: 502, error: { code: "internal_error", message: "HTTP 502" } })).toBe("internal_error · 502");
+    expect(serverFailureDetail({ status: 500, error: { code: "internal_error", message: "x".repeat(300) } })).toBe(`${"x".repeat(119)}… · internal_error · 500`);
+    // Below 500 the message stays out: the step already names the refusal.
+    expect(serverFailureDetail({ ...step, error: { ...step.error, message: "The passkey could not be verified" } })).toBe("not_user_verified · 422");
     expect(serverFailureDetail({ status: 0, error: { code: "network_error", reason: "offline" } })).toBe("offline");
   });
 
