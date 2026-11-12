@@ -158,6 +158,15 @@ const FACADE_SAMPLES = [
   "/v1/kitchen/me/suggestions",
   `/v1/kitchen/me/suggestions/sug_${HEX}/confirm`,
   `/v1/kitchen/me/suggestions/sug_${HEX}/discard`,
+  // Spliteco (SE1): no delegated token reaches any of it until SE5's money.write.
+  "/v1/spliteco",
+  "/v1/spliteco/me/home",
+  "/v1/spliteco/me/groups",
+  `/v1/spliteco/me/friends/usr_${HEX}`,
+  `/v1/spliteco/groups/${ORG}/expenses`,
+  `/v1/spliteco/expenses/txn_${HEX}`,
+  `/v1/spliteco/expenses/txn_${HEX}/move`,
+  "/v1/spliteco/insights",
   // Words kitchen-worker routes where an id could sit.
   "/v1/kitchen/me/items/history",
   "/v1/kitchen/me/recipes/copies",

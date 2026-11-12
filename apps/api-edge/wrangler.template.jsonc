@@ -111,6 +111,10 @@
         {
           "binding": "KITCHEN_WORKER",
           "service": "cookpool-kitchen-worker-stage"
+        },
+        {
+          "binding": "SPLITECO_WORKER",
+          "service": "cookpool-spliteco-worker-stage"
         }
       ],
       "durable_objects": {
@@ -185,6 +189,10 @@
         {
           "binding": "KITCHEN_WORKER",
           "service": "cookpool-kitchen-worker-prod"
+        },
+        {
+          "binding": "SPLITECO_WORKER",
+          "service": "cookpool-spliteco-worker-prod"
         }
       ],
       "durable_objects": {

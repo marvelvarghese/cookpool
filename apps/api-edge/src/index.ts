@@ -20,6 +20,7 @@ import {
   handleIntegrationsIngressRoute,
 } from "./integrations-facade";
 import { isKitchenRoute, handleKitchenRoute } from "./kitchen-facade";
+import { isSplitecoRoute, handleSplitecoRoute } from "./spliteco-facade";
 import { isJoinPreviewRoute, handleJoinPreviewRoute } from "./join-preview-facade";
 import { isSoloMode, isSoloSuppressed } from "./solo-mode";
 import { withTrustedClientIp, type ClientIpSource } from "./client-ip";
@@ -105,6 +106,9 @@ export default {
       // Cookpool's kitchen (CP-4): matched before the project and org facades,
       // which own other sub-resources of /v1/organizations/{org}.
       response = await handleKitchenRoute(request, env, requestId, url.pathname);
+    } else if (isSplitecoRoute(url.pathname)) {
+      // Spliteco (cookpool-spliteco SE1): its own prefix, nothing else owns it.
+      response = await handleSplitecoRoute(request, env, requestId, url.pathname);
     } else if (isProjectRoute(url.pathname)) {
       response = await handleProjectRoute(request, env, requestId, url.pathname);
     } else if (isOrgRoute(url.pathname)) {
