@@ -152,7 +152,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const d1 = d1Over(db, { beforeBatch: () => pending.shift()?.(db) });
   const decisions: Harness["decisions"] = [];
 
-  const membershipEnv = { PLATFORM_DB: d1, ENVIRONMENT: "test", OPEN_GROUPS: "true", SOLO_MODE: "false" };
+  const membershipEnv: Record<string, unknown> = { PLATFORM_DB: d1, ENVIRONMENT: "test", OPEN_GROUPS: "true", SOLO_MODE: "false" };
   const membershipWorker = fetcher((request) => membershipRoute(request, membershipEnv as never));
 
   const policyWorker = fetcher(async (request) => {
@@ -201,6 +201,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     IDENTITY_WORKER: identityWorker,
     NOTIFICATIONS_WORKER: notificationsWorker,
   };
+  // membership-worker asks kitchen-worker for both balances before a leave (SE3, risk CP-L).
+  membershipEnv.KITCHEN_WORKER = fetcher((request) => kitchenRoute(request, kitchenEnv as never, {}));
 
   const now = () => new Date().toISOString();
   return {

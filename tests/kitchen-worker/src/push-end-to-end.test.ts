@@ -13,7 +13,7 @@ import type { Env as NotificationsEnv } from "@notifications-worker/env";
 import { base64urlEncode, ecdhWith } from "@notifications-worker/push/crypto";
 import type { DishResponse, KitchenDish, KitchenItemResponse } from "@saas/contracts/kitchen";
 import type { PushMessage } from "@saas/contracts/notifications";
-import { createHarness, envelope, newGroup, type Envelope, type Group, type Harness } from "./harness.js";
+import { createHarness, envelope, newGroup, seedDebt, type Envelope, type Group, type Harness } from "./harness.js";
 
 const NOW = new Date("2026-11-07T12:00:00.000Z");
 const RAHUL = "usr_rahul";
@@ -206,6 +206,10 @@ describe("Web Push, kitchen-worker to Dev's phone", () => {
     }
     await asPerson(DEV, "PUT", "/v1/notifications/preferences", { subjectKind: "user", subjectId: DEV, channel: "push", kinds: { "kitchen.paid_you": true } });
     answers.set(DEV_OLD_LAPTOP, 410);
+    // SE3: a payment recorded in Cookpool pays a Kitchen debt, never more than it.
+    await seedDebt(h, flat, ANU, DEV, 40100);
+    emails.length = 0;
+    pushes.length = 0;
 
     const paid = await kitchen("POST", `/v1/organizations/${flat.publicId}/kitchen/settlements`, ANU, {
       fromSubjectId: ANU, toSubjectId: DEV, amountMinor: 40000, method: "upi",

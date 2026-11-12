@@ -110,7 +110,8 @@ describe("contracts: leaving a group with a balance (Cookpool CP-19)", () => {
   });
 
   it("types the internal balance answer, and names its only caller", () => {
-    const balance: SubjectBalanceResponse = { balanceMinor: -1250, currency: "INR" };
+    // Both of a kitchen group's balances (cookpool-spliteco SE3): Kitchen, and Other.
+    const balance: SubjectBalanceResponse = { balanceMinor: -1250, otherMinor: 0, currency: "INR" };
     expect(balance.balanceMinor).toBeLessThan(0);
     expect(KITCHEN_INTERNAL_ACTOR_HEADER).toBe("x-internal-actor");
     expect(KITCHEN_INTERNAL_ACTORS).toEqual(["membership-worker"]);

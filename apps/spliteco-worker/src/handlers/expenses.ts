@@ -128,6 +128,8 @@ export function versionOf(
     idemKey: string;
     revises?: string | null;
     movedFrom?: string | null;
+    /** A bill added in Cookpool's Money tab (SE3): Cookpool's row, on the Kitchen balance. */
+    kitchen?: boolean;
   },
 ): NewSplitecoTxn {
   return {
@@ -142,9 +144,10 @@ export function versionOf(
     createdAt: ctx.now().toISOString(),
     note: input.request.note ?? null,
     idemKey: input.idemKey,
-    app: "spliteco",
-    // Anything added through Spliteco counts toward Other (design §0.11).
-    bucket: "other",
+    // Anything added in Spliteco counts toward Other; a bill added in
+    // Cookpool's Money tab is Cookpool's, on Kitchen (design §0.11, SE3).
+    app: input.kitchen ? "cookpool" : "spliteco",
+    bucket: input.kitchen ? "kitchen" : "other",
     category: input.request.category ?? null,
     revises: input.revises ?? null,
     movedFrom: input.movedFrom ?? null,
@@ -234,6 +237,18 @@ export async function handleCreateExpense(ctx: RequestContext, request: Request,
 
   const idem = requestIdempotencyKey(request, ctx.requestId);
   if (!idem.ok) return idem.response;
+  // `bucket: "kitchen"` (SE3): a bill added in Cookpool's Money tab, which
+  // counts toward the group's Kitchen balance — only in a group made in
+  // Cookpool, and never from an assistant (they add to Spliteco only).
+  const raw = (await request.clone().json().catch(() => null)) as { bucket?: unknown } | null;
+  const bucket = raw && typeof raw === "object" ? raw.bucket : undefined;
+  if (bucket !== undefined && bucket !== null && bucket !== "kitchen" && bucket !== "other") {
+    return validationError(ctx.requestId, { bucket: ["Must be kitchen or other"] });
+  }
+  const kitchen = bucket === "kitchen";
+  if (kitchen && (group.madeIn !== "cookpool" || ctx.actor.delegationId)) {
+    return validationError(ctx.requestId, { bucket: ["Only a bill added in Cookpool, to a group made there, counts toward Kitchen"] });
+  }
   const read = await readRequest(ctx, request, group);
   if (!read.ok) return read.response;
   const { request: body, occurredAt } = read.parsed.value;
@@ -249,6 +264,7 @@ export async function handleCreateExpense(ctx: RequestContext, request: Request,
       currency,
       splits: read.splits,
       idemKey: idem.key,
+      kitchen,
     });
     const result = await ctx.timings.measure("db", () =>
       repo.write(
@@ -263,10 +279,11 @@ export async function handleCreateExpense(ctx: RequestContext, request: Request,
         }),
       ),
     );
-    const outcome = writeOutcome(ctx, result, (t) => t.kind === "expense" && t.app === "spliteco" && t.createdBy === ctx.actor.subjectId);
+    const outcome = writeOutcome(ctx, result, (t) => t.kind === "expense" && t.app === txn.app && t.createdBy === ctx.actor.subjectId);
     if (outcome instanceof Response) return outcome;
     const stored = outcome === "posted" ? await repo.getTxn(txn.id) : outcome;
-    if (stored && outcome === "posted") await tell(ctx, noticeOf("added", stored, group, { before: [], after: sharesOf(stored) }));
+    // The people on it are told — a Cookpool bill too: spliteco-worker wrote it, so kitchen-worker never will.
+    if (stored && outcome === "posted") await tell(ctx, { ...noticeOf("added", stored, group, { before: [], after: sharesOf(stored) }), app: "spliteco" });
     return stored ? written(ctx, stored, group) : unavailable(ctx.requestId);
   });
 }

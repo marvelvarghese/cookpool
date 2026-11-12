@@ -12,7 +12,7 @@ import type { OrgContext, RequestContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
 import type { MemberGroup } from "../groups-client.js";
 import { notFound, successResponse, unavailable } from "../http.js";
-import { toEngineTxns } from "../ledger.js";
+import { KITCHEN_ONLY, toEngineTxns } from "../ledger.js";
 import { myBalances, peopleIn, personGroupView, planTotals, type GroupLedger } from "../people.js";
 
 // People across groups (CP-9):
@@ -53,7 +53,7 @@ async function loadLedgers(
     ctx.timings.measure("db", () =>
       Promise.all([
         repo.listGroupSettings(groups.map((g) => g.orgId)),
-        Promise.all(groups.map((g) => repo.listSplitsForGroup(g.orgId))),
+        Promise.all(groups.map((g) => repo.listSplitsForGroup(g.orgId, KITCHEN_ONLY))),
       ]),
     ),
   ]);

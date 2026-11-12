@@ -71,7 +71,7 @@ const ROUTES: Route[] = [
   {
     name: "spliteco.group.settle_plan",
     pattern: new RegExp(`${P}/groups/${ID}/settle-plan$`),
-    methods: { GET: (ctx, _r, [org]) => handleSettlePlan(ctx, org!) },
+    methods: { GET: (ctx, _r, [org], url) => handleSettlePlan(ctx, org!, url) },
   },
   {
     name: "spliteco.group.settings",
@@ -117,7 +117,7 @@ const ROUTES: Route[] = [
     pattern: new RegExp(`${P}/groups/${ID}/export\\.(csv|json)$`),
     methods: { GET: (ctx, _r, [org, format]) => handleExport(ctx, org!, format as "csv" | "json") },
   },
-  { name: "spliteco.group", pattern: new RegExp(`${P}/groups/${ID}$`), methods: { GET: (ctx, _r, [org]) => handleGroup(ctx, org!) } },
+  { name: "spliteco.group", pattern: new RegExp(`${P}/groups/${ID}$`), methods: { GET: (ctx, _r, [org], url) => handleGroup(ctx, org!, url) } },
   {
     name: "spliteco.expense.restore",
     pattern: new RegExp(`${P}/expenses/${ID}/restore$`),

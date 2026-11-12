@@ -45,7 +45,7 @@ import {
 } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
 import { orgPublicId, parseOrgPublicId, parseTxnPublicId, txnPublicId } from "../ids.js";
-import { BUCKETS, bucketPlan, bucketRows, bucketedPlan, currencyOf, engineTxns, groupLabel, splitecoAudit, withRepo } from "../ledger.js";
+import { BUCKETS, bucketPlan, bucketRows, bucketedPlan, currencyOf, engineTxns, groupLabel, kitchenView, splitecoAudit, withRepo } from "../ledger.js";
 import type { MemberGroup } from "../membership.js";
 import { sendPaidYou } from "../notify.js";
 import { Fields, minor, oneOf, subjectId, text } from "../validate.js";
@@ -107,6 +107,8 @@ interface ParsedSettlement {
   method: (typeof SPLITECO_PAYMENT_METHODS)[number];
   note: string | null;
   split: Partial<Allocation> | null;
+  /** `kitchen`: made in Cookpool (SE3) — pays the Kitchen balance only, never more than it. */
+  bucket: "kitchen" | null;
 }
 
 function parseSettlement(body: Record<string, unknown>): { ok: true; value: ParsedSettlement } | { ok: false; fields: Fields["errors"] } {
@@ -130,10 +132,16 @@ function parseSettlement(body: Record<string, unknown>): { ok: true; value: Pars
       for (const k of Object.keys(raw)) if (!(SETTLE_ORDER as readonly string[]).includes(k)) fields.add(`split.${k}`, "Must be kitchen or other");
     }
   }
+  let bucket: "kitchen" | null = null;
+  if (body.bucket !== undefined && body.bucket !== null) {
+    if (body.bucket !== "kitchen") fields.add("bucket", "Must be kitchen, or left out");
+    else if (split) fields.add("split", "A Kitchen payment pays the Kitchen balance only");
+    else bucket = "kitchen";
+  }
   if (!fields.ok || toSubjectId === undefined || amountMinor === undefined || !method || note === undefined) {
     return { ok: false, fields: fields.errors };
   }
-  return { ok: true, value: { toSubjectId, amountMinor, method, note, split } };
+  return { ok: true, value: { toSubjectId, amountMinor, method, note, split, bucket } };
 }
 
 export async function handleCreateSettlement(ctx: RequestContext, request: Request, orgParam: string): Promise<Response> {
@@ -155,6 +163,10 @@ export async function handleCreateSettlement(ctx: RequestContext, request: Reque
   if (!parsed.ok) return validationError(ctx.requestId, parsed.fields);
   const pay = parsed.value;
   const me = ctx.actor.subjectId;
+  // Cookpool's payment (SE3) is for a kitchen group's Kitchen balance.
+  if (pay.bucket === "kitchen" && group.madeIn !== "cookpool") {
+    return validationError(ctx.requestId, { bucket: ["Only a group made in Cookpool has a Kitchen balance"] });
+  }
   if (pay.toSubjectId === me) {
     return unprocessable(ctx.requestId, "A payment needs two different people", SPLITECO_ERROR_REASONS.SAME_PERSON);
   }
@@ -181,7 +193,11 @@ export async function handleCreateSettlement(ctx: RequestContext, request: Reque
     const currency = currencyOf(currencies, orgId);
     const simplify = settings.get(orgId)?.simplifyDebts ?? true;
     const owed = owedByBucket(rows, me, pay.toSubjectId, simplify);
-    const allocated = allocatePayment({ owed, amountMinor: pay.amountMinor, split: pay.split });
+    // Made in Cookpool (SE3, design §0.11): Kitchen only, never more than it —
+    // the same engine rule, with all of it put on Kitchen; Other stays as it is.
+    const allocated = pay.bucket === "kitchen"
+      ? allocatePayment({ owed: { kitchen: owed.kitchen, other: 0 }, amountMinor: pay.amountMinor, split: { kitchen: pay.amountMinor, other: 0 } })
+      : allocatePayment({ owed, amountMinor: pay.amountMinor, split: pay.split });
     if (!allocated.ok) {
       const details = { owed: allocated.owed, owedMinor: allocated.owed.kitchen + allocated.owed.other };
       if (allocated.reason === "nothing_owed") {
@@ -214,7 +230,8 @@ export async function handleCreateSettlement(ctx: RequestContext, request: Reque
       note: pay.note,
       // The first row carries the request's key (a retry finds it); the rest, the key and their bucket.
       idemKey: i === 0 ? idem.key : `${idem.key}:${bucket}`,
-      app: "spliteco",
+      // Made in Cookpool's Money tab (SE3): Cookpool's row, on the Kitchen balance.
+      app: pay.bucket === "kitchen" ? "cookpool" : "spliteco",
       bucket,
       category: null,
       method: pay.method,
@@ -356,7 +373,7 @@ export async function handleNotReceived(ctx: RequestContext, request: Request, t
   });
 }
 
-export async function handleSettlePlan(ctx: RequestContext, orgParam: string): Promise<Response> {
+export async function handleSettlePlan(ctx: RequestContext, orgParam: string, url?: URL): Promise<Response> {
   const orgId = parseOrgPublicId(orgParam);
   if (!orgId) return notFound(ctx.requestId);
   const denied = await requireOrgAction(ctx, orgId, "spliteco.ledger.read");
@@ -364,13 +381,17 @@ export async function handleSettlePlan(ctx: RequestContext, orgParam: string): P
   const group = await myGroup(ctx, orgId);
   if (group === "unavailable") return unavailable(ctx.requestId);
   if (!group) return notFound(ctx.requestId);
+  // Cookpool's view (SE3): the Kitchen balance only; never a Spliteco group.
+  const kitchen = kitchenView(url);
+  if (kitchen && group.madeIn !== "cookpool") return notFound(ctx.requestId);
   return withRepo(ctx, async (repo) => {
-    const [rows, currencies, settings] = await ctx.timings.measure("db", () =>
+    const [all, currencies, settings] = await ctx.timings.measure("db", () =>
       Promise.all([repo.listTxns([orgId]), repo.currencies([orgId]), repo.groupSettings([orgId])]),
     );
+    const rows = kitchen ? bucketRows(all, "kitchen") : all;
     const me = ctx.actor.subjectId;
     const simplify = settings.get(orgId)?.simplifyDebts ?? true;
-    const buckets: SplitecoBucket[] = group.madeIn === "cookpool" ? [...BUCKETS] : ["other"];
+    const buckets: SplitecoBucket[] = kitchen ? ["kitchen"] : group.madeIn === "cookpool" ? [...BUCKETS] : ["other"];
     const others = new Set<string>();
     const out: SplitecoSettlePlanResponse["buckets"] = buckets.map((bucket) => {
       const txns = engineTxns(bucketRows(rows, bucket));

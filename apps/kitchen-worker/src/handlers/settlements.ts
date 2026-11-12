@@ -3,12 +3,13 @@ import { asUuid } from "@saas/db/ids";
 import { groupAllows, requireGroupAction } from "../authz.js";
 import type { OrgContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
-import { LedgerError, buildSettlement, type Split } from "@saas/kitchen-engine/ledger";
+import { LedgerError, balances, buildSettlement, type Split } from "@saas/kitchen-engine/ledger";
+import { paymentCap } from "@saas/kitchen-engine/settle";
 import { formatMinor } from "@saas/kitchen-engine/money";
 import { forbidden, readJsonObject, unavailable, unprocessable, validationError } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
 import { toPublicId } from "../ids.js";
-import { groupCurrency, ledgerAudit, postedTxnResponse } from "../ledger.js";
+import { KITCHEN_ONLY, groupCurrency, ledgerAudit, postedTxnResponse, toEngineTxns } from "../ledger.js";
 import { notInGroup } from "../roster-client.js";
 import { emailPaidYou } from "../emails.js";
 import { Fields, minor, oneOf, subjectId, text, type FieldErrors } from "../validate.js";
@@ -21,6 +22,13 @@ import { Fields, minor, oneOf, subjectId, text, type FieldErrors } from "../vali
 // correct anyone's entries). One batch writes it with
 // `kitchen.settlement.recorded`. Once it has committed, the person paid is
 // told (`kitchen.paid_you`, PW-5) — unless they recorded it themselves.
+//
+// A payment recorded in Cookpool pays the Kitchen balance only, and never
+// more than it (cookpool-spliteco SE3, design §0.11): at most what `from`
+// owes there and what `to` is owed there (`paymentCap`), else 422
+// `over_settled` with the cap. It is written with bucket `kitchen`. (A retry
+// of a key that already posted answers what it posted before the cap is
+// checked again, so a replay never reads as over the balance it paid.)
 
 export interface ParsedSettlement {
   fromSubjectId: string;
@@ -89,6 +97,24 @@ export async function handleCreateSettlement(ctx: OrgContext, request: Request):
   return withKitchenRepo(ctx, async (repo) => {
     const currency = await groupCurrency(repo, ctx);
     if (!currency) return unavailable(ctx.requestId);
+
+    const ledger = await ctx.timings.measure("db", () => repo.listSplitsForGroup(ctx.orgId, KITCHEN_ONLY));
+    if (!ledger.ok) return unavailable(ctx.requestId);
+    const txns = toEngineTxns(ledger.value);
+    const replayed = ledger.value.some((t) => t.idemKey === idem.key);
+    if (!replayed) {
+      const cap = paymentCap(balances(txns), payment.fromSubjectId, payment.toSubjectId);
+      if (payment.amountMinor > cap) {
+        return unprocessable(
+          ctx.requestId,
+          cap === 0
+            ? "Nothing is owed between them in the kitchen"
+            : `That is more than the kitchen balance between them (${formatMinor(cap, currency)})`,
+          KITCHEN_ERROR_REASONS.OVER_SETTLED,
+          { capMinor: cap, currency },
+        );
+      }
+    }
 
     const id = asUuid(crypto.randomUUID());
     const now = ctx.now();

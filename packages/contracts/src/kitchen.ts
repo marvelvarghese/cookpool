@@ -100,6 +100,18 @@ export const KITCHEN_ERROR_REASONS = {
    * `details.currency`) is not zero. Settle up, then leave.
    */
   BALANCE_NOT_SETTLED: "balance_not_settled",
+  /**
+   * 422 `validation_failed` on POST …/kitchen/settlements (cookpool-spliteco
+   * SE3): a payment recorded in Cookpool pays the Kitchen balance only, and
+   * never more than it — more than the payer owes there, or more than the
+   * person paid is owed there (`details.capMinor`, `details.currency`).
+   */
+  OVER_SETTLED: "over_settled",
+  /**
+   * 409 `conflict` (SE3): a row Spliteco wrote (a payment made there) is
+   * corrected in Spliteco — "not received" — not reversed from Cookpool.
+   */
+  OWNED_BY_SPLITECO: "owned_by_spliteco",
 } as const;
 
 export type KitchenErrorReason = (typeof KITCHEN_ERROR_REASONS)[keyof typeof KITCHEN_ERROR_REASONS];
@@ -2118,8 +2130,16 @@ export const KITCHEN_INTERNAL_ACTORS = ["membership-worker"] as const;
 export type KitchenInternalActor = (typeof KITCHEN_INTERNAL_ACTORS)[number];
 
 export interface SubjectBalanceResponse {
-  /** Σ paid − Σ owed over the group's whole ledger: positive, they are owed; negative, they owe; 0 for no money at all. */
+  /**
+   * Σ paid − Σ owed over the group's Kitchen balance (cookpool-spliteco SE3):
+   * positive, they are owed; negative, they owe; 0 for no money at all.
+   */
   balanceMinor: number;
+  /**
+   * The same over the group's Other balance — what was added to it in
+   * Spliteco (SE3). Leaving is refused while either is open (risk CP-L).
+   */
+  otherMinor: number;
   /** The group's currency (INR until its settings are first saved). */
   currency: string;
 }

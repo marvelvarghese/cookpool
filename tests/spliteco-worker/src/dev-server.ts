@@ -12,6 +12,14 @@
 // rewrites /api/* here. Sign in as you@spliteco.test (or anu@, dev@,
 // meera@spliteco.test); the code is 123456 and comes back in delivery.code.
 // Tokens are `dev_<usr id>`; nothing here is a real credential.
+//
+// SE3: it also serves Cookpool's console for clicking through the Money tab —
+// kitchen-worker's routes (/v1/kitchen/…, /v1/organizations/{org}/kitchen/…)
+// and membership's group list (GET /v1/organizations), the same harness — and
+// a stand-in for identity's one-time handoff (/v1/auth/handoff[/exchange]:
+// 60 seconds, once, from the origin it was made for; identity-worker's own
+// is tested in tests/identity-worker). Run the console behind a proxy on a
+// `cookpool-stage.localhost` host so it calls `/api` on its own origin.
 
 import { createServer, type IncomingMessage } from "node:http";
 import { createHarness, usr } from "./harness.js";
@@ -74,6 +82,22 @@ async function seed(): Promise<void> {
     payers: [{ subjectId: DEV, amountMinor: 98000 }],
     split: { method: "equal", participants: [ME, DEV] },
   });
+  // SE3: a gas cylinder Dev paid in Cookpool (Kitchen), and Wi-Fi added to the
+  // flat in Spliteco (Other) — Cookpool shows only the first.
+  await k(`/v1/organizations/${flat.publicId}/kitchen/expenses`, DEV, {
+    title: "Gas cylinder",
+    totalMinor: 90000,
+    mode: "equal",
+    payers: [{ subjectId: DEV, amountMinor: 90000 }],
+    participants: [{ subjectId: ME }, { subjectId: ANU }, { subjectId: DEV }],
+  });
+  await s(flat, ANU, {
+    title: "Wi-Fi, November",
+    totalMinor: 120000,
+    category: "bills",
+    payers: [{ subjectId: ANU, amountMinor: 120000 }],
+    split: { method: "equal", participants: [ME, ANU, DEV] },
+  });
   // SE2: Meera and Dev take UPI; Anu has no UPI ID yet (Settle up shows UPI off for her).
   for (const [as, upiVpa] of [[MEERA, "meera.r@okaxis"], [DEV, "devk@ybl"]] as const) {
     await h.call("PUT", "/v1/spliteco/me/profile", { as, body: { upiVpa } });
@@ -113,6 +137,8 @@ const DELEGATIONS = [
   revoked: false,
 }));
 const challenges = new Map<string, string>();
+/** SE3: handoff codes, as identity keeps them (here in memory, by the code itself). */
+const handoffs = new Map<string, { actor: string; origin: string; expiresAt: number; used: boolean }>();
 
 async function read(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -146,6 +172,17 @@ async function handle(method: string, url: URL, headers: Headers, body: string):
     if (!id || code !== "123456") return fail(401, "unauthenticated", "Wrong code");
     return ok({ token: `dev_${id}`, tokenType: "bearer", expiresAt: new Date(Date.now() + 86_400_000).toISOString(), user: userBody(id) });
   }
+  if (path === "/v1/auth/handoff/exchange" && method === "POST") {
+    const { code } = JSON.parse(body || "{}") as { code?: string };
+    const found = code ? handoffs.get(code) : undefined;
+    const refuse = (reason: string) => Response.json({ error: { code: "unauthenticated", message: "Handoff refused", details: { reason }, requestId: "req_dev" } }, { status: 401 });
+    if (!found) return refuse("handoff_invalid");
+    if (found.used) return refuse("handoff_used");
+    if (headers.get("origin") !== found.origin) return refuse("handoff_wrong_origin");
+    if (Date.now() >= found.expiresAt) return refuse("handoff_expired");
+    found.used = true;
+    return ok({ token: `dev_${found.actor}`, tokenType: "bearer", expiresAt: new Date(Date.now() + 86_400_000).toISOString(), user: userBody(found.actor) });
+  }
   const token = headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
   const actor = tokens.get(token);
   if (!actor) return fail(401, "unauthenticated", "Authentication required");
@@ -160,6 +197,22 @@ async function handle(method: string, url: URL, headers: Headers, body: string):
     }
     return ok({ user: userBody(actor) });
   }
+  if (path === "/v1/auth/handoff" && method === "POST") {
+    const { targetOrigin } = JSON.parse(body || "{}") as { targetOrigin?: string };
+    if (typeof targetOrigin !== "string" || !/^http:\/\/localhost:\d+$/.test(targetOrigin)) return fail(422, "validation_failed", "Not an app this hands off to");
+    const code = `hoc_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
+    const expiresAt = Date.now() + 60_000;
+    handoffs.set(code, { actor, origin: targetOrigin, expiresAt, used: false });
+    return ok({ code, targetOrigin, expiresAt: new Date(expiresAt).toISOString() }, 201);
+  }
+  // SE3: Cookpool's console — kitchen-worker's routes and membership's group list.
+  if (path.startsWith("/v1/kitchen/") || /^\/v1\/organizations\/[^/]+\/kitchen\//.test(path)) {
+    const forwarded: Record<string, string> = {};
+    const idem = headers.get("idempotency-key");
+    if (idem) forwarded["idempotency-key"] = idem;
+    return h.kitchen(method, path + url.search, { as: actor, headers: forwarded, ...(body ? { rawBody: body } : {}) });
+  }
+  if (path === "/v1/organizations" && method === "GET") return h.membership("GET", path + url.search, { as: actor });
   // SE5: the person's connected assistants (identity's delegations), made up.
   if (path === "/v1/auth/delegations" && method === "GET") return ok({ delegations: DELEGATIONS.filter((d) => !d.revoked) });
   const delegation = path.match(/^\/v1\/auth\/delegations\/(dlg_[0-9a-f]{32})$/);

@@ -11,6 +11,7 @@ import {
 import type { AppendEventWithAuditInput } from "@saas/db/events";
 import type {
   KitchenFlagRecord,
+  KitchenLedgerFilter,
   KitchenLedgerTxn,
   KitchenRepository,
   KitchenResult,
@@ -21,6 +22,15 @@ import type { OrgContext } from "./context.js";
 import type { Txn } from "@saas/kitchen-engine/ledger";
 import { conflict, errorResponse, successResponse, unavailable, unprocessable } from "./http.js";
 import { toPublicId, type KitchenIdPrefix } from "./ids.js";
+
+/**
+ * Cookpool's ledger reads take the Kitchen balance only (cookpool-spliteco
+ * SE3, design §0.11): everything Cookpool posts and the bills added in
+ * Cookpool. What was added to a kitchen group in Spliteco (bucket `other`)
+ * is Spliteco's to show, so balances, the settle plan, people, the inbox,
+ * activity and every transaction read here leave it out.
+ */
+export const KITCHEN_ONLY: KitchenLedgerFilter = Object.freeze({ bucket: "kitchen" });
 
 const SOURCE_PREFIX: Readonly<Record<string, KitchenIdPrefix>> = { item: "itm", dish: "dsh", expense: "txn" };
 

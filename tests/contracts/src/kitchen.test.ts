@@ -131,6 +131,10 @@ describe("contracts: the kitchen ledger (Cookpool CP-7)", () => {
       CLAIMS_EXCEED_PORTIONS: "claims_exceed_portions",
       // Leaving a group with a balance (CP-19): on membership-worker's leave.
       BALANCE_NOT_SETTLED: "balance_not_settled",
+      // cookpool-spliteco SE3: Cookpool's payments pay the Kitchen balance only, never more;
+      // a payment Spliteco recorded is corrected there.
+      OVER_SETTLED: "over_settled",
+      OWNED_BY_SPLITECO: "owned_by_spliteco",
     });
     for (const reason of Object.values(KITCHEN_ERROR_REASONS)) {
       expect(Object.values(ERROR_CODES)).not.toContain(reason);

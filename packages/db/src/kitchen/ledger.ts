@@ -14,6 +14,7 @@ import { eventWithAuditStatements } from "../events/repository.js";
 import type { AppendEventWithAuditInput } from "../events/types.js";
 import type {
   KitchenActivityCursor,
+  KitchenBucket,
   KitchenFlagRecord,
   KitchenFlagState,
   KitchenLedgerTxn,
@@ -23,6 +24,8 @@ import type {
   KitchenSettlementMethod,
   KitchenSplit,
   KitchenStockMoveRecord,
+  KitchenLedgerFilter,
+  KitchenTxnItem,
   KitchenTxnKind,
   KitchenTxnRecord,
   NewKitchenTxn,
@@ -35,8 +38,23 @@ import { askUndoneStatements } from "./ask-undo.js";
 
 /** The transaction's columns, plus the id of its reversal (the partial unique index answers it). */
 const TXN_COLUMNS = `t.id, t.org_id, t.kind, t.title, t.total_minor, t.currency, t.occurred_at,
-  t.created_by, t.source_kind, t.source_id, t.reverses, t.method, t.note, t.idem_key, t.created_at,
+  t.created_by, t.source_kind, t.source_id, t.reverses, t.method, t.note, t.idem_key, t.created_at, t.bucket, t.app,
   (SELECT r.id FROM kitchen_txns r WHERE r.reverses = t.id) AS reversed_by`;
+
+/** A row's balance: `kitchen` unless the row says `other`. */
+function bucketOf(value: unknown): KitchenBucket {
+  return value === "other" ? "other" : "kitchen";
+}
+
+/**
+ * The SQL that keeps a ledger read to one balance (SE3): `AND t.bucket = 'kitchen'`,
+ * or nothing for both. The value is one of two literals, never input.
+ */
+export function bucketClause(filter: KitchenLedgerFilter | undefined, alias = "t"): string {
+  const bucket = filter?.bucket ?? "all";
+  if (bucket === "all") return "";
+  return `AND ${alias}.bucket = '${bucket === "other" ? "other" : "kitchen"}'`;
+}
 
 const FLAG_COLUMNS = "id, txn_id, org_id, subject_id, reason, state, idem_key, created_at, updated_at";
 
@@ -65,6 +83,8 @@ function mapTxn(row: Row, splits: KitchenSplit[]): KitchenTxnRecord {
     idemKey: row.idem_key as string,
     createdAt: new Date(row.created_at as string),
     splits,
+    bucket: bucketOf(row.bucket),
+    app: row.app === "spliteco" ? "spliteco" : "cookpool",
   };
 }
 
@@ -202,7 +222,75 @@ export function txnRecordOf(txn: NewKitchenTxn, splits: readonly KitchenSplit[])
     idemKey: txn.idemKey,
     createdAt: txn.now,
     splits: splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.paidMinor, owedMinor: s.owedMinor })),
+    bucket: "kitchen",
+    ...(txn.items ? { items: txn.items } : {}),
   };
+}
+
+/** The kinds Cookpool posts from the pantry and the stove: each gets item rows (SE3). */
+const ITEMIZED_KINDS: ReadonlySet<KitchenTxnKind> = new Set(["use", "dish", "waste"]);
+
+/** `ledger_txn_items.name` holds 1–120 characters. */
+const ITEM_NAME_MAX = 120;
+
+function itemName(name: string): string {
+  const trimmed = name.trim() || "Item";
+  return trimmed.length > ITEM_NAME_MAX ? `${trimmed.slice(0, ITEM_NAME_MAX - 1)}…` : trimmed;
+}
+
+/**
+ * The item rows a transaction is written with (SE3): the ones it was given,
+ * else — for a use, dish or waste — one item, its title, each person bearing
+ * exactly what they owe on it. Nothing for an expense, a settlement or a
+ * reversal (a reversal's rows are its original's). Items whose shares do not
+ * add up to their total are dropped: they are an explanation, never money.
+ */
+export function itemRowsOf(record: KitchenTxnRecord): KitchenTxnItem[] {
+  if (record.kind === "reversal" || record.reverses) return [];
+  const given = record.items;
+  const items: readonly KitchenTxnItem[] =
+    given && given.length > 0
+      ? given
+      : ITEMIZED_KINDS.has(record.kind)
+        ? [
+            {
+              name: record.title,
+              qty: 1,
+              unitMinor: null,
+              totalMinor: record.totalMinor,
+              shares: record.splits.filter((s) => s.owedMinor > 0).map((s) => ({ subjectId: s.subjectId, amountMinor: s.owedMinor })),
+            },
+          ]
+        : [];
+  return items.filter((item) => {
+    if (!Number.isSafeInteger(item.totalMinor) || item.totalMinor < 0 || !(item.qty > 0)) return false;
+    const seen = new Set<string>();
+    let sum = 0;
+    for (const share of item.shares) {
+      if (seen.has(share.subjectId) || !Number.isSafeInteger(share.amountMinor) || share.amountMinor < 0) return false;
+      seen.add(share.subjectId);
+      sum += share.amountMinor;
+    }
+    return sum === item.totalMinor;
+  });
+}
+
+/** The statements that write a transaction's item rows (`ledger_txn_items`, `ledger_txn_item_shares`, mode exact). */
+export function itemStatements(record: KitchenTxnRecord): SqlStatement[] {
+  return itemRowsOf(record).flatMap((item, position) => [
+    {
+      text: `INSERT INTO ledger_txn_items (txn_id, position, name, qty, unit_minor, total_minor)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+      params: [record.id, position, itemName(item.name), item.qty, item.unitMinor, item.totalMinor],
+    },
+    ...item.shares
+      .filter((share) => share.amountMinor > 0)
+      .map((share) => ({
+        text: `INSERT INTO ledger_txn_item_shares (txn_id, item_position, subject_id, mode, value)
+               VALUES ($1, $2, $3, 'exact', $4)`,
+        params: [record.id, position, share.subjectId, share.amountMinor],
+      })),
+  ]);
 }
 
 /**
@@ -223,9 +311,9 @@ export function txnStatements({ record, audit, extra }: TxnWrite): SqlStatement[
     {
       text: `INSERT INTO kitchen_txns (
                id, org_id, kind, title, total_minor, currency, occurred_at, created_by,
-               source_kind, source_id, reverses, method, note, idem_key, created_at
+               source_kind, source_id, reverses, method, note, idem_key, created_at, bucket
              )
-             SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+             SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
              WHERE EXISTS (SELECT 1 FROM kitchen_group_settings WHERE org_id = $2 AND currency = $6)
              RETURNING id`,
       params: [
@@ -244,6 +332,7 @@ export function txnStatements({ record, audit, extra }: TxnWrite): SqlStatement[
         record.note,
         record.idemKey,
         record.createdAt,
+        record.bucket ?? "kitchen",
       ],
     },
     ...record.splits.map((split, position) => ({
@@ -251,6 +340,7 @@ export function txnStatements({ record, audit, extra }: TxnWrite): SqlStatement[
              VALUES ($1, $2, $3, $4, $5)`,
       params: [record.id, split.subjectId, position, split.paidMinor, split.owedMinor],
     })),
+    ...itemStatements(record),
     ...(extra ?? []),
   ];
   if (audit) statements.push(...eventWithAuditStatements(audit));
@@ -365,22 +455,24 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
           idemKey: reversal.idemKey,
           createdAt: reversal.now,
           splits: splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.paidMinor, owedMinor: s.owedMinor })),
+          // A reversal counts toward its original's balance.
+          bucket: original.bucket ?? "kitchen",
         },
         audit,
         extra: restock,
       });
     },
 
-    async getTxn(orgId, txnId) {
+    async getTxn(orgId, txnId, filter) {
       try {
-        const txn = await findTxn("t.org_id = $1 AND t.id = $2", [orgId, txnId]);
+        const txn = await findTxn(`t.org_id = $1 AND t.id = $2 ${bucketClause(filter)}`, [orgId, txnId]);
         return txn ? { ok: true, value: txn } : { ok: false, error: { kind: "not_found" } };
       } catch (err) {
         return internal(err);
       }
     },
 
-    async listActivity(orgId, { cursor, limit }) {
+    async listActivity(orgId, { cursor, limit }, filter) {
       try {
         // One round trip: the page of transactions (one extra row says whether
         // there is a next page), each joined to its splits in posted order.
@@ -390,7 +482,7 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
         const result = await executor.execute(
           `WITH page AS (
              SELECT ${TXN_COLUMNS} FROM kitchen_txns t
-             WHERE t.org_id = $1 ${after}
+             WHERE t.org_id = $1 ${after} ${bucketClause(filter)}
              ORDER BY t.occurred_at DESC, t.id DESC
              LIMIT $2
            )
@@ -422,13 +514,13 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
       }
     },
 
-    async listSplitsForGroup(orgId) {
+    async listSplitsForGroup(orgId, filter) {
       try {
         const result = await executor.execute(
-          `SELECT t.id, t.kind, t.title, t.total_minor, t.occurred_at, t.reverses,
+          `SELECT t.id, t.kind, t.title, t.total_minor, t.occurred_at, t.reverses, t.bucket, t.idem_key,
                   s.subject_id, s.paid_minor, s.owed_minor
            FROM kitchen_txns t JOIN kitchen_txn_splits s ON s.txn_id = t.id
-           WHERE t.org_id = $1
+           WHERE t.org_id = $1 ${bucketClause(filter)}
            ORDER BY t.occurred_at, t.id, s.position`,
           [orgId],
         );
@@ -444,6 +536,8 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
               occurredAt: new Date(row.occurred_at as string),
               reverses: nullableString(row.reverses),
               splits: [],
+              bucket: bucketOf(row.bucket),
+              idemKey: row.idem_key as string,
             };
             txns.push(current);
           }

@@ -108,13 +108,15 @@ describe("Identity Migration Verification", () => {
       const ids = manifest.migrations.map((m) => m.id);
       // The identity migrations after it are 490_identity_delegations (MC-2),
       // 510_identity_passkeys (PK-2), 520_identity_passkeys_id_check (PK-7)
-      // and 570_identity_delegation_access (cookpool-spliteco SE-6).
-      expect(identityMigrations.map((m) => m.id).slice(-5)).toEqual([
+      // and 570_identity_delegation_access (cookpool-spliteco SE-6), then
+      // 580_identity_handoff_codes (cookpool-spliteco SE-4).
+      expect(identityMigrations.map((m) => m.id).slice(-6)).toEqual([
         "280_identity_login_attempts",
         "490_identity_delegations",
         "510_identity_passkeys",
         "520_identity_passkeys_id_check",
         "570_identity_delegation_access",
+        "580_identity_handoff_codes",
       ]);
       expect(ids.indexOf("280_identity_login_attempts")).toBe(ids.indexOf("270_kitchen_sweeps") + 1);
       // The next migration is kitchen's 290_kitchen_dish_share_setter (SM-6).

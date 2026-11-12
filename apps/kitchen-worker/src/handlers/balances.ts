@@ -4,7 +4,7 @@ import type { OrgContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
 import { balances, settlePlan } from "@saas/kitchen-engine/ledger";
 import { successResponse, unavailable } from "../http.js";
-import { groupCurrency, toEngineTxns } from "../ledger.js";
+import { KITCHEN_ONLY, groupCurrency, toEngineTxns } from "../ledger.js";
 
 // GET /v1/organizations/{org}/kitchen/balances      kitchen.ledger.read
 // GET /v1/organizations/{org}/kitchen/settle-plan   kitchen.ledger.read
@@ -24,7 +24,7 @@ export async function handleBalances(ctx: OrgContext): Promise<Response> {
   return withKitchenRepo(ctx, async (repo) => {
     const currency = await groupCurrency(repo, ctx);
     if (!currency) return unavailable(ctx.requestId);
-    const ledger = await ctx.timings.measure("db", () => repo.listSplitsForGroup(ctx.orgId));
+    const ledger = await ctx.timings.measure("db", () => repo.listSplitsForGroup(ctx.orgId, KITCHEN_ONLY));
     if (!ledger.ok) return unavailable(ctx.requestId);
 
     // Every member, at zero if they have no transactions; and anyone no longer
@@ -49,7 +49,7 @@ export async function handleSettlePlan(ctx: OrgContext): Promise<Response> {
   return withKitchenRepo(ctx, async (repo) => {
     const currency = await groupCurrency(repo, ctx);
     if (!currency) return unavailable(ctx.requestId);
-    const ledger = await ctx.timings.measure("db", () => repo.listSplitsForGroup(ctx.orgId));
+    const ledger = await ctx.timings.measure("db", () => repo.listSplitsForGroup(ctx.orgId, KITCHEN_ONLY));
     if (!ledger.ok) return unavailable(ctx.requestId);
 
     const plan = settlePlan(toEngineTxns(ledger.value));

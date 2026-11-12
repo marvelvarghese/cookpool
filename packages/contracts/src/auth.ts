@@ -230,3 +230,51 @@ export interface UsersLookupResponse {
   /** One per known id, in the order asked. */
   users: UserSummary[];
 }
+
+// ── One-time handoff into another app (cookpool-spliteco SE-4) ──────────
+//
+// "More in Spliteco" on Cookpool's Money tab opens Spliteco on its own host
+// already signed in (risk SE-D). With a session, Cookpool asks for a code
+// bound to the person and to the target app's origin; it lives 60 seconds
+// and is used once. The target app exchanges it for its own session: the
+// exchange must come from that exact origin (the browser's Origin header).
+
+/** How long a handoff code lives, in seconds. */
+export const HANDOFF_CODE_SECONDS = 60;
+
+/** A handoff code as it travels: `hoc_` plus 43 base64url characters (32 random bytes). */
+export const HANDOFF_CODE_RE = /^hoc_[A-Za-z0-9_-]{43}$/;
+
+/** Why an exchange was refused (`details.reason`, on a 400 `bad_request`, or 401). */
+export const HANDOFF_ERROR_REASONS = {
+  /** 422: the target origin is not one this environment hands off to. */
+  ORIGIN_NOT_ALLOWED: "origin_not_allowed",
+  /** 401: no code with that value. */
+  CODE_INVALID: "handoff_invalid",
+  /** 401: the code is older than HANDOFF_CODE_SECONDS. */
+  CODE_EXPIRED: "handoff_expired",
+  /** 401: the code was already exchanged. */
+  CODE_USED: "handoff_used",
+  /** 401: the exchange came from another origin than the code was made for. */
+  WRONG_ORIGIN: "handoff_wrong_origin",
+} as const;
+
+/** POST /v1/auth/handoff — a session only. */
+export interface HandoffCreateRequest {
+  /** The exact origin of the app it opens, e.g. https://cookpool-spliteco-web-stage.cookpool.workers.dev. */
+  targetOrigin: string;
+}
+
+export interface HandoffCreateResponse {
+  /** Shown this once. */
+  code: string;
+  targetOrigin: string;
+  expiresAt: string;
+}
+
+/** POST /v1/auth/handoff/exchange — nobody signed in; from the target origin. Answers the sign-in session body. */
+export interface HandoffExchangeRequest {
+  code: string;
+}
+
+export type HandoffExchangeResponse = LoginCompleteResponse;

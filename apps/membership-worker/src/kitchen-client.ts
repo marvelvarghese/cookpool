@@ -7,8 +7,9 @@ import { orgPublicId } from "./ids.js";
 
 // A person's balance in a group, from kitchen-worker's service-internal route
 // (GET /v1/internal/kitchen/organizations/{org}/subjects/{usr}/balance, CP-19)
-// over the KITCHEN_WORKER binding. Leaving a group is refused while it is not
-// zero (risks CP-L). Anything but a well-formed answer — no binding, a failed
+// over the KITCHEN_WORKER binding. Leaving a group is refused while either of
+// its two balances — Kitchen, or Other (what was added in Spliteco,
+// cookpool-spliteco SE3) — is not zero (risks CP-L). Anything but a well-formed answer — no binding, a failed
 // fetch, a non-2xx status, a malformed body — is `{ ok: false }`: the caller
 // cannot tell, and refuses rather than let someone leave owing.
 
@@ -42,5 +43,8 @@ export async function fetchKitchenBalance(
   }
   const data = (parsed as { data?: Partial<SubjectBalanceResponse> } | null)?.data;
   if (!data || !Number.isSafeInteger(data.balanceMinor) || typeof data.currency !== "string") return { ok: false };
-  return { ok: true, balanceMinor: data.balanceMinor!, currency: data.currency };
+  // The Other balance (cookpool-spliteco SE3). A kitchen-worker from before
+  // SE3 sends none: its balanceMinor is then the whole ledger, both balances.
+  if (data.otherMinor !== undefined && !Number.isSafeInteger(data.otherMinor)) return { ok: false };
+  return { ok: true, balanceMinor: data.balanceMinor!, otherMinor: data.otherMinor ?? 0, currency: data.currency };
 }

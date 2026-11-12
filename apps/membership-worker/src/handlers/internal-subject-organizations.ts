@@ -95,8 +95,9 @@ export async function handleInternalSubjectOrganizations(
     const spliteco = view === SUBJECT_ORGANIZATIONS_SPLITECO_VIEW;
     const active = orgs.value
       .filter((org) => org.status === "active")
-      // The hidden two-person groups (kind direct) are Spliteco's alone.
-      .filter((org) => spliteco || org.kind !== "direct")
+      // The hidden two-person groups (kind direct), and every group made in
+      // Spliteco (SE3), are Spliteco's alone: Cookpool's reads never see them.
+      .filter((org) => spliteco || (org.kind !== "direct" && org.madeIn !== "spliteco"))
       .sort((a, b) => a.name.localeCompare(b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const roles = await rolesByOrg(repo, subjectId, active.map((org) => org.id));
     if (!roles) return errorResponse("internal_error", "Failed to list organizations", 500, requestId);

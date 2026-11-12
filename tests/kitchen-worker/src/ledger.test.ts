@@ -393,6 +393,7 @@ describe("POST …/kitchen/settlements", () => {
   });
 
   it.each([OWNER, ANU, ADMIN])("lets %s record it (one of the two, or an admin or owner)", async (as) => {
+    await postExpense(OWNER, dinner);
     expect((await postSettlement(as, payment)).status).toBe(201);
   });
 
@@ -420,11 +421,12 @@ describe("POST …/kitchen/settlements", () => {
   });
 
   it("does not record a payment twice for a repeated key", async () => {
+    await postExpense(OWNER, dinner);
     const headers = { "idempotency-key": "pay-once" };
     const first = await postSettlement(ANU, payment, headers);
     const again = await postSettlement(ANU, payment, headers);
     expect(again.body.data.txn.id).toBe(first.body.data.txn.id);
-    expect(count("kitchen_txns")).toBe(1);
+    expect(count("kitchen_txns")).toBe(2);
   });
 });
 
