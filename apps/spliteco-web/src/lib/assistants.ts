@@ -188,6 +188,6 @@ export const ONLY_IN_APP: readonly string[] = [
 ];
 
 export const DRAFT_NOTE =
-  "Your assistant shows a draft first — nothing saves until you say yes. Every change is tagged in Activity (“via Claude”).";
+  "Your assistant shows a draft first — nothing saves until you say yes. Every change is tagged in Activity (“via Claude”) and the people on the expense are told, like any edit.";
 
 export const NONE_CONNECTED = "No assistant connected yet. Paste the address above into one to start.";

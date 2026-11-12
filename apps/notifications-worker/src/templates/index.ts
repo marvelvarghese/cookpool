@@ -452,6 +452,53 @@ const renderSplitecoPaidYou: TemplateRenderer = (data) => {
   return { subject, html, text };
 };
 
+/** "added “Sunset cruise”", "moved “Sunset cruise” to Flat 4B" (SE-6). */
+export function expenseChangeWords(data: TemplateData): string {
+  const title = oneLine(str(data, "title")) || "an expense";
+  const q = `“${title}”`;
+  const group = oneLine(str(data, "groupName"));
+  switch (oneLine(str(data, "change"))) {
+    case "edited":
+      return `changed ${q}`;
+    case "deleted":
+      return `deleted ${q}`;
+    case "restored":
+      return `restored ${q}`;
+    case "moved":
+      return group ? `moved ${q} to ${group}` : `moved ${q}`;
+    default:
+      return `added ${q}`;
+  }
+}
+
+const renderSplitecoExpenseForYou: TemplateRenderer = (data) => {
+  const actor = oneLine(str(data, "actorName")) || "Someone";
+  const amount = oneLine(str(data, "amount"));
+  const group = oneLine(str(data, "groupName")) || "your group";
+  const from = oneLine(str(data, "fromGroupName"));
+  const share = oneLine(str(data, "yourShare"));
+  const change = oneLine(str(data, "change"));
+  const link = safeUrl(str(data, "expenseUrl"));
+  const did = `${actor} ${expenseChangeWords(data)}`;
+  const subject = amount ? `${did} · ${amount}` : did;
+  const where = change === "moved" && from ? `From ${from} to ${group}` : `In ${group}`;
+  const lead = `${where}: ${did}${amount ? ` (${amount})` : ""}.`;
+  const yours =
+    change === "deleted"
+      ? "It no longer counts toward your balance. It can be restored for 30 days."
+      : share
+        ? `Your share is ${share}.`
+        : "You're no longer on it.";
+  const why = `You get this when an expense you're on changes in ${group}.`;
+  const text = [lead, yours, ...(link ? ["", link] : []), "", why].join("\n");
+  const html = htmlShell(
+    escapeHtml(did),
+    [paragraphHtml(lead), paragraphHtml(yours, true), link ? buttonHtml(link, "See the expense") : ""].join(""),
+    footerFor(SPLITECO_BRAND, why),
+  );
+  return { subject, html, text };
+};
+
 const TEMPLATES: Record<string, TemplateRenderer> = {
   "auth.magic_link": renderMagicLink,
   "invitation.created": renderInvitationCreated,
@@ -467,6 +514,8 @@ const TEMPLATES: Record<string, TemplateRenderer> = {
   // Spliteco (SE-3).
   [SPLITECO_EMAILS.REMINDER]: renderSplitecoReminder,
   [SPLITECO_EMAILS.PAID_YOU]: renderSplitecoPaidYou,
+  // Spliteco (SE-6).
+  [SPLITECO_EMAILS.EXPENSE_FOR_YOU]: renderSplitecoExpenseForYou,
 };
 
 /**

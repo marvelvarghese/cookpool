@@ -51,7 +51,8 @@ describe("spliteco settle up (SE2)", () => {
   });
 
   it("adds spliteco.reminder and spliteco.paid_you as notification kinds, sent by email with push riding along", () => {
-    expect(SPLITECO_EMAILS).toEqual({ REMINDER: "spliteco.reminder", PAID_YOU: "spliteco.paid_you" });
+    // …and (SE5) spliteco.expense_for_you.
+    expect(SPLITECO_EMAILS).toEqual({ REMINDER: "spliteco.reminder", PAID_YOU: "spliteco.paid_you", EXPENSE_FOR_YOU: "spliteco.expense_for_you" });
     for (const kind of Object.values(SPLITECO_EMAILS)) {
       expect(isNotificationKind(kind)).toBe(true);
       expect(NOTIFICATION_KINDS).toContain(kind);

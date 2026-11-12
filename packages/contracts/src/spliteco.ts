@@ -714,6 +714,8 @@ export const SPLITECO_EMAILS = {
   REMINDER: "spliteco.reminder",
   /** Someone recorded a payment to you in Spliteco. */
   PAID_YOU: "spliteco.paid_you",
+  /** SE5: an expense you're on was added, edited, deleted, restored or moved — by a person, or through their assistant. */
+  EXPENSE_FOR_YOU: "spliteco.expense_for_you",
 } as const;
 
 export type SplitecoEmail = (typeof SPLITECO_EMAILS)[keyof typeof SPLITECO_EMAILS];
@@ -737,6 +739,32 @@ export interface SplitecoPaidYouEmail {
   groupName: string;
   /** The payer's page in Spliteco, where "Not received" is. */
   personUrl: string;
+}
+
+/** What happened to the expense, as `spliteco.expense_for_you` says it. */
+export type SplitecoExpenseChange = "added" | "edited" | "deleted" | "restored" | "moved";
+
+/**
+ * `spliteco.expense_for_you` (SE5): "Anu via Claude added “Sunset cruise”
+ * ₹3,200.00 · Goa Trip", to everyone on the expense but whoever changed it.
+ * Keyed `spliteco.expense_for_you:<txn>:<usr>` (the row the change wrote).
+ */
+export interface SplitecoExpenseForYouEmail {
+  [key: string]: string | number | boolean | null;
+  /** Who did it: "Anu", or "Anu via Claude" when their assistant did. */
+  actorName: string | null;
+  change: SplitecoExpenseChange;
+  title: string;
+  /** The expense's total, formatted. */
+  amount: string;
+  /** Where it is now (for a move: the group it went to). */
+  groupName: string;
+  /** For a move: the group it left. */
+  fromGroupName: string | null;
+  /** The recipient's share now, formatted; null when they are no longer on it (or it was deleted). */
+  yourShare: string | null;
+  /** The expense in Spliteco. */
+  expenseUrl: string;
 }
 
 // ── SE4: live split ─────────────────────────────────────────

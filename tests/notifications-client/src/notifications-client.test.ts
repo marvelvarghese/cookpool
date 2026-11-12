@@ -186,6 +186,12 @@ describe("@saas/notifications-client enqueueNotification", () => {
 });
 
 describe("buildIdempotencyKey", () => {
+  it("keys Spliteco's expense notice per row and person (cookpool-spliteco SE-6)", () => {
+    const txn = "txn_0123456789abcdef0123456789abcdef";
+    expect(buildIdempotencyKey("spliteco.expense_for_you", txn, "usr_anu")).toBe(`spliteco.expense_for_you:${txn}:usr_anu`);
+    expect(buildIdempotencyKey("spliteco.expense_for_you", txn, "usr_dev")).not.toBe(buildIdempotencyKey("spliteco.expense_for_you", txn, "usr_anu"));
+  });
+
   it("returns a deterministic, scope-prefixed string", () => {
     expect(buildIdempotencyKey("auth.magic_link", "chl_abc")).toBe(
       "auth.magic_link:chl_abc",

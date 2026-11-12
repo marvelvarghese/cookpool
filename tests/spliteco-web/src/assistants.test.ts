@@ -123,6 +123,7 @@ describe("the page's words", () => {
     expect(CAN[0]).toContain("equal, exact, %, shares, +/−, itemized");
     expect(ONLY_IN_APP[0]).toBe("Settle up or record any payment");
     expect(DRAFT_NOTE).toMatch(/^Your assistant shows a draft first — nothing saves until you say yes/);
+    expect(DRAFT_NOTE).toMatch(/the people on the expense are told, like any edit\.$/);
   });
 });
 
