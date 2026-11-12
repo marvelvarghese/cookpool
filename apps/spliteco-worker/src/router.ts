@@ -14,6 +14,7 @@ import {
 import { handleCreateGroup, handleDirectGroup, handleFriend, handleGroup, handleGroups, handleHome } from "./handlers/groups.js";
 import { handleExport, handleInsights } from "./handlers/insights.js";
 import { handleGetProfile, handlePutProfile, handleSendReminder } from "./handlers/reminders.js";
+import { handleLive, handleLiveClaim, handleLiveLock, handleOpenLive } from "./handlers/live.js";
 import { handleCreateSettlement, handleGroupSettings, handleNotReceived, handleSettlePlan } from "./handlers/settle.js";
 import { errorResponse, methodNotAllowed, routeNotFound, successResponse, unauthenticated, withTimings } from "./http.js";
 import { createPeople } from "./identity-client.js";
@@ -72,6 +73,23 @@ const ROUTES: Route[] = [
     methods: { POST: (ctx, r, [txn]) => handleNotReceived(ctx, r, txn!) },
   },
   { name: "spliteco.reminders", pattern: new RegExp(`${P}/reminders$`), methods: { POST: (ctx, r) => handleSendReminder(ctx, r) } },
+  // SE4: live split.
+  {
+    name: "spliteco.group.live",
+    pattern: new RegExp(`${P}/groups/${ID}/live$`),
+    methods: { POST: (ctx, r, [org]) => handleOpenLive(ctx, r, org!) },
+  },
+  {
+    name: "spliteco.live.claims",
+    pattern: new RegExp(`${P}/live/${ID}/claims$`),
+    methods: { POST: (ctx, r, [code]) => handleLiveClaim(ctx, r, code!) },
+  },
+  {
+    name: "spliteco.live.lock",
+    pattern: new RegExp(`${P}/live/${ID}/lock$`),
+    methods: { POST: (ctx, _r, [code]) => handleLiveLock(ctx, code!) },
+  },
+  { name: "spliteco.live", pattern: new RegExp(`${P}/live/${ID}$`), methods: { GET: (ctx, _r, [code]) => handleLive(ctx, code!) } },
   { name: "spliteco.groups", pattern: new RegExp(`${P}/groups$`), methods: { POST: (ctx, r) => handleCreateGroup(ctx, r) } },
   {
     name: "spliteco.group.expenses",
