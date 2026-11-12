@@ -35,6 +35,7 @@ import { readingText, receiptCard, receiptRun, receiptStartPicks, type ReceiptSt
 import { ReceiptCapture, ReceiptProblem, ReceiptReading, ScanReceiptButton } from "./receipt-scan-ui";
 import { ReceiptHeading, ReceiptResult } from "./receipt-run-ui";
 import { useReceiptScan } from "./receipt-scan-flow";
+import { RECEIPT_ADJUST_DEFAULT, adjustCard, adjustedSummary, includedAdjustMinor, receiptAdjustments, type ReceiptAdjustChoice } from "./receipt-adjust";
 
 /**
  * The shopping run (cookpool-pantry PN-6, design §6.3, the canvas's
@@ -91,16 +92,37 @@ export function ShoppingRun() {
   const summary = runSummary(lines, activePicks, { pantries: writable, today });
   const opened = new Map(summary.ticked.map((t) => [t.key, t] as const));
 
+  // The receipt's taxes, charges and discounts (AI-14): asked once on a card, both on to start with, and
+  // what is included spread over the ticked food lines by price — only in what is added, never in the boxes.
+  const [adjustFor, setAdjustFor] = React.useState<{ for: object | null; choice: ReceiptAdjustChoice }>({ for: null, choice: RECEIPT_ADJUST_DEFAULT });
+  const choice = scan.read && adjustFor.for === scan.read ? adjustFor.choice : RECEIPT_ADJUST_DEFAULT;
+  const toggleAdjust = (key: keyof ReceiptAdjustChoice) => setAdjustFor({ for: scan.read, choice: { ...choice, [key]: !choice[key] } });
+  const adjust = showsReceipt && scan.read ? receiptAdjustments(scan.read.res) : null;
+  const nonFoodKeys = new Set(receipt?.nonFood.map((l) => l.key) ?? []);
+  const foodTicked = receipt ? summary.ticked.filter((t) => t.currency === receipt.currency && t.priceMinor !== null && !nonFoodKeys.has(t.key)) : [];
+  const nonFoodMinor = receipt?.nonFood.reduce((s, l) => s + (l.receipt?.priced ? l.line.last.priceMinor : 0), 0) ?? 0;
+  const adjustView =
+    adjust && receipt
+      ? adjustCard(adjust, choice, {
+          itemsMinor: foodTicked.reduce((s, t) => s + t.priceMinor!, 0),
+          itemCount: foodTicked.length,
+          paidMinor: receipt.totalMinor !== null ? receipt.totalMinor - nonFoodMinor : null,
+          currency: receipt.currency,
+        })
+      : null;
+  const footer =
+    adjust && receipt ? adjustedSummary(summary, { adjustMinor: includedAdjustMinor(adjust, choice), currency: receipt.currency, nonFoodKeys }) : summary;
+
   const add = () => {
-    if (!summary.request) return;
+    if (!footer.request) return;
     const policyOf = (t: TickedLine) => {
       const p = writable.find((x) => pantryKey(x) === t.pantry);
       return p?.kind === "group" ? p.wastePolicy : null;
     };
     void shoppingRun({
-      request: summary.request,
-      where: summary.ticked.map((t) => ({ pantry: t.pantryRef, groupWastePolicy: policyOf(t) })),
-      title: runToast(summary),
+      request: footer.request,
+      where: footer.ticked.map((t) => ({ pantry: t.pantryRef, groupWastePolicy: policyOf(t) })),
+      title: runToast(footer),
       meId,
       today,
       idempotencyKey: idemKey.current,
@@ -160,6 +182,8 @@ export function ShoppingRun() {
           onState={setReceiptState}
           opened={opened}
           pantries={writable}
+          adjust={adjustView}
+          onAdjust={toggleAdjust}
         />
       ) : (
         <>
@@ -229,14 +253,14 @@ export function ShoppingRun() {
         data-toast-above=""
         className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 -mx-4 flex flex-col gap-2 bg-gradient-to-t from-background from-[78%] to-transparent px-4 pb-1 pt-3 min-[900px]:static min-[900px]:mx-0 min-[900px]:max-w-sm min-[900px]:bg-none min-[900px]:px-0"
       >
-        <p className="text-center text-[13px] font-bold text-foreground/80">{summary.problem ?? "Paid by you · each goes to its own pantry"}</p>
+        <p className="text-center text-[13px] font-bold text-foreground/80">{footer.problem ?? "Paid by you · each goes to its own pantry"}</p>
         <Button
           type="button"
           onClick={add}
-          disabled={!summary.ready}
-          className={cn(MAIN_BUTTON, summary.count === 0 && "bg-[#ECEEE9] text-muted-foreground disabled:opacity-100", "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")}
+          disabled={!footer.ready}
+          className={cn(MAIN_BUTTON, footer.count === 0 && "bg-[#ECEEE9] text-muted-foreground disabled:opacity-100", "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")}
         >
-          <MainButtonLabel title={summary.label} />
+          <MainButtonLabel title={footer.label} />
         </Button>
       </div>
     </div>
@@ -266,7 +290,7 @@ function RunLineView({
 }) {
   const on = ticked !== null;
   return (
-    <li className={cn(on && "bg-[#FBFCFA]")}>
+    <li className={cn(on && "bg-muted/40")}>
       <div className="flex min-h-16 items-center gap-2.5 py-2 pl-2 pr-3">
         {line.tickable ? (
           <button

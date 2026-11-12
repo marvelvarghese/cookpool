@@ -259,12 +259,31 @@ export interface AiReceiptLine {
   reason?: string;
 }
 
+/** What an amount printed apart from the items is (AI-14). */
+export const AI_RECEIPT_ADJUSTMENT_KINDS = ["discount", "tax", "charge", "roundoff"] as const;
+export type AiReceiptAdjustmentKind = (typeof AI_RECEIPT_ADJUSTMENT_KINDS)[number];
+
+/**
+ * An amount on the receipt that changes the total but is not an item
+ * (AI-14): a bill discount or coupon (`discount`, always negative), a tax
+ * added on top of the prices (`tax`, positive), a delivery, packing or
+ * handling fee (`charge`, positive), or the round-off (`roundoff`, either
+ * sign). `label` is the line as printed ("CGST 2.5%", "Delivery fee").
+ * Never zero. A GST summary already inside the prices is not one.
+ */
+export interface AiReceiptAdjustment {
+  kind: AiReceiptAdjustmentKind;
+  label: string;
+  amountMinor: number;
+}
+
 /**
  * The receipt read. `store` and `total` when printed; `currency` is the
  * chosen pantries' (the most lines'; INR when none); `sumMinor` is the sum of
- * the food lines' prices; `totalMatches` says whether every line plus the
- * receipt's own adjustments (an added tax, a discount, round-off) comes to
- * `total` — false when it does not, or when no total was printed.
+ * the food lines' prices; `adjustments` (AI-14) are the receipt's own
+ * discounts, taxes, charges and round-off, in the order printed;
+ * `totalMatches` says whether every line plus `adjustments` comes to `total`
+ * (within one paisa) — false when it does not, or when no total was printed.
  */
 export interface AiReceiptResponse {
   store?: string;
@@ -273,6 +292,11 @@ export interface AiReceiptResponse {
   sumMinor: number;
   totalMatches: boolean;
   lines: AiReceiptLine[];
+  /**
+   * Always sent since AI-14 (`[]` when there are none); optional in the type
+   * so reads built before it still type-check, and old clients ignore it.
+   */
+  adjustments?: AiReceiptAdjustment[];
 }
 
 // ── Recipe from a photo (AI-4, design §4) ───────────────────

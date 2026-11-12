@@ -24,6 +24,7 @@ import {
   AI_RECEIPT_MAX_BYTES,
   AI_RECEIPT_MAX_LINES,
   AI_RECEIPT_NOT_FOOD,
+  type AiReceiptAdjustment,
   type AiReceiptRequest,
   type AiReceiptResponse,
   MAX_RECIPE_LINES,
@@ -148,6 +149,23 @@ describe("contracts: receipts (AI-3)", () => {
     };
     expect(request.image).toBeTruthy();
     expect(response.lines.map((l) => l.confidence)).toEqual(["sure", "check"]);
+  });
+});
+
+describe("contracts: receipts' discounts, taxes and charges (AI-14)", () => {
+  it("names the four kinds, and adds adjustments to the read without breaking a read that has none", () => {
+    expect(ai.AI_RECEIPT_ADJUSTMENT_KINDS).toEqual(["discount", "tax", "charge", "roundoff"]);
+    const adjustments: AiReceiptAdjustment[] = [
+      { kind: "tax", label: "CGST 2.5%", amountMinor: 375 },
+      { kind: "discount", label: "Coupon", amountMinor: -500 },
+      { kind: "charge", label: "Delivery fee", amountMinor: 2500 },
+      { kind: "roundoff", label: "Round off", amountMinor: -25 },
+    ];
+    const withThem: AiReceiptResponse = { total: 17350, currency: "INR", sumMinor: 15000, totalMatches: true, lines: [], adjustments };
+    // Additive: a read built before AI-14 (no adjustments) is still a read.
+    const before: AiReceiptResponse = { currency: "INR", sumMinor: 0, totalMatches: false, lines: [] };
+    expect(withThem.adjustments!.reduce((s, a) => s + a.amountMinor, withThem.sumMinor)).toBe(withThem.total);
+    expect(before.adjustments).toBeUndefined();
   });
 });
 

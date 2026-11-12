@@ -22,6 +22,8 @@ import {
   type ReceiptState,
 } from "./receipt-run";
 import { AI_EDGE, AiChip, ReceiptCardView, TickButton } from "./receipt-scan-ui";
+import { ReceiptAdjustCard } from "./receipt-adjust-ui";
+import type { AdjustCard, ReceiptAdjustChoice } from "./receipt-adjust";
 
 /**
  * The shopping run filled from a receipt (cookpool-ai AI-8, the canvas's
@@ -38,6 +40,8 @@ export function ReceiptResult({
   onState,
   opened,
   pantries,
+  adjust = null,
+  onAdjust,
 }: {
   run: ReceiptRun;
   card: ReceiptCard;
@@ -46,6 +50,9 @@ export function ReceiptResult({
   onState: (update: (s: ReceiptState) => ReceiptState) => void;
   opened: ReadonlyMap<string, TickedLine>;
   pantries: readonly Pantry[];
+  /** The taxes, charges and discounts card (AI-14); null when the receipt has none. */
+  adjust?: AdjustCard | null;
+  onAdjust?: (key: keyof ReceiptAdjustChoice) => void;
 }) {
   const [open, setOpen] = React.useState<string | null>(null);
   const [choosing, setChoosing] = React.useState<string | null>(null);
@@ -85,6 +92,7 @@ export function ReceiptResult({
   return (
     <>
       <ReceiptCardView card={card} photoUrl={photoUrl} />
+      {adjust && onAdjust ? <ReceiptAdjustCard card={adjust} onToggle={onAdjust} /> : null}
 
       {run.matched.length > 0 ? (
         <section aria-labelledby="receipt-matched" className="flex flex-col gap-1.5">
@@ -219,7 +227,7 @@ function ReceiptRow({
   const chip = on ? ticked.pantryLabel : receiptPantryLabel(line);
   const editing = on && (open || naming);
   return (
-    <li className={cn("list-none", on && "bg-[#FBFCFA]")}>
+    <li className={cn("list-none", on && "bg-muted/40")}>
       <div className="flex min-h-16 items-center gap-2.5 py-2 pl-2 pr-3">
         <TickButton on={on} label={`${on ? "Untick" : "Tick"} ${shown}`} onClick={onTick} />
         <button

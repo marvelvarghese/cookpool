@@ -315,3 +315,57 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 **For later tasks:**
 - **AI-11:** `POST /me/ai/idea` returns a `RecipeDraft` too. Open it with `RecipeFormScreen`'s `start` (`formFromDraft(draft, [], newKey)`).
 - **Deploy:** console only. AI-4 is on main, so From a photo shows on stage once the server has a key (`features.import`).
+
+### AI6 — receipts: discounts, taxes and charges (AI-14)
+
+**Built.**
+- **The read** (`POST /v1/kitchen/me/ai/receipt`, unchanged request): `AiReceiptResponse` gains `adjustments: AiReceiptAdjustment[]`, where each one is `{ kind: "discount" | "tax" | "charge" | "roundoff", label, amountMinor }` (`AI_RECEIPT_ADJUSTMENT_KINDS` in `packages/contracts/src/kitchen-ai.ts`). The server always sends it, `[]` when there are none, in the order printed. It is optional in the type so older reads still type-check, and old clients ignore it. The SDK's `kitchen.aiReceipt` returns it as sent and needed no code change.
+- **The model** (`apps/kitchen-worker/src/ai/receipt-task.ts`): the strict schema's adjustment is now `{ kind (enum of the four), text, amountMinor }`. The prompt changed by about 40 tokens:
+  - the four kinds, each defined in one clause;
+  - "a discount on the line or printed under it" is taken off that line's price;
+  - "delivery or packing fees" are no longer in the non-food examples, since they are charges now.
+- **Signs** (`shapeAdjustments`): a discount is always negative (models often write `DISCOUNT 50.00` as +5000). A tax or charge read as negative is money off, so it becomes a discount and keeps its amount. Round-off keeps its sign. Zero amounts are dropped, and a blank label becomes the kind's name ("Tax"). This is cheaper than failing the check and retrying.
+- **Totals** (`receipt-match.ts`): `totalMatches` means the lines plus the returned adjustments meet `total`, within 1 paisa. When only the lines alone meet it, the adjustments were a summary already inside the prices (an included GST breakdown), so they are **dropped from the response** and `totalMatches` stays true. That keeps AI-3's tolerance without making the app add GST twice.
+- **Cost:** `RECEIPT_MAX_TOKENS` goes from 1,700 to **1,760** (60 × 26 + 200: the header plus up to eight adjustments of about 20 tokens, now that each has a kind). It is still Haiku at effort low with thinking disabled, one action, costed as before. The daily limits (50 actions, 10 receipts), the monthly budget and the key gate are unchanged.
+- **The app** (console only, in the new frame, on `/pantry/run` reached from Scan a receipt or the Kitchen camera's `/pantry/run?scan=1`):
+  - `components/kitchen/receipt-adjust.ts` (pure):
+    - **`spreadAdjustment(prices, adjustMinor)`** is the allocation. It spreads by price with `splitByWeights` (largest remainder). The sum is exact, and no line goes below 0: a discount share is capped at its line and the rest is spread again. A discount larger than everything takes every line to 0. An amount added to free lines is split evenly, and zero lines return `[]`.
+    - `receiptAdjustments(res)` groups the adjustments by kind and returns `{ taxesMinor, discountsMinor, roundoffMinor, asks }`.
+    - `includedAdjustMinor(adj, choice)` and `RECEIPT_ADJUST_DEFAULT` (both on).
+    - `adjustCard(...)` is the card's view-model, and `adjustedSummary(summary, …)` gives the footer and the write with the spread applied.
+  - **`ReceiptAdjustCard`** (`components/kitchen/receipt-adjust-ui.tsx`) is one card under the receipt card with these rows:
+    - **Include taxes and charges in item prices? (₹50)**, on, "₹50 spread over 5 items by price";
+    - **Apply discounts? (−₹30)**, on, "−₹30 taken off 5 items by price";
+    - when a switch is off, its row reads "Left out · items keep their printed prices";
+    - a total line: "Items cost ₹618 in total, what you paid", or "Items cost ₹568 in total · you paid ₹618".
+    - Each row is a 60 px `role="switch"`. It uses `cp-*` tokens only, at weights 400 and 500.
+  - **What is added:** what is included is spread over the **ticked food lines** in the receipt's currency, by price. Non-food lines ticked after Show, and lines moved to a pantry in another currency, take no share. Only the request's `priceMinor`, **Add N · ₹total** and the toast change. Each line's price box keeps the printed price. What is excluded is simply not added. The choice resets on each new scan.
+  - **No adjustments** (or a read from before AI-14) means no card, and the footer is the run's own object.
+  - Shared files, all additive: `shopping-run-ui.tsx` (the choice and the adjusted footer) and `receipt-run-ui.tsx` (optional `adjust`/`onAdjust` props). Ticked rows in both use `bg-muted/40` instead of `bg-[#FBFCFA]`, which was unreadable in dark.
+
+**Departures and decisions.**
+- **Round-off goes with taxes and charges:** the ₹X shown includes it. Round-off alone asks nothing and is included, since the card's switches start on.
+- **Spread over food lines only** (the brief): a non-food line's share of tax goes onto the food, so the food lines add up to the bill less the non-food lines' printed prices. That figure is what "what you paid" compares with.
+- **An item discount printed under its line** is folded into that line's price by the model (the prompt). When the model lists it as a `discount` adjustment instead, it still reconciles and is spread by price rather than kept on its own line.
+- **The design has no AI-14 section.** The shapes follow the owner's brief. The brief's `/pantry?scan=1` is the Kitchen camera, which opens `/pantry/run?scan=1` (AI-8).
+- **The rest of the scan screen** (AI-8's receipt card, rows and CHECK card) still uses its raw hex colours; only the ticked-row background was moved to a token. Restyling it is a revamp follow-up.
+
+**Tests.**
+- `tests/kitchen-worker`: new `ai-receipt-adjustments.test.ts` (14): the schema and prompt; GST added on top; a store discount written as positive; delivery, packing and handling charges; round-off up and down; every kind on one bill; an item discount folded into its line, and listed as a discount; none at all; the sign rules and blank labels; an included GST summary dropped; a mismatch; no total; one costed Haiku action at 1,760. `ai-receipt.test.ts` and `ai-cost.test.ts` replies now carry `kind`. The cap pin moved from 1,700 to 1,760 on purpose. Whole package: 57 suites, 1,187 passed.
+- `tests/contracts`: `kitchen-ai.test.ts` +1 (the kinds; additive). Whole package: 346 passed.
+- `packages/sdk`: `kitchen-ai.test.ts` +1 (adjustments returned as sent; absent stays absent). Whole package: 265 of 266 passed. The 1 failure is `auth-delegations.test.ts` ("publishes the four scopes"), which this branch doesn't touch: the contracts list 5 scopes and the test expects 4. It comes from main.
+- `tests/web-console-next`: new `kitchen-receipt-adjust.test.ts` (17), including seeded property tests over 600 cases: the sum is exact (or 0 for a discount over everything); no line is negative; a discount never raises a line and a tax never lowers one; shares are within a paisa of price-proportional. Also: a discount capped and spread; the remainder rule; zero lines, a zero amount and free lines; the kinds and inclusion; the card's words on and off; rows only for kinds present; no card without adjustments; the request summing to what was paid; excluded ones left out; non-food and other-currency lines taking no share; nothing ticked; and the rendered card (two switches on, no bold, no hex). Whole package: 119 suites, 2,355 passed. No existing pin changed.
+- `typecheck` and `lint` are clean for `@saas/kitchen-worker`, `@saas/kitchen-worker-tests` (its existing `no-console` warnings only), `@saas/contracts`, `@saas/contracts-tests`, `@saas/sdk`, `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build`: 44 pages as files, 17 `_redirects` rules; `/pantry` and `/pantry/run` are static (○).
+
+**Browser check** (390 × 844, `next dev` behind a local mock of the API on `cookpool-stage.localhost:47613`; the resource log listed only that host):
+- A DMart read had lines totalling ₹642, CGST ₹15, SGST ₹15, a ₹20 delivery fee and a ₹30 store discount, with a ₹662 bill and ₹44 of dish soap (non-food). The card read "(₹50) · ₹50 spread over 4 items by price", "(−₹30) · −₹30 taken off 4 items by price" and "Items cost ₹523 in total · you paid ₹618".
+- Yes, paneer changed it to "…5 items…" and "Items cost ₹618 in total, what you paid", with **Add 5 · ₹618**.
+- Taxes off showed "Left out · items keep their printed prices", "Items cost ₹568 in total · you paid ₹618" and **Add 5 · ₹568**.
+- Taxes back on, then Add: the mock got one `POST /purchases` with Milk 14055, Atta 25319, Eggs 8681, Onions 3927 and Paneer 9818, which sum to 61,800, exactly what was paid for the food.
+- Dark mode: the card is `#1A211D` with Gold switches, and the total line is `#FDE68A` on `#3A3112`; titles have weight 500. The ticked rows are readable after the token fix.
+- A read with no adjustments, from the Kitchen camera (`?scan=1`): no card, no switches.
+
+**For later tasks:**
+- **AI-15:** reuse `spreadAdjustment` and `receiptAdjustments` / `includedAdjustMinor` from `receipt-adjust.ts`, and `ReceiptAdjustCard` with its own `adjustCard(...)` view-model (pass `itemsMinor`, `itemCount`, `paidMinor`).
+- **Deploy:** kitchen-worker's own source changed, so the merge redeploys it. The console changed too. Deploy order doesn't matter, because the console treats a missing `adjustments` as none.

@@ -35,8 +35,8 @@ const DELEGATION = {
 };
 
 describe("AuthClient delegations (MC-2)", () => {
-  it("publishes the four scopes in order", () => {
-    expect(DELEGATION_SCOPES).toEqual(["kitchen.read", "money.read", "timers.write", "suggest.write"]);
+  it("publishes the five scopes in order (money.write added by Spliteco SE5)", () => {
+    expect(DELEGATION_SCOPES).toEqual(["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"]);
   });
 
   it("delegations() GETs /v1/auth/delegations", async () => {

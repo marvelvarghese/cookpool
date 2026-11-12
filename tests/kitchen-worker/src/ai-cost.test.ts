@@ -46,18 +46,18 @@ function seed(w: AiWorld, n: number, at: string, opts: { feature?: string; costM
 }
 
 describe("AI-13: Haiku without thinking, with tight output caps", () => {
-  it("names each task's cap: 600 for a sentence, 1700 for a receipt of 60 lines", () => {
+  it("names each task's cap: 600 for a sentence, 1760 for a receipt of 60 lines (AI-14: +60 for the adjustments' kind)", () => {
     expect(USES_MAX_TOKENS).toBe(600);
-    expect(RECEIPT_MAX_TOKENS).toBe(1700);
+    expect(RECEIPT_MAX_TOKENS).toBe(1760);
     expect(AI_RECEIPT_MAX_LINES).toBe(60);
   });
 
-  it("a receipt is read on Haiku with thinking disabled, effort low and max_tokens 1700", async () => {
+  it("a receipt is read on Haiku with thinking disabled, effort low and max_tokens 1760", async () => {
     const w = aiWorld();
     w.ai.script.push(read({ lines: [line("MILK 1L", "Milk", 1, "L", 6800)] }));
     expect((await post(w, jpeg())).status).toBe(200);
     const sent = w.ai.sent[0]!;
-    expect(sent).toMatchObject({ model: "claude-haiku-5-5", max_tokens: 1700, thinking: { type: "disabled" } });
+    expect(sent).toMatchObject({ model: "claude-haiku-5-5", max_tokens: 1760, thinking: { type: "disabled" } });
     expect(sent.output_config!.effort).toBe("low");
     w.close();
   });
@@ -95,7 +95,7 @@ describe("AI-13: no Sonnet retry unless AI_ESCALATE is on", () => {
           line("SURF EXCEL", "Detergent", 1, "pcs", 12000, false),
           line("  ", "Onion", 1, "kg", 4000), // no text: dropped
         ],
-        adjustments: [{ text: "ROUND OFF", amountMinor: -20 }],
+        adjustments: [{ kind: "roundoff", text: "ROUND OFF", amountMinor: -20 }],
       }),
     );
     const res = await post(w, jpeg());
