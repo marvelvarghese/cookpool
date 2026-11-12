@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | In progress: design approved by the owner on 2026-11-12 |
+| Status | ✅ Shipped 2026-11-12 (stage and prod) |
 | Cluster | **PK** (PK0–PK2) |
 | Owner(s) | **Passkeys:** `apps/identity-worker`, `packages/db` (migration 510), `packages/contracts`, `packages/sdk`, `apps/api-edge` (auth facade routes). **Screens:** `apps/web-console-next`. |
 | Builds on | `cookpool-sign-in` (email code, Google, sessions, the name step) |
@@ -14,7 +14,7 @@
 | Design | Claude Design canvas, row "Getting in": https://claude.ai/artifact/TwmkN2cAmebQPkL2QEQZVv (`AuthWelcome`, `AuthSignUp`, `AuthCode`, `AuthHelp`, `PasskeyOffer`, `PasskeyManage`, `WebAuth`). |
 | Needs from the owner | Nothing for passkeys. Codes reach prod only once `mail.cookpool.store` is verified in Cloudflare Email. |
 | Gate | PK1 is the day a person on stage signs in with Face ID. |
-| Shipped as | |
+| Shipped as | PK0 #112 · PK1 #113 #114 #116 #117 #118 · close PK-5. Sign in with Face ID, a fingerprint or the screen lock (WebAuthn passkeys, migrations 510 and 520), alongside Google and the email code, with no passwords. Also: the Sign in · Create account tabs, the remembered account, the six-box code, Can't sign in? (`/login/help`), the one-time Turn on Face ID offer, and You → Sign-in and security. Verified on iPhone Safari on stage. |
 
 ## Milestones at a glance
 
