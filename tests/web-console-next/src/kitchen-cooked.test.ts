@@ -2,7 +2,7 @@ import type { InboxResponse, KitchenDish, KitchenDishIngredient, MyGroupBalance,
 import { applyPatches, type CacheLike } from "@web-console-next/lib/optimistic";
 import { qk } from "@web-console-next/lib/query-keys";
 import { JUST_ME, shareOptions } from "@web-console-next/components/kitchen/dish-maker";
-import { addItemLine, blankSession, finishPlan, setName, tickLine, type CookSession } from "@web-console-next/components/kitchen/cook-session";
+import { addItemLine, blankSession, finishPlan, postSub, setName, tickLine, type CookSession } from "@web-console-next/components/kitchen/cook-session";
 import { afterFinishHref, offersShare } from "@web-console-next/components/kitchen/community-share";
 import { nextText } from "@web-console-next/components/kitchen/cook-guided";
 import { homeTodos } from "@web-console-next/components/kitchen/inbox";
@@ -420,5 +420,45 @@ describe("with newFrame false", () => {
     expect(toGroup.ok && toGroup.plan.shares).toEqual({ shares: [{ subjectId: ME, portionsHalf: 2 }, { subjectId: MEERA, portionsHalf: 3 }] });
     const justMe = finishPlan(s, { unticked: "all", postTo: JUST_ME, halves: {}, roster: null, meId: ME, save: false }, { groups: GROUPS });
     expect(justMe.ok && justMe.plan.request).toMatchObject({ orgId: null, portionsHalf: 2, splitMode: "assign" });
+  });
+});
+
+// ── Finish without amounts (cookpool-revamp RV-7, design §5) ─────
+
+describe("a dish with no amounts", () => {
+  const empty = () => dish({ totalMinor: 0, ingredients: [], recipeId: null });
+
+  it("finishes from either sheet — the new frame's (RC-6 and guided Done) and Who ate? — as a dish of no ingredients", () => {
+    const s = setName(blankSession(NOW), "Maggi");
+    const own = finishPlan(s, { unticked: "all", postTo: JUST_ME, halves: {}, roster: null, meId: ME, save: false, portionsHalf: 4 }, { groups: GROUPS });
+    expect(own.ok && own.plan.request).toEqual({ name: "Maggi", orgId: null, portionsHalf: 4, splitMode: "assign" });
+    // Nothing ticked, Leave them out: still a dish, still nothing in it.
+    const item = makeItem({ name: "Noodles", pantry: PERSONAL_REF, unit: "g", bought: "280", priceMinor: 5600, paidBy: ME });
+    const left = finishPlan(addItemLine(s, item), { unticked: "out", postTo: JUST_ME, halves: {}, roster: null, meId: ME, save: false }, { groups: GROUPS });
+    expect(left.ok && left.plan.request).toEqual({ name: "Maggi", orgId: null, portionsHalf: 2, splitMode: "assign" });
+  });
+
+  it("says ₹0 · nothing taken from the pantry under Finish and Post, and the costs otherwise", () => {
+    expect(finishSub(0, "INR", 4, 0)).toBe("₹0 · nothing taken from the pantry");
+    expect(finishSub(21_200, "INR", 8, 3)).toBe("₹212.00 · 4 servings · yours");
+    expect(finishSub(0, "INR", 2, 1)).toBe("Nothing costed · 1 serving · yours");
+    const totals = { totalMinor: 0, portionsHalf: 2, perPortionMinor: 0, perPortionExact: true, currency: "INR" };
+    expect(postSub(totals, 0)).toBe("₹0 · nothing taken from the pantry");
+    expect(postSub(totals, 1)).toBe("₹0.00 · nothing costed");
+    expect(postSub(totals)).toBe("₹0.00 · nothing costed");
+  });
+
+  it("shows Cooked! at ₹0 with nothing taken, and still offers Post to Community and Split with a group", () => {
+    const v = cookedView(empty(), { main: null, seed: NO_SEED, groupNames: GROUP_NAMES });
+    expect(v.tiles.at(-1)).toEqual({ value: "₹0", label: "cost · yours" });
+    expect(v.note).toBe("₹0 · nothing taken from the pantry");
+    expect(cookedActions({ postId: null, orgId: null, groupName: null }).map((a) => [a.id, a.done])).toEqual([["post", false], ["split", false]]);
+    expect(dishNextActions(true, empty(), ME, null)).toEqual({ post: "offer", split: true });
+    expect(splitButton("Flat 4B", empty())).toEqual({ title: "Split with Flat 4B", sub: "₹0.00 · 4 servings" });
+    // Split's Who ate shares out ₹0: everyone at nothing, no division by the total.
+    const eaters = splitEaters({ dish: empty(), roster: [ME, MEERA], meId: ME, halves: { [ME]: 2, [MEERA]: 2 } });
+    expect(eaters.over).toBe(false);
+    // The group to suggest, with no ingredients to go by: the one opened last.
+    expect(suggestSplitGroup(empty(), GROUPS, { recentSlugs: [LUNCH.slug] })).toBe(LUNCH.orgId);
   });
 });

@@ -45,7 +45,8 @@ export function CookFinishSheet({
 
   const lines = includedLines(session, unticked);
   const currency = sessionCurrency(session);
-  const totals = dishTotals({ lines: sessionDishLines(lines), extrasMinor: 0, portionsHalf: servings, meId, currency });
+  const dishLines = sessionDishLines(lines);
+  const totals = dishTotals({ lines: dishLines, extrasMinor: 0, portionsHalf: servings, meId, currency });
   const notTicked = untickedText(session);
   const sw = saveSwitch(session);
 
@@ -115,7 +116,7 @@ export function CookFinishSheet({
           loading={busy}
           onClick={() => void post()}
         >
-          <MainButtonLabel title={FINISH_TITLE} who={finishSub(totals.totalMinor, currency, servings)} />
+          <MainButtonLabel title={FINISH_TITLE} who={finishSub(totals.totalMinor, currency, servings, dishLines.length)} />
         </Button>
       </SheetContent>
     </Sheet>

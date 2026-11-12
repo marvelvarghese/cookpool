@@ -1335,7 +1335,8 @@ function newItemRequest(line: SessionLine, recipeId: string | null): CookNewItem
  * "assign", as the server needs a group for claims), each item once in its
  * base unit with the recipe line it is for, and the recipe and its factor —
  * then the shares for each eater, and the recipe write when the switch is on.
- * A problem instead when it can't post yet.
+ * With no amounts it still posts, a dish of no ingredients (RV-7). A problem
+ * instead when it can't post: no name, too many items, mixed currencies.
  */
 export function finishPlan(
   s: CookSession,
@@ -1373,12 +1374,8 @@ export function finishPlan(
     unit: AMOUNT_STEPS[m.dimension].unit,
     ...(s.recipeId ? { recipeLine: m.recipeLine } : {}),
   }));
-  if (ingredients.length + newItems.length === 0) {
-    return {
-      ok: false,
-      problem: { message: "Nothing to post yet: tick what went in, or choose Took them all.", lineKey: null, field: "lines" },
-    };
-  }
+  // No amounts at all is no refusal (cookpool-revamp RV-7): the dish goes with no
+  // ingredients, ₹0 and nothing taken from any pantry; a line without an amount is never charged.
   if (ingredients.length + newItems.length > MAX_DISH_INGREDIENTS) {
     return {
       ok: false,
@@ -1428,8 +1425,20 @@ export function postLabel(postTo: string, groupName: string | null): string {
   return postTo === JUST_ME ? "Post · just you" : `Post to ${groupName ?? "the group"}`;
 }
 
-/** Under Post: the total, the portions and each ("₹143.96 · 2 portions · ₹71.98 each"). */
-export function postSub(totals: Pick<DishTotals, "totalMinor" | "portionsHalf" | "perPortionMinor" | "perPortionExact" | "currency">): string {
+/** A dish with no amounts (RV-7), in words: "₹0 · nothing taken from the pantry". */
+export function nothingTakenText(currency: string): string {
+  return `${shortMoney(0, currency)} · nothing taken from the pantry`;
+}
+
+/**
+ * Under Post: the total, the portions and each ("₹143.96 · 2 portions · ₹71.98 each");
+ * "₹0 · nothing taken from the pantry" when no line has an amount (`lineCount` 0).
+ */
+export function postSub(
+  totals: Pick<DishTotals, "totalMinor" | "portionsHalf" | "perPortionMinor" | "perPortionExact" | "currency">,
+  lineCount?: number,
+): string {
+  if (lineCount === 0) return nothingTakenText(totals.currency);
   return costLine(totals) ?? `${formatMinor(0, totals.currency)} · nothing costed`;
 }
 

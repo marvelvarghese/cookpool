@@ -32,6 +32,7 @@ import type {
 import { scalePortions } from "@saas/contracts/kitchen";
 import { formatMinor } from "@saas/kitchen-engine/money";
 import { guideStepLog, type CookGuide } from "./cook-guide-draft";
+import { nothingTakenText } from "./cook-session";
 import { cookingGroups, eaterShares, eaterView, orderCookingGroups, portionsText, startingHalves, type EaterView } from "./dish-maker";
 import { dishHref } from "./dish";
 import { shortMoney } from "./from-before";
@@ -92,8 +93,12 @@ export function stepServings(half: number, delta: 1 | -1): number {
   return Math.max(1, Math.min(MAX_SERVINGS_HALF, half + delta));
 }
 
-/** Under Finish: "₹212.00 · 4 servings · yours" ("nothing costed" while it costs nothing). */
-export function finishSub(totalMinor: number, currency: string, portionsHalf: number): string {
+/**
+ * Under Finish: "₹212.00 · 4 servings · yours" ("nothing costed" while it costs nothing);
+ * "₹0 · nothing taken from the pantry" when no line has an amount (`lineCount` 0, RV-7).
+ */
+export function finishSub(totalMinor: number, currency: string, portionsHalf: number, lineCount?: number): string {
+  if (lineCount === 0) return nothingTakenText(currency);
   const cost = totalMinor > 0 ? formatMinor(totalMinor, currency) : "Nothing costed";
   return `${cost} · ${servingsText(portionsHalf)} · yours`;
 }
@@ -168,7 +173,11 @@ export interface CookedView {
   subtitle: string;
   /** Steps (when known), servings, cost · yours. */
   tiles: CookedTile[];
-  /** "Saved as your dish. Onions and oil from Flat 4B's pantry are charged to you."; null when it took nothing from a group. */
+  /**
+   * "Saved as your dish. Onions and oil from Flat 4B's pantry are charged to you.";
+   * "₹0 · nothing taken from the pantry" for a dish of no ingredients (RV-7);
+   * null when it took nothing from a group.
+   */
   note: string | null;
 }
 
@@ -226,7 +235,8 @@ export function cookedView(
   if (ctx.seed.steps) tiles.push({ value: `${ctx.seed.steps.done}/${ctx.seed.steps.total}`, label: "steps" });
   tiles.push({ value: portionsText(Math.max(1, dish.portionsHalf)), label: dish.portionsHalf <= 2 ? "serving" : "servings" });
   tiles.push({ value: shortMoney(dish.totalMinor, dish.currency), label: dish.orgId ? "cost" : "cost · yours" });
-  return { subtitle, tiles, note: groupItemsNote(dish, ctx.groupNames) };
+  const note = dish.ingredients.length === 0 ? nothingTakenText(dish.currency) : groupItemsNote(dish, ctx.groupNames);
+  return { subtitle, tiles, note };
 }
 
 export type CookedActionId = "post" | "split";
