@@ -269,9 +269,9 @@ describe("the header and the cost card", () => {
 
   it("lists each ingredient with its pantry and buyer, in a friendly unit", () => {
     expect(ingredientLines(paneer(), people()).map((l) => `${l.name} ${l.qty} · ${l.where} ${formatMinor(l.amountMinor)}`)).toEqual([
-      "Paneer 200 g · your pantry ₹95.00",
-      "Butter 50 g · your pantry ₹28.00",
-      "Fresh cream 100 ml · your pantry ₹30.00",
+      "Paneer 200 g · your kitchen ₹95.00",
+      "Butter 50 g · your kitchen ₹28.00",
+      "Fresh cream 100 ml · your kitchen ₹30.00",
       "Tomatoes 300 g · Flat 4B, Anu paid ₹12.00",
       "Onions 200 g · Flat 4B, Dev paid ₹7.00",
       "Chapati flour 500 g · Lunch club, Kiran paid ₹24.00",
@@ -572,11 +572,11 @@ describe("leftovers", () => {
 
   it("tells the cook what stays with them, and what it is worth — in numbers (SM-10)", () => {
     const dish = under();
-    expect(leftoverNote({ dish, split: splitOfDish(dish), ...people() })).toBe("2 portions left over · to your pantry · ₹105.50");
+    expect(leftoverNote({ dish, split: splitOfDish(dish), ...people() })).toBe("2 portions left over · to your kitchen · ₹105.50");
     const finalized = { ...dish, state: "finalized" as const };
-    expect(leftoverNote({ dish: finalized, split: splitOfDish(finalized), ...people() })).toBe("2 portions in your pantry as Leftovers · ₹105.50");
+    expect(leftoverNote({ dish: finalized, split: splitOfDish(finalized), ...people() })).toBe("2 portions in your kitchen as Leftovers · ₹105.50");
     const half = withApiSplit(paneer({ shares: [share(ME, 3), share(ANU, 2), share(DEV, 2)] }));
-    expect(leftoverNote({ dish: half, split: splitOfDish(half), ...people() })).toBe("½ portion left over · to your pantry · ₹26.37");
+    expect(leftoverNote({ dish: half, split: splitOfDish(half), ...people() })).toBe("½ portion left over · to your kitchen · ₹26.37");
   });
 
   it("tells a member they stay with the cook", () => {

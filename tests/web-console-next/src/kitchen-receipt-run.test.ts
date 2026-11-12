@@ -128,7 +128,7 @@ describe("a receipt read into the run", () => {
       { pantry: "personal", name: "Eggs", category: "other", quantity: "12", unit: "pcs", priceMinor: 8400, currency: "INR", fromItemId: "itm_eggs_old" },
       { pantry: FLAT.orgId, name: "Onions", category: "other", quantity: "1", unit: "kg", priceMinor: 3800, currency: "INR" },
     ]);
-    expect(runToast(s)).toBe("Added 4 to your pantries · ₹503");
+    expect(runToast(s)).toBe("Added 4 to your kitchen · ₹503");
   });
 
   it("keeps every line editable like a run line: the ladder from the receipt's amount, the price scaled, the pantry", () => {
@@ -313,8 +313,8 @@ describe("answering a CHECK question", () => {
 
   it("reads while it waits", () => {
     expect(readingText(null)).toBe("Reading the lines…");
-    expect(readingText(9)).toBe("Found 9 lines · matching to your pantries…");
-    expect(readingText(1)).toBe("Found 1 line · matching to your pantries…");
+    expect(readingText(9)).toBe("Found 9 lines · matching to your kitchen…");
+    expect(readingText(1)).toBe("Found 1 line · matching to your kitchen…");
   });
 });
 

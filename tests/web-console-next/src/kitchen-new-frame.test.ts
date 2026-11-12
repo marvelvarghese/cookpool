@@ -23,15 +23,15 @@ import { GET } from "@web-console-next/app/manifest.webmanifest/route";
 describe("the tabs in each frame", () => {
   it("are today's five with newFrame() false: Home · Pantry · + Add · Groups · People", () => {
     expect(kitchenTabs(false)).toBe(KITCHEN_TABS);
-    expect(kitchenTabs(false).map((t) => t.label)).toEqual(["Home", "Pantry", "Add", "Groups", "People"]);
+    expect(kitchenTabs(false).map((t) => t.label)).toEqual(["Home", "Kitchen", "Add", "Groups", "People"]);
     expect(sidebarLinks(false)).toBe(KITCHEN_SIDEBAR_LINKS);
-    expect(sidebarLinks(false).map((l) => l.label)).toEqual(["Home", "Pantry", "Groups", "People", "Me"]);
+    expect(sidebarLinks(false).map((l) => l.label)).toEqual(["Home", "Kitchen", "Groups", "People", "Me"]);
   });
 
   it("are Home · Pantry · Cook · Money · You in the new frame, with no + Add", () => {
     expect(kitchenTabs(true).map((t) => [t.label, t.kind === "link" ? t.href : null])).toEqual([
       ["Home", "/home"],
-      ["Pantry", "/pantry"],
+      ["Kitchen", "/pantry"],
       ["Cook", "/cook"],
       ["Money", "/money"],
       ["You", "/you"],

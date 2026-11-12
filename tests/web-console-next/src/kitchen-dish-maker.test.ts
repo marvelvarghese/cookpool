@@ -338,17 +338,17 @@ describe("the lines: steps, amounts and what they say", () => {
 
   it("says where each line is from, what it costs and whether you owe its buyer", () => {
     const [p, , , t] = worked().map((l) => lineView(l, { meId: ME, names: NAMES, currency: "INR" }));
-    expect(p).toMatchObject({ name: "Paneer", chip: { label: "Your pantry", tone: "mine" }, owe: "yours", oweColumn: "—", amount: "200 g", leftNote: "uses it all", lessLabel: "Less paneer" });
+    expect(p).toMatchObject({ name: "Paneer", chip: { label: "Your kitchen", tone: "mine" }, owe: "yours", oweColumn: "—", amount: "200 g", leftNote: "uses it all", lessLabel: "Less paneer" });
     expect(t).toMatchObject({ chip: { label: "Flat 4B · Anu paid", tone: "group" }, owe: "you owe Anu", oweColumn: "Anu ₹12.00", amount: "300 g", leftNote: "100 g left" });
     const n = lineView(newCoriander({ useMilli: 30_000 }), { meId: ME, currency: "INR" });
-    expect(n).toMatchObject({ chip: { label: "Just bought", tone: "mine" }, owe: "yours", leftNote: "70 g stays in your pantry", href: null });
+    expect(n).toMatchObject({ chip: { label: "Just bought", tone: "mine" }, owe: "yours", leftNote: "70 g stays in your kitchen", href: null });
     const smallest = lineView(pantryLine(onions, 50_000), { meId: ME, names: NAMES, currency: "INR" });
     expect(smallest.lessLabel).toBe("Take out onions");
   });
 
   it("counts the pantries a dish comes from (yours, and what you just bought, as one)", () => {
     expect(pantriesText(worked())).toBe("from 3 pantries");
-    expect(pantriesText([pantryLine(paneer), newCoriander()])).toBe("from your pantry");
+    expect(pantriesText([pantryLine(paneer), newCoriander()])).toBe("from your kitchen");
     expect(pantriesText([])).toBeNull();
   });
 
@@ -375,7 +375,7 @@ describe("taking from any pantry", () => {
   it("says where each item is, who paid and what is left", () => {
     const ctx = { lines: [pantryLine(tomatoes)], currency: "INR", meId: ME, names: NAMES };
     expect(pantryResult(tomatoes, ctx)).toMatchObject({ meta: "Flat 4B · Anu paid · 400 g left", added: true, disabledReason: null });
-    expect(pantryResult(butter, ctx)).toMatchObject({ meta: "Your pantry · 450 g left", added: false });
+    expect(pantryResult(butter, ctx)).toMatchObject({ meta: "Your kitchen · 450 g left", added: false });
     const mine = makeItem({ name: "Oil", pantry: groupRef(FLAT), unit: "L", bought: "1", left: "0.4", priceMinor: 18500, paidBy: ME });
     expect(pantryResult(mine, ctx).meta).toBe("Flat 4B · you paid · 400 ml left");
   });

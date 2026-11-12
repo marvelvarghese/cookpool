@@ -115,7 +115,7 @@ function TodaysPantry() {
   return (
     <div className="space-y-4 min-[900px]:space-y-5">
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight min-[900px]:text-[30px]">Pantry</h1>
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight min-[900px]:text-[30px]">Kitchen</h1>
         <Link
           href={addHref}
           aria-label="Add an item"
@@ -135,7 +135,7 @@ function TodaysPantry() {
         <PantrySkeleton />
       ) : pantries.error || !list || !summary ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load your pantries. {pantries.error?.message ?? ""}</p>
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load your kitchen. {pantries.error?.message ?? ""}</p>
           <Button variant="outline" className={K_BUTTON} onClick={pantries.reload}>
             Try again
           </Button>
@@ -481,7 +481,7 @@ function EmptyPantries() {
   return (
     <KCard className="flex flex-col items-center px-6 py-10 text-center">
       <IconBubble icon={Refrigerator} className="h-14 w-14" />
-      <h2 className="mt-4 text-lg font-bold tracking-tight">Nothing in your pantries yet</h2>
+      <h2 className="mt-4 text-lg font-bold tracking-tight">Nothing in your kitchen yet</h2>
       <Button asChild className={cn(K_BUTTON, "mt-4")}>
         <Link href="/pantry/new">
           <Plus aria-hidden />

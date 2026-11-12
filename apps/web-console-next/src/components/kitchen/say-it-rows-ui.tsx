@@ -114,7 +114,7 @@ export function UnsureRow({ said }: { said: string }) {
   return (
     <div className="flex min-h-14 items-center gap-2.5 rounded-[18px] bg-[#FDF1D6] px-3 py-2">
       <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#D97706]" />
-      <span className="min-w-0 flex-1 text-sm font-bold text-[#5C3D00]">&ldquo;{said}&rdquo; isn&apos;t in your pantries</span>
+      <span className="min-w-0 flex-1 text-sm font-bold text-[#5C3D00]">&ldquo;{said}&rdquo; isn&apos;t in your kitchen</span>
       <Link
         href={addItHref(said)}
         className="flex min-h-11 shrink-0 items-center rounded-[10px] border border-[#E8C77A] bg-card px-3 text-[13px] font-extrabold text-[#5C3D00] hover:bg-[#FFF8E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

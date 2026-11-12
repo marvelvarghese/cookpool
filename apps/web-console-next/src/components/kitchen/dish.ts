@@ -184,7 +184,7 @@ export function ingredientLines(dish: Pick<KitchenDish, "cook" | "ingredients">,
     where:
       i.orgId === null
         ? cookIsMe
-          ? "your pantry"
+          ? "your kitchen"
           : `${memberLabel(dish.cook, p.meId, p.names)}'s pantry`
         : `${groupLabel(i.orgId, p.groupNames)}, ${memberLabelInline(i.paidBy, p.meId, p.names)} paid`,
     amountMinor: i.costMinor,
@@ -546,7 +546,7 @@ export const OVER_CLAIMED = "More portions set than cooked";
 
 /**
  * What happens to the portions nobody had, in numbers (SM-10): they become
- * the cook's Leftovers — "2 portions left over · to your pantry · ₹105.50" —
+ * the cook's Leftovers — "2 portions left over · to your kitchen · ₹105.50" —
  * for a dish shared with a group only (one just for its cook makes none).
  */
 export function leftoverNote(
@@ -558,7 +558,7 @@ export function leftoverNote(
   const worth = formatMinor(split.unclaimedMinor, dish.currency);
   const finalized = dish.state === "finalized";
   if (meId !== null && dish.cook === meId) {
-    return finalized ? `${portions} in your pantry as Leftovers · ${worth}` : `${portions} left over · to your pantry · ${worth}`;
+    return finalized ? `${portions} in your kitchen as Leftovers · ${worth}` : `${portions} left over · to your kitchen · ${worth}`;
   }
   const cook = memberLabel(dish.cook, meId, names);
   return finalized ? `${cook} kept ${portionsText(split.unclaimedHalf)}` : `${portions} left over · to ${cook}`;

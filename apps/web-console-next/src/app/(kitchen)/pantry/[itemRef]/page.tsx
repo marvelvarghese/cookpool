@@ -567,7 +567,7 @@ function ItemNotFound() {
     <KCard className="flex flex-col items-center px-6 py-12 text-center">
       <h1 className="text-lg font-bold tracking-tight">This item isn&apos;t in a pantry you can see</h1>
       <Button asChild className={cn(K_BUTTON, "mt-5")}>
-        <Link href="/pantry">Your pantries</Link>
+        <Link href="/pantry">Your kitchen</Link>
       </Button>
     </KCard>
   );

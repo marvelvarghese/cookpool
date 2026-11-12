@@ -216,7 +216,7 @@ export function NewPantry() {
   return (
     <div className="space-y-5 min-[900px]:max-w-[760px]">
       <header className="flex items-center justify-between gap-3">
-        <h1 className={K_TITLE}>Pantry</h1>
+        <h1 className={K_TITLE}>Kitchen</h1>
         <span className="flex items-center gap-2">
           {scanShows ? (
             <Link
@@ -254,7 +254,7 @@ export function NewPantry() {
       <div className="flex items-center gap-2">
         <label className="flex min-h-[54px] min-w-0 flex-1 items-center gap-2.5 rounded-[18px] bg-card px-4 text-muted-foreground shadow-cp-card focus-within:ring-2 focus-within:ring-ring">
           <Search className="h-5 w-5 shrink-0" aria-hidden />
-          <span className="sr-only">Find in your pantries</span>
+          <span className="sr-only">Find in your kitchen</span>
           <input
             ref={searchRef}
             type="search"
@@ -285,7 +285,7 @@ export function NewPantry() {
         <PantrySkeleton />
       ) : failed ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-sm font-normal text-muted-foreground">Couldn&apos;t load your pantries. {(pantries.error ?? items.error)?.message ?? ""}</p>
+          <p className="text-sm font-normal text-muted-foreground">Couldn&apos;t load your kitchen. {(pantries.error ?? items.error)?.message ?? ""}</p>
           <Button
             variant="outline"
             className={K_BUTTON_QUIET}
@@ -471,7 +471,7 @@ function EmptyPantries() {
   return (
     <KCard className="flex flex-col items-center px-6 py-10 text-center">
       <IconBubble icon={Refrigerator} className="h-14 w-14" />
-      <h2 className={cn(K_SECTION, "mt-4")}>Nothing in your pantries yet</h2>
+      <h2 className={cn(K_SECTION, "mt-4")}>Nothing in your kitchen yet</h2>
       <Button asChild className={cn(K_BUTTON, "mt-4")}>
         <Link href="/pantry/new">
           <Plus aria-hidden />

@@ -277,7 +277,7 @@ export function helpItems(opts: {
         ...(canWrite
           ? ["Otherwise write to us from your new address. We'll check with someone in your group, then move your account across."]
           : []),
-        "Your groups, pantry and balances stay as they are meanwhile.",
+        "Your groups, kitchen and balances stay as they are meanwhile.",
       ],
       ...(canWrite ? { cta: "Write to us", action: "write" as const } : { cta: "Back to sign in", action: "sign_in" as const }),
       primary: false,

@@ -411,6 +411,26 @@ html[data-vt="down"]::view-transition-old(root) {
 }
 html[data-vt="down"]::view-transition-new(root) { animation-name: kp-vt-undim; animation-duration: 240ms; }
 
+/* swipe-next / swipe-prev (RV-9): a swipe between tabs. The old page, already
+   moved a little with the finger, leaves the way it went; the next tab follows
+   it in from the other side. */
+@keyframes kp-vt-out-left { to { transform: translateX(-100%); } }
+@keyframes kp-vt-out-right { to { transform: translateX(100%); } }
+@keyframes kp-vt-in-left { from { transform: translateX(-100%); } }
+html[data-vt="swipe-next"]::view-transition-old(root),
+html[data-vt="swipe-next"]::view-transition-new(root),
+html[data-vt="swipe-prev"]::view-transition-old(root),
+html[data-vt="swipe-prev"]::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-timing-function: var(--vt-ease);
+  animation-fill-mode: both;
+  animation-duration: 240ms;
+}
+html[data-vt="swipe-next"]::view-transition-old(root) { animation-name: kp-vt-out-left; }
+html[data-vt="swipe-next"]::view-transition-new(root) { animation-name: kp-vt-from-right; }
+html[data-vt="swipe-prev"]::view-transition-old(root) { animation-name: kp-vt-out-right; }
+html[data-vt="swipe-prev"]::view-transition-new(root) { animation-name: kp-vt-in-left; }
+
 /* What stays put: the bars have their own names and no animation; the new one shows at once. */
 html[data-vt] [data-vt-keep="tabs"] { view-transition-name: kp-tabs; }
 html[data-vt] [data-vt-keep="sidebar"] { view-transition-name: kp-sidebar; }

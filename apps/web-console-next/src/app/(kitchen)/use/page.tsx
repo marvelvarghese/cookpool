@@ -162,7 +162,7 @@ function QuickUse({ linked }: { linked: ItemRef | null }) {
         : fallback.data
           ? usableMatches(fallback.data).map((m) => matchCard(m, ctx))
           : null;
-  const heading = searching ? (cards === null ? "Searching…" : matchesHeading(cards.length)) : noUsuals ? "In your pantries" : "Recent and usual";
+  const heading = searching ? (cards === null ? "Searching…" : matchesHeading(cards.length)) : noUsuals ? "In your kitchen" : "Recent and usual";
   const stripLoading = cards === null && (searching ? !search.error : !usuals.error && !fallback.error);
   const stripError = searching ? search.error : (usuals.error ?? fallback.error);
   const labels = cards ? pillLabels(cards) : new Map<string, string>();

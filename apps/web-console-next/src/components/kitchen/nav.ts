@@ -30,7 +30,7 @@ export type KitchenNavItem = KitchenNavLink | KitchenNavAction;
 /** The bottom tab bar, in order: Home · Pantry · + Add · Groups · People. */
 export const KITCHEN_TABS: readonly KitchenNavItem[] = [
   { id: "home", kind: "link", href: "/home", label: "Home", icon: "House" },
-  { id: "pantry", kind: "link", href: "/pantry", label: "Pantry", icon: "Refrigerator" },
+  { id: "pantry", kind: "link", href: "/pantry", label: "Kitchen", icon: "Refrigerator" },
   { id: "add", kind: "action", label: "Add", icon: "Plus" },
   { id: "groups", kind: "link", href: "/groups", label: "Groups", icon: "UsersRound" },
   { id: "people", kind: "link", href: "/people", label: "People", icon: "HandCoins" },
@@ -82,7 +82,7 @@ export function isKitchenTabActive(id: KitchenTabId, pathname: string | null | u
  */
 export const NEW_FRAME_TABS: readonly KitchenNavLink[] = [
   { id: "home", kind: "link", href: "/home", label: "Home", icon: "House" },
-  { id: "pantry", kind: "link", href: "/pantry", label: "Pantry", icon: "Refrigerator" },
+  { id: "pantry", kind: "link", href: "/pantry", label: "Kitchen", icon: "Refrigerator" },
   { id: "cook", kind: "link", href: "/cook", label: "Cook", icon: "CookingPot", featured: true },
   { id: "money", kind: "link", href: "/money", label: "Money", icon: "Wallet" },
   { id: "you", kind: "link", href: "/you", label: "You", icon: "CircleUserRound" },

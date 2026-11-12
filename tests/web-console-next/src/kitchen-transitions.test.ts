@@ -181,6 +181,15 @@ describe("what plays (transitionStyle)", () => {
     expect(transitionStyle("down", { ...phone, swiped: true })).toBe("swiped");
   });
 
+  it("slides a swipe between tabs its way on a phone (RV-9), never on the desktop or with reduced motion", () => {
+    expect(transitionStyle("tab", { ...phone, tabSwipe: "next" })).toBe("swipe-next");
+    expect(transitionStyle("tab", { ...phone, tabSwipe: "prev" })).toBe("swipe-prev");
+    expect(transitionStyle("tab", { ...phone, tabSwipe: "next", wide: true })).toBe("fade");
+    expect(transitionStyle("tab", { ...phone, tabSwipe: "next", reducedMotion: true })).toBe("reduced");
+    expect(TRANSITION_MS).toMatchObject({ "swipe-next": 240, "swipe-prev": 240 });
+    expect(carriesShared("swipe-next")).toBe(false);
+  });
+
   it("keeps every step under 300 ms: tab 150, slides 280, down 240, desktop 120, reduced 100", () => {
     for (const ms of Object.values(TRANSITION_MS)) expect(ms).toBeLessThan(300);
     expect(TRANSITION_MS).toMatchObject({ tab: 150, forward: 280, back: 280, fade: 120, reduced: 100 });
@@ -472,6 +481,26 @@ describe("the helper animates a navigation with startViewTransition", () => {
     expect(h.style()).toBe("swiped");
     h.tx.navigate({ kind: "back", from: "/recipes/rcp_1", run: () => undefined });
     expect(h.style()).toBe("back");
+  });
+  it("slides a swipe between tabs the way the finger went (RV-9), and only for that one step", () => {
+    const h = harness();
+    h.tx.tabSwiped("next", () => h.tx.navigate({ kind: "tab", from: "/pantry", run: () => undefined }));
+    expect(h.style()).toBe("swipe-next");
+    h.tx.tabSwiped("prev", () => h.tx.navigate({ kind: "tab", from: "/cook", run: () => undefined }));
+    expect(h.style()).toBe("swipe-prev");
+    h.tx.navigate({ kind: "tab", from: "/pantry", run: () => undefined });
+    expect(h.style()).toBe("tab");
+  });
+
+  it("a swipe between tabs with reduced motion fades plainly, and without view transitions just navigates", () => {
+    const reduced = harness({ reducedMotion: true });
+    reduced.tx.tabSwiped("next", () => reduced.tx.navigate({ kind: "tab", from: "/pantry", run: () => undefined }));
+    expect(reduced.style()).toBe("reduced");
+    const none = harness({ supported: false });
+    const run = spy();
+    none.tx.tabSwiped("next", () => none.tx.navigate({ kind: "tab", from: "/pantry", run }));
+    expect(run.calls).toBe(1);
+    expect(none.started).toHaveLength(0);
   });
 });
 

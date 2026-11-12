@@ -524,7 +524,7 @@ export function usableMatches<T extends ReachableItem>(items: readonly T[]): T[]
 
 /** "3 matches across your pantries", "1 match across your pantries". */
 export function matchesHeading(n: number): string {
-  return `${countWords(n, "match", "matches")} across your pantries`;
+  return `${countWords(n, "match", "matches")} across your kitchen`;
 }
 
 // ── The + Add sheet: Do it again ──────────────────────────────────
@@ -598,7 +598,7 @@ export function doItAgainRows(
     const who = personal ? null : consumersText(consumers, ctx.meId, ctx.names);
     const cost = item ? formatMinor(amountCost(item, qtyMilli), item.currency) : null;
     const name = item?.name ?? usual.name;
-    const sentence = personal ? `Log ${words} of ${name} from your pantry` : `Log ${words} of ${name} for ${who} in ${pantry}`;
+    const sentence = personal ? `Log ${words} of ${name} from your kitchen` : `Log ${words} of ${name} for ${who} in ${pantry}`;
     out.push({
       key: usual.itemId,
       ref: usualRef(usual),

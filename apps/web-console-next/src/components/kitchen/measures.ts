@@ -258,7 +258,7 @@ export function saveLabel(dimension: KitchenDimension, words: { one: string; man
 
 /** The sheet's one hint: "Saved for onions in Flat 4B." */
 export function savedForText(many: string, pantry: PantryRef): string {
-  return `Saved for ${many} in ${pantry.kind === "personal" ? "your pantry" : pantry.name}.`;
+  return `Saved for ${many} in ${pantry.kind === "personal" ? "your kitchen" : pantry.name}.`;
 }
 
 // ── Adding one on the item page ───────────────────────────────────

@@ -331,3 +331,69 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - The curry recipe: "Serves about 2 · 45 min · Have 5 of 6", Use all, − about 2 +, dot rows with the yogurt ring, Start cooking.
 - Guided step 2 of 8: the chip, 30 px text, the check line, "Start 7:00" → "6:59 · Pause" with +1 min and the push note, and Add amounts → Before you start.
 - Cooked: "₹12 · 4 portions"; Split opened the sheet, and after splitting showed "✓ Split with Flat 4B", Post quiet, Done.
+
+### RV1 — Swipe between tabs, and Pantry becomes Kitchen (RV-9)
+
+**Built** (`apps/web-console-next`). No routes, no migrations, no contracts or SDK change.
+
+- **Swipe between tabs** (new frame only, below 900 px, on the five roots `/home`, `/pantry`, `/cook`, `/money`, `/you` only; never their sub-pages):
+  - The rules are pure, in `components/kitchen/tab-swipe.ts`: `tabSwipeOn`, `neighbourTab`/`tabSwipeTarget` (`nav.ts`'s order, nothing past either end), `tabSwipeClaims`, `tabSwipeOffset`, `tabSwipeRelease`, `refusesTabSwipe`, `tabSwipeRule`.
+  - **Numbers:** go at `|dx|` ≥ 64 px (`TAB_SWIPE_PX`). Sideways means `|dx|` > 1.6 × `|dy|` (`TAB_SWIPE_RATIO`), decided once the finger has gone `DECIDE_PX` (8 px, PW-7's), so in the first moves. Never within 24 px of either side (`TAB_SWIPE_EDGE_PX`). The page follows at 0.3× the finger, at most 72 px, and not toward an end.
+  - **No `preventDefault` before the decision:** the claim is false until 8 px, so the first moves are never cancelled; vertical and diagonal drags are left to the browser.
+  - **Never from:** anything that scrolls sideways (`scrollersBetween(…, "x")`: Home's Cook now cards, chip rows), PW-7's `OWN_DRAGS` (inputs, textareas, selects, contenteditable, `data-gestures="off"`), and `NO_TAB_SWIPE`: `[data-no-tab-swipe]` (new opt-out), `[data-swipe-row]` (`SwipeRow`), `input[type=range]`, `[role=slider]`, `[role=tablist]`, `[role=dialog]`/`[role=alertdialog]`, `[data-vt-keep]` (tab bar, sidebar, the cook session's bar). It also never starts while any dialog or sheet is open.
+  - **The frame's part** is `TabSwipe` (`gestures-ui.tsx`), mounted by the kitchen layout in the new frame. It is on `<main>` and goes through PW-7's `listenForDrags`; there is no second gesture system.
+  - **Release:** past the threshold it navigates with `navigate(href, { kind: "tab" })` inside `transitions.tabSwiped(direction, …)`. Short of it, the page springs back (`SETTLE_MS`).
+  - **The slide:** `lib/transitions.ts` gains the styles `swipe-next`/`swipe-prev` (240 ms, `TRANSITION_MS`). In `globals.css`, the old page leaves the way the finger went, from where the finger left it, and the next tab comes in from the other side.
+  - Without view transitions (iOS before 18), `<main>` slides away itself, then the tab opens.
+  - With reduced motion the page doesn't follow or slide: it navigates (the existing `reduced` 100 ms fade).
+- **Pantry becomes Kitchen** (every frame; routes, ids, query keys and code names unchanged, and `/pantry` keeps working):
+  - The tab label in both frames' tab bars and the sidebar (`nav.ts`), so today's frame reads Home · Kitchen · Add · Groups · People.
+  - The page title (`pantry-new-ui.tsx`, today's `app/(kitchen)/pantry/page.tsx`).
+  - Empty and error states: "Nothing in your kitchen yet", "Couldn't load your kitchen." (Kitchen, Bought, the dish maker), "Your kitchen" (an unknown item's link back).
+  - "Find in your kitchen", Use's "In your kitchen", and the manifest screenshot's label.
+  - Every "your pantry/pantries", "Your pantry" and "My pantry" phrase became "your kitchen":
+    - Add's "to your kitchen", the dish's "your kitchen" lines and leftovers note, "Saved for … in your kitchen.", "Added 3 to your kitchen · ₹374".
+    - The receipt's "matching to your kitchen…" and its personal fallback "My kitchen".
+    - The dish maker's "Your kitchen" chip, "from your kitchen", "stays in your kitchen".
+    - Quick use's "across your kitchen" and "from your kitchen".
+    - The recipe's "✓ Your kitchen · …" and "Check your kitchen again"; the session's "Your kitchen" and "Not in your kitchen · left out".
+    - The item's "You can't add to your kitchen any more." and "You moved it here from your kitchen".
+    - Say it's "isn't in your kitchen"; join's "Your own kitchen comes with you."; assistants' "Read your kitchen, recipes, …"; sign-in help's "Your groups, kitchen and balances…".
+  - There was no "Back to Pantry", breadcrumb or Home link that said Pantry: Back is an icon labelled "Back", and Home has no Pantry link.
+
+**Departures and words that stay.**
+- **A group's Pantry sub-tab** (`GROUP_TABS`, "Activity · Pantry · Money"), its "Pantry" heading on today's group page, "Nothing in the pantry", "Couldn't load the pantry." and the group's "Pantry item" add option all stay "Pantry". They mean that group's shelf; "Kitchen" there would read as the Kitchen tab, which holds every shelf.
+- **Phrases that name a shelf, not your whole kitchen, stay**, for example "a pantry you can see", "every group pantry you're in", "Take from any pantry", "Search every pantry", "back in its pantry" and "stays in the pantry". The same goes for the desktop table's "Pantry" column, the pantry chips' group label, and the marketing "share a pantry".
+- **The Cook tab** has no horizontal strip since RV-4 (its lists are rows). The "Cook now cards" exclusion is Home's `CookNowStrip`; the rule refuses any element that actually scrolls sideways, so a chip row that fits doesn't block a swipe.
+- **Release ignores flicks:** only the 64 px distance counts, as specified (the edge swipe's flick rule is not used).
+
+**Pinned copy changed** (`tests/web-console-next`, each on purpose):
+- `kitchen-nav.test.ts`, `kitchen-new-frame.test.ts`: the tab and sidebar labels "Pantry" → "Kitchen".
+- `kitchen-cook-session.test.ts`: "Your pantry · last time 500 g" → "Your kitchen · …"; "Not in your pantries · left out" → "Not in your kitchen · left out" (2).
+- `kitchen-dish-maker.test.ts`: the chip "Your pantry" → "Your kitchen"; "70 g stays in your kitchen"; "from your kitchen"; "Your kitchen · 450 g left".
+- `kitchen-dish.test.ts`: three "· your kitchen ₹" lines; "left over · to your kitchen" (2); "in your kitchen as Leftovers".
+- `kitchen-measures.test.ts`: "Saved for rice in your kitchen."
+- `kitchen-item-form.test.ts`: `who: "to your kitchen"`.
+- `kitchen-receipt-run.test.ts`: "Added 4 to your kitchen · ₹503"; "matching to your kitchen…" (2).
+- `kitchen-shopping-run.test.ts`: "Added 3 to your kitchen · ₹374".
+- `kitchen-quick-use.test.ts`: "across your kitchen" (2); "Log 2 pcs of Eggs from your kitchen, …".
+- `kitchen-recipe-page.test.ts`: "✓ Your kitchen · 150 ml" / "· 450 g".
+- `kitchen-sign-in-screens.test.ts`: "Your groups, kitchen and balances stay as they are meanwhile."
+
+**Tests.**
+- `tests/web-console-next`: 118 suites, 2,338 tests, all passing.
+- New `kitchen-tab-swipe.test.ts` (18 tests): the order and labels; where it is on (roots only, new frame, below 900); next/previous and the ends; the numbers; the decision at 8 px; the follow offset; the release; the edges; sideways scrollers; every refused target; an open sheet; synthetic touch events (no move cancelled before the decision, vertical and diagonal untouched, a short swipe, the edge).
+- New in `kitchen-transitions.test.ts` (3 tests): `swipe-next`/`swipe-prev` styles, durations and no shared parts; `tabSwiped` for one step only; reduced motion and no view transitions.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 44 pages served as files.
+
+**Browser check** (390 × 844). `next dev` on 47390 ran behind RV-4's in-memory API mock on `cookpool-stage.localhost:47391` (never committed). The resource log listed only that host. Swipes were simulated with `TouchEvent`s:
+- Kitchen → left → Cook. The first 4 px move was not cancelled and the rest were. `<main>` followed at −2.7 to −36 px.
+- Cook → right → Kitchen, with `data-vt="swipe-prev"` during the step.
+- Kitchen → right → Home; on Home, a right swipe did nothing (no cancelled moves, no follow).
+- Starts at x = 10 and x = 380 did nothing. A left swipe on Home's Cook now cards (scrolling sideways) did nothing.
+- A vertical drag on Home had no cancelled moves and no transform. You → left did nothing, You → right → Money, and `/you/settings` doesn't swipe.
+- The title and tab read "Kitchen".
+- Light/dark and reduced motion were covered by the unit tests, not in the browser.
+
+**Deploy.** Only the console changes.

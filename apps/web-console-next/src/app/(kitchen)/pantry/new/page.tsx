@@ -103,7 +103,7 @@ export default function AddItemPage() {
   if (pantries.error || !pantries.data) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load your pantries. {pantries.error?.message ?? ""}</p>
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load your kitchen. {pantries.error?.message ?? ""}</p>
         <Button variant="outline" className={K_BUTTON} onClick={pantries.reload}>
           Try again
         </Button>
@@ -249,7 +249,7 @@ function AddItemForm({
       meId,
       names,
       today,
-      where: group ? group.name : "your pantry",
+      where: group ? group.name : "your kitchen",
       canRemove: !group || paidBy === meId || canManageGroup(myRole),
       idempotencyKey: idemKey.current,
     });

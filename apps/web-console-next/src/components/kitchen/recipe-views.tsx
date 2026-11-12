@@ -234,7 +234,7 @@ export function IngredientsSection({
       </ul>
       {failed && onRetry ? (
         <button type="button" onClick={onRetry} className="min-h-11 self-start rounded-lg px-1 text-sm font-medium text-cp-accent-text hover:underline">
-          Check your pantries again
+          Check your kitchen again
         </button>
       ) : null}
     </section>

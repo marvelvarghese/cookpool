@@ -15,7 +15,7 @@ import { SessionBar } from "@/components/kitchen/session-bar";
 import { AppNotify } from "@/components/kitchen/notify-device";
 import { BackTrailRecorder } from "@/components/kitchen/back-ui";
 import { PageTransitions } from "@/components/kitchen/transition-ui";
-import { EdgeSwipeBack, PullToRefresh } from "@/components/kitchen/gestures-ui";
+import { EdgeSwipeBack, PullToRefresh, TabSwipe } from "@/components/kitchen/gestures-ui";
 import { KITCHEN_NEW_LOOK_CLASS, KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import { isWideKitchenPage } from "@/components/kitchen/nav";
@@ -50,7 +50,8 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  * The frame's gestures (PW-7, gestures-ui.tsx): the lists pull to refresh in
  * `<main>`, and on the installed iPhone a swipe from the left edge goes back
  * by the back control's rule, sliding `<main>` away. Sheets drag away by
- * themselves (the shared sheet).
+ * themselves (the shared sheet). In the new frame, a sideways swipe on a
+ * tab's root goes to the tab beside it (RV-9, `TabSwipe`).
  *
  * The palette and font are scoped to this tree (`.cookpool`; dark only in the new look); the
  * classes also go on <body> while this layout is mounted, so portalled UI —
@@ -124,6 +125,8 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
       {ready && !frameNew ? <AddSheet open={addOpen} onOpenChange={setAddOpen} /> : null}
       {ready ? <AppNotify /> : null}
       {ready ? <EdgeSwipeBack frame={frame} page={main} /> : null}
+      {/* Swiping between the five tabs on a phone (RV-9), in the new frame only. */}
+      {frameNew ? <TabSwipe page={main} /> : null}
       {/* What Back may go back to (PW-3): the screens this frame has shown. */}
       <BackTrailRecorder />
       {/* Page transitions on phones (RC-11), in the new frame only: after the trail, whose counts they read. */}
