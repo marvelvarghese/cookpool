@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "./link";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { MAX_RECIPE_LINES, type KitchenRecipe } from "@saas/contracts/kitchen";
+import { MAX_RECIPE_LINES, type KitchenRecipe, type RecipeKind } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { KCard, K_BUTTON, K_INPUT } from "./kit";
-import { BackButton, useBack } from "./back-ui";
+import { BackButton, BackControl, useBack } from "./back-ui";
+import { AiChip } from "./receipt-scan-ui";
+import { markCount, noMarks, settleMarks, stepMarksByIndex, type DraftMarks } from "./recipe-photo";
 import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { SuggestionList, useTypeahead } from "./from-before-ui";
 import { halvesText, parseRecipeRef, recipeHref, canEditRecipe } from "./recipes";
@@ -108,17 +110,50 @@ function FieldError({ id, message }: { id: string; message: string | undefined }
   );
 }
 
-/** The form itself: a new recipe (`recipe` null) or yours to change. */
-export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
+/**
+ * A new recipe's form started from somewhere else (cookpool-ai AI-9: a
+ * photo's draft): the form filled, the places to check marked (each mark goes
+ * when its field is edited), errors to show at once, the draft's kind sent
+ * with Save, and Back's own action (to the result).
+ */
+export interface RecipeFormStart {
+  form: RecipeForm;
+  marks: DraftMarks;
+  errors?: RecipeFormErrors | null;
+  kind?: RecipeKind | null;
+  /** An element id to bring into view first (a marked line or step). */
+  focus?: string | null;
+  onBack: () => void;
+}
+
+function CheckNote({ message }: { message: string | undefined }) {
+  if (!message) return null;
+  return <p className="mt-1 text-[13px] font-extrabold text-[#8A5A00]">⚠ {message}</p>;
+}
+
+/** The form itself: a new recipe (`recipe` null) or yours to change; `start` fills a new one, `top` sits under its header. */
+export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe | null; start?: RecipeFormStart | undefined; top?: React.ReactNode }) {
   const router = useKitchenRouter();
   const back = useBack();
   const save = useSaveRecipe();
   const remove = useDeleteRecipe();
   const seq = React.useRef(0);
   const newKey = React.useCallback(() => `line_${(seq.current += 1)}`, []);
-  const [form, setFormState] = React.useState<RecipeForm>(() => (recipe ? formFromRecipe(recipe, newKey) : initialRecipeForm(newKey)));
+  const [form, setFormState] = React.useState<RecipeForm>(() => (recipe ? formFromRecipe(recipe, newKey) : (start?.form ?? initialRecipeForm(newKey))));
   const [tried, setTried] = React.useState(false);
-  const [serverErrors, setServerErrors] = React.useState<RecipeFormErrors | null>(null);
+  const [serverErrors, setServerErrors] = React.useState<RecipeFormErrors | null>(start?.errors ?? null);
+  const [marks, setMarks] = React.useState<DraftMarks>(() => start?.marks ?? noMarks());
+  const lastForm = React.useRef(form);
+  React.useEffect(() => {
+    if (lastForm.current === form) return;
+    const prev = lastForm.current;
+    lastForm.current = form;
+    setMarks((m) => settleMarks(m, prev, form));
+  }, [form]);
+  const focusId = start?.focus ?? null;
+  React.useEffect(() => {
+    if (focusId) window.requestAnimationFrame(() => document.getElementById(focusId)?.scrollIntoView({ block: "center" }));
+  }, [focusId]);
   const [busy, setBusy] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
 
@@ -140,7 +175,8 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
       return;
     }
     setBusy(true);
-    const r = await save({ recipeId: recipe?.id ?? null, body: request.body });
+    const body = !recipe && start?.kind ? { ...request.body, kind: start.kind } : request.body;
+    const r = await save({ recipeId: recipe?.id ?? null, body });
     setBusy(false);
     if (r.ok) {
       if (recipe) back();
@@ -155,9 +191,21 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
   return (
     <div className="flex w-full max-w-xl flex-col gap-4">
       <header className="flex items-center gap-1">
-        <BackButton />
-        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">{recipe ? "Edit recipe" : "New recipe"}</h1>
+        {start ? <BackControl onClick={start.onBack} /> : <BackButton />}
+        <h1 className="min-w-0 flex-1 text-[26px] font-extrabold leading-tight tracking-tight">{recipe ? "Edit recipe" : "New recipe"}</h1>
+        {start ? <AiChip /> : null}
       </header>
+      {top ?? null}
+      {start && markCount(marks) > 0 ? (
+        <div role="note" className="rounded-2xl bg-[#FDF1D6] px-4 py-3 text-sm font-bold text-[#5C3D00]">
+          ⚠ {markCount(marks)} {markCount(marks) === 1 ? "thing" : "things"} to check · marked below
+          {marks.other.map((m) => (
+            <span key={m} className="mt-1 block font-semibold">
+              {m}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <form ref={formRef} onSubmit={submit} noValidate className="flex flex-col gap-6">
         <div data-field="name">
@@ -179,6 +227,7 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
             className={cn(K_INPUT, "h-12 sm:h-12")}
           />
           <FieldError id="recipe-name-error" message={errors.name} />
+          {!errors.name ? <CheckNote message={marks.name} /> : null}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -198,6 +247,7 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
               </button>
             </div>
             <FieldError id="recipe-serves-error" message={errors.servesHalf} />
+            {!errors.servesHalf ? <CheckNote message={marks.servesHalf} /> : null}
           </div>
           <div data-field="minutes">
             <Label htmlFor="recipe-minutes" className={LEGEND}>
@@ -218,6 +268,7 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
               className={cn(K_INPUT, "h-11 tabular-nums")}
             />
             <FieldError id="recipe-minutes-error" message={errors.minutes} />
+            {!errors.minutes ? <CheckNote message={marks.minutes} /> : null}
           </div>
         </div>
 
@@ -245,6 +296,7 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
                   count={form.lines.length}
                   isMain={line.key === mainKey}
                   errors={errors.line[line.key]}
+                  check={marks.line[line.key]}
                   onName={(name) => setForm((f) => typeLineName(f, line.key, name))}
                   onPick={(food) => setForm((f) => pickFood(f, line.key, food))}
                   onChange={(patch) => setForm((f) => setLine(f, line.key, patch))}
@@ -256,6 +308,7 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
             ))}
           </ol>
           <FieldError id="recipe-lines-error" message={errors.lines} />
+          {!errors.lines ? <CheckNote message={marks.lines} /> : null}
           {form.lines.length < MAX_RECIPE_LINES ? (
             <Button
               type="button"
@@ -273,11 +326,13 @@ export function RecipeFormScreen({ recipe }: { recipe: KitchenRecipe | null }) {
           ) : null}
         </section>
 
+        {marks.steps || marks.tools ? <CheckNote message={[marks.steps, marks.tools].filter(Boolean).join(" · ")} /> : null}
         <StepsEditor
           steps={form.steps}
           choices={stepLineChoices(form)}
           servesHalf={form.servesHalf}
           errors={errors}
+          checks={start ? stepMarksByIndex(marks, form.steps) : undefined}
           onAdd={() => {
             const id = newKey();
             const next = addStep(form, id);
@@ -345,6 +400,7 @@ function LineEditor({
   count,
   isMain,
   errors,
+  check,
   onName,
   onPick,
   onChange,
@@ -357,6 +413,8 @@ function LineEditor({
   count: number;
   isMain: boolean;
   errors: RecipeFormErrors["line"][string] | undefined;
+  /** A photo's check on this line (cookpool-ai AI-9): the amber outline and "⚠ message". */
+  check?: string | undefined;
   onName: (name: string) => void;
   onPick: (food: { key: string; name: string; dimension: "mass" | "volume" | "count" }) => void;
   onChange: (patch: Partial<Pick<LineDraft, "quantity" | "unit" | "toTaste">>) => void;
@@ -381,7 +439,12 @@ function LineEditor({
   const position = `Ingredient ${index + 1}`;
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-[18px] border bg-card p-3" role="group" aria-label={line.name.trim() || position}>
+    <div
+      className={cn("flex flex-col gap-2.5 rounded-[18px] border bg-card p-3", check && "border-[1.5px] border-[#E8C77A]")}
+      role="group"
+      aria-label={line.name.trim() || position}
+    >
+      {check ? <p className="text-[13px] font-extrabold text-[#8A5A00]">⚠ {check}</p> : null}
       <div ref={fieldRef}>
         <Label htmlFor={`${id}-name`} className="sr-only">
           {position}

@@ -7,6 +7,7 @@ import { useCookNow, useMyRecipes, usePrefetchRecipe, useRecipesInFull } from ".
 import { ExploreButton } from "./explore-views";
 import { CommunityEntry } from "./community-views";
 import { COMMUNITY_HREF } from "./community";
+import { RecipePhotoEntry } from "./recipe-photo-ui";
 
 /**
  * The Cook hub (cookpool-recipes RC-5, design §1.2, §5.4, the canvas's
@@ -37,6 +38,7 @@ export function CookHub() {
       onReloadRecipes={recipes.reload}
       prefetch={prefetch}
       extraAction={<ExploreButton />}
+      photoAction={<RecipePhotoEntry />}
       community={<CommunityEntry href={COMMUNITY_HREF} />}
     />
   );

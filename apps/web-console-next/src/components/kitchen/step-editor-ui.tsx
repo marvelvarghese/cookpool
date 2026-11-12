@@ -196,6 +196,7 @@ export function StepsEditor({
   choices,
   servesHalf,
   errors,
+  checks,
   onAdd,
   onText,
   onChange,
@@ -205,6 +206,8 @@ export function StepsEditor({
   choices: readonly StepLineChoice[];
   servesHalf: number;
   errors: Pick<RecipeFormErrors, "step" | "stepField" | "steps">;
+  /** Things to look at again, by step index (cookpool-ai AI-9: a photo's checks): an amber outline and "⚠ message". */
+  checks?: Readonly<Record<number, string>> | undefined;
   /** Adds a step and gives the form's id for it (it opens). */
   onAdd: () => string | null;
   onText: (index: number, text: string) => void;
@@ -250,6 +253,7 @@ export function StepsEditor({
                   preview={stepPreview(d, servesHalf, chipOf)}
                   textError={textError}
                   fieldErrors={fieldErrors}
+                  check={checks?.[i]}
                   onToggle={() => toggle(d.id)}
                   onText={(text) => onText(i, text)}
                   onChange={(change) => onChange(d.id, change)}
@@ -290,11 +294,13 @@ function StepRowEditor({
   preview,
   textError,
   fieldErrors,
+  check,
   onToggle,
   onText,
   onChange,
   onRemove,
 }: {
+  check?: string | undefined;
   draft: StepDraft;
   index: number;
   open: boolean;
@@ -312,7 +318,12 @@ function StepRowEditor({
   const summary = stepSummary(d);
   const words = d.text.trim();
   return (
-    <div role="group" aria-label={`Step ${n}`} className="overflow-hidden rounded-[18px] border bg-card">
+    <div
+      id={`${id}-step`}
+      role="group"
+      aria-label={`Step ${n}`}
+      className={cn("overflow-hidden rounded-[18px] border bg-card", check && "border-[1.5px] border-[#E8C77A]")}
+    >
       <div className="flex items-start gap-1 p-2 pl-3">
         <span
           aria-hidden
@@ -332,6 +343,7 @@ function StepRowEditor({
         >
           <span className={cn("line-clamp-2 text-[15px] font-semibold leading-snug", !words && "text-muted-foreground")}>{words || "Say what to do"}</span>
           <span className="text-[13px] font-bold text-muted-foreground">{summary ?? (open ? "Text only" : "Add flame, time and when it's done")}</span>
+          {check ? <span className="text-xs font-extrabold text-[#8A5A00]">⚠ {check}</span> : null}
         </button>
         <ChevronDown aria-hidden className={cn("mt-3 h-5 w-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
         <button type="button" aria-label={`Remove step ${n}`} onClick={onRemove} className={ICON_BUTTON}>

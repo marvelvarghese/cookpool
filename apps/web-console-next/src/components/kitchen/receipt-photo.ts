@@ -65,8 +65,12 @@ function dataUrlOf(blob: Blob): Promise<string> {
   });
 }
 
-/** The photo, shrunk and turned, ready to send; throws when it can't be read or made small enough. */
-export async function shrinkReceiptPhoto(file: Blob): Promise<ShrunkPhoto> {
+/**
+ * The photo, shrunk and turned, ready to send; throws when it can't be read
+ * or made small enough. `longSide` is a receipt's 1200 unless given (a recipe
+ * photo, AI-9: 1600).
+ */
+export async function shrinkReceiptPhoto(file: Blob, longSide?: number): Promise<ShrunkPhoto> {
   const head = new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer());
   const meta = readJpegMeta(head);
   const decoded = await decode(file);
@@ -89,7 +93,7 @@ export async function shrinkReceiptPhoto(file: Blob): Promise<ShrunkPhoto> {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       return ctx;
     };
-    const fit = await firstThatFits(encodeAttempts(seen), async (a) => (draw(a) ? toBlob(canvas, a.quality) : null));
+    const fit = await firstThatFits(encodeAttempts(seen, longSide), async (a) => (draw(a) ? toBlob(canvas, a.quality) : null));
     if (!fit) throw new Error("The photo is too big to send");
     const base64 = base64OfDataUrl(await dataUrlOf(fit.result));
     return { base64, blob: fit.result, width: fit.attempt.width, height: fit.attempt.height };

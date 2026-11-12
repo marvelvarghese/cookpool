@@ -46,6 +46,7 @@ export function CookHubView({
   onReloadRecipes,
   prefetch,
   extraAction,
+  photoAction,
   community,
 }: {
   cookNow: readonly CookNowEntry[] | null;
@@ -56,6 +57,8 @@ export function CookHubView({
   prefetch?: ((recipeId: string) => void) | undefined;
   /** Beside New recipe (RC-8: Explore). */
   extraAction?: React.ReactNode;
+  /** Under New recipe (cookpool-ai AI-9): "📷 From a photo". */
+  photoAction?: React.ReactNode;
   /** Above My recipes (cookpool-community CM-5): the Community entry. */
   community?: React.ReactNode;
 }) {
@@ -67,7 +70,7 @@ export function CookHubView({
       <StartCookingButton />
       {cookNow && showsCookNow(cookNow) ? <CookNowSection entries={cookNow} prefetch={prefetch} /> : null}
       {community ?? null}
-      <MyRecipesSection cards={cards} loading={recipesLoading} failed={recipesFailed} onReload={onReloadRecipes} prefetch={prefetch} extraAction={extraAction} />
+      <MyRecipesSection cards={cards} loading={recipesLoading} failed={recipesFailed} onReload={onReloadRecipes} prefetch={prefetch} extraAction={extraAction} photoAction={photoAction} />
     </div>
   );
 }
@@ -219,6 +222,7 @@ export function MyRecipesSection({
   failed,
   onReload,
   extraAction,
+  photoAction,
   prefetch = noPrefetch,
 }: {
   cards: readonly MyRecipeCard[] | null;
@@ -227,6 +231,8 @@ export function MyRecipesSection({
   onReload?: (() => void) | undefined;
   /** The second button beside New recipe (RC-8's Explore). */
   extraAction?: React.ReactNode;
+  /** Under them (cookpool-ai AI-9): "📷 From a photo", which renders nothing unless AI is on. */
+  photoAction?: React.ReactNode;
   prefetch?: ((recipeId: string) => void) | undefined;
 }) {
   return (
@@ -247,6 +253,7 @@ export function MyRecipesSection({
         </Link>
         {extraAction ?? null}
       </div>
+      {photoAction ?? null}
       {loading ? (
         <div className="space-y-2.5" aria-hidden>
           <Skeleton className="h-[148px] w-full rounded-[22px]" />
