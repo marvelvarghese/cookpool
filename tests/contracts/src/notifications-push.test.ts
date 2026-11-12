@@ -3,6 +3,7 @@
 // the limits the server keeps are the ones the app can count on.
 
 import { KITCHEN_EMAILS } from "@saas/contracts/kitchen";
+import { SPLITECO_EMAILS } from "@saas/contracts/spliteco";
 import {
   NOTIFICATION_KINDS,
   PUSH_ONLY_KINDS,
@@ -21,7 +22,7 @@ import {
 } from "@saas/contracts/notifications";
 
 describe("push kinds", () => {
-  it("are someone set my portion, a dish to claim, someone paid me and (CM-3) the five social kinds — the kitchen templates' own keys", () => {
+  it("are someone set my portion, a dish to claim, someone paid me, (CM-3) the five social kinds and (SE-3) Spliteco's two — the templates' own keys", () => {
     expect(NOTIFICATION_KINDS).toEqual([
       KITCHEN_EMAILS.PORTION_SET,
       KITCHEN_EMAILS.DISH_POSTED,
@@ -31,6 +32,8 @@ describe("push kinds", () => {
       KITCHEN_EMAILS.COMMENTED,
       KITCHEN_EMAILS.YUM,
       KITCHEN_EMAILS.COOKED_YOURS,
+      SPLITECO_EMAILS.REMINDER,
+      SPLITECO_EMAILS.PAID_YOU,
     ]);
     expect(NOTIFICATION_KINDS).toEqual([
       "kitchen.portion_set",
@@ -41,6 +44,8 @@ describe("push kinds", () => {
       "kitchen.commented",
       "kitchen.yum",
       "kitchen.cooked_yours",
+      "spliteco.reminder",
+      "spliteco.paid_you",
     ]);
     for (const kind of NOTIFICATION_KINDS) expect(isNotificationKind(kind)).toBe(true);
     for (const other of [KITCHEN_EMAILS.USE_SOON, KITCHEN_EMAILS.LOGGED_FOR_YOU, "invitation.created", "", null, 3]) {

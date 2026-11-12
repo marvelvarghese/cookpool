@@ -194,6 +194,12 @@ export interface NotificationCategoryPreferences {
  *   kitchen.portion_set   someone set my portion ("Anu said you had 1 portion of Egg fried rice")
  *   kitchen.dish_posted   a dish to claim ("Egg fried rice is ready to claim")
  *   kitchen.paid_you      someone paid me ("Dev paid you ₹400.00 · UPI")
+ *
+ * and Spliteco's (cookpool-spliteco SE-3, `@saas/contracts/spliteco`
+ * SPLITECO_EMAILS):
+ *
+ *   spliteco.reminder     someone I owe nudged me ("Anu sent a friendly nudge: ₹620.00")
+ *   spliteco.paid_you     someone paid me in Spliteco ("Dev paid you ₹400.00 · UPI")
  */
 export const NOTIFICATION_KINDS = [
   "kitchen.portion_set",
@@ -205,6 +211,9 @@ export const NOTIFICATION_KINDS = [
   "kitchen.commented",
   "kitchen.yum",
   "kitchen.cooked_yours",
+  // Spliteco (SE-3): email, and push for a person who turned it on.
+  "spliteco.reminder",
+  "spliteco.paid_you",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -558,6 +567,8 @@ export const NOTIFICATIONS_INTERNAL_ACTOR_VALUES = [
   // Cookpool's emails (CP-18): the use-soon digest, a dish posted for claims,
   // and a use or expense someone else logged for you.
   "kitchen-worker",
+  // Spliteco (cookpool-spliteco SE-3): reminders and "paid you".
+  "spliteco-worker",
   // The public edge forwards end-user preference reads/updates over the
   // service binding with the subject pinned to the resolved session actor.
   "api-edge",

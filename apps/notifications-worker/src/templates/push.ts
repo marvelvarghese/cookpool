@@ -16,6 +16,11 @@
  *   kitchen.yum             "Meera said Yum to your Chicken curry"
  *   kitchen.cooked_yours    "Dev cooked your Chicken curry · 1 kg"
  *
+ * and Spliteco's (SE-3), titled "Spliteco":
+ *
+ *   spliteco.reminder     "Anu sent a friendly nudge: ₹620.00 · Goa Trip"
+ *   spliteco.paid_you     "Dev paid you ₹400.00 · UPI"
+ *
  * The title is the app's name; `url` is the path in the app the email links
  * to (the service worker opens it on its own origin); `tag` is the caller's
  * idempotency key, which names what it is about and for whom, so a repeat
@@ -24,6 +29,7 @@
  */
 
 import { KITCHEN_EMAILS } from "@saas/contracts/kitchen";
+import { SPLITECO_EMAILS } from "@saas/contracts/spliteco";
 import {
   PUSH_MESSAGE_MAX_BYTES,
   isNotificationKind,
@@ -33,6 +39,8 @@ import {
 import { oneLine, portionsPhrase, str, type TemplateData } from "./index.js";
 
 export const PUSH_TITLE = "Cookpool";
+/** Spliteco's kinds are titled with its own name. */
+export const SPLITECO_PUSH_TITLE = "Spliteco";
 
 /** Longest body and tag a push carries; the rest is cut with an ellipsis. */
 const MAX_BODY = 200;
@@ -108,13 +116,29 @@ const RENDERERS: Record<NotificationKind, PushRenderer> = {
     const cooked = `${actor} cooked your ${recipe}`;
     return { body: size ? `${cooked} · ${size}` : cooked, url: appPath(str(data, "url"), "/community/activity") };
   },
+  // Spliteco (SE-3): links are Spliteco's own paths.
+  [SPLITECO_EMAILS.REMINDER]: (data) => {
+    const from = oneLine(str(data, "fromName")) || "Someone";
+    const amount = oneLine(str(data, "amount"));
+    const group = oneLine(str(data, "groupName"));
+    const nudge = amount ? `${from} sent a friendly nudge: ${amount}` : `${from} sent a friendly nudge`;
+    return { body: group ? `${nudge} · ${group}` : nudge, url: appPath(str(data, "payUrl"), "/") };
+  },
+  [SPLITECO_EMAILS.PAID_YOU]: (data) => {
+    const payer = oneLine(str(data, "payerName")) || "Someone";
+    const amount = oneLine(str(data, "amount"));
+    const method = oneLine(str(data, "method"));
+    const paid = amount ? `${payer} paid you ${amount}` : `${payer} paid you`;
+    return { body: method ? `${paid} · ${method}` : paid, url: appPath(str(data, "personUrl"), "/") };
+  },
 };
 
 /** The push for a template, or null when the template is not one of the kinds. */
 export function renderPushMessage(templateKey: string, data: TemplateData, tag: string): PushMessage | null {
   if (!isNotificationKind(templateKey)) return null;
   const { body, url } = RENDERERS[templateKey](data);
-  return boundedMessage({ kind: templateKey, title: PUSH_TITLE, body, url, tag });
+  const title = templateKey.startsWith("spliteco.") ? SPLITECO_PUSH_TITLE : PUSH_TITLE;
+  return boundedMessage({ kind: templateKey, title, body, url, tag });
 }
 
 /** A push that tells a person their device gets notifications ("Send me a test"). */

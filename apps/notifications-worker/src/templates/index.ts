@@ -23,6 +23,7 @@
  */
 
 import { KITCHEN_EMAILS, readUseSoonEmail } from "@saas/contracts/kitchen";
+import { SPLITECO_EMAILS } from "@saas/contracts/spliteco";
 
 export interface RenderedEmail {
   subject: string;
@@ -405,6 +406,52 @@ const renderPaidYou: TemplateRenderer = (data, opts) => {
   return { subject, html, text };
 };
 
+// ── Spliteco (cookpool-spliteco SE-3) ─────────────────────────
+//
+// Enqueued by spliteco-worker with the shapes `@saas/contracts/spliteco`
+// defines (SPLITECO_EMAILS): amounts formatted, links absolute into the
+// Spliteco app. They sign as Spliteco, whatever the sender's name.
+
+export const SPLITECO_BRAND = "Spliteco";
+
+const renderSplitecoReminder: TemplateRenderer = (data) => {
+  const from = oneLine(str(data, "fromName")) || "Someone";
+  const amount = oneLine(str(data, "amount"));
+  const group = oneLine(str(data, "groupName")) || "your group";
+  const link = safeUrl(str(data, "payUrl"));
+  const subject = amount ? `${from} sent a friendly nudge: ${amount}` : `${from} sent a friendly nudge`;
+  const lead = amount ? `${from} says you owe ${amount} in ${group}.` : `${from} sent you a reminder about ${group}.`;
+  const how = "One tap to settle up by UPI, cash or bank. No rush.";
+  const why = `You get this when someone you owe in ${group} sends a reminder — at most once a day.`;
+  const text = [lead, how, ...(link ? ["", link] : []), "", why].join("\n");
+  const html = htmlShell(
+    escapeHtml(subject),
+    [paragraphHtml(lead), paragraphHtml(how, true), link ? buttonHtml(link, "Settle up") : ""].join(""),
+    footerFor(SPLITECO_BRAND, why),
+  );
+  return { subject, html, text };
+};
+
+const renderSplitecoPaidYou: TemplateRenderer = (data) => {
+  const payer = oneLine(str(data, "payerName")) || "Someone";
+  const amount = oneLine(str(data, "amount"));
+  const method = oneLine(str(data, "method"));
+  const group = oneLine(str(data, "groupName")) || "your group";
+  const link = safeUrl(str(data, "personUrl"));
+  const paid = amount ? `${payer} paid you ${amount}` : `${payer} paid you`;
+  const subject = method ? `${paid} · ${method}` : paid;
+  const lead = `In ${group}: ${subject}.`;
+  const check = "Didn't get it? Mark it \"Not received\" and it comes off.";
+  const why = `You get this when someone in ${group} records a payment to you in Spliteco.`;
+  const text = [lead, "", check, ...(link ? [link] : []), "", why].join("\n");
+  const html = htmlShell(
+    escapeHtml(paid),
+    [paragraphHtml(lead), paragraphHtml(check, true), link ? buttonHtml(link, `See what's between you and ${payer}`) : ""].join(""),
+    footerFor(SPLITECO_BRAND, why),
+  );
+  return { subject, html, text };
+};
+
 const TEMPLATES: Record<string, TemplateRenderer> = {
   "auth.magic_link": renderMagicLink,
   "invitation.created": renderInvitationCreated,
@@ -417,6 +464,9 @@ const TEMPLATES: Record<string, TemplateRenderer> = {
   [KITCHEN_EMAILS.PORTION_SET]: renderPortionSet,
   // Cookpool (PW-5).
   [KITCHEN_EMAILS.PAID_YOU]: renderPaidYou,
+  // Spliteco (SE-3).
+  [SPLITECO_EMAILS.REMINDER]: renderSplitecoReminder,
+  [SPLITECO_EMAILS.PAID_YOU]: renderSplitecoPaidYou,
 };
 
 /**
