@@ -6,7 +6,7 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 |---|---|---|
 | SE0 — the spec | | |
 | SE1 — groups, expenses, balances | built, awaiting PR (SE-2) | |
-| SE2 — settle up and reminders | | |
+| SE2 — settle up and reminders | built, awaiting PR (SE-3) | |
 | SE3 — Cookpool hands its money over | | |
 | SE4 — bills from a photo, split together | | |
 | SE5 — your AI assistant logs splits | | |
@@ -33,3 +33,23 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **Portions ×1000 make ⅓ a weight of 333**, so three people on ⅓ each still add up exactly (largest remainder), but ⅓ against 1 is 333:1000, not exactly 1:3.
 - **Not in SE1, as planned:** settle up, reminders, scan, live split, assistants, the Cookpool-linked group screen; the app shows those entry points as disabled "Soon" or leaves them out.
 
+
+## SE2 as built (SE-3)
+
+- **Migration 540** (`540_spliteco_settle_up`): `ledger_reminders` (rmd_ ids; org, from, to, amount, currency, sent_at), `spliteco_profiles` (subject_id, upi_vpa, default_currency), `spliteco_group_settings` (org_id, simplify_debts default 1). Payments are `kitchen_txns` settlements with their bucket and method.
+- **Maths:** `packages/kitchen-engine/src/settle.ts` — `pairwisePlan` (simplify off), `planFor`, `plannedBetween`, and `allocatePayment` (Kitchen first, then Other, or the payer's own split; never more than is owed in a balance).
+- **API** (spliteco-worker): `POST /v1/spliteco/groups/{org}/settlements` (upi|cash|bank, the caller is the payer), `POST /v1/spliteco/settlements/{txn}/not-received` (the payee only), `GET /v1/spliteco/groups/{org}/settle-plan`, `PUT /v1/spliteco/groups/{org}/settings` (`simplifyDebts`), `POST /v1/spliteco/reminders` (`{ to, groupId? }`, 409 `reminded_recently` inside 24 h), `GET|PUT /v1/spliteco/me/profile` (UPI ID, validated as `handle@bank`). The group read gains `settings`, `upi` (members' UPI IDs) and `reminded`; the friend read gains `upiVpa`, `lastRemindedAt` and `plans`; every row gains `paymentMethod`. Audit events `spliteco.settlement.recorded|not_received` and `spliteco.reminder.sent` are written in the same batch. Contracts in `packages/contracts/src/spliteco.ts`, client methods in `packages/sdk`.
+- **Notifications:** kinds `spliteco.reminder` and `spliteco.paid_you` (`NOTIFICATION_KINDS`), email templates and push lines in notifications-worker (titled "Spliteco"), `spliteco-worker` added to the internal actors; spliteco-worker gains the `NOTIFICATIONS_WORKER` binding and `APP_URL` for links.
+- **App:** `/settle` (who you pay across groups, in a group, or one person: All / Part of it, UPI / cash / bank, the UPI deep link then "Back from your UPI app — did it go through?" with "I paid ₹X" / "It didn't"; UPI off with a hint when the payee has no UPI ID; Kitchen-first split with "Change split" for kitchen groups), "Not received" on a payment you received (its expense page), Remind with the message preview and "last reminded" (group and friend), the Simplify debts switch in group settings, and the UPI ID on You. Entry points from Home, Group and Friend.
+
+## SE2 departures
+
+- **No `spliteco.settlement.write` grant.** The policy engine (`packages/policy-engine`) is outside SE-3's `affects`, so payments, "not received", reminders and the simplify switch are gated on `spliteco.expense.write` — the same roles (every role but viewer). Adding the grant is a one-line change of `SETTLE_ACTION` in `apps/spliteco-worker/src/handlers/settle.ts` once policy-engine (and tests/policy-engine) are in a contract.
+- **Simplify debts lives in its own table**, `spliteco_group_settings`, not on `kitchen_group_settings`: the first row there pins a group's currency, and switching simplify must not.
+- **A payment that pays both balances is two rows** (Kitchen, then Other) sharing `source_kind = 'payment'` and `source_id`; the API answers one `payment` with its `parts`. "Not received" on either row reverses both.
+- **What a payment may cover** is the group's plan between the two people in each balance (the fewest payments, or pair by pair with simplify off) — so with simplify on, paying someone the plan does not route you to is 409 `nothing_owed`.
+- **Only the payer records a payment** (the caller is always `from`); the payee cannot record "they paid me cash". Settlements recorded in Cookpool are still Cookpool's (kitchen-worker), and its own reversal path is unchanged.
+- **Reminders** go to someone who owes the caller by a shared group's plan (409 `nothing_owed` otherwise); without `groupId` the reminder is about the group they owe most in. `ledger_reminders` also keeps the amount and currency. A reminder is refused through a delegation only at the edge (SE5 plans a `send_reminder` tool); payments, "not received" and setting a UPI ID are also refused in the worker (403 `not_from_an_assistant`).
+- **Push** rides on the email enqueue as for Cookpool's kinds, and is opt-in per kind; Cookpool's notification settings do not list the Spliteco kinds yet, so in practice these are emails until a push switch exists in an app. The push opens on the origin of the app that subscribed.
+- **The reminder's 24-hour guard** is a read then a guarded insert; of two racing reminders only one is sent, but the loser's audit event is still written.
+- **The UPI link** carries `pa`, `pn`, `am`, `cu=INR` and `tn` (the note, defaulting to the group's name); UPI is offered only for groups that count in INR.
