@@ -175,7 +175,7 @@ export function answerRefusal(
     case "not_pending":
       return { text: "Already answered.", qtyLeftMilli: null };
     case "not_buyer":
-      return { text: "Only whoever bought it answers.", qtyLeftMilli: null };
+      return { text: "Only whoever added it answers.", qtyLeftMilli: null };
     case "not_in_group":
       return { text: "Someone it's for left the group.", qtyLeftMilli: null };
     default:

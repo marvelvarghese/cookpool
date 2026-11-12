@@ -47,7 +47,7 @@ describe("the balance pill", () => {
       label: "You get back ₹62.50",
       tone: "owed",
     });
-    expect(balancePill(homeMoney({ groups, totals: [total(-2500)] }))).toMatchObject({ text: "−₹25.00", tone: "owe" });
+    expect(balancePill(homeMoney({ groups, totals: [total(-2500)] }))).toMatchObject({ text: "−₹25", tone: "owe" });
   });
 
   it("is gone while settled up, in no group, or before it is read", () => {

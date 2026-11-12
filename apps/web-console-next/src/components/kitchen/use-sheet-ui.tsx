@@ -28,15 +28,32 @@ import { useAskToUse, useAsks, useCancelAsk, useMinuteNow } from "./ask-data";
 import { askButtonText, askName, askStatus } from "./ask-before-use";
 import { AskLockIcon, AskWaitBox } from "./ask-ui";
 import { shortMoney } from "./from-before";
+import { formatQuantity } from "@saas/kitchen-engine/units";
+import { leftInMeasure } from "./measures";
 
 type PickWrite = ReturnType<typeof pickWrite>;
+
+/**
+ * The ring's first line for a weight or a volume, each amount in its best
+ * unit as the board writes it: "1 L of 2 L", "500 ml of 2 L", "1.5 kg of 2 kg"
+ * (an item kept in ml or g otherwise reads "1000 ml of 2000 ml"). Null for
+ * things you count, which keep the page's own words.
+ */
+export function scaledLeftOfBought(
+  item: Pick<KitchenItem, "qtyLeftMilli" | "qtyBoughtMilli" | "dimension" | "displayUnit" | "measures">,
+): string | null {
+  if (item.dimension !== "mass" && item.dimension !== "volume") return null;
+  const text = `${formatQuantity(item.qtyLeftMilli, item.dimension)} of ${formatQuantity(item.qtyBoughtMilli, item.dimension)}`;
+  return [text, leftInMeasure(item)].filter(Boolean).join(" · ");
+}
+
 
 /** What the sheet is for: a row, its item and its usual. */
 export interface UseSheetTarget {
   row: PantryRow;
   item: ReachableItem;
   usual: KitchenUsual | null;
-  /** A running-low row's Bought again (cookpool-pantry PN-6): the item it buys like; none otherwise. */
+  /** A running-low row's Got more (cookpool-pantry PN-6): the item it buys like; none otherwise. */
   buyAgain?: KitchenItem | null | undefined;
 }
 
@@ -44,9 +61,10 @@ const SHEET_CLASS = cn(
   "mx-auto max-h-[92dvh] max-w-xl gap-0 overflow-y-auto rounded-t-[28px] border-x-0 bg-card px-5 pt-2.5 shadow-2xl focus:outline-none",
   "min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
 );
-const SECTION = "text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground";
+// RV-24: no caps labels and no raw colours; the secondary actions are quiet (on the tint).
+const SECTION = "text-[15px] font-medium text-foreground";
 const ACTION =
-  "flex min-h-12 items-center justify-center rounded-[14px] border border-[#C9CFC6] bg-card px-2 text-sm font-extrabold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex min-h-12 items-center justify-center rounded-[14px] bg-cp-accent-tint px-2 text-sm font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
 /**
  * The More… sheet (cookpool-pantry PN-5, design §1.2, the canvas's
@@ -56,7 +74,7 @@ const ACTION =
  * and what each pays; the one main button, Log; then Finish it (logs the
  * rest), Wasted (the item page's confirm) and Cook with it. It shares the
  * set row's amount and people (the device's draft), so either can be used.
- * A running-low row's sheet ends with Bought again (PN-6), like last time.
+ * A running-low row's sheet ends with Got more (PN-6), like last time.
  */
 export function UseSheet({
   target,
@@ -126,7 +144,7 @@ function SheetBody({
   const breakdown = !personal && write ? shareBreakdown({ item, qtyMilli: write.qtyMilli, consumers, meId, names }) : null;
   const whoText = personal || !write ? null : whoLine({ ids: faceOrder(consumers, meId, names), meId, names, amounts: breakdown?.lines.map((l) => l.amountMinor) ?? null, currency: item.currency });
   const cost = write ? formatMinor(amountCost(item, write.qtyMilli), item.currency) : null;
-  const facts = [pantryLabel(item.pantry), personal ? null : `${memberLabel(item.paidBy, meId, names)} paid ${formatMinor(item.priceMinor, item.currency)}`, expiryText(item)]
+  const facts = [pantryLabel(item.pantry), personal ? null : `${memberLabel(item.paidBy, meId, names)} paid ${shortMoney(item.priceMinor, item.currency)}`, expiryText(item)]
     .filter(Boolean)
     .join(" · ");
 
@@ -168,15 +186,15 @@ function SheetBody({
     <div className="flex flex-col gap-4 pt-1">
       <div className="flex items-start gap-3 pr-12">
         <div className="min-w-0 flex-1 space-y-1.5">
-          <SheetTitle className="truncate text-2xl font-extrabold tracking-[-0.01em]">{item.name}</SheetTitle>
+          <SheetTitle className="truncate text-2xl font-medium tracking-[-0.01em]">{item.name}</SheetTitle>
           <span className="flex items-center gap-2">
             <LevelBar percent={row.percent} tone={row.level} className="w-20" />
-            <span className="text-[13px] font-bold text-foreground/80">{leftOfBought(item)} left</span>
+            <span className="text-[13px] font-normal text-foreground">{scaledLeftOfBought({ ...item, measures: [] }) ?? leftOfBought(item)} left</span>
           </span>
-          <p className="text-[13px] font-semibold text-muted-foreground">{facts}</p>
-          {row.note ? <NoteLine note={row.note} className="mt-0 font-bold text-foreground/80" /> : null}
+          <p className="text-[13px] font-normal text-muted-foreground">{facts}</p>
+          {row.note ? <NoteLine note={row.note} className="mt-0 font-normal" /> : null}
         </div>
-        <Link href={row.href} onClick={onClose} className="flex min-h-11 shrink-0 items-center rounded-xl border border-[#D5DAD2] px-3 text-sm font-extrabold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link href={row.href} onClick={onClose} className="flex min-h-11 shrink-0 items-center rounded-[14px] bg-cp-accent-tint px-3.5 text-sm font-medium text-cp-accent-text hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           Open
         </Link>
       </div>
@@ -185,7 +203,7 @@ function SheetBody({
         <AskWaitBox status={waiting} onCancel={() => void cancelAsk(waiting.ask)} />
       ) : wasting ? (
         <WasteConfirm
-          className="border-0 bg-background p-4"
+          className="bg-background p-4 shadow-none"
           item={item}
           roster={personal ? null : roster}
           meId={meId}
@@ -212,14 +230,14 @@ function SheetBody({
                 onToggle={(id) => set.people([...toggleFace(new Set(consumers), id)])}
                 meId={meId}
                 names={names}
-                className="[&>legend]:text-xs [&>legend]:font-extrabold [&>legend]:uppercase [&>legend]:tracking-[0.06em] [&>legend]:text-muted-foreground"
+                className="[&>legend]:text-[15px] [&>legend]:font-medium [&>legend]:normal-case [&>legend]:tracking-normal [&>legend]:text-foreground"
               />
             </section>
           )}
 
           {who ? (
             <>
-              <Button type="button" className={cn(MAIN_BUTTON, "bg-[#17201B] hover:bg-[#17201B]/90")} disabled={!ready} onClick={() => write && log(write)}>
+              <Button type="button" className={cn(MAIN_BUTTON, "bg-foreground text-background hover:bg-foreground/90")} disabled={!ready} onClick={() => write && log(write)}>
                 <MainButtonLabel title={!ready ? "Pick who had it" : `${askButtonText(who)} · ${write!.what}`} who={ready ? whoText : null} />
               </Button>
               {/* Wasted and Cook with it are the buyer's to do while you must ask (the server refuses them: ask_first). */}
@@ -227,7 +245,7 @@ function SheetBody({
                 <button type="button" className={cn(ACTION, "px-3.5")} disabled={consumers.length === 0} onClick={() => log(theRest)}>
                   Ask for the rest
                 </button>
-                <p className="flex items-center gap-1.5 text-[13px] font-bold text-[#8A5A00]">
+                <p className="flex items-center gap-1.5 text-[13px] font-normal text-cp-soon">
                   <AskLockIcon className="h-4 w-4" />
                   Nothing comes off until {who} says yes
                 </p>
@@ -262,7 +280,7 @@ function SheetBody({
                 onBoughtAgain(like);
               }}
             >
-              Bought again · {shortMoney(target.buyAgain.priceMinor, target.buyAgain.currency)}
+              Got more · {shortMoney(target.buyAgain.priceMinor, target.buyAgain.currency)}
             </button>
           ) : null}
         </>

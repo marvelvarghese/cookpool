@@ -53,14 +53,42 @@ export function balancePill(money: Pick<HomeMoney, "main" | "noGroups"> | null):
   if (!money || money.noGroups) return null;
   const { main } = money;
   if (main.tone === "settled" || !main.amount) return null;
-  return { text: `${main.tone === "owed" ? "+" : "−"}${main.amount}`, label: main.text, tone: main.tone };
+  // Whole rupees, as the board writes it (RV-24): "+₹1,240", never "+₹1,240.00".
+  return { text: `${main.tone === "owed" ? "+" : "−"}${main.amount.replace(/\.00$/, "")}`, label: main.text, tone: main.tone };
 }
 
 // ── The resume strip ─────────────────────────────────────────────
 
-/** The strip's second line, without the bar's "Cooking · ": "12 min · 3 of 7 in". */
-export function resumeMeta(meta: string): string {
-  return meta.replace(/^Cooking · /, "");
+/**
+ * The strip's second line, without the bar's "Cooking · ": "12 min · 3 of 7 in";
+ * with the step it is on (RV-24, the board), "Step 3 of 7 · 12 min".
+ */
+export function resumeMeta(meta: string, step: string | null = null): string {
+  const rest = meta.replace(/^Cooking · /, "");
+  if (!step) return rest;
+  return `${step} · ${rest.split(" · ")[0]}`;
+}
+
+/** What a session's steps need to say where it is. */
+export interface ResumeSteps {
+  steps: readonly { done: boolean }[];
+  guide?: { screen: string; current: string | null; steps: readonly { key: string; phase: string }[] } | null | undefined;
+}
+
+/**
+ * "Step 3 of 7": the guided cook step on screen (of the cook steps), else
+ * the first step not done of the session's steps; null with no steps.
+ */
+export function resumeStep(s: ResumeSteps): string | null {
+  const g = s.guide;
+  if (g && g.screen === "step" && g.current) {
+    const cook = g.steps.filter((st) => st.phase === "cook");
+    const i = cook.findIndex((st) => st.key === g.current);
+    if (i >= 0) return `Step ${i + 1} of ${cook.length}`;
+  }
+  if (s.steps.length === 0) return null;
+  const done = s.steps.filter((x) => x.done).length;
+  return `Step ${Math.min(done + 1, s.steps.length)} of ${s.steps.length}`;
 }
 
 /** Home shows the session as its own strip, so the floating bar stays off Home. */

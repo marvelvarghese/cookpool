@@ -172,7 +172,8 @@ describe("the shopping list (RV-22, RvShopping)", () => {
     const ui = read("components/kitchen/shopping-list-ui.tsx");
     expect(ui).toContain("<TickRow");
     expect(ui).toContain('placeholder="Add what we need…"');
-    expect(ui).toContain("bottom-[var(--cp-bottom-bar,");
+    // RV-24: the Done shopping bar sits 24 px from the bottom (the board), never under the tab bar's room.
+    expect(ui).toContain("bottom-[max(24px,var(--cp-bottom-bar,");
     for (const f of ["components/kitchen/shopping-list-ui.tsx", "components/kitchen/list-run-ui.tsx", "components/kitchen/shopping-list.ts", "components/kitchen/list-run.ts"]) {
       const shown = read(f).replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, "").replace(/stapleBought|\/bought|StapleBought\w*/g, "");
       expect([f, /\bBought\b/.test(shown)]).toEqual([f, false]);

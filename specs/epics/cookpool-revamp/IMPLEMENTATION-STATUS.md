@@ -1265,3 +1265,70 @@ Closes the "TASK RV-23" gaps of the 13 Nov re-audit (`RV-audit2.md`). Console an
 - `cookpool-prod.localhost/groups/flat-4b`: today's group view with a 16 px gutter.
 
 **Deploy.** Console only. `packages/spliteco-ui` changes "split N" for spliteco-web too, but spliteco-web has no change of its own in this PR, so it picks the wording up on its next deploy (see "orun plan skips dependents"). RV-24 and RV-25 consume `--cp-expired-bar` and may consume `--cp-box`.
+
+### RV1 — Kitchen, shopping, item and Home polish (RV-24)
+
+The 13 Nov re-audit's "TASK RV-24" section, console only: no routes, no migrations, no contract or SDK changes.
+
+**What changed.**
+- **+ Groceries** (`pantry-list.ts` `boughtHref`, used by the Kitchen header and Home's quick use) opens the list's run, `/pantry/run?from=list`, even with nothing ticked. The list run then shows Scan the receipt, + Add something else and Add to kitchen, with no "Nothing ticked" card and no "· 0" in the title; its back reads "Back".
+- **The plain run** (`/pantry/run`, what was finished, running low or usual) keeps all its behaviour in the list run's look: the back chevron, "Shopping run · 3" (the ticked count), 17 px "Finished · Running low · You usually buy" (no caps), the list run's Scan the receipt card, "+ Add something else" as a card (still Add item), and "Add to kitchen" with nothing ticked. "Tick what you bought" is gone.
+- **Kitchen:**
+  - No match is one centred 15/400 line "Nothing called “x”". An empty pantry keeps a quiet "+ Groceries" (Add item there). The empty kitchen reads "Add groceries".
+  - Finished this week: once on the list, a quiet Undo pill takes the line off the list (`removeFromList`). It shows only when a list line holds it, not when an Always have chip does.
+  - The Finished line reads "Finished Tue". The pantry stays in its screen-reader label.
+  - Tick rows are 66 px. The second line is 500 for Use soon and Expired.
+  - The staple sheets (a chip's, and Add to Always have) have their own 44 px quiet × beside the title; the corner × is hidden.
+  - The expired stock bar is `bg-[hsl(var(--cp-expired-bar,var(--cp-expired)))]` (RV-23's token isn't on main yet).
+  - `LEVEL_COLORS` is tokens, not hex (`hsl(var(--primary))`, `--cp-soon`, `--cp-expired`).
+- **List and run:**
+  - `TickRow` takes `listColumns` (112 px amount); only the shopping list passes it.
+  - Done shopping sits at `bottom-[max(24px,var(--cp-bottom-bar,…))]`.
+  - Section headings lose `px-1`. The run's grey ghosts are 500. The chosen Yes/No keeps its 1 px shadow in dark.
+- **Item:**
+  - The ring line scales each amount ("500 ml of 1 L", "1 L of 2 L") and drops " · Use by …". The More sheet's level line does the same, and its "paid ₹68" is whole.
+  - History money is whole rupees.
+  - Measures and note, opened, shows plain 14/400 lines (cost per, the measures in one line, the note) and one Edit link. Edit opens the note and Counted as (each still editable), then Done.
+  - The More sheet (`use-sheet-ui`, `set-row-ui`) has no caps labels and no raw hex. Finish it, Wasted, Cook with it, Open and More… are quiet tint buttons. The set row's +N is a plain chip and its faces use `Face`. "Bought again · ₹45" reads "Got more · ₹45".
+  - Try again is quiet on the item page and the stock check, and not found reads "Back to Kitchen". Keep it is quiet.
+  - The heavy weights in `from-before-ui`, the check page, `item-note-ui` and `measures-ui` are 400/500.
+- **Add item:** the h1 is "Add groceries", with "Got today · Change" and the aria "Got on". The errors read "Say what you got", "Enter how much you got", "Pick the day you got it" and "Use-by can't be before the day you got it".
+- **Home:**
+  - The balance pill drops ".00" ("+₹27.50" stays).
+  - The Resume strip reads "Step 3 of 7 · 12 min" (the guided cook step on screen, else the first step not done), at 0.85 in light and 0.75 in dark. A session with no steps keeps "12 min · 3 of 7 in".
+  - The split reminder × is 44 px.
+  - `install-ui` uses tokens and 400/500 (the Share glyph is `text-cp-owed`).
+- **"Bought" copy:** the refusals read "Only whoever added it answers.", "…can change who uses it.", "…, or an owner or admin, can change it." and "That's more than was added."
+
+**Departures.**
+- The amount picker's dashed "The rest" chip in the More sheet is `amount-picker-ui.tsx`, which isn't this task's file, so it stays. The same goes for the history's "Meera added 1000 ml" (`item-use.ts` `historyRows`), which doesn't scale units.
+- The expired bar uses the brief's fallback until RV-23's `cp-expired-bar` lands. It is full `cp-expired`, not today's 40 % opacity.
+- Old frame: the not-found and Try again restyles and the Add item words are shared, so prod sees them too. Nothing else changes there.
+
+**Pins changed, on purpose.**
+- `boughtHref` → `/pantry/run?from=list` (pantry-new and receipt-run tests).
+- `LEVEL_COLORS`/`RING_COLORS` → tokens.
+- Finished subs drop " · <pantry>".
+- The run's group titles are no longer caps.
+- The empty label is "Add to kitchen".
+- The balance pill reads "−₹25".
+- Done shopping's `bottom-[max(24px,var(--cp-bottom-bar,`.
+- The Add item errors and the four refusals above.
+- In `kitchen-dish-maker.test.ts`, only the quantity error (from `item-form.ts`'s `parseQuantity`). The name error there is RV-25's `dish-maker.ts`.
+
+**Tests.**
+- `tests/web-console-next`: 131 suites, 2,589 tests, all passing.
+- Typecheck and lint pass for web-console-next and its tests.
+- `console-artifact.mjs build`: 46 pages as files, 18 `_redirects` rules.
+
+**Browser check** (390 × 844, light and dark).
+- Setup: `next dev` on 47391 behind a copy of the re-audit mock on `cookpool-stage.localhost:47392`, with Butter added to Flat 4B's list. Every request went to that host. Both servers are stopped.
+- Seen:
+  - the Kitchen: 500 Use soon/Expired lines, the expired bar, "Finished Tue", Butter's Undo pill, and the no-match line;
+  - + Groceries → the empty list run;
+  - the plain run;
+  - the list with two ticks → Done shopping → the run in dark;
+  - Milk's item page in dark: "500 ml of 1 L", Measures and note opened then Edit, and the More sheet;
+  - Home in light.
+
+**Deploy.** Console only; it redeploys on its own path.

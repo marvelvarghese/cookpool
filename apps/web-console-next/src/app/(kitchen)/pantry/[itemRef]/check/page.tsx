@@ -8,7 +8,7 @@ import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_BUTTON_QUIET } from "@/components/kitchen/kit";
 import { useNewFrameOnly } from "@/components/kitchen/frame-ui";
 import { useGroupRole } from "@/components/kitchen/ledger-data";
 import { useMemberNames } from "@/components/kitchen/people-data";
@@ -40,7 +40,7 @@ function CheckLoader({ itemRef }: { itemRef: ItemRef }) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this item. {item.error?.message ?? ""}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={item.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={item.reload}>
           Try again
         </Button>
       </KCard>
@@ -70,9 +70,9 @@ function PersonalCheck({ itemRef, item, meId }: { itemRef: ItemRef; item: Kitche
 function CheckNotFound() {
   return (
     <KCard className="flex flex-col items-center px-6 py-12 text-center">
-      <h1 className="text-lg font-bold tracking-tight">This item isn&apos;t in a pantry you can see</h1>
+      <h1 className="text-lg font-medium tracking-tight">This item isn&apos;t in a pantry you can see</h1>
       <Button asChild className={cn(K_BUTTON, "mt-5")}>
-        <Link href="/pantry">Your kitchen</Link>
+        <Link href="/pantry">Back to Kitchen</Link>
       </Button>
     </KCard>
   );

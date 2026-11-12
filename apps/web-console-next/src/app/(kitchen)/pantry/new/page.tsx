@@ -497,7 +497,7 @@ function AddItemForm({
             <Input
               id="item-bought"
               type="date"
-              aria-label="Bought on"
+              aria-label="Got on"
               value={form.boughtOn}
               max={today}
               onChange={(e) => update({ boughtOn: e.target.value })}
@@ -507,7 +507,7 @@ function AddItemForm({
             />
           ) : (
             <>
-              <span>Bought {form.boughtOn === today ? "today" : dayMonth(form.boughtOn)}</span>
+              <span>Got {form.boughtOn === today ? "today" : dayMonth(form.boughtOn)}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -540,7 +540,7 @@ function AddItemForm({
     <div className="space-y-4">
       <header className="flex items-center gap-1">
         <BackButton />
-        <h1 className={K_TITLE}>Bought</h1>
+        <h1 className={K_TITLE}>Add groceries</h1>
       </header>
 
       <form onSubmit={submit} noValidate className="max-w-xl space-y-6">

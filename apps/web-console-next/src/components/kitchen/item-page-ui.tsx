@@ -6,9 +6,9 @@ import { CookingPot, SlidersVertical, Timer } from "lucide-react";
 import type { KitchenItem, KitchenStockMove, KitchenUsual } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import type { MemberNames } from "./members";
-import { expiryChip, expiryText, type ItemRef } from "./pantry";
+import type { ItemRef } from "./pantry";
 import { pantryRow } from "./pantry-list";
-import { UseSheet, type UseSheetTarget } from "./use-sheet-ui";
+import { UseSheet, scaledLeftOfBought, type UseSheetTarget } from "./use-sheet-ui";
 import { Face } from "./faces-ui";
 import { useLogUse, useWasteItem } from "./pantry-data";
 import { useBuyAgain } from "./buy-again-data";
@@ -58,14 +58,14 @@ const RING_R = 36;
 
 /**
  * How much is left (RV-15, the board): an 88 px ring in the level's colour
- * with the percent inside, then two lines — "1 L of 2 L" and "₹34 left" —
- * with the use-by after the worth, in its colour, while some is left.
+ * with the percent inside, then two lines — "1 L of 2 L" and "₹34 left".
+ * RV-24: each amount in its own best unit ("500 ml of 2 L", never "1000 ml"),
+ * and no use-by after the worth (the header's chip says it).
  */
 export function LevelRingCard({ item, usual, meId, names }: Pick<ItemPartsCtx, "item" | "usual" | "meId" | "names">) {
   const ring = levelRing(item, { usual, meId, names });
   const lines = ringLines(item);
-  const chip = item.qtyLeftMilli > 0 ? expiryChip(item) : null;
-  const long = chip ? expiryText(item) : null;
+  const left = scaledLeftOfBought(item) ?? lines.left;
   return (
     <section aria-label="How much is left" className={cn(K_CARD, "flex items-center gap-4 p-4")}>
       <span className="relative h-[88px] w-[88px] shrink-0" role="img" aria-label={ring.label}>
@@ -91,15 +91,9 @@ export function LevelRingCard({ item, usual, meId, names }: Pick<ItemPartsCtx, "
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span role="status" className="text-xl font-medium leading-tight tabular-nums">
-          {lines.left}
+          {left}
         </span>
-        {lines.worth || long ? (
-          <span className="text-sm font-normal tabular-nums text-muted-foreground">
-            {lines.worth}
-            {lines.worth && long ? " · " : null}
-            {long && chip ? <span className={chip.tone === "expired" ? "text-cp-expired" : chip.tone === "soon" ? "text-cp-soon" : undefined}>{long}</span> : null}
-          </span>
-        ) : null}
+        {lines.worth ? <span className="text-sm font-normal tabular-nums text-muted-foreground">{lines.worth}</span> : null}
       </span>
     </section>
   );

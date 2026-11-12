@@ -241,7 +241,7 @@ export function askSavedText(draft: Pick<AskDraft, "mode">): string {
 
 /** Why Save was refused, in one line. */
 export function askSettingRefusal(error: { code: string; message: string; reason?: string | undefined }): string {
-  if (error.reason === "not_buyer") return "Only whoever bought it can change who uses it.";
+  if (error.reason === "not_buyer") return "Only whoever added it can change who uses it.";
   if (error.reason === "not_in_group") return "Someone on the list left the group. Check the list and save again.";
   if (error.code === "not_found") return "You can't change this item any more.";
   return error.message;

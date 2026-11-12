@@ -96,7 +96,7 @@ export type BoughtSection = "pantry" | "name" | "amount" | "category" | "paidBy"
  * "Bought" in order (SM-15, the audit's §5): **where it goes first** — it
  * changes the form (a group asks who paid and who pays for waste) — then what,
  * how much and the price, its category, the group's two questions, and when
- * to use it by. When it was bought is a quiet "Bought today · Change" under
+ * to use it by. When it was bought is a quiet "Got today · Change" under
  * the use-by, not a field. In the new frame (`notes`, RC-3) an optional Note
  * sits under all of them.
  */
@@ -142,7 +142,7 @@ export type QuantityParse = { ok: true; text: string; milli: number } | { ok: fa
 
 /** A typed quantity in `unit`, by the engine's `toMilli`. */
 export function parseQuantity(input: string, unit: UnitKey): QuantityParse {
-  if (input.trim() === "") return { ok: false, message: "Enter how much you bought" };
+  if (input.trim() === "") return { ok: false, message: "Enter how much you got" };
   const text = normalizeQuantity(input);
   if (text === null) return { ok: false, message: "Enter a number like 1 or 1.5" };
   try {
@@ -190,7 +190,7 @@ export function previewItemForm(form: ItemForm, ctx: { today: string; currency?:
   const currency = ctx.currency ?? "INR";
 
   const name = form.name.trim().replace(/\s+/g, " ");
-  if (!name) errors.name = "Say what you bought";
+  if (!name) errors.name = "Say what you got";
   else if (name.length > ITEM_NAME_MAX) errors.name = `Keep it under ${ITEM_NAME_MAX} characters`;
 
   if (!form.category) errors.category = "Pick a category";
@@ -202,13 +202,13 @@ export function previewItemForm(form: ItemForm, ctx: { today: string; currency?:
   const priceMessage = moneyInputMessage(money);
   if (priceMessage) errors.price = priceMessage === "Enter the amount" ? "Enter what you paid" : priceMessage;
 
-  if (!validDay(form.boughtOn)) errors.boughtOn = "Pick the day you bought it";
+  if (!validDay(form.boughtOn)) errors.boughtOn = "Pick the day you got it";
   else if (form.boughtOn > ctx.today) errors.boughtOn = "That's in the future";
 
   const expiresOn = form.expiresOn.trim();
   if (expiresOn) {
     if (!validDay(expiresOn)) errors.expiresOn = "Pick a date, or leave it empty";
-    else if (validDay(form.boughtOn) && expiresOn < form.boughtOn) errors.expiresOn = "Use-by can't be before the day you bought it";
+    else if (validDay(form.boughtOn) && expiresOn < form.boughtOn) errors.expiresOn = "Use-by can't be before the day you got it";
   }
 
   const group = form.pantry !== PERSONAL_PANTRY;

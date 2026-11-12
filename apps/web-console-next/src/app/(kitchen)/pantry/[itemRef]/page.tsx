@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON, K_CARD, K_ROWS, K_SECTION } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION } from "@/components/kitchen/kit";
 import { SeeAllButton, pillClass } from "@/components/kitchen/new-home-parts-ui";
 import { firstThree } from "@/components/kitchen/new-home-look";
 import { BackButton } from "@/components/kitchen/back-ui";
@@ -40,6 +40,7 @@ import { WasteConfirm } from "@/components/kitchen/item-actions-ui";
 import { SwipeRow } from "@/components/kitchen/row-gestures-ui";
 import { MAIN_BUTTON } from "@/components/kitchen/faces-ui";
 import { CountedAs } from "@/components/kitchen/measures-ui";
+import { measureRow, measuresOf } from "@/components/kitchen/measures";
 import { ItemNoteCard } from "@/components/kitchen/item-note-ui";
 import { canEditNote, noteOf } from "@/components/kitchen/item-note";
 import { useSetItemNote } from "@/components/kitchen/item-note-data";
@@ -103,7 +104,7 @@ function ItemLoader({ itemRef }: { itemRef: ItemRef }) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this item. {item.error?.message ?? ""}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={item.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={item.reload}>
           Try again
         </Button>
       </KCard>
@@ -248,10 +249,9 @@ function NewItemView(ctx: ItemCtx) {
         <div className="min-w-0 space-y-[22px]">
           {live && roleKnown && !canWrite ? <p className="px-1 text-sm font-normal text-muted-foreground">You only view {pantryLabel(item.pantry)}.</p> : null}
           {roleKnown ? <ItemActionsRow {...parts} canWrite={canWrite} /> : null}
-          <MeasuresAndNote>
-            {item.priceMinor > 0 ? <p className="px-1 text-sm font-normal tabular-nums text-muted-foreground">{costPerText(item)}</p> : null}
+          <MeasuresAndNote ctx={ctx}>
             <NoteCard {...ctx} />
-            {item.state === "active" ? <CountedAs item={item} canWrite={roleKnown && canWrite} /> : null}
+            {item.state === "active" ? <CountedAs item={item} canWrite={roleKnown && canWrite} bare /> : null}
           </MeasuresAndNote>
           {roleKnown && canWrite ? <ItemAskSetting item={item} roster={roster} meId={meId} names={names} role={ctx.role} /> : null}
           {personal && item.state === "active" ? <MoveCard {...ctx} /> : null}
@@ -261,10 +261,27 @@ function NewItemView(ctx: ItemCtx) {
   );
 }
 
-/** "Measures and note" (the board): one folded card; opened, the item's note and how it is counted, each editable as before. */
-function MeasuresAndNote({ children }: { children: React.ReactNode }) {
+/** "1 glass = 250 ml", "1 onion ≈ 150 g", "16 slices in a pack": one measure in the board's words. */
+function measureLine(m: Parameters<typeof measureRow>[0], dimension: KitchenItem["dimension"]): string {
+  const row = measureRow(m, dimension);
+  if (dimension === "pack") return `${m.count} ${m.count === 1 ? m.one : m.many} ${row.size.replace(/^\d+ /, "")}`;
+  return `${row.name} ${row.size.startsWith("≈") ? row.size : `= ${row.size}`}`;
+}
+
+/**
+ * "Measures and note" (the board): one folded card. Opened (RV-24), plain
+ * 14/400 lines — what it costs, its measures in one line, its note — and one
+ * Edit link, which opens the note and Counted as, each editable as before.
+ */
+function MeasuresAndNote({ ctx, children }: { ctx: ItemCtx; children: React.ReactNode }) {
+  const { item, meId, role, roleKnown, canWrite } = ctx;
   const [open, setOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
   const id = React.useId();
+  const measures = item.state === "active" ? measuresOf(item).map((m) => measureLine(m, item.dimension)) : [];
+  const note = noteOf(item);
+  const canEdit = roleKnown && ((item.state === "active" && canWrite) || canEditNote(item, { meId, role, canWrite }));
+  const lines = [item.priceMinor > 0 ? costPerText(item) : null, measures.length > 0 ? measures.join(" · ") : null, note].filter((l): l is string => !!l);
   return (
     <section className={cn(K_CARD, "overflow-hidden")}>
       <button
@@ -278,8 +295,26 @@ function MeasuresAndNote({ children }: { children: React.ReactNode }) {
         <ChevronDown className={cn("h-5 w-5 shrink-0 transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <div id={id} className="space-y-4 px-3 pb-3">
-          {children}
+        <div id={id} className="flex flex-col gap-1.5 px-4 pb-3.5">
+          {editing ? (
+            <div className="space-y-4 pb-1">{children}</div>
+          ) : (
+            lines.map((l, i) => (
+              <p key={i} className="break-words text-sm font-normal tabular-nums text-muted-foreground">
+                {l}
+              </p>
+            ))
+          )}
+          {canEdit ? (
+            <button
+              type="button"
+              aria-expanded={editing}
+              onClick={() => setEditing((e) => !e)}
+              className="flex min-h-11 items-center self-start rounded-lg text-sm font-medium text-cp-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {editing ? "Done" : "Edit"}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -509,7 +544,7 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite, fresh = false
       ) : moves.error || !shown ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load the history. {moves.error?.message ?? ""}</p>
-          <Button variant="outline" className={K_BUTTON} onClick={moves.reload}>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={moves.reload}>
             Try again
           </Button>
         </KCard>
@@ -534,7 +569,7 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite, fresh = false
                   <p className={cn(fresh ? "truncate text-base font-medium" : "text-sm font-semibold", row.undone && "text-muted-foreground line-through")}>{keepAmountsTogether(row.what)}</p>
                   <p className={cn("text-[13px] text-muted-foreground", fresh && "truncate font-normal")}>
                     {keepAmountsTogether(row.when)}
-                    {fresh && row.amount ? <span className="tabular-nums">{` · ${row.amount}`}</span> : null}
+                    {fresh && row.amount ? <span className="tabular-nums">{` · ${wholeRupees(row.amount)}`}</span> : null}
                     {row.undone ? (
                       <>
                         {" · "}
@@ -570,14 +605,22 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite, fresh = false
   );
 }
 
+/** The history's money in whole rupees, as the board writes it (RV-24): "₹4.00" → "₹4", "₹62.50" → "₹63". */
+function wholeRupees(text: string): string {
+  const m = /^(.*?)([\d,]+)\.(\d{2})$/.exec(text);
+  if (!m) return text;
+  const whole = Number(m[2]!.replace(/,/g, "")) + (Number(m[3]) >= 50 ? 1 : 0);
+  return `${m[1]}${whole.toLocaleString("en-IN")}`;
+}
+
 // ── Not found, loading ─────────────────────────────────────────────
 
 function ItemNotFound() {
   return (
     <KCard className="flex flex-col items-center px-6 py-12 text-center">
-      <h1 className="text-lg font-bold tracking-tight">This item isn&apos;t in a pantry you can see</h1>
+      <h1 className="text-lg font-medium tracking-tight">This item isn&apos;t in a pantry you can see</h1>
       <Button asChild className={cn(K_BUTTON, "mt-5")}>
-        <Link href="/pantry">Your kitchen</Link>
+        <Link href="/pantry">Back to Kitchen</Link>
       </Button>
     </KCard>
   );

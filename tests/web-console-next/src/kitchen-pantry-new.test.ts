@@ -144,8 +144,8 @@ describe("the chips and their counts (design §1.4)", () => {
     expect(showParams({ kind: "all" }, new URLSearchParams("filter=soon")).toString()).toBe("");
   });
 
-  it("open the shopping run from + Bought (PN-6), and add one item in the chosen pantry from Bought it?", () => {
-    expect(boughtHref()).toBe("/pantry/run");
+  it("open the list's shopping run from + Groceries (RV-24), and add one item in the chosen pantry from the empty pantry's + Groceries", () => {
+    expect(boughtHref()).toBe("/pantry/run?from=list");
     expect(addItemHref({ kind: "all" })).toBe("/pantry/new");
     expect(addItemHref({ kind: "pantry", key: FLAT.orgId })).toBe(`/pantry/new?pantry=${FLAT.orgId}`);
   });
@@ -180,7 +180,7 @@ describe("a row (design §1, §2.3)", () => {
   });
 
   it("colours the level green, amber when running low or use soon, red once expired", () => {
-    expect(LEVEL_COLORS).toEqual({ ok: "#1F7A4D", low: "#D97706", expired: "#B42318" });
+    expect(LEVEL_COLORS).toEqual({ ok: "hsl(var(--primary))", low: "hsl(var(--cp-soon))", expired: "hsl(var(--cp-expired))" });
     expect(row(milk()).level).toBe("ok");
     expect(row(milk({ daysToUseBy: 2 })).level).toBe("low");
     expect(row(milk({ left: "0.15" })).level).toBe("low");

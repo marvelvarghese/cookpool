@@ -124,7 +124,7 @@ describe("the level ring (levelRing)", () => {
   });
 
   it("is green, amber when running low or use soon, red once expired", () => {
-    expect(RING_COLORS).toEqual({ ok: "#1F7A4D", low: "#D97706", expired: "#B42318" });
+    expect(RING_COLORS).toEqual({ ok: "hsl(var(--primary))", low: "hsl(var(--cp-soon))", expired: "hsl(var(--cp-expired))" });
     expect(ringTone(milk())).toBe("ok");
     expect(ringTone(milk({ left: "0.3" }))).toBe("low");
     expect(ringTone(milk({ daysToUseBy: 1 }))).toBe("low");

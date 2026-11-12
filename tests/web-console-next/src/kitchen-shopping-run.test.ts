@@ -41,12 +41,12 @@ const lineOf = (name: string): RunLine => lines.find((l) => l.name === name)!;
 const tick = (picks: RunPicks, ...names: string[]) => names.reduce((p, n) => toggleTick(p, lineOf(n)), picks);
 
 describe("the run's groups", () => {
-  it("are FINISHED, RUNNING LOW and YOU USUALLY BUY, in the server's order inside each, empty ones left out", () => {
-    expect(RUN_GROUPS.map((g) => g.title)).toEqual(["FINISHED", "RUNNING LOW", "YOU USUALLY BUY"]);
+  it("are Finished, Running low and You usually buy, in the server's order inside each, empty ones left out", () => {
+    expect(RUN_GROUPS.map((g) => g.title)).toEqual(["Finished", "Running low", "You usually buy"]);
     expect(groups.map((g) => [g.title, g.lines.map((l) => l.name)])).toEqual([
-      ["FINISHED", ["Bread", "Butter"]],
-      ["RUNNING LOW", ["Atta", "Saffron"]],
-      ["YOU USUALLY BUY", ["Milk", "Eggs"]],
+      ["Finished", ["Bread", "Butter"]],
+      ["Running low", ["Atta", "Saffron"]],
+      ["You usually buy", ["Milk", "Eggs"]],
     ]);
     expect(runGroups({ finished: [], runningLow: [ATTA], usual: [] }, ctx).map((g) => g.id)).toEqual(["running_low"]);
     expect(runGroups(null, ctx)).toEqual([]);
@@ -77,7 +77,7 @@ describe("the run's groups", () => {
 describe("ticking a line", () => {
   it("ticks nothing to start with, and the footer asks for a tick", () => {
     const s = runSummary(lines, {}, { pantries, today: TODAY });
-    expect(s).toMatchObject({ count: 0, label: "Tick what you bought", ready: false, problem: null, request: null });
+    expect(s).toMatchObject({ count: 0, label: "Add to kitchen", ready: false, problem: null, request: null });
   });
 
   it("starts at last time's amount, price and pantry; ticking again unticks", () => {

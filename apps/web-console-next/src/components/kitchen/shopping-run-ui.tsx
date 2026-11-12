@@ -2,14 +2,15 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Check, Lock, Plus, X } from "lucide-react";
+import { Camera, Check, ChevronLeft, ChevronRight, Lock, Plus } from "lucide-react";
 import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useProfile } from "./data";
-import { KCard, K_BUTTON_QUIET, K_ROWS, K_TITLE } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_ROWS, K_SECTION, K_TITLE } from "./kit";
+import { RING } from "./new-home-parts-ui";
 import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { useBack } from "./back-ui";
 import { useMyRoles } from "./people-data";
@@ -32,19 +33,20 @@ import {
 } from "./shopping-run";
 import { RunLineEditor } from "./run-line-editor-ui";
 import { readingText, receiptCard, receiptRun, receiptStartPicks, type ReceiptState } from "./receipt-run";
-import { ReceiptCapture, ReceiptProblem, ReceiptReading, ScanReceiptButton } from "./receipt-scan-ui";
+import { ReceiptCapture, ReceiptProblem, ReceiptReading } from "./receipt-scan-ui";
 import { ReceiptHeading, ReceiptResult } from "./receipt-run-ui";
 import { useReceiptScan } from "./receipt-scan-flow";
 import { RECEIPT_ADJUST_DEFAULT, adjustCard, adjustedSummary, includedAdjustMinor, receiptAdjustments, type ReceiptAdjustChoice } from "./receipt-adjust";
 
 /**
  * The shopping run (cookpool-pantry PN-6, design §6.3, the canvas's
- * BuyAgain), `/pantry/run`: "Shopping run" (RV-19 dropped its helper line:
- * the footer keeps the screen's one), then FINISHED, RUNNING LOW and YOU USUALLY BUY, each line
+ * BuyAgain), `/pantry/run`: "Shopping run · 3" in the list run's look (RV-24:
+ * the back chevron, 17 px section headings, + Add something else as a card,
+ * no "Tick what you bought"), then Finished, Running low and You usually buy, each line
  * "Like last time: 2 L · ₹136 · Flat 4B" until ticked. Ticking (a 44 px
  * tick) opens the amount's − / +, the price (last time's for that amount,
  * editable) and the pantry (another you add to). Something new adds one
- * item. The footer — "Paid by you · each goes to its own pantry" and
+ * item (+ Add something else). The footer — "Paid by you · each goes to its own pantry" and
  * **Add 3 · ₹449** — writes them in one purchase, with one Undo. Nothing is
  * ticked to start with.
  *
@@ -153,21 +155,18 @@ export function ShoppingRun() {
 
   const loading = restock.loading || (!restock.data && !restock.error);
   return (
-    <div className="space-y-3.5 pb-4 min-[900px]:max-w-[640px]">
-      <header className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={close}
-          aria-label="Close"
-          className="-ml-2.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-foreground/80 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X className="h-[22px] w-[22px]" strokeWidth={2.2} aria-hidden />
+    <div className="space-y-5 pb-4 min-[900px]:max-w-[640px]">
+      <header className="-ml-2 flex items-center gap-1.5">
+        <button type="button" onClick={close} aria-label="Back" className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-foreground", RING)}>
+          <ChevronLeft className="h-[22px] w-[22px]" strokeWidth={2.2} aria-hidden />
         </button>
         {showsReceipt ? (
           <ReceiptHeading />
         ) : (
-          // One helper line on the screen (RV-19): the footer's; the main button already says "Tick what you bought".
-          <h1 className={cn(K_TITLE, "min-w-0 flex-1")}>Shopping run</h1>
+          // One helper line on the screen (RV-19): the footer's. The count is what is ticked, as on the list run.
+          <h1 className={cn(K_TITLE, "min-w-0 flex-1")}>
+            Shopping run {summary.count > 0 ? <span className="font-normal text-muted-foreground">· {summary.count}</span> : null}
+          </h1>
         )}
       </header>
 
@@ -185,13 +184,29 @@ export function ShoppingRun() {
         />
       ) : (
         <>
-          {scan.shows ? <ScanReceiptButton onClick={scan.open} /> : null}
+          {scan.shows ? (
+            // The list run's Scan the receipt card (RV-24: the same look as RvShoppingRun).
+            <button
+              type="button"
+              onClick={scan.open}
+              className={cn("flex min-h-[76px] w-full items-center gap-3 rounded-cp-card bg-card px-3.5 py-3 text-left text-foreground shadow-cp-card", RING)}
+            >
+              <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cp-accent-tint text-cp-accent-text">
+                <Camera className="h-6 w-6" strokeWidth={2} />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-base font-medium">Scan the receipt</span>
+                <span className="text-[13px] font-normal text-muted-foreground">Fills prices and adds anything else you got</span>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2.2} aria-hidden />
+            </button>
+          ) : null}
           {loading ? (
             <div className="space-y-3" aria-hidden>
               <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-[136px] w-full rounded-[20px]" />
+              <Skeleton className="h-[136px] w-full rounded-cp-card" />
               <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-[136px] w-full rounded-[20px]" />
+              <Skeleton className="h-[136px] w-full rounded-cp-card" />
             </div>
           ) : restock.error ? (
             <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
@@ -206,8 +221,8 @@ export function ShoppingRun() {
             </KCard>
           ) : (
             groups.map((g) => (
-              <section key={g.id} aria-labelledby={`run-${g.id}`} className="flex flex-col gap-1.5">
-                <h2 id={`run-${g.id}`} className="px-1 text-[13px] font-medium text-muted-foreground">
+              <section key={g.id} aria-labelledby={`run-${g.id}`} className="flex flex-col gap-2">
+                <h2 id={`run-${g.id}`} className={K_SECTION}>
                   {g.title}
                 </h2>
                 <ul className={K_ROWS}>
@@ -240,10 +255,10 @@ export function ShoppingRun() {
 
       <Link
         href="/pantry/new"
-        className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-cp-accent-tint text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn("flex min-h-[52px] items-center justify-center gap-1.5 rounded-cp-card bg-card text-[15px] font-medium text-cp-accent-text shadow-cp-card", RING)}
       >
-        <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
-        Something new
+        <Plus className="h-4 w-4" strokeWidth={2.4} aria-hidden />
+        Add something else
       </Link>
 
       {/* The one main button, in thumb reach (SM-15), above the tab bar. */}

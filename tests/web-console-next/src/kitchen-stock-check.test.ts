@@ -259,7 +259,7 @@ describe("Fix", () => {
     });
     expect(checkUndoRefusal({ reason: "already_reversed" })).toBeNull();
     expect(checkRefusal({ reason: "unchanged", message: "x" })).toMatch(/someone fixed it meanwhile/);
-    expect(checkRefusal({ reason: "more_than_bought", message: "x" })).toBe("That's more than was bought.");
+    expect(checkRefusal({ reason: "more_than_bought", message: "x" })).toBe("That's more than was added.");
     expect(checkRefusal({ message: "Boom" })).toBe("Boom");
   });
 });

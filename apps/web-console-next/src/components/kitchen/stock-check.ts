@@ -428,7 +428,7 @@ export function checkRefusal(error: { reason?: string | undefined; message: stri
     case "unchanged":
       return "That's what Cookpool has now — someone fixed it meanwhile.";
     case "more_than_bought":
-      return "That's more than was bought.";
+      return "That's more than was added.";
     case "stale":
       return "It changed while you were checking. Look again and fix it.";
     case "insufficient_stock":

@@ -36,6 +36,7 @@ import {
 import { itemLadder, type ItemLadder, type SetUsual } from "./pantry-set";
 import { consumersText } from "./item-use";
 import type { MemberNames } from "./members";
+import { LIST_RUN_HREF } from "./shopping-list";
 
 type ListItem = KitchenItem & { canUse?: boolean };
 
@@ -174,8 +175,8 @@ export interface RowTag {
 
 export type LevelTone = "ok" | "low" | "expired";
 
-/** The bar's colours (design §2.3): herb green, amber when running low or use soon, red once expired. */
-export const LEVEL_COLORS: Readonly<Record<LevelTone, string>> = { ok: "#1F7A4D", low: "#D97706", expired: "#B42318" };
+/** The bar's colours (design §2.3), as the theme's tokens (RV-24): the accent, use soon when running low, expired once expired. */
+export const LEVEL_COLORS: Readonly<Record<LevelTone, string>> = { ok: "hsl(var(--primary))", low: "hsl(var(--cp-soon))", expired: "hsl(var(--cp-expired))" };
 
 export function levelTone(status: ItemStatus): LevelTone {
   if (status.expired) return "expired";
@@ -421,14 +422,16 @@ export function quickUseFieldHref(isNewFrame: boolean): string {
 }
 
 /**
- * + Bought (design §1.1): the shopping run (cookpool-pantry PN-6), every
- * pantry at once — its Something new adds one item.
+ * + Groceries (design §1.1, RV-24): the shopping run from the list
+ * (RvShoppingRun), even with nothing ticked — its Scan the receipt and
+ * + Add something else are the way in. The plain run (`/pantry/run`, what
+ * was finished or running low) stays for its own links.
  */
 export function boughtHref(): string {
-  return "/pantry/run";
+  return LIST_RUN_HREF;
 }
 
-/** "Bought it?" under a search or a pantry that shows nothing: add one item (in the chosen pantry when one is). */
+/** The quiet + Groceries under a pantry that shows nothing: add one item there. */
 export function addItemHref(show: PantryShow): string {
   return show.kind === "pantry" ? `/pantry/new?pantry=${encodeURIComponent(show.key)}` : "/pantry/new";
 }

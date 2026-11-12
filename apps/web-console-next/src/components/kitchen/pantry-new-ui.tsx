@@ -40,11 +40,11 @@ type Row = PantryRow & { item: ReachableItem };
 
 /**
  * The Pantry in the new frame (cookpool-pantry PN-5, design §1, §3, the
- * canvas's PantryNew). Top to bottom: "Pantry" with + Bought; the search,
+ * canvas's PantryNew). Top to bottom: "Pantry" with + Groceries; the search,
  * on phones too (`?q=` fills it, `?focus=1` focuses it);
  * the Now strip; the chips with their counts (`?filter=`, `?pantry=`); the
- * use-soon card; the sections; Finished this week (PN-6: Bought again, like
- * last time); and Always have. + Bought opens the shopping run (PN-6).
+ * use-soon card; the sections; Finished this week (Add to list, then Undo);
+ * and Always have. + Groceries opens the shopping run from the list (RV-24).
  *
  * Since RV-10 (the canvas's RvKitchen "Tick to log") every row is a tick
  * row: the name with its last use, the usual amount in grey with its unit,
@@ -183,6 +183,12 @@ export function NewPantry() {
         onAdd={(f: FinishedRow) => {
           const p = staplePantryOf(staples.data, pantryKey(f.line.pantry));
           if (p) void stapleActions.addToList(p, f.name);
+        }}
+        onUndo={(f: FinishedRow) => {
+          const p = staplePantryOf(staples.data, pantryKey(f.line.pantry));
+          const key = nameKeyOf(f.name);
+          const item = p?.items.find((i) => nameKeyOf(i.name) === key && !i.id.startsWith("pending:"));
+          return p && item ? () => void stapleActions.removeFromList(p, item) : null;
         }}
       />
     ) : null;
@@ -414,14 +420,22 @@ function NothingShown({ show, query, where = null }: { show: PantryShow; query: 
       : show.kind === "low"
         ? "Nothing running low"
         : "Nothing here yet";
+  // The board's no match: one centred muted line. An empty pantry keeps a quiet way to fill it.
+  if (q) {
+    return (
+      <p role="status" className="px-1 py-[18px] text-center text-[15px] font-normal text-muted-foreground">
+        {text}
+      </p>
+    );
+  }
   return (
     <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
       <p className="min-w-0 text-[15px] font-normal text-muted-foreground">{text}</p>
-      {q || show.kind === "pantry" ? (
-        <Button asChild variant="outline" className={K_BUTTON_QUIET}>
+      {show.kind === "pantry" ? (
+        <Button asChild variant="ghost" className={K_BUTTON_QUIET}>
           <Link href={addItemHref(show)}>
             <Plus aria-hidden />
-            Bought it?
+            Groceries
           </Link>
         </Button>
       ) : null}
@@ -437,7 +451,7 @@ function EmptyPantries() {
       <Button asChild className={cn(K_BUTTON, "mt-4")}>
         <Link href="/pantry/new">
           <Plus aria-hidden />
-          Add what you bought
+          Add groceries
         </Link>
       </Button>
     </KCard>

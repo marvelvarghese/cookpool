@@ -193,7 +193,7 @@ export function ShoppingListPage() {
       )}
 
       {bar && !q.trim() ? (
-        <div data-toast-above="" className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 min-[900px]:static min-[900px]:max-w-sm">
+        <div data-toast-above="" className="sticky bottom-[max(24px,var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem)))] z-30 min-[900px]:static min-[900px]:max-w-sm">
           <Link
             href={LIST_RUN_HREF}
             className={cn("flex min-h-[60px] w-full items-center gap-3 rounded-[18px] bg-primary px-[18px] text-primary-foreground shadow-cp-nav min-[900px]:shadow-none", RING)}
@@ -228,7 +228,7 @@ function NeedSection({
 }) {
   return (
     <section aria-label={`${group.title} shopping list`} className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-2 px-1">
+      <div className="flex items-baseline justify-between gap-2">
         <h2 className={K_SECTION}>
           {group.title} {group.sub ? <span className="font-normal text-muted-foreground">{group.sub}</span> : null}
         </h2>
@@ -255,6 +255,7 @@ function NeedSection({
               picked={r.got}
               onTick={() => onTick(r)}
               tickLabel={gotLabel}
+              listColumns
               chipsEnd={
                 r.source === "hand" ? (
                   <button

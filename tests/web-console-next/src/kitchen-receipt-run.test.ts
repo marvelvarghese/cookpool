@@ -370,9 +370,9 @@ describe("where Scan a receipt shows", () => {
     expect(scanRequested(null)).toBe(false);
   });
 
-  it("with newFrame false nothing changes: no scan, the run sends to the Pantry, + Bought as before", () => {
+  it("with newFrame false nothing changes: no scan, the run sends to the Pantry, + Groceries goes to the run (RV-24: the list's)", () => {
     expect(receiptScanShows({ isNewFrame: false, status: status(), switchOn: true })).toBe(false);
     expect(frameRedirect("/pantry/run", false)).toBe("/pantry");
-    expect(boughtHref()).toBe("/pantry/run");
+    expect(boughtHref()).toBe("/pantry/run?from=list");
   });
 });
