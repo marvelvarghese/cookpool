@@ -43,19 +43,18 @@ const PILL: Record<ExpiryChip["tone"], string> = {
 /** The use-by chip: amber soon, red expired, grey later. */
 export function UseByPill({ chip, className }: { chip: ExpiryChip; className?: string }) {
   return (
-    <span className={cn("inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold", PILL[chip.tone], className)}>
+    <span className={cn("inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", PILL[chip.tone], className)}>
       {chip.tone === "expired" || chip.label.startsWith("Use by") ? null : <span className="sr-only">Use by: </span>}
       {chip.label}
     </span>
   );
 }
 
-// The bar's own fills: amber and grey a shade lighter than the chip's text, so
-// the bar reads as a bar (the kitchen palette is light-only).
+// The bar's own fills (RV-3: tokens, so they follow dark mode): amber soon, grey once expired.
 const BAR: Record<BarTone, string> = {
   ok: "bg-primary",
-  soon: "bg-[#D99A00]",
-  expired: "bg-[#B8BFB9]",
+  soon: "bg-cp-soon",
+  expired: "bg-muted-foreground/50",
 };
 
 /** How much is left, as a bar. Decorative: the text beside it says the amount. */

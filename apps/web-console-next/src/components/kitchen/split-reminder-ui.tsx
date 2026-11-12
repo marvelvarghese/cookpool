@@ -2,15 +2,13 @@
 
 import * as React from "react";
 import Link from "./link";
-import { ReceiptText } from "lucide-react";
+import { ReceiptText, X } from "lucide-react";
 import type { SplitReminderInboxItem } from "@saas/contracts/kitchen";
-import { Button } from "@/components/ui/button";
 import { dishHref } from "./dish";
 import { useDismissSplitReminder } from "./cooked-data";
 import { reminderSplitHref, reminderSub, reminderTitle } from "./cooked";
+import { pillClass } from "./new-home-parts-ui";
 
-/** A row's button: 44px tall (Home's To do). */
-const ROW_BUTTON = "h-11 rounded-[14px] px-4 text-[15px] font-extrabold";
 
 /**
  * Home's split reminders (cookpool-community CM-9, CM-8's
@@ -25,31 +23,31 @@ export function SplitReminderCards({ items }: { items: readonly SplitReminderInb
   return (
     <ul aria-label="Split with a group" className="space-y-2">
       {items.map((r) => (
-        <li key={r.dish.id} data-split-reminder={r.dish.id} className="space-y-2.5 rounded-[22px] border bg-card px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E6EEF8] text-[#1D4ED8]">
-              <ReceiptText className="h-5 w-5" strokeWidth={2} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <Link
-                href={dishHref(r.dish.id)}
-                className="block break-words rounded text-base font-extrabold leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {reminderTitle(r)}
-              </Link>
-              <p className="truncate text-[13px] text-muted-foreground tabular-nums">{reminderSub(r)}</p>
-            </div>
+        <li key={r.dish.id} data-split-reminder={r.dish.id} className="flex min-h-16 items-center gap-3 rounded-cp-card bg-card py-2.5 pl-3.5 pr-2 shadow-cp-card">
+          <span aria-hidden className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[14px] bg-cp-owed-tint text-cp-owed">
+            <ReceiptText className="h-5 w-5" strokeWidth={2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <Link
+              href={dishHref(r.dish.id)}
+              className="block truncate rounded text-base font-medium leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {reminderTitle(r)}
+            </Link>
+            <p className="truncate text-[13px] font-normal text-muted-foreground tabular-nums">{reminderSub(r)}</p>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" className={ROW_BUTTON} onClick={() => dismiss(r)} aria-label={`Dismiss: ${reminderTitle(r)}`}>
-              Dismiss
-            </Button>
-            <Button asChild className={ROW_BUTTON}>
-              <Link href={reminderSplitHref(r)} aria-label={`Split ${r.dish.name} with ${r.suggest.groupName}`}>
-                Split
-              </Link>
-            </Button>
-          </div>
+          {/* One button per row (RV-3): Split; Dismiss is the quiet × after it, gone at once with Undo. */}
+          <Link href={reminderSplitHref(r)} aria-label={`Split ${r.dish.name} with ${r.suggest.groupName}`} className={pillClass("main")}>
+            Split
+          </Link>
+          <button
+            type="button"
+            onClick={() => dismiss(r)}
+            aria-label={`Dismiss: ${reminderTitle(r)}`}
+            className="grid h-11 w-9 shrink-0 place-items-center rounded-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="h-[18px] w-[18px]" aria-hidden />
+          </button>
         </li>
       ))}
     </ul>

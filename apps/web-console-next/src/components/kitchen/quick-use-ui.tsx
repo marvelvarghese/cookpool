@@ -31,7 +31,7 @@ const USUAL_CHIPS = 6;
  * with the faces of who it is for when that is not just you — and logs it
  * again at once, with the Undo toast. Nothing shows until you have usuals.
  */
-export function QuickUse({ meId }: { meId: string | null }) {
+export function QuickUse({ meId, fresh = false }: { meId: string | null; fresh?: boolean }) {
   const usuals = useUsuals();
   const names = useMemberNames();
   const logUse = useLogUse();
@@ -65,7 +65,9 @@ export function QuickUse({ meId }: { meId: string | null }) {
     <Link
       href={quickUseFieldHref(isNew)}
       className={cn(
-        "flex h-12 w-full items-center gap-2.5 rounded-2xl border border-input bg-card px-4 text-base text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        fresh
+          ? "flex min-h-[54px] w-full items-center gap-2.5 rounded-[18px] bg-card px-4 text-base font-normal text-muted-foreground shadow-cp-card transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "flex h-12 w-full items-center gap-2.5 rounded-2xl border border-input bg-card px-4 text-base text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         sayShows && isNew && "pr-14",
       )}
     >
@@ -75,7 +77,13 @@ export function QuickUse({ meId }: { meId: string | null }) {
   );
   return (
     <section aria-label="Quick use" className="space-y-2">
-      {isNew ? (
+      {fresh ? (
+        // The revamped Home (RV-3, the canvas's HomeRevamp): the field alone; + Bought is the Pantry's.
+        <div className="relative">
+          {field}
+          {sayShows ? <SayItSparkle onOpen={() => setSayOpen(true)} className="absolute right-1 top-[5px]" /> : null}
+        </div>
+      ) : isNew ? (
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
             {field}
@@ -122,16 +130,18 @@ export function QuickUse({ meId }: { meId: string | null }) {
                   aria-disabled={!row.item ? true : undefined}
                   onClick={() => again(row)}
                   className={cn(
-                    "flex h-11 items-center gap-2 whitespace-nowrap rounded-full border bg-card pl-4 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    fresh
+                      ? "flex h-11 items-center gap-2 whitespace-nowrap rounded-[14px] bg-cp-accent-tint pl-4 text-sm font-medium text-cp-accent-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      : "flex h-11 items-center gap-2 whitespace-nowrap rounded-full border bg-card pl-4 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     others ? "pr-1.5" : "pr-4",
-                    row.item ? "hover:bg-accent" : "cursor-wait",
+                    row.item ? (fresh ? "hover:bg-cp-accent-tint/80" : "hover:bg-accent") : "cursor-wait",
                   )}
                 >
                   {row.title}
                   {others ? (
                     <span aria-hidden className="flex -space-x-1">
                       {row.consumers.slice(0, 3).map((id) => (
-                        <Face key={id} subjectId={id} meId={meId} names={names} className="h-8 w-8 text-[10px] ring-2 ring-card" />
+                        <Face key={id} subjectId={id} meId={meId} names={names} className={cn("h-8 w-8 text-[10px] ring-2", fresh ? "font-medium ring-cp-accent-tint" : "ring-card")} />
                       ))}
                     </span>
                   ) : null}

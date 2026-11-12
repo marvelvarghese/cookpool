@@ -140,3 +140,64 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - Dark: Gold main buttons, tint pills and a pink owe.
 - Today's frame (`cookpool-prod.localhost`): the group page is today's, and Groups has its new rows.
 - The resource log listed only the local host.
+
+### RV1 — Home, Pantry and Item (RV-3)
+
+**Built** (`apps/web-console-next`, new frame only unless said; no routes, no migrations, no server change).
+
+- **Home** (`new-home-ui.tsx`, new `new-home-parts-ui.tsx`, new `new-home-look.ts`), in the board's order:
+  - Your avatar (opens You), "Hi, Rahul" at 26 px Medium, and the **balance pill**: `+₹62.50` on `cp-owed-tint` or `−₹25.00` on `cp-owe-tint`, named "You get back ₹62.50", opening Money. It is hidden while settled up, in no group, or before it loads (`balancePill`). `homeSections` is unchanged: the pill is part of the greeting, not a money card.
+  - **What did you use?** is a 54 px card (`QuickUse fresh`). The usual chips stay, as tint pills. The + Bought beside it is gone from Home (it stays in the Pantry's header).
+  - **The resume strip** (`ResumeStrip`): the open cooking session's name, "12 min · 3 of 7 in" (`resumeMeta`) and Resume, on `cp-cook-bg` with a `cp-cook` tile. The floating phone bar stays off `/home` (`homeShowsResume`, one line in `session-bar.tsx`).
+  - **Needs you · N** (`HomeTodoList fresh` → `FreshTodoList` in `inbox-ui.tsx`):
+    - The asks and split reminders come first, then one borderless card of rows, three, then See all at the foot.
+    - A dish row has one button, **I had some**, which opens the 0–2 chips under it. Picking one claims at once and closes the chips; the Undo toast is unchanged.
+    - Pay X: Paid on the accent, then the method chips. Use soon: the amount pill. Finalize/Set/Open are pills too.
+    - Today's frame keeps its list exactly (`TodayTodoList`); the look is picked through a `RowLook` context.
+  - **Cook now** (`HomeCookNow`, reading `useCookNow`): three 148 px cards, each a 76 px tile, the name, and the tag **Have all** or **Need yogurt** / **Need 2** (`cookNowTag`). In dark the tile takes `cp-line`. **All** opens Cook.
+  - **Your groups cooked** (renamed from "From your groups"): one row per dish — the face, the dish, "Anu · you had 1 · ₹31.20 each" (`groupsCookedMeta`) — opening the dish. A 44 px bookmark Saves the recipe it was cooked from, when it's yours to save (RC-8's `useSaveCopy`). Three, then See all.
+  - Inbox cards: `ask-card-ui.tsx` and `split-reminder-ui.tsx` use tokens and pills. The split reminder is one row: Split, plus a quiet × that dismisses (with Undo).
+- **Pantry** (`pantry-new-ui.tsx`, `pantry-row-ui.tsx`, new `pantry-look.ts`, plus `now-strip-ui.tsx`, `finished-ui.tsx`, `pantry-ui.tsx` tokens):
+  - "Pantry" at 26 px, + Bought on the accent, and the scan camera on the tint.
+  - Search is a shadowed card, "Find an item". Log several is a tint pill (the accent while on).
+  - The chips are on the card, or the accent when chosen.
+  - **Use soon**, the board's strip: three tiles, past its date first, then the soonest (`useSoonTiles`). Each tile is the name plus "Expired" in red, or "Today"/"Tomorrow"/"Sat"; it opens the item. **Cook** beside the heading opens Cook (what the old amber card linked to).
+  - The sections are 17 px headings with "· 5", still folding. Each shows **three, then See all N** (`sectionRows`), and all of them while searching or when `?open=` names a row further down.
+  - Rows: Medium names, a 4 px bar (muted, amber, red), and one tint pill ("1 glass", **Use**). The Ask button is on the ink; Cancel is on the use-soon tint.
+- **Item** (`app/(kitchen)/pantry/[itemRef]/page.tsx` `NewItemView`, `item-page-ui.tsx`):
+  - Back, the name at 28 px Medium, and one muted line ("Flat 4B · Used up") with the ask pill.
+  - The ring card is borderless; its ring is ink, amber or red through `stroke-*` tokens.
+  - The use card keeps ✓ Use and **More**. The run-out line is plain ("… · rate"), no blue card.
+  - Who had it shows 48 px faces without cards. **History** is three, then See all, with Undo as a tint pill.
+  - The actions are shadowed cards. **Measures and note** is one folded card holding the note and Counted as.
+
+**Copy changed** (none of it is pinned in tests; no existing test changed):
+- Home: "To do" → "Needs you · N". "From your groups" → "Your groups cooked". Cook now's "See all" → "All", and its "Have all · for 3" / "Missing 1 · yogurt" → "Have all" / "Need yogurt". The claim chips sit behind "I had some". Split reminder Dismiss → a × (same label).
+- Pantry: the placeholder "Find in your pantries" → "Find an item". "Use…" → "Use". The Now strip's "One tap logs it" is dropped. The use-soon card "3 things to use soon · … · Cook with them" → the Use soon strip with Cook.
+- Item: "More…" → "More". The ring's "left" under the percent is dropped. "Measures and note" is new.
+
+**Departures.**
+- The Pantry's sections stay **by kind** (Dairy, Veg…), as PN-5 built them, not by pantry as the board draws them; the pantry chips still filter by pantry.
+- The Now strip, Log several, Say it, Finished this week and Always have are kept. The board leaves them out, but the brief keeps every behaviour.
+- The Needs you claim chips keep 0 (0, ½, 1, 1½, 2: 0 takes a claim back). The board draws four.
+- The balance pill shows the exact amount (`₹62.50`), not the board's rounded `₹62`.
+- `session-bar.tsx` (not on the brief's list) gained one line, so the phone bar stays off Home, which now shows the strip itself.
+- Shared parts the pages render but other tasks own keep their old look: `AmountPicker`, `UseSheet`, `SetRow`, `ask-ui`, `item-note-ui`, `measures-ui`, `AlwaysHaveCard`, `InstallCard`, `SayIt*`, `BackButton`.
+- Today's-frame branches in `inbox-ui.tsx`, `pantry-ui.tsx` and the item page's `TodayItemView` still use `font-bold`/`font-semibold`. RV-2's cap renders them at 500.
+- The Cook now tile's dark colours use `[@media(prefers-color-scheme:dark)]`, not the `.cookpool-new` gate. That is safe because the strip renders only in the new frame.
+
+**Tests.**
+- `tests/web-console-next`: 115 suites, 2,261 tests, all passing. New: `kitchen-revamp-home-pantry.test.ts` (11): three then See all, a section kept whole, the balance pill, the resume line and `/home`, Cook now's tag, Your groups cooked's line, and the Use soon strip's order, facts and filters.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 43 pages served as files, `/home` and `/pantry` `○`, `/pantry/[itemRef]` `●`.
+
+**Browser check** (390 × 844, light and dark). The setup was `next dev` on :4982 behind an uncommitted in-memory mock on `cookpool-stage.localhost:4983`.
+- Home showed the pill, the strip, Needs you · 3, Cook now and Your groups cooked (See all 4, Save).
+  - I had some opened the chips. Picking 1 sent `PUT …/dishes/dsh_fried…/claims/me {"portionsHalf":2}` with the Undo toast, and the row left.
+  - Paid opened UPI · Cash · Bank.
+- On the Pantry, the Use soon strip read Greek yogurt Expired · Paneer Tomorrow · Tomatoes Sun.
+  - Dairy · 5 showed three rows, and See all showed five.
+  - The row's 1 glass sent `POST …/items/itm_milk…/uses` with Undo.
+- The item page (Milk) showed the ring, the use card, Who had it, History (See all 5), the actions and Measures and note (opens).
+- Today's frame (`cookpool-prod.localhost`) still shows the old Home ("You get back", To do with inline chips, Recent).
+- Every resource came from the local host.

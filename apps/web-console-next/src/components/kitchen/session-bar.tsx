@@ -7,6 +7,7 @@ import { useProfile } from "./data";
 import { useMinWidth } from "./use-min-width";
 import { SessionBarCard, useNow } from "./cook-session-ui";
 import { opensKeyboard, sessionBarShows, sessionBarView } from "./cook-session";
+import { homeShowsResume } from "./new-home-look";
 
 /**
  * The cooking session's bar (cookpool-recipes RC-6, design §4.4): while a
@@ -29,7 +30,8 @@ export function SessionBar({ placement = "phone" }: { placement?: "phone" | "sid
   const view = sessionBarView(session, now);
   if (!view) return null;
   if (placement === "sidebar") return <SessionBarCard view={view} placement="sidebar" />;
-  if (wide || typing) return null;
+  // Home shows the session as its own resume strip (RV-3), so the phone bar stays off it.
+  if (wide || typing || homeShowsResume(pathname)) return null;
   return (
     <>
       <SessionBarCard view={view} placement="phone" />
