@@ -75,16 +75,16 @@ export function PortionStepper({
   disabled?: boolean;
 }) {
   const btn =
-    "grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+    "grid h-11 w-11 shrink-0 place-items-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <div role="group" aria-label={`Portions for ${who}`} className="flex shrink-0 items-center gap-1">
-      <RepeatButton className={cn(btn, "border-input bg-card text-foreground hover:bg-accent")} aria-label={`Half a portion less for ${who}`} disabled={disabled || value <= 0} onStep={() => onStep(-1)}>
+      <RepeatButton className={cn(btn, "bg-muted text-foreground hover:bg-accent")} aria-label={`Half a portion less for ${who}`} disabled={disabled || value <= 0} onStep={() => onStep(-1)}>
         <Minus className="h-4 w-4" aria-hidden />
       </RepeatButton>
-      <span className="min-w-[32px] text-center text-[17px] font-extrabold tabular-nums" aria-live="polite">
+      <span className="min-w-[32px] text-center text-[17px] font-medium tabular-nums" aria-live="polite">
         {halfText(value)}
       </span>
-      <RepeatButton className={cn(btn, "border-primary bg-accent text-primary hover:bg-cp-herb-tint/70")} aria-label={`Half a portion more for ${who}`} disabled={disabled || value >= max} onStep={() => onStep(1)}>
+      <RepeatButton className={cn(btn, "bg-cp-accent-tint text-cp-accent-text hover:bg-cp-accent-tint/80")} aria-label={`Half a portion more for ${who}`} disabled={disabled || value >= max} onStep={() => onStep(1)}>
         <Plus className="h-4 w-4" aria-hidden />
       </RepeatButton>
     </div>
@@ -108,8 +108,8 @@ export function WhoHadSomeList({
 }) {
   const headingId = React.useId();
   return (
-    <section aria-labelledby={headingId} className="overflow-hidden rounded-[22px] border bg-card">
-      <h2 id={headingId} className="px-4 pb-1.5 pt-3 text-base font-extrabold">
+    <section aria-labelledby={headingId} className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
+      <h2 id={headingId} className="px-4 pb-1.5 pt-3 text-base font-medium">
         Who had some?
       </h2>
     <ul className="divide-y border-t">
@@ -119,20 +119,20 @@ export function WhoHadSomeList({
           <li key={r.subjectId} className="flex min-h-16 items-center gap-3 py-2.5 pl-4 pr-3">
             <Face subjectId={r.subjectId} meId={meId} names={names} className="h-11 w-11" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-extrabold">
+              <p className="truncate text-base font-medium">
                 {r.label}
                 {r.isCook ? <span className="font-medium text-muted-foreground"> · cook</span> : null}
               </p>
               {r.by || r.note ? (
                 <p className="truncate text-[13px] text-muted-foreground">
-                  {r.by ? <span className="font-bold text-[#6B4FBB]">{r.by}</span> : null}
+                  {r.by ? <span className="font-medium text-cp-purple">{r.by}</span> : null}
                   {r.by && r.note ? " · " : null}
                   {r.note}
                 </p>
               ) : null}
             </div>
             {stepper ?? (
-              <span className="min-w-[34px] shrink-0 text-center text-[15px] font-extrabold tabular-nums">
+              <span className="min-w-[34px] shrink-0 text-center text-[15px] font-medium tabular-nums">
                 {r.exactMinor !== null ? "—" : halfText(r.half)}
                 <span className="sr-only"> {r.exactMinor !== null ? "a fixed amount" : r.half > 0 && r.half <= 2 ? "portion" : "portions"}</span>
               </span>
@@ -159,7 +159,7 @@ function FlowRows({ lines, currency }: { lines: readonly FlowLine[]; currency: s
       {lines.map((l) => (
         <li key={l.key} className="flex justify-between gap-3 text-sm">
           <span className="min-w-0">{l.text}</span>
-          <Money minor={l.amountMinor} currency={currency} className={cn("shrink-0 font-bold", FLOW_TONES[l.tone])} />
+          <Money minor={l.amountMinor} currency={currency} className={cn("shrink-0 font-medium", FLOW_TONES[l.tone])} />
         </li>
       ))}
     </ul>
@@ -169,7 +169,7 @@ function FlowRows({ lines, currency }: { lines: readonly FlowLine[]; currency: s
 function FlowPart({ title, lines, empty, currency }: { title: string; lines: readonly FlowLine[]; empty: string | null; currency: string }) {
   return (
     <div className="space-y-1">
-      <h3 className="text-[13px] font-extrabold text-muted-foreground">{title}</h3>
+      <h3 className="text-[13px] font-medium text-muted-foreground">{title}</h3>
       {lines.length > 0 ? <FlowRows lines={lines} currency={currency} /> : <p className="text-sm text-muted-foreground">{empty}</p>}
     </div>
   );
@@ -180,7 +180,7 @@ export function MoneyLines({ summary, className }: { summary: readonly MoneySumm
   return (
     <div className={cn("space-y-0.5", className)}>
       {summary.map((l) => (
-        <p key={l.key} className={cn("text-[15px] font-bold leading-snug tabular-nums", FLOW_TONES[l.tone])}>
+        <p key={l.key} className={cn("text-[15px] font-medium leading-snug tabular-nums", FLOW_TONES[l.tone])}>
           {l.text}
         </p>
       ))}
@@ -212,14 +212,14 @@ export function DishMoney({
   const panelId = React.useId();
   const lines = ingredientLines(dish, people);
   return (
-    <section aria-label="Money" className="overflow-hidden rounded-[22px] border bg-card">
+    <section aria-label="Money" className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
       {summary.length > 0 ? <MoneyLines summary={summary} className="px-4 pb-2.5 pt-3" /> : null}
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
-        className={cn("flex min-h-11 w-full items-center justify-between gap-2 px-4", summary.length > 0 && "border-t", "text-left text-sm font-bold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
+        className={cn("flex min-h-11 w-full items-center justify-between gap-2 px-4", summary.length > 0 && "border-t", "text-left text-sm font-medium text-cp-accent-text hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
       >
         Details
         <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} aria-hidden />
@@ -229,7 +229,7 @@ export function DishMoney({
           <>
             <p className="text-[13px] text-muted-foreground">{dishSubtitle(dish, { ...people, now })}</p>
             <div className="space-y-1">
-              <h3 className="text-[13px] font-extrabold text-muted-foreground">{ingredientsSummary(dish)}</h3>
+              <h3 className="text-[13px] font-medium text-muted-foreground">{ingredientsSummary(dish)}</h3>
               <ul className="space-y-1 text-sm">
                 {lines.map((l) => (
                   <li key={l.key} className="flex justify-between gap-3">
@@ -245,7 +245,7 @@ export function DishMoney({
                     <Money minor={dish.extrasMinor} currency={dish.currency} className="shrink-0" />
                   </li>
                 ) : null}
-                <li className="flex justify-between gap-3 border-t pt-1 font-bold">
+                <li className="flex justify-between gap-3 border-t pt-1 font-medium">
                   <span>
                     Total · {portionsText(dish.portionsHalf)} · {perPortionText(dish)} each
                   </span>

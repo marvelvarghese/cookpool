@@ -8,7 +8,7 @@ import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET } from "./kit";
 import { BackButton } from "./back-ui";
 import { useProfile } from "./data";
 import { savedCopyOf } from "./cook-hub";
@@ -83,7 +83,7 @@ function RecipeLoader({ recipeId, code, initialFactor }: { recipeId: string; cod
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this recipe. {recipe.error?.message ?? ""}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={recipe.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={recipe.reload}>
           Try again
         </Button>
       </KCard>
@@ -201,9 +201,9 @@ export function SaveAsRecipeButton({ dishId }: { dishId: string }) {
     <div className="flex flex-col gap-2">
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         loading={busy}
-        className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-border bg-card font-medium")}
+        className={cn(K_BUTTON_QUIET, "h-12 gap-2 self-start")}
         onClick={async () => {
           setBusy(true);
           setError(null);

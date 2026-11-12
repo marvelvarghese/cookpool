@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-16
+  title: "The cook flow matches the boards"
+spec:
+  goal: "Cook, recipe, guided cook, tick session, Cooked and the recipe and dish pages follow RvCook, RvRecipe, RvCookStep, RvCookLines and RvCooked, keeping the guided prompt, prep and Done screens restyled."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-16.TaskContract.yaml
+  doneWhen:
+    - "recipe steps are one card of rows; Start cooking opens the Step by step or Just tick prompt as on RvCookStart"
+    - "guided cook keeps its prompt, prep, wait and Done screens, drawn as RvCookPrep, RvCookWait and RvCookDone, with no raw hex or bold"
+    - "the tick session's Finish sheet follows RvCookFinish; Cooked, the plan, explore, recipe form and dish page use the tokens"
+    - "every cook-flow gap in the revamp audit is fixed or recorded as a departure; prod's old frame unchanged"
+  gates: []

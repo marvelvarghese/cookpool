@@ -11,7 +11,7 @@ import { RepeatButton } from "./row-gestures-ui";
 import { JUST_ME, dishTotals } from "./dish-maker";
 import { useFinishSession } from "./cook-session-data";
 import { SESSION_SHEET } from "./cook-finish-sheet";
-import { STEP_BUTTON, SaveSwitch } from "./cook-session-ui";
+import { SaveSwitch } from "./cook-session-ui";
 import { finishPlan, includedLines, saveSwitch, sessionCurrency, sessionDishLines, type CookSession, type FinishOutcome, type UntickedChoice } from "./cook-session";
 import { FINISH_TITLE, finishSub, servingsText, startingServingsHalf, stepServings } from "./cooked";
 
@@ -77,41 +77,46 @@ export function CookFinishSheet({
     onDone(out);
   };
 
+  const stepper = "grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-cp-accent-tint text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50";
   return (
     <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, CLOSE_44)}>
-        <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-        <SheetTitle className="pr-12 text-[22px] font-medium">{FINISH_TITLE}</SheetTitle>
-        <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
-          <div className="flex min-h-14 items-center gap-3">
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span id="finish-servings" className="text-base font-medium">
+      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, "gap-[18px] rounded-t-[26px] bg-background", CLOSE_44)}>
+        <div aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-cp-line" />
+        <SheetTitle className="flex min-h-11 items-center pr-12 text-[22px] font-medium tracking-[-0.01em]">{FINISH_TITLE}</SheetTitle>
+        <div className="-mx-5 min-h-0 flex-1 space-y-[18px] overflow-y-auto px-5 pb-1">
+          <div className="overflow-hidden rounded-cp-card bg-card shadow-cp-card">
+            <div role="group" aria-labelledby="finish-servings" className="flex min-h-[68px] items-center gap-2.5 py-2.5 pl-4 pr-3">
+              <span id="finish-servings" className="flex-1 text-base font-medium">
                 Servings
               </span>
-              <span className="text-xs font-normal text-muted-foreground">How many it made · split them later</span>
-            </span>
-            <RepeatButton className={STEP_BUTTON} aria-label="Half a serving less" disabled={servings <= 1} onStep={() => setServings((h) => stepServings(h, -1))}>
-              <Minus className="h-5 w-5" aria-hidden />
-            </RepeatButton>
-            <span aria-label={servingsText(servings)} className="min-w-[4.5rem] text-center text-lg font-medium tabular-nums">
-              {servingsText(servings).replace(/ servings?$/, "")}
-            </span>
-            <RepeatButton className={STEP_BUTTON} aria-label="Half a serving more" onStep={() => setServings((h) => stepServings(h, 1))}>
-              <Plus className="h-5 w-5" aria-hidden />
-            </RepeatButton>
+              <RepeatButton className={stepper} aria-label="Half a serving less" disabled={servings <= 1} onStep={() => setServings((h) => stepServings(h, -1))}>
+                <Minus className="h-5 w-5" strokeWidth={2.4} aria-hidden />
+              </RepeatButton>
+              <span role="status" aria-label={servingsText(servings)} className="min-w-11 text-center text-xl font-medium tabular-nums">
+                {servingsText(servings).replace(/ servings?$/, "")}
+              </span>
+              <RepeatButton className={stepper} aria-label="Half a serving more" onStep={() => setServings((h) => stepServings(h, 1))}>
+                <Plus className="h-5 w-5" strokeWidth={2.4} aria-hidden />
+              </RepeatButton>
+            </div>
+            {sw ? (
+              <div className="border-t border-cp-line py-1.5 pl-4 pr-3.5">
+                <SaveSwitch label={sw.label} on={saveOn} onChange={setSaveOn} />
+              </div>
+            ) : null}
           </div>
 
-          {sw ? <SaveSwitch label={sw.label} on={saveOn} onChange={setSaveOn} /> : null}
+          <p className="text-center text-[13px] font-normal text-muted-foreground">Split the servings after</p>
 
           {problem ? (
-            <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
+            <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-normal text-cp-expired">
               {problem}
             </p>
           ) : null}
         </div>
         <Button
           type="button"
-          className={cn(MAIN_BUTTON, "shrink-0 bg-primary text-primary-foreground hover:bg-primary/90")}
+          className={cn(MAIN_BUTTON, "min-h-[60px] shrink-0 rounded-[18px] bg-primary text-primary-foreground hover:bg-primary/90")}
           loading={busy}
           onClick={() => void post()}
         >

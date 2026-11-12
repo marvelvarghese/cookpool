@@ -37,9 +37,10 @@ import {
 /**
  * Cooked! (cookpool-community CM-9; revamped in RV-4, the canvas's
  * `RvCooked`): where both cook-session paths end in the new frame — the dish
- * page at `?cooked=1`. ✓, the dish's name, "₹124 · 4 portions", the
- * group-items note; then Split with a group (the one main button) and Post
- * to Community (quiet), each a ✓ row once done, and Done.
+ * page at `?cooked=1`. ✓, the dish's name, "₹124 · 4 portions"; then
+ * Split with a group (the one main button) and Post to Community (quiet),
+ * each a ✓ row once done — Posted with Undo (RV-16: the post is deleted, and
+ * its own toast can put it back) — and Done.
  */
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -52,6 +53,7 @@ export function CookedScreen({
   onPost,
   onSplit,
   onDone,
+  onUnpost,
 }: {
   dish: KitchenDish;
   postId: string | null;
@@ -60,6 +62,8 @@ export function CookedScreen({
   onPost: () => void;
   onSplit: () => void;
   onDone: () => void;
+  /** Undo on the Posted row: the post goes. */
+  onUnpost?: (() => void) | undefined;
 }) {
   const seed = useCookedSeed(dish.id);
   const recipe = useRecipe(dish.recipeId ?? null);
@@ -75,7 +79,7 @@ export function CookedScreen({
   const post = actions.find((a) => a.id === "post")!;
 
   return (
-    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-8rem)] flex-col gap-[22px] pb-2 pt-10 min-[900px]:mx-auto min-[900px]:max-w-xl">
+    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-2.75rem-var(--cp-tabbar-space,84px))] flex-col gap-[22px] pb-2 pt-10 min-[900px]:mx-auto min-[900px]:max-w-xl">
       <div className="flex flex-col items-center gap-3.5 text-center">
         <span aria-hidden className="grid h-[72px] w-[72px] place-items-center rounded-full bg-cp-accent-tint text-cp-accent-text">
           <Check className="h-[34px] w-[34px]" strokeWidth={2.6} />
@@ -85,12 +89,11 @@ export function CookedScreen({
           {dish.name}
         </h1>
         <p className="text-[17px] font-normal tabular-nums text-muted-foreground">{view.fact}</p>
-        {view.note && view.note !== view.fact ? <p className="text-[13px] font-normal text-muted-foreground">{view.note}</p> : null}
       </div>
 
       <div className="flex-1" />
 
-      <div data-toast-above="" className="sticky bottom-[calc(max(14px,env(safe-area-inset-bottom))+76px)] z-30 flex flex-col gap-2.5 bg-gradient-to-t from-background from-80% to-transparent pt-3 min-[900px]:bottom-6">
+      <div data-toast-above="" className="sticky bottom-[var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+76px))] z-30 flex flex-col gap-2.5 bg-gradient-to-t from-background from-80% to-transparent pt-3 min-[900px]:bottom-6">
         {split.done ? (
           <DoneRow text={groupName ? `Split with ${groupName}` : "Split"} />
         ) : (
@@ -105,7 +108,7 @@ export function CookedScreen({
           </button>
         )}
         {post.done && postId ? (
-          <DoneRow text="Posted to Community" href={postHref(postId)} />
+          <DoneRow text="Posted to Community" href={postHref(postId)} onUndo={onUnpost} />
         ) : (
           <button
             type="button"
@@ -125,22 +128,31 @@ export function CookedScreen({
   );
 }
 
-/** A next step once done: ✓ and its words on a card, opening the post when there is one. */
-function DoneRow({ text, href }: { text: string; href?: string }) {
-  const inner = (
-    <>
+/**
+ * A next step once done (RV-16): ✓ and its words on a card — the words
+ * opening the post when there is one — and Undo at the end when it can be
+ * taken back.
+ */
+function DoneRow({ text, href, onUndo }: { text: string; href?: string; onUndo?: (() => void) | undefined }) {
+  const words = <span className="min-w-0 flex-1 truncate text-base font-medium">{text}</span>;
+  return (
+    <div className={cn(K_CARD, "flex min-h-14 items-center gap-2.5 rounded-[18px] py-1 pl-4 pr-2")}>
       <Check className="h-5 w-5 shrink-0 text-cp-accent-text" strokeWidth={2.6} aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-base font-medium">{text}</span>
-      {href ? <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden /> : null}
-    </>
-  );
-  const cls = cn(K_CARD, "flex min-h-14 items-center gap-2.5 rounded-[18px] px-4");
-  return href ? (
-    <Link href={href} className={cn(cls, "transition-colors hover:bg-accent", FOCUS)}>
-      {inner}
-    </Link>
-  ) : (
-    <div className={cls}>{inner}</div>
+      {href ? (
+        <Link href={href} className={cn("flex min-h-11 min-w-0 flex-1 items-center rounded-lg text-foreground", FOCUS)}>
+          {words}
+        </Link>
+      ) : (
+        words
+      )}
+      {onUndo ? (
+        <button type="button" onClick={onUndo} className={cn("min-h-11 shrink-0 rounded-[14px] px-3.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent", FOCUS)}>
+          Undo
+        </button>
+      ) : href ? (
+        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+      ) : null}
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Check, ChevronDown, CookingPot, Hourglass, Lock, Minus, Plus, Timer, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, CookingPot, Hourglass, Lock, Minus, Plus, Timer, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatMinor } from "./money";
 import { Face } from "./faces-ui";
@@ -53,6 +53,56 @@ export function SessionTopBar({ elapsed, onMinimize }: { elapsed: string; onMini
         <span className="sr-only">Cooking for </span>
         {elapsed}
       </span>
+    </div>
+  );
+}
+
+/**
+ * The tick session's header in the new look (RV-16, the canvas's
+ * `RvCookLines`): Back (it minimizes: the session stays), the name at 22 px
+ * — or `name`, the blank session's field — with "For 4 · 3 of 7 in · 12:04"
+ * under it, and a **Steps** pill (`steps`) back to step by step, or to the
+ * session's checklist.
+ */
+export function SessionHeader({
+  title,
+  name,
+  sub,
+  steps,
+  onMinimize,
+}: {
+  title: string;
+  /** In the title's place: the field a blank session is named in. */
+  name?: React.ReactNode;
+  sub: string;
+  steps: { label: string; onClick: () => void } | null;
+  onMinimize: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <button
+        type="button"
+        onClick={onMinimize}
+        aria-label="Back"
+        className="-ml-2.5 grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ChevronLeft className="h-[22px] w-[22px]" aria-hidden />
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {name ?? <h1 className="min-w-0 break-words text-[22px] font-medium leading-tight tracking-[-0.02em]">{title}</h1>}
+        {sub ? (
+          <span className="text-[13px] font-normal tabular-nums text-muted-foreground">{sub}</span>
+        ) : null}
+      </div>
+      {steps ? (
+        <button
+          type="button"
+          onClick={steps.onClick}
+          className="flex min-h-11 shrink-0 items-center rounded-[14px] bg-cp-accent-tint px-3.5 text-sm font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {steps.label}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -256,7 +306,7 @@ export function StepsCard({
   onToggle: (index: number) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl bg-card shadow-cp-card">
+    <section id="session-steps-card" className="scroll-mt-4 overflow-hidden rounded-cp-card bg-card shadow-cp-card">
       <button
         type="button"
         onClick={onOpen}
@@ -389,11 +439,11 @@ export function SaveSwitch({ label, on, onChange }: { label: string; on: boolean
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      className="flex min-h-12 w-full items-center gap-3 rounded-xl text-left text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-[52px] w-full items-center gap-3 rounded-xl text-left text-base font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span className="flex-1">{label}</span>
       <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-muted-foreground/40")}>
-        <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
+        <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-cp-card transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
       </span>
     </button>
   );

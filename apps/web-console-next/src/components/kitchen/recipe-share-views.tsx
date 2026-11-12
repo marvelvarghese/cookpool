@@ -40,7 +40,7 @@ function OptionRow({ option, on, onPick }: { option: ShareOption; on: boolean; o
       onClick={onPick}
       className={cn(
         "flex min-h-[68px] w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-border bg-card hover:bg-accent",
+        on ? "bg-cp-accent-tint ring-[1.5px] ring-inset ring-primary" : "bg-card shadow-cp-card hover:bg-accent",
       )}
     >
       <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", on ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground")}>
@@ -105,7 +105,7 @@ export function ShareSheetBody({
               type="button"
               onClick={onCopy}
               disabled={!linkUrl}
-              className="min-h-11 shrink-0 rounded-[10px] bg-foreground px-4 text-[15px] font-medium text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+              className="min-h-11 shrink-0 rounded-[10px] bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
             >
               {copied ? "Copied" : "Copy"}
             </button>
@@ -122,7 +122,7 @@ export function ShareSheetBody({
             <button
               type="button"
               onClick={onTurnOff}
-              className="min-h-11 rounded-lg px-1 text-[13px] font-medium text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-11 rounded-lg px-1 text-[13px] font-normal text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Turn off
             </button>

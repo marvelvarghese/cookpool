@@ -108,7 +108,7 @@ describe("the share sheet: who can see it", () => {
     expect(canShareRecipe(summary({ mine: true, isSystem: true }))).toBe(false);
   });
 
-  it("draws the chosen row as a checked radio, tinted green with a green border", () => {
+  it("draws the chosen row as a checked radio, tinted green with a green ring", () => {
     const out = html(
       React.createElement(ShareSheetBody, {
         options: shareOptions(["Flat 4B"]),
@@ -126,7 +126,8 @@ describe("the share sheet: who can see it", () => {
     expect(out).toContain('role="radiogroup"');
     expect(out.match(/role="radio"/g)).toHaveLength(3);
     expect(out.match(/aria-checked="true"/g)).toHaveLength(1);
-    expect(out).toMatch(/role="radio" aria-checked="true" class="[^"]*border-primary bg-cp-herb-tint/);
+    // RV-16: no border; the tint with an inset ring.
+    expect(out).toMatch(/role="radio" aria-checked="true" class="[^"]*bg-cp-accent-tint ring-\[1\.5px\] ring-inset ring-primary/);
     expect(out).toContain("On your page for Flat 4B");
     // No link box unless the link is on; Saved by and Done always.
     expect(out).not.toContain("Copy");
@@ -194,7 +195,7 @@ describe("the link: its address, Copy, New link and Turn off", () => {
     expect(recipeLinkUrl("http://localhost:3001/", CODE)).toBe(`http://localhost:3001/r/${CODE}`);
   });
 
-  it("shows the address in a box with a dark Copy, New link and Turn off", () => {
+  it("shows the address in a box with a green Copy, New link and Turn off", () => {
     const props = {
       options: shareOptions([]),
       visibility: "link" as const,
@@ -209,7 +210,7 @@ describe("the link: its address, Copy, New link and Turn off", () => {
     };
     const out = html(React.createElement(ShareSheetBody, props));
     expect(out).toContain(`https://stage.cookpool.store/r/${CODE}`);
-    expect(out).toMatch(/class="[^"]*bg-foreground[^"]*text-background[^"]*">Copy<\/button>/);
+    expect(out).toMatch(/class="[^"]*bg-primary[^"]*text-primary-foreground[^"]*">Copy<\/button>/);
     expect(out).toContain(">New link<");
     expect(out).toContain(">Turn off<");
     expect(out).toContain("Saved by 0");

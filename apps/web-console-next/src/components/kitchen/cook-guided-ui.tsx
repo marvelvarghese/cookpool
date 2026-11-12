@@ -7,6 +7,7 @@ import {
   BellRing,
   Check,
   ChevronDown,
+  ChevronLeft,
   Ear,
   Eye,
   Flame,
@@ -17,6 +18,8 @@ import {
   Smartphone,
   Timer,
   Utensils,
+  Pause,
+  Play,
   Volume2,
   Wind,
   X,
@@ -67,14 +70,22 @@ export const TINT = "hsl(var(--cp-accent-tint))";
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const ICON_BUTTON = cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent", FOCUS);
 const SMALL_BUTTON = cn("inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3.5 text-[15px] font-medium transition-colors", FOCUS);
-const OUTLINE = "border border-border bg-card text-foreground hover:bg-accent";
-const DARK = "border border-transparent bg-cp-cook-bg text-cp-cook-ink hover:bg-cp-cook-bg/90";
+/** A quiet pill on the tint (RV-16: no bordered outline buttons). */
+const QUIET = "bg-cp-accent-tint text-cp-accent-text hover:bg-cp-accent-tint/80";
+/** A running timer, on the cook strip. */
+const DARK = "bg-cp-cook-bg text-cp-cook-ink hover:bg-cp-cook-bg/90";
+/** Where a screen's sticky bottom sits: the screen's foot, since the session hides the tab bar (RV-19's `--cp-bottom-bar`). */
+const BOTTOM = "sticky bottom-[var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+76px))] z-30 mt-auto min-[900px]:bottom-6";
 
 // ── The header, progress and the strip ────────────────────────────
 
 /**
- * Minimize, the label, read aloud and the plan. The step shows the dish's
- * name there (`title`, RV-4); the other screens their small caps label.
+ * Minimize, the label, read aloud and the plan. The step and the waiting
+ * screen show the dish's name there (`title`, RV-4); Before you start too
+ * (RV-16). `back` draws the leading button as a back arrow (the prompt's
+ * Back to recipe, Done's Back to the steps; RV-16, the canvas's
+ * `RvCookStart`, `RvCookPrep`, `RvCookDone`), and `onMinimize` then also
+ * shows as ⌄ at the end when the back arrow does something else.
  */
 export function GuideHeader({
   label,
@@ -82,6 +93,7 @@ export function GuideHeader({
   onMinimize,
   onReadAloud,
   planHref,
+  back = null,
 }: {
   label: string;
   /** The dish's name in 16 px (RV-4's step) rather than "STEP 3 OF 8 · 14 MIN IN". */
@@ -89,12 +101,20 @@ export function GuideHeader({
   onMinimize: () => void;
   onReadAloud?: (() => void) | null;
   planHref?: string | null;
+  /** The back arrow: its name and what it does (null: ⌄ Minimize). */
+  back?: { label: string; onClick: () => void; minimizeToo?: boolean } | null;
 }) {
   return (
     <div className="flex items-center gap-1">
-      <button type="button" onClick={onMinimize} aria-label="Minimize" className={cn(ICON_BUTTON, "-ml-2.5 text-foreground")}>
-        <ChevronDown className="h-6 w-6" aria-hidden />
-      </button>
+      {back ? (
+        <button type="button" onClick={back.onClick} aria-label={back.label} className={cn(ICON_BUTTON, "-ml-2.5 text-foreground")}>
+          <ChevronLeft className="h-[22px] w-[22px]" aria-hidden />
+        </button>
+      ) : (
+        <button type="button" onClick={onMinimize} aria-label="Minimize" className={cn(ICON_BUTTON, "-ml-2.5 text-foreground")}>
+          <ChevronDown className="h-6 w-6" aria-hidden />
+        </button>
+      )}
       <span
         className={cn(
           "min-w-0 flex-1 truncate",
@@ -112,6 +132,11 @@ export function GuideHeader({
         <Link href={planHref} aria-label="The plan: every step" className={cn(ICON_BUTTON, "-mr-2.5")}>
           <ListOrdered className="h-[22px] w-[22px]" aria-hidden />
         </Link>
+      ) : null}
+      {back?.minimizeToo ? (
+        <button type="button" onClick={onMinimize} aria-label="Minimize" className={cn(ICON_BUTTON, "-mr-2.5")}>
+          <ChevronDown className="h-6 w-6" aria-hidden />
+        </button>
       ) : null}
     </div>
   );
@@ -200,15 +225,18 @@ const SENSE_ICONS: Readonly<Record<StepSense, typeof Eye>> = {
 
 // ── The heat, the check, the timer and the chips (RV-4) ───────────
 
+/** The heat in one word (RV-16, the canvas's `RvCookStep`): "Medium", not "Medium flame". */
+export const HEAT_WORDS = ["Flame off", "Low", "Medium", "High"] as const;
+
 /**
  * The step's one heat and time chip (RV-4, the canvas's `RvCookStep`): the
- * flame and "Medium flame · 8–10 min" on the tint, "Flame off" plain; the
- * time alone when the step says no flame.
+ * flame and "Medium · 8–10 min" on the tint, "Flame off" plain; the time
+ * alone when the step says no flame. RV-16 drops "· Stay close".
  */
 export function HeatChip({ flame, time }: { flame: FlameView | null; time: string | null }) {
   if (!flame && !time) return null;
   const off = !flame || flame.level === 0;
-  const words = [flame?.label, time, flame?.hint].filter(Boolean).join(" · ");
+  const words = [flame ? (HEAT_WORDS[flame.level] ?? flame.label) : null, time].filter(Boolean).join(" · ");
   return (
     <span
       data-heat={flame ? flame.level : "none"}
@@ -245,16 +273,31 @@ export function CheckLine({ checkpoint }: { checkpoint: CheckpointView }) {
 }
 
 /**
- * The step's timer as a chip (RV-4): "Start 8:00" (or "Start and go on"),
- * then "4:12 · Pause" on the cook strip while it runs, "Paused 4:12 ·
- * Resume", and +1 min beside it; what cooks learned (GC-7) and why it won't
- * reach a locked phone under it.
+ * The one hint a step's timer shows (RV-16: at most one hint per screen):
+ * why it won't reach a locked phone, else how to hear timers locked (once
+ * one runs on a phone without push), else what cooks learned (GC-7); null
+ * when there is none.
+ */
+export function timerHint(timer: TimerCardView | null, pushHint: boolean): "push" | "learned" | "hint" | null {
+  if (!timer) return null;
+  if (timer.pushNote) return "push";
+  if (pushHint && timer.state !== "idle") return "hint";
+  if (timer.learned) return "learned";
+  return null;
+}
+
+/**
+ * The step's timer as a chip (RV-4, RV-16): "Start 8:00" (or "Start and go
+ * on"), then "4:12 · Pause" on the cook strip while it runs, "4:12 ·
+ * Resume" paused, and +1 min beside it; "Done · again" once it ends, which
+ * sets it again. Under it, its one hint (`timerHint`).
  */
 export function TimerChip({ timer, pushHint, on }: { timer: TimerCardView; pushHint: boolean; on: TimerHandlers }) {
   const id = timer.timerId;
   const chip = cn("inline-flex min-h-12 items-center gap-2 rounded-full px-[18px] text-[17px] font-medium tabular-nums transition-colors", FOCUS);
   const idle = cn(chip, "bg-card text-foreground shadow-cp-card hover:bg-accent");
   const running = cn(chip, "bg-cp-cook-bg text-cp-cook-ink hover:bg-cp-cook-bg/90");
+  const hint = timerHint(timer, pushHint);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -279,20 +322,22 @@ export function TimerChip({ timer, pushHint, on }: { timer: TimerCardView; pushH
             <span>Resume</span>
           </button>
         ) : (
-          <span className={cn(chip, "bg-cp-accent-tint text-cp-accent-text")}>
+          <button type="button" onClick={on.onStart} aria-label="Timer done, start again" className={idle}>
             <AlarmClock className="h-5 w-5" strokeWidth={2.2} aria-hidden />
-            <span role="timer">{timer.clock}</span>
-          </span>
+            <span role="timer">Done</span>
+            <span aria-hidden>·</span>
+            <span>again</span>
+          </button>
         )}
-        {timer.state !== "idle" && id ? (
+        {(timer.state === "running" || timer.state === "paused") && id ? (
           <button type="button" onClick={() => on.onPlus(id)} className={cn(SMALL_BUTTON, "rounded-full bg-card shadow-cp-card hover:bg-accent")}>
             <Plus className="h-4 w-4" aria-hidden />1 min
           </button>
         ) : null}
       </div>
-      {timer.learned ? <p className="text-sm font-normal text-cp-owed">{timer.learned}</p> : null}
-      {timer.pushNote ? <p className="text-[13px] font-normal text-cp-soon">{timer.pushNote}</p> : null}
-      {pushHint && timer.state !== "idle" && !timer.pushNote ? <PushHint /> : null}
+      {hint === "push" ? <p className="text-[13px] font-normal text-cp-soon">{timer.pushNote}</p> : null}
+      {hint === "learned" ? <p className="text-sm font-normal text-cp-owed">{timer.learned}</p> : null}
+      {hint === "hint" ? <PushHint /> : null}
     </div>
   );
 }
@@ -384,13 +429,14 @@ export function StepTip({ tip }: { tip: string }) {
 
 /**
  * The bottom (RV-4): Back, quiet, and the one main button on the accent
- * (Done, Finish — always enabled), 60 px. "Next · …" is said to a screen
- * reader.
+ * (Done, Finish — always enabled), 60 px, at the screen's foot. "Next · …"
+ * is said to a screen reader. Back is off on the first step (RV-16).
  */
 export function StepBottom({
   next,
   mainLabel,
   mainTone = "herb",
+  backDisabled = false,
   onBack,
   onMain,
 }: {
@@ -398,20 +444,23 @@ export function StepBottom({
   mainLabel: string;
   /** The accent for Done; a card for Go on while a timer runs. */
   mainTone?: "herb" | "outline";
+  /** The first step: there is nothing before it. */
+  backDisabled?: boolean;
   onBack: () => void;
   onMain: () => void;
 }) {
   return (
-    <div
-      data-toast-above=""
-      className="sticky bottom-[calc(max(14px,env(safe-area-inset-bottom))+76px)] z-30 mt-auto flex gap-2.5 bg-gradient-to-t from-background from-80% to-transparent pt-4 min-[900px]:bottom-6"
-    >
+    <div data-toast-above="" className={cn(BOTTOM, "flex gap-2.5 bg-gradient-to-t from-background from-80% to-transparent pb-2 pt-4")}>
       <span className="sr-only">{next}</span>
       <button
         type="button"
         onClick={onBack}
+        disabled={backDisabled}
         aria-label="Previous step"
-        className={cn("min-h-[60px] w-24 shrink-0 rounded-[18px] text-base font-medium text-muted-foreground transition-colors hover:bg-accent", FOCUS)}
+        className={cn(
+          "min-h-[60px] w-24 shrink-0 rounded-[18px] text-base font-medium text-muted-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:text-cp-line disabled:hover:bg-transparent",
+          FOCUS,
+        )}
       >
         Back
       </button>
@@ -433,7 +482,7 @@ export function StepBottom({
 // ── One step (GuideStep) ──────────────────────────────────────────
 
 /** As tall as the screen, so the bottom sits in thumb reach however short the step (as RC-6's session). */
-const SCREEN = "flex min-h-[calc(100dvh-env(safe-area-inset-top)-8rem)] flex-col gap-3.5 pb-2 min-[900px]:min-h-[calc(100dvh-6rem)]";
+const SCREEN = "flex min-h-[calc(100dvh-env(safe-area-inset-top)-2.75rem-var(--cp-tabbar-space,84px))] flex-col gap-3.5 pb-2 min-[900px]:min-h-[calc(100dvh-6rem)]";
 
 export interface StepHandlers extends TimerHandlers {
   onMinimize: () => void;
@@ -452,7 +501,7 @@ export interface StepHandlers extends TimerHandlers {
  * dish's name, a thin bar and "3 of 7", the other timers as pills, one heat
  * and time chip, the step in big type, what to watch for, the timer chip,
  * the lines as chips with "Add amounts" quiet after them, and Back and the
- * one main button.
+ * one main button. At most one hint (RV-16): the timer's, else the tip.
  */
 export function GuideStepView({
   view,
@@ -486,8 +535,14 @@ export function GuideStepView({
       </div>
       {view.timer ? <TimerChip timer={view.timer} pushHint={pushHint} on={on} /> : null}
       <StepChips chips={view.chips} onTick={on.onTickChip} after={addAmounts} />
-      {view.tip ? <StepTip tip={view.tip} /> : null}
-      <StepBottom next={view.next} mainLabel={view.done && view.mainLabel === "Done" ? "Done · next" : view.mainLabel} onBack={on.onBack} onMain={on.onDone} />
+      {view.tip && !timerHint(view.timer, pushHint) ? <StepTip tip={view.tip} /> : null}
+      <StepBottom
+        next={view.next}
+        mainLabel={view.done && view.mainLabel === "Done" ? "Done · next" : view.mainLabel}
+        backDisabled={view.number <= 1}
+        onBack={on.onBack}
+        onMain={on.onDone}
+      />
     </div>
   );
 }
@@ -504,30 +559,43 @@ export interface WaitHandlers extends StepHandlers {
   onGoOn: (key: string) => void;
 }
 
-/** The big ring: the time left, +1 min, Pause or Resume, and Done early. */
+/**
+ * The timer card (RV-16, the canvas's `RvCookWait`): the time left in 64 px,
+ * "of 20:00" beside it, a thin bar filling with the accent, then Pause (or
+ * Resume), +1 min and Done early as pills on the tint; "Done" once it ends.
+ */
 export function WaitRing({ ring, on }: { ring: NonNullable<WaitScreenView["ring"]>; on: Pick<WaitHandlers, "onPlus" | "onPause" | "onResume" | "onDone"> }) {
+  const pill = cn(SMALL_BUTTON, QUIET, "min-h-11 rounded-[14px] px-4");
+  const pct = Math.round(Math.max(0, Math.min(1, ring.fraction)) * 100);
   return (
-    <div className="flex flex-col items-center gap-3.5 rounded-[24px] bg-card shadow-cp-card p-[18px]">
-      <Ring size={196} stroke={14} fraction={ring.fraction}>
-        <span role="timer" aria-live="polite" className="text-[44px] font-medium tracking-[-0.02em] tabular-nums">
+    <div className="flex flex-col gap-3.5 rounded-cp-card bg-card px-[18px] pb-4 pt-5 shadow-cp-card">
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <span role="timer" aria-live="polite" className="text-[64px] font-medium leading-none tracking-[-0.03em] tabular-nums">
           {ring.clock}
         </span>
-        <span className="max-w-[150px] text-center text-sm font-normal text-muted-foreground">{ring.sub}</span>
-      </Ring>
-      <div className="grid w-full grid-cols-3 gap-2">
-        <button type="button" onClick={() => on.onPlus(ring.timerId)} className={cn(SMALL_BUTTON, OUTLINE, "min-h-12 px-2")}>
-          +1 min
-        </button>
+        <span className="text-[15px] font-normal text-muted-foreground">{ring.sub}</span>
+      </div>
+      <div aria-hidden className="h-1 overflow-hidden rounded-full bg-cp-line">
+        <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex flex-wrap gap-2">
         {ring.state === "paused" ? (
-          <button type="button" onClick={() => on.onResume(ring.timerId)} className={cn(SMALL_BUTTON, DARK, "min-h-12 px-2")}>
+          <button type="button" onClick={() => on.onResume(ring.timerId)} className={pill}>
+            <Play className="h-4 w-4" fill="currentColor" aria-hidden />
             Resume
           </button>
-        ) : (
-          <button type="button" onClick={() => on.onPause(ring.timerId)} disabled={ring.state === "ended"} className={cn(SMALL_BUTTON, OUTLINE, "min-h-12 px-2 disabled:opacity-40")}>
+        ) : ring.state !== "ended" ? (
+          <button type="button" onClick={() => on.onPause(ring.timerId)} className={pill}>
+            <Pause className="h-4 w-4" fill="currentColor" aria-hidden />
             Pause
           </button>
-        )}
-        <button type="button" onClick={on.onDone} className={cn(SMALL_BUTTON, OUTLINE, "min-h-12 px-2")}>
+        ) : null}
+        {ring.state !== "ended" ? (
+          <button type="button" onClick={() => on.onPlus(ring.timerId)} className={pill}>
+            +1 min
+          </button>
+        ) : null}
+        <button type="button" onClick={on.onDone} className={pill}>
           {ring.state === "ended" ? "Done" : "Done early"}
         </button>
       </div>
@@ -573,7 +641,11 @@ export function WhistleCounter({ whistles, on }: { whistles: WhistleView; on: Pi
   );
 }
 
-/** "We'll ping you when it's done" and Keep the screen on (design §3.4, §3.7). */
+/**
+ * Keep the screen on, a switch row on its own card, and "We'll ping you when
+ * it's done" as one muted line under it (design §3.4, §3.7; RV-16, the
+ * canvas's `RvCookWait`).
+ */
 export function PingAndScreen({
   pingLine,
   screenOn,
@@ -587,13 +659,15 @@ export function PingAndScreen({
 }) {
   const refused = screenOn && (lockState === "refused" || lockState === "unsupported");
   return (
-    <div className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
-      <div className="flex min-h-14 items-center gap-3 border-b border-cp-line px-3.5 py-1.5">
-        <BellRing className="h-5 w-5 shrink-0 text-cp-accent-text" aria-hidden />
-        <span className="flex-1 text-[15px] font-medium">{pingLine}</span>
+    <div className="flex flex-col gap-3">
+      <div className="overflow-hidden rounded-cp-card bg-card shadow-cp-card">
+        <ScreenOnSwitch on={screenOn} onChange={onScreenOn} />
+        {refused ? <p className="px-4 pb-3 text-[13px] font-normal text-cp-soon">{SCREEN_LOCK_REFUSED}</p> : null}
       </div>
-      <ScreenOnSwitch on={screenOn} onChange={onScreenOn} />
-      {refused ? <p className="px-3.5 pb-3 text-[13px] font-normal text-cp-soon">{SCREEN_LOCK_REFUSED}</p> : null}
+      <span className="flex items-center justify-center gap-1.5 text-[13px] font-normal text-muted-foreground">
+        <BellRing className="h-4 w-4 shrink-0" aria-hidden />
+        {pingLine}
+      </span>
     </div>
   );
 }
@@ -606,36 +680,54 @@ export function ScreenOnSwitch({ on, onChange }: { on: boolean; onChange: (on: b
       role="switch"
       aria-checked={on}
       onClick={() => onChange(!on)}
-      className={cn("flex min-h-14 w-full items-center gap-3 px-3.5 py-1.5 text-left", FOCUS)}
+      className={cn("flex min-h-[60px] w-full items-center gap-3 py-2 pl-4 pr-3.5 text-left", FOCUS)}
     >
       <Smartphone className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-      <span className="flex-1 text-[15px] font-medium">Keep the screen on</span>
-      <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-muted-foreground/40")}>
-        <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
-      </span>
+      <span className="flex-1 text-base font-medium">Keep the screen on</span>
+      <SwitchTrack on={on} />
     </button>
   );
 }
 
-/** Meanwhile (design §3.4): prep not ticked, then the next steps up to the next hands-off one, each with Do it. */
+/** A switch's track and knob (52 × 32), the accent when on. */
+function SwitchTrack({ on }: { on: boolean }) {
+  return (
+    <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-muted-foreground/40")}>
+      <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-cp-card transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
+    </span>
+  );
+}
+
+/**
+ * Meanwhile (design §3.4; RV-16, the canvas's `RvCookWait`): prep not
+ * ticked, then the next steps up to the next hands-off one, each a row that
+ * does it (a prep ticks; a step opens), with its mark at the end.
+ */
 export function MeanwhileList({ items, onDo }: { items: readonly MeanwhileItem[]; onDo: (item: MeanwhileItem) => void }) {
   return (
-    <section aria-labelledby="guide-meanwhile" className="flex flex-col gap-2">
-      <h2 id="guide-meanwhile" className="text-lg font-medium">
+    <section aria-labelledby="guide-meanwhile" className="flex flex-col gap-2.5">
+      <h2 id="guide-meanwhile" className="text-[17px] font-medium">
         Meanwhile
       </h2>
       {items.length === 0 ? (
         <p className="px-0.5 text-sm font-normal text-muted-foreground">Nothing else to do yet: the next step needs this one.</p>
       ) : (
-        <ul className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
+        <ul className="overflow-hidden rounded-cp-card bg-card shadow-cp-card">
           {items.map((m, i) => (
-            <li key={m.key} className={cn("flex min-h-16 items-center gap-3 py-2 pl-4 pr-3", i < items.length - 1 && "border-b border-cp-line")}>
-              <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="text-[15px] font-medium">{m.text}</span>
-                <span className="text-xs font-normal text-muted-foreground">{m.sub}</span>
-              </span>
-              <button type="button" onClick={() => onDo(m)} aria-label={`Do it: ${m.text}`} className={cn(SMALL_BUTTON, OUTLINE, "shrink-0")}>
-                Do it
+            <li key={m.key} className={cn(i > 0 && "border-t border-cp-line")}>
+              <button
+                type="button"
+                onClick={() => onDo(m)}
+                aria-label={`Do it: ${m.text}`}
+                className={cn("flex min-h-16 w-full items-center gap-3 py-2 pl-4 pr-3 text-left transition-colors hover:bg-accent/50", m.done && "bg-cp-accent-tint", FOCUS)}
+              >
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className={cn("text-base font-medium", m.done && "text-muted-foreground line-through")}>{m.text}</span>
+                  <span className="text-[13px] font-normal text-muted-foreground">{m.sub}</span>
+                </span>
+                <span aria-hidden className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", m.done ? "bg-primary text-primary-foreground" : "bg-cp-line text-muted-foreground")}>
+                  {m.kind === "step" ? <ChevronLeft className="h-5 w-5 rotate-180" strokeWidth={2.4} /> : <Check className="h-5 w-5" strokeWidth={2.4} />}
+                </span>
               </button>
             </li>
           ))}
@@ -645,7 +737,14 @@ export function MeanwhileList({ items, onDo }: { items: readonly MeanwhileItem[]
   );
 }
 
-/** Waiting (design §3.4): a hands-off step running, or a pressure cooker counting. */
+/**
+ * Waiting (design §3.4; RV-16, the canvas's `RvCookWait`): a hands-off step
+ * running, or a pressure cooker counting. The dish's name, the bar, "Low ·
+ * hands off", the step at 28 px and what to watch for, the timer card (or the
+ * whistles), Keep the screen on and the ping line, Meanwhile, and Back and the
+ * main button. At most one hint: the push note, else how to hear timers
+ * locked, else the tip.
+ */
 export function GuideWaitView({
   view,
   wait,
@@ -666,27 +765,32 @@ export function GuideWaitView({
   banner?: React.ReactNode;
 }) {
   const ended = wait.ring?.state === "ended";
+  const pushNote = view.timer?.pushNote ?? null;
+  const showHint = !pushNote && pushHint && !!wait.ring;
   return (
     <div className={cn(SCREEN, "gap-5")} data-guide="wait">
       {banner}
-      <GuideHeader label={wait.header} onMinimize={on.onMinimize} onReadAloud={on.onReadAloud} planHref={view.planHref} />
+      <GuideHeader label={view.title} title onMinimize={on.onMinimize} onReadAloud={on.onReadAloud} planHref={view.planHref} />
+      <span className="sr-only">{wait.header}</span>
       <StepProgress number={view.number} of={view.of} text={view.countText} label={view.progressLabel} />
       <TimerStrip items={strip} onOpen={on.onStrip} />
-      <div className="flex flex-col gap-3.5">
-        <HeatChip flame={view.flame} time={null} />
-        <h1 className="text-[30px] font-medium leading-[1.22] tracking-[-0.02em]">{view.text}</h1>
+      <div className="flex flex-col gap-3">
+        <HeatChip flame={view.flame} time={view.whistles ? "pressure cooker" : "hands off"} />
+        <h1 className="text-[28px] font-medium leading-[1.22] tracking-[-0.02em]">{view.text}</h1>
+        {view.checkpoint ? <CheckLine checkpoint={view.checkpoint} /> : null}
       </div>
       <StepChips chips={view.chips} onTick={on.onTickChip} />
       {wait.ring ? <WaitRing ring={wait.ring} on={on} /> : null}
       {view.whistles ? <WhistleCounter whistles={view.whistles} on={on} /> : null}
-      {view.timer?.pushNote ? <p className="text-[13px] font-normal text-cp-soon">{view.timer.pushNote}</p> : pushHint && wait.ring ? <PushHint /> : null}
-      <PingAndScreen pingLine={wait.pingLine} screenOn={screenOn} lockState={lockState} onScreenOn={on.onScreenOn} />
+      {pushNote ? <p className="text-[13px] font-normal text-cp-soon">{pushNote}</p> : showHint ? <PushHint /> : null}
       <MeanwhileList items={wait.meanwhile} onDo={on.onMeanwhile} />
-      {view.tip ? <StepTip tip={view.tip} /> : null}
+      <PingAndScreen pingLine={wait.pingLine} screenOn={screenOn} lockState={lockState} onScreenOn={on.onScreenOn} />
+      {view.tip && !pushNote && !showHint ? <StepTip tip={view.tip} /> : null}
       <StepBottom
         next={view.next}
         mainLabel={wait.goOn ? wait.goOn.label : view.mainLabel}
         mainTone={wait.goOn || (view.whistles && !ended) ? "outline" : "herb"}
+        backDisabled={view.number <= 1}
         onBack={on.onBack}
         onMain={() => (wait.goOn ? on.onGoOn(wait.goOn.key) : on.onDone())}
       />
@@ -702,13 +806,13 @@ export function DiscardRow({ onDiscard }: { onDiscard: () => void }) {
   return (
     <div className="flex justify-center">
       {asking ? (
-        <div className="flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl bg-card shadow-cp-card p-3">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 rounded-[18px] bg-card p-3 shadow-cp-card">
           <span className="text-sm font-normal">Discard this session? Nothing is posted.</span>
           <span className="flex gap-2">
-            <button type="button" onClick={() => setAsking(false)} className={cn(SMALL_BUTTON, OUTLINE)}>
+            <button type="button" onClick={() => setAsking(false)} className={cn(SMALL_BUTTON, QUIET)}>
               Keep cooking
             </button>
-            <button type="button" onClick={onDiscard} className={cn(SMALL_BUTTON, OUTLINE, "text-cp-expired")}>
+            <button type="button" onClick={onDiscard} className={cn(SMALL_BUTTON, "bg-cp-expired-tint text-cp-expired hover:bg-cp-expired-tint/80")}>
               Discard
             </button>
           </span>
@@ -782,7 +886,19 @@ export interface PromptHandlers {
   onDiscard: () => void;
 }
 
-/** The prompt (design §3.1): long prep first, then "Cook it step by step", and the two ways to cook. */
+/** "7 steps · about 40 min" (RV-16, the canvas's `RvCookStart`), from the prompt's stats. */
+export function promptLine(view: Pick<PromptView, "stats">): string {
+  const [steps, minutes] = view.stats;
+  return [steps ? `${steps.value} ${steps.label.toLowerCase()}` : null, minutes ? `${minutes.value} min` : null].filter(Boolean).join(" · ");
+}
+
+/**
+ * The prompt (design §3.1; RV-16, the canvas's `RvCookStart`): Back to the
+ * recipe, the dish's name at 30 px, "7 steps · about 40 min", the steps as
+ * one bar (hands on in the accent, waiting on the tint), long prep first
+ * when there is some; then, at the foot, the screen line, **Step by step**
+ * (the one main button) and **Just tick what I use**, quiet.
+ */
 export function GuidePromptView({
   view,
   lockState,
@@ -797,93 +913,52 @@ export function GuidePromptView({
   const total = view.bar.reduce((a, b) => a + b.minutes, 0) || 1;
   const noLock = lockState === "refused" || lockState === "unsupported";
   return (
-    <div className={SCREEN} data-guide="prompt">
-      <GuideHeader label="COOKING" onMinimize={on.onMinimize} />
+    <div className={cn(SCREEN, "gap-[22px]")} data-guide="prompt">
+      <GuideHeader label="" back={{ label: "Back to recipe", onClick: on.onMinimize }} onMinimize={on.onMinimize} />
       <div className="flex flex-col gap-2">
-        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em]">{view.title}</h1>
-        {view.chip ? (
-          <span className="inline-flex min-h-[34px] items-center self-start rounded-full px-3 text-[13px] font-medium text-cp-cook-ink" style={{ backgroundColor: INK }}>
-            {view.chip}
-          </span>
-        ) : null}
+        <h1 className="text-[30px] font-medium leading-tight tracking-[-0.02em]">{view.title}</h1>
+        <span className="text-[17px] font-normal tabular-nums text-muted-foreground">{promptLine(view)}</span>
+      </div>
+
+      <div role="img" aria-label={view.barLabel} data-dimmed={view.dimmed ? "true" : "false"} className={cn("flex h-2 gap-[3px]", view.dimmed && "opacity-[0.55]")}>
+        {view.bar.map((b, i) => (
+          <span
+            key={i}
+            data-hands={b.handsOff ? "off" : "on"}
+            className={cn("min-w-1.5 rounded-[4px]", b.handsOff ? "bg-cp-accent-tint" : "bg-primary")}
+            style={{ flex: `${b.minutes / total} 1 0` }}
+          />
+        ))}
       </div>
 
       {view.longPrep.map((p) => (
         <LongPrepCard key={p.key} prep={p} pushHint={pushHint} onStart={() => on.onSoak(p.key)} onDone={() => on.onLongPrepDone(p.key)} />
       ))}
 
-      <section aria-labelledby="guide-card-title" data-dimmed={view.dimmed ? "true" : "false"} className={cn("flex flex-col gap-3.5 rounded-[22px] bg-card shadow-cp-card p-4", view.dimmed && "opacity-[0.55]")}>
-        <div className="flex items-center gap-3">
-          <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] text-cp-on-cook" style={{ backgroundColor: COOK }}>
-            <ListChecks className="h-[26px] w-[26px]" />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col">
-            <h2 id="guide-card-title" className="text-[19px] font-medium">
-              Cook it step by step
-            </h2>
-            <span className="text-[13px] font-normal text-muted-foreground">{view.sub}</span>
-          </span>
-        </div>
-        <dl className="grid grid-cols-3 gap-2">
-          {view.stats.map((t) => (
-            <div key={t.label} className="flex flex-col-reverse rounded-[14px] bg-background px-2.5 py-2">
-              <dt className="text-xs font-normal text-muted-foreground">{t.label}</dt>
-              <dd className="text-lg font-medium">{t.value}</dd>
-            </div>
-          ))}
-        </dl>
-        <div className="flex flex-col gap-1.5">
-          <div role="img" aria-label={view.barLabel} className="flex h-3.5 gap-[3px]">
-            {view.bar.map((b, i) => (
-              <span
-                key={i}
-                data-hands={b.handsOff ? "off" : "on"}
-                className="min-w-1.5 rounded-[4px]"
-                style={{ flex: `${b.minutes / total} 1 0`, backgroundColor: b.handsOff ? TINT : HERB }}
-              />
-            ))}
-          </div>
-          <div className="flex gap-3.5 text-xs font-normal text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: HERB }} />
-              Hands on
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span aria-hidden className="h-2.5 w-2.5 rounded-[3px] bg-cp-accent-tint" />
-              Waiting
-            </span>
-          </div>
-        </div>
-        {view.before.length > 0 ? (
-          <div className="flex flex-col gap-2 border-t border-cp-line pt-3">
-            <span className="text-xs font-medium tracking-[0.04em] text-muted-foreground">BEFORE YOU START</span>
-            <ul className="flex flex-col gap-2">
-              {view.before.map((b, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-[15px] font-medium leading-snug">
-                  <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-                  {b}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </section>
-
-      <span className="flex items-center gap-2 text-[13px] font-normal text-muted-foreground">
-        <Smartphone className="h-4 w-4" aria-hidden />
-        {noLock ? SCREEN_LOCK_REFUSED : "Your screen stays on while you cook"}
-      </span>
-
-      <div className="mt-auto flex flex-col gap-2 pt-1">
+      <div className="mt-auto flex flex-col gap-2.5 pt-1">
+        <span className="flex items-center justify-center gap-1.5 text-[13px] font-normal text-muted-foreground">
+          <Smartphone className="h-4 w-4" aria-hidden />
+          {noLock ? SCREEN_LOCK_REFUSED : "Your screen stays on while you cook"}
+        </span>
         <Button
           type="button"
           onClick={on.onGuided}
           disabled={view.dimmed}
-          className={cn(MAIN_BUTTON, "bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100")}
+          className={cn(
+            MAIN_BUTTON,
+            "min-h-[60px] gap-2.5 rounded-[18px] bg-primary text-primary-foreground text-lg font-medium hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100",
+          )}
         >
-          <MainButtonLabel title="Start step by step" who={view.startSub} />
+          {view.startSub ? (
+            <MainButtonLabel title="Step by step" who={view.startSub} />
+          ) : (
+            <>
+              <ListChecks className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
+              Step by step
+            </>
+          )}
         </Button>
-        <button type="button" onClick={on.onTick} className={cn("min-h-12 rounded-2xl text-[15px] font-medium text-muted-foreground hover:bg-accent", FOCUS)}>
+        <button type="button" onClick={on.onTick} className={cn("min-h-[52px] rounded-[18px] text-base font-medium text-muted-foreground hover:bg-accent", FOCUS)}>
           Just tick what I use
         </button>
         <DiscardRow onDiscard={on.onDiscard} />
@@ -894,6 +969,7 @@ export function GuidePromptView({
 
 // ── Before you start (GuidePrep) ──────────────────────────────────
 
+/** A row's tick at its end (RV-16, the canvas's `RvCookPrep`): 48 × 44, the line's fill, the accent once ticked. */
 function TickBox({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
   return (
     <button
@@ -902,21 +978,25 @@ function TickBox({ on, label, onClick }: { on: boolean; label: string; onClick: 
       aria-pressed={on}
       aria-label={label}
       className={cn(
-        "grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border-[1.5px] transition-colors",
+        "grid h-11 w-12 shrink-0 place-items-center rounded-xl transition-colors",
         FOCUS,
-        on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground/60 hover:border-primary/60",
+        on ? "bg-primary text-primary-foreground" : "bg-cp-line text-muted-foreground hover:bg-cp-line/70",
       )}
     >
-      <Check className="h-5 w-5" strokeWidth={2.6} aria-hidden />
+      <Check className="h-[22px] w-[22px]" strokeWidth={2.4} aria-hidden />
     </button>
   );
 }
 
-function PrepSection({ title, children }: { title: string; children: React.ReactNode }) {
+/** A section of Before you start: its 17 px heading (with a muted count), then one card of rows. */
+function PrepSection({ title, count, children }: { title: string; count?: string | undefined; children: React.ReactNode }) {
   return (
-    <section aria-label={title} className="flex flex-col gap-2">
-      <h2 className="text-[13px] font-medium tracking-[0.04em] text-muted-foreground">{title.toUpperCase()}</h2>
-      <ul className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">{children}</ul>
+    <section aria-label={title} className="flex flex-col gap-2.5">
+      <h2 className="text-[17px] font-medium">
+        {title}
+        {count ? <span className="font-normal text-muted-foreground"> {count}</span> : null}
+      </h2>
+      <ul className="overflow-hidden rounded-cp-card bg-card shadow-cp-card">{children}</ul>
     </section>
   );
 }
@@ -937,7 +1017,12 @@ export interface PrepHandlers {
   onDiscard: () => void;
 }
 
-/** Before you start (design §3.2): Gather, Tools and Prep, with 44 px ticks, and Start cooking. */
+/**
+ * Before you start (design §3.2; RV-16, the canvas's `RvCookPrep`): Back
+ * and the dish's name; "Before you start" with a thin bar and "6 of 10";
+ * Gather · 3 of 7 (the session's tick rows), Tools and Prep as cards of rows
+ * with their ticks at the end; and the one main button, "Start step 1".
+ */
 export function GuidePrepView({
   view,
   gather,
@@ -958,56 +1043,59 @@ export function GuidePrepView({
   banner?: React.ReactNode;
 }) {
   const pct = view.ready.of > 0 ? Math.round((view.ready.done / view.ready.of) * 100) : 0;
+  const gatherCount = view.gather.of > 0 ? `· ${view.gather.done} of ${view.gather.of}` : undefined;
+  const row = (i: number, ticked: boolean) => cn("flex min-h-16 items-center gap-3 py-2 pl-4 pr-3", i > 0 && "border-t border-cp-line", ticked && "bg-cp-accent-tint");
   return (
-    <div className={SCREEN} data-guide="prep">
+    <div className={cn(SCREEN, "gap-5")} data-guide="prep">
       {banner}
-      <GuideHeader label={view.header} onMinimize={on.onMinimize} />
+      <GuideHeader label={view.title} title onMinimize={on.onMinimize} back={{ label: "Back", onClick: on.onMinimize }} />
+      <span className="sr-only">{view.header}</span>
       <TimerStrip items={strip} onOpen={on.onStrip} />
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2.5">
         <h1 className="text-[26px] font-medium leading-tight tracking-[-0.02em]">Before you start</h1>
-        <div className="flex items-center gap-2.5">
-          <div role="progressbar" aria-label="Ready" aria-valuemin={0} aria-valuemax={view.ready.of} aria-valuenow={view.ready.done} className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-            <span className="block h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: HERB }} />
+        <div className="flex items-center gap-3">
+          <div role="progressbar" aria-label="Ready" aria-valuemin={0} aria-valuemax={view.ready.of} aria-valuenow={view.ready.done} className="h-1 flex-1 overflow-hidden rounded-full bg-cp-line">
+            <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
           </div>
-          <span className="text-[13px] font-medium text-muted-foreground" aria-live="polite">
+          <span className="text-sm font-medium tabular-nums text-muted-foreground" aria-live="polite">
             {view.ready.text}
           </span>
         </div>
       </div>
 
       {gatherList ? (
-        <section aria-label="Gather" className="flex flex-col gap-2">
-          <h2 className="text-[13px] font-medium tracking-[0.04em] text-muted-foreground">GATHER</h2>
+        <section aria-label="Gather" className="flex flex-col gap-2.5">
+          <h2 className="text-[17px] font-medium">
+            Gather
+            {gatherCount ? <span className="font-normal text-muted-foreground"> {gatherCount}</span> : null}
+          </h2>
           {gatherList}
         </section>
       ) : gather.length > 0 ? (
-        <section aria-label="Gather" className="flex flex-col gap-2">
-          <h2 className="text-[13px] font-medium tracking-[0.04em] text-muted-foreground">GATHER</h2>
-          <ul className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
-            {gather.map((v, i) => (
-              <SessionRow
-                key={v.key}
-                view={v}
-                open={openKey === v.key}
-                flagged={false}
-                last={i === gather.length - 1}
-                onTick={() => on.onTickLine(v.key)}
-                onToggle={() => on.onToggleLine(v.key)}
-                onStep={(d) => on.onStepLine(v.key, d)}
-                {...(on.onAskLine ? { onAsk: () => on.onAskLine?.(v.key, v.ask?.who ?? "the buyer") } : {})}
-                {...(on.onCancelAskLine ? { onCancelAsk: () => on.onCancelAskLine?.(v.key) } : {})}
-              />
-            ))}
-          </ul>
-        </section>
+        <PrepSection title="Gather" count={gatherCount}>
+          {gather.map((v, i) => (
+            <SessionRow
+              key={v.key}
+              view={v}
+              open={openKey === v.key}
+              flagged={false}
+              last={i === gather.length - 1}
+              onTick={() => on.onTickLine(v.key)}
+              onToggle={() => on.onToggleLine(v.key)}
+              onStep={(d) => on.onStepLine(v.key, d)}
+              {...(on.onAskLine ? { onAsk: () => on.onAskLine?.(v.key, v.ask?.who ?? "the buyer") } : {})}
+              {...(on.onCancelAskLine ? { onCancelAsk: () => on.onCancelAskLine?.(v.key) } : {})}
+            />
+          ))}
+        </PrepSection>
       ) : null}
 
       {view.tools.length > 0 ? (
         <PrepSection title="Tools">
           {view.tools.map((t, i) => (
-            <li key={t.index} className={cn("flex min-h-[60px] items-center gap-2.5 py-1.5 pl-2 pr-3", i < view.tools.length - 1 && "border-b border-cp-line", t.ticked && "bg-cp-accent-tint")}>
+            <li key={t.index} className={row(i, t.ticked)}>
+              <span className={cn("min-w-0 flex-1 text-base font-medium", t.ticked && "text-muted-foreground line-through")}>{t.name}</span>
               <TickBox on={t.ticked} label={t.checkLabel} onClick={() => on.onTickTool(t.index)} />
-              <span className="flex-1 text-[15px] font-medium">{t.name}</span>
             </li>
           ))}
         </PrepSection>
@@ -1016,23 +1104,23 @@ export function GuidePrepView({
       {view.prep.length > 0 ? (
         <PrepSection title="Prep">
           {view.prep.map((p, i) => (
-            <li key={p.key} className={cn("flex min-h-[60px] items-center gap-2.5 py-1.5 pl-2 pr-3", i < view.prep.length - 1 && "border-b border-cp-line", p.ticked && "bg-cp-accent-tint")}>
-              <TickBox on={p.ticked} label={p.checkLabel} onClick={() => on.onTickPrep(p.key)} />
-              <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className={cn("text-[15px] font-medium", p.ticked && "text-muted-foreground line-through")}>{p.text}</span>
-                {p.sub ? <span className="text-xs font-normal text-muted-foreground">{p.sub}</span> : null}
+            <li key={p.key} className={row(i, p.ticked)}>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className={cn("text-base font-medium", p.ticked && "text-muted-foreground line-through")}>{p.text}</span>
+                {p.sub ? <span className="text-[13px] font-normal text-muted-foreground">{p.sub}</span> : null}
               </span>
               {p.timer ? (
                 p.timer.state === "idle" ? (
-                  <button type="button" onClick={() => on.onStartPrep(p.key)} className={cn(SMALL_BUTTON, DARK, "shrink-0 text-sm")}>
+                  <button type="button" onClick={() => on.onStartPrep(p.key)} className={cn(SMALL_BUTTON, DARK, "shrink-0 rounded-full text-sm")}>
                     {p.timer.label}
                   </button>
                 ) : (
-                  <span role="timer" className="inline-flex min-h-10 shrink-0 items-center rounded-xl border border-transparent px-3 text-sm font-medium tabular-nums text-cp-accent-text" style={{ backgroundColor: TINT }}>
+                  <span role="timer" className="inline-flex min-h-10 shrink-0 items-center rounded-full bg-cp-accent-tint px-3 text-sm font-medium tabular-nums text-cp-accent-text">
                     {p.timer.label}
                   </span>
                 )
               ) : null}
+              <TickBox on={p.ticked} label={p.checkLabel} onClick={() => on.onTickPrep(p.key)} />
             </li>
           ))}
         </PrepSection>
@@ -1040,9 +1128,13 @@ export function GuidePrepView({
 
       <DiscardRow onDiscard={on.onDiscard} />
 
-      <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 mt-auto bg-gradient-to-t from-background from-70% to-transparent pt-3 min-[900px]:bottom-6">
-        <Button type="button" onClick={on.onStart} className={cn(MAIN_BUTTON, "min-h-16 bg-primary text-primary-foreground hover:bg-primary/90")}>
-          <MainButtonLabel title={view.startTitle} who={view.startSub} />
+      <div data-toast-above="" className={cn(BOTTOM, "bg-gradient-to-t from-background from-70% to-transparent pb-2 pt-3")}>
+        <Button type="button" onClick={on.onStart} className={cn(MAIN_BUTTON, "min-h-[60px] rounded-[18px] bg-primary text-primary-foreground text-lg font-medium hover:bg-primary/90")}>
+          {view.startLabel}
+          <span className="sr-only">
+            {" "}
+            · {view.startTitle} · {view.startSub}
+          </span>
         </Button>
       </div>
     </div>
@@ -1060,7 +1152,15 @@ export interface DoneHandlers {
   onDiscard: () => void;
 }
 
-/** Done (design §3.6): the time, hands on, steps and cost, how each step went, Use today's times, then Who ate? */
+/** How many of Done's rows show before See all (RV-16, the canvas's `RvCookDone`). */
+export const DONE_FIRST = 3;
+
+/**
+ * Done (design §3.6; RV-16, the canvas's `RvCookDone`): Back to the steps,
+ * a ✓ on the tint, the dish's name at 30 px and "37 min · 8 steps"; How each
+ * step went, three rows then See all; Remember times; the one footnote; and
+ * the one main button, Finish, with what it costs under it.
+ */
 export function GuideDoneView({
   view,
   whoAteSub,
@@ -1080,56 +1180,60 @@ export function GuideDoneView({
   alert: string | null;
   on: DoneHandlers;
 }) {
+  const [all, setAll] = React.useState(false);
+  const rows = all ? view.rows : view.rows.slice(0, DONE_FIRST);
   return (
-    <div className={SCREEN} data-guide="done">
-      <GuideHeader label="DONE" onMinimize={on.onMinimize} />
+    <div className={cn(SCREEN, "gap-[22px]")} data-guide="done">
+      <GuideHeader label="" onMinimize={on.onMinimize} back={{ label: "Back to the steps", onClick: on.onBackToSteps, minimizeToo: true }} />
       <TimerStrip items={strip} onOpen={on.onStrip} />
-      <div className="flex flex-col items-center gap-2.5 rounded-[24px] px-4 py-5 text-center text-cp-cook-ink" style={{ backgroundColor: INK }}>
-        <span aria-hidden className="grid h-14 w-14 place-items-center rounded-full" style={{ backgroundColor: HERB }}>
-          <Check className="h-[30px] w-[30px]" strokeWidth={2.8} />
+      <div className="flex flex-col items-center gap-3 pt-2 text-center">
+        <span aria-hidden className="grid h-16 w-16 place-items-center rounded-full bg-cp-accent-tint text-cp-accent-text">
+          <Check className="h-[30px] w-[30px]" strokeWidth={2.6} />
         </span>
-        <h1 className="text-2xl font-medium">{view.title}</h1>
-        <span className="text-5xl font-medium tracking-[-0.02em] tabular-nums" aria-label={`Cooked in ${view.total}`}>
-          {view.total}
+        <h1 className="text-[30px] font-medium leading-tight tracking-[-0.02em]">
+          {view.name}
+          <span className="sr-only"> is done</span>
+        </h1>
+        <span className="text-[17px] font-normal tabular-nums text-muted-foreground" aria-label={`Cooked in ${view.total}`}>
+          {view.line}
         </span>
-        <span className="text-sm font-normal text-muted-foreground/60">In all, from the first step</span>
       </div>
 
-      <dl className="grid grid-cols-3 gap-2">
-        {view.stats.map((t) => (
-          <div key={t.label} className="flex flex-col-reverse rounded-2xl bg-card shadow-cp-card px-3 py-2.5">
-            <dt className="text-xs font-normal text-muted-foreground">{t.label}</dt>
-            <dd className="truncate text-lg font-medium">{t.value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <section aria-labelledby="guide-how" className="flex flex-col gap-2">
-        <h2 id="guide-how" className="text-lg font-medium">
-          How each step went
-        </h2>
-        <ol className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
-          {view.rows.map((r, i) => (
-            <li key={r.key} className={cn("px-3.5 py-3", i < view.rows.length - 1 && "border-b border-cp-line")}>
-              <span className="flex items-baseline gap-2">
-                <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{r.name}</span>
+      {view.rows.length > 0 ? (
+        <section aria-labelledby="guide-how" className="flex flex-col gap-2.5">
+          <h2 id="guide-how" className="text-[17px] font-medium">
+            How each step went
+          </h2>
+          <ol className="overflow-hidden rounded-cp-card bg-card shadow-cp-card">
+            {rows.map((r, i) => (
+              <li key={r.key} className={cn("flex min-h-16 items-center gap-3 px-4 py-2.5", i > 0 && "border-t border-cp-line")}>
+                <span aria-hidden className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full bg-cp-accent-tint text-[13px] font-medium text-cp-accent-text">
+                  {i + 1}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate text-base font-medium">{r.name}</span>
+                  {r.usual ? <span className="text-[13px] font-normal text-muted-foreground">{r.usual}</span> : null}
+                </span>
                 <span className={cn("shrink-0 text-[15px] font-medium tabular-nums", r.slow ? "text-cp-soon" : r.time === "Not ticked" ? "text-muted-foreground" : "text-cp-accent-text")}>
                   {r.time}
                 </span>
-              </span>
-              {r.bar ? (
-                <span aria-hidden className="relative mt-2 block h-2.5 rounded-full bg-muted">
-                  {r.bar.highPct > 0 ? (
-                    <span className="absolute inset-y-0 rounded-full bg-cp-accent-tint" style={{ left: `${r.bar.lowPct}%`, width: `${Math.max(2, r.bar.highPct - r.bar.lowPct)}%` }} />
-                  ) : null}
-                  <span className="absolute -top-[3px] h-4 w-1 rounded-sm" style={{ left: `calc(${r.bar.markPct}% - 2px)`, backgroundColor: r.slow ? "hsl(var(--cp-soon))" : HERB }} />
-                </span>
-              ) : null}
-              {r.usual ? <span className="mt-1.5 block text-xs font-normal text-muted-foreground">{r.usual}</span> : null}
-            </li>
-          ))}
-        </ol>
-      </section>
+              </li>
+            ))}
+            {view.rows.length > DONE_FIRST ? (
+              <li className="border-t border-cp-line">
+                <button
+                  type="button"
+                  aria-expanded={all}
+                  onClick={() => setAll((x) => !x)}
+                  className={cn("min-h-12 w-full text-sm font-medium text-cp-accent-text hover:bg-accent/50", FOCUS)}
+                >
+                  {all ? "Show less" : `See all ${view.rows.length}`}
+                </button>
+              </li>
+            ) : null}
+          </ol>
+        </section>
+      ) : null}
 
       {view.useTimes ? (
         <button
@@ -1138,34 +1242,27 @@ export function GuideDoneView({
           aria-checked={view.useTimes.on}
           disabled={savingTimes}
           onClick={() => on.onUseTimes(!view.useTimes!.on)}
-          className={cn("flex min-h-16 items-center gap-3 rounded-[18px] bg-card shadow-cp-card px-3.5 py-2.5 text-left disabled:opacity-60", FOCUS)}
+          className={cn("flex min-h-[60px] items-center gap-3 rounded-[18px] bg-card py-2 pl-4 pr-3.5 text-left shadow-cp-card disabled:opacity-60", FOCUS)}
         >
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[15px] font-medium">Use today&apos;s times next time</span>
-            <span className="text-xs font-normal text-muted-foreground">{view.useTimes.sub}</span>
+          <span className="flex-1 text-base font-medium">
+            Remember times
+            <span className="sr-only">: {view.useTimes.sub}</span>
           </span>
-          <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", view.useTimes.on ? "bg-primary" : "bg-muted-foreground/40")}>
-            <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-[left]", view.useTimes.on ? "left-[23px]" : "left-[3px]")} />
-          </span>
+          <SwitchTrack on={view.useTimes.on} />
         </button>
       ) : null}
 
-      <p className="px-0.5 text-[13px] font-normal leading-snug text-muted-foreground">Your times join the ranges other cooks see, never with your name.</p>
+      <p className="text-center text-[13px] font-normal text-muted-foreground">Your times help other cooks, never with your name</p>
 
-      <div className="flex flex-wrap justify-center gap-2">
-        <button type="button" onClick={on.onBackToSteps} className={cn(SMALL_BUTTON, "text-sm font-normal text-muted-foreground hover:bg-accent hover:text-foreground")}>
-          Back to the steps
-        </button>
-      </div>
       <DiscardRow onDiscard={on.onDiscard} />
 
-      <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 mt-auto space-y-2 bg-gradient-to-t from-background from-70% to-transparent pt-3 min-[900px]:bottom-6">
+      <div data-toast-above="" className={cn(BOTTOM, "space-y-2 bg-gradient-to-t from-background from-70% to-transparent pb-2 pt-3")}>
         {alert ? (
-          <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
+          <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-normal text-cp-expired">
             {alert}
           </p>
         ) : null}
-        <Button type="button" onClick={on.onWhoAte} className={cn(MAIN_BUTTON, "min-h-16 bg-primary text-primary-foreground hover:bg-primary/90")}>
+        <Button type="button" onClick={on.onWhoAte} className={cn(MAIN_BUTTON, "min-h-[60px] rounded-[18px] bg-primary text-primary-foreground hover:bg-primary/90")}>
           <MainButtonLabel title={mainTitle} who={whoAteSub} />
         </Button>
       </div>

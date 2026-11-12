@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { KCard, K_BUTTON, K_INPUT } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_INPUT } from "./kit";
 import { BackButton, BackControl, useBack } from "./back-ui";
 import { AiChip } from "./receipt-scan-ui";
 import { markCount, noMarks, settleMarks, stepMarksByIndex, type DraftMarks } from "./recipe-photo";
@@ -80,7 +80,7 @@ export function EditRecipeScreen() {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this recipe. {recipe.error?.message ?? ""}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={recipe.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={recipe.reload}>
           Try again
         </Button>
       </KCard>
@@ -90,7 +90,7 @@ export function EditRecipeScreen() {
     return (
       <KCard className="flex flex-col gap-3 p-5">
         <h1 className="text-lg font-medium">Only its owner can change {recipe.data.recipe.name}</h1>
-        <Button asChild variant="outline" className={cn(K_BUTTON, "self-start")}>
+        <Button asChild variant="ghost" className={cn(K_BUTTON_QUIET, "self-start")}>
           <Link href={recipeHref(recipeId)}>Open it</Link>
         </Button>
       </KCard>
@@ -312,8 +312,8 @@ export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe
           {form.lines.length < MAX_RECIPE_LINES ? (
             <Button
               type="button"
-              variant="outline"
-              className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-border bg-card font-medium")}
+              variant="ghost"
+              className={cn(K_BUTTON_QUIET, "h-12 gap-2 self-start")}
               onClick={() => {
                 const key = newKey();
                 setForm((f) => addLine(f, key));
@@ -351,8 +351,8 @@ export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe
           </p>
         ) : null}
 
-        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:max-w-sm">
-          <Button type="submit" className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")} loading={busy}>
+        <div data-toast-above="" className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 min-[900px]:static min-[900px]:max-w-sm">
+          <Button type="submit" className={cn(MAIN_BUTTON, "shadow-cp-nav min-[900px]:shadow-none")} loading={busy}>
             <MainButtonLabel title={recipe ? "Save changes" : "Save recipe"} who={form.name.trim() || null} />
           </Button>
         </div>
@@ -385,7 +385,7 @@ function focusFirstError(form: HTMLFormElement | null) {
 }
 
 const STEP_BUTTON =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-card text-xl font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-cp-accent-tint text-xl font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 
 const ICON_BUTTON =
   "grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-30";

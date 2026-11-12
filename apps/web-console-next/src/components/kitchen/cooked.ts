@@ -9,7 +9,7 @@
  * - **Cooked!**: ✓, the name with the size and time, the stat tiles (steps,
  *   servings, cost · yours), the group-items note, then WHAT NEXT · ANY, IN
  *   ANY ORDER — Post to Community and Split with a group, each with its done
- *   state — and "Not now · done" / "Done".
+ *   state — and "Done".
  * - **Split with a group**: Who ate for this dish — the group picker
  *   (defaulting to the group whose items it used most), the eaters' steppers
  *   over the dish's servings — then CM-8's `splitDish` and the shares.
@@ -286,9 +286,9 @@ export function cookedActions(input: { postId: string | null; orgId: string | nu
   ];
 }
 
-/** The bottom button: "Not now · done" until one of them is done, then "Done". */
-export function cookedDoneLabel(actions: readonly CookedAction[]): string {
-  return actions.some((a) => a.done) ? "Done" : "Not now · done";
+/** The bottom button: "Done" (RV-16, the canvas's `RvCooked`; it read "Not now · done" until one of them was done). */
+export function cookedDoneLabel(_actions: readonly CookedAction[]): string {
+  return "Done";
 }
 
 /** Cooked! shows for the cook's own dish that isn't canceled, in the new frame, at `?cooked=1`. */

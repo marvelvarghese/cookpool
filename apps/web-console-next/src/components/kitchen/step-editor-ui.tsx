@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { K_BUTTON, K_INPUT } from "./kit";
+import { K_BUTTON_QUIET, K_INPUT } from "./kit";
 import { HEAT_LABELS, RULE_LABELS, SENSE_LABELS, whistlesText } from "./guided-steps";
 import {
   draftTimeText,
@@ -59,23 +59,23 @@ const ICON_BUTTON =
   "grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-30";
 
 const STEPPER =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#C9CFC6] bg-card text-xl font-bold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-card text-xl font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 
-const SMALL_HEAD = "text-xs font-extrabold tracking-[0.04em] text-[#5A635D]";
+const SMALL_HEAD = "text-xs font-medium tracking-[0.04em] text-muted-foreground";
 
 /** A pill that is on or off (the flame, the rule, the sense): dark when on. */
 function pill(on: boolean): string {
   return cn(
-    "min-h-11 rounded-xl border px-3 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-    on ? "border-foreground bg-foreground text-background" : "border-[#D5DAD2] bg-card text-foreground hover:bg-accent",
+    "min-h-11 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    on ? "bg-cp-accent-tint text-cp-accent-text" : "bg-muted text-foreground hover:bg-accent",
   );
 }
 
 /** One half of a segmented control (Prep | Cook, None | Minutes | Whistles): white when on. */
 function segment(on: boolean): string {
   return cn(
-    "min-h-10 rounded-[10px] px-3 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-    on ? "bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]" : "bg-transparent text-[#5A635D] hover:text-foreground",
+    "min-h-10 rounded-[10px] px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    on ? "bg-card text-foreground shadow-cp-card" : "bg-transparent text-muted-foreground hover:text-foreground",
   );
 }
 
@@ -112,10 +112,10 @@ export function ToolsEditor({
   return (
     <section aria-labelledby="recipe-tools-h" className="flex flex-col gap-2.5" data-field="tools">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="recipe-tools-h" className="text-lg font-extrabold tracking-tight">
+        <h2 id="recipe-tools-h" className="text-lg font-medium tracking-tight">
           Tools
         </h2>
-        <span className="text-[13px] font-bold tabular-nums text-muted-foreground">
+        <span className="text-[13px] font-normal tabular-nums text-muted-foreground">
           {tools.length} of {MAX_RECIPE_TOOLS}
         </span>
       </div>
@@ -125,8 +125,8 @@ export function ToolsEditor({
             <li
               key={`${tool}-${i}`}
               className={cn(
-                "flex min-h-11 items-center gap-1 rounded-full border bg-card pl-3.5 pr-1 text-[15px] font-bold",
-                errors[i] ? "border-destructive text-destructive" : "border-[#D5DAD2]",
+                "flex min-h-11 items-center gap-1 rounded-full bg-card pl-3.5 pr-1 text-[15px] font-medium shadow-cp-card",
+                errors[i] ? "border border-destructive text-destructive" : "",
               )}
             >
               {tool}
@@ -167,7 +167,7 @@ export function ToolsEditor({
             />
             <FieldError id="recipe-tool-new-error" message={problem ?? undefined} />
           </div>
-          <Button type="button" variant="outline" className={cn(K_BUTTON, "h-11 gap-1.5 rounded-xl border-[#C9CFC6] bg-card px-4 font-extrabold")} onClick={add}>
+          <Button type="button" variant="ghost" className={cn(K_BUTTON_QUIET, "h-11 gap-1.5 rounded-xl px-4")} onClick={add}>
             <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
             Add
           </Button>
@@ -230,10 +230,10 @@ export function StepsEditor({
   return (
     <section aria-labelledby="recipe-steps-h" className="flex flex-col gap-2.5" data-field="steps">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="recipe-steps-h" className="text-lg font-extrabold tracking-tight">
+        <h2 id="recipe-steps-h" className="text-lg font-medium tracking-tight">
           Steps{steps.length > 0 ? ` · ${steps.length}` : ""}
         </h2>
-        <span className="text-[13px] font-bold tabular-nums text-muted-foreground">
+        <span className="text-[13px] font-normal tabular-nums text-muted-foreground">
           {steps.length} of {MAX_RECIPE_STEPS}
         </span>
       </div>
@@ -268,8 +268,8 @@ export function StepsEditor({
       {steps.length < MAX_RECIPE_STEPS ? (
         <Button
           type="button"
-          variant="outline"
-          className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-[#C9CFC6] bg-card font-extrabold")}
+          variant="ghost"
+          className={cn(K_BUTTON_QUIET, "h-12 gap-2 self-start")}
           onClick={() => {
             const id = onAdd();
             if (!id) return;
@@ -322,14 +322,14 @@ function StepRowEditor({
       id={`${id}-step`}
       role="group"
       aria-label={`Step ${n}`}
-      className={cn("overflow-hidden rounded-[18px] border bg-card", check && "border-[1.5px] border-[#E8C77A]")}
+      className={cn("overflow-hidden rounded-[18px] bg-card shadow-cp-card", check && "ring-[1.5px] ring-cp-soon")}
     >
       <div className="flex items-start gap-1 p-2 pl-3">
         <span
           aria-hidden
           className={cn(
-            "mt-2.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-extrabold",
-            d.handsOff ? "bg-cp-herb-tint text-[#165C3A]" : "bg-foreground text-background",
+            "mt-2.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-medium",
+            d.handsOff ? "bg-cp-line text-muted-foreground" : "bg-cp-accent-tint text-cp-accent-text",
           )}
         >
           {n}
@@ -341,9 +341,9 @@ function StepRowEditor({
           onClick={onToggle}
           className="flex min-h-11 min-w-0 flex-1 flex-col items-start gap-0.5 rounded-xl px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className={cn("line-clamp-2 text-[15px] font-semibold leading-snug", !words && "text-muted-foreground")}>{words || "Say what to do"}</span>
-          <span className="text-[13px] font-bold text-muted-foreground">{summary ?? (open ? "Text only" : "Add flame, time and when it's done")}</span>
-          {check ? <span className="text-xs font-extrabold text-[#8A5A00]">⚠ {check}</span> : null}
+          <span className={cn("line-clamp-2 text-[15px] font-medium leading-snug", !words && "text-muted-foreground")}>{words || "Say what to do"}</span>
+          <span className="text-[13px] font-normal text-muted-foreground">{summary ?? (open ? "Text only" : "Add flame, time and when it's done")}</span>
+          {check ? <span className="text-xs font-medium text-cp-soon">⚠ {check}</span> : null}
         </button>
         <ChevronDown aria-hidden className={cn("mt-3 h-5 w-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
         <button type="button" aria-label={`Remove step ${n}`} onClick={onRemove} className={ICON_BUTTON}>
@@ -351,7 +351,7 @@ function StepRowEditor({
         </button>
       </div>
       {open ? (
-        <div id={`${id}-editor`} className="flex flex-col gap-4 border-t border-[#ECEEE9] bg-[#F6F7F4] p-3.5">
+        <div id={`${id}-editor`} className="flex flex-col gap-4 border-t border-cp-line bg-background p-3.5">
           <StepFields draft={d} n={n} choices={choices} textError={textError} fieldErrors={fieldErrors} onText={onText} onChange={onChange} />
           <PreviewCard preview={preview} />
         </div>
@@ -389,7 +389,7 @@ function StepFields({
   return (
     <>
       <div>
-        <div role="group" aria-label={`Step ${n}: when`} className="grid grid-cols-2 rounded-[14px] bg-[#ECEEE9] p-[3px]">
+        <div role="group" aria-label={`Step ${n}: when`} className="grid grid-cols-2 rounded-[14px] bg-muted p-[3px]">
           {(["prep", "cook"] as const).map((phase) => (
             <button key={phase} type="button" aria-pressed={d.phase === phase} onClick={() => set({ phase })} className={segment(d.phase === phase)}>
               {phase === "prep" ? "Prep" : "Cook"}
@@ -400,7 +400,7 @@ function StepFields({
       </div>
 
       <div>
-        <Label htmlFor={`${id}-text`} className="mb-1.5 block text-[13px] font-extrabold">
+        <Label htmlFor={`${id}-text`} className="mb-1.5 block text-[13px] font-medium">
           What to do
         </Label>
         <textarea
@@ -412,7 +412,7 @@ function StepFields({
           onChange={(ev) => onText(ev.target.value)}
           aria-invalid={!!textError}
           aria-describedby={textError ? `${id}-text-error` : undefined}
-          className="min-h-[70px] w-full resize-none rounded-[14px] border border-[#C9CFC6] bg-background px-3 py-2.5 text-base font-semibold leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-[70px] w-full resize-none rounded-[14px] border border-input bg-background px-3 py-2.5 text-base font-normal leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <FieldError id={`${id}-text-error`} message={textError} />
       </div>
@@ -432,8 +432,8 @@ function StepFields({
                   aria-pressed={on}
                   onClick={() => onChange((cur) => toggleStepLine(cur, c.key))}
                   className={cn(
-                    "min-h-10 rounded-full px-3 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    on ? "border border-[#B9DCC8] bg-cp-herb-tint text-[#165C3A]" : "border border-dashed border-[#9AA39D] bg-card text-[#3F4842] hover:bg-accent",
+                    "min-h-10 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    on ? "bg-cp-accent-tint text-cp-accent-text" : "border border-dashed border-border bg-card text-muted-foreground hover:bg-accent",
                   )}
                 >
                   <span aria-hidden>{on ? "✓ " : "+ "}</span>
@@ -443,13 +443,13 @@ function StepFields({
             })}
           </div>
         ) : (
-          <p className="text-[13px] font-semibold text-muted-foreground">Name the ingredients above, then attach the ones this step uses.</p>
+          <p className="text-[13px] font-normal text-muted-foreground">Name the ingredients above, then attach the ones this step uses.</p>
         )}
         <FieldError id={`${id}-lines-error`} message={e.lines} />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span id={`${id}-heat-h`} className="text-[13px] font-extrabold">
+        <span id={`${id}-heat-h`} className="text-[13px] font-medium">
           Flame
         </span>
         <div role="group" aria-labelledby={`${id}-heat-h`} className="grid grid-cols-4 gap-1.5">
@@ -464,8 +464,8 @@ function StepFields({
 
       <TimeCard draft={d} fieldErrors={e} onChange={onChange} />
 
-      <div className="flex flex-col gap-2 rounded-[18px] border border-[#E3E6E0] bg-card p-3.5">
-        <span id={`${id}-sense-h`} className="text-[13px] font-extrabold">
+      <div className="flex flex-col gap-2 rounded-[18px] bg-card p-3.5 shadow-cp-card">
+        <span id={`${id}-sense-h`} className="text-[13px] font-medium">
           Done when
         </span>
         <div role="group" aria-labelledby={`${id}-sense-h`} className="flex flex-wrap gap-1.5">
@@ -487,14 +487,14 @@ function StepFields({
           onChange={(ev) => set({ checkpoint: ev.target.value })}
           aria-invalid={!!e.checkpoint}
           aria-describedby={e.checkpoint ? `${id}-checkpoint-error` : undefined}
-          className={cn(K_INPUT, "h-12 font-bold sm:h-12")}
+          className={cn(K_INPUT, "h-12 font-medium sm:h-12")}
         />
         <FieldError id={`${id}-checkpoint-error`} message={e.checkpoint} />
       </div>
 
       <div>
-        <Label htmlFor={`${id}-tip`} className="mb-1.5 block text-[13px] font-extrabold">
-          Tip <span className="font-semibold text-muted-foreground">· optional</span>
+        <Label htmlFor={`${id}-tip`} className="mb-1.5 block text-[13px] font-medium">
+          Tip <span className="font-normal text-muted-foreground">· optional</span>
         </Label>
         <Input
           id={`${id}-tip`}
@@ -526,12 +526,12 @@ function TimeCard({
   const id = d.id;
   const time = draftTimeText(d);
   return (
-    <div className="flex flex-col gap-3 rounded-[18px] border border-[#E3E6E0] bg-card p-3.5">
+    <div className="flex flex-col gap-3 rounded-[18px] bg-card p-3.5 shadow-cp-card">
       <div className="flex flex-wrap items-center gap-2">
-        <span id={`${id}-time-h`} className="flex-1 text-[13px] font-extrabold">
-          Time{time ? <span className="font-bold text-muted-foreground"> · {time}</span> : null}
+        <span id={`${id}-time-h`} className="flex-1 text-[13px] font-medium">
+          Time{time ? <span className="font-normal text-muted-foreground"> · {time}</span> : null}
         </span>
-        <div role="group" aria-labelledby={`${id}-time-h`} className="flex rounded-xl bg-[#ECEEE9] p-[3px]">
+        <div role="group" aria-labelledby={`${id}-time-h`} className="flex rounded-xl bg-muted p-[3px]">
           {TIME_KINDS.map(({ kind, label }) => (
             <button key={kind} type="button" aria-pressed={d.timeKind === kind} onClick={() => onChange((cur) => pickTimeKind(cur, kind))} className={segment(d.timeKind === kind)}>
               {label}
@@ -552,8 +552,8 @@ function TimeCard({
 
       <label className="flex min-h-12 cursor-pointer items-center gap-3">
         <span className="flex flex-1 flex-col">
-          <span className="text-[15px] font-extrabold">Hands off</span>
-          <span className="text-xs font-semibold text-[#5A635D]">The cook can do the next steps meanwhile</span>
+          <span className="text-[15px] font-medium">Hands off</span>
+          <span className="text-xs font-normal text-muted-foreground">The cook can do the next steps meanwhile</span>
         </span>
         <Switch checked={d.handsOff} onCheckedChange={(handsOff) => onChange((cur) => ({ ...cur, handsOff }))} aria-label="Hands off" />
       </label>
@@ -582,11 +582,11 @@ function TimeCard({
 function TimeStepper({ label, value, onLess, onMore, lessDisabled }: { label: string; value: string; onLess: () => void; onMore: () => void; lessDisabled: boolean }) {
   return (
     <div role="group" aria-label={label} className="flex items-center gap-2">
-      <span className="w-20 shrink-0 text-[13px] font-bold text-muted-foreground">{label}</span>
+      <span className="w-20 shrink-0 text-[13px] font-normal text-muted-foreground">{label}</span>
       <button type="button" aria-label={`${label}: less`} disabled={lessDisabled} onClick={onLess} className={STEPPER}>
         −
       </button>
-      <span aria-live="polite" className="flex-1 text-center text-lg font-extrabold tabular-nums">
+      <span aria-live="polite" className="flex-1 text-center text-lg font-medium tabular-nums">
         {value}
       </span>
       <button type="button" aria-label={`${label}: more`} onClick={onMore} className={STEPPER}>
@@ -601,22 +601,22 @@ export function PreviewCard({ preview }: { preview: StepPreview }) {
   return (
     <section aria-label="Preview" className="flex flex-col gap-1.5">
       <span className={cn(SMALL_HEAD, "uppercase")}>{preview.label}</span>
-      <div className="flex flex-col gap-2 rounded-[18px] bg-[#17201B] p-3.5 text-white">
+      <div className="flex flex-col gap-2 rounded-[18px] bg-card p-3.5 shadow-cp-card">
         {preview.heading || preview.phase ? (
-          <span className="text-[13px] font-extrabold uppercase tracking-[0.02em] text-[#F3B79E]">{[preview.phase, preview.heading].filter(Boolean).join(" · ")}</span>
+          <span className="text-[13px] font-medium text-cp-accent-text">{[preview.phase, preview.heading].filter(Boolean).join(" · ")}</span>
         ) : null}
-        <span className="text-lg font-extrabold leading-snug">{preview.text}</span>
+        <span className="text-lg font-medium leading-snug">{preview.text}</span>
         {preview.chips.length > 0 ? (
           <span className="flex flex-wrap gap-1.5">
             {preview.chips.map((chip, i) => (
-              <span key={`${chip}-${i}`} className="rounded-full bg-white/10 px-2.5 py-1 text-[13px] font-bold">
+              <span key={`${chip}-${i}`} className="rounded-full bg-muted px-2.5 py-1 text-[13px] font-medium">
                 {chip}
               </span>
             ))}
           </span>
         ) : null}
-        {preview.checkpoint ? <span className="text-sm font-bold text-[#9AD3B2]">{preview.checkpoint}</span> : null}
-        {preview.tip ? <span className="text-[13px] font-semibold text-white/70">{preview.tip}</span> : null}
+        {preview.checkpoint ? <span className="text-sm font-normal text-muted-foreground">{preview.checkpoint}</span> : null}
+        {preview.tip ? <span className="text-[13px] font-normal text-muted-foreground">{preview.tip}</span> : null}
       </div>
     </section>
   );

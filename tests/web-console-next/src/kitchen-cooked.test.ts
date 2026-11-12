@@ -132,13 +132,13 @@ describe("Cooked!", () => {
     expect(groupItemsNote(one, GROUP_NAMES)).toBe("Saved as your dish. Onions from Flat 4B's pantry is charged to you.");
   });
 
-  it("offers Post and Split, each with its done state, and Not now · done until one is done", () => {
+  it("offers Post and Split, each with its done state, and Done (RV-16: no longer Not now · done)", () => {
     const none = cookedActions({ postId: null, orgId: null, groupName: null });
     expect(none.map((a) => [a.id, a.title, a.done, a.doneText])).toEqual([
       ["post", "Post to Community", false, null],
       ["split", "Split with a group", false, null],
     ]);
-    expect(cookedDoneLabel(none)).toBe("Not now · done");
+    expect(cookedDoneLabel(none)).toBe("Done");
     const posted = cookedActions({ postId: "pst_1", orgId: null, groupName: null });
     expect(posted.map((a) => a.doneText)).toEqual(["Posted ✓", null]);
     expect(cookedDoneLabel(posted)).toBe("Done");

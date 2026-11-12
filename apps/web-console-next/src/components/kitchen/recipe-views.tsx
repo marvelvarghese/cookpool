@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { shareKey, shareTarget } from "@/lib/transitions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KCard, K_BUTTON, K_CARD, K_ROWS, K_SECTION } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION } from "./kit";
 import { Face } from "./faces-ui";
 import { GuidedStepItem } from "./guided-views";
 import type { StepRow } from "./guided-steps";
@@ -219,7 +219,6 @@ export function IngredientsSection({
             <span aria-hidden className={cn("box-border h-2.5 w-2.5 shrink-0 rounded-full", r.status ? DOT[r.status] : "border-2 border-border")} />
             <span className="min-w-0 flex-1 truncate text-base font-medium">
               {r.name}
-              {r.isMain ? <span className="font-normal text-muted-foreground"> · main</span> : null}
               {r.status ? (
                 <span className="sr-only">
                   {" "}
@@ -242,10 +241,12 @@ export function IngredientsSection({
 }
 
 /**
- * Steps · N, numbered on the tint, one card of rows (RV-4); folded until
- * opened unless `initiallyOpen`. With `rows` (cookpool-guided GC-6) each step
- * shows its flame, its range at the page's size, what to watch for, Hands
- * off and the learned badge; `planHref` puts The plan beside the heading.
+ * Steps, one card of rows numbered on the tint (RV-16, the canvas's
+ * `RvRecipe`). Open (`initiallyOpen`, the recipe page), it is the heading
+ * "Steps · N" with The plan beside it and every step a row; folded (a
+ * recipe's link), "Steps · N" opens it. With `rows` (cookpool-guided GC-6)
+ * each step also shows its flame, its range at the page's size, what to
+ * watch for, Hands off and the learned badge, quietly.
  */
 export function StepsSection({
   steps,
@@ -260,23 +261,32 @@ export function StepsSection({
 }) {
   const [open, setOpen] = React.useState(initiallyOpen);
   const id = React.useId();
+  const heading = (
+    <span className={K_SECTION}>
+      Steps <span className="font-normal text-muted-foreground">· {steps.length}</span>
+    </span>
+  );
   return (
     <section aria-label="Steps" className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={id}
-          onClick={() => setOpen((o) => !o)}
-          className="flex min-h-11 flex-1 items-center justify-between gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span className={K_SECTION}>Steps · {steps.length}</span>
-          <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
-        </button>
+        {initiallyOpen ? (
+          <h2 className="flex min-h-11 flex-1 items-center">{heading}</h2>
+        ) : (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={id}
+            onClick={() => setOpen((o) => !o)}
+            className="flex min-h-11 flex-1 items-center justify-between gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {heading}
+            <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
+          </button>
+        )}
         {planHref ? (
           <Link
             href={planHref}
-            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-[14px] bg-cp-accent-tint px-3.5 text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-[14px] bg-cp-accent-tint px-3.5 text-sm font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ListOrdered className="h-4 w-4" strokeWidth={2.2} aria-hidden />
             The plan
@@ -284,7 +294,7 @@ export function StepsSection({
         ) : null}
       </div>
       {open && rows ? (
-        <ol id={id} className="flex flex-col gap-2">
+        <ol id={id} className={K_ROWS}>
           {rows.map((row) => (
             <GuidedStepItem key={row.position} row={row} />
           ))}
@@ -308,14 +318,14 @@ export function StepsSection({
 /**
  * The one main button, Start cooking, on the accent with the pot (RV-4):
  * the session at this factor. "For about 2 · chicken 450 g" is said to a
- * screen reader. Held above the tab bar while the page is longer than the
- * screen.
+ * screen reader. Held at the screen's foot (`--cp-bottom-bar`, RV-19: the
+ * recipe page hides the tab bar) while the page is longer than the screen.
  */
 export function StartCookingBar({ href, line }: { href: string; line: string }) {
   return (
     <div
       data-toast-above=""
-      className="sticky bottom-[calc(max(14px,env(safe-area-inset-bottom))+76px)] z-30 -mx-4 bg-gradient-to-t from-background from-70% to-transparent px-4 pb-2 pt-3.5 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:bg-none min-[900px]:px-0"
+      className="sticky bottom-[var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+76px))] z-30 -mx-4 bg-gradient-to-t from-background from-70% to-transparent px-4 pb-2 pt-3.5 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:bg-none min-[900px]:px-0"
     >
       <Link
         href={href}
@@ -335,7 +345,7 @@ export function RecipeNotFound() {
       <BookOpen className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0 space-y-3">
         <h1 className="text-lg font-medium">This recipe isn&apos;t here</h1>
-        <Button asChild variant="outline" className={K_BUTTON}>
+        <Button asChild variant="ghost" className={K_BUTTON_QUIET}>
           <Link href="/cook">Cook</Link>
         </Button>
       </div>

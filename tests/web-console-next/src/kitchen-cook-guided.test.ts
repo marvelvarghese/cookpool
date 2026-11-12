@@ -55,6 +55,7 @@ import {
   GuidePromptView,
   GuideStepView,
   GuideWaitView,
+  promptLine,
   type DoneHandlers,
   type PrepHandlers,
   type PromptHandlers,
@@ -263,16 +264,23 @@ describe("the prompt (GuidePrompt, design §3.1)", () => {
     ]);
   });
 
-  it("offers Start step by step (the main button, on the accent since RV-4) and Just tick what I use", () => {
-    const out = html(React.createElement(GuidePromptView, { view: promptView(curry(), NOW)!, lockState: "off", pushHint: false, on: promptOn }));
-    expect(out).toContain("Cook it step by step");
-    expect(out).toContain(">Start step by step<");
+  it("offers Step by step (the main button, on the accent since RV-4) and Just tick what I use", () => {
+    const view = promptView(curry(), NOW)!;
+    const out = html(React.createElement(GuidePromptView, { view, lockState: "off", pushHint: false, on: promptOn }));
+    // RV-16 (RvCookStart): Back to recipe, the name, "8 steps · about N min" and the bar; no card, no Before you start list.
+    expect(out).toContain('aria-label="Back to recipe"');
+    expect(out).toContain(`>${promptLine(view)}<`);
+    expect(promptLine(view)).toMatch(/^8 steps · about \d+ min$/);
+    expect(out).toContain("Step by step");
     expect(out).toContain(">Just tick what I use<");
     expect(out).toContain("bg-primary text-primary-foreground");
     expect(out).toContain('data-dimmed="false"');
-    expect(out).toContain("BEFORE YOU START");
+    expect(out).not.toContain("Cook it step by step");
+    expect(out).not.toContain("BEFORE YOU START");
     expect(out).toContain("Your screen stays on while you cook");
     expect(out).not.toContain("data-long-prep");
+    expect(out).not.toContain("font-semibold");
+    expect(out).not.toMatch(/#[0-9A-Fa-f]{6}/);
   });
 
   it("puts long prep first, as an amber card with Soak now · ping me and Already done, and dims the guided card until then", () => {
@@ -293,12 +301,12 @@ describe("the prompt (GuidePrompt, design §3.1)", () => {
     ]);
     expect(v).toMatchObject({ dimmed: true, sub: "Starts after the long prep", startSub: "After: Soak the rajma in plenty of water" });
     const out = html(React.createElement(GuidePromptView, { view: v, lockState: "off", pushHint: false, on: promptOn }));
-    expect(out.indexOf('data-long-prep="idle"')).toBeLessThan(out.indexOf("Cook it step by step"));
+    expect(out.indexOf('data-long-prep="idle"')).toBeLessThan(out.indexOf("Step by step"));
     expect(out).toContain("bg-cp-soon-tint");
     expect(out).toContain(">Soak now · ping me<");
     expect(out).toContain(">Already done<");
     expect(out).toContain('data-dimmed="true"');
-    expect(out).toMatch(/<button[^>]*disabled=""[^>]*>.*Start step by step/);
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*>.*Step by step/);
   });
 
   it("Soak now starts that step's own time, to ping back to this session; Already done wakes the guided card", () => {
@@ -373,13 +381,14 @@ describe("Before you start (GuidePrep, design §3.2)", () => {
         timer: { label: "Start 15 min", state: "idle", timerId: null },
       },
     ]);
-    // Five lines can be ticked (the yogurt isn't in your pantries), two tools, two prep.
-    expect(v.ready.text).toBe("0 of 9 ready");
+    // Six lines can be ticked (RV-16: the missing yogurt too), two tools, two prep.
+    expect(v.ready.text).toBe("0 of 10");
+    expect(v.gather).toEqual({ done: 0, of: 6 });
     const ticked = tickPrep(tickTool(tickLine(prep(), "r:0"), 0), "p-chop", NOW);
-    expect(prepScreen(ticked, NOW)!.ready).toEqual({ done: 3, of: 9, text: "3 of 9 ready" });
+    expect(prepScreen(ticked, NOW)!.ready).toEqual({ done: 3, of: 10, text: "3 of 10" });
     // A Gather tick is the session's own: RC-6's line, ticked.
     expect(ticked.lines[0]!.ticked).toBe(true);
-    expect(v).toMatchObject({ startTitle: "Start cooking", startSub: "Step 1 of 8" });
+    expect(v).toMatchObject({ title: "Chicken curry", startTitle: "Start cooking", startSub: "Step 1 of 8", startLabel: "Start step 1" });
   });
 
   it("starts a hands-off prep step's timer, which joins the strip", () => {
@@ -393,15 +402,18 @@ describe("Before you start (GuidePrep, design §3.2)", () => {
     expect(prepScreen(ticked, at(910))!.prep[1]!.timer).toBeNull();
   });
 
-  it("draws 44 px ticks, Start N min and the main button: Start cooking · Step 1 of N", () => {
+  it("draws 44 px ticks at the rows' end, Start N min and the main button: Start step 1", () => {
     const s = prep();
     const out = html(React.createElement(GuidePrepView, { view: prepScreen(s, NOW)!, gather: [], openKey: null, strip: [], on: prepOn }));
     expect(out).toContain("Before you start");
-    expect(out).toContain("0 of 9 ready");
-    expect(out).toContain("h-11 w-11");
+    expect(out).toContain(">0 of 10<");
+    expect(out).toContain("h-11 w-12");
     expect(out).toContain(">Start 15 min<");
-    expect(out).toContain("Start cooking");
+    expect(out).toContain(">Start step 1<");
     expect(out).toContain("Step 1 of 8");
+    expect(out).toContain('aria-label="Back"');
+    expect(out).not.toContain("border-[1.5px]");
+    expect(out).not.toContain("GATHER");
   });
 
   it("Start cooking opens the first step not ticked, and the cooking's clock starts", () => {
@@ -455,7 +467,9 @@ describe("a step (GuideStep, design §3.3)", () => {
   it("draws it: the bar, one heat chip, big type, the check line, the timer chip, 44 px chips, Done on the accent", () => {
     const out = html(React.createElement(GuideStepView, { view: stepScreen(onions(), at(200))!, strip: [], pushHint: false, on: { ...stepOn, onAddAmounts: () => undefined } }));
     expect(out).toContain('data-heat="2"');
-    expect(out).toContain("Medium flame · 5–7 min");
+    // RV-16: "Medium", not "Medium flame"; no "· Stay close".
+    expect(out).toContain("Medium · 5–7 min");
+    expect(out).not.toContain("Medium flame");
     expect(out).toContain("text-[30px]");
     expect(out).toMatch(/role="progressbar"[^>]*aria-valuenow="2"/);
     expect(out).toContain(">2 of 8<");
@@ -467,12 +481,18 @@ describe("a step (GuideStep, design §3.3)", () => {
     expect(out).toContain("Usually 7–9 min at this size · 23 cooks");
     expect(out).toContain(">Start<");
     expect(out).toContain(">Add amounts<");
-    expect(out).toContain("Tip: Do not rush them");
+    // RV-16: one hint per screen; the learned line wins over the tip.
+    expect(out).not.toContain("Tip: Do not rush them");
     expect(out).toContain("bg-primary text-primary-foreground");
     expect(out).not.toContain("font-extrabold");
     expect(out).toContain('aria-label="Read this step aloud"');
     expect(out).toContain(`href="/recipes/${CURRY_ID}/plan?f=450"`);
     expect(out).toContain('aria-label="Previous step"');
+    // RV-16: Back works from step 2, and is off on step 1.
+    expect(out).not.toMatch(/disabled=""[^>]*aria-label="Previous step"/);
+    expect(html(React.createElement(GuideStepView, { view: stepScreen(cooking(), NOW)!, strip: [], pushHint: false, on: stepOn }))).toMatch(
+      /disabled=""[^>]*aria-label="Previous step"/,
+    );
   });
 
   it("shows no learned line where nothing has been learned, and only what a step has", () => {
@@ -493,9 +513,9 @@ describe("a step (GuideStep, design §3.3)", () => {
     expect(sear.timer!.range).toBe("2 min at this size");
     const yogurt = stepScreen(goToStep(cooking(), "c-yogurt", NOW), NOW)!;
     expect(yogurt.checkpoint).toEqual({ sense: "smell", word: "SMELL FOR", text: "Until the raw smell goes" });
-    // The yogurt isn't in your pantries: its chip can't be ticked.
+    // The yogurt isn't in your pantries: its chip still ticks (RV-16: it went in, from outside), never charged.
     expect(yogurt.chips).toEqual([
-      { key: "r:2", label: "90 g yogurt", ticked: false, tickable: false, checkLabel: "Tick Yogurt" },
+      { key: "r:2", label: "90 g yogurt", ticked: false, tickable: true, checkLabel: "Tick Yogurt" },
       { key: "r:3", label: "½ tsp garam masala", ticked: false, tickable: true, checkLabel: "Tick Garam masala" },
     ]);
     const salt = stepScreen(goToStep(cooking(), "c-salt", NOW), NOW)!;
@@ -639,7 +659,8 @@ describe("Meanwhile (design §3.4)", () => {
       pushHint: false,
       on: waitOn,
     }));
-    expect(count(out, ">Do it<")).toBe(4);
+    // RV-16 (RvCookWait): each is a row that does it, named "Do it: …".
+    expect(count(out, 'aria-label="Do it: ')).toBe(4);
   });
 
   it("Do it on a step opens it, started now", () => {
@@ -759,11 +780,15 @@ describe("Done (GuideDone, design §3.6)", () => {
 
   it("draws the time, the rows, the switch, and Who ate? as the main button", () => {
     const out = html(React.createElement(GuideDoneView, { view: doneScreen(cookedCurry(), at(3000))!, whoAteSub: "₹140.78 · post to Flat 4B", strip: [], savingTimes: false, alert: null, on: doneOn }));
-    expect(out).toContain("Chicken curry is done");
-    expect(out).toContain("37:00");
+    // RV-16 (RvCookDone): the name with "is done" for a screen reader, "37 min · 8 steps", three rows then See all, Remember times.
+    expect(out).toContain('Chicken curry<span class="sr-only"> is done</span>');
+    expect(out).toContain(">37 min · 8 steps<");
+    expect(out).toContain('aria-label="Cooked in 37:00"');
     expect(out).toContain("How each step went");
-    expect(out).toContain("slower today");
-    expect(out).toMatch(/role="switch" aria-checked="false"[^>]*>.*Use today&#x27;s times next time/);
+    expect(out).toContain("See all 8");
+    expect(out).toMatch(/role="switch" aria-checked="false"[^>]*>.*Remember times/);
+    expect(out).toContain('aria-label="Back to the steps"');
+    expect(out).not.toContain("bg-cp-cook-bg");
     expect(out).toContain("Who ate?");
     expect(out).toContain("₹140.78 · post to Flat 4B");
     expect(out).toContain("bg-primary text-primary-foreground");

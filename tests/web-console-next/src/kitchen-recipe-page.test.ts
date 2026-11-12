@@ -323,7 +323,8 @@ describe("the page as it draws", () => {
       React.createElement(IngredientsSection, { rows: ingredientRows(CURRY, 1000, curryMatch(1000)), match: curryMatch(1000) }),
     );
     // RV-4: one line per row — the dot, the name, the amount; the status is said to a screen reader.
-    expect(html).toContain(" · main");
+    // RV-16: the " · main" suffix is gone.
+    expect(html).not.toContain(" · main");
     expect(html).toContain('class="sr-only"');
     expect(html).toContain("border-2 border-cp-owe");
     expect(html).toContain("Short · you have 450 g");
@@ -333,7 +334,7 @@ describe("the page as it draws", () => {
   it("folds the steps under Steps · N, and opens numbered", () => {
     const steps = ["One", "Two"];
     const folded = renderToStaticMarkup(React.createElement(StepsSection, { steps }));
-    expect(folded).toContain("Steps · 2");
+    expect(folded).toContain('Steps <span class="font-normal text-muted-foreground">· 2</span>');
     expect(folded).toContain('aria-expanded="false"');
     expect(folded).not.toContain("One");
     expect(renderToStaticMarkup(React.createElement(StepsSection, { steps, initiallyOpen: true }))).toContain("One");
