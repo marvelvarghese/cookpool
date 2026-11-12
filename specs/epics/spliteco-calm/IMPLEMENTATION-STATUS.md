@@ -9,7 +9,7 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | SL2 — Home, Groups, Activity | ✅ shipped | this PR (SL-3) |
 | SL3 — Group and expense | ✅ shipped | this PR (SL-4) |
 | SL4 — Add and Itemized | ✅ shipped | this PR (SL-5) |
-| SL5 — Settle | planned | |
+| SL5 — Settle | ✅ shipped | this PR (SL-6) |
 | SL6 — close-out | planned | |
 
 ## SL1 as built (SL-2)
@@ -84,3 +84,18 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **Shares** stop at 99 a person.
 - **Who had it?** has no search; the grid scrolls in the sheet for large groups.
 
+
+## SL5 as built (SL-6)
+
+- **Settle, per V2Settle** (`app/settle/page.tsx`, rules in `lib/slide-pay.ts`): ← and Change; You → them faces with an arrow; their name (· the group); the 60 px saffron amount; chips **All · Part** — and **Kitchen ₹X · Other ₹Y** when a kitchen group owes on both, each paying that balance alone. Part opens the amount box; in a kitchen group it shows "Kitchen ₹a · Other ₹b · Change" (Kitchen first) and Change lets the payer type their own Kitchen part, as before.
+- **Method tiles UPI · Cash · Bank** (emoji + one word), the selected one ringed cobalt. A payee without a UPI ID: the UPI tile is disabled and says "No UPI ID" ("INR only" outside rupees); the full reason shows under the tiles.
+- **UPI:** "Open UPI app · ₹X" follows the existing `upi://pay` link; then it reads "UPI app opened · <vpa>" and the slider (**Slide when paid**) moves. The gate is the opened link itself, so changing the amount after opening needs the app again. Cash and Bank: **Slide to record**, with the note / reference field.
+- **Slide with a real Undo:** SL1's `Slider` (85 %, Enter/Space twin, `role="slider"` labelled "Slide to record ₹X paid to Dev"). `SlidePay` (on `DelayedSends`) shows the green tick, "Paid ₹X" and **Undo** at once and calls `settle` only after `UNDO_MS`; Undo inside the window sends nothing and brings the slider back; leaving the page (`pagehide`/unmount) sends what waits. While the call is out the panel says "Recording…"; then "<name> can mark it not received" and Done. A refusal returns to the slider with "Not recorded · <reason>" in a toast.
+- **Shared package untouched:** Spliteco no longer draws `PayMethods` / `UpiConfirm` (Cookpool's Money tab still does, unchanged); the rules (`upiLink`, `payOptions`, `checkAmount`, `kitchenFirst`) are still `@saas/spliteco-ui/settle`. `handoff.test.ts`'s SE3 check now asserts the shared rules, not the shared parts.
+- **Tests:** `slide-pay.test.ts` — slider words per method, the UPI gate, delayed record + Undo + leave + refusal, partial amounts, Kitchen first unchanged, Kitchen / Other alone.
+
+### Departures
+
+- **"I paid" / "It didn't" is gone:** on UPI the slide is the payer's confirm; the payment is still recorded only after the UPI app was opened and the payer says so.
+- **Progress shows in the done panel** ("Recording…"), not on the knob: with Undo first, the knob is gone by the time the call is out.
+- **Undo on UPI keeps the app "opened"** (the board resets it), so a mis-slide doesn't send the payer back to pay twice.

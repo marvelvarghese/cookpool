@@ -82,11 +82,11 @@ describe("the app's source", () => {
     expect(page).toContain("handled.current = true");
   });
 
-  it("draws Settle up's ways to pay and the UPI check from the shared package", () => {
+  it("works Settle up by the shared rules, with Spliteco's own tiles and slider (SL5)", () => {
     const page = readFileSync(`${app}/src/app/settle/page.tsx`, "utf8");
-    expect(page).toContain('from "@saas/spliteco-ui/components"');
-    expect(page).toContain("<PayMethods");
-    expect(page).toContain("<UpiConfirm");
-    expect(page).not.toContain('aria-label="How you paid" role="radiogroup"');
+    expect(page).toContain('from "@/lib/settle"');
+    expect(readFileSync(`${app}/src/lib/settle.ts`, "utf8")).toContain('export * from "@saas/spliteco-ui/settle"');
+    expect(page).toContain('aria-label="How you paid"');
+    expect(page).toContain("<Slider");
   });
 });
