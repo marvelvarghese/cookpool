@@ -22,7 +22,7 @@ export function Wordmark({ className }: { className?: string }) {
       <span aria-hidden className="grid h-9 w-9 place-items-center rounded-[11px] bg-primary text-primary-foreground">
         <CookingPot className="h-5 w-5" strokeWidth={2.2} />
       </span>
-      <span className="text-xl font-extrabold tracking-tight">cookpool</span>
+      <span className="text-xl font-medium tracking-tight">cookpool</span>
     </span>
   );
 }
@@ -73,7 +73,7 @@ export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: ()
             onClick={onAdd}
             aria-haspopup="dialog"
             aria-expanded={addOpen}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-[15px] font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Plus className="h-5 w-5" aria-hidden />
             Add
@@ -93,7 +93,7 @@ export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: ()
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     ROW,
-                    active ? "bg-accent font-bold text-primary" : "font-medium text-foreground hover:bg-accent",
+                    active ? "bg-accent font-medium text-primary" : "font-medium text-foreground hover:bg-accent",
                   )}
                 >
                   {link.featured ? (
@@ -112,7 +112,7 @@ export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: ()
       </nav>
 
       <section aria-labelledby="sidebar-recent-groups" className="mt-6 min-h-0 flex-1 overflow-y-auto px-3">
-        <h2 id="sidebar-recent-groups" className="px-3 pb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        <h2 id="sidebar-recent-groups" className="px-3 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Recent groups
         </h2>
         {groups.loading ? (
@@ -143,7 +143,7 @@ export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: ()
           </ul>
         )}
         {groups.data && groups.data.length > 0 ? (
-          <Link href="/groups" className={cn(ROW, "font-semibold text-primary hover:bg-accent")}>
+          <Link href="/groups" className={cn(ROW, "font-medium text-primary hover:bg-accent")}>
             All {groups.data.length} {groups.data.length === 1 ? "group" : "groups"}
           </Link>
         ) : null}
@@ -168,14 +168,14 @@ function SidebarPerson() {
         className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {user ? (
-          <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cp-herb-tint text-xs font-bold text-primary">
+          <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cp-herb-tint text-xs font-medium text-primary">
             {personInitials(user)}
           </span>
         ) : (
           <Skeleton className="h-9 w-9 rounded-full" />
         )}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold">{name || " "}</span>
+          <span className="block truncate text-sm font-medium">{name || " "}</span>
           {user?.email && user.email !== name ? (
             <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
           ) : null}

@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useProfile } from "./data";
 import { CLOSE_44, KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION } from "./kit";
 import { BackButton } from "./back-ui";
+import { SEG_OFF, SEG_ON, SEG_TRACK } from "./rv-look";
 import { useBalances, useGroupRole } from "./ledger-data";
 import { ActivityFeed } from "./activity-feed";
 import { Face } from "./faces-ui";
@@ -56,6 +57,7 @@ export function GroupDetail({ group }: { group: PublicOrganization }) {
   const router = useRouter();
   const tab = groupTabFrom(useSearchParams()?.get("tab"));
   const [latestAll, setLatestAll] = React.useState(false);
+  const [latestMore, setLatestMore] = React.useState(false);
   const pick = (next: GroupTab) => {
     if (next !== tab) router.replace(groupTabHref(group.slug, next), { scroll: false });
   };
@@ -80,7 +82,7 @@ export function GroupDetail({ group }: { group: PublicOrganization }) {
         </div>
       </header>
 
-      <div role="tablist" aria-label="Group sections" className="grid grid-cols-3 gap-1 rounded-2xl bg-muted p-1">
+      <div role="tablist" aria-label="Group sections" className={cn(SEG_TRACK, "grid grid-cols-3 gap-1")}>
         {GROUP_TABS.map((t) => (
           <button
             key={t.id}
@@ -92,7 +94,7 @@ export function GroupDetail({ group }: { group: PublicOrganization }) {
             onClick={() => pick(t.id)}
             className={cn(
               "min-h-11 rounded-xl text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              tab === t.id ? "bg-card text-foreground shadow-cp-card" : "text-muted-foreground hover:text-foreground",
+              tab === t.id ? SEG_ON : SEG_OFF,
             )}
           >
             {t.label}
@@ -108,9 +110,11 @@ export function GroupDetail({ group }: { group: PublicOrganization }) {
                 <h2 id="group-latest" className={K_SECTION}>
                   Latest
                 </h2>
-                <button type="button" aria-expanded={latestAll} onClick={() => setLatestAll(!latestAll)} className={MORE}>
-                  {latestAll ? "Show less" : "See all"}
-                </button>
+                {latestMore || latestAll ? (
+                  <button type="button" aria-expanded={latestAll} onClick={() => setLatestAll(!latestAll)} className={MORE}>
+                    {latestAll ? "Show less" : "See all"}
+                  </button>
+                ) : null}
               </div>
               <ActivityFeed
                 orgId={group.id}
@@ -121,14 +125,10 @@ export function GroupDetail({ group }: { group: PublicOrganization }) {
                 limit={GROUP_TAB_ROWS}
                 variant="line"
                 expanded={latestAll}
+                onHasMore={setLatestMore}
               />
             </section>
-            <section aria-labelledby="group-dishes" className="space-y-2.5">
-              <h2 id="group-dishes" className={cn(K_SECTION, "flex min-h-11 items-center")}>
-                Dishes
-              </h2>
-              <GroupDishesPanel orgId={group.id} meId={myId} names={names} limit={GROUP_TAB_ROWS} />
-            </section>
+            <GroupDishesPanel orgId={group.id} meId={myId} names={names} limit={GROUP_TAB_ROWS} heading={{ id: "group-dishes", title: "Dishes" }} />
           </>
         ) : tab === "pantry" ? (
           <PantryTab orgId={group.id} />

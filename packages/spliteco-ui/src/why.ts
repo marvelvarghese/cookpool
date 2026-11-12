@@ -10,7 +10,7 @@ export interface WhyRow {
   id: string;
   /** "Paneer tikka", "You paid Zoya". */
   title: string;
-  /** "your portion", "your use", "you paid", "split 3 ways", "UPI". */
+  /** "your portion", "your use", "you paid", "split 3", "UPI". */
   detail: string;
   /** What it did to the caller's balance: + they get back, − they owe. */
   netMinor: number;
@@ -41,8 +41,8 @@ function detailOf(t: SplitecoExpenseSummary, me: string): string {
     case "settlement":
       return t.paymentMethod ? (METHOD[t.paymentMethod] ?? "Payment") : "Payment";
     default:
-      if (mine && mine.paidMinor > 0) return sharing > 1 ? `you paid · split ${sharing} ways` : "you paid";
-      return sharing > 1 ? `split ${sharing} ways` : "your share";
+      if (mine && mine.paidMinor > 0) return sharing > 1 ? `you paid · split ${sharing}` : "you paid";
+      return sharing > 1 ? `split ${sharing}` : "your share";
   }
 }
 

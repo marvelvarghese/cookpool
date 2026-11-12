@@ -5,7 +5,7 @@ import { Camera, Images, X } from "lucide-react";
 import type { AiReceiptResponse } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { K_BUTTON, K_BUTTON_QUIET, K_CARD } from "./kit";
+import { K_BUTTON_QUIET, K_CARD } from "./kit";
 import { useReadReceipt, useReceiptScanShows } from "./receipt-data";
 import { shrinkReceiptPhoto } from "./receipt-photo";
 import { receiptError, type ReceiptError } from "./receipt-run";
@@ -196,7 +196,7 @@ function Pick({ problem, onPhoto, onClose }: { problem: string | null; onPhoto: 
           <Camera className="h-4 w-4" aria-hidden />
           Take a photo
         </Button>
-        <Button type="button" variant="outline" className={cn(K_BUTTON, "gap-1.5")} onClick={() => photos.current?.click()}>
+        <Button type="button" variant="ghost" className={cn(K_BUTTON_QUIET, "gap-1.5")} onClick={() => photos.current?.click()}>
           <Images className="h-4 w-4" aria-hidden />
           From photos
         </Button>
@@ -228,7 +228,7 @@ export function BillScanPanel({ scan, prefill, shows }: { scan: BillScan; prefil
           </span>
         </div>
         <span className="cookpool-bill-sk block h-11 rounded-xl" aria-hidden />
-        <Button type="button" variant="outline" className={cn(K_BUTTON, "self-center")} onClick={scan.cancel}>
+        <Button type="button" variant="ghost" className={cn(K_BUTTON_QUIET, "self-center")} onClick={scan.cancel}>
           Cancel
         </Button>
       </section>
@@ -247,7 +247,7 @@ export function BillScanPanel({ scan, prefill, shows }: { scan: BillScan; prefil
               Retake
             </Button>
           ) : null}
-          <Button type="button" variant="outline" className={cn(K_BUTTON, !failed && "col-span-2")} onClick={scan.close}>
+          <Button type="button" variant="ghost" className={cn(K_BUTTON_QUIET, !failed && "col-span-2")} onClick={scan.close}>
             {TYPE_IT_IN}
           </Button>
         </div>

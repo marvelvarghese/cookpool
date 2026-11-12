@@ -120,8 +120,13 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
         ref={main}
         id="kitchen-main"
         className={cn(
-          "mx-auto w-full min-w-0 max-w-2xl px-4",
-          "pb-[var(--cp-main-bottom,calc(env(safe-area-inset-bottom)+6.5rem))] pt-[calc(env(safe-area-inset-top)+1.25rem)]",
+          "mx-auto w-full min-w-0 max-w-2xl",
+          // The boards' page edge (RV-23): an 18 px gutter and 18 px on top in the new frame,
+          // kept in `--cp-gutter` so a full-bleed strip can match it; today's 16/20 otherwise.
+          frameNew
+            ? "px-[var(--cp-gutter)] pt-[calc(env(safe-area-inset-top)+18px)] [--cp-gutter:18px]"
+            : "px-4 pt-[calc(env(safe-area-inset-top)+1.25rem)]",
+          "pb-[var(--cp-main-bottom,calc(env(safe-area-inset-bottom)+6.5rem))]",
           "min-[900px]:max-w-5xl min-[900px]:flex-1 min-[900px]:px-10 min-[900px]:pb-14 min-[900px]:pt-10",
           wide && "min-[1280px]:max-w-[90rem]",
         )}

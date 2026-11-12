@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-23
+  title: "Shared frame, Money, Groups, Community and sign-in polish"
+spec:
+  goal: "The shared frame, Money, Groups, a group, Community and sign-in close the 13 Nov re-audit's remaining gaps against the approved boards."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-23.TaskContract.yaml
+  doneWhen:
+    - "tab icons, gutter, dark track, tokens (use soon, dark border, expired bar) and dark faces follow the boards"
+    - "Money's settle sheet, Groups search, a group's Latest facts and tabs, Community and sign-in copy follow the boards"
+    - "every gap in this task's section of the 13 Nov re-audit is fixed or recorded as a departure; no Bought wording remains in its screens"
+    - "prod's old frame unchanged; tests, typecheck, lint and the static build pass"
+  gates: []

@@ -86,7 +86,8 @@ describe("Community (RvCommunity)", () => {
     const out = html(React.createElement(ShareCookButton));
     expect(out).toContain(`>${SHARE_A_COOK}</button>`);
     expect(out).toContain("bg-primary");
-    expect(out).toContain("fixed inset-x-[18px] bottom-[calc(max(14px,env(safe-area-inset-bottom))+82px)]");
+    // 6 px above the tab bar's room (RV-23: `--cp-tabbar-space`, today's 82 px where it is unset).
+    expect(out).toContain("fixed inset-x-[18px] bottom-[calc(var(--cp-tabbar-space,calc(max(14px,env(safe-area-inset-bottom))+76px))+6px)]");
     // Its room at the feed's end, so the last card is never under it.
     expect(out).toMatch(/^<div class="h-14 /);
     expect(read("components/kitchen/community-ui.tsx")).toMatch(/<CommunityFeed \/>\s*\{\/\*[^}]*\}\s*<ShareCookButton \/>/);

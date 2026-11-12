@@ -50,7 +50,7 @@ export function feedHref(tab: FeedTab): string {
 export const FEED_TAB_LABELS: Readonly<Record<FeedTab, string>> = { following: "Following", discover: "Everyone" };
 
 /** The heading over each tab's cards (`RvCommunity`). */
-export const FEED_HEADINGS: Readonly<Record<FeedTab, string>> = { following: "From people you follow", discover: "New from everyone" };
+export const FEED_HEADINGS: Readonly<Record<FeedTab, string>> = { following: "From people you follow", discover: "Popular today" };
 
 export interface FeedEmpty {
   title: string;
@@ -175,7 +175,8 @@ export function postCard(post: CommunityPost, now: Date, ownRecipeIds: ReadonlyS
 
 /**
  * The compact card's numbers line (`RvCommunity`): the size and the time it
- * took, then the Yums and the comments — "450 g · 48 min · 12 yums".
+ * took, then the likes (a Yum is a like in the card's words, RV-23) and the
+ * comments only when there are any — "450 g · 48 min · 12 likes".
  */
 export function postNumbers(card: Pick<PostCard, "tiles" | "yum" | "comments">): string {
   const parts: string[] = [];
@@ -183,7 +184,7 @@ export function postNumbers(card: Pick<PostCard, "tiles" | "yum" | "comments">):
     if (t.id === "size") parts.push(t.label === "size" ? t.value : `${t.value} ${t.label}`);
     else if (t.id === "time") parts.push(t.value);
   }
-  parts.push(card.yum.count === 1 ? "1 yum" : `${card.yum.count} yums`);
+  parts.push(card.yum.count === 1 ? "1 like" : `${card.yum.count} likes`);
   if (card.comments > 0) parts.push(card.comments === 1 ? "1 comment" : `${card.comments} comments`);
   return parts.join(" · ");
 }

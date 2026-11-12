@@ -15,8 +15,8 @@
  */
 export const CARD_EDGE = "shadow-cp-card ring-inset ring-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:ring-1";
 
-/** A two- or three-way tab track (Sign in · Create account, Following · Everyone). */
-export const SEG_TRACK = "rounded-2xl bg-secondary p-1";
+/** A two- or three-way tab track (Sign in · Create account, Following · Everyone); the card's grey in dark (RV-23). */
+export const SEG_TRACK = "rounded-2xl bg-secondary p-1 [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-card";
 
 /**
  * The chosen tab: the card with its shadow in light, a raised grey in dark

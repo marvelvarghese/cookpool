@@ -59,13 +59,14 @@ export function googleLabel(mode: SignInTab): string {
 }
 
 /**
- * The green panel's headline. A join link names who you are joining; Sign in
- * with an account remembered here says "Good to see you again."; otherwise
- * the pitch (a first visit lands on Sign in, and "again" would be wrong).
+ * The green panel's headline. A join link names who you are joining; the
+ * Sign in tab says "Good to see you again.", remembered account or not (the
+ * board, RV-23); Create account has the pitch. `remembered` is kept for the
+ * callers and no longer changes the words.
  */
-export function heroTitle(mode: SignInTab, remembered: boolean, preview: JoinPreviewPublic | null): string {
+export function heroTitle(mode: SignInTab, _remembered: boolean, preview: JoinPreviewPublic | null): string {
   if (preview) return startHeadline(preview);
-  return mode === "in" && remembered ? WELCOME_BACK_HEADLINE : DEFAULT_HEADLINE;
+  return mode === "in" ? WELCOME_BACK_HEADLINE : DEFAULT_HEADLINE;
 }
 
 /** The form's title beside the desktop panel. */

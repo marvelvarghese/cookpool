@@ -103,6 +103,7 @@ export function GroupAvatar({ name, id, size = "md", className }: { name: string
       className={cn(
         "grid shrink-0 place-items-center bg-cp-herb-tint font-medium text-cp-accent-text",
         NEW_LOOK_TINTS[tint],
+        NEW_LOOK_DARK_BADGE,
         AVATAR_SIZES[size],
         className,
       )}
@@ -112,11 +113,16 @@ export function GroupAvatar({ name, id, size = "md", className }: { name: string
   );
 }
 
+/** In the new look's dark every group badge is the neutral line grey with ink words (the boards, RV-23). */
+const NEW_LOOK_DARK_BADGE =
+  "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:text-foreground";
+
 /** Each group tint under `.cookpool-new` only (whole class names, so Tailwind keeps them). */
 const NEW_LOOK_TINTS: Record<GroupTint, string> = {
   green: "[.cookpool-new_&]:bg-cp-accent-tint [.cookpool-new_&]:text-cp-accent-text",
   blue: "[.cookpool-new_&]:bg-cp-owed-tint [.cookpool-new_&]:text-cp-owed",
-  amber: "[.cookpool-new_&]:bg-cp-soon-tint [.cookpool-new_&]:text-cp-soon",
+  // The boards' warm badge is the owe tint (RvMoney's "Lunch club"), not use-soon's amber (RV-23).
+  amber: "[.cookpool-new_&]:bg-cp-owe-tint [.cookpool-new_&]:text-cp-owe",
   purple: "[.cookpool-new_&]:bg-cp-purple-tint [.cookpool-new_&]:text-cp-purple",
   teal: "[.cookpool-new_&]:bg-cp-teal-tint [.cookpool-new_&]:text-cp-teal",
   slate: "[.cookpool-new_&]:bg-cp-slate-tint [.cookpool-new_&]:text-cp-slate",

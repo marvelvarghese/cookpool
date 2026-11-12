@@ -136,14 +136,15 @@ export function RememberedAccountView({
 }
 
 /**
- * "Can't sign in?" and the one helper line, the terms, at the foot of the
- * form. Terms and the Privacy notice are links (RV-18): there is no page of
+ * "Can't sign in?" and the one helper line, the terms ("…the Terms and
+ * Privacy.", RV-23), at the foot of the form. Terms and Privacy are links (RV-18): there is no page of
  * their own yet, so both open Can't sign in?'s Privacy and terms section,
  * keeping the sign-in's `next` (`helpHref` carries it).
  */
 export function SignInFooter({ helpHref, className }: { helpHref: string; className?: string }) {
   const terms = termsHref(helpHref);
-  const link = "rounded font-medium text-foreground underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  // Ink at 500, not underlined (the board, RV-23).
+  const link = "rounded font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <div className={cn("flex flex-col items-center gap-1 text-center", className)}>
       <Link
@@ -157,9 +158,9 @@ export function SignInFooter({ helpHref, className }: { helpHref: string; classN
         <Link href={terms} className={link}>
           Terms
         </Link>
-        {" and the "}
+        {" and "}
         <Link href={terms} className={link}>
-          Privacy notice
+          Privacy
         </Link>
         .
       </span>

@@ -104,7 +104,7 @@ describe("the why list", () => {
     const why = whyRows(rows, ME, names);
     expect(why.map((r) => [r.title, r.detail, whyAmount(r, plainMoney)])).toEqual([
       ["Paneer tikka", "your portion", "₹212.00"],
-      ["Gas cylinder", "you paid · split 3 ways", "+₹600.00"],
+      ["Gas cylinder", "you paid · split 3", "+₹600.00"],
       ["You paid Zoya", "UPI", "+₹40.00"],
       ["Basmati rice", "your use", "₹200.00"],
     ]);

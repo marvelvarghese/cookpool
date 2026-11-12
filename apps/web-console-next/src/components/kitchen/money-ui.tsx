@@ -12,7 +12,7 @@ import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useGroups, useProfile } from "./data";
-import { CLOSE_44, GroupAvatar, KCard, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "./kit";
+import { GroupAvatar, KCard, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "./kit";
 import { Face } from "./faces-ui";
 import { NewGroupDialog } from "./new-group-dialog";
 import { JoinGroupDialog } from "./join-group-dialog";
@@ -159,7 +159,11 @@ function NetCard({ nets, canSettle, onSettle }: { nets: readonly MoneyNet[]; can
   );
 }
 
-/** Settle up: every payment that involves you, what you pay first; Pay goes to the one settle path. */
+/**
+ * Settle up: every payment that involves you, what you pay first; Pay goes to
+ * the one settle path. The board's sheet: a title row with its own 44 px ×
+ * (the sheet's close, moved into the row), no handle, 64 px rows.
+ */
 function SettleSheet({ open, onOpenChange, rows, meId }: { open: boolean; onOpenChange: (open: boolean) => void; rows: readonly SettleSheetRow[]; meId: string | null }) {
   const names = useMemberNames();
   return (
@@ -168,19 +172,16 @@ function SettleSheet({ open, onOpenChange, rows, meId }: { open: boolean; onOpen
         side="bottom"
         aria-describedby={undefined}
         className={cn(
-          "mx-auto max-h-[92dvh] max-w-xl gap-0 overflow-hidden rounded-t-[26px] border-x-0 bg-background px-[18px] pb-7 pt-2.5 shadow-2xl focus:outline-none min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
-          CLOSE_44,
+          "mx-auto max-h-[92dvh] max-w-xl gap-3 overflow-hidden rounded-t-[26px] border-x-0 bg-background px-[18px] pb-7 pt-[18px] shadow-2xl focus:outline-none min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
+          SETTLE_CLOSE,
         )}
       >
-        <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-cp-line min-[900px]:hidden" />
         <SheetTitle className={cn(K_SECTION, "flex min-h-11 items-center pr-12")}>Settle up</SheetTitle>
-        <ul aria-label="Who pays whom" className={cn(K_ROWS, "mt-3 min-h-0 overflow-y-auto")}>
+        <ul aria-label="Who pays whom" className={cn(K_ROWS, "min-h-0 overflow-y-auto")}>
           {rows.map((r) => (
-            <li key={r.key} className="flex items-center gap-3 pl-3.5 pr-3">
+            <li key={r.key} className="flex min-h-16 items-center gap-3 py-2.5 pl-3.5 pr-3">
               <Face subjectId={r.subjectId} meId={meId} names={names} className="h-[42px] w-[42px] text-sm font-medium" />
-              <div className="min-w-0 flex-1">
-                <PayRow row={r} back="/money" group />
-              </div>
+              <PayRow row={r} back="/money" className="min-h-0 min-w-0 flex-1 py-0" />
             </li>
           ))}
         </ul>
@@ -188,6 +189,10 @@ function SettleSheet({ open, onOpenChange, rows, meId }: { open: boolean; onOpen
     </Sheet>
   );
 }
+
+/** The sheet's own close, in the title row: 44 px, muted, at the sheet's 18 px edge. */
+const SETTLE_CLOSE =
+  "[&>button:last-child]:right-[18px] [&>button:last-child]:top-[18px] [&>button:last-child]:h-11 [&>button:last-child]:w-11 [&>button:last-child]:rounded-[14px] [&>button:last-child]:text-muted-foreground [&>button:last-child]:opacity-100";
 
 /** A section's heading row: the 17px title and, at the right, its one quiet link or toggle. */
 function SectionHead({ id, title, children }: { id: string; title: string; children?: React.ReactNode }) {

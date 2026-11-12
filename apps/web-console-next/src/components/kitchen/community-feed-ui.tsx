@@ -15,6 +15,7 @@ import { recipeHref } from "./recipes";
 import { useCopyRecipe, useMyRecipes } from "./recipes-data";
 import { EmptyLine, GREEN_BUTTON } from "./community-views";
 import { NO_COOKS_TEXT } from "./community";
+import { EXPLORE_HREF } from "./explore";
 import { FEED_HEADINGS, cookThis, feedEmpty, feedTabFrom, postCard } from "./community-posts";
 import { COOK_THIS_BUTTON, FeedTabs, PostCardSkeleton, PostCardView, SAVE_ICON_BUTTON } from "./community-post-views";
 import { useFeed, useProfilePosts, useYum, type PagedRead } from "./community-posts-data";
@@ -153,9 +154,15 @@ export function CommunityFeed() {
     <>
       <FeedTabs tab={tab} />
       <section aria-labelledby="feed-h" className="flex flex-col gap-2.5">
-        <h2 id="feed-h" className={K_SECTION}>
-          {FEED_HEADINGS[tab]}
-        </h2>
+        {/* The tab's heading, with See all beside it: Explore (RvCommunity, RV-23). */}
+        <div className="flex min-h-11 items-center justify-between gap-3">
+          <h2 id="feed-h" className={K_SECTION}>
+            {FEED_HEADINGS[tab]}
+          </h2>
+          <Link href={EXPLORE_HREF} className="flex min-h-11 shrink-0 items-center rounded-md text-sm font-medium text-cp-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            See all
+          </Link>
+        </div>
         <FeedTabBody key={tab} tab={tab} />
       </section>
     </>

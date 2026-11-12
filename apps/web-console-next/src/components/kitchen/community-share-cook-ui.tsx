@@ -32,7 +32,7 @@ export function ShareCookButton() {
     <div className="h-14 min-[900px]:sticky min-[900px]:bottom-6 min-[900px]:z-30 min-[900px]:h-auto">
       <div
         data-toast-above=""
-        className="fixed inset-x-[18px] bottom-[calc(max(14px,env(safe-area-inset-bottom))+82px)] z-30 min-[900px]:static"
+        className="fixed inset-x-[18px] bottom-[calc(var(--cp-tabbar-space,calc(max(14px,env(safe-area-inset-bottom))+76px))+6px)] z-30 min-[900px]:static"
       >
         <button
           type="button"
@@ -67,15 +67,15 @@ function ShareCookSheet({ onClose }: { onClose: () => void }) {
         side="bottom"
         aria-describedby={undefined}
         className={cn(
-          "mx-auto flex max-h-[80dvh] max-w-xl flex-col gap-3 rounded-t-[28px] border-x-0 bg-background px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 min-[900px]:bottom-6 min-[900px]:rounded-[28px] min-[900px]:border",
+          "mx-auto flex max-h-[80dvh] max-w-xl flex-col gap-3 rounded-t-[26px] border-x-0 bg-background px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 min-[900px]:bottom-6 min-[900px]:rounded-[26px] min-[900px]:border",
           CLOSE_44,
         )}
       >
         <div
           aria-hidden
-          className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-border min-[900px]:hidden"
+          className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-cp-line min-[900px]:hidden"
         />
-        <SheetTitle className="pr-12 text-[22px] font-medium tracking-[-0.02em]">
+        <SheetTitle className="flex min-h-11 items-center pr-12 text-[17px] font-medium leading-snug">
           {SHARE_A_COOK}
         </SheetTitle>
         {loading ? (

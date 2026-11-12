@@ -203,12 +203,15 @@ export function GoogleButton({
   );
 }
 
+/** The "or" rule: the border, and the `cp-line` grey in the new look's dark (RV-23). */
+const OR_RULE = "h-px flex-1 bg-border [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line";
+
 export function OrDivider({ label = "or" }: { label?: string }) {
   return (
     <div className="flex items-center gap-3 text-[13px] font-normal text-muted-foreground">
-      <span aria-hidden className="h-px flex-1 bg-border" />
+      <span aria-hidden className={OR_RULE} />
       {label}
-      <span aria-hidden className="h-px flex-1 bg-border" />
+      <span aria-hidden className={OR_RULE} />
     </div>
   );
 }

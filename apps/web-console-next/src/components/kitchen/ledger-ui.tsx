@@ -39,7 +39,7 @@ export function BalanceWords({
   return (
     <span className={cn("text-sm", getsBack ? "text-cp-owed" : "text-cp-owe", className)}>
       {getsBack ? (you ? "you get back" : "gets back") : you ? "you owe" : "owes"}{" "}
-      <Money minor={Math.abs(minor)} currency={currency} className="font-bold" />
+      <Money minor={Math.abs(minor)} currency={currency} className="font-medium" />
     </span>
   );
 }
@@ -62,7 +62,7 @@ export function PersonAvatar({
     <span
       aria-hidden
       className={cn(
-        "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-bold",
+        "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-medium",
         you ? "bg-cp-herb-tint text-primary" : "bg-muted text-muted-foreground",
         className,
       )}
@@ -82,7 +82,7 @@ const KIND_TONES: Record<KindTone, string> = {
 /** A transaction kind's glyph (₹ ✓ U D W ↺) in a tinted circle; its name is read out instead. */
 export function KindBubble({ glyph, label, tone, className }: { glyph: string; label: string; tone: KindTone; className?: string }) {
   return (
-    <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full text-base font-extrabold", KIND_TONES[tone], className)}>
+    <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full text-base font-medium", KIND_TONES[tone], className)}>
       <span aria-hidden>{glyph}</span>
       <span className="sr-only">{label}</span>
     </span>
@@ -144,7 +144,7 @@ export function Segmented<T extends string>({
               }
             }}
             className={cn(
-              "min-h-11 rounded-[10px] px-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [.cookpool-new_&]:font-medium",
+              "min-h-11 rounded-[10px] px-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               selected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -167,7 +167,7 @@ export function Chip({
     <button
       type="button"
       className={cn(
-        "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors",
+        "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         selected ? "border-primary bg-accent text-primary" : "border-input bg-card text-foreground hover:bg-accent/60",
         // The new frame (RV-19): no border, Medium; picked on the accent's tint, else on the muted fill.

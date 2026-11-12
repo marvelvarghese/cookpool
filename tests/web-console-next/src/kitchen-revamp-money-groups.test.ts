@@ -133,13 +133,13 @@ describe("a group's page", () => {
     expect(groupFaces([ANU, DEV, KIRAN, ME, "usr_x", "usr_y"], ME)).toEqual({ shown: [ME, ANU, DEV, KIRAN], more: 2 });
   });
 
-  it("shows your balance as a signed pill, Settled at zero", () => {
+  it("shows your balance as a signed pill, Square at zero (RV-23)", () => {
     const data = { currency: "INR", balances: [{ subjectId: ME, balanceMinor: 84_200 }, { subjectId: ANU, balanceMinor: -84_200 }] };
     // RV-17: whole rupees where whole, as RvGroup writes it.
     expect(groupPill(data, ME)).toEqual({ tone: "owed", text: "+₹842" });
     expect(groupPill(data, ANU)).toEqual({ tone: "owe", text: "−₹842" });
     expect(groupPill({ currency: "INR", balances: [{ subjectId: ME, balanceMinor: 2450 }] }, ME)).toEqual({ tone: "owed", text: "+₹24.50" });
-    expect(groupPill(data, DEV)).toEqual({ tone: "settled", text: "Settled" });
+    expect(groupPill(data, DEV)).toEqual({ tone: "settled", text: "Square" });
   });
 
   it("signs a balance by which way it goes for them", () => {
