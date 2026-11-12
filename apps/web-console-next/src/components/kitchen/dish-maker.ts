@@ -313,7 +313,7 @@ export function lineGroup(line: DishLine): { orgId: string; name: string } | nul
 export function pantriesText(lines: readonly DishLine[]): string | null {
   if (lines.length === 0) return null;
   const keys = new Set(lines.map((l) => lineGroup(l)?.orgId ?? "personal"));
-  if (keys.size === 1 && keys.has("personal")) return "from your pantry";
+  if (keys.size === 1 && keys.has("personal")) return "from your kitchen";
   return `from ${countWords(keys.size, "pantry", "pantries")}`;
 }
 
@@ -329,7 +329,7 @@ export interface SourceChip {
 export function sourceChip(line: DishLine, meId: string, names?: MemberNames | null): SourceChip {
   if (line.kind === "new") return { label: "Just bought", tone: "mine" };
   const pantry = line.item.pantry;
-  if (pantry.kind === "personal") return { label: "Your pantry", tone: "mine" };
+  if (pantry.kind === "personal") return { label: "Your kitchen", tone: "mine" };
   return { label: `${pantry.name} · ${memberLabelInline(line.item.paidBy, meId, names)} paid`, tone: "group" };
 }
 
@@ -384,7 +384,7 @@ export function lineView(line: DishLine, ctx: { meId: string; names?: MemberName
   if (line.kind === "pantry") {
     leftNote = rest <= 0 ? "uses it all" : `${formatQuantity(rest, dimension, line.item.displayUnit)} left`;
   } else {
-    leftNote = rest <= 0 ? "uses it all" : `${formatQuantity(rest, dimension, line.unit)} stays in your pantry`;
+    leftNote = rest <= 0 ? "uses it all" : `${formatQuantity(rest, dimension, line.unit)} stays in your kitchen`;
   }
   const measure = line.kind === "pantry" ? (measuresOf(line.item)[0] ?? null) : null;
   const counted = line.kind === "pantry" && line.counted ? line.counted : null;
@@ -589,7 +589,7 @@ export function pantryResult(
   item: KitchenItem,
   ctx: { lines: readonly DishLine[]; currency: string | null; meId: string; names?: MemberNames | null },
 ): PantryResult {
-  const pantry = item.pantry.kind === "personal" ? "Your pantry" : item.pantry.name;
+  const pantry = item.pantry.kind === "personal" ? "Your kitchen" : item.pantry.name;
   const left = `${formatQuantity(item.qtyLeftMilli, item.dimension, item.displayUnit)} left`;
   const meta =
     item.pantry.kind === "personal"

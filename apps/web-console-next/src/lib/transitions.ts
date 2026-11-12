@@ -25,6 +25,8 @@
  *    a second time;
  *  - after the installed iPhone's edge swipe (PW-7) has slid the page away,
  *    back only fades the new page in (`swiped`);
+ *  - a swipe between tabs (cookpool-revamp RV-9) slides the page out the
+ *    way the finger went and the next tab in after it (`tabSwiped`);
  *  - a tapped card's title and tile carry into the page they open: the
  *    names go on the tapped card only, just before the capture, move to the
  *    new page's matching parts, and are cleared when it ends;
@@ -44,9 +46,14 @@ export type TransitionKind = "tab" | "forward" | "back" | "up" | "down";
 /**
  * What plays, on `<html data-vt>`: the kind on a phone, or one of three
  * plainer ones — `fade` from 900 px (the sidebar's desktop), `reduced` with
- * reduced motion, `swiped` after the edge swipe has moved the page already.
+ * reduced motion, `swiped` after the edge swipe has moved the page already —
+ * or a swipe between tabs (RV-9): `swipe-next` (the finger went left: the page
+ * leaves to the left, the next tab comes in from the right) and `swipe-prev`.
  */
-export type TransitionStyle = TransitionKind | "fade" | "reduced" | "swiped";
+export type TransitionStyle = TransitionKind | "fade" | "reduced" | "swiped" | "swipe-next" | "swipe-prev";
+
+/** Which way a swipe between tabs went: to the next tab (a swipe left) or the previous one. */
+export type TabSwipeDirection = "next" | "prev";
 
 /** How long each style runs, in ms (globals.css says the same): every one under 300. */
 export const TRANSITION_MS: Readonly<Record<TransitionStyle, number>> = {
@@ -58,6 +65,8 @@ export const TRANSITION_MS: Readonly<Record<TransitionStyle, number>> = {
   fade: 120,
   reduced: 100,
   swiped: 150,
+  "swipe-next": 240,
+  "swipe-prev": 240,
 };
 
 /** The longest the old page's screenshot waits for the new page (and its shared parts). */
@@ -83,6 +92,8 @@ export interface StyleContext {
   reducedMotion: boolean;
   /** The installed iPhone's edge swipe has slid the page away already. */
   swiped: boolean;
+  /** A swipe between tabs is running this step, and which way (RV-9). */
+  tabSwipe?: TabSwipeDirection | null | undefined;
 }
 
 /** What plays for a kind: reduced motion and the desktop fade first, then the swipe's, else the kind itself. */
@@ -90,6 +101,7 @@ export function transitionStyle(kind: TransitionKind, ctx: StyleContext): Transi
   if (ctx.reducedMotion) return "reduced";
   if (ctx.wide) return "fade";
   if (ctx.swiped) return "swiped";
+  if (ctx.tabSwipe) return ctx.tabSwipe === "next" ? "swipe-next" : "swipe-prev";
   return kind;
 }
 
@@ -244,6 +256,8 @@ export interface Transitions {
   gateFor(pathname: string): Promise<void> | null;
   /** Runs `back` as the edge swipe's (PW-7): the page has moved already, so back only fades. */
   swiped<T>(back: () => T): T;
+  /** Runs `go` as a swipe between tabs (RV-9): its step slides the way the finger went. */
+  tabSwiped<T>(direction: TabSwipeDirection, go: () => T): T;
   /** A transition is running (tests). */
   running(): boolean;
 }
@@ -276,6 +290,7 @@ export function createTransitions(env: TransitionEnv): Transitions {
   let shownPath: string | null = null;
   let ownPop = false;
   let swiping = false;
+  let tabSwipe: TabSwipeDirection | null = null;
   const waiters = new Set<{ from: string; done: (ok: boolean) => void }>();
   let gate: { promise: Promise<void>; open: () => void; done: boolean } | null = null;
 
@@ -435,7 +450,7 @@ export function createTransitions(env: TransitionEnv): Transitions {
     ownsTraversals: () => env.supported() && !env.iosTab(),
 
     navigate(request) {
-      const style = request.kind && canAnimate() ? transitionStyle(request.kind, { wide: env.wide(), reducedMotion: env.reducedMotion(), swiped: swiping }) : null;
+      const style = request.kind && canAnimate() ? transitionStyle(request.kind, { wide: env.wide(), reducedMotion: env.reducedMotion(), swiped: swiping, tabSwipe }) : null;
       if (!style) {
         if (current) {
           interrupt();
@@ -498,6 +513,15 @@ export function createTransitions(env: TransitionEnv): Transitions {
         return back();
       } finally {
         swiping = false;
+      }
+    },
+
+    tabSwiped(direction, go) {
+      tabSwipe = direction;
+      try {
+        return go();
+      } finally {
+        tabSwipe = null;
       }
     },
 

@@ -368,6 +368,6 @@ export function addMainLabel(input: { name: string; priceMinor: number | null; c
   const price = input.priceMinor !== null ? formatMinor(input.priceMinor, input.currency) : null;
   return {
     title: [short ? `Add ${short}` : "Add", price].filter(Boolean).join(" · "),
-    who: input.pantryName ? `to ${input.pantryName}` : "to your pantry",
+    who: input.pantryName ? `to ${input.pantryName}` : "to your kitchen",
   };
 }

@@ -365,7 +365,7 @@ export interface IngredientRow {
 function pantriesText(items: readonly Pick<RecipeMatchItem, "pantry">[]): string | null {
   const names: string[] = [];
   for (const item of items) {
-    const name = item.pantry.kind === "group" ? item.pantry.name : "Your pantry";
+    const name = item.pantry.kind === "group" ? item.pantry.name : "Your kitchen";
     if (!names.includes(name)) names.push(name);
   }
   if (names.length === 0) return null;

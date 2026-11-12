@@ -462,7 +462,7 @@ export function PantryPanel({
           }}
         />
       ) : error && results === null ? (
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load your pantries. {error.message}</p>
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load your kitchen. {error.message}</p>
       ) : results === null ? (
         <div className="space-y-2" aria-hidden>
           <Skeleton className="h-12 w-full rounded-xl" />

@@ -165,7 +165,7 @@ export function receiptRunLine(line: AiReceiptLine, index: number, ctx: ReceiptC
   const match = restockMatch(line, ctx.restockLines ?? allRestockLines(ctx.restock));
   const wanted = receiptPantryKey(line) ?? (match ? pantryKey(match.pantry) : PERSONAL_PANTRY);
   const target = ctx.pantries.find((p) => pantryKey(p) === wanted) ?? ctx.pantries.find((p) => p.kind === "personal") ?? ctx.pantries[0] ?? null;
-  const pantryRef = target ? pantryRefOf(target) : { kind: "personal" as const, name: "My pantry" };
+  const pantryRef = target ? pantryRefOf(target) : { kind: "personal" as const, name: "My kitchen" };
   const unit = receiptUnit(line.unit) ?? (match && isUnit(match.last.unit) ? match.last.unit : "pcs");
   const qty = positiveNumber(line.quantity) ?? 1;
   let quantityMilli: number;
@@ -391,9 +391,9 @@ export function receiptCard(run: ReceiptRun, ticks: readonly Pick<TickedLine, "k
   return { title, sub, total: { ok: false, text: diff > 0 ? `${money} of the bill isn't ticked` : `${money} more than the bill` } };
 }
 
-/** While it is read: "Reading the lines…", then "Found 9 lines · matching to your pantries…". */
+/** While it is read: "Reading the lines…", then "Found 9 lines · matching to your kitchen…". */
 export function readingText(found: number | null): string {
-  return found === null ? "Reading the lines…" : `Found ${found} ${found === 1 ? "line" : "lines"} · matching to your pantries…`;
+  return found === null ? "Reading the lines…" : `Found ${found} ${found === 1 ? "line" : "lines"} · matching to your kitchen…`;
 }
 
 /** The pantry chip's words for a line. */

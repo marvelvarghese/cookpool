@@ -259,8 +259,8 @@ describe("picking the item: the strip and search", () => {
   });
 
   it("counts matches across your pantries", () => {
-    expect(matchesHeading(3)).toBe("3 matches across your pantries");
-    expect(matchesHeading(1)).toBe("1 match across your pantries");
+    expect(matchesHeading(3)).toBe("3 matches across your kitchen");
+    expect(matchesHeading(1)).toBe("1 match across your kitchen");
   });
 
   it("finds your usual of an item", () => {
@@ -305,7 +305,7 @@ describe("Do it again (the + Add sheet)", () => {
     const usual = makeUsual({ itemId: own.id, name: "Eggs", pantry: PERSONAL_REF, lastQtyMilli: 2_000, lastUnit: "pcs", consumers: [ME], qtyLeftMilli: 7_000 });
     const [row] = doItAgainRows([usual], new Map([[own.id, own]]), { meId: ME, names: NAMES });
     expect(row).toMatchObject({ title: "Eggs · 2 pcs", meta: "Personal", consumers: [] });
-    expect(row!.label).toBe(`Log 2 pcs of Eggs from your pantry, ${row!.cost}`);
+    expect(row!.label).toBe(`Log 2 pcs of Eggs from your kitchen, ${row!.cost}`);
   });
 
   it("costs it on the item as it is now — the last of it costs what is left of the price", () => {

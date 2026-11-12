@@ -335,9 +335,9 @@ describe("a session from a recipe (design §4.2)", () => {
   it("says where each comes from and what went in last time", () => {
     const views = curry().lines.map((l) => sessionLineView(l, { meId: ME, names: NAMES }));
     expect(views.map((v) => v.sub)).toEqual([
-      "Your pantry · last time 500 g",
+      "Your kitchen · last time 500 g",
       "Flat 4B · Meera paid · last time 2 onions",
-      "Not in your pantries · left out",
+      "Not in your kitchen · left out",
       "Always have",
       "Always have",
       "Flat 4B · you paid",
@@ -892,7 +892,7 @@ describe("a row, as drawn", () => {
     expect(html).toContain("line-through");
     expect(html).toContain("border-dashed");
     expect(html).toMatch(/aria-pressed="false"[^>]*disabled=""/);
-    expect(html).toContain("Not in your pantries · left out");
+    expect(html).toContain("Not in your kitchen · left out");
   });
 
   it("opens − and + under the amount, with what it takes and costs", () => {

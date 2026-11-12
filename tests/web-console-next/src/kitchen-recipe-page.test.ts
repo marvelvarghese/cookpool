@@ -233,7 +233,7 @@ describe("what your pantries hold: each line's status", () => {
       ["Onions", "have", "✓ Flat 4B · 4 onions"],
       ["Tomatoes", "have", "✓ Flat 4B · 5 tomatoes"],
       ["Yogurt", "missing", "Missing"],
-      ["Ginger-garlic paste", "have", "✓ Your pantry · 150 ml"],
+      ["Ginger-garlic paste", "have", "✓ Your kitchen · 150 ml"],
       ["Cooking oil", "have", "✓ Flat 4B +1 · 400 ml"],
       ["Garam masala", "always", "Always have"],
       ["Salt", "always", "Always have"],
@@ -241,7 +241,7 @@ describe("what your pantries hold: each line's status", () => {
   });
 
   it("follows the factor: at 450 g the chicken is there", () => {
-    expect(ingredientRows(CURRY, 450, curryMatch(450))[0]).toMatchObject({ status: "have", statusText: "✓ Your pantry · 450 g", amount: "450 g" });
+    expect(ingredientRows(CURRY, 450, curryMatch(450))[0]).toMatchObject({ status: "have", statusText: "✓ Your kitchen · 450 g", amount: "450 g" });
   });
 
   it("has no status until the match answers (the amounts show at once)", () => {

@@ -229,7 +229,7 @@ describe("Can't sign in?", () => {
       expect(lost).toMatchObject({ question: "I can't open that email any more", cta: "Back to sign in", action: "sign_in" });
       expect(lost?.tips).toEqual([
         "If you signed up with Google, Continue with Google still works.",
-        "Your groups, pantry and balances stay as they are meanwhile.",
+        "Your groups, kitchen and balances stay as they are meanwhile.",
       ]);
     }
     const withAddress = helpItems({ typedEmail: null, googleOffered: true, supportEmail: "help@example.com" })[1];

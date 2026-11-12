@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-9
+  title: "Swipe between tabs, and Pantry becomes Kitchen"
+spec:
+  goal: "A horizontal swipe on a tab page moves to the next or previous tab, and the Pantry tab and page are called Kitchen everywhere people see it."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-9.TaskContract.yaml
+  doneWhen:
+    - "on Home, Kitchen, Cook, Money and You a deliberate horizontal swipe moves to the neighbouring tab with a slide"
+    - "swipes never fire on horizontal scrollers, swipe rows, inputs, sheets or from the screen edge, and respect reduced motion"
+    - "the tab, page title and labels say Kitchen; the /pantry address keeps working"
+  gates: []

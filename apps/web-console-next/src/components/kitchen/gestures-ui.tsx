@@ -23,6 +23,8 @@ import {
 } from "@/lib/gestures";
 import { edgeSwipeBackOn, pullsToRefresh, readEdgeSwipeEnv, type EdgeSwipeEnv } from "./gestures";
 import { shownBackAction, useBack } from "./back-ui";
+import { navigate } from "./transition-ui";
+import { tabSwipeOffset, tabSwipeOn, tabSwipeRelease, tabSwipeRule } from "./tab-swipe";
 
 /**
  * The kitchen frame's gestures (cookpool-app PW-7, design §5), mounted once
@@ -282,4 +284,94 @@ export function EdgeSwipeBack({
       <ChevronLeft className="h-6 w-6" />
     </div>
   );
+}
+
+/** Whether a sheet or dialog is open: a tab swipe never starts under one. */
+function sheetOpen(): boolean {
+  return document.querySelector('[role="dialog"], [role="alertdialog"]') !== null;
+}
+
+/**
+ * Swiping between the tabs (cookpool-revamp RV-9), on the five tabs' roots
+ * in the new frame, on a phone. A drag on the page that turns out sideways
+ * (`tabSwipeRule`: more than 1.6× as sideways as up or down, known by the
+ * first moves) moves the page a little with the finger; let go past 64 px
+ * and the tab beside it opens with a slide that way (`swipe-next` or
+ * `swipe-prev`, the page transitions); short of that it springs back. A drag
+ * that turns vertical is the browser's scroll, untouched. Touches on what
+ * scrolls sideways, swipe rows, fields, sliders, sheets and the bars, or
+ * within 24 px of either side, are never taken. With reduced motion the
+ * page doesn't move: the tab just opens.
+ */
+export function TabSwipe({ page }: { /** Where a swipe may start, and what moves (the kitchen's `<main>`). */ page: React.RefObject<HTMLElement | null> }) {
+  const pathname = usePathname() ?? "";
+  const [width, setWidth] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const read = () => setWidth(window.innerWidth);
+    read();
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, []);
+  const on = width !== null && tabSwipeOn(pathname, { newFrame: newFrame(), width });
+  const leaving = React.useRef<number | null>(null);
+
+  const reset = React.useCallback(() => {
+    if (leaving.current !== null) window.clearTimeout(leaving.current);
+    leaving.current = null;
+    const main = page.current;
+    if (main) {
+      main.style.transition = "";
+      main.style.transform = "";
+    }
+  }, [page]);
+
+  React.useEffect(() => reset, [reset]);
+  React.useEffect(() => {
+    reset();
+  }, [pathname, on, reset]);
+
+  React.useEffect(() => {
+    const main = page.current;
+    if (!on || !main) return;
+    let still = false;
+
+    const slide = (x: number, settle: boolean) => {
+      main.style.transition = settle ? `transform ${SETTLE_MS}ms ${SETTLE_EASE}` : "none";
+      // No transform at rest: a transformed box would hold the page's fixed parts.
+      main.style.transform = x !== 0 ? `translate3d(${x}px, 0, 0)` : "";
+    };
+
+    return listenForDrags(main, {
+      begin(start, target) {
+        if (leaving.current !== null) return null;
+        still = prefersReducedMotion();
+        return tabSwipeRule(start, target, main, { pathname, width: window.innerWidth, sheetOpen: sheetOpen() });
+      },
+      move(dx) {
+        if (!still) slide(tabSwipeOffset(pathname, dx), false);
+      },
+      end(drag, cancelled) {
+        const to = cancelled ? null : tabSwipeRelease(pathname, drag.dx);
+        if (!to) {
+          if (!still) slide(0, true);
+          return;
+        }
+        // The new screen resets the page; if none comes, put it back anyway.
+        leaving.current = window.setTimeout(reset, 1500);
+        const go = () => {
+          if (!navigate(to.href, { kind: "tab" })) window.location.assign(to.href);
+        };
+        if (still || transitions.supported()) {
+          // The page transition slides from where the finger left the page (or, reduced, just switches).
+          transitions.tabSwiped(to.direction, go);
+          return;
+        }
+        // No view transitions (iOS before 18): the page slides away itself, then the tab opens.
+        slide(to.direction === "next" ? -window.innerWidth : window.innerWidth, true);
+        window.setTimeout(go, SETTLE_MS);
+      },
+    });
+  }, [on, page, pathname, reset]);
+
+  return null;
 }

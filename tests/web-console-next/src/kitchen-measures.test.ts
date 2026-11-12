@@ -153,7 +153,7 @@ describe("asking once", () => {
     expect(saveLabel("pack", { one: "slice", many: "slices" }, 20)).toBe("Save · 20 slices");
     expect(saveLabel("mass", { one: "onion", many: "onions" }, null)).toBe("Pick one");
     expect(savedForText("onions", groupRef(FLAT))).toBe("Saved for onions in Flat 4B.");
-    expect(savedForText("rice", PERSONAL_REF)).toBe("Saved for rice in your pantry.");
+    expect(savedForText("rice", PERSONAL_REF)).toBe("Saved for rice in your kitchen.");
   });
 });
 

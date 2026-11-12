@@ -305,7 +305,7 @@ export function assistantTab(id: string | null | undefined): AssistantTab {
 }
 
 export const CAN_DO: readonly string[] = [
-  "Read your pantry, recipes, shopping list and balances",
+  "Read your kitchen, recipes, shopping list and balances",
   "Set cooking timers that ring on your phone",
   "Suggest uses and purchases — you confirm them here",
 ];

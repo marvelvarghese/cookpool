@@ -720,7 +720,7 @@ export function linePantryText(line: SessionLine, meId: string | null, names?: M
   if (line.takes.length === 0) return "Always have";
   const live = lineTakes(line).filter((t) => t.milli > 0);
   if (live.length === 0) return "None left now";
-  const pantries = [...new Set(live.map((t) => t.take.pantryName ?? "Your pantry"))];
+  const pantries = [...new Set(live.map((t) => t.take.pantryName ?? "Your kitchen"))];
   if (live.length === 1) {
     const t = live[0]!.take;
     if (t.pantryName && t.item) return `${t.pantryName} · ${memberLabelInline(t.item.paidBy, meId, names)} paid`;
@@ -731,7 +731,7 @@ export function linePantryText(line: SessionLine, meId: string | null, names?: M
 export interface SessionLineView {
   key: string;
   name: string;
-  /** "Flat 4B · Meera paid · last time 2 onions", or "Not in your pantries · left out". */
+  /** "Flat 4B · Meera paid · last time 2 onions", or "Not in your kitchen · left out". */
   sub: string;
   /** "1½ onions", "To taste". */
   amount: string;
@@ -761,7 +761,7 @@ export function sessionLineView(line: SessionLine, ctx: { meId: string | null; n
   const short = lineTakes(line).some((t) => t.milli > 0) && lineShort(line);
   const amount = line.qtyMilli !== null && line.unit !== null ? amountText(line.qtyMilli, line.unit) : "To taste";
   const sub = line.missing
-    ? "Not in your pantries · left out"
+    ? "Not in your kitchen · left out"
     : [linePantryText(line, ctx.meId, ctx.names), short ? "short" : null, line.lastTime ? `last time ${line.lastTime}` : null]
         .filter((x): x is string => !!x)
         .join(" · ");

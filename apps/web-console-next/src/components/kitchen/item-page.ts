@@ -153,7 +153,7 @@ export function buyAgainRefusal(
   error: { code?: string; reason?: string | undefined; message: string; details?: Record<string, unknown> | undefined },
   item: Pick<KitchenItem, "pantry">,
 ): string {
-  const where = item.pantry.kind === "group" ? item.pantry.name : "your pantry";
+  const where = item.pantry.kind === "group" ? item.pantry.name : "your kitchen";
   if (error.reason === "currency_mismatch") return `${where} counts in ${String(error.details?.["currency"] ?? "another currency")} now.`;
   const fields = error.details?.["fields"];
   if (error.code === "validation_failed" && fields && typeof fields === "object" && "lines[0].pantry" in fields) return `You can't add to ${where} any more.`;

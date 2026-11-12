@@ -391,7 +391,7 @@ export function historyRows(
         what = `${who(m.actor)} marked ${qty} wasted`;
         break;
       case "transfer":
-        what = m.actor === meId ? "You moved it here from your pantry" : `${who(m.actor)} moved it here from their pantry`;
+        what = m.actor === meId ? "You moved it here from your kitchen" : `${who(m.actor)} moved it here from their pantry`;
         break;
       case "reversal": {
         const original = m.reverses ? byId.get(m.reverses) : undefined;

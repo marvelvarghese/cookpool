@@ -359,7 +359,7 @@ export function runSummary(lines: readonly RunLine[], picks: RunPicks, ctx: { pa
   };
 }
 
-/** The write's toast: "Added 3 to your pantries · ₹449". */
+/** The write's toast: "Added 3 to your kitchen · ₹449". */
 export function runToast(summary: Pick<RunSummary, "count" | "totalText">): string {
-  return `Added ${summary.count} to your pantries · ${summary.totalText}`;
+  return `Added ${summary.count} to your kitchen · ${summary.totalText}`;
 }

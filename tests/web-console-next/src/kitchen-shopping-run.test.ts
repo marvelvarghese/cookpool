@@ -154,7 +154,7 @@ describe("Add N · ₹total", () => {
     expect(s.totalText).toBe("₹374");
     expect(s.label).toBe("Add 3 · ₹374");
     expect(s.ready).toBe(true);
-    expect(runToast(s)).toBe("Added 3 to your pantries · ₹374");
+    expect(runToast(s)).toBe("Added 3 to your kitchen · ₹374");
   });
 
   it("is one purchase, in the run's order, each line into its own pantry like last time", () => {

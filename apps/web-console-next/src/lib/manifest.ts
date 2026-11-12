@@ -100,7 +100,7 @@ export interface ManifestScreenshot {
  */
 export const MANIFEST_SCREENSHOTS: readonly ManifestScreenshot[] = [
   { src: "/screenshots/home.png", sizes: "585x1266", type: "image/png", form_factor: "narrow", label: "Home: your money, your usuals and what needs you" },
-  { src: "/screenshots/pantry.png", sizes: "585x1266", type: "image/png", form_factor: "narrow", label: "Pantry: what you have and what to use soon" },
+  { src: "/screenshots/pantry.png", sizes: "585x1266", type: "image/png", form_factor: "narrow", label: "Kitchen: what you have and what to use soon" },
 ];
 
 /** Herb green and the warm-neutral page: the kitchen palette's primary and background. */

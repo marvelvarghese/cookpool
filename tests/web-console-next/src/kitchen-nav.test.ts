@@ -12,7 +12,7 @@ import { KITCHEN_ICONS } from "@web-console-next/components/kitchen/icons";
 
 describe("Cookpool tabs (CP-5)", () => {
   it("are Home · Pantry · + Add · Groups · People, with Add in the centre as an action", () => {
-    expect(KITCHEN_TABS.map((t) => t.label)).toEqual(["Home", "Pantry", "Add", "Groups", "People"]);
+    expect(KITCHEN_TABS.map((t) => t.label)).toEqual(["Home", "Kitchen", "Add", "Groups", "People"]);
     const add = KITCHEN_TABS[2]!;
     expect(add.kind).toBe("action");
     expect("href" in add).toBe(false);
@@ -110,7 +110,7 @@ describe("the sidebar's Me (Cookpool SI-6)", () => {
   it("lists the tabs' links, then Me, which opens You", () => {
     expect(KITCHEN_SIDEBAR_LINKS.map((l) => [l.label, l.href])).toEqual([
       ["Home", "/home"],
-      ["Pantry", "/pantry"],
+      ["Kitchen", "/pantry"],
       ["Groups", "/groups"],
       ["People", "/people"],
       ["Me", "/you"],
@@ -119,7 +119,7 @@ describe("the sidebar's Me (Cookpool SI-6)", () => {
   });
 
   it("leaves the phone tab bar as it was", () => {
-    expect(KITCHEN_TABS.map((t) => t.label)).toEqual(["Home", "Pantry", "Add", "Groups", "People"]);
+    expect(KITCHEN_TABS.map((t) => t.label)).toEqual(["Home", "Kitchen", "Add", "Groups", "People"]);
     expect(activeKitchenTab("/you")).toBeNull();
   });
 

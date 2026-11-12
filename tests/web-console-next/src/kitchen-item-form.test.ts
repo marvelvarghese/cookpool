@@ -288,7 +288,7 @@ describe("the one main button, named (SM-15)", () => {
       title: "Add Milk · ₹68.00",
       who: "to Flat 4B",
     });
-    expect(addMainLabel({ name: "Eggs", priceMinor: null, currency: "INR", pantryName: null })).toEqual({ title: "Add Eggs", who: "to your pantry" });
+    expect(addMainLabel({ name: "Eggs", priceMinor: null, currency: "INR", pantryName: null })).toEqual({ title: "Add Eggs", who: "to your kitchen" });
     expect(addMainLabel({ name: "", priceMinor: null, currency: "INR", pantryName: null }).title).toBe("Add");
     expect(addMainLabel({ name: "x".repeat(40), priceMinor: 100, currency: "USD", pantryName: null }).title).toBe(`Add ${"x".repeat(27)}… · $1.00`);
   });
