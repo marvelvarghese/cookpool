@@ -5,7 +5,7 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | Milestone | State | PR |
 |---|---|---|
 | SL0 — the spec | ✅ shipped | #146 (4f33619) |
-| SL1 — the calm foundation | ✅ shipped | this PR (SL-2) |
+| SL1 — the calm foundation | ✅ shipped | #149 (0f1e695) |
 | SL2 — Home, Groups, Activity | ✅ shipped | this PR (SL-3) |
 | SL3 — Group and expense | planned | |
 | SL4 — Add and Itemized | planned | |
@@ -42,3 +42,5 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **The Cookpool dot on a person** is inferred from the groups' plans (a kitchen whose plan names them), falling back to a shared kitchen's name when no plan does.
 - **Settled groups** read "settled" rather than ₹0, behind "Show N settled".
 
+
+- **Remind can still be refused** with "nothing owed" for someone whose net balance says they owe you: the server reminds by the simplified plan (SE2), where they may pay someone else. The app shows the server's reason; aligning Home's Remind with the plan is a follow-up.
