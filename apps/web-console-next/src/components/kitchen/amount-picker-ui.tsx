@@ -7,9 +7,9 @@ import { RepeatButton } from "./row-gestures-ui";
 import { amountView, parseTyped, pickRest, pickStep, pickTyped, pickUnit, type AmountPick, type PickItem } from "./amount-picker";
 
 const STEP =
-  "grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-[#C9CFC6] bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-cp-accent-tint text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 const CHIP =
-  "min-h-11 rounded-full px-3.5 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1";
+  "min-h-11 rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1";
 
 /**
  * The amount with unit chips (cookpool-pantry PN-11, the canvas's
@@ -76,13 +76,13 @@ export function AmountPicker({
               }}
               style={{ width: `${Math.max(2, (typing || view.number).length + 0.5)}ch` }}
               className={cn(
-                "min-w-0 max-w-[9ch] border-0 bg-transparent p-0 text-right text-2xl font-extrabold tabular-nums text-foreground outline-none placeholder:text-foreground/35",
-                bad && "text-[#B42318]",
+                "min-w-0 max-w-[9ch] border-0 bg-transparent p-0 text-right text-2xl font-medium tabular-nums text-foreground outline-none placeholder:text-foreground/35",
+                bad && "text-cp-expired",
               )}
             />
-            <span className="truncate text-[17px] font-extrabold text-[#3F4842]">{view.word}</span>
+            <span className="truncate text-[17px] font-medium text-muted-foreground">{view.word}</span>
           </span>
-          <span role="status" className="max-w-full truncate text-xs font-bold text-[#165C3A]">
+          <span role="status" className="max-w-full truncate text-xs font-normal text-cp-accent-text">
             {bad ? "Type a number like 2 or 1½" : (view.reason ?? " ")}
           </span>
         </label>
@@ -101,7 +101,7 @@ export function AmountPicker({
               role="radio"
               aria-checked={on}
               onClick={() => onPick(pickUnit(item, pick, u.id))}
-              className={cn(CHIP, on ? "bg-[#17201B] text-white" : "border border-[#D5DAD2] bg-card text-foreground hover:bg-accent")}
+              className={cn(CHIP, on ? "bg-cp-accent-tint text-cp-accent-text" : "bg-muted text-foreground hover:bg-muted/70")}
             >
               {u.many}
             </button>
@@ -111,12 +111,12 @@ export function AmountPicker({
           type="button"
           aria-pressed={view.rest}
           onClick={() => onPick(pickRest(pick))}
-          className={cn(CHIP, "border-[1.5px] border-dashed", view.rest ? "border-[#17201B] bg-[#E4F2EA] text-[#165C3A]" : "border-[#9AA39D] bg-card text-[#3F4842] hover:bg-accent")}
+          className={cn(CHIP, "border-[1.5px] border-dashed", view.rest ? "border-primary bg-cp-accent-tint text-cp-accent-text" : "border-muted-foreground/60 bg-transparent text-muted-foreground hover:bg-muted")}
         >
           The rest
         </button>
       </div>
-      <p className="text-xs font-bold tabular-nums text-muted-foreground">{view.hint}</p>
+      <p className="text-xs font-normal tabular-nums text-muted-foreground">{view.hint}</p>
     </div>
   );
 }

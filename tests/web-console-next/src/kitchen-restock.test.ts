@@ -128,9 +128,9 @@ describe("Bought again's one line, from last time", () => {
     expect(boughtAgainItem(finished({ pantry: PERSONAL_REF }), { today: TODAY }).wastePolicy).toBeNull();
   });
 
-  it("toasts 'Bought Bread · ₹45', and Change opens the add form filled from that item", () => {
-    expect(boughtAgainTitle(boughtAgainItem(finished(), { today: TODAY }))).toBe("Bought Bread · ₹45");
-    expect(boughtAgainTitle(boughtAgainItem(finished({ name: "Milk", last: last({ priceMinor: 6850 }) }), { today: TODAY }))).toBe("Bought Milk · ₹68.50");
+  it("toasts 'Got more Bread · ₹45', and Change opens the add form filled from that item", () => {
+    expect(boughtAgainTitle(boughtAgainItem(finished(), { today: TODAY }))).toBe("Got more Bread · ₹45");
+    expect(boughtAgainTitle(boughtAgainItem(finished({ name: "Milk", last: last({ priceMinor: 6850 }) }), { today: TODAY }))).toBe("Got more Milk · ₹68.50");
     const ref = itemRefOf(boughtAgainItem(finished(), { today: TODAY }));
     expect(ref).toEqual({ kind: "group", orgId: FLAT.orgId, itemId: "itm_bread1" });
     expect(buyLikeHref(ref)).toBe(`/pantry/new?from=org%3A${FLAT.orgId}%3Aitm_bread1`);

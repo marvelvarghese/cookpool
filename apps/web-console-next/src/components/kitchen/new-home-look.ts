@@ -8,8 +8,9 @@
  * Dependency-free (contract types only), so it is unit-testable.
  */
 
-import type { CookNowEntry } from "@saas/contracts/kitchen";
+import type { CookNowEntry, KitchenDish } from "@saas/contracts/kitchen";
 import type { HomeMoney } from "./home";
+import { shortMoney } from "./from-before";
 
 // ── Three, then See all ──────────────────────────────────────────
 
@@ -76,10 +77,16 @@ export interface CookNowTag {
   tone: "have" | "need";
 }
 
-/** A Cook now card's tag: "Have all" in the accent, else what you need in the owe colour. */
-export function cookNowTag(entry: Pick<CookNowEntry, "match">): CookNowTag {
+/**
+ * A Cook now card's tag: "Have all · 30 min" in the accent (the board), "Have
+ * all" when the recipe gives no time; else what you need in the owe colour
+ * (since RV-20 the server lists only what you can make, so that is a newer
+ * server's).
+ */
+export function cookNowTag(entry: Pick<CookNowEntry, "match"> & { recipe?: { minutes: number | null } }): CookNowTag {
   const missing = entry.match.missing;
-  if (missing === 0) return { text: "Have all", tone: "have" };
+  const minutes = entry.recipe?.minutes ?? null;
+  if (missing === 0) return { text: minutes && minutes > 0 ? `Have all · ${minutes} min` : "Have all", tone: "have" };
   const first = entry.match.missingNames[0]?.trim();
   if (missing === 1 && first) return { text: `Need ${first.charAt(0).toLowerCase()}${first.slice(1)}`, tone: "need" };
   return { text: `Need ${missing}`, tone: "need" };
@@ -88,12 +95,25 @@ export function cookNowTag(entry: Pick<CookNowEntry, "match">): CookNowTag {
 // ── Your groups cooked ───────────────────────────────────────────
 
 /**
- * One line under a dish your groups cooked: "Anu · you had 1 · ₹31.20 each";
- * "Anu · Flat 4B · 3 h ago" when you had none.
+ * One line under a dish your groups cooked: "Anu · you had 1 · ₹54" — what
+ * you paid (RV-15, the board) — or, without it, "Anu · you had 1 · ₹31.20
+ * each"; "Anu · Flat 4B · 3 h ago" when you had none.
  */
-export function groupsCookedMeta(card: { groupName: string; when: string; each: string; youHad: string }, cook: string): string {
+export function groupsCookedMeta(card: { groupName: string; when: string; each: string; youHad: string }, cook: string, paid?: string | null): string {
   if (card.youHad === "0") return `${cook} · ${card.groupName} · ${card.when}`;
   // An exact amount is already money ("₹40.00"): no "each" after it.
   if (/[^\d½\s]/.test(card.youHad)) return `${cook} · you had ${card.youHad}`;
+  if (paid) return `${cook} · you had ${card.youHad} · ${paid}`;
   return `${cook} · you had ${card.youHad} · ${card.each} each`;
+}
+
+/** What you paid for each dish, from your line of its split ("₹54", "₹31.20"); none where you had nothing. */
+export function youPaid(dishes: readonly Pick<KitchenDish, "id" | "amounts" | "currency">[], meId: string | null): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!meId) return out;
+  for (const d of dishes) {
+    const mine = (d.amounts ?? []).find((a) => a.subjectId === meId);
+    if (mine && mine.owedMinor > 0) out.set(d.id, shortMoney(mine.owedMinor, d.currency));
+  }
+  return out;
 }

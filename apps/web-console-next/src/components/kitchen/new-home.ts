@@ -34,8 +34,12 @@ export type HomeSection =
 /** Today's Home (what prod shows): greeting, install, money, usuals, To do, Recent. */
 export const TODAY_HOME_SECTIONS: readonly HomeSection[] = ["greeting", "install", "money", "quick-use", "todo", "recent"];
 
-/** The new frame's Home: greeting, install, What did you use?, To do, Cook now, From your groups — no money. */
-export const NEW_HOME_SECTIONS: readonly HomeSection[] = ["greeting", "install", "quick-use", "todo", "cook-now", "from-groups"];
+/**
+ * The new frame's Home, in the board's order (RV-15): greeting, What did you
+ * use?, install (under the cooking session's strip), Needs you, Cook now,
+ * Your groups cooked — no money.
+ */
+export const NEW_HOME_SECTIONS: readonly HomeSection[] = ["greeting", "quick-use", "install", "todo", "cook-now", "from-groups"];
 
 /** The sections Home shows in a frame, in order. */
 export function homeSections(newFrame: boolean): readonly HomeSection[] {

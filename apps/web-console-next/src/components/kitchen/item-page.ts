@@ -11,14 +11,15 @@
  * it is unit-testable.
  */
 
-import type { KitchenItem, KitchenMeasure, PurchaseLine } from "@saas/contracts/kitchen";
+import type { KitchenItem, KitchenMeasure, KitchenStockMove, PurchaseLine } from "@saas/contracts/kitchen";
 import { fromMilli, isUnit } from "@saas/kitchen-engine/units";
 import { leftInMeasure } from "./measures";
-import { boughtText, itemRefParam, leftPercent, leftText, type ItemRef } from "./pantry";
+import { boughtText, itemRefParam, leftPercent, leftText, pantryChipLabel, type ItemRef } from "./pantry";
 import type { SetUsual } from "./pantry-set";
 import { LEVEL_COLORS, itemStatus, levelTone, type LevelTone } from "./pantry-list";
 import { addDays, shortMoney } from "./from-before";
 import { costPerText } from "./item-use";
+import { amountUnits, amountView, pickQty, type AmountPick, type PickItem } from "./amount-picker";
 import { memberLabel, type MemberNames } from "./members";
 
 /** What the item page reads of an item. */
@@ -89,6 +90,74 @@ export function ringDash(percent: number, r: number): string {
   return `${drawn.toFixed(1)} ${c.toFixed(1)}`;
 }
 
+// ── The revamped page (cookpool-revamp RV-15, the canvas's RvItem) ──
+
+/**
+ * The line under the name: "Flat 4B · Meera paid ₹68" ("Me · You paid ₹68"
+ * for your own), with the item's state after it once it is no longer in
+ * the pantry ("Used up"); just where it is when it cost nothing.
+ */
+export function itemSubtitle(
+  item: Pick<KitchenItem, "pantry" | "paidBy" | "priceMinor" | "currency">,
+  ctx: { meId: string | null; names?: MemberNames | null; state?: string | null },
+): string {
+  const paid = item.priceMinor > 0 ? `${memberLabel(item.paidBy, ctx.meId, ctx.names)} paid ${shortMoney(item.priceMinor, item.currency)}` : null;
+  return [pantryChipLabel(item.pantry), paid, ctx.state ?? null].filter(Boolean).join(" · ");
+}
+
+/** The ring card's two lines: "1 L of 2 L" and "₹34 left" (null when it cost nothing). */
+export function ringLines(item: PageItem): { left: string; worth: string | null } {
+  const counted = leftInMeasure(item);
+  return {
+    left: [`${leftText(item)} of ${boughtText(item)}`, counted].filter(Boolean).join(" · "),
+    worth: item.priceMinor > 0 ? `${shortMoney(item.worthMinor, item.currency)} left` : null,
+  };
+}
+
+export interface QuickPick {
+  pick: AmountPick;
+  /** "½ glass", "1 glass", "2 glasses", "The rest". */
+  label: string;
+  /** The suggestion itself (your usual): drawn on the accent. */
+  usual: boolean;
+}
+
+/**
+ * The use row's one-tap amounts (the board's "½ glass · 1 glass · 2
+ * glasses"): half the suggestion, the suggestion (on the accent), and twice
+ * it, in the suggestion's unit — each only on that unit's grid and under
+ * what is left; twice it becomes The rest once it reaches what is left.
+ * More opens the full picker for anything else.
+ */
+export function quickPicks(item: PickItem, start: AmountPick | null): QuickPick[] {
+  if (!start || item.qtyLeftMilli <= 0) return [];
+  const label = (pick: AmountPick) => (pick.rest ? "The rest" : amountView(item, pick, null, null).words);
+  if (start.rest) return [{ pick: start, label: "The rest", usual: true }];
+  const unit = amountUnits(item).find((u) => u.id === start.unit);
+  if (!unit) return [{ pick: start, label: label(start), usual: true }];
+  const onGrid = (n: number) => {
+    if (n < unit.min) return false;
+    if (unit.kind === "measure" && unit.min < 1) return Number.isInteger(Math.round(n * 2 * 1e6) / 1e6);
+    return Number.isInteger(Math.round((n / unit.step) * 1e6) / 1e6);
+  };
+  const at = (count: number): AmountPick => ({ unit: start.unit, count, rest: false, how: "changed" });
+  const out: QuickPick[] = [];
+  const half = start.count / 2;
+  if (onGrid(half) && pickQty(item, at(half)) < item.qtyLeftMilli) out.push({ pick: at(half), label: label(at(half)), usual: false });
+  out.push({ pick: start, label: label(start), usual: true });
+  const twice = at(start.count * 2);
+  const rest: AmountPick = { unit: start.unit, count: 0, rest: true, how: "rest" };
+  out.push(pickQty(item, twice) < item.qtyLeftMilli ? { pick: twice, label: label(twice), usual: false } : { pick: rest, label: "The rest", usual: false });
+  return out;
+}
+
+/** Whose face starts a history row: who had it (the first named), else who did it; the purchase is whoever added it. */
+export function historyFace(move: Pick<KitchenStockMove, "kind" | "actor" | "consumers"> | undefined, item: Pick<KitchenItem, "createdBy">): string {
+  if (!move) return item.createdBy;
+  if (move.kind === "use" && move.consumers && move.consumers.length > 0) return move.consumers[0]!;
+  return move.actor;
+}
+
 // ── Where the page's actions go ───────────────────────────────────
 
 /** The stock check (design §7): `/pantry/me:itm_…/check`. */
@@ -143,9 +212,9 @@ export function boughtAgainLine(
   return line;
 }
 
-/** Bought again's toast: "Bought Milk · ₹68". */
+/** Got more's toast (RV-15: no "Bought" in the words): "Got more Milk · ₹68". */
 export function boughtAgainTitle(item: Pick<KitchenItem, "name" | "priceMinor" | "currency">): string {
-  return `Bought ${item.name} · ${shortMoney(item.priceMinor, item.currency)}`;
+  return `Got more ${item.name} · ${shortMoney(item.priceMinor, item.currency)}`;
 }
 
 /** Why Bought again was refused, in one line. */

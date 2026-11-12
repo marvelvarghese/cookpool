@@ -16,31 +16,29 @@ import { Face } from "./faces-ui";
 import { memberLabel, type MemberNames } from "./members";
 import { useMemberNames } from "./people-data";
 import { useInbox } from "./inbox-data";
-import { AskCards } from "./ask-card-ui";
 import { askArrival, askCardsShown, parseAskParam, type AnsweredAsk } from "./ask-card";
-import { HomeTodoList } from "./inbox-ui";
+import { NeedsYou } from "./inbox-needs-ui";
 import { InstallCard } from "./install-ui";
-import { QuickUse } from "./quick-use-ui";
+import { HomeUseField } from "./quick-use-ui";
 import { HOME_DISH_DAYS, feedCards, type FeedCard } from "./cooks";
 import { useMyDishes } from "./cooks-data";
-import { homeSections, newHomeTodoOrder } from "./new-home";
-import { firstThree, groupsCookedMeta } from "./new-home-look";
+import { homeSections } from "./new-home";
+import { firstThree, groupsCookedMeta, youPaid } from "./new-home-look";
 import { BalancePillLink, HomeCookNow, RING, ResumeStrip, RowsSkeleton, SaveRecipeIcon, SeeAllButton, pillClass } from "./new-home-parts-ui";
-import { splitReminders, withoutJustMeFinalize } from "./cooked";
-import { SplitReminderCards } from "./split-reminder-ui";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import { useRecipesInFull } from "./recipes-data";
 import { feedRecipeFor, feedRecipeIds } from "./explore";
 
 /**
- * The new frame's Home (cookpool-recipes RC-2; cookpool-revamp RV-3, the
- * canvas's `HomeRevamp`), in `homeSections(true)`'s order: your avatar,
- * "Hi, Rahul" and the balance pill (opening Money); What did you use? (with
- * your usuals); the cooking session you left, with Resume; Needs you — the
- * asks and split reminders, then an open dish to claim ("I had some" opens
- * its ½-step chips), Pay X, then food to use soon or past its date, three
- * then See all; Cook now (RC-5); Your groups cooked (RC-2's From your
- * groups, RC-8's Save). No money card: the pill is the one number.
+ * The new frame's Home (cookpool-recipes RC-2; cookpool-revamp RV-3 and
+ * RV-15, the canvas's `HomeRevamp`), in the board's order: your avatar, "Hi,
+ * Rahul" and the balance pill (opening Money); What did you use? (the field
+ * alone); the cooking session you left, with Resume; Install Cookpool (from
+ * the device's second day, never once installed); Needs you — every kind of
+ * row, asks and split reminders and flags included, hidden when there are
+ * none (`NeedsYou`); Cook now, only what your kitchen can make (RV-20),
+ * hidden when there is none; Your groups cooked (RC-2's From your groups,
+ * RC-8's Save). No money card: the pill is the one number.
  *
  * From 900px, two columns: what needs you on the left, your groups' cooks on
  * the right.
@@ -53,20 +51,8 @@ export function NewHome() {
   const name = user ? friendlyName(user.displayName, user.email) : null;
   const names = useMemberNames();
   const inbox = useInbox();
-  // Dishes first, then Pay X, then use soon (the canvas), each in the server's order; no just-me
-  // "Finalize" (cookpool-community CM-9: it posts nothing; splitting it is the reminder's).
-  const ordered = React.useMemo(() => (inbox.data ? { ...inbox, data: withoutJustMeFinalize(newHomeTodoOrder(inbox.data)) } : inbox), [inbox]);
-  // Ask before use (cookpool-pantry PN-9): the asks you answer go first in To do.
+  // Ask before use (cookpool-pantry PN-9): the asks you answer are Needs you's first rows.
   const asks = useHomeAsks(inbox.data?.asks ?? null);
-  // Then "Split Chicken curry with Flat 4B?" (CM-9).
-  const reminders = splitReminders(inbox.data);
-  const lead =
-    asks.count > 0 || reminders.length > 0 ? (
-      <>
-        {asks.count > 0 ? <AskCards asks={inbox.data?.asks ?? []} answered={asks.answered} onAnswered={asks.setAnswered} meId={meId} names={names} highlight={asks.highlight} /> : null}
-        <SplitReminderCards items={reminders} />
-      </>
-    ) : undefined;
 
   return (
     <div className="space-y-[22px]">
@@ -89,21 +75,13 @@ export function NewHome() {
         </header>
       ) : null}
 
-      {shows.has("install") ? <InstallCard /> : null}
-
       <div className="flex flex-col gap-[22px] min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:items-start min-[900px]:gap-6">
         <div className="flex min-w-0 flex-col gap-[22px]">
-          {shows.has("quick-use") ? <QuickUse meId={meId} fresh /> : null}
+          {/* The board: the field alone — no usuals under it and no Say it in it (owner decision 2). */}
+          {shows.has("quick-use") ? <HomeUseField /> : null}
           <ResumeStrip meId={meId} />
-          {shows.has("todo") ? (
-            <HomeTodoList
-              inbox={ordered}
-              meId={meId}
-              names={names}
-              lead={lead}
-              fresh
-            />
-          ) : null}
+          {shows.has("install") ? <InstallCard fresh /> : null}
+          {shows.has("todo") ? <NeedsYou inbox={inbox} meId={meId} names={names} asks={asks} /> : null}
           {shows.has("cook-now") ? <HomeCookNow /> : null}
         </div>
         {shows.has("from-groups") ? <FromYourGroups meId={meId} names={names} /> : null}
@@ -162,7 +140,7 @@ function useHomeAsks(listed: readonly AskInboxItem[] | null) {
 /**
  * "Your groups cooked" (the board; RC-2's From your groups): one row for each
  * dish finished in one of your groups in the last 7 days — the cook's face,
- * the dish, "Anu · you had 1 · ₹31.20 each" — opening the dish, with Save
+ * the dish, "Anu · you had 1 · ₹54" (what you paid) — opening the dish, with Save
  * when it was cooked from a recipe you may see that isn't yours (RC-8).
  * Three, then See all.
  */
@@ -182,6 +160,8 @@ function FromYourGroups({ meId, names }: { meId: string | null; names: MemberNam
   const recipeIds = React.useMemo(() => [...new Set(recipeOf.values())], [recipeOf]);
   const recipes = useRecipesInFull(recipeIds);
   const shown = firstThree(cards, all);
+  // What you paid for each (the board's "Anu · you had 1 · ₹54"): your line of its split.
+  const paid = React.useMemo(() => youPaid(dishes.dishes, meId), [dishes.dishes, meId]);
 
   return (
     <section aria-labelledby="home-from-groups" className="min-w-0 space-y-2.5">
@@ -204,7 +184,7 @@ function FromYourGroups({ meId, names }: { meId: string | null; names: MemberNam
           <ul className="divide-y divide-cp-line">
             {shown.rows.map((card) => (
               <li key={card.dishId}>
-                <GroupsCookedRow card={card} meId={meId} names={names} recipe={feedRecipeFor(card.dishId, recipeOf, recipes)} />
+                <GroupsCookedRow card={card} paid={paid.get(card.dishId) ?? null} meId={meId} names={names} recipe={feedRecipeFor(card.dishId, recipeOf, recipes)} />
               </li>
             ))}
           </ul>
@@ -215,7 +195,7 @@ function FromYourGroups({ meId, names }: { meId: string | null; names: MemberNam
   );
 }
 
-function GroupsCookedRow({ card, meId, names, recipe }: { card: FeedCard; meId: string | null; names: MemberNames; recipe: KitchenRecipe | null }) {
+function GroupsCookedRow({ card, paid, meId, names, recipe }: { card: FeedCard; paid: string | null; meId: string | null; names: MemberNames; recipe: KitchenRecipe | null }) {
   const prefetch = usePrefetchKitchen();
   const cook = memberLabel(card.cookId, meId, names);
   return (
@@ -230,7 +210,7 @@ function GroupsCookedRow({ card, meId, names, recipe }: { card: FeedCard; meId: 
         <span {...sharePart("title")} className="truncate text-base font-medium">
           {card.name}
         </span>
-        <span className="truncate text-[13px] font-normal tabular-nums text-muted-foreground">{groupsCookedMeta(card, cook)}</span>
+        <span className="truncate text-[13px] font-normal tabular-nums text-muted-foreground">{groupsCookedMeta(card, cook, paid)}</span>
       </Link>
       {recipe && !recipe.mine ? <SaveRecipeIcon recipe={recipe} /> : null}
     </div>

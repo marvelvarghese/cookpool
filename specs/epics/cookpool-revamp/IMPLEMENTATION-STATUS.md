@@ -957,3 +957,71 @@ Built to the owner-approved boards `RvKitchenB` and `RvShopping`, with the owner
   - Until 600 runs, the staple and shopping routes answer the worker's existing 503 (`internal_error`, "Service unavailable").
   - Tests: `tests/db` 992 (a pre-600 database reads and writes Always have, refuses an unknown food, and has the list read from staples after 600) and `tests/kitchen-worker` 1,242 (the fallback through the router, and 503 on the new routes).
 - api-edge is unchanged.
+
+### RV1 — Home and the item page match the boards (RV-15)
+
+**Built** (`apps/web-console-next`). **Console-only:** no route, no migration, no contracts, SDK or worker change. Spec: `HomeRevamp` (owner-approved 13 Nov), `RvItem`, the audit's Home and Item sections and owner decisions 1–2.
+
+**Home** (new frame only; prod's `TodayHome` renders as before):
+- **Order** (`NEW_HOME_SECTIONS`): greeting and balance pill · What did you use? · the cooking strip · Install · Needs you · Cook now · Your groups cooked.
+- **The field stands alone** (`HomeUseField`): no usual chips, no Say it (decision 2). Prod's `QuickUse` keeps both.
+- **Install card kept, restyled** (`InstallCard fresh`): borderless on the token shadow, 16/500 title, 13/400 line, Install on the tint, × 44 px.
+- **Needs you** (`inbox-needs-ui.tsx`, rows in `inbox-needs-rows-ui.tsx` and `inbox-row-ui.tsx`, words in `inbox-needs.ts`). One card, every kind, in the board's order:
+  1. asks you answer (`AskRow`: face, "Anu asks for Milk", "1 glass · ₹12 back to you", No · Allow, and the "Always let Anu use milk" switch under it);
+  2. open dishes (the cook's face, "Meera cooked · ₹31 a portion"; I had some opens ½ 1 1½ 2, no 0 chip);
+  3. Pay X ("₹25 you owe"; Paid opens UPI · Cash · Bank);
+  4. food (Expired / Today / N days; the amount, or **Used** once past its date; swipe and hold kept);
+  5. splits (your assigned dish: "Split your Dal tadka · Who had how much · ₹180" → Set portions; your open group dish → Finalize; split reminders → Split and ×);
+  6. your own asks that wait (`AsksResponse.mine`: "Asked Meera for saffron · 1 pinch · waiting · 24 h left" → Cancel);
+  7. flags ("Dev flagged Groceries · “Charged twice” · ₹420" → Open).
+  - A pick, payment, use or answer dims the row in place ("You had 1 · ₹31.20", "Paid ₹25 · UPI", "Used · 100 g", "Allowed · Anu owes you ₹12", "Said no · Anu was told") with an Undo pill; the toast's Undo also puts the row back. Rows stay until you leave Home.
+  - "Needs you · N" counts what is left, "· all done" once all are done; three rows, then See all (the push's `?ask=` row is always shown). **With no rows the section is gone.** Whole rupees drop ".00".
+- **Cook now**: RV-20's makeable recipes, tagged "Have all · 30 min"; hidden when there are none.
+- **Your groups cooked**: "Anu · you had 1 · ₹54", what you paid (your `amounts[].owedMinor`).
+
+**Item page** (new frame):
+- Subtitle "Flat 4B · Meera paid ₹68" (`itemSubtitle`), state appended once finished.
+- Ring card: 88 px ring, "1 L of 2 L" and "₹34 left", the use-by after it in its colour.
+- Use row (`quickPicks`): ½ · your usual on the accent · 2×, then More (the full picker in the Use sheet). Twice the usual becomes The rest at what is left. In ask-first items the same taps ask.
+- "Runs out Sun" (`RunOutEstimate.short`); the rate is read to screen readers.
+- Who had it: a face and an amount. History: a face first (`historyFace`), the money on the line under, no ₹ column.
+- Actions: **Got more** · Finish it · **Wasted at once** with the ten-second Undo (no WasteConfirm on the page). Fix how much is left and Cook with it are quiet secondary links under them.
+- Measures and note also holds the per-unit price ("₹3.40 per 100 ml"), moved out of the ring card.
+- Restyled to tokens, 400/500 weights: `ask-ui.tsx` (status line, wait box, Ask button on `bg-foreground`, Who can use it), `amount-picker-ui.tsx`, `item-actions-ui.tsx` (WasteConfirm, the held-item sheet), Move to a group's buttons.
+- Today's sticky Use some bar moved to `bottom-[var(--cp-bottom-bar,…)]`.
+
+**Departures.**
+- **Cancel on your own ask has no Undo.** A cancelled ask cannot be reopened, so the row dims to "Cancelled · Meera was told" with no pill.
+- **The ask's "Always let" switch stays** as a line under the ask row (the board leaves it out; decision 1 keeps it).
+- **Pay's Undo pill needed the toast's handle.** I added an optional `onUndoable` to `useRecordPayment` in `settle-card.tsx` (RV-17's file); nothing else there changed.
+- **"Got more" toast**: `boughtAgainTitle` now reads "Got more Milk · ₹68". It is shared with the Kitchen's restock rows, which now read the same.
+- **The old To do's revamped branches were removed** from `inbox-ui.tsx`; today's To do is unchanged.
+- The held-item sheet's Wasted keeps its confirm. Only the item page acts at once.
+
+**Pinned copy changed:** `boughtAgainTitle` "Bought Milk · ₹68" → "Got more Milk · ₹68" (`kitchen-item-page.test.ts`, `kitchen-restock.test.ts`, 4 pins).
+
+**Tests.** `tests/web-console-next`: 128 suites, 2,518 tests, all passing. New `kitchen-revamp-rv15.test.ts` (31) covers:
+- Home's order, and no usuals or Say it in the field;
+- every Needs you kind's words and the board's order;
+- the count, and what each row says once done;
+- ask rows, answers and your own asks;
+- Cook now's minutes, and what you paid;
+- the item subtitle, ring lines, the use row, Runs out and history faces;
+- the actions;
+- no raw hex and no weight over 500 in ten files;
+- the bar variable.
+
+Typecheck and lint pass for both packages. `console-artifact.mjs build`: every kitchen page static, 45 pages served as files.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 47150 ran behind an uncommitted in-memory mock on `cookpool-stage.localhost:47151`. The resource log listed only that origin (and `cookpool-prod.localhost:47151`).
+- Needs you showed all seven kinds in order.
+- Picking 1 portion, Paid → UPI, Used and Allow each dimmed their row with Undo, and the count went 7 → 3.
+- Cancel dimmed your ask. Undo on Pay cleared its dimmed row; the mock has no reversal route, so the payment stayed recorded there.
+- With an empty inbox and no makeable recipes, Needs you and Cook now were gone.
+- Item page in dark: the use row, the ring with its amber use-by, faces in Who had it and History. A tap logged 1 glass and Wasted marked it wasted at once, each with the Undo toast.
+- `cookpool-prod.localhost`: Home kept the money card, usual chips and To do.
+- The Install card was not seen: it shows only from the device's second day.
+
+**Follow-ups.**
+- **One settle path (from RV-17):** Needs you's Paid should open `settleHref(orgId, toSubjectId)` (`money-page.ts`, `/money/settle?group=&to=`) instead of recording through kitchen-worker, keeping the row's look. `settleHref` was not on main when this finished. `safeSettleBack` does not allow `/home` as `back`, so it will go without one unless RV-17 adds it.
+- **Deploy:** console only; nothing to redeploy.
