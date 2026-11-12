@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SL-5
+  title: "Add shows every share"
+spec:
+  goal: "Add is keypad first and every split method shows how each person's share is set and what is left; Itemized matches V2Itemized."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - specs/epics/spliteco-calm/**
+    - tasks/SL-5.TaskContract.yaml
+  doneWhen:
+    - "Equally, Exact, Percent, Shares and +/- each show how each share is set and what is left, and save only when it adds up"
+    - "The keypad types into the amount or the selected person"
+    - "Itemized swipes items, adds people with +, adjusts by holding a face, and Save says how many items are left"
+  gates: []

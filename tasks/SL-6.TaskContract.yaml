@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SL-6
+  title: "Slide to pay"
+spec:
+  goal: "Settle matches V2Settle with the slider."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - specs/epics/spliteco-calm/**
+    - tasks/SL-6.TaskContract.yaml
+  doneWhen:
+    - "Cash and Bank record by sliding; UPI opens the UPI app first and then slides when paid; a tick and Undo follow"
+  gates: []

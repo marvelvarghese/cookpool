@@ -1,0 +1,13 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SL-7
+  title: "Close the spliteco-calm epic"
+spec:
+  goal: "The doc set records every milestone as shipped with its PR."
+  affects:
+    - specs/epics/spliteco-calm/**
+    - tasks/SL-7.TaskContract.yaml
+  doneWhen:
+    - "IMPLEMENTATION-STATUS lists SL0-SL5 with their PRs and the README reads Shipped"
+  gates: []

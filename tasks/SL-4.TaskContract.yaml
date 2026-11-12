@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SL-4
+  title: "Group and expense gestures"
+spec:
+  goal: "The Group page matches V2Group: swipe a bill to delete with Undo, hold for Edit, Move and Comment, Bills and Balances swipe, edge swipe back."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - specs/epics/spliteco-calm/**
+    - tasks/SL-4.TaskContract.yaml
+  doneWhen:
+    - "A bill swiped left is deleted and Undo restores it"
+    - "Holding a bill opens Edit, Move and Comment; Bills and Balances swipe"
+    - "Swiping from the left edge goes back on every pushed screen"
+  gates: []
