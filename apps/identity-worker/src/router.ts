@@ -27,6 +27,7 @@ import {
   handlePasskeyRegisterVerify,
   handleRemovePasskey,
 } from "./handlers/passkeys.js";
+import { handleCreateHandoff, handleExchangeHandoff } from "./handlers/handoff.js";
 import { errorResponse, notFound, methodNotAllowed } from "./http.js";
 
 const ORG_API_KEYS_RE = /^\/v1\/organizations\/[^/]+\/api-keys$/;
@@ -128,6 +129,18 @@ export async function route(request: Request, env: Env): Promise<Response> {
     if (PASSKEY_ID_RE.test(url.pathname)) {
       if (request.method !== "DELETE") return methodNotAllowed(requestId);
       return handleRemovePasskey(request, env, requestId);
+    }
+
+    // One-time handoff into another app (cookpool-spliteco SE-4): make one
+    // with a session; exchange one from the app it was made for.
+    if (url.pathname === "/v1/auth/handoff") {
+      if (request.method !== "POST") return methodNotAllowed(requestId);
+      return handleCreateHandoff(request, env, requestId);
+    }
+
+    if (url.pathname === "/v1/auth/handoff/exchange") {
+      if (request.method !== "POST") return methodNotAllowed(requestId);
+      return handleExchangeHandoff(request, env, requestId);
     }
 
     // Delegated tokens for assistants (cookpool-mcp MC-2): a session only.

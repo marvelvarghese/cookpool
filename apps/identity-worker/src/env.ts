@@ -46,6 +46,12 @@ export interface Env {
   PASSKEY_RP_ID?: string;
   /** The name a device shows when it makes a passkey: `Cookpool`. */
   PASSKEY_RP_NAME?: string;
-  /** Comma-separated, exact origins a passkey ceremony may come from. Prod lists only `https://cookpool.store`. */
+  /** Comma-separated, exact origins a passkey ceremony may come from. Prod lists only `https://cookpool.store` and its Spliteco host (SE-4). */
   PASSKEY_ORIGINS?: string;
+  /**
+   * Comma-separated, exact origins a one-time handoff code may be made for
+   * and exchanged from (cookpool-spliteco SE-4): the Spliteco app's host.
+   * Locally any localhost origin is accepted too.
+   */
+  HANDOFF_ORIGINS?: string;
 }

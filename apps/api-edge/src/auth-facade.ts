@@ -20,6 +20,11 @@ const AUTH_ROUTES: Record<string, string> = {
   "/v1/auth/passkeys/login/options": "POST",
   "/v1/auth/passkeys/login/verify": "POST",
   "/v1/auth/passkeys": "GET",
+  // One tap from Cookpool into Spliteco (cookpool-spliteco SE-4): make a
+  // one-time code with a session; exchange it from the app it opens, with
+  // nobody signed in (the auth family's per-IP limit, as login/*).
+  "/v1/auth/handoff": "POST",
+  "/v1/auth/handoff/exchange": "POST",
 };
 
 const AUTH_MULTI_METHOD_ROUTES: Record<string, Set<string>> = {
@@ -64,6 +69,9 @@ const FORWARDED_HEADERS = [
   // Forwarded so the OAuth callback can read the state cookie set by `start`
   // (double-submit CSRF defense). Cookies are first-party to api-edge.
   "cookie",
+  // A handoff code is exchanged only from the origin it was made for (SE-4):
+  // the browser's own Origin header, which a page cannot set.
+  "origin",
 ];
 
 export function isAuthRoute(pathname: string): boolean {
