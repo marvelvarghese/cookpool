@@ -5,10 +5,12 @@ import localFont from "next/font/local";
  * font exposes `--font-cookpool`, which `.cookpool` (globals.css) uses as its
  * `--font-sans`.
  *
- * Self-hosted (CP-22): the variable Plus Jakarta Sans files come from the
- * `@fontsource-variable/plus-jakarta-sans` package (SIL OFL 1.1), so a build
- * never fetches from Google Fonts — `next/font/google` made every console
- * build depend on that network call, and a failed fetch failed the build.
+ * Outfit (cookpool-revamp RV-2, design §2), self-hosted as CP-22 set up: the
+ * variable font file comes from the `@fontsource-variable/outfit` package
+ * (SIL OFL 1.1), so a build never fetches from Google Fonts — `next/font/google`
+ * made every console build depend on that network call, and a failed fetch
+ * failed the build. It replaced Plus Jakarta Sans. Kitchen screens use only
+ * 400 and 500 (globals.css caps heavier weights under `.cookpool`).
  */
 const cookpoolFont = localFont({
   src: [
@@ -16,8 +18,8 @@ const cookpoolFont = localFont({
     // the same descriptors and no unicode-range would shadow each other;
     // symbols outside it (₹) fall back to the system font, as before.
     {
-      path: "../../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2",
-      weight: "200 800",
+      path: "../../../node_modules/@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2",
+      weight: "100 900",
       style: "normal",
     },
   ],
@@ -27,7 +29,15 @@ const cookpoolFont = localFont({
 });
 
 /**
- * The classes that switch a subtree to Cookpool's light palette and font. The
+ * The class that marks the new look's frame (`newFrame()`, RV-2): with it, the
+ * `.cookpool` palette follows `prefers-color-scheme` into dark (globals.css).
+ * Today's frame (prod) never gets it, so it stays light: its screens still
+ * carry raw light colours that a dark ground would make unreadable.
+ */
+export const KITCHEN_NEW_LOOK_CLASS = "cookpool-new";
+
+/**
+ * The classes that switch a subtree to Cookpool's palette and font. The
  * kitchen layout puts them on its wrapper, and on <body> while it is mounted
  * so Radix portals (dialogs, the Add sheet, toasts) render in the same theme.
  */

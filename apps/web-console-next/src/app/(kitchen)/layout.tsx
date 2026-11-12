@@ -16,7 +16,7 @@ import { AppNotify } from "@/components/kitchen/notify-device";
 import { BackTrailRecorder } from "@/components/kitchen/back-ui";
 import { PageTransitions } from "@/components/kitchen/transition-ui";
 import { EdgeSwipeBack, PullToRefresh } from "@/components/kitchen/gestures-ui";
-import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
+import { KITCHEN_NEW_LOOK_CLASS, KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import { isWideKitchenPage } from "@/components/kitchen/nav";
 import { useProfile } from "@/components/kitchen/data";
@@ -52,7 +52,7 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  * by the back control's rule, sliding `<main>` away. Sheets drag away by
  * themselves (the shared sheet).
  *
- * The palette and font are scoped to this tree (`.cookpool`, light only); the
+ * The palette and font are scoped to this tree (`.cookpool`; dark only in the new look); the
  * classes also go on <body> while this layout is mounted, so portalled UI —
  * the Add sheet, dialogs, toasts — matches. The admin console is untouched.
  *
@@ -62,6 +62,11 @@ import { firstRunRedirect } from "@/components/kitchen/sign-in";
  * session's bar sits above the tab bar (`SessionBar`, RC-6; the sidebar's
  * footer from 900px). It is decided in the browser once the session is
  * ready, so the prerendered frame is the same for both.
+ *
+ * THE NEW LOOK (cookpool-revamp RV-2): in the new frame the wrapper and <body>
+ * also get `KITCHEN_NEW_LOOK_CLASS`, so the palette follows the device into
+ * dark mode; it is read at mount, before the session is ready, so the frame
+ * turns dark as early as it can (the prerendered skeleton is light).
  *
  * PAGE TRANSITIONS (cookpool-recipes RC-11, new frame only): every step
  * between screens animates by its kind with the View Transitions API
@@ -79,12 +84,13 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
   const frame = React.useRef<HTMLDivElement>(null);
   const main = React.useRef<HTMLElement>(null);
 
-  useKitchenBodyTheme();
+  const newLook = useNewLook();
+  useKitchenBodyTheme(newLook);
 
   return (
     // `overflow-x-clip`: nothing in the frame widens the page — not even `<main>` while
     // the edge swipe slides it away, which would let the phone pan or zoom out (PW-7).
-    <div ref={frame} className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh overflow-x-clip bg-background text-foreground min-[900px]:flex")}>
+    <div ref={frame} className={cn(...KITCHEN_THEME_CLASSES, newLook && KITCHEN_NEW_LOOK_CLASS, "min-h-dvh overflow-x-clip bg-background text-foreground min-[900px]:flex")}>
       <a
         href="#kitchen-main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-card focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:shadow-lg"
@@ -124,6 +130,16 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
       {frameNew ? <PageTransitions /> : null}
     </div>
   );
+}
+
+/**
+ * Whether this page shows the new look (`newFrame()`, RV-2): false while
+ * prerendered and on the first render, so hydration matches, then read once.
+ */
+function useNewLook(): boolean {
+  const [on, setOn] = React.useState(false);
+  React.useEffect(() => setOn(newFrame()), []);
+  return on;
 }
 
 /**

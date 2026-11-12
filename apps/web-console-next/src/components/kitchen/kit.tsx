@@ -12,15 +12,52 @@ import { dayText } from "./when";
  * since SM-15: nothing in the app is a placeholder.)
  * Colors come from the `.cookpool` tokens, so these only make sense inside the
  * kitchen layout.
+ *
+ * The revamp (RV-2, design §2–3): cards have no border, the soft shadow (none
+ * in dark) and radius 22, with rows split by the `line` token; titles are
+ * sized, not bolded (26px pages, 17px sections, weight 500); buttons are 44px
+ * on the accent for the one main action, or on the tint when quiet.
  */
 
-/** A rounded surface card (20px radius). */
+/** The kitchen card's surface: no border, the soft shadow, radius 22. */
+export const K_CARD = "rounded-cp-card bg-card text-card-foreground shadow-cp-card";
+
+/** A card of rows: the card, clipped, with a 1px `line` between rows. */
+export const K_ROWS = `${K_CARD} overflow-hidden divide-y divide-cp-line`;
+
+/** A rounded surface card (no border, the soft shadow, radius 22). */
 export function KCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn(K_CARD, className)} {...props} />;
+}
+
+/** A card of rows, each split from the next by the `line` token. */
+export function KRows({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn(K_ROWS, className)} {...props} />;
+}
+
+/** A page's title: 26px, Medium. */
+export const K_TITLE = "text-[26px] font-medium leading-tight tracking-[-0.02em]";
+
+/** A section's heading: 17px, Medium. */
+export const K_SECTION = "text-[17px] font-medium leading-snug";
+
+/** A section heading (17px, Medium), with an optional muted count after it. */
+export function SectionHeading({
+  id,
+  count,
+  className,
+  children,
+}: {
+  id?: string;
+  count?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div
-      className={cn("rounded-[20px] border bg-card text-card-foreground shadow-[0_1px_2px_rgba(23,32,27,0.04)]", className)}
-      {...props}
-    />
+    <h2 id={id} className={cn(K_SECTION, className)}>
+      {children}
+      {count !== undefined && count !== null ? <span className="font-normal text-muted-foreground"> {count}</span> : null}
+    </h2>
   );
 }
 
@@ -36,7 +73,7 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
-        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">{title}</h1>
+        <h1 className={K_TITLE}>{title}</h1>
         {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
@@ -56,7 +93,7 @@ export function GroupAvatar({ name, size = "md", className }: { name: string; si
     <span
       aria-hidden
       className={cn(
-        "grid shrink-0 place-items-center bg-cp-herb-tint font-bold text-primary",
+        "grid shrink-0 place-items-center bg-cp-herb-tint font-medium text-cp-accent-text",
         AVATAR_SIZES[size],
         className,
       )}
@@ -77,7 +114,7 @@ export function IconBubble({
   className?: string;
 }) {
   const tones = {
-    green: "bg-cp-herb-tint text-primary",
+    green: "bg-cp-herb-tint text-cp-accent-text",
     tomato: "bg-cp-tomato-tint text-cp-tomato",
     blue: "bg-cp-owed-tint text-cp-owed",
     neutral: "bg-muted text-muted-foreground",
@@ -96,8 +133,17 @@ export function IconBubble({
 export const CLOSE_44 =
   "[&>button:last-child]:grid [&>button:last-child]:h-11 [&>button:last-child]:w-11 [&>button:last-child]:place-items-center [&>button:last-child]:right-2 [&>button:last-child]:top-2 [&>button:last-child]:rounded-full";
 
-/** 44px-tall rounded buttons and inputs inside the kitchen. */
-export const K_BUTTON = "h-11 rounded-xl px-5 text-[15px] font-semibold";
+/**
+ * 44px-tall buttons inside the kitchen (radius 14, Medium). With the Button's
+ * default variant it sits on the accent: the screen's one main action.
+ */
+export const K_BUTTON = "h-11 rounded-[14px] px-5 text-[15px] font-medium";
+
+/** A quiet button's colours: the accent tint with the accent text (use with K_BUTTON). */
+export const K_QUIET = "border-0 bg-cp-accent-tint text-cp-accent-text shadow-none hover:bg-cp-accent-tint/80";
+
+/** A quiet 44px button: K_BUTTON on the tint. */
+export const K_BUTTON_QUIET = `${K_BUTTON} ${K_QUIET}`;
 export const K_INPUT = "h-11 rounded-xl text-base sm:h-11 sm:text-[15px]";
 
 /**
