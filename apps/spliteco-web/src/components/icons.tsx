@@ -100,6 +100,7 @@ const PATHS: Record<string, React.ReactNode> = {
     </>
   ),
   send: <path d="M4 12 20 4l-6 16-3-7z" />,
+  comment: <path d="M4 5h16v11H9l-5 4z" />,
   food: <path d="M7 3v8a2 2 0 0 0 2 2v8M11 3v8M7 7h4M16 21V3c2 1 3 4 3 7h-3" />,
   groceries: <path d="M3 4h2l2 12h11l2-8H6M9 20.5h.01M17 20.5h.01" />,
   stay: <path d="M3 18V8M3 14h18v4M21 14v-3a3 3 0 0 0-3-3h-7v6M7 11.5h.01" />,

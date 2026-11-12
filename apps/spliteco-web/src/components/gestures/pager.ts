@@ -3,7 +3,7 @@
 import * as React from "react";
 import { listenForDrags } from "@/lib/gestures/gestures";
 import { CLICK_GUARD_MS } from "@/lib/gestures/row-gestures";
-import { pagerOffset, pagerPosition, pagerRelease, pagerRule } from "@/lib/gestures/rules";
+import { pagerHearsStart, pagerOffset, pagerPosition, pagerRelease, pagerRule } from "@/lib/gestures/rules";
 import { settleTransition, useLatest } from "./motion";
 
 /**
@@ -18,8 +18,9 @@ import { settleTransition, useLatest } from "./motion";
  * Usage: put `viewport` on the clipping element (class `pager`) and `track`
  * on its only child (class `pager-track`), one child per page; `position` is
  * the fractional page for an indicator (the tab bar's `position` prop).
+ * On a pushed screen pass `leaveEdge`: a drag from the left edge is back.
  */
-export function usePager({ index, count, onChange }: { index: number; count: number; onChange: (index: number) => void }): {
+export function usePager({ index, count, onChange, leaveEdge = false }: { index: number; count: number; onChange: (index: number) => void; leaveEdge?: boolean }): {
   viewport: (el: HTMLElement | null) => void;
   track: (el: HTMLElement | null) => void;
   /** The page the indicator shows: `index` at rest, fractional while a finger drags. */
@@ -30,7 +31,7 @@ export function usePager({ index, count, onChange }: { index: number; count: num
   const [track, setTrack] = React.useState<HTMLElement | null>(null);
   const [position, setPosition] = React.useState(index);
   const [dragging, setDragging] = React.useState(false);
-  const live = useLatest({ index, count, onChange });
+  const live = useLatest({ index, count, onChange, leaveEdge });
 
   // At rest (and after each change), the track sits on its page; the first
   // placement is instant, so a deep link opens on its page without sliding there.
@@ -59,7 +60,8 @@ export function usePager({ index, count, onChange }: { index: number; count: num
     };
 
     const stop = listenForDrags(viewport, {
-      begin(_start, target) {
+      begin(start, target) {
+        if (!pagerHearsStart(start.x, live.current.leaveEdge)) return null;
         width = Math.max(1, viewport.getBoundingClientRect().width);
         return pagerRule(target);
       },

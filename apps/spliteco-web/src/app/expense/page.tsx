@@ -8,6 +8,7 @@ import { Icon } from "@/components/icons";
 import { Avatar, BackButton, Loading, Screen, Sheet, useLoad, useQueryParam, useToast } from "@/components/ui";
 import { whoPaid } from "@/components/expense-row";
 import { formatMoney, splitMoney } from "@/lib/money";
+import { signedShort } from "@/lib/home";
 import { nameOf, namesFrom } from "@/lib/people";
 import { CATEGORY_LABELS, longDate, timeAgo, viaChip } from "@/lib/activity-text";
 import { METHOD_LABELS } from "@/lib/split-form";
@@ -17,16 +18,17 @@ import { useMe } from "@/lib/me";
 
 export default function ExpensePage() {
   const id = useQueryParam("id");
+  const wantsComment = useQueryParam("comment") === "1";
   const load = useLoad((c) => (id ? c.spliteco.expense(id) : new Promise<never>(() => undefined)), [id]);
   const { me } = useMe();
   return (
     <Screen nav={false}>
-      {id ? <Loading load={load}>{load.data ? <Expense data={load.data} me={me?.id ?? null} reload={load.reload} /> : null}</Loading> : null}
+      {id ? <Loading load={load}>{load.data ? <Expense data={load.data} me={me?.id ?? null} reload={load.reload} focusComment={wantsComment} /> : null}</Loading> : null}
     </Screen>
   );
 }
 
-function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: string | null; reload: () => void }) {
+function Expense({ data, me, reload, focusComment }: { data: SplitecoExpenseResponse; me: string | null; reload: () => void; focusComment?: boolean }) {
   const { client } = useSession();
   const router = useRouter();
   const [toast, say] = useToast();
@@ -50,6 +52,13 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
   // SE2: a payment to me that is still in effect can be marked not received.
   const paidToMe = e.kind === "settlement" && current && e.splits.some((s) => s.subjectId === me && s.owedMinor > 0);
   const [notReceived, setNotReceived] = React.useState(false);
+  // Comment from the Group's hold sheet: the comment box, focused.
+  const commentBox = React.useRef<HTMLInputElement | null>(null);
+  React.useEffect(() => {
+    if (!focusComment || !commentBox.current) return;
+    commentBox.current.scrollIntoView({ block: "center" });
+    commentBox.current.focus({ preventScroll: true });
+  }, [focusComment]);
 
   async function markNotReceived() {
     setBusy(true);
@@ -143,7 +152,7 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
       ) : null}
       {e.locked && e.kind !== "settlement" ? (
         <p className="infobox" style={{ margin: 0 }}>
-          <Icon name="lock" size={14} /> Cookpool posted this. It&apos;s edited, deleted and moved in Cookpool only.
+          <Icon name="lock" size={14} /> From Cookpool · change it there
         </p>
       ) : null}
 
@@ -174,11 +183,13 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
       </section>
 
       {e.kind !== "settlement" && (myShare > 0 || net !== 0) ? (
-        <div className={net < 0 ? "warnbox row-between" : "goldbox row-between"} style={net >= 0 ? { background: "rgba(94,234,212,0.07)", borderColor: "rgba(94,234,212,0.3)" } : undefined}>
-          <span style={{ fontSize: 14, color: "var(--text-2)" }}>
-            {net < 0 ? `Your share — you owe ${payer && payer.subjectId !== me ? nameOf(names, payer.subjectId, me) : "the payers"}` : net > 0 ? "You lent" : "Your share"}
+        <div className="card r22 row-between" style={{ flexDirection: "row", alignItems: "center", padding: "14px 18px" }}>
+          <span className="dim" style={{ fontSize: 13 }}>
+            {net < 0 ? `You borrowed${payer && payer.subjectId !== me ? ` · ${nameOf(names, payer.subjectId, me)} paid` : ""}` : net > 0 ? "You lent" : "Your share"}
           </span>
-          <b className={net < 0 ? "owe" : "get"} style={{ fontSize: 18 }}>{formatMoney(net !== 0 ? Math.abs(net) : myShare, cur)}</b>
+          <b className={net < 0 ? "owe" : net > 0 ? "get" : undefined} style={{ fontSize: 18, fontWeight: 500 }}>
+            {net !== 0 ? signedShort(net, cur).text : formatMoney(myShare, cur)}
+          </b>
         </div>
       ) : null}
 
@@ -245,7 +256,7 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
         ))}
         <form className="field" style={{ padding: "0 6px 0 14px" }} onSubmit={send}>
           <label className="sr" htmlFor="comment">Add a comment</label>
-          <input id="comment" placeholder="Add a comment" maxLength={1000} value={comment} onChange={(ev) => setComment(ev.target.value)} />
+          <input id="comment" ref={commentBox} placeholder="Add a comment" maxLength={1000} value={comment} onChange={(ev) => setComment(ev.target.value)} />
           <button type="submit" aria-label="Send comment" className="iconbtn" style={{ width: 44, height: 44, background: "var(--cobalt)", border: 0, color: "#fff", borderRadius: 10 }} disabled={busy || !comment.trim()}>
             <Icon name="send" size={18} />
           </button>
@@ -256,9 +267,7 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
       {confirm ? (
         <Sheet label="Delete this expense" onClose={() => setConfirm(false)}>
           <h2 className="h1" style={{ fontSize: 22 }}>Delete “{e.title}”?</h2>
-          <p className="muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-            Balances change at once, and everyone in {e.groupName} sees it in Activity. You can restore it for 30 days.
-          </p>
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>Restorable for 30 days.</p>
           {error ? <p className="error" role="alert">{error}</p> : null}
           <div className="inline" style={{ flexWrap: "nowrap" }}>
             <button className="btn ghost flex1" onClick={() => setConfirm(false)}>Keep it</button>

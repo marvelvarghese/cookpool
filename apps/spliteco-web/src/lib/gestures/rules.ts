@@ -125,6 +125,16 @@ export function pagerRule(target: unknown): Claims | null {
   };
 }
 
+/**
+ * Whether the pager may hear a touch that starts at `x` (px from the
+ * viewport's left). On a pushed screen (`leaveEdge`) a drag from within
+ * EDGE_PX of the left edge is the edge swipe's — back — never the pager's,
+ * so Group's Bills ↔ Balances never swallows it (design §2).
+ */
+export function pagerHearsStart(x: number, leaveEdge: boolean): boolean {
+  return !leaveEdge || x > EDGE_PX;
+}
+
 /** Whose is a sideways drag on a row: the row's to the left (or when it is open), the pager's to the right. */
 export function rowOrPager(dx: number, rowOpen: boolean): "row" | "pager" {
   return dx < 0 || rowOpen ? "row" : "pager";

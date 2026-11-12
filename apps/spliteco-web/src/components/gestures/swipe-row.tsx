@@ -30,7 +30,7 @@ export function SwipeRow({
 }: {
   /** What is revealed: a button or link, the twin of `onFire`. Null: the row doesn't swipe. */
   action: React.ReactNode | null;
-  actionTone?: "cobalt" | "gold" | "coral";
+  actionTone?: "cobalt" | "gold" | "coral" | "red";
   onFire?: (() => void) | undefined;
   onHold?: (() => void) | undefined;
   className?: string;

@@ -7,7 +7,7 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | SL0 — the spec | ✅ shipped | #146 (4f33619) |
 | SL1 — the calm foundation | ✅ shipped | #149 (0f1e695) |
 | SL2 — Home, Groups, Activity | ✅ shipped | this PR (SL-3) |
-| SL3 — Group and expense | planned | |
+| SL3 — Group and expense | ✅ shipped | this PR (SL-4) |
 | SL4 — Add and Itemized | planned | |
 | SL5 — Settle | planned | |
 | SL6 — close-out | planned | |
@@ -44,3 +44,23 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 
 - **Remind can still be refused** with "nothing owed" for someone whose net balance says they owe you: the server reminds by the simplified plan (SE2), where they may pay someone else. The app shows the server's reason; aligning Home's Remind with the plan is a follow-up.
+
+## SL3 as built (SL-4)
+
+- **Group** (`app/group/page.tsx`, rules in `lib/group-view.ts`): back ← with share and ⋯ icons; tile, name (26/500), faces, the signed net; a Cookpool kitchen keeps its Kitchen · Other line under the head. **Bills · Balances** is a segment whose knob follows `usePager`'s fractional `position`; tapping a segment turns the pager.
+- **Bills:** `billMonths` headers ("November"; another year says its year); one row per bill: category tile, title (ellipsis), `billMeta` "Dev paid · ₹4,960", `billShare` signed (+ lent, − borrowed, "not involved" dim). Tapping opens `/expense`.
+- **Delete with a real Undo:** a bill swipes left to a red trash action (`SwipeRow actionTone="red"`; reveal, or fire past 40 % / a flick). `BillDeletes` (on `DelayedSends`) hides the row at once (it collapses) and sends `deleteExpense` only after `UNDO_MS` while the "Deleted · Undo" toast shows; Undo cancels before any request; leaving the page (`pagehide`/unmount) flushes. A refusal brings the row back and toasts "Not deleted · <reason>" (`errorText`, e.g. `owned_by_cookpool`). Only `billWritable` bills (Spliteco's, not a payment, you can write) offer the swipe.
+- **Hold (480 ms):** a sheet with the bill's icon, title, total and `holdTiles`: Edit (`/add?edit=`) · Move (`/move?id=`) · Comment (`/expense?id=…&comment=1`, which focuses the comment box); Cookpool's rows, payments and viewers get Open · Comment.
+- **Balances:** `planTitle` ("Fewest payments" / "Pair by pair") and one row per payment of the group plan, From → To with the amount in saffron, largest first; your own payment links to Settle for that person; a payment to you keeps the compact Remind. Then "Settle up" → `/settle?group=`.
+- **One main action:** the centred cobalt "+ Add" pill (`.add-pill`) → `/add?group=`; the old FAB, Settle/Totals buttons and the header Invite pill are gone from the page.
+- **Edge back:** every pushed screen (Group, Expense, Move, Add, Settle, Insights, Share, Scan, Live) renders `Screen nav={false}` (a test pins it). `usePager({ leaveEdge: true })` ignores touches that start within `EDGE_PX` (20 px) of the left edge (`pagerHearsStart`), so Group's pager never takes the edge swipe; the tab surface is unchanged.
+- **Expense, lightly:** your share is one line ("You borrowed · Meera paid", `−₹3,600`), the Cookpool note is "From Cookpool · change it there", the delete sheet says "Restorable for 30 days."
+- **Pull to refresh** on Group (`usePull`), and it re-reads on `visibilitychange`.
+
+### Departures
+
+- **Invite, Totals and Simplify debts live in the ⋯ sheet** (tiles plus the switch); the board has only share in the header.
+- **Balances keeps a compact Remind** on a payment someone owes you, and your own payment row opens Settle for that person — the board shows plain rows.
+- **The Delete action is the trash icon alone** (labelled for screen readers), as on the board; there is no mouse swipe — the twin is the bill page's Delete.
+- **A settled net reads "settled"** rather than ₹0 in the Group head.
+
