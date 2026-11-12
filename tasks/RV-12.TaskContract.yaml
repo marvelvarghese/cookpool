@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-12
+  title: "Native-feeling tab swipe, and swiping on the tab bar"
+spec:
+  goal: "Swiping between tabs feels like a native app: the page tracks the finger with the next tab revealed, flings by velocity and settles with a spring; and sliding along the tab bar moves between tabs."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-12.TaskContract.yaml
+  doneWhen:
+    - "during a tab swipe the page tracks the finger one to one and the neighbouring tab slides in beside it, at 60 fps on a mid-range phone"
+    - "release decides by distance or velocity, so a quick flick switches tabs; the settle uses a spring and a cancelled swipe springs back"
+    - "sliding a finger along the tab bar moves the highlight from tab to tab and lifting opens that tab, with a light haptic where supported"
+    - "vertical scrolling, edge back-swipe, horizontal scrollers, swipe rows and reduced motion behave as before"
+  gates: []

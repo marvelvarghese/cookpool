@@ -2,9 +2,9 @@ import { DECIDE_PX, listenForDrags, type DragEnd, type ElementLike, type StyleOf
 import {
   NO_TAB_SWIPE,
   TAB_SWIPE_EDGE_PX,
-  TAB_SWIPE_MAX_PX,
+  TAB_SWIPE_FLICK_PX_PER_MS,
+  TAB_SWIPE_FRACTION,
   TAB_SWIPE_ORDER,
-  TAB_SWIPE_PX,
   TAB_SWIPE_RATIO,
   isSideways,
   neighbourTab,
@@ -19,7 +19,8 @@ import {
 } from "@web-console-next/components/kitchen/tab-swipe";
 import { NEW_FRAME_TABS } from "@web-console-next/components/kitchen/nav";
 
-// cookpool-revamp RV-9: a sideways swipe on a tab's root goes to the tab beside it.
+// cookpool-revamp RV-9: a sideways swipe on a tab's root goes to the tab beside it;
+// RV-12 makes it native (one to one, flicks, rubber band): see kitchen-tab-swipe-native.test.ts.
 
 const PHONE = { newFrame: true, width: 390 };
 
@@ -60,8 +61,9 @@ describe("where the tabs swipe", () => {
 });
 
 describe("the numbers", () => {
-  it("64 px to go, 1.6 times as sideways as up or down, 24 px from the edges", () => {
-    expect(TAB_SWIPE_PX).toBe(64);
+  it("35% of the width or a 0.5 px/ms flick to go (RV-12), 1.6 times as sideways as up or down, 24 px from the edges", () => {
+    expect(TAB_SWIPE_FRACTION).toBe(0.35);
+    expect(TAB_SWIPE_FLICK_PX_PER_MS).toBe(0.5);
     expect(TAB_SWIPE_RATIO).toBe(1.6);
     expect(TAB_SWIPE_EDGE_PX).toBe(24);
   });
@@ -79,23 +81,30 @@ describe("the numbers", () => {
     expect(tabSwipeClaims("/cook", -DECIDE_PX, 0)).toBe(true);
     expect(tabSwipeClaims("/cook", DECIDE_PX, 0)).toBe(true);
     expect(tabSwipeClaims("/cook", -12, 10)).toBe(false); // too vertical: a scroll
-    expect(tabSwipeClaims("/home", 30, 0)).toBe(false); // nothing before Home
-    expect(tabSwipeClaims("/you", -30, 0)).toBe(false); // nothing after You
+    // RV-12: toward an end it is still taken, to rubber-band (and spring back).
+    expect(tabSwipeClaims("/home", 30, 0)).toBe(true);
+    expect(tabSwipeClaims("/you", -30, 0)).toBe(true);
+    expect(tabSwipeClaims("/you/settings", -30, 0)).toBe(false); // not a tab's root
   });
 
-  it("the page follows a share of the finger, at most 72 px, and not toward an end", () => {
-    expect(tabSwipeOffset("/cook", -100)).toBe(-30);
-    expect(tabSwipeOffset("/cook", 40)).toBe(12);
-    expect(tabSwipeOffset("/cook", -1000)).toBe(-TAB_SWIPE_MAX_PX);
-    expect(tabSwipeOffset("/home", 100)).toBe(0);
+  it("the page follows the finger one to one (RV-12), never past a full width; toward an end it rubber-bands", () => {
+    expect(tabSwipeOffset("/cook", -100, 390)).toBe(-100);
+    expect(tabSwipeOffset("/cook", 40, 390)).toBe(40);
+    expect(tabSwipeOffset("/cook", -1000, 390)).toBe(-390);
+    expect(tabSwipeOffset("/cook", 0, 390)).toBe(0);
+    const band = tabSwipeOffset("/home", 100, 390);
+    expect(band).toBeGreaterThan(0);
+    expect(band).toBeLessThan(60);
+    expect(tabSwipeOffset("/you", -100, 390)).toBeCloseTo(-band, 6);
   });
 
-  it("letting go past 64 px goes there, with its direction; short of it, nowhere", () => {
-    expect(tabSwipeRelease("/cook", -64)).toEqual({ href: "/money", direction: "next" });
-    expect(tabSwipeRelease("/cook", 90)).toEqual({ href: "/pantry", direction: "prev" });
-    expect(tabSwipeRelease("/cook", -63)).toBeNull();
-    expect(tabSwipeRelease("/home", 200)).toBeNull();
-    expect(tabSwipeRelease("/you", -200)).toBeNull();
+  it("letting go past 35% of the width goes there, with its direction; short of it, nowhere (RV-12; RV-9's was 64 px)", () => {
+    expect(tabSwipeRelease("/cook", -137, 0, 390)).toEqual({ href: "/money", direction: "next" });
+    expect(tabSwipeRelease("/cook", 140, 0, 390)).toEqual({ href: "/pantry", direction: "prev" });
+    expect(tabSwipeRelease("/cook", -136, 0, 390)).toBeNull();
+    expect(tabSwipeRelease("/cook", -64, 0, 390)).toBeNull();
+    expect(tabSwipeRelease("/home", 300, 0, 390)).toBeNull();
+    expect(tabSwipeRelease("/you", -300, 2, 390)).toBeNull();
   });
 });
 
@@ -229,7 +238,7 @@ describe("with the finger (synthetic touch events)", () => {
     clock += 16;
     surface.dispatchEvent(touch("touchend", [], [finger(x + last[0], y + last[1])]));
     stop();
-    const release = ends[0] ? tabSwipeRelease(pathname, ends[0].dx) : null;
+    const release = ends[0] ? tabSwipeRelease(pathname, ends[0].dx, ends[0].vx, 390) : null;
     return { prevented: sent.map((e) => e.defaultPrevented), moves, release };
   }
 
@@ -252,10 +261,16 @@ describe("with the finger (synthetic touch events)", () => {
     expect(s.release).toBeNull();
   });
 
-  it("a short swipe springs back", () => {
-    const s = swipe("/cook", 200, [[10, 0], [30, 2], [50, 2]]);
+  it("a short swipe that comes to rest springs back", () => {
+    const hold: Array<[number, number]> = Array.from({ length: 8 }, () => [50, 2]);
+    const s = swipe("/cook", 200, [[10, 0], [30, 2], [50, 2], ...hold]);
     expect(s.moves.length).toBeGreaterThan(0);
     expect(s.release).toBeNull();
+  });
+
+  it("the same short swipe, flicked, opens the tab (RV-12)", () => {
+    const s = swipe("/cook", 200, [[10, 0], [30, 2], [50, 2]]);
+    expect(s.release).toEqual({ href: "/pantry", direction: "prev" });
   });
 
   it("from the screen's edge, nothing", () => {
