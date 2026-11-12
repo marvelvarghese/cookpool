@@ -4,9 +4,9 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 | Milestone | State | PR |
 |---|---|---|
-| PK0 — the spec | | |
-| PK1 — getting in | | |
-| PK2 — close-out | | |
+| PK0 — the spec | ✅ | #112 |
+| PK1 — getting in | ✅ | #113 (PK-3), #114 (PK-2), #116 (PK-4), #117 (PK-6), #118 (PK-7) |
+| PK2 — close-out | ✅ | this PR (PK-5) |
 
 ## Departures from the design
 
@@ -247,3 +247,14 @@ Console only (`apps/web-console-next`, `tests/web-console-next`); no server, con
 - db-migrate applies 520 on its own path. It is the whole server fix: identity-worker needs no redeploy, since its code is unchanged.
 - The console redeploys on its own files, for the detail line.
 - After 520 is on stage, Add a passkey should save. Passkeys that people "turned on" before this fix were never stored. Their phones may hold orphan Cookpool passkeys; adding again saves a new one.
+
+### PK2 — Close-out (PK-5)
+
+- **Verified on a real phone on 2026-11-12.** The owner, on iPhone Safari on stage, added a passkey under Sign-in and security, signed out, and signed back in with Face ID. That meets PK1's done-when.
+- **Two bugs only a real phone found:**
+  - **Safari's tap rule (PK-6):** options are now fetched before the tap.
+  - **D1's 50-byte LIKE/GLOB pattern limit (PK-7):** migration 520. The tests now run with D1's limits, and a schema check refuses any pattern over 50 bytes.
+- **Open for the owner:** a Cookpool support address. Until one is set, "Write to us" on Can't sign in? stays hidden (`supportEmail`).
+- **Prod:** the passkey routes, migrations 510 and 520, and the getting-in screens are all deployed. Passkeys work on `cookpool.store`. Email codes reach prod once `mail.cookpool.store` is verified in Cloudflare Email.
+- **Passkeys added before PK-7 were never stored.** Phones may still hold orphan Cookpool passkeys. Adding one again replaces them.
+
