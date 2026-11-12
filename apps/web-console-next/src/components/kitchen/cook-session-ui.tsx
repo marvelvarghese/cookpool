@@ -478,9 +478,10 @@ export function SessionBarCard({ view, placement }: { view: SessionBarView; plac
     <section
       aria-label="Cooking now"
       data-toast-above=""
-      // It stays put while the page moves (RC-11's page transitions).
+      // It stays put while the page moves (RC-11's page transitions). It sits 8px
+      // above the floating tab bar (RV-2).
       data-vt-keep="session-bar"
-      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-40 mx-auto max-w-lg rounded-[18px] py-2 pl-2 pr-2 text-white shadow-[0_8px_24px_rgba(23,32,27,0.28)] min-[900px]:hidden"
+      className="fixed inset-x-3 bottom-[calc(max(14px,env(safe-area-inset-bottom))+76px)] z-40 mx-auto max-w-lg rounded-[18px] py-2 pl-2 pr-2 text-white shadow-[0_8px_24px_rgba(23,32,27,0.28)] min-[900px]:hidden"
       style={{ backgroundColor: INK }}
     >
       <div className="flex items-center gap-3">

@@ -63,54 +63,160 @@
 
   /*
    * Cookpool — the consumer app under src/app/(kitchen) (epic cookpool-kitchen,
-   * CP-5). Light-only and scoped: the kitchen layout puts `.cookpool` on its
-   * wrapper (and on <body> while it is mounted, so portalled dialogs, sheets
-   * and toasts match), which redefines the kit's tokens for that subtree only.
-   * The admin console's theme above is untouched. Every text pairing here
-   * meets 4.5:1; input borders meet 3:1 against white.
+   * CP-5). Scoped: the kitchen layout puts `.cookpool` on its wrapper (and on
+   * <body> while it is mounted, so portalled dialogs, sheets and toasts match),
+   * which redefines the kit's tokens for that subtree only. The admin
+   * console's theme above is untouched.
+   *
+   * The values are cookpool-revamp's (RV-2, design §1): Fresh green on a warm
+   * ground, white cards with a soft shadow and no border. The `cp-*` names
+   * kept their meaning and took the new values, so older screens moved with
+   * the palette. Dark mode (Gold, no orange; money you owe in pink) is below,
+   * for the new frame only (`.cookpool-new`).
    */
   .cookpool {
     color-scheme: light;
     --font-sans: var(--font-cookpool), system-ui, sans-serif;
 
-    --background: 80 16% 96%; /* #F6F7F4 */
-    --foreground: 147 16% 11%; /* #17201B ink */
-    --card: 0 0% 100%;
-    --card-foreground: 147 16% 11%;
+    --background: 37.5 44.4% 96.5%; /* #FAF7F2 ground */
+    --foreground: 146.7 16.4% 10.8%; /* #17201B ink */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 146.7 16.4% 10.8%;
     --popover: 0 0% 100%;
-    --popover-foreground: 147 16% 11%;
-    --primary: 150 60% 30%; /* #1F7A4D herb green */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 80 15% 92%; /* #ECEEE8 */
-    --secondary-foreground: 147 16% 11%;
-    --muted: 80 15% 92%;
-    --muted-foreground: 140 5% 37%; /* #5A635D */
-    --accent: 146 35% 92%; /* #E4F2EA green tint */
-    --accent-foreground: 147 16% 11%;
-    --destructive: 11 79% 34%; /* #9A2B12 */
+    --popover-foreground: 146.7 16.4% 10.8%;
+    --primary: 151.2 69.4% 28.2%; /* #167A4A accent */
+    --primary-foreground: 0 0% 100%; /* on the accent */
+    --secondary: 38.2 26.8% 92%; /* #F0ECE5 */
+    --secondary-foreground: 146.7 16.4% 10.8%;
+    --muted: 38.2 26.8% 92%; /* #F0ECE5 */
+    --muted-foreground: 140 4.5% 39%; /* #5F6862 muted */
+    --accent: 146.3 40% 92.2%; /* #E3F3EA accent tint */
+    --accent-foreground: 151.2 72% 21%; /* #0F5C37 accent text */
+    --destructive: 4.2 76.5% 40%; /* #B42318 expired */
     --destructive-foreground: 0 0% 100%;
-    --warning: 38 100% 24%; /* #7A4E00 */
-    --warning-foreground: 38 100% 24%;
-    --success: 150 60% 30%;
+    --warning: 39.1 100% 27.1%; /* #8A5A00 use soon */
+    --warning-foreground: 39.1 100% 27.1%;
+    --success: 151.2 69.4% 28.2%;
     --success-foreground: 0 0% 100%;
-    --border: 90 11% 89%; /* #E3E6E0 */
-    --input: 135 4% 56%; /* #8A928C, 3.2:1 on white */
-    --ring: 150 60% 30%;
+    --border: 37.5 22.9% 86.3%; /* #E4DED4 */
+    --input: 135 3.5% 55.7%; /* #8A928C, 3:1 on white and the ground */
+    --ring: 151.2 69.4% 28.2%;
     --radius: 0.75rem;
 
     /* Cookpool-only roles (the `cp-*` Tailwind colors). */
-    --cp-herb-tint: 146 35% 92%; /* #E4F2EA */
-    --cp-tomato: 18 88% 40%; /* #C2410C */
-    --cp-tomato-tint: 24 82% 93%; /* #FCEBE0 */
-    --cp-owed: 215 73% 42%; /* #1D5FB8 you're owed */
-    --cp-owed-tint: 215 61% 94%; /* #E6EEF9 */
-    --cp-owe: 18 88% 40%; /* #C2410C you owe */
-    --cp-soon: 38 100% 24%; /* #7A4E00 use soon */
-    --cp-soon-tint: 44 100% 89%; /* #FFF0C7 */
-    --cp-expired: 11 79% 34%; /* #9A2B12 */
-    --cp-expired-tint: 14 72% 92%; /* #F9E1DA */
+    --cp-card: 0 0% 100%; /* #FFFFFF */
+    --cp-line: 38.2 26.8% 92%; /* #F0ECE5 row dividers */
+    --cp-accent-text: 151.2 72% 21%; /* #0F5C37 */
+    --cp-accent-tint: 146.3 40% 92.2%; /* #E3F3EA */
+    --cp-on-accent: 0 0% 100%; /* #FFFFFF */
+    --cp-herb-tint: 146.3 40% 92.2%; /* #E3F3EA, the accent tint */
+    --cp-nav-bg: 146.7 16.4% 10.8%; /* #17201B the floating tab bar */
+    --cp-nav-ink: 140 6.7% 73.5%; /* #B7C0BA */
+    --cp-cook: 13.2 75% 48.6%; /* #D9481F the cook tile */
+    --cp-on-cook: 0 0% 100%;
+    --cp-cook-bg: 146.7 16.4% 10.8%; /* #17201B the cook strip */
+    --cp-cook-ink: 0 0% 100%;
+    --cp-tomato: 13.2 75% 48.6%; /* #D9481F the cook colour */
+    --cp-tomato-tint: 26.2 88.9% 92.9%; /* #FDEBDD */
+    --cp-owed: 224.3 76.3% 48%; /* #1D4ED8 money back */
+    --cp-owed-tint: 221.5 86.7% 94.1%; /* #E3EBFD */
+    --cp-owe: 17.5 88.3% 40.4%; /* #C2410C money you owe */
+    --cp-owe-tint: 26.2 88.9% 92.9%; /* #FDEBDD */
+    --cp-soon: 39.1 100% 27.1%; /* #8A5A00 use soon */
+    --cp-soon-tint: 41.5 90.7% 91.6%; /* #FDF1D6 */
+    --cp-expired: 4.2 76.5% 40%; /* #B42318 */
+    --cp-expired-tint: 0 81% 95.9%; /* #FDECEC */
+    --cp-shadow-card: 0 1px 2px rgba(23, 32, 27, 0.06), 0 4px 14px rgba(23, 32, 27, 0.06);
+    --cp-shadow-nav: 0 10px 30px rgba(0, 0, 0, 0.18);
 
     font-family: var(--font-sans);
+  }
+
+  /*
+   * Dark (RV-2, design §1): follows the device, in the new frame only. The
+   * kitchen layout puts `.cookpool-new` on its wrapper and on <body>.
+   */
+  @media (prefers-color-scheme: dark) {
+    .cookpool.cookpool-new,
+    .cookpool-new .cookpool {
+      color-scheme: dark;
+
+      --background: 156 14.3% 6.9%; /* #0F1412 */
+      --foreground: 140 13% 95.5%; /* #F2F5F3 */
+      --card: 145.7 11.9% 11.6%; /* #1A211D */
+      --card-foreground: 140 13% 95.5%;
+      --popover: 145.7 11.9% 11.6%;
+      --popover-foreground: 140 13% 95.5%;
+      --primary: 47.9 95.8% 53.1%; /* #FACC15 Gold */
+      --primary-foreground: 156 14.3% 6.9%; /* #0F1412 on the accent */
+      --secondary: 142.5 10.5% 14.9%; /* #222A25 */
+      --secondary-foreground: 140 13% 95.5%;
+      --muted: 142.5 10.5% 14.9%;
+      --muted-foreground: 144 5.7% 65.9%; /* #A3ADA7 */
+      --accent: 46.5 52.6% 14.9%; /* #3A3112 */
+      --accent-foreground: 48 96.6% 76.7%; /* #FDE68A */
+      --destructive: 0 93.5% 81.8%; /* #FCA5A5 */
+      --destructive-foreground: 156 14.3% 6.9%;
+      --warning: 45.9 96.7% 64.5%; /* #FCD34D */
+      --warning-foreground: 45.9 96.7% 64.5%;
+      --success: 47.9 95.8% 53.1%;
+      --success-foreground: 156 14.3% 6.9%;
+      --border: 152.3 11.3% 22.5%; /* #33403A */
+      --input: 150 4.5% 43.9%; /* #6B7570, 3:1 on the card */
+      --ring: 47.9 95.8% 53.1%;
+
+      --cp-card: 145.7 11.9% 11.6%; /* #1A211D */
+      --cp-line: 144 11.6% 16.9%; /* #26302A */
+      --cp-accent-text: 48 96.6% 76.7%; /* #FDE68A */
+      --cp-accent-tint: 46.5 52.6% 14.9%; /* #3A3112 */
+      --cp-on-accent: 156 14.3% 6.9%; /* #0F1412 */
+      --cp-herb-tint: 46.5 52.6% 14.9%;
+      --cp-nav-bg: 145.7 11.9% 11.6%; /* #1A211D, the card */
+      --cp-nav-ink: 144 5.7% 65.9%; /* #A3ADA7 */
+      --cp-cook: 47.9 95.8% 53.1%; /* the accent */
+      --cp-on-cook: 156 14.3% 6.9%;
+      --cp-cook-bg: 46.5 52.6% 14.9%; /* on its tint */
+      --cp-cook-ink: 140 13% 95.5%;
+      --cp-tomato: 47.9 95.8% 53.1%; /* no orange in dark: the cook colour is Gold */
+      --cp-tomato-tint: 46.5 52.6% 14.9%;
+      --cp-owed: 211.7 96.4% 78.4%; /* #93C5FD */
+      --cp-owed-tint: 221.5 54.2% 18.8%; /* #16264A */
+      --cp-owe: 327.4 87.1% 81.8%; /* #F9A8D4 pink */
+      --cp-owe-tint: 315.6 30.3% 17.5%; /* #3A1F33 */
+      --cp-soon: 45.9 96.7% 64.5%; /* #FCD34D */
+      --cp-soon-tint: 44.6 52.2% 13.1%; /* #332A10 */
+      --cp-expired: 0 93.5% 81.8%; /* #FCA5A5 */
+      --cp-expired-tint: 0 38.1% 16.5%; /* #3A1A1A */
+      --cp-shadow-card: none;
+    }
+  }
+
+  /*
+   * Weights (RV-2, design §2): kitchen screens use Regular 400 and Medium 500
+   * only. Rather than touch every screen, the heavier utilities and elements
+   * are capped to 500 here; new code uses `font-medium` and `font-normal`.
+   */
+  .cookpool .font-semibold,
+  .cookpool .font-bold,
+  .cookpool .font-extrabold,
+  .cookpool .font-black,
+  .cookpool b,
+  .cookpool strong,
+  .cookpool th {
+    font-weight: 500;
+  }
+
+  /*
+   * Cards of rows (RV-2, design §3): rows are split by the `line` token, and
+   * the screens' bordered row lists (`divide-y … border bg-card`) lose their
+   * border for the card's soft shadow. New code uses `K_ROWS` (kit.tsx).
+   */
+  .cookpool .divide-y > :not([hidden]) ~ :not([hidden]) {
+    border-color: hsl(var(--cp-line));
+  }
+  .cookpool .divide-y.border.bg-card:not(.border-dashed) {
+    border-width: 0;
+    box-shadow: var(--cp-shadow-card);
   }
 
   /* On phones, Cookpool's toasts sit above its bottom tab bar. */

@@ -55,9 +55,22 @@ export default {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
         },
-        // Cookpool's own roles (CP-5). The variables exist only under the
-        // `.cookpool` wrapper (globals.css), so these never paint the admin console.
+        // Cookpool's own roles (CP-5; the revamp's values and new roles, RV-2).
+        // The variables exist only under the `.cookpool` wrapper (globals.css),
+        // so these never paint the admin console.
         cp: {
+          card: "hsl(var(--cp-card) / <alpha-value>)",
+          line: "hsl(var(--cp-line) / <alpha-value>)",
+          "accent-text": "hsl(var(--cp-accent-text) / <alpha-value>)",
+          "accent-tint": "hsl(var(--cp-accent-tint) / <alpha-value>)",
+          "on-accent": "hsl(var(--cp-on-accent) / <alpha-value>)",
+          "nav-bg": "hsl(var(--cp-nav-bg) / <alpha-value>)",
+          "nav-ink": "hsl(var(--cp-nav-ink) / <alpha-value>)",
+          cook: "hsl(var(--cp-cook) / <alpha-value>)",
+          "on-cook": "hsl(var(--cp-on-cook) / <alpha-value>)",
+          "cook-bg": "hsl(var(--cp-cook-bg) / <alpha-value>)",
+          "cook-ink": "hsl(var(--cp-cook-ink) / <alpha-value>)",
+          "owe-tint": "hsl(var(--cp-owe-tint) / <alpha-value>)",
           "herb-tint": "hsl(var(--cp-herb-tint))",
           tomato: "hsl(var(--cp-tomato))",
           "tomato-tint": "hsl(var(--cp-tomato-tint))",
@@ -70,7 +83,14 @@ export default {
           "expired-tint": "hsl(var(--cp-expired-tint))",
         },
       },
+      // The kitchen card's soft shadow (none in dark) and the floating tab bar's (RV-2).
+      boxShadow: {
+        "cp-card": "var(--cp-shadow-card)",
+        "cp-nav": "var(--cp-shadow-nav)",
+      },
       borderRadius: {
+        // The kitchen card (RV-2, design §3).
+        "cp-card": "22px",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
