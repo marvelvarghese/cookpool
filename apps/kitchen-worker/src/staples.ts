@@ -13,7 +13,7 @@ import {
 } from "@saas/contracts/kitchen";
 import type { KitchenShoppingItemRecord, KitchenStapleRecord } from "@saas/db/kitchen";
 import { toPublicId } from "./ids.js";
-import { Fields, minor, oneOf, text, type FieldErrors } from "./validate.js";
+import { Fields, minor, oneOf, subjectId, text, type FieldErrors } from "./validate.js";
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; fields: FieldErrors };
 
@@ -94,9 +94,11 @@ export interface ParsedBought {
   currency: string | null;
   qtyMilli: number | null;
   unit: string | null;
+  /** A group's (RV-22): who paid; null for the caller. */
+  paidBy: string | null;
 }
 
-/** A Bought: a group's must cost something (it posts that bill); yours may be ₹0. */
+/** A Bought: a group's must cost something (it posts that bill); yours may be ₹0, and only a group's names who paid. */
 export function parseBought(body: Record<string, unknown>, group: boolean): Parsed<ParsedBought> {
   const fields = new Fields();
   const priceMinor = minor(fields, "priceMinor", body.priceMinor, group);
@@ -106,8 +108,13 @@ export function parseBought(body: Record<string, unknown>, group: boolean): Pars
     else fields.add("currency", "Must be a three-letter ISO 4217 code in capitals, such as INR");
   }
   const got = amount(fields, "qtyMilli", "unit", body.qtyMilli, body.unit);
+  let paidBy: string | null = null;
+  if (body.paidBy !== undefined && body.paidBy !== null) {
+    if (!group) fields.add("paidBy", "Only a group's Always have names who paid");
+    else paidBy = subjectId(fields, "paidBy", body.paidBy) ?? null;
+  }
   if (!fields.ok || priceMinor === undefined || !got) return { ok: false, fields: fields.errors };
-  return { ok: true, value: { priceMinor, currency, ...got } };
+  return { ok: true, value: { priceMinor, currency, ...got, paidBy } };
 }
 
 export function parseAddShoppingItem(body: Record<string, unknown>): Parsed<{ name: string; qtyMilli: number | null; unit: string | null }> {

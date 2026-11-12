@@ -1080,3 +1080,71 @@ Typecheck and lint pass for both packages. `console-artifact.mjs build`: every k
 - `FoodAskCard`'s tokens (RV-21).
 
 **Deploy.** Only the console changes; there is no package or worker to redeploy.
+
+### RV1 — Shopping list and shopping run (RV-22)
+
+Built to the owner-approved boards `RvShopping` and `RvShoppingRun`, on RV-21's routes. No migration.
+
+**Server (additive).**
+- `POST /v1/kitchen/me/purchases` takes an optional `paidBy` (`CreatePurchaseRequest.paidBy`, a `usr_…`): the run's group lines are paid by that person, who must be in every group the run adds to (422 `not_in_group` with `details.subjectIds`; a bad id is 422 on `paidBy`). Personal lines stay the caller's; a line paid by someone else never copies "Ask me first". The purchase stays the caller's (`createdBy`), so the caller's Undo still works. Left out, nothing changes.
+- `POST /v1/organizations/{org}/kitchen/staples/{stp}/bought` takes an optional `paidBy` (`StapleBoughtRequest.paidBy`): the equal-split expense is paid by that current member (422 `not_in_group` otherwise). Your own staple's Bought refuses it (422 on `paidBy`).
+- SDK: `kitchen.buy(lines, opts, paidBy?)`.
+
+**Console** (new frame only; with `newFrame()` false `/pantry/list` and `/pantry/run` still send you to `/pantry`, checked on `cookpool-prod.localhost`):
+- `/pantry/list` (`shopping-list-ui.tsx`, model `shopping-list.ts`, writes `shopping-list-data.ts`): "Shopping list · N", **Add what we need…** with up to three suggestions: names bought before (`items/history`, with pantry, last amount and when), then foods (`/v1/kitchen/foods`, to Mine), and a new name offered to Mine and each group you add to. Enter adds the first. Each pantry with lines: the title (a group's "· split equally"), "2 of 3 got", and rows on the shared `TickRow`: the name; "Always have" with a Low/Out dot, or who added it; the amount box with the saved amount in grey and a unit picker of its family (g/kg, ml/L, pcs/dozen, pack); and one tick for got it. Ticks live on this device (localStorage `cookpool.shopping.got`, keyed by pantry, source and name). A line added while anything is ticked comes in ticked ("Ginger · Flat 4B · got it", with Undo). An amount is saved on the line on blur or on a unit pick: a hand line through `PATCH …/shopping/{shp}`, a staple through `PATCH …/staples/{stp}` `{ wantQtyMilli, wantUnit }`. A viewer's rows show their amount with no box and no tick. **Done shopping · N items** (with what was got under it) opens `/pantry/run?from=list`.
+- `/pantry/run?from=list` (`list-run-ui.tsx`, model `list-run.ts`, writes `list-run-data.ts`). Plain `/pantry/run` is still the old run (`ShoppingRun`), unchanged, for + Groceries and `?scan=1`. It has "Shopping run · N" and rows by where they go: Mine, "<group> · split equally" (a group's staple), "<group> · by use" (an item). Each row has an amount box with a unit picker and a ₹ box (last price in grey; the total counts it). A tap on the name opens where it goes: a staple's own Always have ("Flat 4B · equally", or Mine for yours), then Mine and each group "· by use". **+ Add something else** adds one piece to Mine under "Not on the list", removable.
+- **Scan the receipt** shows only where Scan a receipt shows (AI available, switch on), and uses AI-8's read and its capture, reading and problem screens. The receipt's lines match list rows by food key, name, or the row's words in the line ("Tea" in "Tata Tea Gold"). Matched rows get ✓ and the receipt's price on the tint, unmatched list rows say "not on receipt", and the other food lines become "Also on the receipt · N" (removable, in the read's pantry, with categories from AI-8's lookup). Non-food lines are left out. The card reads "DMart · today 6:40 pm", "3 matched · 2 added · ₹1,093" and Retake, then "GST ₹42 · Delivery ₹30 · −₹50 off" and ONE question, **Include in item costs?** Yes/No (Yes to start). Yes spreads taxes, charges, discounts and round-off over the receipt's own priced lines by price (AI-14's `spreadAdjustment`). The boxes keep the printed prices.
+- **Paid by**: You plus whoever is in every group the run pays into (from each pantry's `splitAmong`). It shows only when there is a choice.
+- **Add to kitchen · ₹1,093** saves and goes back, with the toast "Added 7 items · ₹1,093" and Undo:
+  - every item row (by use, Mine, a staple moved to another pantry, receipt and added rows) goes in ONE `POST /me/purchases` (the old run's write path), with `paidBy` when someone else paid. Categories come from the restock read or the food list, else "other";
+  - each staple kept in a group's Always have goes through `…/staples/{stp}/bought` (one expense, split equally, `paidBy` when someone else paid). **This fixes RV-21's departure**: buying a group staple in the run no longer adds it split by use. Your own staple kept in Mine records its price through `/me/staples/{stp}/bought`;
+  - then each home pantry gets `shopping/clear` with the hand lines and staples the run saved. If the purchase is refused, only the staples that went in are cleared. The saved rows' device ticks are dropped.
+  - A group staple with no price is refused on screen ("Tea needs a price · it's split equally"), as is an amount that isn't one.
+- **Undo** reverses what it can: the purchase's unused items (`DELETE /me/purchases/{pur}`), each group staple's bill (`reverseTxn`), each staple back to Low or Out, each hand line added back with its amount, and the ticks put back.
+- Tab bar: hidden on `/pantry/list` (already) and on `/pantry/run?from=list` (a new `tabBarHidden` rule). Plain `/pantry/run` keeps it. Both new bottom bars sit on `--cp-bottom-bar`.
+- `tick-row-ui.tsx` gains two optional props only: `onAmountBlur` and `chipsEnd`.
+
+**Departures.**
+- Removing a hand line moved from RV-21's ✕ into the unit chips, as "Take off the list", with Undo. The board draws no remove.
+- Order is the read's (Mine, then each group), not the board's sample order.
+- Food suggestions without a past buy go to the first pantry (Mine); past buys go to their own pantry; a new name is offered to every pantry.
+- The bar stays up while a toast shows (the toast lifts above it); the board hides it.
+- Undo limits:
+  - your own staple's recorded price and "bought at" stay;
+  - a re-added hand line is a new line added by you;
+  - a purchase item someone used meanwhile stays, with the old run's warning.
+- Non-food receipt lines are left out silently (the old run's "Show" is not here).
+
+**Pins changed.** `kitchen-staples.test.ts` (RV-21): the list's main button is now `href={LIST_RUN_HREF}` with `{bar.title}`, where it was `href="/pantry/run"` / `title="Done shopping"`.
+
+**Tests.**
+- `tests/kitchen-worker`: 60 suites, 1,244 tests (+2). `purchases.test.ts` covers Paid by on group lines only, a personal line staying the caller's, the caller's Undo, a payer outside one group (422 `not_in_group`, nothing written) and a bad id. `staples.test.ts` covers Bought paid by a member, an outsider refused, and your own refusing `paidBy`.
+- `tests/web-console-next`: 130 suites, 2,558 tests. The new `kitchen-shopping-list-run.test.ts` (17) covers:
+  - list groups, dots and who added;
+  - viewers;
+  - the amount box, units and save-only-a-change;
+  - tick keys and labels;
+  - Done shopping;
+  - suggestions;
+  - tab bar rules;
+  - no Bought wording;
+  - run rows and sections, destination choices and moving a row;
+  - price and amount problems;
+  - the save mapping: staples through Bought, the rest in one purchase, clears per pantry, Undo's restore list and ticks;
+  - Paid by choices and where `paidBy` goes;
+  - receipt matching, extras and non-food;
+  - the one adjustment question (spread over receipt lines only; No leaves it out);
+  - + Add something else;
+  - the run page switch.
+- `tests/contracts`: 348.
+- Typecheck and lint pass for contracts, sdk, kitchen-worker and web-console-next and their test packages. `console-artifact.mjs build` serves all 46 pages as files, with 18 `_redirects` rules.
+
+**Browser check** (390 × 844, light and dark).
+- Setup: `next dev` on 49861 behind an uncommitted in-memory mock on `cookpool-stage.localhost:49862` (RV-21's mock plus history, foods, shopping PATCH and clear, purchases and a receipt read). Every request went to that host.
+- The list: ticks turned rows green and "3 of 3 got". Typing 500 for Tea sent the PATCH `{ wantQtyMilli: 500000, wantUnit: "g" }`. "gin" suggested "Ginger · 100 g · Flat 4B · Sat" and "Gin" to Mine and to Flat 4B. Adding Ginger brought it in ticked, and the toast read "Ginger · Flat 4B · got it".
+- Done shopping · 5 items opened the run with no tab bar. The scan filled Tea ₹175, Oil ₹198 and Onions ₹38 with ✓, marked Coffee and Ginger "not on receipt", and added Atta and Paneer.
+- Paid by Anu → Add to kitchen sent: one purchase with `paidBy`; Oil and Tea Bought with `paidBy`, split equally; Coffee's price recorded; both pantries cleared. Undo reversed the purchase and both bills, PATCHed the three staples back and re-added Onions.
+- A first pass spread the receipt's taxes over Coffee too, which wasn't on the receipt. It is fixed and pinned.
+- In dark, black and green. `cookpool-prod.localhost/pantry/run?from=list` went to today's Pantry.
+
+**Deploy.** kitchen-worker and the console change in their own paths, so both redeploy. contracts and sdk change with them. Order doesn't matter: an old worker ignores `paidBy`, and the bill would then be the caller's.

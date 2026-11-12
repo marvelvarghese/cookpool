@@ -89,11 +89,15 @@ export interface TickRowProps {
   tickLabel?: (words: string, name: string, done: boolean) => string;
   /** More under the name (a note, an ask's status). */
   children?: React.ReactNode;
+  /** The box lost focus (RV-22, the shopping list: the amount is saved then). */
+  onAmountBlur?: () => void;
+  /** One more chip after the unit chips (RV-22: the list's "Take off the list"). */
+  chipsEnd?: React.ReactNode;
 }
 
 const defaultTickLabel = (words: string, name: string, done: boolean) => (done ? `Logged ${words} of ${name}, undo` : `Log ${words} of ${name}`);
 
-export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, picked, onTick, end, busy = false, tickLabel = defaultTickLabel, children }: TickRowProps) {
+export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, picked, onTick, end, busy = false, tickLabel = defaultTickLabel, children, onAmountBlur, chipsEnd }: TickRowProps) {
   const [unitsOpen, setUnitsOpen] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const chipsId = React.useId();
@@ -149,6 +153,7 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
               value={done ? done.number : state.typed}
               placeholder={amount?.ghost ?? ""}
               onChange={(e) => onState({ ...state, typed: cleanTyped(e.target.value) })}
+              onBlur={onAmountBlur}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !busy) {
                   e.preventDefault();
@@ -236,6 +241,7 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
             );
           })}
           {/* One unit only: its own measures are added on its page (Counted as). */}
+          {chipsEnd}
           {amount.units.length < 2 && href ? (
             <Link href={href} className={cn("flex min-h-10 items-center rounded-full px-3.5 text-sm font-medium text-cp-accent-text hover:bg-cp-accent-tint/60", RING)}>
               Add a measure

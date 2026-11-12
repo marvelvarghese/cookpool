@@ -1283,11 +1283,13 @@ export class KitchenClient {
 
   /**
    * POST /v1/kitchen/me/purchases — add 1 to 30 lines, each to its own
-   * pantry, in one write under one purchase (`pur_…`), paid by the caller.
+   * pantry, in one write under one purchase (`pur_…`), paid by the caller —
+   * or, for the group lines, by `paidBy` (RV-22's Paid by: someone in every
+   * group the run adds to).
    */
-  buy(lines: readonly PurchaseLine[], opts: RequestOptions = {}): Promise<PurchaseResponse> {
+  buy(lines: readonly PurchaseLine[], opts: RequestOptions = {}, paidBy?: string): Promise<PurchaseResponse> {
     return this.transport.request<PurchaseResponse>(
-      { method: "POST", path: this.mePath("purchases"), body: { lines } },
+      { method: "POST", path: this.mePath("purchases"), body: paidBy ? { lines, paidBy } : { lines } },
       opts,
     );
   }

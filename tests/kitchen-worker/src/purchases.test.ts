@@ -6,7 +6,7 @@
 // groups' currencies; what Bought again copies; retries; and the Undo,
 // which keeps what was used since and is the purchaser's alone.
 
-import type { KitchenItem, ReachableItemsPage } from "@saas/contracts/kitchen";
+import type { KitchenItem, PurchaseResponse, ReachableItemsPage } from "@saas/contracts/kitchen";
 import { PURCHASE_MAX_LINES } from "@saas/contracts/kitchen";
 import { ANU, DEV, KIRAN, NOW, RAHUL, groupPath, me, uuidOf, world, type World } from "./restock-helpers.js";
 
@@ -81,6 +81,26 @@ describe("POST /v1/kitchen/me/purchases", () => {
       ["Milk", RAHUL, purchaseId],
     ]);
     expect((await myItems(RAHUL)).map((i) => i.id).sort()).toEqual(items.map((i) => i.id).sort());
+  });
+
+  it("puts the group lines on Paid by (RV-22) when it is someone in every group, keeps the personal line the caller's, and refuses an outsider", async () => {
+    const flatOnly = await w.call<PurchaseResponse>("POST", me("purchases"), RAHUL, { lines: [bread, atta()], paidBy: ANU }, { "idempotency-key": "paid-1" });
+    expect(flatOnly.status).toBe(201);
+    expect(flatOnly.body.data.items.map((i) => [i.name, i.paidBy, i.createdBy])).toEqual([
+      ["Bread", RAHUL, RAHUL],
+      ["Atta", ANU, RAHUL],
+    ]);
+    expect(added().map((p) => [p.name, p.paidBy])).toEqual([["Atta", ANU]]);
+    // The caller still undoes it: the purchase is theirs.
+    expect((await w.undo(RAHUL, flatOnly.body.data.purchaseId)).body.data.removed).toHaveLength(2);
+
+    // Anu isn't in the Lunch club: nothing is written.
+    const both = await w.call("POST", me("purchases"), RAHUL, { lines: [atta(), milk()], paidBy: ANU }, { "idempotency-key": "paid-2" });
+    expect(both.status).toBe(422);
+    expect(both.body.error.details).toMatchObject({ reason: "not_in_group", subjectIds: [ANU] });
+    const bad = await w.call("POST", me("purchases"), RAHUL, { lines: [atta()], paidBy: "not an id!" }, { "idempotency-key": "paid-3" });
+    expect([bad.status, Object.keys(bad.body.error.details.fields as object)]).toEqual([422, ["paidBy"]]);
+    expect(count("kitchen_items")).toBe(2);
   });
 
   it("refuses the whole run when any pantry is out of reach, naming each such line", async () => {

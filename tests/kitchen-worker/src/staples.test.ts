@@ -151,6 +151,25 @@ describe("a group's staples (RV-21): members only", () => {
     expect(count()).toBe(2);
   });
 
+  it("Bought puts the bill on Paid by (RV-22) when it names a member, and refuses anyone else", async () => {
+    const tea = (await add(ANU, groupPath(w.flat, "staples"), { name: "Tea" })).body.data.staple;
+    const url = groupPath(w.flat, `staples/${tea.id}/bought`);
+    const got = await w.call<StapleBoughtResponse>("POST", url, RAHUL, { priceMinor: 18000, paidBy: ANU }, idem("paid-1"));
+    expect(got.status).toBe(201);
+    const txn = got.body.data.txn as KitchenTxn;
+    expect(txn.createdBy).toBe(RAHUL);
+    expect(txn.splits.find((s) => s.subjectId === ANU)!.paidMinor).toBe(18000);
+    expect(txn.splits.find((s) => s.subjectId === RAHUL)!.paidMinor).toBe(0);
+    const outsider = await w.call("POST", url, RAHUL, { priceMinor: 18000, paidBy: OLU }, idem("paid-2"));
+    expect(outsider.status).toBe(422);
+    expect(outsider.body.error.details).toMatchObject({ reason: "not_in_group", subjectIds: [OLU] });
+    // Your own Always have names nobody.
+    const coffee = (await add(RAHUL, me("staples"), { name: "Coffee" })).body.data.staple;
+    const mineBad = await w.call("POST", me(`staples/${coffee.id}/bought`), RAHUL, { priceMinor: 100, paidBy: ANU });
+    expect([mineBad.status, Object.keys(mineBad.body.error.details.fields as object)]).toEqual([422, ["paidBy"]]);
+    expect((w.h.db.prepare("SELECT count(*) AS n FROM kitchen_txns").get() as { n: number }).n).toBe(1);
+  });
+
   it("refuses a free Bought, another currency, a viewer and an outsider; writes nothing then", async () => {
     const oil = (await add(ANU, groupPath(w.flat, "staples"), { name: "Cooking oil" })).body.data.staple;
     await w.call("PATCH", groupPath(w.flat, `staples/${oil.id}`), ANU, { status: "low" });

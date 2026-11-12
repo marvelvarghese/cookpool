@@ -167,6 +167,14 @@ export interface PurchaseLine {
  */
 export interface CreatePurchaseRequest {
   lines: PurchaseLine[];
+  /**
+   * Who paid for the run's group lines (cookpool-revamp RV-22, the shopping
+   * run's Paid by): a `usr_…` in every group the run adds to (422
+   * `not_in_group` with `details.subjectIds` otherwise). Left out, the
+   * caller. Personal lines are always the caller's, and a line bought for
+   * someone else never copies "Ask me first" (only its buyer can ask).
+   */
+  paidBy?: string;
 }
 
 /** 201: the purchase (`pur_…`) and its items, in line order. */

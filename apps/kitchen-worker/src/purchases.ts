@@ -15,7 +15,7 @@ import type { MemberGroup } from "./groups-client.js";
 import { parseOrgPublicId, parsePublicId } from "./ids.js";
 import { readMeasures } from "./measures.js";
 import { groupPantryRef, isoDay, parseNewItem, personalPantryRef, toKitchenItem, wastePolicyOf, type ParsedNewItem } from "./pantry.js";
-import { Fields, type FieldErrors } from "./validate.js";
+import { Fields, subjectId, type FieldErrors } from "./validate.js";
 import { itemAskFields, readAskRules } from "./asks.js";
 
 /** A line's pantry: the caller's own, or a group (by its stored UUID). */
@@ -81,6 +81,17 @@ export function parsePurchase(body: Record<string, unknown>): Parsed<ParsedLine[
     lines.push({ index, pantry, item: item.value, wastePolicySent: group && line.wastePolicy !== undefined, fromItemId });
   });
   return fields.ok ? { ok: true, value: lines } : { ok: false, fields: fields.errors };
+}
+
+/**
+ * The run's payer (RV-22, Paid by): the body's `paidBy`, a person's id, or
+ * null for the caller. It pays for the group lines only.
+ */
+export function parsePurchasePayer(body: Record<string, unknown>): Parsed<string | null> {
+  if (body.paidBy === undefined || body.paidBy === null) return { ok: true, value: null };
+  const fields = new Fields();
+  const id = subjectId(fields, "paidBy", body.paidBy);
+  return id === undefined ? { ok: false, fields: fields.errors } : { ok: true, value: id };
 }
 
 /** The settings a line's item is created with, beyond what the line itself says. */

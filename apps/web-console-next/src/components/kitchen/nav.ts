@@ -151,7 +151,10 @@ export function tabBarHidden(newFrame: boolean, pathname: string | null | undefi
   if (!newFrame || !pathname) return false;
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (TAB_BAR_HIDDEN.some((re) => re.test(path))) return true;
-  return COOKED_DISH.test(path) && new URLSearchParams(search ?? "").get("cooked") === "1";
+  const query = new URLSearchParams(search ?? "");
+  // The shopping run opened from the list's Done shopping (RV-22) is pushed from it.
+  if (path === "/pantry/run" && query.get("from") === "list") return true;
+  return COOKED_DISH.test(path) && query.get("cooked") === "1";
 }
 
 // ── The sidebar's "Me" (SI-6) ─────────────────────────────────────
