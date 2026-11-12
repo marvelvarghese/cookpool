@@ -156,8 +156,8 @@ function GroupCard({ g, names }: { g: SplitecoGroupSummary; names: Map<string, s
       </div>
       <div className="stack" style={{ flex: 1, minWidth: 0, gap: 3 }}>
         <div className="row-between">
-          <span className="ellipsis" style={{ fontSize: 16, fontWeight: 700 }}>{g.name}</span>
-          <span className={n > 0 ? "get" : n < 0 ? "owe" : "even"} style={{ fontSize: 15, fontWeight: 700, flex: "none" }}>
+          <span className="ellipsis" style={{ fontSize: 16, fontWeight: 500 }}>{g.name}</span>
+          <span className={n > 0 ? "get" : n < 0 ? "owe" : "even"} style={{ fontSize: 15, fontWeight: 500, flex: "none" }}>
             {n === 0 ? "settled" : formatMoney(n, g.currency, { sign: true })}
           </span>
         </div>
@@ -256,7 +256,7 @@ function JoinGroup({ onClose }: { onClose: () => void }) {
         <h2 className="h1" style={{ fontSize: 22 }}>Join a group</h2>
         <label className="stack s8">
           <span className="small muted bold">The group&apos;s code</span>
-          <input className="input" required maxLength={16} value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="characters" style={{ letterSpacing: "0.2em", fontWeight: 800 }} autoFocus />
+          <input className="input" required maxLength={16} value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="characters" style={{ letterSpacing: "0.2em", fontWeight: 500 }} autoFocus />
         </label>
         <p className="note">Ask anyone in the group for its code — it&apos;s under Invite on the group.</p>
         {error ? <p className="error" role="alert">{error}</p> : null}

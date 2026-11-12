@@ -67,7 +67,7 @@ export default function YouPage() {
       <section className="panel" style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
         {me ? <Avatar id={me.id} name={display} me={me.id} size={56} /> : null}
         <div className="stack" style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <span style={{ fontSize: 18, fontWeight: 800 }} className="ellipsis">{display}</span>
+          <span style={{ fontSize: 18, fontWeight: 500 }} className="ellipsis">{display}</span>
           <span className="small dim ellipsis">{me?.email ?? ""}</span>
           <span className="small dim">Same account as Cookpool</span>
         </div>
@@ -106,7 +106,7 @@ export default function YouPage() {
       <section aria-label="Preferences" className="stack s4">
         <h2 className="eyebrow">Preferences</h2>
         <div className="row-between" style={{ minHeight: 52 }}>
-          <span style={{ fontSize: 15, fontWeight: 600 }} id="theme-label">Theme</span>
+          <span style={{ fontSize: 15, fontWeight: 500 }} id="theme-label">Theme</span>
           <div role="radiogroup" aria-labelledby="theme-label" className="seg" style={{ width: 210 }}>
             {(["dark", "light", "auto"] as const).map((t) => (
               <button
@@ -135,14 +135,14 @@ export default function YouPage() {
           aria-label={myUpi ? `UPI ID ${myUpi}, change it` : "Add your UPI ID"}
         >
           <span className="stack" style={{ gap: 1 }}>
-            <span style={{ fontSize: 15, fontWeight: 600 }}>UPI ID</span>
+            <span style={{ fontSize: 15, fontWeight: 500 }}>UPI ID</span>
             <span className="small dim">{myUpi ? `Receive at ${myUpi}` : "Add one so friends can pay you by UPI"}</span>
           </span>
-          <span className="small" style={{ color: "var(--link)", fontWeight: 600 }}>{myUpi ? "Change" : "Add"}</span>
+          <span className="small" style={{ color: "var(--link)", fontWeight: 500 }}>{myUpi ? "Change" : "Add"}</span>
         </button>
         <div className="row-between" style={{ minHeight: 52, borderBottom: "1px solid var(--line-soft)" }}>
           <span className="stack" style={{ gap: 1 }}>
-            <span style={{ fontSize: 15, fontWeight: 600 }}>Reminders</span>
+            <span style={{ fontSize: 15, fontWeight: 500 }}>Reminders</span>
             <span className="small dim">Friends can nudge you at most once a day, by email</span>
           </span>
         </div>

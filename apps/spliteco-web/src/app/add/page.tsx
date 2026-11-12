@@ -306,18 +306,18 @@ function Add() {
         <section className="card" style={{ gap: 12, padding: 18 }}>
           <label className="inline" style={{ gap: 12, flexWrap: "nowrap" }}>
             <span className="sr">Amount</span>
-            <span style={{ height: 52, padding: "0 12px", borderRadius: 14, background: "var(--raised)", border: "1px solid var(--line)", color: "var(--money)", fontSize: 15, fontWeight: 800, display: "flex", alignItems: "center", flex: "none" }}>
+            <span style={{ height: 52, padding: "0 12px", borderRadius: 14, background: "var(--raised)", border: "1px solid var(--line)", color: "var(--money)", fontSize: 15, fontWeight: 500, display: "flex", alignItems: "center", flex: "none" }}>
               {currencySymbol(currency).trim()} {currency}
             </span>
             {form.method === "items" ? (
-              <span style={{ flex: 1, fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em" }}>{formatShort(total ?? 0, currency).replace(/^[^\d]+/, "")}</span>
+              <span style={{ flex: 1, fontSize: 40, fontWeight: 600, letterSpacing: "-0.03em" }}>{formatShort(total ?? 0, currency).replace(/^[^\d]+/, "")}</span>
             ) : (
               <input
                 inputMode="decimal"
                 placeholder="0"
                 value={form.amountText}
                 onChange={(e) => setForm((f) => ({ ...f, amountText: e.target.value }))}
-                style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: "var(--text)", fontSize: 44, fontWeight: 800, letterSpacing: "-0.03em" }}
+                style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: "var(--text)", fontSize: 44, fontWeight: 600, letterSpacing: "-0.03em" }}
               />
             )}
           </label>
@@ -336,7 +336,7 @@ function Add() {
               value={form.title}
               maxLength={200}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: "var(--text)", fontSize: 18, fontWeight: 600 }}
+              style={{ flex: 1, minWidth: 0, background: "transparent", border: 0, outline: "none", color: "var(--text)", fontSize: 18, fontWeight: 500 }}
             />
           </label>
           {cat && !form.category && !titleTouchedCategory.current ? (
@@ -362,7 +362,7 @@ function Add() {
                 <div key={id} className="stack" style={{ alignItems: "center", gap: 6, padding: "10px 4px", borderRadius: 14, background: "var(--raised)" }}>
                   <Avatar id={id} name={nameOf(names, id, me)} me={me} size={34} />
                   <span className="small muted ellipsis" style={{ maxWidth: "100%" }}>{nameOf(names, id, me)}</span>
-                  <span className="money" style={{ fontSize: 13, fontWeight: 700 }}>{formatShort(owed, currency)}</span>
+                  <span className="money" style={{ fontSize: 13, fontWeight: 500 }}>{formatShort(owed, currency)}</span>
                 </div>
               ))}
             </div>
@@ -373,12 +373,12 @@ function Add() {
           <label className="field" style={{ height: 48, padding: "0 12px" }}>
             <Icon name="calendar" size={18} />
             <span className="sr">Date</span>
-            <input type="date" value={form.occurredOn} onChange={(e) => setForm((f) => ({ ...f, occurredOn: e.target.value || f.occurredOn }))} style={{ fontSize: 13, fontWeight: 600 }} />
+            <input type="date" value={form.occurredOn} onChange={(e) => setForm((f) => ({ ...f, occurredOn: e.target.value || f.occurredOn }))} style={{ fontSize: 13, fontWeight: 500 }} />
           </label>
           <label className="field" style={{ height: 48, padding: "0 12px" }}>
             <Icon name="noteIcon" size={18} />
             <span className="sr">Note</span>
-            <input placeholder="Add a note" maxLength={500} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} style={{ fontSize: 13, fontWeight: 600 }} />
+            <input placeholder="Add a note" maxLength={500} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} style={{ fontSize: 13, fontWeight: 500 }} />
           </label>
         </div>
         {error ? <p className="error" role="alert">{error}</p> : null}
@@ -386,7 +386,7 @@ function Add() {
 
       <div className="footer-fixed">
         <div>
-          <div className="inline" style={{ justifyContent: "center", gap: 6, fontSize: 13, fontWeight: 600, color: built.ok ? "var(--ok)" : "var(--owe)" }} aria-live="polite">
+          <div className="inline" style={{ justifyContent: "center", gap: 6, fontSize: 13, fontWeight: 500, color: built.ok ? "var(--ok)" : "var(--owe)" }} aria-live="polite">
             {built.ok ? <Icon name="check" size={16} /> : null}
             {built.ok ? `Adds up to ${formatMoney(built.request.totalMinor, currency)}` : firstProblem ? problemText(firstProblem, names, me, currency) : ""}
           </div>
@@ -412,7 +412,7 @@ function Add() {
               >
                 <span className={`radio ${g.id === groupId ? "on" : ""}`} aria-hidden="true" />
                 <span className="main">
-                  <span style={{ fontWeight: 600 }}>{g.name}</span>
+                  <span style={{ fontWeight: 500 }}>{g.name}</span>
                   <span className="small dim">{g.memberCount} people{g.madeIn === "cookpool" ? " · From Cookpool" : ""}</span>
                 </span>
               </button>
@@ -440,7 +440,7 @@ function Add() {
                 <span className="cat" style={{ width: 32, height: 32, borderRadius: 10, background: CATEGORY_TINTS[c].tint, color: CATEGORY_TINTS[c].ink }}>
                   <Icon name={c} size={16} />
                 </span>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>{CATEGORY_LABELS[c]}</span>
+                <span style={{ fontWeight: 500, fontSize: 14 }}>{CATEGORY_LABELS[c]}</span>
               </button>
             ))}
           </div>

@@ -93,7 +93,7 @@ function Group({ data, me, reload }: { data: SplitecoGroupResponse; me: string |
           {lines.length > 0 ? (
             <span
               title={data.settings.simplifyDebts ? "Fewest payments, same totals" : "Each pair settles what is between them"}
-              style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,200,87,0.12)", color: "#FFC857", fontSize: 12, fontWeight: 700 }}
+              style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,200,87,0.12)", color: "#FFC857", fontSize: 12, fontWeight: 500 }}
             >
               {data.settings.simplifyDebts ? "Simplified" : "Pair by pair"}
             </span>
@@ -194,7 +194,7 @@ function Invite({ groupId, name, onClose }: { groupId: string; name: string; onC
       {error ? <p className="error" role="alert">{error}</p> : null}
       {code ? (
         <div className="panel" style={{ alignItems: "center" }}>
-          <span style={{ fontSize: 32, fontWeight: 800, letterSpacing: "0.25em" }} className="money">{code}</span>
+          <span style={{ fontSize: 32, fontWeight: 600, letterSpacing: "0.25em" }} className="money">{code}</span>
         </div>
       ) : !error ? (
         <p className="spinner" role="status">Getting the code…</p>
@@ -230,7 +230,7 @@ function Settings({ data, onClose, onChanged }: { data: SplitecoGroupResponse; o
       <h2 className="h1" style={{ fontSize: 22 }}>{data.group.kind === "direct" ? "Outside groups" : data.group.name}</h2>
       <div className="row-between" style={{ minHeight: 56, gap: 12 }}>
         <span className="stack" style={{ gap: 2 }}>
-          <span style={{ fontSize: 15, fontWeight: 600 }} id="simplify-label">Simplify debts</span>
+          <span style={{ fontSize: 15, fontWeight: 500 }} id="simplify-label">Simplify debts</span>
           <span className="small dim">{on ? "Fewest payments, same totals" : "Each pair settles what is between them"}</span>
         </span>
         <button

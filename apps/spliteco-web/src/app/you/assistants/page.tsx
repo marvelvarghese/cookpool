@@ -48,7 +48,7 @@ export default function AssistantsPage() {
       </header>
 
       <section className="stack s8">
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{ASSISTANTS_LEAD}</h2>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{ASSISTANTS_LEAD}</h2>
         <p className="small dim" style={{ margin: 0, lineHeight: 1.5 }}>{ASSISTANTS_SUB}</p>
       </section>
 
@@ -165,11 +165,11 @@ function Connected({ list: initial, host, say }: { list: Delegation[]; host: str
       {rows.map((row) => (
         <div key={row.id} className="panel" style={{ gap: 12 }}>
           <div className="inline" style={{ gap: 12 }}>
-            <span className="avatar" aria-hidden="true" style={{ width: 40, height: 40, background: "var(--cobalt-soft)", color: "var(--text)", fontSize: 14, fontWeight: 800 }}>
+            <span className="avatar" aria-hidden="true" style={{ width: 40, height: 40, background: "var(--cobalt-soft)", color: "var(--text)", fontSize: 14, fontWeight: 500 }}>
               {row.mono}
             </span>
             <span className="stack" style={{ flex: 1, minWidth: 0, gap: 2 }}>
-              <span className="ellipsis" style={{ fontSize: 16, fontWeight: 700 }}>{row.name}</span>
+              <span className="ellipsis" style={{ fontSize: 16, fontWeight: 500 }}>{row.name}</span>
               <span className="small dim">{row.status}</span>
             </span>
             <button className="btn danger" style={{ height: 36, fontSize: 13 }} disabled={busy === row.id} onClick={() => disconnect(row)}>

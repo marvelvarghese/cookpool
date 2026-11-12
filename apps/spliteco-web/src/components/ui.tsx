@@ -11,6 +11,9 @@ import { CATEGORY_TINTS } from "@/lib/activity-text";
 import { errorText, useSession } from "@/lib/session";
 import { rememberReturn, sessionStore } from "@/lib/return-to";
 import { readBack } from "@/lib/handoff";
+import { TABS, nearestTab, pillPosition, showsAdd, tabIndexOf } from "@/lib/tabs";
+import { useSheetDrag } from "./gestures/sheet-drag";
+import { useEdgeBack } from "./gestures/edge-back";
 
 // ── Data ───────────────────────────────────────────────
 
@@ -129,20 +132,22 @@ export function Brand() {
   return (
     <div className="inline" style={{ gap: 10 }}>
       <Mark />
-      <span style={{ fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em" }}>Spliteco</span>
+      <span style={{ fontSize: 21, fontWeight: 600, letterSpacing: "-0.02em" }}>Spliteco</span>
     </div>
   );
 }
 
+/** A bottom sheet: it closes from the scrim, Escape, or by dragging it down (design §2). */
 export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+  const drag = useSheetDrag(onClose);
   return (
-    <div className="scrim" onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-label={label} className="sheet" onClick={(e) => e.stopPropagation()}>
+    <div className="scrim" ref={drag.scrim} onClick={onClose}>
+      <section ref={drag.sheet} role="dialog" aria-modal="true" aria-label={label} className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="grabber" aria-hidden="true" />
         {children}
       </section>
@@ -176,44 +181,41 @@ export function AddsUpBar({ left, right, ok, ratio }: { left: string; right: str
   );
 }
 
-// ── Bottom nav ─────────────────────────────────────────
+// ── The floating tab bar ───────────────────────────────
 
-const TABS = [
-  { href: "/", label: "Home", icon: "home" },
-  { href: "/groups", label: "Groups", icon: "groups" },
-  { href: "/activity", label: "Activity", icon: "activity" },
-  { href: "/you", label: "You", icon: "you" },
-] as const;
-
-export function BottomNav() {
+/**
+ * The floating tab bar (design §1): Home · Groups · Activity · You, the
+ * current one a cobalt pill. `position` is a fractional tab index (1.5 is
+ * halfway from Groups to Activity) for the pager to drive while a finger
+ * swipes (SL2); left out, it is the address's tab. It is also set as the
+ * bar's `--tab` CSS variable, which is all the pill reads. The round + floats
+ * above the bar on Home, Groups and Activity: the one main action.
+ */
+export function TabBar({ position, dragging = false }: { position?: number; dragging?: boolean }) {
   const path = usePathname();
-  const tab = (t: (typeof TABS)[number]) => {
-    const on = t.href === "/" ? path === "/" : path.startsWith(t.href);
-    return (
-      <Link key={t.href} href={t.href} aria-current={on ? "page" : undefined}>
-        <Icon name={t.icon} size={22} />
-        <span>{t.label}</span>
-      </Link>
-    );
-  };
+  const current = tabIndexOf(path);
+  const at = pillPosition(position ?? (current < 0 ? 0 : current));
+  const on = position === undefined ? current : nearestTab(at);
   return (
-    <nav className="nav" aria-label="Main">
-      <div>
-        {tab(TABS[0])}
-        {tab(TABS[1])}
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <Link href="/add" aria-label="Add an expense" className="add" style={{ height: 58, padding: 0, gap: 0 }}>
-            <Icon name="plus" size={26} stroke={2.2} />
+    <>
+      {showsAdd(current) ? (
+        <Link href="/add" aria-label="Add an expense" className="add-fab">
+          <Icon name="plus" size={26} stroke={2.2} />
+        </Link>
+      ) : null}
+      <nav className={`tabbar ${dragging ? "dragging" : ""}`} aria-label="Main" style={{ "--tab": at } as React.CSSProperties}>
+        {current >= 0 ? <span className="pill" aria-hidden="true" /> : null}
+        {TABS.map((t, i) => (
+          <Link key={t.href} href={t.href} aria-current={i === current ? "page" : undefined} className={i === on && !dragging ? "on" : undefined}>
+            <Icon name={t.icon} size={22} />
+            <span>{t.label}</span>
           </Link>
-        </div>
-        {tab(TABS[2])}
-        {tab(TABS[3])}
-      </div>
-    </nav>
+        ))}
+      </nav>
+    </>
   );
 }
 
-/** A page under the bottom nav, with the canvas's background glow. */
 /**
  * "← Back to Cookpool" (SE3): shown on every screen of a tab that was opened
  * from Cookpool's "More in Spliteco", returning to the exact Cookpool page.
@@ -229,18 +231,31 @@ export function BackToCookpool() {
   );
 }
 
-export function Screen({ children, nav = true, tight }: { children: React.ReactNode; nav?: boolean; tight?: boolean }) {
+/**
+ * A page: with the floating tab bar (`nav`, the tabs' roots), or pushed
+ * (`nav={false}`: Group, Add, Settle…), which hides the bar and goes back
+ * with a swipe from the left edge — to `back` when given, else the previous
+ * page (Home when there is none). Its twin is the screen's ← button.
+ */
+export function Screen({ children, nav = true, tight, back }: { children: React.ReactNode; nav?: boolean; tight?: boolean; back?: string }) {
+  const router = useRouter();
+  const goBack = React.useCallback(() => {
+    if (back) router.push(back);
+    else if (window.history.length > 1) router.back();
+    else router.push("/");
+  }, [back, router]);
+  const edge = useEdgeBack(goBack, !nav);
   return (
     <SignedIn>
-      <div className="app">
+      <div className="app" ref={edge.frame}>
         <div className="glow a" aria-hidden="true" />
         <div className="glow b" aria-hidden="true" />
-        <main className={`page ${tight ? "tight" : ""}`}>
+        <main ref={edge.page} className={`page ${tight ? "tight" : ""} ${nav ? "with-nav" : ""}`}>
           <BackToCookpool />
           {children}
         </main>
       </div>
-      {nav ? <BottomNav /> : null}
+      {nav ? <TabBar /> : null}
     </SignedIn>
   );
 }

@@ -170,7 +170,7 @@ export function LiveScreen({ code: raw }: { code: string }) {
         <div className="hdr-title" style={{ flex: 1 }}>
           <h1 className="ellipsis" style={{ maxWidth: "100%" }}>{session.draft.title}</h1>
           {session.state === "open" ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--ok)", fontWeight: 700 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--ok)", fontWeight: 500 }}>
               <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ok)" }} />
               Live · {session.here.length} here
             </span>
@@ -186,7 +186,7 @@ export function LiveScreen({ code: raw }: { code: string }) {
           <QrCode text={url} label={`QR code to join, opens ${url}`} />
           <div className="stack s8" style={{ flex: 1, minWidth: 0 }}>
             <span className="small muted">Scan, or share the code</span>
-            <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 20, fontWeight: 700, letterSpacing: "0.08em", color: "var(--money)" }} aria-label={`Code ${session.code.split("").join(" ")}`}>
+            <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 20, fontWeight: 600, letterSpacing: "0.08em", color: "var(--money)" }} aria-label={`Code ${session.code.split("").join(" ")}`}>
               {formatLiveCode(session.code)}
             </span>
             <button className="btn surface" style={{ height: 40, fontSize: 13 }} onClick={copyInvite}>
@@ -240,7 +240,7 @@ export function LiveScreen({ code: raw }: { code: string }) {
                 onClick={() => setAssign(i)}
                 style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2, background: "transparent", border: 0, color: "var(--text)", textAlign: "left", padding: 0 }}
               >
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{item.name}{(item.qty ?? 1) > 1 ? ` × ${item.qty}` : ""}</span>
+                <span style={{ fontSize: 14, fontWeight: 500 }}>{item.name}{(item.qty ?? 1) > 1 ? ` × ${item.qty}` : ""}</span>
                 <span className="small dim">
                   {formatShort(item.totalMinor, cur)}
                   {who.length > 0 ? ` · ${who.map((id) => nameOf(names, id, me)).join(", ")}` : ""}
@@ -291,7 +291,7 @@ export function LiveScreen({ code: raw }: { code: string }) {
 
       {session.state === "locked" && session.expenseId ? (
         <section className="card r22" aria-label="Posted">
-          <span className="inline" style={{ fontWeight: 700 }}><Icon name="check" size={18} /> Locked and posted to {session.groupName}</span>
+          <span className="inline" style={{ fontWeight: 500 }}><Icon name="check" size={18} /> Locked and posted to {session.groupName}</span>
           <Link className="btn big" href={`/expense?id=${encodeURIComponent(session.expenseId)}`}>Open the expense</Link>
         </section>
       ) : null}
@@ -316,7 +316,7 @@ export function LiveScreen({ code: raw }: { code: string }) {
                   style={{ color: "var(--text)", textAlign: "left", borderColor: on ? "var(--cobalt-ring)" : undefined }}
                 >
                   <span className={`check ${on ? "on" : ""}`} aria-hidden="true">{on ? <Icon name="check" size={16} /> : null}</span>
-                  <span style={{ fontWeight: 600, flex: 1 }}>{name}</span>
+                  <span style={{ fontWeight: 500, flex: 1 }}>{name}</span>
                   {hereIds.has(m.subjectId) ? <span className="small okc">here</span> : null}
                 </button>
               );

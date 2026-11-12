@@ -91,8 +91,8 @@ function Move({ x, targets, fromDirect, me }: { x: SplitecoExpenseResponse; targ
       </header>
       <section aria-label="The expense" className="panel" style={{ gap: 6 }}>
         <div className="row-between">
-          <span style={{ fontSize: 16, fontWeight: 700 }}>{e.title}</span>
-          <span className="money" style={{ fontWeight: 800 }}>{formatMoney(e.totalMinor, e.currency)}</span>
+          <span style={{ fontSize: 16, fontWeight: 500 }}>{e.title}</span>
+          <span className="money" style={{ fontWeight: 500 }}>{formatMoney(e.totalMinor, e.currency)}</span>
         </div>
         <span className="small dim">{shortDate(e.occurredAt)} · {others.length ? `split with ${listNames(others)}` : "just you"}</span>
         <div className="row-between small" style={{ paddingTop: 6 }}>
@@ -120,7 +120,7 @@ function Move({ x, targets, fromDirect, me }: { x: SplitecoExpenseResponse; targ
               >
                 <span className="gicon" style={{ width: 40, height: 40, borderRadius: 12, background: tint.bg, color: tint.fg, fontSize: 15 }}>{t.group.name.charAt(0).toUpperCase()}</span>
                 <span className="main">
-                  <span className="inline" style={{ gap: 6, fontWeight: 600 }}>
+                  <span className="inline" style={{ gap: 6, fontWeight: 500 }}>
                     {t.group.name}
                     {t.group.madeIn === "cookpool" ? <span className="cookpool-tag">From Cookpool</span> : null}
                   </span>

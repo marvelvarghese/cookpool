@@ -33,7 +33,7 @@ export function PaidByView({ ctx, onDone }: { ctx: FormCtx; onDone: () => void }
             {form.title || "This expense"} · {formatMoney(total, currency)}
           </span>
         </div>
-        <button className="pillbtn" onClick={onDone} disabled={many && !status.ok} style={{ background: "var(--raised)", fontWeight: 700 }}>
+        <button className="pillbtn" onClick={onDone} disabled={many && !status.ok} style={{ background: "var(--raised)", fontWeight: 500 }}>
           Done
         </button>
       </header>
@@ -59,7 +59,7 @@ export function PaidByView({ ctx, onDone }: { ctx: FormCtx; onDone: () => void }
                 style={{ height: 62, minHeight: 62, background: on ? "rgba(37,99,235,0.16)" : "var(--raised)", borderColor: on ? "var(--cobalt)" : "var(--line)", color: "var(--text)", textAlign: "left" }}
               >
                 <Avatar id={id} name={name} me={me} size={38} />
-                <span style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>{name}</span>
+                <span style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{name}</span>
                 <span className={`radio ${on ? "on" : ""}`} aria-hidden="true" />
               </button>
             );
@@ -68,7 +68,7 @@ export function PaidByView({ ctx, onDone }: { ctx: FormCtx; onDone: () => void }
           return (
             <label key={id} className="prow" style={{ background: "var(--raised)", minHeight: 62 }}>
               <Avatar id={id} name={name} me={me} size={38} />
-              <span style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>{name}</span>
+              <span style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{name}</span>
               <span className="amount-box" style={{ borderColor: value ? "rgba(255,200,87,0.4)" : undefined }}>
                 <span>{currency === "INR" ? "₹" : currency}</span>
                 <input

@@ -193,13 +193,13 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
           const name = nameOf(names, b.subjectId, me);
           return (
             <div key={b.subjectId} className="tr">
-              <span className="inline" style={{ gap: 8, fontWeight: 600, flexWrap: "nowrap" }}>
+              <span className="inline" style={{ gap: 8, fontWeight: 500, flexWrap: "nowrap" }}>
                 <Avatar id={b.subjectId} name={name} me={me} size={24} />
                 <span className="ellipsis">{name}</span>
               </span>
               <span className="muted">{formatMoney(itemized ? b.itemsMinor : b.paidMinor, cur)}</span>
               <span className="muted">{itemized ? formatMoney(b.adjustmentsMinor, cur) : ""}</span>
-              <span className="money" style={{ fontWeight: 800 }}>{formatMoney(b.owedMinor, cur)}</span>
+              <span className="money" style={{ fontWeight: 500 }}>{formatMoney(b.owedMinor, cur)}</span>
             </div>
           );
         })}

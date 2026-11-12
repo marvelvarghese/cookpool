@@ -131,7 +131,7 @@ function Friend({ data, me, reload }: { data: SplitecoFriendResponse; me: string
                 <ExpenseRow e={e} names={names} me={me} sub={`${shortDate(e.occurredAt)} · ${outsideRow ? "no group" : e.groupName}`} />
               </div>
               {outsideRow && !e.locked ? (
-                <Link href={`/move?id=${encodeURIComponent(e.id)}`} aria-label={`Move ${e.title} into a group`} className="pillbtn" style={{ height: 44, padding: "0 10px", background: "#1A3050", border: 0, color: "#93C5FD", fontSize: 12, fontWeight: 700 }}>
+                <Link href={`/move?id=${encodeURIComponent(e.id)}`} aria-label={`Move ${e.title} into a group`} className="pillbtn" style={{ height: 44, padding: "0 10px", background: "#1A3050", border: 0, color: "#93C5FD", fontSize: 12, fontWeight: 500 }}>
                   <Icon name="move" size={14} />
                   Move
                 </Link>

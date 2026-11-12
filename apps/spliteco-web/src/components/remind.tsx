@@ -82,7 +82,7 @@ export function RemindSheet({ target, onClose, onSent }: { target: RemindTarget;
       <p className="note">By email, and as a notification if they turned those on. At most once a day.</p>
       {error ? <p className="error" role="alert">{error}</p> : null}
       {sentAt ? (
-        <p className="okc" role="status" style={{ margin: 0, fontWeight: 700 }}>Sent. {target.toName} will hear from Spliteco.</p>
+        <p className="okc" role="status" style={{ margin: 0, fontWeight: 500 }}>Sent. {target.toName} will hear from Spliteco.</p>
       ) : null}
       <div className="inline" style={{ flexWrap: "nowrap" }}>
         <button className="btn ghost flex1" onClick={onClose}>{sentAt ? "Done" : "Cancel"}</button>

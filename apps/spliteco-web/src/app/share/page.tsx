@@ -129,12 +129,12 @@ function Share({ card, groupId, groupName, link }: { card: ShareCardData; groupI
         <div className="row-between">
           <span className="inline" style={{ gap: 8 }}>
             <Mark size={26} />
-            <span style={{ fontWeight: 800 }}>Spliteco</span>
+            <span style={{ fontWeight: 600 }}>Spliteco</span>
           </span>
           <span className="small" style={{ color: "#8193AB" }}>{card.heading}</span>
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <span style={{ fontSize: 22, fontWeight: 800 }}>{card.title}</span>
+          <span style={{ fontSize: 22, fontWeight: 600 }}>{card.title}</span>
           <span className="small" style={{ color: "#A8B6CA" }}>{card.subtitle}</span>
         </div>
         <div className="stack s8">
@@ -158,7 +158,7 @@ function Share({ card, groupId, groupName, link }: { card: ShareCardData; groupI
             style={{ alignItems: "center", gap: 8, padding: "14px 6px", borderRadius: 16, background: "var(--surface)", border: "1px solid var(--line)", color: "var(--text)" }}
           >
             <span className="badge" style={{ background: tones[a.tone].tint, color: tones[a.tone].ink }}>{a.badge}</span>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>{busy === a.badge ? "Working…" : a.label}</span>
+            <span style={{ fontSize: 12, fontWeight: 500 }}>{busy === a.badge ? "Working…" : a.label}</span>
           </button>
         ))}
       </div>
