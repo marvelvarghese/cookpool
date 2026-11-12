@@ -185,8 +185,16 @@ export interface SplitecoRepository {
   comments(txnIds: readonly string[]): Promise<SplitecoCommentRecord[]>;
   /** The currency each group's ledger is pinned to (absent: none yet). */
   currencies(orgIds: readonly string[]): Promise<Map<string, string>>;
-  /** Insert `txns` (in order) and `audit`, all in one batch. */
-  write(txns: readonly NewSplitecoTxn[], audit?: AppendEventWithAuditInput): Promise<SplitecoWriteResult>;
+  /**
+   * Insert `txns` (in order) and `audit`, all in one batch — with `more`
+   * (further audit events, and statements such as a live split's lock, SE-5)
+   * appended to that same batch.
+   */
+  write(
+    txns: readonly NewSplitecoTxn[],
+    audit?: AppendEventWithAuditInput,
+    more?: { audits?: readonly AppendEventWithAuditInput[]; statements?: readonly SqlStatement[] },
+  ): Promise<SplitecoWriteResult>;
   addComment(comment: SplitecoCommentRecord): Promise<SplitecoCommentRecord>;
   /** Every row of one payment (its bucket rows), oldest first (SE-3). */
   paymentRows(orgId: string, paymentId: string): Promise<SplitecoTxnRecord[]>;
@@ -477,13 +485,15 @@ export function createSplitecoRepository(executor: SqlExecutor): SplitecoReposit
       return out;
     },
 
-    async write(txns, audit) {
+    async write(txns, audit, more = {}) {
       for (const txn of txns) {
         const problem = splitsProblem(txn.totalMinor, txn.splits);
         if (problem) return { ok: false, error: { kind: "invalid", reason: problem } };
       }
       const statements = txns.flatMap(splitecoTxnStatements);
       if (audit) statements.push(...eventWithAuditStatements(audit));
+      for (const a of more.audits ?? []) statements.push(...eventWithAuditStatements(a));
+      statements.push(...(more.statements ?? []));
       try {
         await executeBatch(executor, statements);
         return { ok: true, replayed: false };
