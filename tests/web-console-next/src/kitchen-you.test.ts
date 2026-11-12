@@ -3,12 +3,18 @@ import {
   CHANGE_NAME,
   HOW_YOU_SIGN_IN,
   NAME_READS,
+  SIGN_OUT,
   SIGN_OUT_PHONE,
+  YOU_COOKS_HREF,
   nameToSave,
   personInitials,
   shownName,
   signInRows,
+  youGroups,
+  youSubline,
 } from "@web-console-next/components/kitchen/you";
+import { STATIC_PAGES } from "@web-console-next/lib/static-pages.mjs";
+import { frameRedirect } from "@web-console-next/lib/features";
 import {
   clearNameAsked,
   lastSignInMethod,
@@ -259,5 +265,38 @@ describe("what this device remembers, and signing out", () => {
       expect(calls).toBe(1);
       expect(steps).toEqual(["logout", "token", "cache", "go:/login"]);
     }
+  });
+});
+
+describe("You in the new look (RV-6, RvYou)", () => {
+  it("is short grouped lists of rows, each opening a page the app has", () => {
+    const groups = youGroups({ passkeys: true });
+    expect(groups.map((g) => g.title)).toEqual(["Account", "Sign-in and security", "Cookpool AI", "Notifications"]);
+    expect(groups.flatMap((g) => g.rows.map((r) => [r.label, r.href]))).toEqual([
+      ["Name and handle", "/you/settings"],
+      ["Your recipes and cooks", "/you/cooks"],
+      ["Groups", "/groups"],
+      ["Passkeys", "/you/security"],
+      ["Connected apps", "/you/assistants"],
+      ["AI settings", "/you/ai"],
+      ["Push", "/you/notifications"],
+    ]);
+    for (const r of groups.flatMap((g) => g.rows)) expect(STATIC_PAGES).toContain(r.href);
+  });
+
+  it("reads Email, not Passkeys, where passkeys do not run", () => {
+    expect(youGroups({ passkeys: false })[1]!.rows[0]).toEqual({ id: "signin", label: "Email", href: "/you/security" });
+  });
+
+  it("shows your @handle under your name, else your email", () => {
+    expect(youSubline("rahulcooks", "rahul@gmail.com")).toBe("@rahulcooks");
+    expect(youSubline(null, "rahul@gmail.com")).toBe("rahul@gmail.com");
+  });
+
+  it("signs out in two words, and keeps your recipes and cooks one row in, in the new frame only", () => {
+    expect(SIGN_OUT).toBe("Sign out");
+    expect(YOU_COOKS_HREF).toBe("/you/cooks");
+    expect(frameRedirect("/you/cooks", false)).toBe("/you");
+    expect(frameRedirect("/you/cooks", true)).toBeNull();
   });
 });

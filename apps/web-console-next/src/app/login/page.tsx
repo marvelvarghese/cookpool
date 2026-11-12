@@ -22,7 +22,7 @@ import {
 } from "@/lib/remembered-account";
 import { applyNewName } from "@/components/kitchen/data";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
+import { KITCHEN_NEW_LOOK_CLASS, KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import {
   CODE_REPLACED_NOTICE,
@@ -77,7 +77,7 @@ import {
   PitchPanel,
   SignInMark,
 } from "@/components/kitchen/sign-in-ui";
-import { WelcomeHero } from "@/components/kitchen/sign-in-screens-ui";
+import { WelcomeHero, useSignInNewLook } from "@/components/kitchen/sign-in-screens-ui";
 import { CodeStep, StartStep } from "@/components/kitchen/sign-in-steps-ui";
 import { authenticate, markDeviceHasPasskey, markOfferDue, shouldOfferPasskey } from "@/lib/passkey-device";
 import { PASSKEY_TAP_AGAIN_NOTICE, passkeyHere, passkeySignInLabel, signInWithPasskey } from "@/components/kitchen/passkeys";
@@ -150,7 +150,9 @@ function SignInWithQuery() {
 }
 
 function SignInPage({ params }: { params: LoginParams }) {
-  useKitchenBodyTheme();
+  // RV-6: dark follows the device where the new frame is on (stage first).
+  const newLook = useSignInNewLook();
+  useKitchenBodyTheme(newLook);
   const router = useRouter();
   const rawNext = params.get("next");
   const signedOut = signedOutFrom(params.toString());
@@ -537,7 +539,7 @@ function SignInPage({ params }: { params: LoginParams }) {
 
   if (offer) {
     return (
-      <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground")}>
+      <div className={cn(...KITCHEN_THEME_CLASSES, newLook && KITCHEN_NEW_LOOK_CLASS, "min-h-dvh bg-background text-foreground")}>
         <PasskeyOfferScreen
           client={client}
           device={passkeys.device}
@@ -549,7 +551,7 @@ function SignInPage({ params }: { params: LoginParams }) {
   }
 
   return (
-    <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
+    <div className={cn(...KITCHEN_THEME_CLASSES, newLook && KITCHEN_NEW_LOOK_CLASS, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
       <PitchPanel title={panelTitle} className="hidden min-[900px]:flex" />
 
       <div className="flex min-h-dvh flex-col min-[900px]:flex-[1_1_420px]">
@@ -559,8 +561,8 @@ function SignInPage({ params }: { params: LoginParams }) {
 
         <main
           className={cn(
-            "flex flex-1 justify-center px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]",
-            starting ? "pt-[18px]" : "pt-[calc(env(safe-area-inset-top)+1rem)]",
+            "flex flex-1 justify-center px-[18px] pb-[calc(env(safe-area-inset-bottom)+1.25rem)]",
+            starting ? "pt-5" : "pt-[calc(env(safe-area-inset-top)+1rem)]",
             "min-[900px]:items-center min-[900px]:px-6 min-[900px]:py-10",
           )}
         >
@@ -612,6 +614,7 @@ function SignInPage({ params }: { params: LoginParams }) {
                         )
                       : null
                   }
+                  rememberedPasskey={remembered ? continueMethod(remembered, withGoogle, passkeysRun) === "passkey" : false}
                   onContinue={continueAsRemembered}
                   onForget={forgetRemembered}
                   continuing={state.busy === "send" || leaving || passkeyBusy}

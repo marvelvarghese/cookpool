@@ -68,7 +68,7 @@ export function PersonProfileScreen() {
         <ProfileSkeleton />
       ) : !handle || read.error?.code === "not_found" ? (
         <KCard className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-          <h1 className="text-lg font-bold tracking-tight">Nobody&apos;s here</h1>
+          <h1 className="text-lg font-medium tracking-tight">Nobody&apos;s here</h1>
           <p className="text-sm text-muted-foreground">{handle ? `No profile is called ${atHandle(handle)}.` : "That isn't a handle."}</p>
           <Button asChild className={K_BUTTON}>
             <Link href={COMMUNITY_HREF}>Community</Link>
@@ -136,7 +136,7 @@ function ProfileBody({ view, onBlocked }: { view: PersonProfileResponse; onBlock
     <>
       <div className="-mx-2.5 flex min-h-11 items-center">
         <BackButton />
-        <span className="min-w-0 flex-1 truncate text-center text-[15px] font-extrabold">{atHandle(profile.handle)}</span>
+        <span className="min-w-0 flex-1 truncate text-center text-[15px] font-medium">{atHandle(profile.handle)}</span>
         {rel.isYou ? (
           <span aria-hidden className="h-11 w-11" />
         ) : (
@@ -157,14 +157,14 @@ function ProfileBody({ view, onBlocked }: { view: PersonProfileResponse; onBlock
         <CountsRow cells={profileCounts(profile.handle, view.counts, canSee)} />
       </div>
       <div className="flex flex-col gap-0.5">
-        <h1 className="text-lg font-extrabold">{profile.name}</h1>
-        {profile.about ? <p className="text-sm font-medium text-[#3F4842]">{profile.about}</p> : null}
-        {followedBy ? <p className="text-[13px] font-bold text-muted-foreground">{followedBy}</p> : null}
-        {rel.followsYou && !rel.isYou ? <p className="text-[13px] font-bold text-muted-foreground">Follows you</p> : null}
+        <h1 className="text-lg font-medium">{profile.name}</h1>
+        {profile.about ? <p className="text-sm font-medium text-muted-foreground">{profile.about}</p> : null}
+        {followedBy ? <p className="text-[13px] font-medium text-muted-foreground">{followedBy}</p> : null}
+        {rel.followsYou && !rel.isYou ? <p className="text-[13px] font-medium text-muted-foreground">Follows you</p> : null}
       </div>
       <div className="grid grid-cols-[2fr_1fr] gap-2">
         {rel.isYou ? <FollowButtonView button={button} href={HANDLE_SETUP_HREF} /> : <FollowButtonView button={button} onClick={onFollow} />}
-        <button type="button" onClick={onShare} className={cn("min-h-12 rounded-[14px] text-[15px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", OUTLINE_BUTTON)}>
+        <button type="button" onClick={onShare} className={cn("min-h-12 rounded-[14px] text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", OUTLINE_BUTTON)}>
           Share
         </button>
       </div>
@@ -244,7 +244,7 @@ function ProfilePeople({ view, list, myId, hasProfile }: { view: PersonProfileRe
   return (
     <section aria-labelledby="people-h" className="flex flex-col gap-2">
       <div className="flex min-h-11 items-center justify-between">
-        <h2 id="people-h" className="text-lg font-extrabold tracking-tight">
+        <h2 id="people-h" className="text-lg font-medium tracking-tight">
           {title}
         </h2>
         <Link href={profileHref(handle)} aria-label={`Close ${title}`} className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -267,7 +267,7 @@ function ProfilePeople({ view, list, myId, hasProfile }: { view: PersonProfileRe
                 key={row.userId}
                 row={row}
                 action={
-                  <button type="button" onClick={() => remove(row)} className={cn("min-h-11 shrink-0 rounded-xl px-3 text-sm font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", OUTLINE_BUTTON)}>
+                  <button type="button" onClick={() => remove(row)} className={cn("min-h-11 shrink-0 rounded-xl px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", OUTLINE_BUTTON)}>
                     Remove<span className="sr-only"> {row.name}</span>
                   </button>
                 }
@@ -317,7 +317,7 @@ function ProfileMenu({
   const mute = useMute();
   const block = useBlock();
   const [report, setReport] = React.useState<ReportTarget | null>(null);
-  const item = "min-h-[52px] w-full rounded-[14px] text-base font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const item = "min-h-[52px] w-full rounded-[14px] text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -326,8 +326,8 @@ function ProfileMenu({
           aria-describedby={undefined}
           className={cn("mx-auto max-w-xl gap-2 rounded-t-[24px] border-x-0 bg-card px-5 pb-6 pt-3 min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border", CLOSE_44)}
         >
-          <div aria-hidden className="mx-auto mb-1 h-[5px] w-10 shrink-0 rounded-full bg-[#D5DAD2] min-[900px]:hidden" />
-          <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-extrabold">{profileFirstName(profile)}</SheetTitle>
+          <div aria-hidden className="mx-auto mb-1 h-[5px] w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
+          <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-medium">{profileFirstName(profile)}</SheetTitle>
           <div className="flex flex-col gap-2">
             <button
               type="button"
@@ -335,7 +335,7 @@ function ProfileMenu({
                 onOpenChange(false);
                 mute(profile, !rel.muted);
               }}
-              className={cn(item, "border border-[#D5DAD2] bg-card hover:bg-accent")}
+              className={cn(item, "border border-border bg-card hover:bg-accent")}
             >
               {words.mute}
             </button>
@@ -349,11 +349,11 @@ function ProfileMenu({
                   if (!stands) onBlocked(null);
                 });
               }}
-              className={cn(item, "bg-[#FDECEA] text-[#B42318] hover:bg-[#FAD9D5]")}
+              className={cn(item, "bg-cp-expired-tint text-destructive hover:bg-cp-expired-tint/80")}
             >
               {words.block}
             </button>
-            <p className="text-center text-[13px] font-semibold text-muted-foreground">{words.blockNote}</p>
+            <p className="text-center text-[13px] font-medium text-muted-foreground">{words.blockNote}</p>
             {/* CM-6: reports exist now. */}
             <button
               type="button"
@@ -361,7 +361,7 @@ function ProfileMenu({
                 onOpenChange(false);
                 setReport({ kind: "profile", id: profile.userId, handle: profile.handle });
               }}
-              className={cn(item, "border border-[#D5DAD2] bg-card hover:bg-accent")}
+              className={cn(item, "border border-border bg-card hover:bg-accent")}
             >
               Report {atHandle(profile.handle)}
             </button>
@@ -382,12 +382,12 @@ function BlockedHere({ person, onUnblocked }: { person: { userId: string; handle
         <BackButton />
       </div>
       <KCard className="flex flex-col items-center gap-2 px-6 py-10 text-center">
-        <h1 className="text-lg font-extrabold">You blocked {atHandle(person.handle)}</h1>
-        <p className="text-sm font-semibold text-muted-foreground">You won&apos;t see each other anywhere. {profileFirstName(person)} isn&apos;t told.</p>
+        <h1 className="text-lg font-medium">You blocked {atHandle(person.handle)}</h1>
+        <p className="text-sm font-medium text-muted-foreground">You won&apos;t see each other anywhere. {profileFirstName(person)} isn&apos;t told.</p>
         <button
           type="button"
           onClick={() => block(person, false, (stands) => stands && onUnblocked())}
-          className={cn("mt-2 min-h-11 rounded-xl px-5 text-[15px] font-extrabold", OUTLINE_BUTTON)}
+          className={cn("mt-2 min-h-11 rounded-xl px-5 text-[15px] font-medium", OUTLINE_BUTTON)}
         >
           Unblock
         </button>

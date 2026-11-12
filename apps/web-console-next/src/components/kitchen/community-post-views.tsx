@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Bookmark, ChefHat, MessageCircle, MoreHorizontal, Smile, UserPlus } from "lucide-react";
+import { Bookmark, ChefHat, Heart, MessageCircle, Smile, UserPlus } from "lucide-react";
 import type { FeedTab } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileFace } from "./community-views";
-import { FEED_TAB_LABELS, feedHref, type PostCard, type StatTile } from "./community-posts";
+import { FEED_TAB_LABELS, feedHref, postNumbers, type PostCard, type StatTile } from "./community-posts";
 import type { ActivityLine } from "./community-activity";
 import { FEED_TABS } from "@saas/contracts/kitchen";
 
@@ -20,10 +20,10 @@ import { FEED_TABS } from "@saas/contracts/kitchen";
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-/** Following · Discover: two tabs in a grey track; the choice is the address (`?tab=`). */
+/** Following · Everyone (`RvCommunity`): two tabs in a track, the chosen one on the card; the choice is the address (`?tab=`). */
 export function FeedTabs({ tab }: { tab: FeedTab }) {
   return (
-    <nav aria-label="Feed" className="grid grid-cols-2 gap-1 rounded-[14px] bg-[#ECEEE9] p-1">
+    <nav aria-label="Feed" className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
       {FEED_TABS.map((t) => {
         const on = t === tab;
         return (
@@ -34,9 +34,9 @@ export function FeedTabs({ tab }: { tab: FeedTab }) {
             scroll={false}
             aria-current={on ? "page" : undefined}
             className={cn(
-              "flex min-h-11 items-center justify-center rounded-[11px] text-[15px] font-extrabold transition-colors",
+              "flex min-h-11 items-center justify-center rounded-xl text-[15px] font-medium transition-colors",
               FOCUS,
-              on ? "bg-card text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.1)]" : "text-muted-foreground hover:text-foreground",
+              on ? "bg-card text-foreground shadow-cp-card ring-1 ring-inset ring-border/60" : "text-muted-foreground hover:text-foreground",
             )}
           >
             {FEED_TAB_LABELS[t]}
@@ -54,8 +54,8 @@ export function StatTiles({ tiles, onGround = false }: { tiles: readonly StatTil
     <dl className="grid grid-cols-4 gap-1.5">
       {tiles.map((t) => (
         <div key={t.id} className={cn("flex min-w-0 flex-col-reverse rounded-xl px-2 py-1.5", onGround ? "border bg-card" : "bg-background")}>
-          <dt className="truncate text-[11px] font-bold text-muted-foreground">{t.label}</dt>
-          <dd className="truncate text-[15px] font-extrabold tabular-nums">{t.value}</dd>
+          <dt className="truncate text-[11px] font-medium text-muted-foreground">{t.label}</dt>
+          <dd className="truncate text-[15px] font-medium tabular-nums">{t.value}</dd>
         </div>
       ))}
     </dl>
@@ -66,16 +66,21 @@ export function StatTiles({ tiles, onGround = false }: { tiles: readonly StatTil
 export function PostHero({ card, tall = false }: { card: Pick<PostCard, "title" | "tile" | "recipeLine">; tall?: boolean }) {
   return (
     <span
-      style={{ background: `linear-gradient(160deg, ${card.tile.bg}, #FFFFFF)` }}
-      className={cn("flex flex-col justify-end rounded-2xl border border-[#E3E6E0] p-3.5", tall ? "h-[200px]" : "h-[168px]")}
+      style={{ "--tile-bg": card.tile.bg } as React.CSSProperties}
+      className={cn(
+        "flex flex-col justify-end rounded-2xl bg-[linear-gradient(160deg,var(--tile-bg),hsl(var(--card)))] p-3.5",
+        // Dark (the new frame): the tile is the line colour, as the boards draw it.
+        "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line",
+        tall ? "h-[200px]" : "h-[168px]",
+      )}
     >
-      <span className="break-words text-[22px] font-extrabold leading-tight text-foreground">{card.title}</span>
-      {card.recipeLine ? <span className="text-[13px] font-bold text-[#3F4842]">{card.recipeLine}</span> : null}
+      <span className="break-words text-[22px] font-medium leading-tight text-foreground">{card.title}</span>
+      {card.recipeLine ? <span className="text-[13px] font-medium text-muted-foreground">{card.recipeLine}</span> : null}
     </span>
   );
 }
 
-/** Yum: a toggle with its count, warm when it's yours. */
+/** Yum: a toggle with its count, in the accent when it's yours (a heart, as `RvCommunity` draws it). */
 export function YumButton({ on, label, onClick, big = false }: { on: boolean; label: string; onClick: () => void; big?: boolean }) {
   return (
     <button
@@ -83,92 +88,98 @@ export function YumButton({ on, label, onClick, big = false }: { on: boolean; la
       aria-pressed={on}
       onClick={onClick}
       className={cn(
-        "flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-extrabold tabular-nums transition-colors",
+        "flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-medium tabular-nums transition-colors",
         FOCUS,
         big && "px-3.5 text-[15px]",
-        on ? "bg-[#FCE9DF] text-[#8C3517]" : big ? "border border-[#D5DAD2] bg-card text-foreground hover:bg-accent" : "text-[#3F4842] hover:bg-accent",
+        on ? "bg-cp-accent-tint text-cp-accent-text" : big ? "border border-border bg-card text-foreground hover:bg-accent" : "text-muted-foreground hover:bg-accent",
       )}
     >
-      <Smile className={cn("h-[18px] w-[18px]", on && "fill-[#F5C6AE]")} strokeWidth={2.2} aria-hidden />
+      <Heart className={cn("h-[18px] w-[18px]", on && "fill-current")} strokeWidth={2.2} aria-hidden />
       {label}
     </button>
   );
 }
 
-/** One post in a feed or on a profile: who, the hero, the stats, the caption, then Yum · comments · Cook this. */
+/**
+ * One post in a feed or on a profile, compact (`RvCommunity`): the recipe's
+ * tile, the dish, who and when, the numbers ("450 g · 48 min · 12 yums"),
+ * and two icons — Yum and the save (`cookThis`, Cook this's copy). The
+ * caption, the comments and the ⋯ menu are on the post's page.
+ */
 export function PostCardView({
   card,
-  meId,
   onYum,
-  onMore,
   cookThis,
 }: {
   card: PostCard;
-  meId: string | null;
+  meId?: string | null;
   onYum: () => void;
   onMore?: (() => void) | undefined;
-  /** Cook this / Saved ✓, when the post links a recipe. */
+  /** The save icon (`CookThisIcon`), when the post links a recipe. */
   cookThis?: React.ReactNode;
 }) {
-  const face = card.author.userId ? <ProfileFace userId={card.author.userId} meId={meId} initials={card.author.initials} /> : <ProfileFace userId={meId ?? "me"} meId={meId} initials="Y" />;
   return (
-    <article aria-labelledby={`post-${card.id}`} className="overflow-hidden rounded-[22px] border bg-card">
-      <div className="flex items-center gap-2.5 px-3.5 pb-2 pt-3">
+    <article aria-labelledby={`post-${card.id}`} className="flex items-center gap-3 rounded-cp-card bg-card py-2.5 pl-2.5 pr-1.5 shadow-cp-card">
+      <Link href={card.href} tabIndex={-1} aria-hidden className="shrink-0 rounded-2xl">
+        <PostTile tile={card.tile} />
+      </Link>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <Link href={card.href} id={`post-${card.id}`} className={cn("truncate rounded text-base font-medium hover:underline", FOCUS)}>
+          {card.title}
+        </Link>
         {card.author.href ? (
-          <Link href={card.author.href} tabIndex={-1} aria-hidden className="shrink-0 rounded-full">
-            {face}
+          <Link href={card.author.href} className={cn("truncate rounded text-[13px] font-normal text-muted-foreground hover:underline", FOCUS)}>
+            {card.byline}
           </Link>
         ) : (
-          face
+          <span className="truncate text-[13px] font-normal text-muted-foreground">{card.byline}</span>
         )}
-        <span className="flex min-w-0 flex-1 flex-col">
-          {card.author.href ? (
-            <Link href={card.author.href} className={cn("truncate rounded text-[15px] font-extrabold hover:underline", FOCUS)}>
-              {card.author.name}
-            </Link>
-          ) : (
-            <span className="truncate text-[15px] font-extrabold">{card.author.name}</span>
-          )}
-          <span className="truncate text-xs font-semibold text-muted-foreground">{card.author.meta}</span>
-        </span>
-        {onMore ? (
-          <button type="button" aria-label="More" aria-haspopup="dialog" onClick={onMore} className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-accent", FOCUS)}>
-            <MoreHorizontal className="h-5 w-5" strokeWidth={2.2} aria-hidden />
-          </button>
-        ) : null}
-      </div>
-      <Link href={card.href} id={`post-${card.id}`} aria-label={card.title} className={cn("mx-3.5 block rounded-2xl", FOCUS)}>
-        <PostHero card={card} />
-      </Link>
-      {card.tiles.length > 0 ? (
-        <div className="px-3.5 pt-2.5">
-          <StatTiles tiles={card.tiles} />
-        </div>
-      ) : null}
-      {card.caption ? <p className="whitespace-pre-line break-words px-3.5 pt-2.5 text-[15px] font-medium leading-snug">{card.caption}</p> : null}
-      <div className="flex items-center gap-1 px-2 pb-2.5 pt-2">
-        <YumButton on={card.yum.on} label={card.yum.label} onClick={onYum} />
-        <Link href={card.href} className={cn("flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-extrabold tabular-nums text-[#3F4842] hover:bg-accent", FOCUS)}>
-          <MessageCircle className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
-          {card.comments}
-          <span className="sr-only"> {card.comments === 1 ? "comment" : "comments"}</span>
-        </Link>
-        <span className="flex-1" />
+        <span className="truncate text-[13px] font-normal tabular-nums text-foreground">{postNumbers(card)}</span>
+      </span>
+      <span className="flex shrink-0 flex-col">
+        <button
+          type="button"
+          aria-pressed={card.yum.on}
+          aria-label={`${card.yum.label} · ${card.title}`}
+          onClick={onYum}
+          className={cn("grid h-11 w-11 place-items-center rounded-[14px] hover:bg-accent", FOCUS, card.yum.on ? "text-cp-accent-text" : "text-muted-foreground")}
+        >
+          <Heart className={cn("h-5 w-5", card.yum.on && "fill-current")} strokeWidth={2} aria-hidden />
+        </button>
         {cookThis}
-      </div>
+      </span>
     </article>
   );
 }
 
+/** The recipe's tile on a compact card: its colour and initial (the line colour in dark). */
+function PostTile({ tile }: { tile: PostCard["tile"] }) {
+  return (
+    <span
+      style={{ "--tile-bg": tile.bg, "--tile-fg": tile.fg } as React.CSSProperties}
+      className={cn(
+        "grid h-[76px] w-[76px] place-items-center rounded-2xl bg-[var(--tile-bg)] text-[28px] font-medium text-[var(--tile-fg)]",
+        "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:text-muted-foreground",
+      )}
+    >
+      {tile.initial}
+    </span>
+  );
+}
+
+/** The save icon on a compact card: outlined to save a copy, filled once it is yours or saved. */
+export const SAVE_ICON_BUTTON = cn("grid h-11 w-11 place-items-center rounded-[14px] hover:bg-accent disabled:opacity-70", FOCUS);
+
 /** Cook this (copy and open) or Saved ✓ (open your copy): herb-tinted, on the card's right. */
-export const COOK_THIS_BUTTON = cn("flex min-h-11 shrink-0 items-center rounded-xl bg-cp-herb-tint px-3.5 text-sm font-extrabold text-[#165C3A] transition-colors hover:bg-[#D3EADC] disabled:opacity-70", FOCUS);
+export const COOK_THIS_BUTTON = cn("flex min-h-11 shrink-0 items-center rounded-xl bg-cp-accent-tint px-3.5 text-sm font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 disabled:opacity-70", FOCUS);
 
 /** A feed loading: two grey cards. */
 export function PostCardSkeleton() {
   return (
     <div aria-hidden className="flex flex-col gap-3">
-      <Skeleton className="h-[340px] w-full rounded-[22px]" />
-      <Skeleton className="h-[340px] w-full rounded-[22px]" />
+      <Skeleton className="h-24 w-full rounded-cp-card" />
+      <Skeleton className="h-24 w-full rounded-cp-card" />
+      <Skeleton className="h-24 w-full rounded-cp-card" />
     </div>
   );
 }
@@ -183,12 +194,12 @@ export function ActivityLineView({ line, meId }: { line: ActivityLine; meId: str
       <Link href={line.href} className={cn("flex min-h-16 items-center gap-3 px-3 py-2.5 hover:bg-accent", FOCUS)}>
         <ProfileFace userId={line.faceId} meId={meId} initials={line.faceName.trim().charAt(0).toUpperCase() || "?"} />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="break-words text-[15px] font-semibold leading-snug">
-            <b className="font-extrabold">{line.who}</b> {line.what}
+          <span className="break-words text-[15px] font-medium leading-snug">
+            <b className="font-medium">{line.who}</b> {line.what}
           </span>
-          <span className="text-xs font-semibold text-muted-foreground">{line.when}</span>
+          <span className="text-xs font-medium text-muted-foreground">{line.when}</span>
         </span>
-        {line.unread ? <span aria-label="New" className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#B4471F]" /> : null}
+        {line.unread ? <span aria-label="New" className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" /> : null}
         <Icon className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
       </Link>
     </li>

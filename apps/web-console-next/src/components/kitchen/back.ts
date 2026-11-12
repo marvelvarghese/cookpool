@@ -76,8 +76,10 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   // Your assistant, connected (cookpool-mcp MC-4): both are You's.
   "/connect": () => "/you",
   "/you/assistants": () => "/you",
-  // You → Cookpool AI (cookpool-ai AI-7): Settings, its row.
-  "/you/ai": () => "/you/settings",
+  // You → Cookpool AI (cookpool-ai AI-7): You, its row (RV-6; it was Settings').
+  "/you/ai": () => "/you",
+  // You → Your recipes and cooks (cookpool-revamp RV-6): You, its row.
+  "/you/cooks": () => "/you",
   // An item: Pantry, on the item's own pantry.
   "/pantry/:itemRef": ({ itemRef }) => itemParent(itemRef),
   // Its stock check (cookpool-pantry PN-7): the item.
@@ -97,7 +99,7 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
 
 /**
  * The new frame's parents where they differ (RC-2): Groups and People are
- * reached from Money (money lives in Money), settings from You's gear.
+ * reached from Money (money lives in Money).
  */
 const NEW_FRAME_PARENTS: Readonly<Record<string, ParentRule>> = {
   "/groups": () => "/money",
@@ -106,8 +108,8 @@ const NEW_FRAME_PARENTS: Readonly<Record<string, ParentRule>> = {
   "/people": () => "/money",
   "/people/:subjectId": () => "/money",
   "/settle": () => "/money",
-  "/you/notifications": () => "/you/settings",
-  "/you/security": () => "/you/settings",
+  // Notifications and Sign-in and security: You, as in today's frame, since
+  // cookpool-revamp RV-6 put their rows on You's lists (RC-2 had them in settings).
 };
 
 /** The Cookpool screens that have a parent (every page of the app that is not a tab). */

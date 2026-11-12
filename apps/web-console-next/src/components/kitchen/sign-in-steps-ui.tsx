@@ -9,17 +9,14 @@ import {
   CANT_SIGN_IN,
   CODE_HINT,
   NO_EMAIL_LINE,
-  SIGN_IN_HELPER,
-  SIGN_UP_HELPER,
   googleLabel,
-  signUpNameHint,
   type CodeBox,
   type RememberedCard,
   type SignInTab,
 } from "./sign-in-screens";
-import { GoogleButton, NoticeBox, OrDivider, PersonAvatar, SIGN_IN_INPUT, SIGN_IN_PRIMARY, SIGN_IN_PRIMARY_IDLE } from "./sign-in-ui";
+import { GoogleButton, NoticeBox, OrDivider, PersonAvatar, SIGN_IN_INPUT, SIGN_IN_PRIMARY, SIGN_IN_PRIMARY_IDLE, SIGN_IN_SECONDARY } from "./sign-in-ui";
 import { AuthTabs, BackBar, CodeBoxesField, MailTile, RememberedAccountView, SignInFooter } from "./sign-in-screens-ui";
-import { PASSKEY_SIGN_IN_HELPER, PASSKEY_TAP_AGAIN_NOTICE } from "./passkeys";
+import { PASSKEY_TAP_AGAIN_NOTICE } from "./passkeys";
 import { PasskeySignInButton } from "./passkey-ui";
 
 /**
@@ -39,6 +36,8 @@ export interface StartStepProps {
   continuing: boolean;
   /** Sign in with a passkey (PK-4): only where passkeys run; null hides it. */
   passkey?: { busy: boolean; onClick: () => void } | null;
+  /** The remembered account's button signs in with this device's passkey (its Face ID icon). */
+  rememberedPasskey?: boolean;
   /** A passkey sign-in that did not work, shown under its button (not the email field's). */
   passkeyNotice?: string | null;
   withGoogle: boolean;
@@ -62,14 +61,18 @@ export function StartStep(p: StartStepProps) {
   const noticeId = p.notice ? "sign-in-notice" : undefined;
   const isNew = p.mode === "new";
   const showRemembered = !isNew && p.remembered !== null;
-  // The passkey button is Sign in's, above Google (`AuthWelcome`, `WebAuth`).
+  // Passkey is Sign in's, beside Google (`RvSignIn`); Create account has Google alone.
   const withPasskey = !isNew && !!p.passkey;
+  const alternatives = (p.withGoogle ? 1 : 0) + (withPasskey ? 1 : 0);
+  const passkeyNotice = p.passkeyNotice ? (
+    <NoticeBox notice={{ tone: p.passkeyNotice === PASSKEY_TAP_AGAIN_NOTICE ? "info" : "error", text: p.passkeyNotice }} />
+  ) : null;
   return (
-    <section className="flex flex-1 flex-col gap-3.5 min-[900px]:gap-4">
+    <section className="flex flex-1 flex-col gap-4">
       <AuthTabs mode={p.mode} onMode={p.onMode} />
       <h1
         id="sign-in-title-desktop"
-        className="mt-1 hidden text-[30px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:block"
+        className="mt-1 hidden text-[30px] font-medium leading-[1.15] tracking-[-0.025em] min-[900px]:block"
       >
         {p.title}
       </h1>
@@ -77,16 +80,26 @@ export function StartStep(p: StartStepProps) {
       <div id="auth-panel" role="tabpanel" aria-labelledby={`auth-tab-${p.mode}`} className="flex flex-col gap-3">
         {showRemembered && p.remembered ? (
           <>
-            <RememberedAccountView card={p.remembered} onContinue={p.onContinue} onForget={p.onForget} busy={p.continuing} />
-            {p.passkeyNotice ? <NoticeBox notice={{ tone: p.passkeyNotice === PASSKEY_TAP_AGAIN_NOTICE ? "info" : "error", text: p.passkeyNotice }} /> : null}
+            <RememberedAccountView
+              card={p.remembered}
+              onContinue={p.onContinue}
+              onForget={p.onForget}
+              busy={p.continuing}
+              passkey={p.rememberedPasskey ?? false}
+            />
+            {passkeyNotice}
             {p.notice ? <NoticeBox id={noticeId} notice={p.notice} /> : null}
           </>
         ) : (
           <>
-            {withPasskey && p.passkey ? <PasskeySignInButton onClick={p.passkey.onClick} busy={p.passkey.busy} /> : null}
-            {withPasskey && p.passkeyNotice ? <NoticeBox notice={{ tone: p.passkeyNotice === PASSKEY_TAP_AGAIN_NOTICE ? "info" : "error", text: p.passkeyNotice }} /> : null}
-            {p.withGoogle ? <GoogleButton onClick={p.onGoogle} busy={p.googleBusy} label={googleLabel(p.mode)} /> : null}
-            {p.withGoogle || withPasskey ? <OrDivider label="or with email" /> : null}
+            {alternatives > 0 ? (
+              <div className={cn("grid gap-2.5", alternatives === 2 ? "grid-cols-2" : "grid-cols-1")}>
+                {p.withGoogle ? <GoogleButton onClick={p.onGoogle} busy={p.googleBusy} label={googleLabel(p.mode)} short="Google" /> : null}
+                {withPasskey && p.passkey ? <PasskeySignInButton onClick={p.passkey.onClick} busy={p.passkey.busy} short /> : null}
+              </div>
+            ) : null}
+            {withPasskey ? passkeyNotice : null}
+            {alternatives > 0 ? <OrDivider label="or" /> : null}
             <form
               noValidate
               className="flex flex-col gap-3"
@@ -100,7 +113,7 @@ export function StartStep(p: StartStepProps) {
                   <div className="flex items-center gap-3.5">
                     <PersonAvatar initials={liveInitials(p.signUpName)} />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <label htmlFor="sign-up-name" className="text-sm font-bold">
+                      <label htmlFor="sign-up-name" className="text-sm font-medium">
                         Your name
                       </label>
                       <input
@@ -117,11 +130,10 @@ export function StartStep(p: StartStepProps) {
                       />
                     </div>
                   </div>
-                  <span className="text-[13px] text-muted-foreground">{signUpNameHint(p.signUpName)}</span>
                 </div>
               ) : null}
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="sign-in-email" className="text-sm font-bold">
+                <label htmlFor="sign-in-email" className="text-sm font-medium">
                   Email
                 </label>
                 <input
@@ -151,7 +163,6 @@ export function StartStep(p: StartStepProps) {
               >
                 Email me a code
               </Button>
-              <span className="text-[13px] leading-[1.45] text-muted-foreground">{isNew ? SIGN_UP_HELPER : withPasskey ? PASSKEY_SIGN_IN_HELPER : SIGN_IN_HELPER}</span>
             </form>
           </>
         )}
@@ -191,12 +202,12 @@ export function CodeStep(p: CodeStepProps) {
       <BackBar label={p.stepLabel} onBack={p.onBack} />
       <MailTile />
       <div className="flex flex-col gap-2">
-        <h1 id="code-title" className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]">
+        <h1 id="code-title" className="text-[28px] font-medium leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]">
           Check your email
         </h1>
-        <p className="text-[15px] leading-normal text-[#3F4842]">
+        <p className="text-[15px] leading-normal text-muted-foreground">
           We sent a {CODE_LENGTH}-digit code to{" "}
-          <strong className="font-bold text-foreground [overflow-wrap:anywhere]">{p.email}</strong>. It works for{" "}
+          <strong className="font-medium text-foreground [overflow-wrap:anywhere]">{p.email}</strong>. It works for{" "}
           {CODE_LIFETIME_MINUTES} minutes.
         </p>
       </div>
@@ -228,7 +239,7 @@ export function CodeStep(p: CodeStepProps) {
         />
         {p.testCode ? (
           <p className="text-sm text-muted-foreground">
-            Test code: <span className="font-bold tabular-nums text-foreground">{p.testCode}</span>
+            Test code: <span className="font-medium tabular-nums text-foreground">{p.testCode}</span>
           </p>
         ) : null}
       </form>
@@ -243,7 +254,7 @@ export function CodeStep(p: CodeStepProps) {
             href={p.gmailUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-h-[52px] items-center justify-center rounded-2xl border border-input bg-card text-[15px] font-extrabold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(SIGN_IN_SECONDARY)}
           >
             Open Gmail
           </a>
@@ -252,17 +263,17 @@ export function CodeStep(p: CodeStepProps) {
           type="button"
           disabled={p.resend.disabled}
           onClick={p.onResend}
-          className="min-h-[52px] rounded-2xl border border-input bg-card text-[15px] font-extrabold tabular-nums text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:border-border disabled:bg-[#ECEEE9] disabled:text-muted-foreground"
+          className={cn(SIGN_IN_SECONDARY, "tabular-nums text-cp-accent-text disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none")}
         >
           {p.resend.label}
         </button>
       </div>
 
       <div className="mt-auto flex flex-col items-center gap-1 pt-2 text-center">
-        <span className="text-sm text-[#3F4842]">{NO_EMAIL_LINE}</span>
+        <span className="text-sm text-muted-foreground">{NO_EMAIL_LINE}</span>
         <Link
           href={p.helpHref}
-          className="flex min-h-11 items-center rounded-lg text-[15px] font-bold text-primary hover:text-[#165C3A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-11 items-center rounded-lg text-[15px] font-medium text-cp-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {CANT_SIGN_IN}
         </Link>

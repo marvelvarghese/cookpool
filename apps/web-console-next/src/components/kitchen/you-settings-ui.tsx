@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { applyNewName, useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_CARD } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { InstallRow } from "@/components/kitchen/install-ui";
 import { NotificationsRow } from "@/components/kitchen/notify-ui";
@@ -69,7 +69,7 @@ export function YouSettings({ title = YOU_TITLE, sub = false }: { title?: string
       <header className="flex items-center gap-2">
         {/* From 900px You is the sidebar's "Me", a destination like the tabs: no Back there. */}
         <BackButton className={sub ? undefined : "min-[900px]:hidden"} />
-        <h1 className="text-2xl font-extrabold tracking-[-0.02em] min-[900px]:text-[26px]">{title}</h1>
+        <h1 className="text-2xl font-medium tracking-[-0.02em] min-[900px]:text-[26px]">{title}</h1>
       </header>
 
       {profile.loading ? (
@@ -84,7 +84,7 @@ export function YouSettings({ title = YOU_TITLE, sub = false }: { title?: string
       ) : (
         <KCard className="flex flex-wrap items-center justify-between gap-3 rounded-3xl p-5">
           <div className="min-w-0">
-            <h2 className="text-base font-bold">Couldn&apos;t load your name</h2>
+            <h2 className="text-base font-medium">Couldn&apos;t load your name</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">{profile.error?.message ?? "Try again in a moment."}</p>
           </div>
           <Button variant="outline" className={K_BUTTON} onClick={profile.reload}>
@@ -105,7 +105,7 @@ export function YouSettings({ title = YOU_TITLE, sub = false }: { title?: string
   );
 }
 
-function MeCard({ user }: { user: AuthUser }) {
+export function MeCard({ user }: { user: AuthUser }) {
   const { client } = useSession();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -168,11 +168,11 @@ function MeCard({ user }: { user: AuthUser }) {
   const noticeId = notice ? "you-name-notice" : undefined;
 
   return (
-    <section aria-labelledby="you-name" className="flex flex-col gap-4 rounded-3xl border bg-card p-5">
+    <section aria-labelledby="you-name" className={cn(K_CARD, "flex flex-col gap-4 p-5")}>
       <div className="flex items-center gap-3.5">
         <PersonAvatar initials={personInitials(user)} className="h-[60px] w-[60px] text-[22px]" />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 id="you-name" className="text-xl font-extrabold [overflow-wrap:anywhere]">
+          <h2 id="you-name" className="text-xl font-medium [overflow-wrap:anywhere]">
             {name}
           </h2>
           <span className="truncate text-sm text-muted-foreground">{user.email}</span>
@@ -188,7 +188,7 @@ function MeCard({ user }: { user: AuthUser }) {
             if (canSave) void save();
           }}
         >
-          <label htmlFor="you-name-field" className="text-sm font-bold">
+          <label htmlFor="you-name-field" className="text-sm font-medium">
             {NAME_LABEL}
           </label>
           <input
@@ -221,11 +221,11 @@ function MeCard({ user }: { user: AuthUser }) {
               variant="outline"
               disabled={saving}
               onClick={close}
-              className="h-[46px] rounded-[14px] border-[#D5DAD2] bg-card text-[15px] font-bold text-foreground hover:bg-accent"
+              className="h-[46px] rounded-[14px] border-border bg-card text-[15px] font-medium text-foreground hover:bg-accent"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!canSave} loading={saving} className="h-[46px] rounded-[14px] text-[15px] font-extrabold">
+            <Button type="submit" disabled={!canSave} loading={saving} className="h-[46px] rounded-[14px] text-[15px] font-medium">
               Save
             </Button>
           </div>
@@ -236,7 +236,7 @@ function MeCard({ user }: { user: AuthUser }) {
           type="button"
           variant="outline"
           onClick={startEdit}
-          className="h-[46px] gap-2 rounded-[14px] border-[#D5DAD2] bg-card text-[15px] font-bold text-foreground hover:bg-accent"
+          className="h-[46px] gap-2 rounded-[14px] border-border bg-card text-[15px] font-medium text-foreground hover:bg-accent"
         >
           <Pencil className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden />
           {CHANGE_NAME}
@@ -252,26 +252,26 @@ function SignInWays({ email }: { email: string }) {
   // A passkey sign-in (PK-4) is listed under Sign-in and security, not here.
   const rows = signInRows(email, last === "passkey" ? null : last);
   return (
-    <section aria-labelledby="you-how" className="rounded-3xl border bg-card px-5 py-1.5">
-      <h2 id="you-how" className="mb-1.5 mt-3.5 text-[13px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+    <section aria-labelledby="you-how" className="rounded-cp-card bg-card shadow-cp-card px-5 py-1.5">
+      <h2 id="you-how" className="mb-1.5 mt-3.5 text-[13px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {HOW_YOU_SIGN_IN}
       </h2>
       <ul>
         {rows.map((row, i) => (
           <li
             key={row.way}
-            className={cn("flex min-h-14 items-center gap-3 py-2", i < rows.length - 1 && "border-b border-[#ECEEE9]")}
+            className={cn("flex min-h-14 items-center gap-3 py-2", i < rows.length - 1 && "border-b border-cp-line")}
           >
             {row.way === "google" ? (
-              <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full border-[1.5px] border-[#D5DAD2]">
+              <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full border-[1.5px] border-border">
                 <GoogleMark className="h-4 w-4" />
               </span>
             ) : (
               <Mail className="h-[30px] w-[30px] shrink-0 text-foreground" strokeWidth={1.6} aria-hidden />
             )}
-            <span className="min-w-0 flex-1 text-[15px] font-semibold [overflow-wrap:anywhere]">{row.label}</span>
+            <span className="min-w-0 flex-1 text-[15px] font-medium [overflow-wrap:anywhere]">{row.label}</span>
             {row.lastUsed ? (
-              <span className="shrink-0 rounded-full bg-cp-herb-tint px-2.5 py-1 text-[13px] font-bold text-[#165C3A]">{LAST_USED}</span>
+              <span className="shrink-0 rounded-full bg-cp-herb-tint px-2.5 py-1 text-[13px] font-medium text-cp-accent-text">{LAST_USED}</span>
             ) : null}
           </li>
         ))}
@@ -280,7 +280,8 @@ function SignInWays({ email }: { email: string }) {
   );
 }
 
-function SignOut() {
+/** Sign out of this device: this device's push first, then the session, the cache, and the sign-in page. */
+export function useSignOut(): { busy: boolean; signOut: () => void } {
   const { client, setToken } = useSession();
   const qc = useQueryClient();
   const [busy, setBusy] = React.useState(false);
@@ -296,6 +297,11 @@ function SignOut() {
       go: (path) => window.location.replace(path),
     });
   };
+  return { busy, signOut };
+}
+
+function SignOut() {
+  const { busy, signOut } = useSignOut();
 
   return (
     <section aria-labelledby="you-out" className="flex flex-col gap-2.5 pt-1">
@@ -307,7 +313,7 @@ function SignOut() {
         variant="outline"
         loading={busy}
         onClick={signOut}
-        className="h-[54px] gap-2.5 rounded-2xl border-[#D5DAD2] bg-card text-base font-extrabold text-destructive hover:bg-cp-expired-tint hover:text-destructive"
+        className="h-[54px] gap-2.5 rounded-2xl border-border bg-card text-base font-medium text-destructive hover:bg-cp-expired-tint hover:text-destructive"
       >
         {busy ? null : <LogOut className="h-5 w-5" strokeWidth={2} aria-hidden />}
         <span className="min-[900px]:hidden">{SIGN_OUT_PHONE}</span>
@@ -320,7 +326,7 @@ function SignOut() {
 function MeSkeleton() {
   return (
     <div aria-hidden className="flex flex-col gap-4">
-      <div className="flex flex-col gap-4 rounded-3xl border bg-card p-5">
+      <div className="flex flex-col gap-4 rounded-cp-card bg-card shadow-cp-card p-5">
         <div className="flex items-center gap-3.5">
           <Skeleton className="h-[60px] w-[60px] rounded-full" />
           <div className="flex-1 space-y-2">

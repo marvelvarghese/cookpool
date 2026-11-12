@@ -77,6 +77,8 @@ describe("which screens pull to refresh", () => {
     "/you/assistants",
     // You → Cookpool AI (cookpool-ai AI-7): switches, not a list.
     "/you/ai",
+    // You → Your recipes and cooks (cookpool-revamp RV-6): a Recipes | Cooks switch, as `/you` was.
+    "/you/cooks",
   ];
 
   it("decides for every page: a new page must choose", () => {

@@ -59,9 +59,9 @@ export function PostScreen() {
             <BackButton />
           </div>
           <KCard className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-            <h1 className="text-lg font-bold tracking-tight">This post isn&apos;t here</h1>
+            <h1 className="text-lg font-medium tracking-tight">This post isn&apos;t here</h1>
             <p className="text-sm text-muted-foreground">It was deleted, or it isn&apos;t shared with you.</p>
-            <Link href={COMMUNITY_HREF} className={cn("flex min-h-11 items-center rounded-xl px-5 text-[15px] font-extrabold", GREEN_BUTTON)}>
+            <Link href={COMMUNITY_HREF} className={cn("flex min-h-11 items-center rounded-xl px-5 text-[15px] font-medium", GREEN_BUTTON)}>
               Community
             </Link>
           </KCard>
@@ -114,14 +114,14 @@ function PostBody({ post }: { post: CommunityPost }) {
           <Link href={card.author.href} className={cn("flex min-w-0 flex-1 items-center gap-2.5 rounded-xl", FOCUS)}>
             {face}
             <span className="flex min-w-0 flex-col">
-              <span className="truncate text-[15px] font-extrabold">{card.author.name}</span>
-              <span className="truncate text-xs font-semibold text-muted-foreground">{card.author.meta}</span>
+              <span className="truncate text-[15px] font-medium">{card.author.name}</span>
+              <span className="truncate text-xs font-medium text-muted-foreground">{card.author.meta}</span>
             </span>
           </Link>
         ) : (
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[15px] font-extrabold">{card.author.name}</span>
-            <span className="truncate text-xs font-semibold text-muted-foreground">{card.author.meta}</span>
+            <span className="truncate text-[15px] font-medium">{card.author.name}</span>
+            <span className="truncate text-xs font-medium text-muted-foreground">{card.author.meta}</span>
           </span>
         )}
         <button type="button" aria-label="More" aria-haspopup="dialog" onClick={() => setMenu(post)} className={cn("-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-accent", FOCUS)}>
@@ -136,14 +136,14 @@ function PostBody({ post }: { post: CommunityPost }) {
 
       {compare || post.recipe ? (
         <div className="flex items-center gap-2.5 rounded-2xl border bg-card px-3 py-2.5">
-          <span className="min-w-0 flex-1 text-sm font-bold text-[#3F4842]">{compare ?? post.recipe?.name}</span>
+          <span className="min-w-0 flex-1 text-sm font-medium text-muted-foreground">{compare ?? post.recipe?.name}</span>
           {post.recipe ? <CookThisButton recipe={post.recipe} mine={{ data: mineRecipes.data, ownIds }} /> : null}
         </div>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <YumButton big on={card.yum.on} label={card.yum.label} onClick={() => yum(post)} />
-        {names ? <span className="text-[13px] font-bold text-muted-foreground">{names}</span> : null}
+        {names ? <span className="text-[13px] font-medium text-muted-foreground">{names}</span> : null}
       </div>
 
       <Comments post={post} meId={meId} onReport={setReport} />
@@ -154,7 +154,7 @@ function PostBody({ post }: { post: CommunityPost }) {
         <CommentBox post={post} author={myProfile} />
       ) : (
         <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 border-t bg-card px-4 py-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px] min-[900px]:border">
-          <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center justify-center rounded-[14px] text-[15px] font-extrabold text-primary hover:underline">
+          <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center justify-center rounded-[14px] text-[15px] font-medium text-primary hover:underline">
             Pick a handle to comment
           </Link>
         </div>
@@ -176,7 +176,7 @@ function Comments({ post, meId, onReport }: { post: CommunityPost; meId: string 
       ) : read.failed ? (
         <EmptyLine>Couldn&apos;t load the comments.</EmptyLine>
       ) : read.items.length === 0 ? (
-        <p className="text-sm font-semibold text-muted-foreground">No comments yet. Say something nice.</p>
+        <p className="text-sm font-medium text-muted-foreground">No comments yet. Say something nice.</p>
       ) : (
         <ul className="flex flex-col gap-2.5">
           {read.items.map((c) => (
@@ -185,11 +185,11 @@ function Comments({ post, meId, onReport }: { post: CommunityPost; meId: string 
         </ul>
       )}
       {read.hasMore ? (
-        <button type="button" onClick={read.loadMore} disabled={read.loadingMore} className="min-h-11 self-start rounded-xl px-1 text-[15px] font-extrabold text-primary hover:underline disabled:opacity-60">
+        <button type="button" onClick={read.loadMore} disabled={read.loadingMore} className="min-h-11 self-start rounded-xl px-1 text-[15px] font-medium text-primary hover:underline disabled:opacity-60">
           {read.loadingMore ? "Loading…" : "More comments"}
         </button>
       ) : null}
-      {read.items.length > 0 ? <p className="text-xs font-semibold text-muted-foreground">{commentsNote(post)}</p> : null}
+      {read.items.length > 0 ? <p className="text-xs font-medium text-muted-foreground">{commentsNote(post)}</p> : null}
       <CommentSheet comment={open} post={post} onClose={() => setOpen(null)} onReport={onReport} />
     </section>
   );
@@ -228,11 +228,11 @@ function CommentRow({ comment, meId, now, onOpen }: { comment: PostComment; meId
         </span>
       </Link>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-2xl border bg-card px-3 py-2">
-        <span className="text-[13px] font-extrabold">
+        <span className="text-[13px] font-medium">
           <Link href={profileHref(comment.author.handle)} className="hover:underline">
             {comment.mine ? "You" : comment.author.name}
           </Link>{" "}
-          <span className="font-semibold text-muted-foreground">· {pending ? "sending" : shortAgo(comment.createdAt, now)}</span>
+          <span className="font-medium text-muted-foreground">· {pending ? "sending" : shortAgo(comment.createdAt, now)}</span>
         </span>
         <span className="whitespace-pre-line break-words text-[15px] font-medium">{comment.body}</span>
       </span>
@@ -249,11 +249,11 @@ function CommentRow({ comment, meId, now, onOpen }: { comment: PostComment; meId
 function CommentSheet({ comment, post, onClose, onReport }: { comment: PostComment | null; post: CommunityPost; onClose: () => void; onReport: (t: ReportTarget) => void }) {
   const remove = useRemoveComment();
   const rights = comment ? commentRights(comment, post) : null;
-  const item = cn("min-h-[52px] w-full rounded-[14px] text-base font-extrabold transition-colors", FOCUS);
+  const item = cn("min-h-[52px] w-full rounded-[14px] text-base font-medium transition-colors", FOCUS);
   return (
     <Sheet open={comment !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={cn("mx-auto max-w-xl gap-2 rounded-t-[24px] border-x-0 bg-card px-5 pb-6 pt-3 min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border", CLOSE_44)}>
-        <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-extrabold">Comment</SheetTitle>
+        <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-medium">Comment</SheetTitle>
         {comment && rights ? (
           <div className="flex flex-col gap-2">
             <p className="line-clamp-3 break-words rounded-2xl bg-background px-3 py-2 text-[15px] font-medium">{comment.body}</p>
@@ -264,7 +264,7 @@ function CommentSheet({ comment, post, onClose, onReport }: { comment: PostComme
                   onClose();
                   remove(comment);
                 }}
-                className={cn(item, "bg-[#FDECEA] text-[#B42318] hover:bg-[#FAD9D5]")}
+                className={cn(item, "bg-cp-expired-tint text-destructive hover:bg-cp-expired-tint/80")}
               >
                 Remove comment
               </button>
@@ -276,7 +276,7 @@ function CommentSheet({ comment, post, onClose, onReport }: { comment: PostComme
                   onClose();
                   onReport({ kind: "comment", id: comment.id });
                 }}
-                className={cn(item, "border border-[#D5DAD2] bg-card hover:bg-accent")}
+                className={cn(item, "border border-border bg-card hover:bg-accent")}
               >
                 Report comment
               </button>
@@ -318,9 +318,9 @@ function CommentBox({ post, author }: { post: CommunityPost; author: PostComment
         enterKeyHint="send"
         placeholder={COMMENT_PLACEHOLDER}
         onChange={(e) => setDraft(e.target.value)}
-        className="min-h-12 min-w-0 flex-1 rounded-[14px] border border-[#D5DAD2] bg-card px-3.5 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-12 min-w-0 flex-1 rounded-[14px] border border-border bg-card px-3.5 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
-      <button type="submit" disabled={!body} className={cn("min-h-12 min-w-[72px] rounded-[14px] px-3 text-[15px] font-extrabold disabled:opacity-50", GREEN_BUTTON, FOCUS)}>
+      <button type="submit" disabled={!body} className={cn("min-h-12 min-w-[72px] rounded-[14px] px-3 text-[15px] font-medium disabled:opacity-50", GREEN_BUTTON, FOCUS)}>
         Send
       </button>
     </form>

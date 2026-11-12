@@ -6,7 +6,7 @@ import { PANEL_CHIPS, PANEL_FOOTER, PANEL_LINE } from "./sign-in-screens";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GroupAvatar } from "./kit";
+import { GroupAvatar, K_CARD } from "./kit";
 import {
   NAME_EYEBROW,
   NAME_FOOTNOTE,
@@ -29,11 +29,11 @@ import {
 
 /** 54px rounded buttons and 52px fields: the sign-in page's touch sizes. */
 export const SIGN_IN_PRIMARY =
-  "h-[54px] w-full rounded-2xl px-5 text-base font-extrabold focus-visible:ring-offset-background";
+  "h-14 w-full rounded-[18px] px-5 text-base font-medium focus-visible:ring-offset-background";
 /** "Sign in" before a full, untried code: grey, not a faded green. */
-export const SIGN_IN_PRIMARY_IDLE = "disabled:bg-[#D5DAD2] disabled:text-[#3F4842] disabled:opacity-100";
+export const SIGN_IN_PRIMARY_IDLE = "disabled:bg-secondary disabled:text-muted-foreground disabled:opacity-100";
 export const SIGN_IN_INPUT =
-  "h-[52px] w-full rounded-[14px] border border-input bg-card px-3.5 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
+  "h-[52px] w-full rounded-2xl border-[1.5px] border-input bg-card px-3.5 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
 
 /** The cookpool mark: the pot in a rounded square, and the wordmark. */
 export function SignInMark({
@@ -51,13 +51,13 @@ export function SignInMark({
         aria-hidden
         className={cn(
           "grid shrink-0 place-items-center",
-          large ? "h-[38px] w-[38px] rounded-xl" : "h-8 w-8 rounded-[10px]",
-          inverse ? "bg-white text-primary" : "bg-primary text-primary-foreground",
+          large ? "h-[38px] w-[38px] rounded-xl" : "h-9 w-9 rounded-xl",
+          inverse ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground",
         )}
       >
-        <CookingPot className={large ? "h-[21px] w-[21px]" : "h-[18px] w-[18px]"} strokeWidth={2} />
+        <CookingPot className={large ? "h-[21px] w-[21px]" : "h-5 w-5"} strokeWidth={2} />
       </span>
-      <span className={cn("font-extrabold tracking-[-0.02em]", large ? "text-[21px]" : "text-[17px]")}>cookpool</span>
+      <span className={cn("font-medium tracking-[-0.02em]", large ? "text-[21px]" : "text-lg")}>cookpool</span>
     </span>
   );
 }
@@ -72,7 +72,7 @@ export function PanelChips({ large = false }: { large?: boolean }) {
           className={cn(
             "rounded-full",
             large ? "px-3.5 py-[9px] text-[15px]" : "px-3 py-[7px] text-[13px]",
-            i === PANEL_CHIPS.length - 1 ? "bg-white font-extrabold text-primary" : "bg-white/[0.16] font-bold",
+            i === PANEL_CHIPS.length - 1 ? "bg-primary-foreground font-medium text-primary" : "bg-primary-foreground/15 font-normal",
           )}
         >
           {chip}
@@ -97,11 +97,11 @@ export function PitchPanel({ title, className }: { title: string; className?: st
     >
       <SignInMark inverse large />
       <div className="flex max-w-[34rem] flex-col gap-6">
-        <p className="text-[clamp(34px,4vw,54px)] font-extrabold leading-[1.05] tracking-[-0.03em]">{title}</p>
+        <p className="text-[clamp(34px,4vw,54px)] font-medium leading-[1.05] tracking-[-0.03em]">{title}</p>
         <PanelChips large />
-        <p className="text-[17px] leading-normal text-[#E4F2EA]">{PANEL_LINE}</p>
+        <p className="text-[17px] leading-normal text-primary-foreground/85">{PANEL_LINE}</p>
       </div>
-      <p className="text-[13px] text-[#CFE7DA]">{PANEL_FOOTER}</p>
+      <p className="text-[13px] text-primary-foreground/75">{PANEL_FOOTER}</p>
     </section>
   );
 }
@@ -109,10 +109,10 @@ export function PitchPanel({ title, className }: { title: string; className?: st
 /** "Sign in to join Flat 4B · Anu invited you · 5 people are in". */
 export function JoinCardView({ card }: { card: JoinCard }) {
   return (
-    <div className="flex items-center gap-3 rounded-[18px] border bg-card px-3.5 py-3">
+    <div className={cn(K_CARD, "flex items-center gap-3 px-3.5 py-3")}>
       <GroupAvatar name={card.groupName} />
       <div className="flex min-w-0 flex-col gap-0.5">
-        <p className="text-[15px] font-extrabold leading-snug">{card.title}</p>
+        <p className="text-base font-medium leading-snug">{card.title}</p>
         {card.subtitle ? <p className="text-[13px] text-muted-foreground">{card.subtitle}</p> : null}
       </div>
     </div>
@@ -121,7 +121,7 @@ export function JoinCardView({ card }: { card: JoinCard }) {
 
 export function JoinCardSkeleton() {
   return (
-    <div aria-hidden className="flex items-center gap-3 rounded-[18px] border bg-card px-3.5 py-3">
+    <div aria-hidden className={cn(K_CARD, "flex items-center gap-3 px-3.5 py-3")}>
       <Skeleton className="h-11 w-11 shrink-0 rounded-[12px]" />
       <div className="flex-1 space-y-2">
         <Skeleton className="h-4 w-44" />
@@ -149,8 +149,8 @@ export function NoticeBox({
       id={id}
       role={error ? "alert" : "status"}
       className={cn(
-        "flex items-start gap-2.5 rounded-[14px] px-3.5 py-3 text-sm font-semibold leading-[1.45]",
-        error ? "bg-cp-expired-tint text-cp-expired" : success ? "bg-[#E4F2EA] font-bold text-[#165C3A]" : "bg-cp-soon-tint text-cp-soon",
+        "flex items-start gap-2.5 rounded-2xl px-3.5 py-3 text-sm font-normal leading-[1.45]",
+        error ? "bg-cp-expired-tint text-cp-expired" : success ? "bg-cp-accent-tint text-cp-accent-text" : "bg-cp-soon-tint text-cp-soon",
         className,
       )}
     >
@@ -171,35 +171,41 @@ export function GoogleMark({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+/**
+ * The secondary sign-in buttons (`RvSignIn`): Google and Passkey side by
+ * side, on the card with its soft shadow (a line in dark, where the card has
+ * none).
+ */
+export const SIGN_IN_SECONDARY =
+  "flex h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border-0 bg-card px-4 text-[15px] font-medium text-foreground shadow-cp-card ring-1 ring-inset ring-cp-line transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70";
+
 export function GoogleButton({
   onClick,
   busy = false,
   label = "Continue with Google",
+  short,
 }: {
   onClick: () => void;
   busy?: boolean;
+  /** Its full name: what it reads, or (with `short`) what a screen reader hears. */
   label?: string;
+  /** The board's one word ("Google") beside Passkey; `label` stays its accessible name. */
+  short?: string;
 }) {
   return (
-    <Button
-      type="button"
-      variant="outline"
-      onClick={onClick}
-      loading={busy}
-      className="h-[54px] w-full gap-3 rounded-2xl border-input bg-card px-5 text-base font-bold text-foreground hover:bg-accent"
-    >
+    <Button type="button" variant="outline" onClick={onClick} loading={busy} aria-label={short ? label : undefined} className={SIGN_IN_SECONDARY}>
       {busy ? null : <GoogleMark />}
-      {label}
+      {short ?? label}
     </Button>
   );
 }
 
 export function OrDivider({ label = "or" }: { label?: string }) {
   return (
-    <div className="flex items-center gap-3 text-[13px] font-semibold text-muted-foreground">
-      <span aria-hidden className="h-px flex-1 bg-[#D5DAD2]" />
+    <div className="flex items-center gap-3 text-[13px] font-normal text-muted-foreground">
+      <span aria-hidden className="h-px flex-1 bg-border" />
       {label}
-      <span aria-hidden className="h-px flex-1 bg-[#D5DAD2]" />
+      <span aria-hidden className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -232,7 +238,7 @@ export function DeveloperSignIn({
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
-        className="min-h-11 rounded-lg text-[13px] font-semibold text-muted-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-11 rounded-lg text-[13px] font-medium text-muted-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         Developer sign-in
       </button>
@@ -247,7 +253,7 @@ export function DeveloperSignIn({
               if (value) onToken(value);
             }}
           >
-            <label htmlFor={`${id}-token`} className="text-sm font-bold">
+            <label htmlFor={`${id}-token`} className="text-sm font-medium">
               Bearer token
             </label>
             <input
@@ -261,12 +267,12 @@ export function DeveloperSignIn({
               className={SIGN_IN_INPUT}
             />
             <p className="text-xs text-muted-foreground">Stored in this browser only, like any sign-in.</p>
-            <Button type="submit" variant="outline" disabled={!token.trim()} className="h-11 w-full rounded-xl text-[15px] font-semibold">
+            <Button type="submit" variant="outline" disabled={!token.trim()} className="h-11 w-full rounded-xl text-[15px] font-medium">
               Use this token
             </Button>
           </form>
           <div className="space-y-2">
-            <p className="text-sm font-bold">API</p>
+            <p className="text-sm font-medium">API</p>
             {!locked && targets.length > 1 ? (
               <div role="group" aria-label="API target" className="flex flex-wrap gap-2">
                 {targets.map((t) => (
@@ -277,7 +283,7 @@ export function DeveloperSignIn({
                     aria-pressed={t.name === target}
                     variant={t.name === target ? "default" : "outline"}
                     onClick={() => onTarget(t.name)}
-                    className="h-9 rounded-lg px-4 text-[13px] font-semibold"
+                    className="h-9 rounded-lg px-4 text-[13px] font-medium"
                   >
                     {t.name}
                   </Button>
@@ -299,7 +305,7 @@ export function PersonAvatar({ initials, className }: { initials: string; classN
     <span
       aria-hidden
       className={cn(
-        "grid h-14 w-14 shrink-0 place-items-center rounded-full bg-primary text-xl font-extrabold text-primary-foreground",
+        "grid h-14 w-14 shrink-0 place-items-center rounded-full bg-primary text-xl font-medium text-primary-foreground",
         className,
       )}
     >
@@ -341,8 +347,8 @@ export function NameStep({
   return (
     <section aria-labelledby="name-title" className="flex flex-col gap-[18px]">
       <div className="flex flex-col gap-2 pt-1.5 min-[900px]:p-0">
-        <p className="text-[13px] font-bold uppercase tracking-[0.06em] text-primary">{NAME_EYEBROW}</p>
-        <h1 id="name-title" className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]">
+        <p className="text-[13px] font-medium text-cp-accent-text">{NAME_EYEBROW}</p>
+        <h1 id="name-title" className="text-[28px] font-medium leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]">
           {NAME_TITLE}
         </h1>
         <p className="text-[15px] leading-normal text-muted-foreground">{nameExample(name)}</p>
@@ -358,7 +364,7 @@ export function NameStep({
         <div className="flex items-center gap-3.5">
           <PersonAvatar initials={liveInitials(name)} />
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <label htmlFor="name-field" className="text-sm font-bold">
+            <label htmlFor="name-field" className="text-sm font-medium">
               {NAME_LABEL}
             </label>
             <input
@@ -392,7 +398,7 @@ export function NameStep({
           type="button"
           onClick={onLater}
           disabled={saving}
-          className="min-h-11 self-start rounded-lg text-sm font-bold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground"
+          className="min-h-11 self-start rounded-lg text-sm font-medium text-cp-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground"
         >
           {NAME_LATER}
         </button>

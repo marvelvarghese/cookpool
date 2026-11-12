@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setAiSwitch, useAiSwitch, type AiSwitchKey } from "@/lib/ai-switches";
 import { BackButton } from "./back-ui";
-import { K_BUTTON } from "./kit";
+import { K_BUTTON, K_CARD, K_TITLE } from "./kit";
 import { useAiStatus } from "./receipt-data";
 import { AiChip } from "./receipt-scan-ui";
 import { AI_SETTINGS_HEADING, AI_SETTINGS_HREF, AI_SETTINGS_LEAD, AI_SETTINGS_TITLE, aiSettingsView, type UseBar } from "./ai-settings";
@@ -20,20 +20,20 @@ import { AI_SETTINGS_HEADING, AI_SETTINGS_HREF, AI_SETTINGS_LEAD, AI_SETTINGS_TI
  * off it says why, above the switches.
  */
 
-const CARD = "rounded-[20px] border border-[#E3E6E0] bg-card";
-const LABEL = "text-xs font-extrabold tracking-[0.06em] text-muted-foreground";
+const CARD = K_CARD;
+const LABEL = "text-[13px] font-medium text-muted-foreground";
 
 /** Settings' row to it, in the new frame. */
 export function AiSettingsRow() {
   return (
     <Link
       href={AI_SETTINGS_HREF}
-      className="flex min-h-[60px] items-center gap-3 rounded-3xl border bg-card px-5 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-[60px] items-center gap-3 rounded-cp-card bg-card px-5 py-2.5 shadow-cp-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[#E4F2EA] to-[#FCE9DF] text-base">
+      <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] bg-cp-accent-tint text-base">
         ✨
       </span>
-      <span className="min-w-0 flex-1 text-[15px] font-semibold">{AI_SETTINGS_TITLE}</span>
+      <span className="min-w-0 flex-1 text-[15px] font-medium">{AI_SETTINGS_TITLE}</span>
       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
     </Link>
   );
@@ -54,16 +54,16 @@ export function AiSettingsScreen() {
     <div className="flex w-full max-w-xl flex-col gap-3.5">
       <header className="flex items-center gap-2">
         <BackButton />
-        <h1 className="text-2xl font-extrabold tracking-[-0.02em]">{AI_SETTINGS_TITLE}</h1>
+        <h1 className={K_TITLE}>{AI_SETTINGS_TITLE}</h1>
       </header>
       <div className="flex flex-col items-start gap-1.5">
         <AiChip />
-        <h2 className="text-[22px] font-extrabold leading-tight">{AI_SETTINGS_HEADING}</h2>
-        <p className="text-sm font-semibold text-muted-foreground">{AI_SETTINGS_LEAD}</p>
+        <h2 className="text-[17px] font-medium leading-snug">{AI_SETTINGS_HEADING}</h2>
+        <p className="text-sm font-normal text-muted-foreground">{AI_SETTINGS_LEAD}</p>
       </div>
 
       {view.notice ? (
-        <p role="status" className="rounded-2xl bg-[#FDF1D6] px-4 py-3 text-[15px] font-extrabold text-[#5C3D00]">
+        <p role="status" className="rounded-2xl bg-cp-soon-tint px-4 py-3 text-[15px] font-medium text-cp-soon">
           {view.notice}
         </p>
       ) : null}
@@ -76,26 +76,26 @@ export function AiSettingsScreen() {
             role="switch"
             aria-checked={t.on}
             onClick={() => setAiSwitch(t.key, !t.on)}
-            className="flex min-h-[60px] w-full items-center gap-3 border-b border-[#ECEEE9] px-3.5 py-2 text-left last:border-b-0 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="flex min-h-[60px] w-full items-center gap-3 border-b border-cp-line px-4 py-2 text-left last:border-b-0 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-[15px] font-extrabold">{t.label}</span>
-              <span className="text-xs font-semibold text-muted-foreground">{t.sub}</span>
+              <span className="text-base font-medium">{t.label}</span>
+              <span className="text-[13px] font-normal text-muted-foreground">{t.sub}</span>
             </span>
-            <span aria-hidden className={cn("flex h-7 w-12 shrink-0 rounded-full p-[3px] transition-colors", t.on ? "justify-end bg-[#1F7A4D]" : "justify-start bg-[#C9CFC6]")}>
-              <span className="h-[22px] w-[22px] rounded-full bg-white" />
+            <span aria-hidden className={cn("flex h-7 w-12 shrink-0 rounded-full p-[3px] transition-colors", t.on ? "justify-end bg-primary" : "justify-start bg-input")}>
+              <span className="h-[22px] w-[22px] rounded-full bg-cp-card" />
             </span>
           </button>
         ))}
       </div>
 
-      <section aria-label="Today" className={cn(CARD, "flex flex-col gap-2.5 px-3.5 py-3")}>
-        <span className={LABEL}>TODAY</span>
+      <section aria-label="Today" className={cn(CARD, "flex flex-col gap-2.5 px-4 py-3")}>
+        <span className={LABEL}>Today</span>
         {view.state === "loading" ? (
           <Skeleton className="h-12 w-full" aria-hidden />
         ) : view.state === "failed" ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-muted-foreground">Couldn&apos;t load today&apos;s use</span>
+            <span className="text-sm font-normal text-muted-foreground">Couldn&apos;t load today&apos;s use</span>
             <Button variant="outline" className={K_BUTTON} onClick={status.reload}>
               Try again
             </Button>
@@ -103,11 +103,11 @@ export function AiSettingsScreen() {
         ) : (
           view.today.map((b) => <UseBarView key={b.label} bar={b} />)
         )}
-        {view.budget ? <span className={cn("text-[13px] font-bold", view.state === "resting" ? "text-[#8A5A00]" : "text-muted-foreground")}>{view.budget}</span> : null}
+        {view.budget ? <span className={cn("text-[13px] font-normal", view.state === "resting" ? "text-cp-soon" : "text-muted-foreground")}>{view.budget}</span> : null}
       </section>
 
-      <section aria-label="What is sent" className={cn(CARD, "flex flex-col gap-1.5 px-3.5 py-3 text-sm font-semibold text-[#3F4842]")}>
-        <span className={LABEL}>WHAT IS SENT</span>
+      <section aria-label="What is sent" className={cn(CARD, "flex flex-col gap-1.5 px-4 py-3 text-sm font-normal text-muted-foreground")}>
+        <span className={cn(LABEL, "text-foreground")}>What is sent</span>
         {view.sent.map((l) => (
           <span key={l}>{l}</span>
         ))}
@@ -119,7 +119,7 @@ export function AiSettingsScreen() {
 function UseBarView({ bar }: { bar: UseBar }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="flex items-baseline justify-between gap-2 text-sm font-bold">
+      <span className="flex items-baseline justify-between gap-2 text-sm font-medium">
         <span>{bar.label}</span>
         <span className="tabular-nums text-muted-foreground">{bar.text}</span>
       </span>
@@ -129,9 +129,9 @@ function UseBarView({ bar }: { bar: UseBar }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={bar.pct}
-        className="block h-2 overflow-hidden rounded-full bg-[#ECEEE9]"
+        className="block h-2 overflow-hidden rounded-full bg-secondary"
       >
-        <span className={cn("block h-full rounded-full", bar.full ? "bg-[#D97706]" : "bg-[#1F7A4D]")} style={{ width: `${bar.pct}%` }} />
+        <span className={cn("block h-full rounded-full", bar.full ? "bg-cp-soon" : "bg-primary")} style={{ width: `${bar.pct}%` }} />
       </span>
     </div>
   );

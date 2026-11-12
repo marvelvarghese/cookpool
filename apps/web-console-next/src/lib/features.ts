@@ -68,6 +68,8 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   // Connected assistants to You.
   "/connect": "/home",
   "/you/assistants": "/you",
+  // You → Your recipes and cooks (cookpool-revamp RV-6): what the new frame's `/you` showed before.
+  "/you/cooks": "/you",
 };
 
 /** Where a page (static-pages.mjs's pattern) sends a visitor in this frame, or null when it shows. */

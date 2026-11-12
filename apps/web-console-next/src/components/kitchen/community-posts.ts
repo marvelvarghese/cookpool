@@ -47,7 +47,10 @@ export function feedHref(tab: FeedTab): string {
   return tab === DEFAULT_FEED_TAB ? COMMUNITY_HREF : `${COMMUNITY_HREF}?tab=${tab}`;
 }
 
-export const FEED_TAB_LABELS: Readonly<Record<FeedTab, string>> = { following: "Following", discover: "Discover" };
+export const FEED_TAB_LABELS: Readonly<Record<FeedTab, string>> = { following: "Following", discover: "Everyone" };
+
+/** The heading over each tab's cards (`RvCommunity`). */
+export const FEED_HEADINGS: Readonly<Record<FeedTab, string>> = { following: "From people you follow", discover: "New from everyone" };
 
 export interface FeedEmpty {
   title: string;
@@ -139,6 +142,8 @@ export interface PostCard {
   tile: { initial: string; bg: string; fg: string };
   recipeLine: string | null;
   tiles: StatTile[];
+  /** The compact card's second line: who and when ("Anu Mathew · 2 h"). */
+  byline: string;
   caption: string | null;
   yum: { on: boolean; label: string; count: number };
   comments: number;
@@ -161,10 +166,26 @@ export function postCard(post: CommunityPost, now: Date, ownRecipeIds: ReadonlyS
     tile: postTile(post),
     recipeLine: recipeLine(post, !!post.recipe && ownRecipeIds.has(post.recipe.id)),
     tiles: statTiles(post.stats),
+    byline: [who.name, shortAgo(post.createdAt, now)].filter((p) => !!p).join(" · "),
     caption: post.caption?.trim() ? post.caption.trim() : null,
     yum: { on: post.yums.mine, label: yumLabel(post.yums), count: post.yums.count },
     comments: post.comments.count,
   };
+}
+
+/**
+ * The compact card's numbers line (`RvCommunity`): the size and the time it
+ * took, then the Yums and the comments — "450 g · 48 min · 12 yums".
+ */
+export function postNumbers(card: Pick<PostCard, "tiles" | "yum" | "comments">): string {
+  const parts: string[] = [];
+  for (const t of card.tiles) {
+    if (t.id === "size") parts.push(t.label === "size" ? t.value : `${t.value} ${t.label}`);
+    else if (t.id === "time") parts.push(t.value);
+  }
+  parts.push(card.yum.count === 1 ? "1 yum" : `${card.yum.count} yums`);
+  if (card.comments > 0) parts.push(card.comments === 1 ? "1 comment" : `${card.comments} comments`);
+  return parts.join(" · ");
 }
 
 // ── Cook this ─────────────────────────────────────────────────────

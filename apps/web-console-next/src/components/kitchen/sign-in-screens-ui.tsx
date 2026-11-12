@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronLeft, Mail } from "lucide-react";
+import { ChevronLeft, Fingerprint, KeyRound, Mail, ScanFace } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { newFrame } from "@/lib/features";
 import { CODE_LENGTH, TERMS_SENTENCE } from "./sign-in";
 import {
   CANT_SIGN_IN,
@@ -13,7 +14,8 @@ import {
   type RememberedCard,
   type SignInTab,
 } from "./sign-in-screens";
-import { PanelChips, PersonAvatar, SignInMark } from "./sign-in-ui";
+import { K_CARD } from "./kit";
+import { PersonAvatar, SignInMark } from "./sign-in-ui";
 
 /**
  * The getting-in screens' pieces (Cookpool PK-3), after the canvas row
@@ -22,29 +24,31 @@ import { PanelChips, PersonAvatar, SignInMark } from "./sign-in-ui";
  * (`AuthCode`) and the back bar. Inside the `.cookpool` theme only.
  */
 
-/** The phone's welcome panel: green, rounded at the bottom, the headline and the chips. */
+/**
+ * The phone's welcome panel (`RvSignIn`): the accent, rounded at the bottom,
+ * the mark and the headline. Gold with dark text in dark mode.
+ */
 export function WelcomeHero({ title, className }: { title: string; className?: string }) {
   return (
     <section
       aria-label="Cookpool"
       className={cn(
-        "flex flex-col gap-[18px] rounded-b-[32px] bg-primary px-[22px] pb-[26px] pt-[calc(env(safe-area-inset-top)+22px)] text-primary-foreground",
+        "flex flex-col gap-[22px] rounded-b-[32px] bg-primary px-[22px] pb-[30px] pt-[calc(env(safe-area-inset-top)+24px)] text-primary-foreground",
         className,
       )}
     >
       <SignInMark inverse />
-      <h1 id="sign-in-title" className="text-[30px] font-extrabold leading-[1.1] tracking-[-0.03em]">
+      <h1 id="sign-in-title" className="text-[30px] font-medium leading-[1.1] tracking-[-0.03em]">
         {title}
       </h1>
-      <PanelChips />
     </section>
   );
 }
 
-/** Sign in · Create account. */
+/** Sign in · Create account: two tabs in a track, the chosen one on the card. */
 export function AuthTabs({ mode, onMode }: { mode: SignInTab; onMode: (mode: SignInTab) => void }) {
   return (
-    <div role="tablist" aria-label="Sign in or create account" className="grid grid-cols-2 gap-1 rounded-[14px] bg-[#ECEEE9] p-1">
+    <div role="tablist" aria-label="Sign in or create account" className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
       {SIGN_IN_TABS.map((t) => {
         const on = t.mode === mode;
         return (
@@ -57,8 +61,8 @@ export function AuthTabs({ mode, onMode }: { mode: SignInTab; onMode: (mode: Sig
             aria-controls="auth-panel"
             onClick={() => onMode(t.mode)}
             className={cn(
-              "min-h-11 rounded-[11px] text-[15px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              on ? "bg-card text-foreground shadow-[0_1px_3px_rgba(23,32,27,0.12)]" : "text-[#3F4842] hover:text-foreground",
+              "min-h-11 rounded-xl text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              on ? "bg-card text-foreground shadow-cp-card ring-1 ring-inset ring-border/60" : "text-muted-foreground hover:text-foreground",
             )}
           >
             {t.label}
@@ -69,25 +73,40 @@ export function AuthTabs({ mode, onMode }: { mode: SignInTab; onMode: (mode: Sig
   );
 }
 
-/** The account remembered on this device, its one main button, and "Use another account". */
+/** The icon on the remembered card's button: the face or the finger the passkey asks for. */
+function passkeyIcon(action: string) {
+  if (/face id/i.test(action)) return ScanFace;
+  if (/fingerprint/i.test(action)) return Fingerprint;
+  return KeyRound;
+}
+
+/**
+ * The account remembered on this device: its card, the one main button
+ * ("Sign in with Face ID" for a passkey account, else "Continue as Rahul"),
+ * and "Use another account".
+ */
 export function RememberedAccountView({
   card,
   onContinue,
   onForget,
   busy,
+  passkey = false,
 }: {
   card: RememberedCard;
   onContinue: () => void;
   onForget: () => void;
   busy: boolean;
+  /** The button signs in with this device's passkey (its icon). */
+  passkey?: boolean;
 }) {
+  const Icon = passkey ? passkeyIcon(card.action) : null;
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3 rounded-[18px] border bg-card px-3.5 py-3">
-        <PersonAvatar initials={card.initials} className="h-[46px] w-[46px] text-[17px]" />
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-base font-extrabold">{card.title}</span>
-          <span className="truncate text-[13px] text-muted-foreground">{card.subtitle}</span>
+      <div className={cn(K_CARD, "flex min-h-[68px] items-center gap-3 px-3.5 py-2.5")}>
+        <PersonAvatar initials={card.initials} className="h-11 w-11 bg-cp-accent-tint text-[15px] text-cp-accent-text" />
+        <span className="flex min-w-0 flex-1 flex-col gap-px">
+          <span className="text-base font-medium">{card.title}</span>
+          <span className="truncate text-[13px] font-normal text-muted-foreground">{card.subtitle}</span>
         </span>
       </div>
       <button
@@ -95,15 +114,19 @@ export function RememberedAccountView({
         onClick={onContinue}
         disabled={busy}
         aria-busy={busy || undefined}
-        className="flex min-h-[58px] items-center justify-center gap-2.5 rounded-2xl bg-[#17201B] px-5 text-base font-extrabold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-70"
+        className="flex min-h-14 items-center justify-center gap-2.5 rounded-[18px] bg-primary px-5 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-70"
       >
-        {busy ? <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
+        {busy ? (
+          <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        ) : Icon ? (
+          <Icon className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
+        ) : null}
         {card.action}
       </button>
       <button
         type="button"
         onClick={onForget}
-        className="min-h-11 rounded-lg text-sm font-bold text-[#3F4842] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-11 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {USE_ANOTHER_ACCOUNT}
       </button>
@@ -111,19 +134,31 @@ export function RememberedAccountView({
   );
 }
 
-/** "Can't sign in?" and the terms line, at the foot of the form. */
+/** "Can't sign in?" and the one helper line, the terms, at the foot of the form. */
 export function SignInFooter({ helpHref, className }: { helpHref: string; className?: string }) {
   return (
-    <div className={cn("flex flex-col items-center gap-1.5 text-center", className)}>
+    <div className={cn("flex flex-col items-center gap-1 text-center", className)}>
       <Link
         href={helpHref}
-        className="flex min-h-11 items-center rounded-lg text-[15px] font-bold text-primary hover:text-[#165C3A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-11 items-center rounded-lg text-[15px] font-medium text-cp-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {CANT_SIGN_IN}
       </Link>
-      <span className="text-xs leading-[1.45] text-muted-foreground">{TERMS_SENTENCE}</span>
+      <span className="text-xs font-normal leading-[1.45] text-muted-foreground">{TERMS_SENTENCE}</span>
     </div>
   );
+}
+
+/**
+ * Whether the sign-in pages wear the new look's dark mode (RV-6): where
+ * `newFrame()` is true (stage first), read after mount so the prerendered
+ * file and the first render match. Sign-in has no raw colours left, so it
+ * reads in both themes; prod stays light until the new frame ships there.
+ */
+export function useSignInNewLook(): boolean {
+  const [on, setOn] = React.useState(false);
+  React.useEffect(() => setOn(newFrame()), []);
+  return on;
 }
 
 /** The bar above the code (and Can't sign in?): Back, and a label in the middle. */
@@ -142,7 +177,7 @@ export function BackBar({ label, onBack, href }: { label?: string; onBack?: () =
           {icon}
         </button>
       )}
-      {label ? <span className="text-[13px] font-bold text-muted-foreground">{label}</span> : null}
+      {label ? <span className="text-[13px] font-medium text-muted-foreground">{label}</span> : null}
       <span aria-hidden className="w-11" />
     </div>
   );
@@ -151,15 +186,15 @@ export function BackBar({ label, onBack, href }: { label?: string; onBack?: () =
 /** The envelope tile on the code screen. */
 export function MailTile() {
   return (
-    <span aria-hidden className="grid h-16 w-16 place-items-center rounded-[20px] bg-[#E4F2EA] text-primary">
+    <span aria-hidden className="grid h-16 w-16 place-items-center rounded-[20px] bg-cp-accent-tint text-primary">
       <Mail className="h-[30px] w-[30px]" strokeWidth={1.8} />
     </span>
   );
 }
 
 const BOX_BORDER: Record<CodeBox["state"], string> = {
-  empty: "border border-input",
-  filled: "border border-[#8E9A93]",
+  empty: "border-[1.5px] border-input",
+  filled: "border-[1.5px] border-muted-foreground",
   active: "border-2 border-primary",
   wrong: "border-2 border-destructive",
 };
@@ -184,7 +219,7 @@ export function CodeBoxesField({
           <span
             key={i}
             className={cn(
-              "grid h-[60px] place-items-center rounded-[14px] bg-card text-[26px] font-extrabold tabular-nums text-foreground",
+              "grid h-[60px] place-items-center rounded-2xl bg-card text-[26px] font-medium tabular-nums text-foreground",
               BOX_BORDER[b.state],
             )}
           >

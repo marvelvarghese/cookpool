@@ -201,3 +201,52 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - The item page (Milk) showed the ring, the use card, Who had it, History (See all 5), the actions and Measures and note (opens).
 - Today's frame (`cookpool-prod.localhost`) still shows the old Home ("You get back", To do with inline chips, Recent).
 - Every resource came from the local host.
+
+### RV1 — You, Community and Sign in (RV-6)
+
+**Built** (`apps/web-console-next` only; no route, contract or migration).
+- **You** (`RvYou`, new frame): `/you` is `YouHome` (`components/kitchen/you-home-ui.tsx`): the 64 px avatar, the name (26 px) and the @handle (your email before you have a handle); then short grouped lists from `youGroups` (`you.ts`), each row a label and a chevron in a `K_ROWS` card:
+  - Account: Name and handle → `/you/settings`; Your recipes and cooks → `/you/cooks`; Groups → `/groups`.
+  - Sign-in and security: Passkeys → `/you/security` (it reads "Email" where passkeys don't run); Connected apps → `/you/assistants`.
+  - Cookpool AI: AI settings → `/you/ai`. Notifications: Push → `/you/notifications`.
+  - This phone: Install the app (PW-2's flow), only while there is something to install.
+  - Sign out, quiet red text, centred (the same `signOutOfThisDevice`, now `useSignOut`).
+- **New page `/you/cooks`** (new frame only; `NEW_FRAME_ONLY` → `/you`; parent `/you`; added to `STATIC_PAGES`, no pull): what the new frame's `/you` showed before (`YourCooks`, formerly `YourPage`, in `profile-ui.tsx`): the groups line, Cooks · Recipes · Saved by · Groups, Cooks a week, Recipes | Cooks (`?list=cooks` on `/you/cooks`).
+- **`/you/settings`** (new frame) is now Name and handle (`YouNameScreen`): the name card with Change your name, and the @handle card with Followers, Following, Edit and follow requests. The rows it held since RC-2 are on You's lists.
+- **Parents:** `/you/notifications`, `/you/security` and `/you/ai` go back to `/you` in the new frame (they went to `/you/settings`).
+- **Cookpool AI, Sign-in and security, Turn on Face ID:** tokens, `K_TITLE`/`K_SECTION`, `K_CARD`; the switches use `primary`/`input`; the Add a passkey button is the quiet tint.
+- **Community** (`RvCommunity`): the header has Back, Community, a search icon (people search; the search field is gone) and the bell, its count on the accent. Following · Everyone tabs in a track; the tab's heading ("From people you follow", "New from everyone"); compact post cards (`PostCardView`): the recipe's 76 px tile with its initial (the line colour in dark), the dish, "Anu Mathew · 2 h" (to the author), "450 g · 48 min · 12 yums · 3 comments" (`postNumbers`), and two 44 px icons: Yum (a heart, filled in the accent when yours) and the save (Cook this as a bookmark, `CookThisButton icon`, filled once the recipe is yours or saved; it copies and opens as before). The same cards fill a profile's Cooks.
+- **Sign in** (`RvSignIn`, every frame): the welcome panel in the accent with the mark and the headline (no chips on the phone); Sign in · Create account in a track; the remembered card on the card, its one main button in the accent with Face ID's (or the fingerprint's) icon for a passkey account, and Use another account; Google and Passkey side by side (`SIGN_IN_SECONDARY`; each keeps its full name as its accessible name), then "or", Email, Email me a code; one helper line, the terms, under Can't sign in?. The code screen, the Name step, Can't sign in? and Turn on Face ID take the tokens and 400/500.
+- **Dark on sign-in:** `/login` and `/login/help` add `KITCHEN_NEW_LOOK_CLASS` and pass `useKitchenBodyTheme(newLook)`, where `newLook` is `newFrame()` read after mount (`useSignInNewLook`). Every raw colour is gone from the sign-in files (Google's mark keeps its brand fills), and it was checked in both themes. Prod stays light until the new frame ships there.
+- **The flows are unchanged:** no handler in `app/login/page.tsx` changed. The page only gained the dark class and `rememberedPasskey` (`continueMethod(...) === "passkey"`, for the icon). Options are still prefetched, and `startPasskey`, `continueAsRemembered`, `turnOn` and `add` still have no await before the ceremony (`kitchen-passkey-tap.test.ts` passes untouched). Codes, join links, the safe `next`, stage's test code and the developer sign-in are as they were.
+- No raw hex and no weight above 500 in any RV-6 file (`community-*`, `sign-in-*`, `passkey-*`, `you-*`, `ai-settings-ui`, `app/login/**`); `profile-ui.tsx` only in You's parts (the person page is RV-5's ground).
+
+**Departures.**
+- The board's Voice cooking, Email digest, Help centre and Privacy and terms rows are not drawn: none has a page of its own. Install the app took a "This phone" group instead.
+- The board's Sign-in and security has both Passkeys and Email; both open `/you/security`, so one row is drawn, named for what the page leads with.
+- Community: no "See all" (the feed pages itself as you scroll) and no floating Share a cook (sharing starts from a dish; there is no general entry). Everyone's heading is "New from everyone", not "Popular today": the tab holds the newest public cooks. The compact card drops the caption, the comments button and ⋯ (report, mute, block, who sees it, delete); all are on the post's page. Likes are the app's Yum: a heart, "12 yums".
+- Sign in: the remembered card keeps "rahul@gmail.com · Google" (the board shows only the address), since it says how Continue will sign in. Create account keeps "Email me a code" (the board says Next), because the code is the next step.
+- `cook-hub.ts`'s `profileHref` (Cook's file) is untouched and now unused by You; the switch builds `/you/cooks` hrefs itself.
+
+**Pinned copy and pins changed (each deliberate).**
+- Community's second tab: "Discover" → "Everyone" (`FEED_TAB_LABELS`; `?tab=discover` is unchanged).
+- Sign in: "or with email" → "or". The helper under Email me a code (`SIGN_IN_HELPER`, `PASSKEY_SIGN_IN_HELPER`, `SIGN_UP_HELPER`) and Create account's name hint (`signUpNameHint`) are no longer drawn; the constants and their pins stay. Google beside Passkey reads "Google" (its name stays "Continue with Google" / "Sign up with Google"); the passkey button reads "Passkey" (its name stays "Sign in with a passkey").
+- You (new frame): "Sign out" (`SIGN_OUT`); today's frame keeps "Sign out of this phone" (its pin unchanged).
+- `kitchen-community-posts.test.ts`: the card-drawing test now checks the compact card (byline, Yum's label, and no caption or ⋯).
+- `kitchen-community.test.ts`: the outlined Follow button pins `border-border`, not `border-[#C9CFC6]`.
+- `kitchen-new-frame.test.ts`, `kitchen-say-it.test.ts`: `/you/notifications` and `/you/ai` new-frame parent `/you` (was `/you/settings`). `kitchen-transitions.test.ts`: `/you/notifications` depth 1 (was 2). `gestures.test.ts`: `/you/cooks` doesn't pull.
+
+**Tests.**
+- `tests/web-console-next`: 115 suites, 2,281 tests, all passing. New file: `kitchen-revamp-you-sign-in.test.ts` (26 tests): Google and Passkey side by side with their names; Create account and no-passkey cases; the remembered card with Face ID's icon; the panel; dark only with the new look; and no raw hex and no heavy weight in 21 RV-6 files. New in `kitchen-you.test.ts`: You's groups and hrefs (each a static page), Email where passkeys don't run, the subline, `SIGN_OUT`, and `/you/cooks` in the new frame only. New in `kitchen-community-posts.test.ts`: `postNumbers`, the byline, the tab labels and headings.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 44 pages served as files (with `/you/cooks`).
+
+**Browser check** (390 × 844, light and dark). The setup was `next dev` on 48630 behind a local proxy with an in-memory API mock on `cookpool-stage.localhost:48631`, never committed. The network log listed only that origin and `cookpool-prod.localhost:48631`.
+- `/login` showed the accent panel, tabs, Google, "or", Email and the main button. In dark it was Gold with dark text, on the dark ground. A code request opened the code screen in dark.
+- The remembered card was checked in both themes.
+- `/you` showed the lists and Sign out in both themes, and `/you/settings` and `/you/cooks` rendered.
+- `/community` and `?tab=discover` showed the compact cards, with the heart filled on a Yum'd post and the bookmarks.
+- Today's frame (`cookpool-prod.localhost`) on a dark device showed `/login` light.
+- Passkeys don't run on a `*.localhost` host (PK-4), so Passkey beside Google was checked by the render test, not in the browser. Google's round trip leaves for the real API and was not opened.
+
+**Deploy.** Only the console changes; nothing on the server.

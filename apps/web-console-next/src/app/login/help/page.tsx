@@ -10,12 +10,13 @@ import { useSession } from "@/lib/session";
 import { loginPathFor } from "@/lib/safe-next";
 import { rememberLoginNext, rememberOAuthProvider } from "@/lib/login-return";
 import { typedEmail } from "@/lib/remembered-account";
-import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
+import { KITCHEN_NEW_LOOK_CLASS, KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import { DEFAULT_HEADLINE, oauthReturnTo, offersGoogle } from "@/components/kitchen/sign-in";
 import { helpItems, writeToUsHref } from "@/components/kitchen/sign-in-screens";
 import { PitchPanel } from "@/components/kitchen/sign-in-ui";
 import { HelpScreen } from "@/components/kitchen/sign-in-help-ui";
+import { useSignInNewLook } from "@/components/kitchen/sign-in-screens-ui";
 
 /**
  * Can't sign in? (Cookpool PK-3, cookpool-passkeys design §3): a static page
@@ -38,7 +39,9 @@ function HelpWithQuery() {
 }
 
 function Help({ rawNext }: { rawNext: string | null }) {
-  useKitchenBodyTheme();
+  // RV-6: dark follows the device where the new frame is on, as on Sign in.
+  const newLook = useSignInNewLook();
+  useKitchenBodyTheme(newLook);
   const { client, target } = useSession();
   const clientRef = React.useRef(client);
   clientRef.current = client;
@@ -71,7 +74,7 @@ function Help({ rawNext }: { rawNext: string | null }) {
 
   const signInHref = loginPathFor(rawNext);
   return (
-    <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
+    <div className={cn(...KITCHEN_THEME_CLASSES, newLook && KITCHEN_NEW_LOOK_CLASS, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
       <PitchPanel title={DEFAULT_HEADLINE} className="hidden min-[900px]:flex" />
       <main
         className={cn(
