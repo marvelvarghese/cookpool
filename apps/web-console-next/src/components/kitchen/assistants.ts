@@ -264,7 +264,8 @@ export function loadOutcome(r: McpResult<ConnectRequestInfo>): { kind: "ready"; 
 
 // ── Connected assistants ───────────────────────────────────────────
 
-export const ASSISTANTS_TITLE = "Connected assistants";
+/** The page's title and You's row (RV-18: one name for both, the `RvYou` board's). */
+export const ASSISTANTS_TITLE = "Connected apps";
 export const ASSISTANTS_HREF = "/you/assistants";
 export const ASSISTANTS_LEAD = "Let the assistant you already use read your kitchen and suggest things. It never moves money on its own.";
 export const CONNECTOR_LABEL = "Your Cookpool connector";

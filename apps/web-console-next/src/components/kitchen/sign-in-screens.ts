@@ -36,6 +36,7 @@ export const SIGN_UP_HELPER = `No password. We email a ${CODE_LENGTH}-digit code
 export const USE_ANOTHER_ACCOUNT = "Use another account";
 export const CANT_SIGN_IN = "Can't sign in?";
 export const HELP_PATH = "/login/help";
+/** No longer drawn (RV-18: the code screen keeps one helper line, `NO_EMAIL_LINE`). */
 export const CODE_HINT = "The code signs you in on its own once all six digits are in. You can paste it too.";
 export const NO_EMAIL_LINE = "No email after a minute? Look in spam or Promotions.";
 export const RESENT_NOTICE = "New code sent. The old one no longer works.";
@@ -229,6 +230,19 @@ export const HELP_SUBTITLE = "There's no password to reset. Pick what's happenin
 export const HELP_SAFETY =
   "Cookpool never asks for a password and never sends a code you didn't ask for. If you got one you didn't ask for, ignore it.";
 
+/**
+ * Can't sign in?'s Privacy and terms section (RV-18): where Sign in's Terms
+ * and Privacy notice links and You's "Privacy and terms" row land. Cookpool
+ * has no published Terms or Privacy notice yet, so it says what the app keeps
+ * and says so plainly.
+ */
+export const PRIVACY_TITLE = "Privacy and terms";
+export const PRIVACY_LINES = [
+  "Cookpool keeps your email, the name your groups see, and what you add to your groups and pantries.",
+  "Your groups see what you share with them. Community shows only what you post there.",
+  "The full Terms and Privacy notice aren't published yet.",
+] as const;
+
 export type HelpAction = "sign_in" | "write" | "google";
 
 export interface HelpItem {
@@ -312,6 +326,11 @@ export function helpPathFor(rawNext: string | null | undefined): string {
   const login = loginPathFor(rawNext);
   const q = login.indexOf("?");
   return q < 0 ? HELP_PATH : `${HELP_PATH}${login.slice(q)}`;
+}
+
+/** Privacy and terms' "Write to us": null without a contact address; nothing about the person in it. */
+export function privacyMailHref(contactEmail: string): string | null {
+  return looksLikeEmail(contactEmail) ? `mailto:${contactEmail}?subject=${encodeURIComponent("Cookpool privacy and terms")}` : null;
 }
 
 /** "Write to us": a mail to the console's contact address, nothing about the person in it. */

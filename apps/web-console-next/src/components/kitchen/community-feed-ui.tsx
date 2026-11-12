@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import type { CommunityPost, FeedTab, PostRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { KCard, K_BUTTON, K_SECTION } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_SECTION } from "./kit";
 import { useProfile } from "./data";
 import { useKitchenRouter } from "./transition-ui";
 import { savedCopyOf } from "./cook-hub";
@@ -112,7 +112,7 @@ export function PostList({ read, empty }: { read: PagedRead<CommunityPost>; empt
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load the posts.</p>
-        <Button variant="outline" className={K_BUTTON} onClick={read.reload}>
+        <Button variant="outline" className={K_BUTTON_QUIET} onClick={read.reload}>
           Try again
         </Button>
       </KCard>
@@ -169,7 +169,7 @@ function FeedTabBody({ tab }: { tab: FeedTab }) {
     <PostList
       read={read}
       empty={
-        <section aria-label="Feed" className="flex flex-col items-center gap-1.5 rounded-cp-card border border-dashed border-border bg-card px-6 py-10 text-center">
+        <section aria-label="Feed" className="flex flex-col items-center gap-1.5 rounded-cp-card bg-card px-6 py-10 text-center shadow-cp-card">
           <p className="text-base font-medium">{e.title}</p>
           <p className="text-sm font-normal text-muted-foreground">{e.sub}</p>
           {e.action ? (

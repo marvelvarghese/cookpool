@@ -226,14 +226,15 @@ describe("a profile: the relationship decides the button", () => {
     expect(countText(1_250_000)).toBe("1.2m");
   });
 
-  it("the main button: green to follow, outlined once you do, a link on your own", () => {
+  it("the main button: green to follow, the quiet tint once you do (RV-18; it was outlined), a link on your own", () => {
     const green = html(React.createElement(FollowButtonView, { button: followButton(rel("none"), "private"), onClick: () => undefined }));
     expect(green).toContain(">Ask to follow<");
     expect(green).toContain("bg-primary");
     expect(green).toContain('aria-pressed="false"');
     const following = html(React.createElement(FollowButtonView, { button: followButton(rel("accepted"), "public"), onClick: () => undefined }));
     expect(following).toContain('aria-pressed="true"');
-    expect(following).toContain("border-border");
+    expect(following).toContain("bg-cp-accent-tint");
+    expect(following).not.toContain("border-border");
     const edit = html(React.createElement(FollowButtonView, { button: followButton(rel("none", { isYou: true }), "public"), href: HANDLE_SETUP_HREF }));
     expect(edit).toContain('href="/you/profile"');
   });

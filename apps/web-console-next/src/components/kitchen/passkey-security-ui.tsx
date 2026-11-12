@@ -12,7 +12,7 @@ import { lastSignInMethod } from "@/lib/first-run";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "./back-ui";
-import { KCard, K_BUTTON, K_SECTION, K_TITLE } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_SECTION, K_TITLE } from "./kit";
 import { useProfile } from "./data";
 import { GoogleMark, NoticeBox } from "./sign-in-ui";
 import { offersGoogle } from "./sign-in";
@@ -64,7 +64,7 @@ export function SecurityScreen() {
         <BackButton />
         <h1 className={K_TITLE}>{SECURITY_TITLE}</h1>
       </header>
-      {runs === null ? <Skeleton aria-hidden className="h-32 w-full rounded-[18px]" /> : runs ? <PasskeysSection /> : null}
+      {runs === null ? <Skeleton aria-hidden className="h-32 w-full rounded-cp-card" /> : runs ? <PasskeysSection /> : null}
       <OtherWays email={email} loading={profile.loading} />
     </div>
   );
@@ -141,16 +141,16 @@ function PasskeysSection() {
         Passkeys
       </h2>
       {list.loading ? (
-        <Skeleton aria-hidden className="h-16 w-full rounded-[18px]" />
+        <Skeleton aria-hidden className="h-16 w-full rounded-cp-card" />
       ) : list.error && !list.data ? (
-        <KCard className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] p-4">
+        <KCard className="flex flex-wrap items-center justify-between gap-3 rounded-cp-card p-4">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load your passkeys.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={list.reload}>
+          <Button variant="outline" className={K_BUTTON_QUIET} onClick={list.reload}>
             Try again
           </Button>
         </KCard>
       ) : shown.length === 0 ? (
-        <KCard className="rounded-[18px] px-3.5 py-4 text-sm text-muted-foreground">
+        <KCard className="rounded-cp-card px-3.5 py-4 text-sm text-muted-foreground">
           No passkeys yet. Add one to sign in with Face ID or your fingerprint.
         </KCard>
       ) : (
@@ -231,7 +231,7 @@ function OtherWays({ email, loading }: { email: string; loading: boolean }) {
         Other ways in
       </h2>
       {loading ? (
-        <Skeleton aria-hidden className="h-[60px] w-full rounded-[18px]" />
+        <Skeleton aria-hidden className="h-[60px] w-full rounded-cp-card" />
       ) : (
         <ul className="overflow-hidden rounded-cp-card bg-card shadow-cp-card">
           {rows.map((row, i) => (
@@ -239,13 +239,10 @@ function OtherWays({ email, loading }: { email: string; loading: boolean }) {
               key={row.way}
               className={cn("flex min-h-[60px] items-center gap-3 px-3.5 py-2.5", i < rows.length - 1 && "border-b border-cp-line")}
             >
-              {row.way === "google" ? (
-                <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full border-[1.5px] border-border">
-                  <GoogleMark className="h-4 w-4" />
-                </span>
-              ) : (
-                <Mail className="h-[30px] w-[30px] shrink-0 text-foreground" strokeWidth={1.6} aria-hidden />
-              )}
+              {/* RV-18: each way on a tile, as the passkeys above; no bordered circle. */}
+              <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-foreground">
+                {row.way === "google" ? <GoogleMark className="h-5 w-5" /> : <Mail className="h-5 w-5" strokeWidth={1.8} />}
+              </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="text-base font-medium">{row.title}</span>
                 <span className="text-[13px] text-muted-foreground [overflow-wrap:anywhere]">{row.subtitle}</span>

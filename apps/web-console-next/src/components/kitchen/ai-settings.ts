@@ -11,7 +11,8 @@ import { AI_DAILY_ACTIONS, AI_DAILY_RECEIPTS, AI_DAILY_VOICE_SECONDS } from "@sa
 import type { AiSwitchKey } from "@/lib/ai-switches";
 
 export const AI_SETTINGS_HREF = "/you/ai";
-export const AI_SETTINGS_TITLE = "Cookpool AI";
+/** The page's title and You's row (RV-18: one name for both; You's group is "Cookpool AI"). */
+export const AI_SETTINGS_TITLE = "AI settings";
 export const AI_SETTINGS_HEADING = "Help from AI";
 export const AI_SETTINGS_LEAD = "Every AI answer is a suggestion. Nothing is saved until you tap.";
 

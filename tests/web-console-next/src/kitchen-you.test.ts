@@ -271,7 +271,7 @@ describe("what this device remembers, and signing out", () => {
 describe("You in the new look (RV-6, RvYou)", () => {
   it("is short grouped lists of rows, each opening a page the app has", () => {
     const groups = youGroups({ passkeys: true });
-    expect(groups.map((g) => g.title)).toEqual(["Account", "Sign-in and security", "Cookpool AI", "Notifications"]);
+    expect(groups.map((g) => g.title)).toEqual(["Account", "Sign-in and security", "Cookpool AI", "Notifications", "Help"]);
     expect(groups.flatMap((g) => g.rows.map((r) => [r.label, r.href]))).toEqual([
       ["Name and handle", "/you/settings"],
       ["Your recipes and cooks", "/you/cooks"],
@@ -279,9 +279,13 @@ describe("You in the new look (RV-6, RvYou)", () => {
       ["Passkeys", "/you/security"],
       ["Connected apps", "/you/assistants"],
       ["AI settings", "/you/ai"],
-      ["Push", "/you/notifications"],
+      // RV-18: named as its page is titled in the new frame (was "Push").
+      ["Push notifications", "/you/notifications"],
+      // RV-18: Help, the board's last group; its Back returns to You.
+      ["Help centre", "/login/help?next=%2Fyou"],
+      ["Privacy and terms", "/login/help?next=%2Fyou#privacy"],
     ]);
-    for (const r of groups.flatMap((g) => g.rows)) expect(STATIC_PAGES).toContain(r.href);
+    for (const r of groups.flatMap((g) => g.rows)) expect(STATIC_PAGES).toContain(r.href.split(/[?#]/)[0]);
   });
 
   it("reads Email, not Passkeys, where passkeys do not run", () => {

@@ -669,3 +669,66 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - Not opened: the receipt scan screens (the mock has no `/me/ai`, so Scan a receipt stays hidden). The recipe, session and Cooked screens were checked by the rule's tests.
 
 **Deploy.** Only the console changes; there is no package or worker to redeploy. **Land before RV-15 and RV-16**, which can then move their bottom bars to `--cp-bottom-bar`.
+
+### RV1 — You, Community and sign-in match the boards (RV-18)
+
+**Built** (`apps/web-console-next` only; no route, contract, SDK, worker or migration). Spec: `RvYou`, `RvCommunity`, `RvSignIn` and the revamp audit's You, Community and Sign in sections, under the owner's decisions of 13 Nov (all functionality kept; Create account's name field kept).
+
+- **You** (`you.ts`, `you-home-ui.tsx`, new frame):
+  - A **Help** group, last: Help centre → `/login/help?next=%2Fyou`, Privacy and terms → `/login/help?next=%2Fyou#privacy`. This phone (Install) now sits before Help. Signed in, the help page's Back goes to `next` (`/you`), not to the sign-in page (`app/login/help/page.tsx`, read after mount).
+  - **One name per row and page:** Connected apps (`ASSISTANTS_TITLE`, was "Connected assistants"), AI settings (`AI_SETTINGS_TITLE`, was "Cookpool AI"; You's group keeps "Cookpool AI"), Push notifications (`PUSH_TITLE`; the row was "Push"). `/you/notifications` is shared, so its title is `newFrame() ? PUSH_TITLE : NOTIFY_TITLE`; prod keeps "Notifications".
+  - Sign out has 40 px under it (`pb-10`) on top of the layout's tab-bar room, so it clears the floating bar.
+  - Name and handle (`MeCard`): Change your name and Cancel are the quiet tint in the new frame; prod keeps its outlined buttons. Try again buttons are quiet.
+- **Settings pages:** `notify-ui` (card, `bg-input` track, `cp-card` knob, `cp-line` rows, no `text-white`, 400/500), `assistants-ui` (17 px headings, `K_ROWS`, the tab track from `rv-look`, quiet Disconnect on the expired tint, no raw hex), `connect-ui` (card, tokens, use-soon tint for the money note, quiet Cancel), `ai-settings-ui` (15 px card headings), `passkey-security-ui` (Google and email on tiles, no bordered circle), `community-setup-ui` (14 px Medium labels, not uppercase; the boards' 1.5 px `input` field line; Blocked people on the card).
+- **Community:**
+  - **Share a cook** (`community-share-cook.ts`, `community-share-cook-ui.tsx`): the board's one main button, floating 82 px above the screen bottom (above the tab bar) on a phone, sticky at the column's foot from 900 px, with its own room at the feed's end. It opens a sheet of your 5 latest postable cooks (`shareCookChoices`: cooked by you, not canceled, from `useMyDishes`); each opens the existing Share this cook? on its dish (`shareHref`, `?share=1`). With none: "Nothing cooked yet" and Cook something.
+  - **One link per post** (`PostCardView`): the tile, dish, byline and numbers are one link to the post; Yum and the save stay beside it. The byline no longer links to the author (the post's page does).
+  - Tabs with no ring (`SEG_ON`: the card in light, `border` grey in dark, as the board's `segOn`). The empty state has no dashed border. Section headings (`SectionLabel`) are 17 px Medium, not 12 px uppercase. The setup card's subline and every meta line are 400.
+  - **Activity:** No is quiet text (`PLAIN_BUTTON`), Accept stays green; the title is `K_TITLE`; the push helper line is gone.
+  - **Search:** the field is the card with its shadow (no 1.5 px ink border); the Follow/Following second button (`OUTLINE_BUTTON`) is now the quiet tint everywhere (search, profile, requests, blocked).
+  - **Post `/p/[id]`:** no borders on the recipe line, comments, comment bar or menu items; caption, meta and comments at 400; "No comments yet" (was "… Say something nice.") and the "Hold a comment to report it" line is gone (⋯ still opens the same options).
+  - **Profile `/u/[handle]`:** the name is the 26 px title; Share and Following are the quiet tint; menu items on `secondary`.
+- **Sign in** (every frame):
+  - **Terms** and **Privacy notice** are links to `/login/help#privacy` (keeping `next`, `termsHref`). The help page gained a **Privacy and terms** section (`PRIVACY_TITLE`, `PRIVACY_LINES`, and "Write to us with any question" when the console has a contact address, `privacyMailHref`).
+  - Google and Passkey: the shadow only in light, no `ring-1`; a 1 px line in the new look's dark only (`CARD_EDGE`). The chosen tab has no ring.
+  - The code step has one helper line ("No email after a minute?…"); `CODE_HINT` is no longer drawn ("Signing you in…" still shows while verifying).
+  - Can't sign in?'s cards have no border; their buttons are the quiet tint.
+  - **First paint:** confirmed real. next-themes' default (`defaultTheme="dark"`) put `class="dark"` and `color-scheme: dark` on `<html>` before the first paint on every page, so `/login` painted the admin console's dark ground (and before RV-14, the dark tokens' Gold where the new look's class was present) around its light card until it mounted. `app/providers.tsx` now forces next-themes to light on `/login` and `/login/*` (`isSignInPath`, `lib/sign-in-path.ts`); the inline script then writes `light`. Checked: the served script's args carry `"light"` as the forced theme on `/login` and `null` on `/home`.
+  - **Flows unchanged:** no handler in `app/login/page.tsx` changed. Google, passkeys (options prefetched, no await before the ceremony), codes, join links, the safe `next`, stage's test code and the developer sign-in are as they were.
+- `rv-look.ts` holds the dark-only classes (`CARD_EDGE`, `SEG_TRACK`, `SEG_ON`, `SEG_OFF`). Tailwind's `dark:` can't be used for them: it is the admin console's `.dark` class, which is on `<html>` everywhere else.
+
+**Departures.**
+- **Search's label stays "Search people"** (`SEARCH_LABEL`), not the board's "Search people and recipes": `/community/search` finds people only (name or @handle). Recipes are found in Explore.
+- **Privacy and terms** is a section of `/login/help`, since there is no Terms or Privacy page. It says what the app keeps and that the full Terms and Privacy notice aren't published yet. The owner should supply real terms (follow-up).
+- **Sign-in and security** keeps its single row ("Passkeys", or "Email" where passkeys don't run), named for what the page leads with; the page's title stays "Sign-in and security", which is the group's heading.
+- **Fields keep a line:** the boards draw their fields with a 1.5 px field line (`RvSignIn`), so HandleSetup's fields take that (`border-input`) rather than going borderless.
+- **The profile byline on a feed card no longer opens the author** (one link per post); the author is one tap away on the post.
+- **Share a cook** is a sheet of your recent cooks, not a new composer: a post is always made from a dish (CM-6), so it reuses the dish page's Share this cook?.
+- Voice cooking and Email digest (board rows) are still not drawn: no page of their own.
+
+**Pinned copy and pins changed (each deliberate).**
+- `kitchen-you.test.ts`: You's groups end with Help (Help centre, Privacy and terms); "Push" → "Push notifications"; the static-page check strips `?next`/`#privacy`.
+- `kitchen-community-posts.test.ts`: the compact card has one link (to `/p/pst_1`, holding the title and byline) and no `/u/anucooks` link.
+- `kitchen-community.test.ts`: Following is `bg-cp-accent-tint`, no longer `border-border`.
+- `kitchen-revamp-you-sign-in.test.ts`: the terms sentence is checked as text with its two links to `/login/help#privacy`.
+- Titles: "Connected assistants" → "Connected apps", "Cookpool AI" (the AI page's title) → "AI settings" (no test pinned them).
+- Copy shortened: "No comments yet. Say something nice." → "No comments yet".
+
+**Tests.**
+- `tests/web-console-next`: 126 suites, 2,473 tests, all passing. New `kitchen-revamp-rv18.test.ts` (18): rows named as their pages, Help and its hrefs and the signed-in Back, Sign out's room and This phone before Help; `shareCookChoices` (yours, not canceled, newest, at most 5, `?share=1`), the floating button and its room; tabs with no ring, no dashed empty state, plain headings; the search label, Activity's quiet No and no helper; `termsHref`; the sign-in buttons' and tab's rings; one helper on the code step; Privacy and terms on Can't sign in? with no borders; `isSignInPath` and the forced theme; no raw hex, heavy weight, `text-white`/`bg-white` or uppercase in the six newly restyled files.
+- The sign-in flow suites pass untouched: `kitchen-sign-in`, `kitchen-sign-in-screens`, `kitchen-passkeys`, `kitchen-passkey-tap`, `kitchen-passkey-device`, `join-code`, `safe-next`, `sign-in-session` (157 tests).
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 45 pages served as files.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 48830 behind RV-6's in-memory mock (copied, with your dishes added, never committed) on `cookpool-stage.localhost:48831`. The resource log listed only that origin and `cookpool-prod.localhost:48831`.
+- `/login` in light and dark: `<html class="light">`, no ring on the tab or Google, the line on Google in dark, Terms and Privacy notice links. The code screen showed one helper line. `/login/help#privacy` showed Privacy and terms; from You's row its Back was `/you`.
+- `/you` in both themes: Push notifications, Connected apps, AI settings, This phone, then Help; Sign out clear of the tab bar when scrolled to the end.
+- `/community` in both themes: one link per card, the ringless tab, Share a cook floating above the tab bar; its sheet listed Dal tadka and Egg fried rice (not Anu's curry), and Dal tadka opened `/dishes/dsh_1?share=1`. `/you/assistants` and `/community/search` in dark.
+- Today's frame (`cookpool-prod.localhost`) with a dark device: `/login` light, `<html class="light">`.
+
+**Follow-ups.**
+- The kitchen pages still get next-themes' `dark` class on `<html>` (the same first-paint cause); RV-19 or a later task could force light for the kitchen paths too.
+- Share a cook uses RV-13's literal `82px` tab-bar offset; switch to RV-19's `--cp-tabbar-space` when it lands.
+- Real Terms and Privacy pages, then point `termsHref` and You's row at them.
+
+**Deploy.** Only the console changes; nothing to redeploy elsewhere.

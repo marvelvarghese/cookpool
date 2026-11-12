@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { CODE_LENGTH, CODE_LIFETIME_MINUTES, liveInitials, type SignInNotice } from "./sign-in";
 import {
   CANT_SIGN_IN,
-  CODE_HINT,
   NO_EMAIL_LINE,
   googleLabel,
   type CodeBox,
@@ -244,8 +243,9 @@ export function CodeStep(p: CodeStepProps) {
         ) : null}
       </form>
       {p.notice ? <NoticeBox id={noticeId} notice={p.notice} /> : null}
-      <p className="text-[13px] text-muted-foreground" aria-live="polite">
-        {p.verifying ? "Signing you in…" : CODE_HINT}
+      {/* RV-18: one helper line on this screen (No email after a minute?, below); this one speaks only while signing in. */}
+      <p className={cn("text-[13px] font-normal text-muted-foreground", !p.verifying && "sr-only")} aria-live="polite">
+        {p.verifying ? "Signing you in…" : ""}
       </p>
 
       <div className={cn("grid gap-2", p.gmailUrl ? "grid-cols-2" : "grid-cols-1")}>
@@ -270,7 +270,7 @@ export function CodeStep(p: CodeStepProps) {
       </div>
 
       <div className="mt-auto flex flex-col items-center gap-1 pt-2 text-center">
-        <span className="text-sm text-muted-foreground">{NO_EMAIL_LINE}</span>
+        <span className="text-[13px] font-normal text-muted-foreground">{NO_EMAIL_LINE}</span>
         <Link
           href={p.helpHref}
           className="flex min-h-11 items-center rounded-lg text-[15px] font-medium text-cp-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

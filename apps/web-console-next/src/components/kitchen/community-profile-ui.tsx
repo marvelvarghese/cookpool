@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { CLOSE_44, KCard, K_BUTTON } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON, K_BUTTON_QUIET, K_SECTION, K_TITLE } from "./kit";
 import { BackButton } from "./back-ui";
 import { useProfile } from "./data";
 import { useKitchenRouter } from "./transition-ui";
@@ -68,7 +68,7 @@ export function PersonProfileScreen() {
         <ProfileSkeleton />
       ) : !handle || read.error?.code === "not_found" ? (
         <KCard className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-          <h1 className="text-lg font-medium tracking-tight">Nobody&apos;s here</h1>
+          <h1 className={K_SECTION}>Nobody&apos;s here</h1>
           <p className="text-sm text-muted-foreground">{handle ? `No profile is called ${atHandle(handle)}.` : "That isn't a handle."}</p>
           <Button asChild className={K_BUTTON}>
             <Link href={COMMUNITY_HREF}>Community</Link>
@@ -77,7 +77,7 @@ export function PersonProfileScreen() {
       ) : read.error || !read.data ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load this profile.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={read.reload}>
+          <Button variant="outline" className={K_BUTTON_QUIET} onClick={read.reload}>
             Try again
           </Button>
         </KCard>
@@ -157,10 +157,10 @@ function ProfileBody({ view, onBlocked }: { view: PersonProfileResponse; onBlock
         <CountsRow cells={profileCounts(profile.handle, view.counts, canSee)} />
       </div>
       <div className="flex flex-col gap-0.5">
-        <h1 className="text-lg font-medium">{profile.name}</h1>
-        {profile.about ? <p className="text-sm font-medium text-muted-foreground">{profile.about}</p> : null}
-        {followedBy ? <p className="text-[13px] font-medium text-muted-foreground">{followedBy}</p> : null}
-        {rel.followsYou && !rel.isYou ? <p className="text-[13px] font-medium text-muted-foreground">Follows you</p> : null}
+        <h1 className={cn(K_TITLE, "break-words")}>{profile.name}</h1>
+        {profile.about ? <p className="text-sm font-normal text-muted-foreground">{profile.about}</p> : null}
+        {followedBy ? <p className="text-[13px] font-normal text-muted-foreground">{followedBy}</p> : null}
+        {rel.followsYou && !rel.isYou ? <p className="text-[13px] font-normal text-muted-foreground">Follows you</p> : null}
       </div>
       <div className="grid grid-cols-[2fr_1fr] gap-2">
         {rel.isYou ? <FollowButtonView button={button} href={HANDLE_SETUP_HREF} /> : <FollowButtonView button={button} onClick={onFollow} />}
@@ -335,7 +335,7 @@ function ProfileMenu({
                 onOpenChange(false);
                 mute(profile, !rel.muted);
               }}
-              className={cn(item, "border border-border bg-card hover:bg-accent")}
+              className={cn(item, "bg-secondary hover:bg-accent")}
             >
               {words.mute}
             </button>
@@ -353,7 +353,7 @@ function ProfileMenu({
             >
               {words.block}
             </button>
-            <p className="text-center text-[13px] font-medium text-muted-foreground">{words.blockNote}</p>
+            <p className="text-center text-[13px] font-normal text-muted-foreground">{words.blockNote}</p>
             {/* CM-6: reports exist now. */}
             <button
               type="button"
@@ -361,7 +361,7 @@ function ProfileMenu({
                 onOpenChange(false);
                 setReport({ kind: "profile", id: profile.userId, handle: profile.handle });
               }}
-              className={cn(item, "border border-border bg-card hover:bg-accent")}
+              className={cn(item, "bg-secondary hover:bg-accent")}
             >
               Report {atHandle(profile.handle)}
             </button>
@@ -383,7 +383,7 @@ function BlockedHere({ person, onUnblocked }: { person: { userId: string; handle
       </div>
       <KCard className="flex flex-col items-center gap-2 px-6 py-10 text-center">
         <h1 className="text-lg font-medium">You blocked {atHandle(person.handle)}</h1>
-        <p className="text-sm font-medium text-muted-foreground">You won&apos;t see each other anywhere. {profileFirstName(person)} isn&apos;t told.</p>
+        <p className="text-sm font-normal text-muted-foreground">You won&apos;t see each other anywhere. {profileFirstName(person)} isn&apos;t told.</p>
         <button
           type="button"
           onClick={() => block(person, false, (stands) => stands && onUnblocked())}

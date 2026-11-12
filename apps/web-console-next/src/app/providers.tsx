@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { usePathname } from "next/navigation";
+import { isSignInPath } from "@/lib/sign-in-path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider, useSession } from "@/lib/session";
 import { ToastProvider } from "@/components/ui/toast";
@@ -62,8 +64,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // One QueryClient for the app lifetime (survives re-renders, not re-created).
   const [queryClient] = React.useState(makeQueryClient);
 
+  // Sign-in is Cookpool's, not the admin console's (cookpool-revamp RV-18):
+  // next-themes' default puts `dark` (and `color-scheme: dark`) on <html>
+  // before the first paint, so `/login` painted the admin console's dark
+  // ground around its light card until the page mounted. There the admin
+  // theme is forced light; the page's own `.cookpool` palette (and its dark
+  // mode in the new look) is unchanged.
+  const pathname = usePathname();
+  const forcedTheme = isSignInPath(pathname) ? "light" : undefined;
+
   return (
-    <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+    <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme={forcedTheme}>
       <QueryClientProvider client={queryClient}>
         <QueryClientCtx.Provider value={queryClient}>
           <SessionProvider>

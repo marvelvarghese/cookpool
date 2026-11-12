@@ -196,12 +196,14 @@ describe("the post card", () => {
     expect(cookThis(r, { ownIds: new Set(), copyId: null, saving: false })).toEqual({ kind: "copy", label: "Cook this" });
   });
 
-  it("draws the compact card (RV-6, RvCommunity): tile and title to the post, the byline to the author, the numbers, Yum and the save", () => {
+  it("draws the compact card (RV-6, RvCommunity): one link to the post (RV-18) around the tile, title, byline and numbers; Yum and the save", () => {
     const out = renderToStaticMarkup(
       React.createElement(PostCardView, { card: postCard(post({ yums: { count: 1, mine: true, names: [] } }), NOW, new Set()), meId: "usr_me", onYum: () => undefined, onMore: () => undefined, cookThis: React.createElement("span", null, "COOK") }),
     );
-    expect(out).toContain('href="/u/anucooks"');
-    expect(out).toContain('href="/p/pst_1"');
+    // RV-18: the tile and its text are one link; the author is on the post's page.
+    expect(out).not.toContain('href="/u/anucooks"');
+    expect(out.match(/<a /g)).toHaveLength(1);
+    expect(out).toMatch(/<a [^>]*href="\/p\/pst_1"[^>]*>.*Chicken curry.*Anu Mathew · 2 h.*<\/a>/);
     expect(out).toContain(">Anu Mathew · 2 h<");
     expect(out).toContain('aria-pressed="true"');
     expect(out).toContain('aria-label="Yum · 1 · Chicken curry"');

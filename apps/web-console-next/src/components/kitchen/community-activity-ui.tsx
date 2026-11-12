@@ -4,22 +4,23 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_TITLE } from "./kit";
 import { BackButton } from "./back-ui";
 import { useProfile } from "./data";
 import { peopleRows } from "./community-people";
-import { EmptyLine, GREEN_BUTTON, OUTLINE_BUTTON, PeopleList, PeopleListSkeleton, PersonRowView, SectionLabel } from "./community-views";
-import { ACTIVITY_EMPTY, ACTIVITY_PUSH_NOTE, REQUESTS_TITLE, activityGroups, markReadBefore, moreRequestsText } from "./community-activity";
+import { EmptyLine, GREEN_BUTTON, PLAIN_BUTTON, PeopleList, PeopleListSkeleton, PersonRowView, SectionLabel } from "./community-views";
+import { ACTIVITY_EMPTY, REQUESTS_TITLE, activityGroups, markReadBefore, moreRequestsText } from "./community-activity";
 import { ActivityLineView } from "./community-post-views";
 import { useActivity, useMarkActivityRead } from "./community-posts-data";
 import { useAnswerRequest } from "./community-data";
 
 /**
  * Activity (cookpool-community CM-6, the canvas's `CommunityActivity`):
- * `/community/activity`. WANTS TO FOLLOW YOU — the newest requests, each
- * with No · Accept (CM-5's writes) — then what happened, by day, each line
- * opening its post, person or recipe; More reads the next page. Opening it
- * marks everything read: the bell goes to 0 (the dots stay for this visit).
+ * `/community/activity`. Wants to follow you — the newest requests, each
+ * with a quiet No and Accept (CM-5's writes) — then what happened, by day,
+ * each line opening its post, person or recipe; More reads the next page.
+ * Opening it marks everything read: the bell goes to 0 (the dots stay for
+ * this visit). RV-18: section headings as the boards draw them, no helper line.
  */
 export function ActivityScreen() {
   const me = useProfile();
@@ -46,7 +47,7 @@ export function ActivityScreen() {
     <div className="flex w-full max-w-xl flex-col gap-3">
       <div className="-ml-2.5 flex min-h-11 items-center gap-1">
         <BackButton />
-        <h1 className="text-[24px] font-medium leading-tight tracking-[-0.02em]">Activity</h1>
+        <h1 className={K_TITLE}>Activity</h1>
       </div>
 
       {rows.length > 0 ? (
@@ -65,7 +66,7 @@ export function ActivityScreen() {
                         setAnswered((s) => new Set(s).add(row.userId));
                         answer(row, false);
                       }}
-                      className={cn("min-h-11 rounded-xl px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", OUTLINE_BUTTON)}
+                      className={cn("min-h-11 rounded-xl px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", PLAIN_BUTTON)}
                     >
                       No<span className="sr-only">, decline {row.name}</span>
                     </button>
@@ -84,7 +85,7 @@ export function ActivityScreen() {
               />
             ))}
           </PeopleList>
-          {more ? <p className="px-1 text-[13px] font-medium text-muted-foreground">{more} · on You</p> : null}
+          {more ? <p className="px-1 text-[13px] font-normal text-muted-foreground">{more} · on You</p> : null}
         </section>
       ) : null}
 
@@ -96,7 +97,7 @@ export function ActivityScreen() {
       ) : read.failed ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load Activity.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={read.reload}>
+          <Button variant="outline" className={K_BUTTON_QUIET} onClick={read.reload}>
             Try again
           </Button>
         </KCard>
@@ -115,11 +116,10 @@ export function ActivityScreen() {
         ))
       )}
       {read.hasMore ? (
-        <button type="button" onClick={read.loadMore} disabled={read.loadingMore} className="min-h-11 self-center rounded-xl px-4 text-[15px] font-medium text-primary hover:bg-accent disabled:opacity-60">
+        <button type="button" onClick={read.loadMore} disabled={read.loadingMore} className="min-h-11 self-center rounded-xl px-4 text-[15px] font-medium text-cp-accent-text hover:bg-accent disabled:opacity-60">
           {read.loadingMore ? "Loading…" : "More"}
         </button>
       ) : null}
-      <p className="px-0.5 text-[13px] font-medium text-muted-foreground">{ACTIVITY_PUSH_NOTE}</p>
     </div>
   );
 }

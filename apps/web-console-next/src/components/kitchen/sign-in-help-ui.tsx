@@ -4,19 +4,22 @@ import * as React from "react";
 import Link from "next/link";
 import { ChevronDown, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { HELP_SAFETY, HELP_SUBTITLE, HELP_TITLE, type HelpItem } from "./sign-in-screens";
+import { HELP_SAFETY, HELP_SUBTITLE, HELP_TITLE, PRIVACY_LINES, PRIVACY_TITLE, type HelpItem } from "./sign-in-screens";
+import { PRIVACY_SECTION_ID } from "./sign-in";
 import { BackBar } from "./sign-in-screens-ui";
 
 /**
  * Can't sign in? (Cookpool PK-3, `AuthHelp`): four problems that open in
- * place, one at a time, each with its tips and one way forward, and the
- * safety note. Nothing on it depends on whether an address has an account.
+ * place, one at a time, each with its tips and one way forward, the safety
+ * note, and Privacy and terms (RV-18, `#privacy`). Nothing on it depends on
+ * whether an address has an account. The cards have no border; the open one
+ * is on the tint.
  */
 
 const CTA =
   "flex min-h-[50px] items-center justify-center rounded-[14px] px-4 text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 const CTA_PRIMARY = "bg-primary text-primary-foreground hover:bg-primary/90";
-const CTA_QUIET = "border border-input bg-card text-foreground hover:bg-accent";
+const CTA_QUIET = "bg-cp-accent-tint text-cp-accent-text hover:bg-cp-accent-tint/80";
 
 export function HelpScreen({
   items,
@@ -25,6 +28,7 @@ export function HelpScreen({
   writeHref,
   onGoogle,
   googleBusy,
+  privacyWriteHref = null,
 }: {
   items: HelpItem[];
   backHref: string;
@@ -32,6 +36,8 @@ export function HelpScreen({
   writeHref: string;
   onGoogle: () => void;
   googleBusy: boolean;
+  /** "Write to us" under Privacy and terms, when the console has a contact address. */
+  privacyWriteHref?: string | null;
 }) {
   const [open, setOpen] = React.useState<HelpItem["id"] | null>(null);
   return (
@@ -52,7 +58,7 @@ export function HelpScreen({
           return (
             <div
               key={it.id}
-              className={cn("overflow-hidden rounded-[18px] bg-card", on ? "border-[1.5px] border-primary" : "border")}
+              className="overflow-hidden rounded-[18px] bg-card shadow-cp-card"
             >
               <button
                 type="button"
@@ -102,6 +108,22 @@ export function HelpScreen({
         <ShieldCheck aria-hidden strokeWidth={2} className="h-[22px] w-[22px] shrink-0 text-primary" />
         <span className="text-[13px] leading-normal text-muted-foreground">{HELP_SAFETY}</span>
       </div>
+
+      <section id={PRIVACY_SECTION_ID} aria-labelledby="privacy-title" className="flex scroll-mt-4 flex-col gap-2 pt-2">
+        <h2 id="privacy-title" className="text-[17px] font-medium leading-snug">
+          {PRIVACY_TITLE}
+        </h2>
+        <div className="flex flex-col gap-2 rounded-cp-card bg-card p-3.5 text-sm font-normal leading-[1.45] text-muted-foreground shadow-cp-card">
+          {PRIVACY_LINES.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+          {privacyWriteHref ? (
+            <a href={privacyWriteHref} className="self-start rounded font-medium text-cp-accent-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              Write to us with any question
+            </a>
+          ) : null}
+        </div>
+      </section>
     </section>
   );
 }

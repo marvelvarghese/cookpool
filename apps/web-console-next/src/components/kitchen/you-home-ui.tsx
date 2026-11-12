@@ -8,7 +8,7 @@ import { ROW_TITLE, cannotInstallLine } from "@/lib/install";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "./data";
-import { KCard, K_BUTTON, K_ROWS, K_SECTION, K_TITLE } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_ROWS, K_SECTION, K_TITLE } from "./kit";
 import { BackButton } from "./back-ui";
 import { PersonAvatar } from "./sign-in-ui";
 import { usePasskeysHere } from "./passkey-ui";
@@ -21,8 +21,8 @@ import { NAME_AND_HANDLE, SIGN_OUT, personInitials, shownName, youGroups, youSub
 /**
  * You in the new look (cookpool-revamp RV-6, the `RvYou` board), in the new
  * frame: your avatar, name and @handle; then short grouped lists — Account,
- * Sign-in and security, Cookpool AI, Notifications, and This phone's Install
- * when there is something to install — each row a label and a chevron; and
+ * Sign-in and security, Cookpool AI, Notifications, This phone's Install
+ * when there is something to install, and Help (RV-18) — each row a label and a chevron; and
  * Sign out as quiet red text. Every row opens a page the app already had.
  * Today's frame (prod) keeps `YouSettings`.
  */
@@ -40,7 +40,8 @@ export function YouHome() {
   const groups = youGroups({ passkeys: runs === true });
 
   return (
-    <div className="flex w-full max-w-xl flex-col gap-[22px] pb-4">
+    // RV-18: room under Sign out, so the floating tab bar never covers it (the board's 120 px).
+    <div className="flex w-full max-w-xl flex-col gap-[22px] pb-10">
       <header className="flex items-center gap-3.5">
         {user ? (
           <PersonAvatar initials={personInitials(user)} className="h-16 w-16 text-[26px] font-medium" />
@@ -60,16 +61,19 @@ export function YouHome() {
       {profile.error && !user ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load your name.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={profile.reload}>
+          <Button variant="outline" className={K_BUTTON_QUIET} onClick={profile.reload}>
             Try again
           </Button>
         </KCard>
       ) : null}
 
       {groups.map((g) => (
-        <YouRowGroup key={g.id} group={g} />
+        <React.Fragment key={g.id}>
+          {/* This phone sits before Help, the board's last group. */}
+          {g.id === "help" ? <InstallGroup /> : null}
+          <YouRowGroup group={g} />
+        </React.Fragment>
       ))}
-      <InstallGroup />
 
       <YouSignOut />
     </div>
@@ -165,7 +169,7 @@ export function YouNameScreen() {
       ) : (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">{profile.error?.message ?? "Couldn't load your name."}</p>
-          <Button variant="outline" className={K_BUTTON} onClick={profile.reload}>
+          <Button variant="outline" className={K_BUTTON_QUIET} onClick={profile.reload}>
             Try again
           </Button>
         </KCard>

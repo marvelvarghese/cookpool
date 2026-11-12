@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ChevronLeft, Fingerprint, KeyRound, Mail, ScanFace } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { newFrame } from "@/lib/features";
-import { CODE_LENGTH, TERMS_SENTENCE } from "./sign-in";
+import { CODE_LENGTH, TERMS_LEAD, termsHref } from "./sign-in";
+import { SEG_OFF, SEG_ON, SEG_TRACK } from "./rv-look";
 import {
   CANT_SIGN_IN,
   SIGN_IN_TABS,
@@ -45,10 +46,10 @@ export function WelcomeHero({ title, className }: { title: string; className?: s
   );
 }
 
-/** Sign in · Create account: two tabs in a track, the chosen one on the card. */
+/** Sign in · Create account: two tabs in a track, the chosen one on the card, with no ring (RV-18). */
 export function AuthTabs({ mode, onMode }: { mode: SignInTab; onMode: (mode: SignInTab) => void }) {
   return (
-    <div role="tablist" aria-label="Sign in or create account" className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
+    <div role="tablist" aria-label="Sign in or create account" className={cn("grid grid-cols-2 gap-1", SEG_TRACK)}>
       {SIGN_IN_TABS.map((t) => {
         const on = t.mode === mode;
         return (
@@ -62,7 +63,7 @@ export function AuthTabs({ mode, onMode }: { mode: SignInTab; onMode: (mode: Sig
             onClick={() => onMode(t.mode)}
             className={cn(
               "min-h-11 rounded-xl text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              on ? "bg-card text-foreground shadow-cp-card ring-1 ring-inset ring-border/60" : "text-muted-foreground hover:text-foreground",
+              on ? SEG_ON : SEG_OFF,
             )}
           >
             {t.label}
@@ -134,8 +135,15 @@ export function RememberedAccountView({
   );
 }
 
-/** "Can't sign in?" and the one helper line, the terms, at the foot of the form. */
+/**
+ * "Can't sign in?" and the one helper line, the terms, at the foot of the
+ * form. Terms and the Privacy notice are links (RV-18): there is no page of
+ * their own yet, so both open Can't sign in?'s Privacy and terms section,
+ * keeping the sign-in's `next` (`helpHref` carries it).
+ */
 export function SignInFooter({ helpHref, className }: { helpHref: string; className?: string }) {
+  const terms = termsHref(helpHref);
+  const link = "rounded font-medium text-foreground underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <div className={cn("flex flex-col items-center gap-1 text-center", className)}>
       <Link
@@ -144,7 +152,17 @@ export function SignInFooter({ helpHref, className }: { helpHref: string; classN
       >
         {CANT_SIGN_IN}
       </Link>
-      <span className="text-xs font-normal leading-[1.45] text-muted-foreground">{TERMS_SENTENCE}</span>
+      <span className="text-xs font-normal leading-[1.45] text-muted-foreground">
+        {TERMS_LEAD}
+        <Link href={terms} className={link}>
+          Terms
+        </Link>
+        {" and the "}
+        <Link href={terms} className={link}>
+          Privacy notice
+        </Link>
+        .
+      </span>
     </div>
   );
 }

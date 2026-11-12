@@ -10,7 +10,7 @@ import { isPendingId } from "@/lib/optimistic";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CLOSE_44, KCard, K_BUTTON } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON_QUIET } from "./kit";
 import { BackButton } from "./back-ui";
 import { useProfile } from "./data";
 import { useKitchenRouter } from "./transition-ui";
@@ -21,7 +21,6 @@ import {
   commentBody,
   commentRights,
   commentsHeading,
-  commentsNote,
   postCard,
   shortAgo,
   stepCompareText,
@@ -69,7 +68,7 @@ export function PostScreen() {
       ) : read.error || !read.data ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load this post.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={read.reload}>
+          <Button variant="outline" className={K_BUTTON_QUIET} onClick={read.reload}>
             Try again
           </Button>
         </KCard>
@@ -115,13 +114,13 @@ function PostBody({ post }: { post: CommunityPost }) {
             {face}
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-[15px] font-medium">{card.author.name}</span>
-              <span className="truncate text-xs font-medium text-muted-foreground">{card.author.meta}</span>
+              <span className="truncate text-[13px] font-normal text-muted-foreground">{card.author.meta}</span>
             </span>
           </Link>
         ) : (
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-[15px] font-medium">{card.author.name}</span>
-            <span className="truncate text-xs font-medium text-muted-foreground">{card.author.meta}</span>
+            <span className="truncate text-[13px] font-normal text-muted-foreground">{card.author.meta}</span>
           </span>
         )}
         <button type="button" aria-label="More" aria-haspopup="dialog" onClick={() => setMenu(post)} className={cn("-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-accent", FOCUS)}>
@@ -132,18 +131,18 @@ function PostBody({ post }: { post: CommunityPost }) {
       <h1 className="sr-only">{post.title}</h1>
       <PostHero card={card} tall />
       <StatTiles tiles={card.tiles} onGround />
-      {card.caption ? <p className="whitespace-pre-line break-words text-[15px] font-medium leading-relaxed">{card.caption}</p> : null}
+      {card.caption ? <p className="whitespace-pre-line break-words text-[15px] font-normal leading-relaxed">{card.caption}</p> : null}
 
       {compare || post.recipe ? (
-        <div className="flex items-center gap-2.5 rounded-2xl border bg-card px-3 py-2.5">
-          <span className="min-w-0 flex-1 text-sm font-medium text-muted-foreground">{compare ?? post.recipe?.name}</span>
+        <div className="flex items-center gap-2.5 rounded-2xl bg-card px-3 py-2.5 shadow-cp-card">
+          <span className="min-w-0 flex-1 text-sm font-normal text-muted-foreground">{compare ?? post.recipe?.name}</span>
           {post.recipe ? <CookThisButton recipe={post.recipe} mine={{ data: mineRecipes.data, ownIds }} /> : null}
         </div>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <YumButton big on={card.yum.on} label={card.yum.label} onClick={() => yum(post)} />
-        {names ? <span className="text-[13px] font-medium text-muted-foreground">{names}</span> : null}
+        {names ? <span className="text-[13px] font-normal text-muted-foreground">{names}</span> : null}
       </div>
 
       <Comments post={post} meId={meId} onReport={setReport} />
@@ -153,8 +152,8 @@ function PostBody({ post }: { post: CommunityPost }) {
       {myProfile ? (
         <CommentBox post={post} author={myProfile} />
       ) : (
-        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 border-t bg-card px-4 py-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px] min-[900px]:border">
-          <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center justify-center rounded-[14px] text-[15px] font-medium text-primary hover:underline">
+        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 bg-card px-4 py-3 shadow-cp-nav min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px]">
+          <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center justify-center rounded-[14px] text-[15px] font-medium text-cp-accent-text hover:underline">
             Pick a handle to comment
           </Link>
         </div>
@@ -176,7 +175,7 @@ function Comments({ post, meId, onReport }: { post: CommunityPost; meId: string 
       ) : read.failed ? (
         <EmptyLine>Couldn&apos;t load the comments.</EmptyLine>
       ) : read.items.length === 0 ? (
-        <p className="text-sm font-medium text-muted-foreground">No comments yet. Say something nice.</p>
+        <p className="text-sm font-normal text-muted-foreground">No comments yet</p>
       ) : (
         <ul className="flex flex-col gap-2.5">
           {read.items.map((c) => (
@@ -185,11 +184,10 @@ function Comments({ post, meId, onReport }: { post: CommunityPost; meId: string 
         </ul>
       )}
       {read.hasMore ? (
-        <button type="button" onClick={read.loadMore} disabled={read.loadingMore} className="min-h-11 self-start rounded-xl px-1 text-[15px] font-medium text-primary hover:underline disabled:opacity-60">
+        <button type="button" onClick={read.loadMore} disabled={read.loadingMore} className="min-h-11 self-start rounded-xl px-1 text-[15px] font-medium text-cp-accent-text hover:underline disabled:opacity-60">
           {read.loadingMore ? "Loading…" : "More comments"}
         </button>
       ) : null}
-      {read.items.length > 0 ? <p className="text-xs font-medium text-muted-foreground">{commentsNote(post)}</p> : null}
       <CommentSheet comment={open} post={post} onClose={() => setOpen(null)} onReport={onReport} />
     </section>
   );
@@ -227,14 +225,14 @@ function CommentRow({ comment, meId, now, onOpen }: { comment: PostComment; meId
           <ProfileFace userId={comment.author.userId} meId={meId} initials={profileInitials(comment.author)} />
         </span>
       </Link>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-2xl border bg-card px-3 py-2">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-2xl bg-card px-3 py-2 shadow-cp-card">
         <span className="text-[13px] font-medium">
           <Link href={profileHref(comment.author.handle)} className="hover:underline">
             {comment.mine ? "You" : comment.author.name}
           </Link>{" "}
-          <span className="font-medium text-muted-foreground">· {pending ? "sending" : shortAgo(comment.createdAt, now)}</span>
+          <span className="font-normal text-muted-foreground">· {pending ? "sending" : shortAgo(comment.createdAt, now)}</span>
         </span>
-        <span className="whitespace-pre-line break-words text-[15px] font-medium">{comment.body}</span>
+        <span className="whitespace-pre-line break-words text-[15px] font-normal">{comment.body}</span>
       </span>
       {pending ? null : (
         <button type="button" aria-label="Comment options" aria-haspopup="dialog" onClick={onOpen} className={cn("grid h-11 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-accent", FOCUS)}>
@@ -256,7 +254,7 @@ function CommentSheet({ comment, post, onClose, onReport }: { comment: PostComme
         <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-medium">Comment</SheetTitle>
         {comment && rights ? (
           <div className="flex flex-col gap-2">
-            <p className="line-clamp-3 break-words rounded-2xl bg-background px-3 py-2 text-[15px] font-medium">{comment.body}</p>
+            <p className="line-clamp-3 break-words rounded-2xl bg-background px-3 py-2 text-[15px] font-normal">{comment.body}</p>
             {rights.remove ? (
               <button
                 type="button"
@@ -276,7 +274,7 @@ function CommentSheet({ comment, post, onClose, onReport }: { comment: PostComme
                   onClose();
                   onReport({ kind: "comment", id: comment.id });
                 }}
-                className={cn(item, "border border-border bg-card hover:bg-accent")}
+                className={cn(item, "bg-secondary hover:bg-accent")}
               >
                 Report comment
               </button>
@@ -309,7 +307,7 @@ function CommentBox({ post, author }: { post: CommunityPost; author: PostComment
         e.preventDefault();
         send();
       }}
-      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 flex gap-2 border-t bg-card px-4 py-2.5 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px] min-[900px]:border"
+      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 flex gap-2 bg-card px-4 py-2.5 shadow-cp-nav min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px]"
     >
       <input
         aria-label={COMMENT_PLACEHOLDER}
@@ -318,7 +316,7 @@ function CommentBox({ post, author }: { post: CommunityPost; author: PostComment
         enterKeyHint="send"
         placeholder={COMMENT_PLACEHOLDER}
         onChange={(e) => setDraft(e.target.value)}
-        className="min-h-12 min-w-0 flex-1 rounded-[14px] border border-border bg-card px-3.5 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-12 min-w-0 flex-1 rounded-[14px] bg-secondary px-3.5 text-[15px] outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
       />
       <button type="submit" disabled={!body} className={cn("min-h-12 min-w-[72px] rounded-[14px] px-3 text-[15px] font-medium disabled:opacity-50", GREEN_BUTTON, FOCUS)}>
         Send
