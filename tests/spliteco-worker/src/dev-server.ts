@@ -99,6 +99,19 @@ const RECEIPT_STUB = {
 };
 
 const tokens = new Map<string, string>(PEOPLE.map((p) => [`dev_${p.id}`, p.id]));
+
+/** SE5: assistants "connected" to the dev account, as identity lists delegations. Nothing here is a real token. */
+const DELEGATIONS = [
+  { id: `dlg_${"c1".repeat(16)}`, clientName: "Claude", scopes: ["kitchen.read", "money.read", "money.write"], grantedScopes: ["kitchen.read", "money.read", "money.write"] },
+  { id: `dlg_${"c2".repeat(16)}`, clientName: "ChatGPT", scopes: ["money.read"], grantedScopes: ["money.read"] },
+].map((d, i) => ({
+  ...d,
+  clientId: `cli_dev_${i}`,
+  createdAt: new Date(Date.now() - (i + 2) * 86_400_000).toISOString(),
+  expiresAt: new Date(Date.now() + 80 * 86_400_000).toISOString(),
+  lastUsedAt: new Date(Date.now() - (i === 0 ? 2 : 72) * 3_600_000).toISOString(),
+  revoked: false,
+}));
 const challenges = new Map<string, string>();
 
 async function read(req: IncomingMessage): Promise<string> {
@@ -146,6 +159,23 @@ async function handle(method: string, url: URL, headers: Headers, body: string):
       h.profile(p.id, { displayName: p.name, email: p.email });
     }
     return ok({ user: userBody(actor) });
+  }
+  // SE5: the person's connected assistants (identity's delegations), made up.
+  if (path === "/v1/auth/delegations" && method === "GET") return ok({ delegations: DELEGATIONS.filter((d) => !d.revoked) });
+  const delegation = path.match(/^\/v1\/auth\/delegations\/(dlg_[0-9a-f]{32})$/);
+  if (delegation) {
+    const d = DELEGATIONS.find((x) => x.id === delegation[1] && !x.revoked);
+    if (!d) return fail(404, "not_found", "Delegation not found");
+    if (method === "DELETE") {
+      d.revoked = true;
+      return ok({ id: d.id, revokedAt: new Date().toISOString() });
+    }
+    if (method === "PATCH") {
+      const { scopes } = JSON.parse(body || "{}") as { scopes?: string[] };
+      if (!Array.isArray(scopes) || scopes.length === 0 || scopes.some((x) => !d.grantedScopes.includes(x))) return fail(422, "validation_failed", "Only what was allowed at connect");
+      d.scopes = scopes;
+      return ok({ delegation: d });
+    }
   }
   const joinCode = path.match(/^\/v1\/organizations\/org_([0-9a-f]{32})\/join-code$/);
   if (joinCode && method === "GET") {

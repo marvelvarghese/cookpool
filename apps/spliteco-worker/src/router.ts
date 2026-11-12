@@ -3,6 +3,9 @@ import { resolveActor } from "./authz.js";
 import type { RequestContext, SplitecoDeps } from "./context.js";
 import type { Env } from "./env.js";
 import { handleGroupActivity, handleMyActivity } from "./handlers/activity.js";
+import { handleCreateDraft, handleSaveDraft } from "./handlers/drafts.js";
+import { handleSearch } from "./handlers/search.js";
+import { delegatedRefusal } from "./delegated.js";
 import { handleAddComment, handleExpense } from "./handlers/expense.js";
 import {
   handleCreateExpense,
@@ -40,6 +43,14 @@ const ROUTES: Route[] = [
   { name: "spliteco.me.home", pattern: new RegExp(`${P}/me/home$`), methods: { GET: (ctx) => handleHome(ctx) } },
   { name: "spliteco.me.groups", pattern: new RegExp(`${P}/me/groups$`), methods: { GET: (ctx) => handleGroups(ctx) } },
   { name: "spliteco.me.activity", pattern: new RegExp(`${P}/me/activity$`), methods: { GET: (ctx) => handleMyActivity(ctx) } },
+  // SE5: search, and an assistant's drafts.
+  { name: "spliteco.me.search", pattern: new RegExp(`${P}/me/search$`), methods: { GET: (ctx, _r, _p, url) => handleSearch(ctx, url) } },
+  { name: "spliteco.drafts", pattern: new RegExp(`${P}/drafts$`), methods: { POST: (ctx, r) => handleCreateDraft(ctx, r) } },
+  {
+    name: "spliteco.draft.save",
+    pattern: new RegExp(`${P}/drafts/${ID}/save$`),
+    methods: { POST: (ctx, r, [drf]) => handleSaveDraft(ctx, r, drf!) },
+  },
   {
     name: "spliteco.me.friend.direct",
     pattern: new RegExp(`${P}/me/friends/${ID}/direct$`),
@@ -186,6 +197,9 @@ export async function route(request: Request, env: Env, deps: SplitecoDeps = {})
       if (!handler) return methodNotAllowed(requestId);
       const actor = resolveActor(request);
       if (!actor) return unauthenticated(requestId);
+      // SE-6: an assistant reaches only what its scopes allow here, whatever api-edge let through.
+      const refused = delegatedRefusal(actor, `${r.name}.${request.method.toLowerCase()}`, requestId);
+      if (refused) return refused;
       const ctx: RequestContext = {
         env,
         requestId,

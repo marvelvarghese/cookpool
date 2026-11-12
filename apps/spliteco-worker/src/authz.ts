@@ -1,5 +1,10 @@
 import type { SplitecoAction } from "@saas/contracts/spliteco";
-import { ACTOR_DELEGATION_ID_HEADER } from "@saas/contracts/delegations";
+import {
+  ACTOR_DELEGATION_CLIENT_HEADER,
+  ACTOR_DELEGATION_ID_HEADER,
+  ACTOR_SCOPES_HEADER,
+  DELEGATION_CLIENT_NAME_MAX,
+} from "@saas/contracts/delegations";
 import type { Uuid } from "@saas/db/ids";
 import type { ActorContext, RequestContext } from "./context.js";
 import { notFound, unavailable } from "./http.js";
@@ -11,7 +16,23 @@ export function resolveActor(request: Request): ActorContext | null {
   const subjectId = request.headers.get("x-actor-subject-id");
   const subjectType = request.headers.get("x-actor-subject-type");
   if (!subjectId || !subjectType) return null;
-  return { subjectId, subjectType, delegationId: request.headers.get(ACTOR_DELEGATION_ID_HEADER) };
+  const delegationId = request.headers.get(ACTOR_DELEGATION_ID_HEADER) || null;
+  if (!delegationId) return { subjectId, subjectType, delegationId: null, scopes: [], clientName: null };
+  const scopes = (request.headers.get(ACTOR_SCOPES_HEADER) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return { subjectId, subjectType, delegationId, scopes, clientName: clientNameOf(request.headers.get(ACTOR_DELEGATION_CLIENT_HEADER)) };
+}
+
+/** The assistant's name from its header (URI-encoded by api-edge): trimmed, printable, at most 80; null when unusable. */
+export function clientNameOf(raw: string | null): string | null {
+  if (!raw) return null;
+  let name: string;
+  try {
+    name = decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+  name = name.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim();
+  return name ? Array.from(name).slice(0, DELEGATION_CLIENT_NAME_MAX).join("") : null;
 }
 
 /**
