@@ -5,10 +5,12 @@ import {
   OFFER_SNOOZE_MS,
   PASSKEY_BUTTON,
   PASSKEY_FAILED_NOTICE,
+  PASSKEY_REFUSED_NOTICE,
   PASSKEY_UNREACHABLE_NOTICE,
   REMOVE_HOLD_MS,
   addPasskey,
   canAddPasskey,
+  createOptionsPrefetch,
   holdRemoval,
   isCeremonyCancel,
   lastUsedText,
@@ -295,19 +297,32 @@ const session = {
 };
 const passkey: Passkey = { id: "pky_0123456789abcdef", deviceName: "iPhone", createdAt: "2026-11-12T00:00:00Z", lastUsedAt: null, backedUp: true };
 
-describe("signing in with a passkey", () => {
-  const deps = () => ({
-    loginOptions: fn(async () => ok({ options: { challenge: "c1", rpId: "stage.cookpool.store" } })),
-    authenticate: fn(async () => assertion),
-    loginVerify: fn(async () => ok(session) as ApiResult<typeof session>),
-  });
+/** A prefetch over a fake options call, already filled (the screen showed). */
+async function ready<T>(fetchOptions: () => Promise<ApiResult<{ options: T }>>) {
+  const p = createOptionsPrefetch(fetchOptions);
+  await p.refresh();
+  return p;
+}
 
-  it("asks for options, opens the sheet with them, and verifies what it returns", async () => {
-    const d = deps();
+describe("signing in with a passkey", () => {
+  const deps = async () => {
+    const loginOptions = fn(async () => ok({ options: { challenge: "c1", rpId: "stage.cookpool.store" } }));
+    return {
+      loginOptions,
+      options: await ready(loginOptions),
+      authenticate: fn(async () => assertion),
+      loginVerify: fn(async () => ok(session) as ApiResult<typeof session>),
+    };
+  };
+
+  it("opens the sheet with the options fetched ahead, and verifies what it returns", async () => {
+    const d = await deps();
     const out = await signInWithPasskey(d as never);
     expect(out).toEqual({ kind: "signed_in", session });
     expect(d.authenticate.calls).toEqual([[{ challenge: "c1", rpId: "stage.cookpool.store" }]]);
     expect(d.loginVerify.calls).toEqual([[assertion]]);
+    // Signed in: the page leaves, so no new challenge is fetched.
+    expect(d.loginOptions.calls).toHaveLength(1);
   });
 
   it("leaves the screen as it was when the sheet is closed", async () => {
@@ -317,7 +332,7 @@ describe("signing in with a passkey", () => {
       named("WebAuthnError", { code: "ERROR_CEREMONY_ABORTED" }),
       named("NotAllowedError", { code: "ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY", cause: named("NotAllowedError") }),
     ]) {
-      const d = deps();
+      const d = await deps();
       d.authenticate.rejectOnce(cancel);
       expect(await signInWithPasskey(d as never)).toEqual({ kind: "cancelled" });
       expect(d.loginVerify.calls).toHaveLength(0);
@@ -325,65 +340,80 @@ describe("signing in with a passkey", () => {
     expect(isCeremonyCancel(named("SecurityError"))).toBe(false);
   });
 
-  it("says the passkey didn't work when the server refuses it, and nothing about why", async () => {
-    const d = deps();
+  it("says the passkey didn't work when the server refuses it, nothing about why, and how to add it again", async () => {
+    const d = await deps();
     d.loginVerify.resolveOnce(err(401, "unauthenticated", "passkey_failed"));
-    expect(await signInWithPasskey(d as never)).toEqual({ kind: "failed", notice: PASSKEY_FAILED_NOTICE });
-    expect(PASSKEY_FAILED_NOTICE).toBe("That passkey didn't work. Try again, or use Google or an email code.");
-    const broken = deps();
+    expect(await signInWithPasskey(d as never)).toEqual({ kind: "failed", notice: PASSKEY_REFUSED_NOTICE });
+    expect(PASSKEY_REFUSED_NOTICE).toBe(
+      "That passkey didn't work. Try again, or use Google or an email code. If you turned on Face ID before today, open Sign-in and security after signing in and add it again.",
+    );
+    const broken = await deps();
     broken.authenticate.rejectOnce(named("SecurityError"));
     expect(await signInWithPasskey(broken as never)).toEqual({ kind: "failed", notice: PASSKEY_FAILED_NOTICE });
+    expect(PASSKEY_FAILED_NOTICE).toBe("That passkey didn't work. Try again, or use Google or an email code.");
   });
 
   it("says it couldn't reach us when the options or the network fail", async () => {
-    const d = deps();
+    const d = await deps();
     d.loginOptions.resolveOnce(err(0, "network_error") as never);
-    expect(await signInWithPasskey(d as never)).toEqual({ kind: "failed", notice: PASSKEY_UNREACHABLE_NOTICE });
+    const empty = createOptionsPrefetch(d.loginOptions);
+    expect(await signInWithPasskey({ ...d, options: empty } as never)).toEqual({ kind: "failed", notice: PASSKEY_UNREACHABLE_NOTICE });
     expect(d.authenticate.calls).toHaveLength(0);
-    const limited = deps();
+    const limited = await deps();
     limited.loginVerify.resolveOnce(err(429, "rate_limited"));
     expect(await signInWithPasskey(limited as never)).toEqual({ kind: "failed", notice: PASSKEY_UNREACHABLE_NOTICE });
   });
 });
 
 describe("adding a passkey on this device", () => {
-  const deps = () => ({
-    registerOptions: fn(async () => ok({ options: { challenge: "c2" } })),
-    register: fn(async () => attestation),
-    registerVerify: fn(async () => ok({ passkey }) as ApiResult<{ passkey: Passkey }>),
-    deviceName: "iPhone" as string | undefined,
-  });
+  const deps = async () => {
+    const registerOptions = fn(async () => ok({ options: { challenge: "c2" } }));
+    return {
+      registerOptions,
+      options: await ready(registerOptions),
+      register: fn(async () => attestation),
+      registerVerify: fn(async () => ok({ passkey }) as ApiResult<{ passkey: Passkey }>),
+      deviceName: "iPhone" as string | undefined,
+    };
+  };
 
   it("registers and verifies with the device's name", async () => {
-    const d = deps();
+    const d = await deps();
     expect(await addPasskey(d as never)).toEqual({ kind: "added", passkey });
     expect(d.register.calls).toEqual([[{ challenge: "c2" }]]);
     expect(d.registerVerify.calls).toEqual([[{ response: attestation, deviceName: "iPhone" }]]);
-    const unnamed = { ...deps(), deviceName: undefined };
+    const unnamed = { ...(await deps()), deviceName: undefined };
     await addPasskey(unnamed as never);
     expect(unnamed.registerVerify.calls).toEqual([[{ response: attestation }]]);
   });
 
   it("stops at the limit of 10, at options or at verify", async () => {
-    const d = deps();
+    const d = await deps();
     d.registerOptions.resolveOnce(err(409, "conflict", "too_many_passkeys") as never);
-    expect(await addPasskey(d as never)).toEqual({ kind: "limit" });
+    expect(await addPasskey({ ...d, options: createOptionsPrefetch(d.registerOptions) } as never)).toEqual({ kind: "limit" });
     expect(d.register.calls).toHaveLength(0);
-    const late = deps();
+    const late = await deps();
     late.registerVerify.resolveOnce(err(409, "conflict", "too_many_passkeys"));
     expect(await addPasskey(late as never)).toEqual({ kind: "limit" });
   });
 
-  it("tells a closed sheet, a device that already has one, and a failure apart", async () => {
-    const cancel = deps();
+  it("tells a closed sheet, a device that already has one, and a failure apart, naming the failure", async () => {
+    const cancel = await deps();
     cancel.register.rejectOnce(named("NotAllowedError"));
     expect(await addPasskey(cancel as never)).toEqual({ kind: "cancelled" });
     expect(cancel.registerVerify.calls).toHaveLength(0);
-    const already = deps();
+    const already = await deps();
     already.register.rejectOnce(named("InvalidStateError", { code: "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED" }));
     expect(await addPasskey(already as never)).toEqual({ kind: "already" });
-    const failed = deps();
-    failed.registerVerify.resolveOnce(err(422, "precondition_failed", "passkey_failed"));
-    expect(await addPasskey(failed as never)).toEqual({ kind: "failed" });
+    const failed = await deps();
+    failed.registerVerify.resolveOnce({
+      ok: false,
+      status: 422,
+      error: { code: "precondition_failed", message: "x", reason: "passkey_failed", details: { reason: "passkey_failed", step: "not_verified" } },
+    });
+    expect(await addPasskey(failed as never)).toEqual({ kind: "failed", detail: "not_verified · 422" });
+    const browser = await deps();
+    browser.register.rejectOnce(named("WebAuthnError", { code: "ERROR_INVALID_DOMAIN", cause: named("SecurityError") }));
+    expect(await addPasskey(browser as never)).toEqual({ kind: "failed", detail: "SecurityError" });
   });
 });

@@ -17,8 +17,6 @@ import { useProfile } from "./data";
 import { GoogleMark, NoticeBox } from "./sign-in-ui";
 import { offersGoogle } from "./sign-in";
 import {
-  PASSKEY_ADD_FAILED_NOTICE,
-  PASSKEY_LIMIT_NOTICE,
   PASSKEY_REMOVED,
   PASSKEY_REMOVE_FAILED_NOTICE,
   canAddPasskey,
@@ -27,19 +25,29 @@ import {
   passkeyMeta,
   type HeldRemoval,
 } from "./passkeys";
-import { SECURITY_TITLE, addPasskeyHere, usePasskeysHere } from "./passkey-ui";
+import {
+  AddNoticeView,
+  SECURITY_TITLE,
+  addNotice,
+  addPasskeyHere,
+  usePasskeysHere,
+  useRegisterOptions,
+  type AddNotice,
+} from "./passkey-ui";
 
 /**
  * You → Sign-in and security (Cookpool PK-4, `PasskeyManage`), in every
  * frame: your passkeys by device name and last use, each with Remove (held
  * 5 s for Undo, then the DELETE); Add a passkey on this device; and the other
- * ways in, Google and the email code (always on). Where passkeys do not run
+ * ways in, Google and the email code (always on). Add's register options are
+ * fetched when the button shows (PK-6: iPhone Safari opens the sheet only
+ * from the tap), and a failure stays on screen with Try again and the
+ * browser's or the server's reason under it. Where passkeys do not run
  * the passkey part is not shown (You has no row here then; an address typed
  * in shows only the other ways in). No "Sign out everywhere" (out of scope).
  */
 
 const LABEL = "px-0.5 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground";
-const ALREADY_NOTICE = "This device already has a passkey for you.";
 
 interface Pending {
   passkey: Passkey;
@@ -73,12 +81,15 @@ function PasskeysSection() {
   pendingRef.current = pending;
   const [adding, setAdding] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(null);
+  const [addResult, setAddResult] = React.useState<AddNotice | null>(null);
 
   // Leaving the page sends a held removal at once rather than dropping it.
   React.useEffect(() => () => pendingRef.current?.held.flush(), []);
 
   const all = list.data?.passkeys ?? [];
   const shown = pending ? all.filter((p) => p.id !== pending.passkey.id) : all;
+  const addShown = Boolean(list.data) && canAddPasskey(shown.length);
+  const registerOptions = useRegisterOptions(client, addShown);
 
   const remove = (passkey: Passkey) => {
     setNotice(null);
@@ -107,19 +118,21 @@ function PasskeysSection() {
     if (pending?.held.undo()) setPending(null);
   };
 
-  const add = async () => {
+  // Straight from the tap: no await before the sheet opens.
+  const add = () => {
     if (adding) return;
     setNotice(null);
     setAdding(true);
-    const out = await addPasskeyHere(client, device);
-    setAdding(false);
-    if (out.kind === "added") {
-      qc.setQueryData<PasskeysListResponse>(qk.passkeys(), (old) => ({
-        passkeys: [out.passkey, ...(old?.passkeys ?? []).filter((p) => p.id !== out.passkey.id)],
-      }));
-    } else if (out.kind === "limit") setNotice(PASSKEY_LIMIT_NOTICE);
-    else if (out.kind === "already") setNotice(ALREADY_NOTICE);
-    else if (out.kind === "failed") setNotice(PASSKEY_ADD_FAILED_NOTICE);
+    void addPasskeyHere(client, device, registerOptions).then((out) => {
+      setAdding(false);
+      // A closed sheet clears the notice and says nothing.
+      setAddResult(addNotice(out, device));
+      if (out.kind === "added") {
+        qc.setQueryData<PasskeysListResponse>(qk.passkeys(), (old) => ({
+          passkeys: [out.passkey, ...(old?.passkeys ?? []).filter((p) => p.id !== out.passkey.id)],
+        }));
+      }
+    });
   };
 
   return (
@@ -166,18 +179,19 @@ function PasskeysSection() {
           ))}
         </ul>
       )}
-      {list.data && canAddPasskey(shown.length) ? (
+      {addShown ? (
         <Button
           type="button"
           variant="outline"
           loading={adding}
-          onClick={() => void add()}
+          onClick={add}
           className="h-[52px] gap-2 rounded-2xl border-[#C9CFC6] bg-card text-[15px] font-extrabold text-primary hover:bg-accent"
         >
           {adding ? null : <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />}
-          Add a passkey on this device
+          {addResult?.retry ? "Try again" : "Add a passkey on this device"}
         </Button>
       ) : null}
+      {addResult ? <AddNoticeView notice={addResult} /> : null}
       {notice ? <NoticeBox notice={{ tone: "error", text: notice }} /> : null}
       {pending ? (
         <div role="status" className="flex items-center gap-2.5 rounded-[14px] bg-[#17201B] py-1.5 pl-3.5 pr-1.5 text-sm font-bold text-white">

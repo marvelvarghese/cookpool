@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: PK-6
+  title: "Passkey fixes from the first phone test"
+spec:
+  goal: "A passkey made in iPhone Safari is stored and signs in: registration no longer refuses on the credProps hint, every failed registration is recorded and shown, never skipped silently."
+  affects:
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-passkeys/**
+    - tasks/PK-6.TaskContract.yaml
+  doneWhen:
+    - "register verify no longer refuses a response whose credProps reports rk false; a test pins it"
+    - "every refused registration writes a passkey.add.failed security event naming the step that failed, never the credential"
+    - "Turn on Face ID and Add a passkey show the failure and offer Try again, instead of moving on silently"
+  gates: []

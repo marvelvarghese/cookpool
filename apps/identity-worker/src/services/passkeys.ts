@@ -5,8 +5,10 @@
 // checked for its challenge (one-time, 5 minutes, kept in D1), its origin (an
 // exact list), the RP ID hash and user verification; a sign-in also for its
 // sign count. A failed sign-in says nothing about why: 401, reason
-// passkey_failed. Credential ids and public keys are never logged or put in
-// a security event.
+// passkey_failed. A refused registration (PK-6) writes `passkey.add.failed`
+// with the step as its outcome, and its 422 carries `details.step`: it takes
+// a session, so saying why is safe. Credential ids and public keys are never
+// logged or put in a security event.
 
 import {
   generateAuthenticationOptions,
@@ -23,7 +25,9 @@ import {
   PASSKEY_ERROR_REASONS,
   PASSKEY_ID_RE,
   PASSKEY_MAX_PER_USER,
+  PASSKEY_REGISTER_STEPS,
   type PasskeyCreationOptionsJSON,
+  type PasskeyRegisterStep,
   type PasskeyLoginOptionsResponse,
   type PasskeyRegisterOptionsResponse,
   type PasskeyRegisterVerifyResponse,
@@ -65,12 +69,12 @@ const loginFailed: ServiceFailure = {
   details: { reason: PASSKEY_ERROR_REASONS.PASSKEY_FAILED },
 };
 
-const registerFailed: ServiceFailure = {
+const registerFailed = (step: PasskeyRegisterStep): ServiceFailure => ({
   status: 422,
   code: "precondition_failed",
   message: "The passkey could not be verified",
-  details: { reason: PASSKEY_ERROR_REASONS.PASSKEY_FAILED },
-};
+  details: { reason: PASSKEY_ERROR_REASONS.PASSKEY_FAILED, step },
+});
 
 const tooMany: ServiceFailure = {
   status: 409,
@@ -125,13 +129,23 @@ export function createPasskeyService(deps: PasskeyServiceDeps) {
     return loginFailed;
   }
 
+  /** A registration that was refused: recorded with the step, then answered. Never the credential. */
+  async function refuseRegister(
+    step: PasskeyRegisterStep,
+    who: { userId: string; sessionId: string },
+    failure: ServiceFailure,
+  ): Promise<ServiceFailure> {
+    await event("passkey.add.failed", step, who.userId, who.sessionId, { step });
+    return failure;
+  }
+
   return {
     async registerOptions(token: string | null): Promise<PasskeyRegisterOptionsResponse | ServiceFailure> {
       const who = await requireSessionUser(repo, token, now(), REFUSED_MESSAGE);
       if ("status" in who) return who;
       const existing = await passkeys.listForUser(who.userId);
       if (!existing.ok) return internal("Failed to read passkeys");
-      if (existing.value.length >= PASSKEY_MAX_PER_USER) return tooMany;
+      if (existing.value.length >= PASSKEY_MAX_PER_USER) return refuseRegister(PASSKEY_REGISTER_STEPS.TOO_MANY, who, tooMany);
 
       const options = await generateRegistrationOptions({
         rpName: config.rpName,
@@ -167,27 +181,30 @@ export function createPasskeyService(deps: PasskeyServiceDeps) {
 
       // One-time: the challenge is spent whether or not what follows verifies.
       const used = await passkeys.consumeChallenge(ceremony.challenge, "register", who.userId, now());
-      if (!used.ok) return registerFailed;
+      const { INVALID_CHALLENGE, NOT_VERIFIED, NOT_USER_VERIFIED } = PASSKEY_REGISTER_STEPS;
+      if (!used.ok) return refuseRegister(INVALID_CHALLENGE, who, registerFailed(INVALID_CHALLENGE));
 
       const response = b.response as RegistrationResponseJSON;
       let info;
       try {
+        // User verification is required, and checked just below so the refusal
+        // can name its own step; the library still checks user presence.
         const verified = await verifyRegistrationResponse({
           response,
           expectedChallenge: ceremony.challenge,
           expectedOrigin: config.origins,
           expectedRPID: config.rpId,
-          requireUserVerification: true,
+          requireUserVerification: false,
         });
-        if (!verified.verified) return registerFailed;
+        if (!verified.verified) return refuseRegister(NOT_VERIFIED, who, registerFailed(NOT_VERIFIED));
         info = verified.registrationInfo;
       } catch {
-        return registerFailed;
+        return refuseRegister(NOT_VERIFIED, who, registerFailed(NOT_VERIFIED));
       }
-      if (!info.userVerified) return registerFailed;
-      // A passkey lives on the device. When the browser says this one does not, refuse it.
-      const credProps = (response.clientExtensionResults as { credProps?: { rk?: unknown } } | undefined)?.credProps;
-      if (credProps?.rk === false) return registerFailed;
+      if (!info.userVerified) return refuseRegister(NOT_USER_VERIFIED, who, registerFailed(NOT_USER_VERIFIED));
+      // credProps.rk is a hint, not a check (PK-6): iPhone Safari can report it
+      // false for a passkey it has just saved, and by now the device holds it.
+      // residentKey: required in the options is what asks for a passkey.
 
       const transports = cleanTransports(info.credential.transports ?? response.response.transports);
       const created = await passkeys.create({
@@ -204,9 +221,12 @@ export function createPasskeyService(deps: PasskeyServiceDeps) {
         limit: PASSKEY_MAX_PER_USER,
       });
       if (!created.ok) {
-        if (created.error.kind === "conflict" && created.error.entity === "passkey_limit") return tooMany;
-        if (created.error.kind === "conflict") return { status: 409, code: "conflict", message: "This passkey is already added" };
-        return internal("Failed to store passkey");
+        const { TOO_MANY, DUPLICATE, STORE_FAILED } = PASSKEY_REGISTER_STEPS;
+        if (created.error.kind === "conflict" && created.error.entity === "passkey_limit") return refuseRegister(TOO_MANY, who, tooMany);
+        if (created.error.kind === "conflict") {
+          return refuseRegister(DUPLICATE, who, { status: 409, code: "conflict", message: "This passkey is already added" });
+        }
+        return refuseRegister(STORE_FAILED, who, internal("Failed to store passkey"));
       }
 
       const passkey = created.value;

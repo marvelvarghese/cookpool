@@ -19,7 +19,7 @@ import {
 } from "./sign-in-screens";
 import { GoogleButton, NoticeBox, OrDivider, PersonAvatar, SIGN_IN_INPUT, SIGN_IN_PRIMARY, SIGN_IN_PRIMARY_IDLE } from "./sign-in-ui";
 import { AuthTabs, BackBar, CodeBoxesField, MailTile, RememberedAccountView, SignInFooter } from "./sign-in-screens-ui";
-import { PASSKEY_SIGN_IN_HELPER } from "./passkeys";
+import { PASSKEY_SIGN_IN_HELPER, PASSKEY_TAP_AGAIN_NOTICE } from "./passkeys";
 import { PasskeySignInButton } from "./passkey-ui";
 
 /**
@@ -78,13 +78,13 @@ export function StartStep(p: StartStepProps) {
         {showRemembered && p.remembered ? (
           <>
             <RememberedAccountView card={p.remembered} onContinue={p.onContinue} onForget={p.onForget} busy={p.continuing} />
-            {p.passkeyNotice ? <NoticeBox notice={{ tone: "error", text: p.passkeyNotice }} /> : null}
+            {p.passkeyNotice ? <NoticeBox notice={{ tone: p.passkeyNotice === PASSKEY_TAP_AGAIN_NOTICE ? "info" : "error", text: p.passkeyNotice }} /> : null}
             {p.notice ? <NoticeBox id={noticeId} notice={p.notice} /> : null}
           </>
         ) : (
           <>
             {withPasskey && p.passkey ? <PasskeySignInButton onClick={p.passkey.onClick} busy={p.passkey.busy} /> : null}
-            {withPasskey && p.passkeyNotice ? <NoticeBox notice={{ tone: "error", text: p.passkeyNotice }} /> : null}
+            {withPasskey && p.passkeyNotice ? <NoticeBox notice={{ tone: p.passkeyNotice === PASSKEY_TAP_AGAIN_NOTICE ? "info" : "error", text: p.passkeyNotice }} /> : null}
             {p.withGoogle ? <GoogleButton onClick={p.onGoogle} busy={p.googleBusy} label={googleLabel(p.mode)} /> : null}
             {p.withGoogle || withPasskey ? <OrDivider label="or with email" /> : null}
             <form
