@@ -157,7 +157,7 @@ export function PullToRefresh({
         className="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-14 items-center justify-center opacity-0"
       >
         {state === "offline" ? (
-          <span className="rounded-full bg-[#3F4842] px-3.5 py-2 text-[13px] font-bold leading-tight text-white">{OFFLINE_BANNER_TEXT}</span>
+          <span className="rounded-full bg-foreground px-3.5 py-2 text-[13px] font-medium leading-tight text-background">{OFFLINE_BANNER_TEXT}</span>
         ) : (
           <span aria-hidden className="grid h-10 w-10 place-items-center rounded-full border bg-card shadow-sm">
             <RotateCw ref={spinner} className={cn("h-5 w-5 text-primary", state === "refreshing" && "animate-spin")} strokeWidth={2.4} />

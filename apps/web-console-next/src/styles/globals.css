@@ -123,11 +123,16 @@
     --cp-owe: 17.5 88.3% 40.4%; /* #C2410C money you owe */
     --cp-owe-tint: 26.2 88.9% 92.9%; /* #FDEBDD */
     --cp-soon: 39.1 100% 27.1%; /* #8A5A00 use soon */
-    --cp-soon-tint: 41.5 90.7% 91.6%; /* #FDF1D6 */
+    --cp-soon-tint: 42.4 100% 92%; /* #FFF3D6 (RV-23) */
     --cp-expired: 4.2 76.5% 40%; /* #B42318 */
     --cp-expired-tint: 0 81% 95.9%; /* #FDECEC */
+    /* The expired part of a stock bar (RV-23; RV-24's Kitchen): `hsl(var(--cp-expired-bar))`. */
+    --cp-expired-bar: 6.4 62.3% 79.2%; /* #EBB0A9 */
+    /* An amount box's edge (RV-23, the boards' `box`): `hsl(var(--cp-box))`. */
+    --cp-box: 37.5 22.9% 86.3%; /* #E4DED4, the border */
     /* Faces (RV-19): white initials on each, 4.8:1 or more; yours is the accent. */
     --cp-face-me: 151.2 69.4% 28.2%; /* #167A4A the accent */
+    --cp-face-me-ink: 0 0% 100%; /* the initials on your face: white, black in dark */
     --cp-face-1: 255.6 44.3% 52.2%; /* #6B4FBB */
     --cp-face-2: 342.9 53.8% 45.9%; /* #B4365A */
     --cp-face-3: 175.3 77.4% 26.1%; /* #0F766E */
@@ -199,10 +204,13 @@
       --cp-owe: 327.4 87.1% 81.8%; /* #F9A8D4 pink */
       --cp-owe-tint: 315.6 30.3% 17.5%; /* #3A1F33 */
       --cp-soon: 45.9 96.7% 64.5%; /* #FCD34D */
-      --cp-soon-tint: 44.6 52.2% 13.1%; /* #332A10 */
+      --cp-soon-tint: 45.4 80.4% 10%; /* #2E2405 (RV-23) */
       --cp-expired: 0 93.5% 81.8%; /* #FCA5A5 */
       --cp-expired-tint: 0 38.1% 16.5%; /* #3A1A1A */
-      --cp-face-me: 142.4 71.8% 29.2%; /* #15803D, white 5:1 */
+      --cp-expired-bar: 0 50.3% 33.1%; /* #7F2A2A */
+      --cp-box: 0 0% 14.9%; /* #262626 */
+      --cp-face-me: 142.1 70.6% 45.3%; /* #22C55E the accent, black initials (RV-23) */
+      --cp-face-me-ink: 0 0% 0%;
       --cp-purple: 252.5 94.7% 85.1%; /* #C4B5FD */
       --cp-purple-tint: 254 32.6% 18%; /* #261F3D */
       --cp-teal: 170.6 76.9% 64.3%; /* #5EEAD4 */
@@ -211,6 +219,15 @@
       --cp-slate-tint: 216.7 23.1% 15.3%; /* #1E2530 */
       --cp-shadow-card: none;
     }
+  }
+
+  /*
+   * Your face's initials (RV-23): every face paints its colour inline from
+   * `faces.ts` (`hsl(var(--cp-face-me))` for yours), with white words; yours
+   * takes `--cp-face-me-ink`, black on the dark mode's bright green.
+   */
+  .cookpool [style*="var(--cp-face-me)"] {
+    color: hsl(var(--cp-face-me-ink));
   }
 
   /*

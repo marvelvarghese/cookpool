@@ -56,6 +56,7 @@ export function ActivityFeed({
   limit,
   variant = "card",
   expanded: expandedProp,
+  onHasMore,
 }: {
   orgId: string;
   /** Unused since SM-11 (the empty feed no longer repeats the page's Add a bill). */
@@ -74,6 +75,8 @@ export function ActivityFeed({
   variant?: "card" | "line";
   /** Controlled "See all" (the group page's heading holds it); the feed's own button when left out. */
   expanded?: boolean;
+  /** Told whether there is more than `limit` to see, so a heading's See all shows only then (RV-23). */
+  onHasMore?: (more: boolean) => void;
 }) {
   const { client } = useSession();
   const qc = useQueryClient();
@@ -98,6 +101,8 @@ export function ActivityFeed({
   const focusTxn = useSearchParams()?.get("txn") ?? null;
   const all = !limit || expanded || focusTxn !== null;
   const shown = all ? txns : txns.slice(0, limit);
+  const hasMore = limit !== undefined && (txns.length > limit || (feed.hasNextPage ?? false));
+  React.useEffect(() => onHasMore?.(hasMore), [onHasMore, hasMore]);
   const focusListed = focusTxn !== null && txns.some((t) => t.id === focusTxn);
   const pagesRead = feed.data?.pages.length ?? 0;
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = feed;
@@ -149,7 +154,7 @@ export function ActivityFeed({
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load the activity. {feed.error?.message}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={() => void feed.refetch()}>
+        <Button variant="ghost" className={cn(K_BUTTON, K_QUIET)} onClick={() => void feed.refetch()}>
           Try again
         </Button>
       </KCard>
@@ -292,7 +297,7 @@ function ActivityItem({ row, focused, onUndo, onFlag }: { row: ActivityRow; focu
   );
 }
 
-const FACT_TONE = { owed: "text-cp-owed", owe: "text-cp-owe", settled: "text-muted-foreground" } as const;
+const FACT_TONE = { owed: "text-cp-owed", owe: "text-cp-owe", waste: "text-cp-expired", settled: "text-muted-foreground" } as const;
 
 /** One Latest row (RvGroup): face, who did what, one coloured fact; Undo and Flag behind the row. */
 function LineItem({

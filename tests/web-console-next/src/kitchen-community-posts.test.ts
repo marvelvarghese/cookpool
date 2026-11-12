@@ -206,21 +206,21 @@ describe("the post card", () => {
     expect(out).toMatch(/<a [^>]*href="\/p\/pst_1"[^>]*>.*Chicken curry.*Anu Mathew · 2 h.*<\/a>/);
     expect(out).toContain(">Anu Mathew · 2 h<");
     expect(out).toContain('aria-pressed="true"');
-    expect(out).toContain('aria-label="Yum · 1 · Chicken curry"');
+    expect(out).toContain('aria-label="Liked Chicken curry"');
     expect(out).toContain("COOK");
     // The caption, the comments and ⋯ live on the post's page now.
     expect(out).not.toContain("Halved it for the three of us.");
     expect(out).not.toContain('aria-label="More"');
   });
 
-  it("says the compact card's numbers: size, time, Yums and comments", () => {
+  it("says the compact card's numbers: size, time, likes (RV-23) and comments", () => {
     const c = postCard(post({ yums: { count: 1, mine: true, names: [] } }), NOW, new Set());
     expect(c.byline).toBe("Anu Mathew · 2 h");
-    expect(postNumbers(c)).toBe(`450 g · ${c.tiles.find((t) => t.id === "time")!.value} · 1 yum · ${c.comments === 1 ? "1 comment" : `${c.comments} comments`}`);
-    expect(postNumbers({ tiles: [{ id: "size", value: "4", label: "portions" }], yum: { on: false, label: "Yum", count: 0 }, comments: 0 })).toBe("4 portions · 0 yums");
-    expect(postNumbers({ tiles: [{ id: "ate", value: "3", label: "ate" }], yum: { on: false, label: "Yum · 12", count: 12 }, comments: 1 })).toBe("12 yums · 1 comment");
+    expect(postNumbers(c)).toBe(`450 g · ${c.tiles.find((t) => t.id === "time")!.value} · 1 like · ${c.comments === 1 ? "1 comment" : `${c.comments} comments`}`);
+    expect(postNumbers({ tiles: [{ id: "size", value: "4", label: "portions" }], yum: { on: false, label: "Yum", count: 0 }, comments: 0 })).toBe("4 portions · 0 likes");
+    expect(postNumbers({ tiles: [{ id: "ate", value: "3", label: "ate" }], yum: { on: false, label: "Yum · 12", count: 12 }, comments: 1 })).toBe("12 likes · 1 comment");
     expect(FEED_TAB_LABELS).toEqual({ following: "Following", discover: "Everyone" });
-    expect(FEED_HEADINGS).toEqual({ following: "From people you follow", discover: "New from everyone" });
+    expect(FEED_HEADINGS).toEqual({ following: "From people you follow", discover: "Popular today" });
   });
 });
 

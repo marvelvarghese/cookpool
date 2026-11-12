@@ -104,7 +104,7 @@ export function YumButton({ on, label, onClick, big = false }: { on: boolean; la
 /**
  * One post in a feed or on a profile, compact (`RvCommunity`): one link
  * (RV-18) holding the recipe's tile, the dish, who and when, and the numbers
- * ("450 g · 48 min · 12 yums"), opening the post; then two icons — Yum and the
+ * ("450 g · 48 min · 12 likes"), opening the post; then two icons — Like and the
  * save (`cookThis`, Cook this's copy). The author, the caption, the comments
  * and the ⋯ menu are on the post's page.
  */
@@ -136,7 +136,7 @@ export function PostCardView({
         <button
           type="button"
           aria-pressed={card.yum.on}
-          aria-label={`${card.yum.label} · ${card.title}`}
+          aria-label={`${card.yum.on ? "Liked" : "Like"} ${card.title}`}
           onClick={onYum}
           className={cn("grid h-11 w-11 place-items-center rounded-[14px] hover:bg-accent", FOCUS, card.yum.on ? "text-cp-accent-text" : "text-muted-foreground")}
         >
@@ -148,17 +148,22 @@ export function PostCardView({
   );
 }
 
-/** The recipe's tile on a compact card: its colour and initial (the line colour in dark). */
+/** The recipe's tile on a compact card: its colour and the board's dish glyph, a plate (the line colour in dark; RV-23). */
 function PostTile({ tile }: { tile: PostCard["tile"] }) {
   return (
     <span
+      aria-hidden
       style={{ "--tile-bg": tile.bg, "--tile-fg": tile.fg } as React.CSSProperties}
       className={cn(
-        "grid h-[76px] w-[76px] place-items-center rounded-2xl bg-[var(--tile-bg)] text-[28px] font-medium text-[var(--tile-fg)]",
+        "grid h-[76px] w-[76px] shrink-0 place-items-center rounded-2xl bg-[var(--tile-bg)] text-[var(--tile-fg)]",
         "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:text-muted-foreground",
       )}
     >
-      {tile.initial}
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="13" r="7" />
+        <circle cx="12" cy="13" r="3.5" />
+        <path d="M3 4v5M3 9h0M21 4v16" />
+      </svg>
     </span>
   );
 }

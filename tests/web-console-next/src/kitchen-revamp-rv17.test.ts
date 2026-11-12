@@ -197,13 +197,19 @@ describe("a group's page (RvGroup)", () => {
     expect(latestTitle(txn({ splits: [{ subjectId: ME, paidMinor: 110000, owedMinor: 27500 }] }), ME, names)).toBe("You paid Gas cylinder");
     expect(latestTitle(txn({ kind: "dish", title: "Dal", createdBy: ANU }), ME, names)).toBe("Anu cooked Dal");
     expect(latestTitle(txn({ kind: "use", title: "Oil", createdBy: DEV }), ME, names)).toBe("Dev used Oil");
+    // Your oil, used by Dev: you are the one paid for it (RV-23).
+    expect(latestTitle(txn({ kind: "use", title: "Oil", createdBy: DEV, splits: [{ subjectId: ME, paidMinor: 9200, owedMinor: 0 }, { subjectId: DEV, paidMinor: 0, owedMinor: 9200 }] }), ME, names)).toBe("Dev used your oil");
     expect(latestTitle(txn({ kind: "waste", title: "Spinach", createdBy: ANU }), ME, names)).toBe("Spinach went to waste");
   });
 
-  it("their one fact is from your view: + back, − owe, the total muted when it isn't yours", () => {
+  it("their one fact is from your view (RV-23): + back, your share \"₹38 you\", waste red, a payment and the rest muted", () => {
     expect(latestFact(txn({ splits: [{ subjectId: ME, paidMinor: 110000, owedMinor: 27500 }] }), ME)).toEqual({ text: "+₹825", tone: "owed" });
-    expect(latestFact(txn({ kind: "dish", splits: [{ subjectId: ME, paidMinor: 0, owedMinor: 3800 }] }), ME)).toEqual({ text: "−₹38", tone: "owe" });
-    expect(latestFact(txn({ kind: "settlement", totalMinor: 50000, splits: [{ subjectId: DEV, paidMinor: 50000, owedMinor: 0 }, { subjectId: ME, paidMinor: 0, owedMinor: 50000 }] }), ME)).toEqual({ text: "+₹500", tone: "owed" });
+    expect(latestFact(txn({ kind: "dish", splits: [{ subjectId: ME, paidMinor: 0, owedMinor: 3800 }] }), ME)).toEqual({ text: "₹38 you", tone: "owe" });
+    expect(latestFact(txn({ kind: "waste", splits: [{ subjectId: ANU, paidMinor: 1600, owedMinor: 800 }, { subjectId: ME, paidMinor: 0, owedMinor: 800 }] }), ME)).toEqual({ text: "₹8 you", tone: "waste" });
+    // Dev paying you: the money that moved, muted.
+    expect(latestFact(txn({ kind: "settlement", totalMinor: 50000, splits: [{ subjectId: DEV, paidMinor: 50000, owedMinor: 0 }, { subjectId: ME, paidMinor: 0, owedMinor: 50000 }] }), ME)).toEqual({ text: "₹500", tone: "settled" });
+    // A dish you weren't in: what a portion cost.
+    expect(latestFact(txn({ kind: "dish", totalMinor: 9300, splits: [{ subjectId: ANU, paidMinor: 9300, owedMinor: 3100 }, { subjectId: DEV, paidMinor: 0, owedMinor: 6200 }] }), ME)).toEqual({ text: "₹31 a portion", tone: "settled" });
     expect(latestFact(txn({ totalMinor: 3100, splits: [{ subjectId: ANU, paidMinor: 3100, owedMinor: 3100 }] }), ME)).toEqual({ text: "₹31", tone: "settled" });
   });
 

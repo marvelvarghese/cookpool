@@ -11,7 +11,7 @@ import { usePrefetchKitchen } from "@/components/kitchen/prefetch";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_BUTTON_QUIET } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { ActivityFeed } from "@/components/kitchen/activity-feed";
@@ -66,7 +66,7 @@ export default function GroupPage() {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this group.</p>
-        <Button variant="outline" className={K_BUTTON} onClick={groups.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={groups.reload}>
           Try again
         </Button>
       </KCard>
@@ -156,7 +156,7 @@ function GroupMoneyCard({ group, myId, balances }: { group: PublicOrganization; 
     return (
       <div className="flex min-h-[68px] items-center justify-between gap-3 rounded-[22px] border bg-card px-4">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load your balance.</p>
-        <Button variant="outline" className={K_BUTTON} onClick={balances.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={balances.reload}>
           Try again
         </Button>
       </div>
@@ -172,7 +172,7 @@ function GroupMoneyCard({ group, myId, balances }: { group: PublicOrganization; 
         </span>
       </p>
       {money.settleUp ? (
-        <Button asChild variant="outline" className={cn(K_BUTTON, "shrink-0 px-4")}>
+        <Button asChild variant="ghost" className={cn(K_BUTTON_QUIET, "shrink-0 px-4")}>
           <Link href={groupSettleHref(group.slug)}>Settle up</Link>
         </Button>
       ) : null}

@@ -70,9 +70,10 @@ describe("Sign in · Create account", () => {
     expect(codeStepLabel("new")).toBe("Step 2 of 2");
   });
 
-  it("welcomes back only someone remembered here; a join link names the group", () => {
+  it("welcomes back on the Sign in tab; a join link names the group", () => {
     expect(heroTitle("in", true, null)).toBe(WELCOME_BACK_HEADLINE);
-    expect(heroTitle("in", false, null)).toBe(DEFAULT_HEADLINE);
+    // The Sign in tab says it whether or not an account is remembered (RV-23).
+    expect(heroTitle("in", false, null)).toBe(WELCOME_BACK_HEADLINE);
     expect(heroTitle("new", true, null)).toBe(DEFAULT_HEADLINE);
     expect(heroTitle("in", true, flat4b)).toBe("Sign in to join Anu and the others");
   });

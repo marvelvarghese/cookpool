@@ -117,15 +117,16 @@ export function BalanceSection({
   );
 }
 
-/** One payment: "You pay Dev ₹25" with Pay (the one settle path), or "Anu pays you ₹54" with Remind. */
-export function PayRow({ row, back, group = false }: { row: SettleSheetRow; back: string; group?: boolean }) {
+/**
+ * One payment: "You pay Dev ₹25" with Pay (the one settle path), or "Anu pays
+ * you ₹54" with Remind. One line, as the boards draw it; the group is in Pay's
+ * spoken name.
+ */
+export function PayRow({ row, back, className }: { row: SettleSheetRow; back: string; className?: string }) {
   return (
-    <div className="flex min-h-14 items-center gap-3 py-1.5">
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-base font-medium">
-          {settleLine(row)} <span className={cn("tabular-nums", toneOf(row.minor))}>{wholeMoney(row.minor, row.currency)}</span>
-        </span>
-        {group ? <span className="block truncate text-[13px] font-normal text-muted-foreground">{row.groupName}</span> : null}
+    <div className={cn("flex min-h-14 items-center gap-3 py-1.5", className)}>
+      <span className="min-w-0 flex-1 truncate text-base font-medium">
+        {settleLine(row)} <span className={cn("tabular-nums", toneOf(row.minor))}>{wholeMoney(row.minor, row.currency)}</span>
       </span>
       {row.minor < 0 ? (
         <Button asChild variant="ghost" className={MONEY_PILL}>
@@ -213,7 +214,7 @@ function WhyRowView({ row }: { row: MoneyWhyRow }) {
   const paid = row.kind === "paid";
   return (
     <div className="flex min-h-16 items-center gap-3 py-2.5 pl-3.5 pr-4">
-      <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", paid ? "bg-cp-accent-tint text-cp-accent-text" : "bg-secondary text-muted-foreground")}>
+      <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", paid ? "bg-cp-accent-tint text-cp-accent-text" : "bg-cp-line text-muted-foreground")}>
         <Icon className="h-5 w-5" aria-hidden />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-px">

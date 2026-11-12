@@ -19,7 +19,8 @@ export function faceOrder(people: readonly string[], meId: string | null, names?
  * Your face is the app's green; everyone else's is one of these, by their id
  * (the canvas's colours, white text 4.8:1 or more). They are the `.cookpool`
  * face tokens (RV-19, globals.css), as CSS colours for a `style`, so yours
- * follows the accent into dark mode.
+ * follows the accent into dark mode — the bright green there, where its
+ * initials turn black (`--cp-face-me-ink`, a globals.css rule on the style; RV-23).
  */
 export const ME_FACE = "hsl(var(--cp-face-me))";
 export const FACE_COLORS: readonly string[] = [1, 2, 3, 4, 5, 6].map((n) => `hsl(var(--cp-face-${n}))`);

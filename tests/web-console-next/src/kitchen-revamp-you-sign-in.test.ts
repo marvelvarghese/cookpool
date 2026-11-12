@@ -49,10 +49,10 @@ describe("Sign in (RvSignIn)", () => {
     expect(out).toMatch(/aria-label="Sign in with a passkey"[^>]*>.*?Passkey<\/button>/);
     expect(out).toContain(">or<");
     expect(out).toContain(">Email me a code<");
-    // One helper line: the terms, under Can't sign in?; Terms and Privacy notice link to its Privacy and terms (RV-18).
-    expect(out.replace(/<[^>]+>/g, "")).toContain("By continuing you agree to the Terms and the Privacy notice.");
+    // One helper line: the terms, under Can't sign in?; Terms and Privacy link to its Privacy and terms (RV-18; the board's shorter words, RV-23).
+    expect(out.replace(/<[^>]+>/g, "")).toContain("By continuing you agree to the Terms and Privacy.");
     expect(out).toMatch(/href="\/login\/help#privacy"[^>]*>Terms<\/a>/);
-    expect(out).toMatch(/href="\/login\/help#privacy"[^>]*>Privacy notice<\/a>/);
+    expect(out).toMatch(/href="\/login\/help#privacy"[^>]*>Privacy<\/a>/);
     expect(out).not.toContain("No password.");
   });
 

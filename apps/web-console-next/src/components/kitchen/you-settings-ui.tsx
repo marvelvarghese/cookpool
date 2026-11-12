@@ -87,7 +87,7 @@ export function YouSettings({ title = YOU_TITLE, sub = false }: { title?: string
             <h2 className="text-base font-medium">Couldn&apos;t load your name</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">{profile.error?.message ?? "Try again in a moment."}</p>
           </div>
-          <Button variant="outline" className={K_BUTTON} onClick={profile.reload}>
+          <Button variant={newFrame() ? "ghost" : "outline"} className={cn(K_BUTTON, newFrame() && K_QUIET)} onClick={profile.reload}>
             Try again
           </Button>
         </KCard>
@@ -223,7 +223,7 @@ export function MeCard({ user }: { user: AuthUser }) {
           <div className="grid grid-cols-2 gap-2.5 pt-1">
             <Button
               type="button"
-              variant="outline"
+              variant={quiet ? "ghost" : "outline"}
               disabled={saving}
               onClick={close}
               className={cn("h-[46px] rounded-[14px] text-[15px] font-medium", quiet ? K_QUIET : OUTLINED)}
@@ -239,7 +239,7 @@ export function MeCard({ user }: { user: AuthUser }) {
         <Button
           ref={editButtonRef}
           type="button"
-          variant="outline"
+          variant={quiet ? "ghost" : "outline"}
           onClick={startEdit}
           className={cn("h-[46px] gap-2 rounded-[14px] text-[15px] font-medium", quiet ? K_QUIET : OUTLINED)}
         >
@@ -315,10 +315,14 @@ function SignOut() {
       </h2>
       <Button
         type="button"
-        variant="outline"
+        variant={newFrame() ? "ghost" : "outline"}
         loading={busy}
         onClick={signOut}
-        className="h-[54px] gap-2.5 rounded-2xl border-border bg-card text-base font-medium text-destructive hover:bg-cp-expired-tint hover:text-destructive"
+        className={cn(
+          "h-[54px] gap-2.5 rounded-2xl text-base font-medium text-destructive hover:bg-cp-expired-tint hover:text-destructive",
+          // The new frame's quiet tint (RV-23): the expired tint, no outline; today's keeps its outlined card.
+          newFrame() ? "border-0 bg-cp-expired-tint shadow-none hover:bg-cp-expired-tint/80" : "border-border bg-card",
+        )}
       >
         {busy ? null : <LogOut className="h-5 w-5" strokeWidth={2} aria-hidden />}
         <span className="min-[900px]:hidden">{SIGN_OUT_PHONE}</span>

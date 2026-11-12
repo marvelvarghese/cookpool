@@ -11,7 +11,7 @@ import { SkeletonRow } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { useGroups } from "@/components/kitchen/data";
-import { filterGroups, sortGroups } from "@/components/kitchen/groups";
+import { filterGroups, groupMemberNames, sortGroups } from "@/components/kitchen/groups";
 import { showGroupSearch } from "@/components/kitchen/group-page";
 import { groupMeta } from "@/components/kitchen/money-page";
 import { GroupAvatar, KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "@/components/kitchen/kit";
@@ -25,7 +25,7 @@ import { JoinGroupDialog } from "@/components/kitchen/join-group-dialog";
  * in the new frame, past 8 groups in today's), then one list, the groups you
  * opened last first, each on one line under its name: "4 people · +₹87.00",
  * the amount coloured by direction, "settled" at zero; no role words and no
- * sort control. `?new=1` / `?join=1` open the two from elsewhere (Home's
+ * sort control. The search finds groups by name or by the people in them (RV-23). `?new=1` / `?join=1` open the two from elsewhere (Home's
  * empty state).
  *
  * From 900px it is the same list (SM-15): a row opens the group's page,
@@ -65,9 +65,11 @@ export default function GroupsPage() {
   const all = groups.data ?? [];
   // The revamp (RV-5): the search is always there in the new frame; today's frame keeps it past 8 groups.
   const searching = all.length > 0 && (newFrame() || showGroupSearch(all.length));
+  // The new frame's search also finds a group by the people in it (RV-23).
+  const members = React.useMemo(() => (newFrame() ? groupMemberNames(balances.data?.people) : null), [balances.data]);
   const shown = React.useMemo(
-    () => sortGroups(filterGroups(all, searching ? query : ""), "recent", recentSlugs),
-    [all, query, searching, recentSlugs],
+    () => sortGroups(filterGroups(all, searching ? query : "", members), "recent", recentSlugs),
+    [all, query, searching, members, recentSlugs],
   );
 
   return (
@@ -98,7 +100,7 @@ export default function GroupsPage() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search groups"
+            placeholder={newFrame() ? "Search groups or people" : "Search groups"}
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-base font-normal text-foreground outline-none placeholder:text-muted-foreground"
           />
@@ -114,7 +116,7 @@ export default function GroupsPage() {
       ) : groups.error ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load your groups.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={groups.reload}>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={groups.reload}>
             Try again
           </Button>
         </KCard>

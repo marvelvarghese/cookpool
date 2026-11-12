@@ -280,66 +280,97 @@ export function GroupDishesPanel({
   meId,
   names,
   limit,
+  heading,
 }: {
   orgId: string;
   meId: string | null;
   names: MemberNames;
   limit?: number;
+  /**
+   * The new frame's group page (RvGroup, RV-23): the panel draws its own 17 px
+   * heading with See all beside it, and each row leads with the cook's face.
+   */
+  heading?: { id: string; title: string };
 }) {
   const dishes = useGroupDishes(orgId);
   const [all, setAll] = React.useState(false);
   const now = React.useMemo(() => new Date(), []);
-  if (dishes.isLoading) {
-    return <Skeleton className="h-14 w-full rounded-[22px]" aria-hidden />;
-  }
-  if (dishes.error || !dishes.data) {
+  const list = dishes.data?.pages.flatMap((p) => p.dishes) ?? [];
+  const more = !!limit && list.length > limit;
+  const body = (() => {
+    if (dishes.isLoading) {
+      return <Skeleton className="h-14 w-full rounded-[22px]" aria-hidden />;
+    }
+    if (dishes.error || !dishes.data) {
+      return (
+        <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load the dishes.</p>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={() => void dishes.refetch()}>
+            Try again
+          </Button>
+        </KCard>
+      );
+    }
+    if (list.length === 0) {
+      return <p className={cn(K_CARD, "flex min-h-14 items-center px-4 text-sm font-normal text-muted-foreground")}>No dishes yet</p>;
+    }
+    const shown = limit && !all ? list.slice(0, limit) : list;
     return (
-      <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load the dishes.</p>
-        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={() => void dishes.refetch()}>
-          Try again
-        </Button>
-      </KCard>
-    );
-  }
-  const list = dishes.data.pages.flatMap((p) => p.dishes);
-  if (list.length === 0) {
-    return <p className={cn(K_CARD, "flex min-h-14 items-center px-4 text-sm font-normal text-muted-foreground")}>No dishes yet</p>;
-  }
-  const shown = limit && !all ? list.slice(0, limit) : list;
-  return (
-    <div className="space-y-2">
-      <ul className={K_ROWS}>
-        {shown.map((d) => {
-          const row = dishRow(d, { meId, names, now });
-          return (
-            <li key={row.id}>
-              <Link
-                href={row.href}
-                className="flex min-h-14 items-center gap-3 px-3.5 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className={cn("block truncate text-[15px] font-medium", d.state === "canceled" && "text-muted-foreground line-through")}>
-                    {row.name}
+      <div className="space-y-2">
+        <ul className={K_ROWS}>
+          {shown.map((d) => {
+            const row = dishRow(d, { meId, names, now });
+            return (
+              <li key={row.id}>
+                <Link
+                  href={row.href}
+                  className="flex min-h-14 items-center gap-3 px-3.5 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                >
+                  {heading ? <Face subjectId={d.cook} meId={meId} names={names} className="h-9 w-9 text-[13px] font-medium" /> : null}
+                  <span className="min-w-0 flex-1">
+                    <span className={cn("block truncate text-[15px] font-medium", d.state === "canceled" && "text-muted-foreground line-through")}>
+                      {row.name}
+                    </span>
+                    <span className="block truncate text-[13px] font-normal text-muted-foreground">{row.sub}</span>
                   </span>
-                  <span className="block truncate text-[13px] font-normal text-muted-foreground">{row.sub}</span>
-                </span>
-                <DishChipPill chip={row.chip} />
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-      {limit && !all && list.length > limit ? (
-        <Button variant="ghost" className={cn(K_BUTTON, "w-full text-cp-accent-text")} onClick={() => setAll(true)}>
-          See all {list.length}
-        </Button>
-      ) : dishes.hasNextPage && (all || !limit) ? (
-        <Button variant="ghost" className={cn(K_BUTTON_QUIET, "w-full")} loading={dishes.isFetchingNextPage} onClick={() => void dishes.fetchNextPage()}>
-          Show older dishes
-        </Button>
-      ) : null}
-    </div>
+                  <DishChipPill chip={row.chip} />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        {more && !all && !heading ? (
+          <Button variant="ghost" className={cn(K_BUTTON, "w-full text-cp-accent-text")} onClick={() => setAll(true)}>
+            See all {list.length}
+          </Button>
+        ) : dishes.hasNextPage && (all || !limit) ? (
+          <Button variant="ghost" className={cn(K_BUTTON_QUIET, "w-full")} loading={dishes.isFetchingNextPage} onClick={() => void dishes.fetchNextPage()}>
+            Show older dishes
+          </Button>
+        ) : null}
+      </div>
+    );
+  })();
+  if (!heading) return body;
+  return (
+    <section aria-labelledby={heading.id} className="space-y-2.5">
+      <div className="flex min-h-11 items-center justify-between">
+        <h2 id={heading.id} className="text-[17px] font-medium leading-snug">
+          {heading.title}
+        </h2>
+        {more ? (
+          <button
+            type="button"
+            aria-expanded={all}
+            onClick={() => setAll(!all)}
+            className="flex min-h-11 items-center rounded-md text-sm font-medium text-cp-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {all ? "Show less" : "See all"}
+          </button>
+        ) : null}
+      </div>
+      {body}
+    </section>
   );
 }

@@ -30,7 +30,7 @@ export type KitchenNavItem = KitchenNavLink | KitchenNavAction;
 /** The bottom tab bar, in order: Home · Pantry · + Add · Groups · People. */
 export const KITCHEN_TABS: readonly KitchenNavItem[] = [
   { id: "home", kind: "link", href: "/home", label: "Home", icon: "House" },
-  { id: "pantry", kind: "link", href: "/pantry", label: "Kitchen", icon: "Refrigerator" },
+  { id: "pantry", kind: "link", href: "/pantry", label: "Kitchen", icon: "KitchenJar" },
   { id: "add", kind: "action", label: "Add", icon: "Plus" },
   { id: "groups", kind: "link", href: "/groups", label: "Groups", icon: "UsersRound" },
   { id: "people", kind: "link", href: "/people", label: "People", icon: "HandCoins" },
@@ -78,14 +78,14 @@ export function isKitchenTabActive(id: KitchenTabId, pathname: string | null | u
  * The new frame (`newFrame()`, everywhere but prod): Home · Pantry · Cook ·
  * Money · You, a bottom bar on phones and the sidebar from 900px. Cook sits
  * in the middle with a filled icon; the + tab goes (each tab's main action
- * sits at its top: Bought on Pantry, Bill and Settle up on Money).
+ * sits at its top: Groceries on Pantry, Bill and Settle up on Money).
  */
 export const NEW_FRAME_TABS: readonly KitchenNavLink[] = [
   { id: "home", kind: "link", href: "/home", label: "Home", icon: "House" },
-  { id: "pantry", kind: "link", href: "/pantry", label: "Kitchen", icon: "Refrigerator" },
+  { id: "pantry", kind: "link", href: "/pantry", label: "Kitchen", icon: "KitchenJar" },
   { id: "cook", kind: "link", href: "/cook", label: "Cook", icon: "CookingPot", featured: true },
-  { id: "money", kind: "link", href: "/money", label: "Money", icon: "Wallet" },
-  { id: "you", kind: "link", href: "/you", label: "You", icon: "CircleUserRound" },
+  { id: "money", kind: "link", href: "/money", label: "Money", icon: "MoneyCard" },
+  { id: "you", kind: "link", href: "/you", label: "You", icon: "PlainPerson" },
 ];
 
 /** The phone's tabs in a frame: today's five (with + Add) or the new frame's. */

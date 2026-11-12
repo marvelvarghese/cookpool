@@ -32,17 +32,44 @@ export function foldForSearch(value: string): string {
 }
 
 /**
- * Groups whose name contains every word of `query`, in any order and case
- * ("4b flat" finds "Flat 4B"). An empty query keeps every group. The input
- * order is preserved.
+ * Groups whose name — or the name of someone in them — contains every word
+ * of `query`, in any order and case ("4b flat" finds "Flat 4B"; "anu" finds
+ * every group Anu is in, RV-23). `members` is each group's people by name,
+ * by `org_…` id (`groupMemberNames`); without it only names are matched. An
+ * empty query keeps every group. The input order is preserved.
  */
-export function filterGroups<T extends GroupLike>(groups: readonly T[], query: string): T[] {
+export function filterGroups<T extends GroupLike>(
+  groups: readonly T[],
+  query: string,
+  members?: ReadonlyMap<string, readonly string[]> | null,
+): T[] {
   const words = foldForSearch(query).split(" ").filter(Boolean);
   if (words.length === 0) return [...groups];
   return groups.filter((g) => {
-    const name = foldForSearch(g.name);
-    return words.every((w) => name.includes(w));
+    const text = foldForSearch([g.name, ...(members?.get(g.id) ?? [])].join(" "));
+    return words.every((w) => text.includes(w));
   });
+}
+
+/**
+ * Each group's people by name (you not included), from the cross-group read's
+ * people (`myBalances().people`): who shares which group. People without a
+ * name are left out.
+ */
+export function groupMemberNames(
+  people: readonly { displayName: string | null; groups: readonly { orgId: string }[] }[] | null | undefined,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const p of people ?? []) {
+    const name = p.displayName?.trim();
+    if (!name) continue;
+    for (const g of p.groups) {
+      const list = out.get(g.orgId);
+      if (list) list.push(name);
+      else out.set(g.orgId, [name]);
+    }
+  }
+  return out;
 }
 
 /**
@@ -237,7 +264,7 @@ export const WASTE_RULES: readonly { id: WastePolicy; label: string; hint: strin
   {
     id: "buyer_absorbs",
     label: "The buyer absorbs it",
-    hint: "Whoever bought it pays for what goes to waste.",
+    hint: "Whoever added it pays for what goes to waste.",
   },
 ];
 

@@ -171,7 +171,9 @@ describe("the shared parts follow the tokens (RV-19)", () => {
       }),
     );
     expect(seg).toContain("[.cookpool-new_&amp;]:border-0 [.cookpool-new_&amp;]:bg-muted");
-    expect(seg).toContain("[.cookpool-new_&amp;]:font-medium");
+    // Medium in both frames since RV-23 (the global cap made today's semibold 500 already).
+    expect(seg).toContain("px-2 text-sm font-medium");
+    expect(seg).not.toContain("font-semibold");
     expect(seg).toContain("bg-primary text-primary-foreground");
   });
 

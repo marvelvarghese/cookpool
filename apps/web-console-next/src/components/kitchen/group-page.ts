@@ -146,10 +146,10 @@ export function groupFaces(subjectIds: readonly string[], meId: string | null, m
   return { shown: ordered.slice(0, max), more: Math.max(0, ordered.length - max) };
 }
 
-/** The header's balance pill: "+₹842", "−₹24.50", "Settled". */
+/** The header's balance pill: "+₹842", "−₹24.50", "Square" at zero (the boards' word, RV-23). */
 export function groupPill(data: Pick<BalancesResponse, "currency" | "balances">, meId: string | null): { tone: "owed" | "owe" | "settled"; text: string } {
   const minor = meId ? (data.balances.find((b) => b.subjectId === meId)?.balanceMinor ?? 0) : 0;
-  if (minor === 0) return { tone: "settled", text: "Settled" };
+  if (minor === 0) return { tone: "settled", text: "Square" };
   // Whole rupees where whole, as RvGroup writes it (RV-17): "+₹842".
   const amount = whole(minor, data.currency);
   return minor > 0 ? { tone: "owed", text: `+${amount}` } : { tone: "owe", text: `−${amount}` };
@@ -203,8 +203,12 @@ export function latestTitle(
     }
     case "dish":
       return `${who(txn.createdBy)} cooked ${txn.title}`;
-    case "use":
-      return `${who(txn.createdBy)} used ${txn.title}`;
+    case "use": {
+      // Your item, used by someone else, is "your oil" (RvGroup): you are the one paid for it.
+      const owner = txn.splits.find((s) => s.paidMinor > 0)?.subjectId ?? null;
+      const yours = meId !== null && owner === meId && txn.createdBy !== meId;
+      return yours ? `${who(txn.createdBy)} used your ${lowerFirst(txn.title)}` : `${who(txn.createdBy)} used ${txn.title}`;
+    }
     case "waste":
       return `${txn.title} went to waste`;
     case "settlement":
@@ -214,17 +218,35 @@ export function latestTitle(
   }
 }
 
+/** "Oil" → "oil" for "your oil"; a name that starts with capitals ("UPI", "MTR mix") stays. */
+function lowerFirst(title: string): string {
+  return /^[A-Z][a-z]/.test(title) ? title[0]!.toLowerCase() + title.slice(1) : title;
+}
+
+/** A Latest fact's colour: money back, money you owe, waste (red), or muted. */
+export type LatestTone = "owed" | "owe" | "waste" | "settled";
+
 /**
- * A Latest row's one coloured fact, from your view: what it did to your
- * balance, "+₹92" (blue) or "−₹38" (orange); a payment, the money that moved
- * ("Anu paid you" is +); the total, muted, when it doesn't name you.
+ * A Latest row's one coloured fact, from your view (RvGroup, RV-23):
+ * - what came back to you, "+₹92" (blue);
+ * - your share of something, "₹38 you" (orange), or of waste, "₹8 you" (red);
+ * - a payment, the money that moved, muted: "₹500";
+ * - a dish you weren't in, what a portion cost, muted: "₹31 a portion";
+ * - anything else that doesn't name you, its total, muted.
  */
-export function latestFact(txn: Pick<KitchenTxn, "kind" | "splits" | "totalMinor" | "currency">, meId: string | null): { text: string; tone: "owed" | "owe" | "settled" } {
+export function latestFact(txn: Pick<KitchenTxn, "kind" | "splits" | "totalMinor" | "currency">, meId: string | null): { text: string; tone: LatestTone } {
   const mine = yourPartMinor(txn, meId);
-  if (mine === null) return { text: whole(txn.totalMinor, txn.currency), tone: "settled" };
-  const shown = txn.kind === "settlement" ? -mine : mine;
-  if (shown === 0) return { text: whole(0, txn.currency), tone: "settled" };
-  return { text: `${shown > 0 ? "+" : "−"}${whole(shown, txn.currency)}`, tone: shown > 0 ? "owed" : "owe" };
+  if (txn.kind === "settlement") return { text: whole(mine ? mine : txn.totalMinor, txn.currency), tone: "settled" };
+  if (mine === null) {
+    if (txn.kind === "dish") {
+      const portion = Math.min(...txn.splits.map((s) => s.owedMinor).filter((m) => m > 0));
+      if (Number.isFinite(portion)) return { text: `${whole(portion, txn.currency)} a portion`, tone: "settled" };
+    }
+    return { text: whole(txn.totalMinor, txn.currency), tone: "settled" };
+  }
+  if (mine === 0) return { text: whole(0, txn.currency), tone: "settled" };
+  if (mine > 0) return { text: `+${whole(mine, txn.currency)}`, tone: "owed" };
+  return { text: `${whole(mine, txn.currency)} you`, tone: txn.kind === "waste" ? "waste" : "owe" };
 }
 
 /** The Money tab's rows from your view (spliteco-worker's Kitchen plan): "+₹610" they owe you, "−₹24" you owe them, "Square" at zero. */

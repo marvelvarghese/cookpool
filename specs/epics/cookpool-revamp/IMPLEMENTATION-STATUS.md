@@ -1148,3 +1148,120 @@ Built to the owner-approved boards `RvShopping` and `RvShoppingRun`, on RV-21's 
 - In dark, black and green. `cookpool-prod.localhost/pantry/run?from=list` went to today's Pantry.
 
 **Deploy.** kitchen-worker and the console change in their own paths, so both redeploy. contracts and sdk change with them. Order doesn't matter: an old worker ignores `paidBy`, and the bill would then be the caller's.
+
+### RV1 — Shared frame, Money, Groups, Community and sign-in polish (RV-23)
+
+Closes the "TASK RV-23" gaps of the 13 Nov re-audit (`RV-audit2.md`). Console and `packages/spliteco-ui` only: no routes, no migrations, no server change.
+
+**Frame and tokens.**
+- Gutter and top: in the new frame `<main>` is 18 px at the sides and 18 px under the safe area on top, kept in `--cp-gutter: 18px`. Today's frame keeps 16/20.
+- Tab icons (`icons.ts`, `nav.ts`): the boards' own glyphs, made with lucide's `createLucideIcon` so they take the same props. Kitchen is `KitchenJar`, Money `MoneyCard` (the striped card), You `PlainPerson`. They appear in the tab bar and the sidebar.
+- `SEG_TRACK` (`rv-look.ts`) is `cp-card` (`#141414`) in dark. A group's section tabs now use `SEG_TRACK`/`SEG_ON`/`SEG_OFF`, so the chosen tab is `#333` on `#141414`.
+- `globals.css` tokens:
+  - `--cp-soon-tint`: `#FFF3D6` light, `#2E2405` dark.
+  - New `--cp-expired-bar`: `#EBB0A9` light, `#7F2A2A` dark. Use it as `hsl(var(--cp-expired-bar))` (RV-24's stock bar).
+  - New `--cp-box`, the amount box's edge: `#E4DED4` light, `#262626` dark.
+  - New `--cp-face-me-ink`.
+- Your face in dark is `#22C55E` with black initials. `--cp-face-me` changed. One globals.css rule, `.cookpool [style*="var(--cp-face-me)"]`, gives your face `--cp-face-me-ink`, so every face component (faces-ui, set-row, ask-ui, community) follows without being edited.
+- Group badges (`GroupAvatar`, kit.tsx): in dark, every tint is the neutral `cp-line` with ink words. In light, the warm tint is the owe tint (`cp-owe-tint`/`cp-owe`), not use-soon's amber. The tint's name stays `amber`, so `data-tint` pins hold.
+- Weights go to 500 in `sidebar.tsx`, `group-picker.tsx` and `ledger-ui.tsx`. The global cap already rendered them at 500, so nothing looks different in either frame.
+- The offline banner (`gestures-ui.tsx`) is `bg-foreground text-background`.
+
+**Money.**
+- The Settle up sheet:
+  - a title row whose 44 px × is the sheet's own close, moved into the row (muted, radius 14);
+  - no handle, padding 18/18/28, a 12 px gap;
+  - 64 px rows with a face and one line.
+- `PayRow` lost its `group` line (the group stays in Pay's spoken name) and takes a `className`.
+- The Why icon tile is `cp-line`: `#F0ECE5` light, `#262626` dark.
+- `spliteco-ui/why.ts`: "split 4", not "split 4 ways". This shows in Spliteco's web app too, through the shared package.
+- `bill-scan-ui.tsx`: the three outline buttons are quiet tint.
+
+**Groups.**
+- The placeholder (new frame) is "Search groups or people".
+- `filterGroups(groups, query, members?)` matches a group's name together with its people's names. `groupMemberNames(people)` builds that map from `myBalances().people`.
+- Try again is quiet.
+- The waste hint is "Whoever added it pays for what goes to waste."
+
+**A group.**
+- `latestFact` gives `{ text, tone: "owed" | "owe" | "waste" | "settled" }`:
+  - "+₹92" back;
+  - "₹38 you" (owe) for your share;
+  - "₹8 you" (red, `waste`) for waste;
+  - a payment, muted, the money that moved: "₹500";
+  - a dish you weren't in: "₹31 a portion", the smallest share owed;
+  - anything else that doesn't name you: its total, muted.
+- `latestTitle`: someone using your item reads "Dev used your oil". "Yours" means you are its payer split; a title starting with one capital is lowercased.
+- `groupPill` reads "Square" at zero.
+- Latest's See all shows only when there is more than three. `ActivityFeed` has a new `onHasMore` prop.
+- `GroupDishesPanel` has a new optional `heading`. With it, the panel draws the heading with See all / Show less beside it, and each row leads with the cook's face. Today's group page doesn't pass it and is unchanged.
+- Activity's Try again and the group page's outline buttons (load error, Try again, Settle up) are quiet.
+
+**You.** In the new frame, Try again and the name buttons are ghost on the quiet tint. Sign out is the expired tint with no outline. Today's frame keeps its outlines.
+
+**Community.**
+- Everyone's heading is "Popular today", with See all → `/explore` beside both tabs' headings.
+- The numbers read "12 likes" (comments only above 0). The heart's label is "Like …" / "Liked …".
+- The tile is the board's plate glyph (aria-hidden), not an initial.
+- The Share a cook sheet:
+  - a 17 px title in a 44 px row;
+  - radius 26;
+  - a `cp-line` handle.
+- The floating button sits at `calc(var(--cp-tabbar-space, today's 76 px) + 6px)`, the same 82 px as before while the bar shows.
+
+**Sign in.**
+- The Sign in tab's hero is "Good to see you again." whether or not an account is remembered. A join link still names the group; Create account keeps the pitch.
+- The footer reads "By continuing you agree to the Terms and Privacy.", with the links in ink at 500 and underlined only on hover.
+- The "or" rule is `cp-line` in dark.
+- No flow changed: Google, passkeys, codes, join links and `next` all run as before, and their suites pass.
+
+**Departures.**
+- The amount box's `#262626` edge is a token only (`--cp-box`). The box lives in `tick-row-ui.tsx` (RV-24's), which should use `border-[hsl(var(--cp-box))]`.
+- `cp-expired-bar` is a CSS variable, not a Tailwind colour: `tailwind.config` isn't in this task's files. Use `bg-[hsl(var(--cp-expired-bar))]`.
+- "Popular today" is copy only. The Everyone feed's order is still the server's, newest first.
+- Yum stays Yum outside the compact card: the post page's button, Activity ("said Yum to …") and the notification setting. Those are other files.
+- The old frame's Add sheet still says "Bought" (`nav.ts` `KITCHEN_ADD_ACTIONS`). It is prod-only and must render as it does today.
+- Payment titles keep the full name ("Dev Patel paid you · UPI"); the board writes "Dev paid you". That is `activity.ts`'s `settlementTitle`, not in this task.
+- Full-bleed strips in other tasks' files still use `-mx-4`/`px-4`, so in the new frame they stop 2 px short of the edge. Moving them to `-mx-[var(--cp-gutter)]` fixes it.
+
+**Pins changed** (each where the design shortened or changed the words):
+- `kitchen-revamp-money-groups.test.ts`: the pill at zero is "Square" (was "Settled").
+- `kitchen-revamp-rv17.test.ts`:
+  - "₹38 you" (was "−₹38");
+  - a payment to you is "₹500" muted (was "+₹500" owed);
+  - added "₹8 you" waste, "₹31 a portion" and "Dev used your oil".
+- `kitchen-community-posts.test.ts`:
+  - "likes" for "yums";
+  - "Popular today" for "New from everyone";
+  - the heart's label "Liked Chicken curry".
+- `kitchen-revamp-you-sign-in.test.ts`: "…the Terms and Privacy." and the "Privacy" link (was "…and the Privacy notice.").
+- `kitchen-sign-in-screens.test.ts`: the hero is the welcome back without a remembered account too.
+- `kitchen-revamp-rv18.test.ts`: Share a cook's offset uses `--cp-tabbar-space`.
+- `kitchen-tabbar-shared.test.ts`: the Segmented is `font-medium` in both frames (was `[.cookpool-new_&]:font-medium`).
+- `spliteco-ui.test.tsx`: "you paid · split 3".
+
+**Tests.**
+- `tests/web-console-next`: 131 suites, 2,589 tests, all passing. The sign-in suites are among them (`kitchen-sign-in*`, `kitchen-revamp-you-sign-in`, `kitchen-revamp-rv18`).
+- `tests/spliteco-ui`: 16. `tests/spliteco-web`: 23 suites, 307 (after merging main at 8a72f86). `tests/identity-worker`: 21 suites, 314 (unchanged code; run for sign-in).
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/spliteco-ui`.
+- `console-artifact.mjs build` passes: every page is static.
+- `orun task check RV-23 --base origin/main`: affects ok, 4 components. The contract gained `default/cookpool/spliteco-ui-tests` for the "split 3" pin.
+
+**Browser check** (390 × 844, light and dark).
+- Setup: `next dev` on 47423 behind RV-17's in-memory mock, copied and never committed, on `cookpool-stage.localhost:47424`. The copy added a dish you weren't in, a dish with your share, waste, and a feed post in today's `FeedResponse` shape. The resource log listed only that host, and `cookpool-prod.localhost:47424` for the old-frame check.
+- `/login`: "Good to see you again." with no remembered account; "By continuing you agree to the Terms and Privacy."
+- `/money` (light):
+  - jar, card and person tab icons and the 18 px edge;
+  - Settle up opened the sheet with its title row and 44 px ×, no handle, and rows of 64 px.
+- `/groups/flat-4b` (dark):
+  - the track is `rgb(20,20,20)`, and your face is green with black "You";
+  - Latest read "₹31 a portion", "₹38 you" (pink), "₹8 you" (red); See all added "+₹825", "Dev used your oil +₹92", "₹200 you" and "₹500" muted;
+  - Dishes had See all beside its heading and the cooks' faces.
+- `/groups` (dark): the placeholder "Search groups or people". "dev" found Lunch club by its member. The badges are neutral grey.
+- `/community?tab=discover` (light):
+  - "Popular today" with See all;
+  - the plate tile and "450 g · 48 min · 12 likes";
+  - the Share a cook sheet with its 17 px title and line handle.
+- `cookpool-prod.localhost/groups/flat-4b`: today's group view with a 16 px gutter.
+
+**Deploy.** Console only. `packages/spliteco-ui` changes "split N" for spliteco-web too, but spliteco-web has no change of its own in this PR, so it picks the wording up on its next deploy (see "orun plan skips dependents"). RV-24 and RV-25 consume `--cp-expired-bar` and may consume `--cp-box`.
