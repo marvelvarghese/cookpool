@@ -555,3 +555,9 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - Start step by step → Before you start: Gather showed the same tick rows.
 
 **Deploy.** Only the console changes.
+
+### RV1 — dark mode is black with the green (RV-14)
+
+- The owner replaced dark mode's Gold with the light mode's green on black (canvas, 12 Nov). `globals.css`'s dark block (`prefers-color-scheme: dark`, new frame only) now sets ground `#000000`, cards and the tab bar `#141414`, lines `#262626`, borders `#333333`, ink `#F5F5F5`, muted `#A3A3A3`, the accent, ring, success and cook colour `#22C55E` with black text, accent text `#4ADE80`, tint `#0F2E1C`. Money back (blue), money you owe (pink), use soon (amber) and expired (red) are unchanged.
+- The dark `theme-color` is `#000000` (was `#09090b`).
+- `kitchen-revamp-foundation.test.ts` pins the new dark values; its no-orange check still passes. design.md §1 and the README's decisions record the change.

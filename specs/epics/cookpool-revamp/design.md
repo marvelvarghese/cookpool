@@ -6,11 +6,11 @@ The canvas boards are the reference; this file is the rules they share.
 
 | Token | Light | Dark |
 |---|---|---|
-| ground | `#FAF7F2` | `#0F1412` |
-| card | `#FFFFFF`, with the shadow `0 1px 2px rgba(23,32,27,.06), 0 4px 14px rgba(23,32,27,.06)` | `#1A211D`, no shadow |
-| ink / muted | `#17201B` / `#5F6862` | `#F2F5F3` / `#A3ADA7` |
-| line (row dividers) | `#F0ECE5` | `#26302A` |
-| accent / accent text / tint | `#167A4A` / `#0F5C37` / `#E3F3EA` | `#FACC15` / `#FDE68A` / `#3A3112`; text on the accent `#0F1412` |
+| ground | `#FAF7F2` | `#000000` (black, RV-14) |
+| card | `#FFFFFF`, with the shadow `0 1px 2px rgba(23,32,27,.06), 0 4px 14px rgba(23,32,27,.06)` | `#141414`, no shadow |
+| ink / muted | `#17201B` / `#5F6862` | `#F5F5F5` / `#A3A3A3` |
+| line (row dividers) | `#F0ECE5` | `#262626` |
+| accent / accent text / tint | `#167A4A` / `#0F5C37` / `#E3F3EA` | `#22C55E` / `#4ADE80` / `#0F2E1C`; text on the accent `#000000` (green, RV-14; was Gold) |
 | money back | `#1D4ED8` on `#E3EBFD` | `#93C5FD` on `#16264A` |
 | money you owe | `#C2410C` | `#F9A8D4` |
 | expired | `#B42318` on `#FDECEC` | `#FCA5A5` on `#3A1A1A` |
