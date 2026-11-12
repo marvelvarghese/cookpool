@@ -1372,9 +1372,10 @@ export interface CookNewItemRequest {
  * the cook's own pantry or a group where they hold `kitchen.item.use` (404
  * otherwise), with that much left (409 `insufficient_stock`, `details.itemId`
  * and `qtyLeftMilli`), all in one currency — the shared group's, when there
- * is one (422 `currency_mismatch`, `details.currency` and `itemIds`). At least
- * one ingredient or new item, at most MAX_DISH_INGREDIENTS together. A refusal
- * writes nothing.
+ * is one (422 `currency_mismatch`, `details.currency` and `itemIds`). At most
+ * MAX_DISH_INGREDIENTS ingredients and new items together; none at all is a
+ * dish cooked without amounts (RV-7): it costs only its extras (₹0 without),
+ * takes nothing from any pantry and charges no one. A refusal writes nothing.
  */
 export interface CookDishRequest {
   name: string;

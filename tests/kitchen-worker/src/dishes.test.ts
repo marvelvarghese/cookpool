@@ -381,7 +381,8 @@ describe("refusing a dish writes nothing", () => {
     const p = await stock();
     const cases: Array<[Record<string, unknown>, string]> = [
       [{ ...paneerButterMasala(p), orgId: null }, "splitMode"], // claims need a group
-      [{ ...paneerButterMasala(p), ingredients: [], newItems: [] }, "ingredients"],
+      // No ingredients at all is a ₹0 dish (RV-7, tests/no-amounts): not a refusal.
+      [{ ...paneerButterMasala(p), ingredients: "paneer" }, "ingredients"],
       [{ ...paneerButterMasala(p), portionsHalf: 0 }, "portionsHalf"],
       [{ ...paneerButterMasala(p), portionsHalf: 2.5 }, "portionsHalf"],
       [{ ...paneerButterMasala(p), extrasMinor: -1 }, "extrasMinor"],

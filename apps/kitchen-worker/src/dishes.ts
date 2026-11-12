@@ -281,7 +281,7 @@ export function parseDish(body: Record<string, unknown>): Parsed<ParsedDish> {
   }
   const listed =
     (Array.isArray(body.ingredients) ? body.ingredients.length : 0) + (Array.isArray(body.newItems) ? body.newItems.length : 0);
-  if (listed === 0) fields.add("ingredients", "Add at least one ingredient, or something you just bought");
+  // None at all is a dish cooked without amounts (RV-7): ₹0, nothing taken from any pantry.
   if (listed > MAX_DISH_INGREDIENTS) {
     fields.add("ingredients", `At most ${MAX_DISH_INGREDIENTS} ingredients, together with what you just bought`);
   }
