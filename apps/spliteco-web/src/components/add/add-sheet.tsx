@@ -250,9 +250,16 @@ function MethodStrip({ method, onPick }: { method: SplitecoSplitMethod; onPick: 
       e.stopPropagation();
     };
     viewport.addEventListener("click", onClick, true);
+    // Focusing a pill scrolls an overflow-hidden box to show it, which would
+    // throw the track off centre; the track's transform does the placing.
+    const unscroll = () => {
+      if (viewport.scrollLeft !== 0) viewport.scrollLeft = 0;
+    };
+    viewport.addEventListener("scroll", unscroll);
     return () => {
       stop();
       viewport.removeEventListener("click", onClick, true);
+      viewport.removeEventListener("scroll", unscroll);
     };
   }, [viewport, track, liveState]);
 

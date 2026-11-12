@@ -273,3 +273,12 @@ describe("the Add screen", () => {
     expect(sheet).toContain("listenForDrags(viewport");
   });
 });
+
+describe("the method strip stays centred", () => {
+  it("cannot be scrolled off centre by focusing a pill", () => {
+    const css = readFileSync(`${process.cwd()}/../../apps/spliteco-web/src/app/globals.css`, "utf8");
+    const sheet = readFileSync(`${process.cwd()}/../../apps/spliteco-web/src/components/add/add-sheet.tsx`, "utf8");
+    expect(css).toMatch(/\.mstrip \{[^}]*overflow: clip/);
+    expect(sheet).toContain("viewport.scrollLeft = 0");
+  });
+});

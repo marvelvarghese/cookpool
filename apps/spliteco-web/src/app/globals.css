@@ -465,7 +465,7 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 .add-chips { display: flex; justify-content: center; gap: 8px; padding-top: 4px; }
 .add-chip { height: 32px; padding: 0 12px 0 4px; border-radius: 16px; background: var(--surface); border: 0; color: var(--text); font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
 .add-cat { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
-.mstrip { position: relative; height: 42px; margin: 12px -20px 0; overflow: hidden; touch-action: pan-y; }
+.mstrip { position: relative; height: 42px; margin: 12px -20px 0; overflow: hidden; overflow: clip; touch-action: pan-y; }
 .mstrip-track { position: absolute; top: 0; left: 50%; display: flex; gap: 8px; will-change: transform; }
 .mstrip-track button { width: 104px; height: 40px; flex: none; border-radius: 20px; background: var(--surface); border: 0; color: var(--dim); font-size: 14px; font-weight: 500; }
 .mstrip-track button[aria-selected="true"] { background: var(--cobalt); color: #fff; }
