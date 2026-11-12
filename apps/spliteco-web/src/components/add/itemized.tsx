@@ -53,10 +53,13 @@ interface Props {
   canSave: boolean;
   busy: boolean;
   error: string | null;
+  /** SE4: open this bill as a live split, so people at the table claim their own items. */
+  onLive?: () => void;
+  liveBusy?: boolean;
 }
 
 /** Itemized: tap a face to add them to an item, tap again to say how much they had. */
-export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, canSave, busy, error }: Props) {
+export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, canSave, busy, error, onLive, liveBusy }: Props) {
   const { form, setForm, names, me, currency } = ctx;
   const [edit, setEdit] = React.useState<{ item: string; who: string } | null>(null);
   const [menu, setMenu] = React.useState<string | null>(null);
@@ -101,6 +104,11 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
           <h1 className="ellipsis" style={{ maxWidth: "100%" }}>{title}</h1>
           <span>{groupName} · {payer} · itemized</span>
         </div>
+        {onLive ? (
+          <button className="pillbtn" onClick={onLive} disabled={liveBusy} aria-label="Split live: everyone at the table claims their own items" style={{ fontWeight: 700, color: "var(--ok)" }}>
+            <Icon name="live" size={16} /> {liveBusy ? "Opening…" : "Live"}
+          </button>
+        ) : null}
         <button className="pillbtn" onClick={onBack} style={{ fontWeight: 700 }}>Done</button>
       </header>
 

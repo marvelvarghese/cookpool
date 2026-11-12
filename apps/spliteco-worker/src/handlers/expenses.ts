@@ -43,13 +43,13 @@ function actorOf(ctx: RequestContext): string {
 }
 
 /** The caller's group `orgId` (with its members), or null. */
-async function myGroup(ctx: RequestContext, orgId: string): Promise<MemberGroup | null | "unavailable"> {
+export async function myGroup(ctx: RequestContext, orgId: string): Promise<MemberGroup | null | "unavailable"> {
   const mine = await ctx.timings.measure("membership", () => ctx.groups.of(ctx.actor.subjectId));
   if (!mine.ok) return "unavailable";
   return mine.groups.find((g) => g.orgId === orgId) ?? null;
 }
 
-function notInGroup(group: MemberGroup, named: readonly string[]): string[] {
+export function notInGroup(group: MemberGroup, named: readonly string[]): string[] {
   const inGroup = new Set(group.members.map((m) => m.subjectId));
   return [...new Set(named)].filter((id) => !inGroup.has(id));
 }
@@ -59,7 +59,7 @@ function written(ctx: RequestContext, t: SplitecoTxnRecord, group: MemberGroup |
 }
 
 /** The answer to a failed or replayed write. `null` when it simply posted. */
-function writeOutcome(ctx: RequestContext, result: SplitecoWriteResult, sameRequest: (t: SplitecoTxnRecord) => boolean): Response | "posted" | SplitecoTxnRecord {
+export function writeOutcome(ctx: RequestContext, result: SplitecoWriteResult, sameRequest: (t: SplitecoTxnRecord) => boolean): Response | "posted" | SplitecoTxnRecord {
   if (result.ok) {
     if (!result.replayed) return "posted";
     if (!sameRequest(result.existing)) {
@@ -85,7 +85,7 @@ function writeOutcome(ctx: RequestContext, result: SplitecoWriteResult, sameRequ
 }
 
 /** The new version of an expense, from a validated request. */
-function versionOf(
+export function versionOf(
   ctx: RequestContext,
   input: {
     orgId: string;

@@ -133,6 +133,19 @@ export const SPLITECO_ERROR_REASONS = {
   NOT_FROM_AN_ASSISTANT: "not_from_an_assistant",
   /** 422 `validation_failed`: a payment needs two different people. */
   SAME_PERSON: "same_person",
+  // ── SE4: live split ──
+  /** 403 `forbidden`: only the person who opened the live split may do this (lock it, set someone else's claim). */
+  NOT_THE_OPENER: "not_the_opener",
+  /** 403 `forbidden`: you may claim only for yourself. */
+  OWN_CLAIMS_ONLY: "own_claims_only",
+  /** 409 `conflict`: some items have nobody on them yet (`details.unclaimed`: their positions). */
+  NOT_ALL_CLAIMED: "not_all_claimed",
+  /** 409 `conflict`: the live split was locked and posted (`details.expenseId`); claims no longer change. */
+  LIVE_LOCKED: "live_locked",
+  /** 409 `conflict`: the live split is more than SPLITECO_LIVE_HOURS old. */
+  LIVE_EXPIRED: "live_expired",
+  /** 422 `validation_failed`: there is no item at that position. */
+  NO_SUCH_ITEM: "no_such_item",
 } as const;
 
 export type SplitecoErrorReason = (typeof SPLITECO_ERROR_REASONS)[keyof typeof SPLITECO_ERROR_REASONS];
@@ -713,6 +726,128 @@ export interface SplitecoPaidYouEmail {
   groupName: string;
   /** The payer's page in Spliteco, where "Not received" is. */
   personUrl: string;
+}
+
+// ── SE4: live split ─────────────────────────────────────────
+//
+//   POST /v1/spliteco/groups/{org}/live          open one from an itemized draft → SplitecoLiveResponse (201)
+//   GET  /v1/spliteco/live/{code}                the session, its claims and who is here (and marks the caller here)
+//   POST /v1/spliteco/live/{code}/claims         set or clear one claim → SplitecoLiveResponse
+//   POST /v1/spliteco/live/{code}/lock           the opener posts it as ONE itemized expense → SplitecoLiveResponse
+//
+// Only members of the group see a session: a code of a group you are not in
+// is the opaque 404, as an unknown code is. Nothing is money until the lock,
+// which posts through the expense path with `spliteco.live.locked`. Refreshed
+// by polling (risk SE-E): the app reads every SPLITECO_LIVE_POLL_MS while it
+// is open and visible.
+
+/** The app polls a live split this often while it is open and visible. */
+export const SPLITECO_LIVE_POLL_MS = 2000;
+/** Someone is "here" when they read the session within this many seconds. */
+export const SPLITECO_LIVE_PRESENCE_SECONDS = 10;
+/** A live split can be claimed on and locked for this many hours after it opens. */
+export const SPLITECO_LIVE_HOURS = 24;
+/** Live codes use membership's join-code alphabet (no 0/O, 1/I/L), 8 characters. */
+export const SPLITECO_LIVE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export const SPLITECO_LIVE_CODE_LENGTH = 8;
+const LIVE_CODE_RE = new RegExp(`^[${SPLITECO_LIVE_CODE_ALPHABET}]{${SPLITECO_LIVE_CODE_LENGTH}}$`);
+
+/** A code as a person might type it (" ktch-2345" → "KTCH2345"); null when it cannot be one. */
+export function normalizeLiveCode(raw: string): string | null {
+  const code = raw.replace(/[\s-]+/g, "").toUpperCase();
+  return LIVE_CODE_RE.test(code) ? code : null;
+}
+
+/** "KTCH2345" → "KTCH-2345", as the app shows it. */
+export function formatLiveCode(code: string): string {
+  return code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+}
+
+/** One item of a live split's draft: what the bill says, without who had it. */
+export interface SplitecoLiveItem {
+  name: string;
+  qty?: number;
+  unitMinor?: number | null;
+  totalMinor: number;
+}
+
+/** What a live split posts once everyone has claimed: an itemized expense without its shares. */
+export interface SplitecoLiveDraft {
+  title: string;
+  category?: SplitecoCategory | null;
+  note?: string | null;
+  occurredAt?: string;
+  /** Who paid, adding up to the items plus tax and service, less discount. */
+  payers: SplitecoPayerInput[];
+  items: SplitecoLiveItem[];
+  adjustments: SplitecoAdjustmentInput[];
+}
+
+/** One person on one item, as an item share. */
+export interface SplitecoLiveClaim {
+  itemPosition: number;
+  subjectId: string;
+  mode: SplitecoItemShareMode;
+  value: number;
+  updatedAt: string;
+}
+
+/** POST /v1/spliteco/groups/{org}/live — `claims`: shares already set on the Itemized screen, carried over. */
+export interface SplitecoLiveOpenRequest extends SplitecoLiveDraft {
+  claims?: { itemPosition: number; subjectId: string; mode: SplitecoItemShareMode; value: number }[];
+}
+
+/**
+ * POST /v1/spliteco/live/{code}/claims. `subjectId` defaults to the caller;
+ * only the opener may name someone else. `clear: true` takes them off the
+ * item; otherwise `mode`/`value` default to one portion ("I had this").
+ */
+export interface SplitecoLiveClaimRequest {
+  itemPosition: number;
+  subjectId?: string;
+  mode?: SplitecoItemShareMode;
+  value?: number;
+  clear?: boolean;
+}
+
+export type SplitecoLiveState = "open" | "locked" | "expired";
+
+export interface SplitecoLiveSession {
+  /** `lvs_…`. */
+  id: string;
+  /** 8 characters; show it with formatLiveCode. */
+  code: string;
+  groupId: string;
+  groupName: string;
+  currency: string;
+  state: SplitecoLiveState;
+  /** Who opened it: they lock it and may set anyone's claim. */
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+  draft: SplitecoLiveDraft;
+  /** The items plus tax and service, less discount. */
+  totalMinor: number;
+  /** Σ the items' totals, and Σ of those with someone on them (the "claimed" bar). */
+  itemsMinor: number;
+  claimedMinor: number;
+  claims: SplitecoLiveClaim[];
+  /** Read within SPLITECO_LIVE_PRESENCE_SECONDS, newest first (the caller included). */
+  here: { subjectId: string; seenAt: string }[];
+  /** The group's members (who can join), with names. */
+  members: SplitecoPerson[];
+  /** Set once locked: the expense it posted (`txn_…`). */
+  expenseId: string | null;
+}
+
+export interface SplitecoLiveResponse {
+  session: SplitecoLiveSession;
+}
+
+/** The total a live draft adds up to: items + tax + service − discount. */
+export function liveDraftTotal(draft: Pick<SplitecoLiveDraft, "items" | "adjustments">): number {
+  const items = draft.items.reduce((s, it) => s + it.totalMinor, 0);
+  return draft.adjustments.reduce((s, a) => s + (a.kind === "discount" ? -a.amountMinor : a.amountMinor), items);
 }
 
 // ── Helpers ─────────────────────────────────────────────────

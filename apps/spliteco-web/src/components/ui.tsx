@@ -9,6 +9,7 @@ import { formatMoney, splitMoney } from "@/lib/money";
 import { initialOf, tintOf } from "@/lib/people";
 import { CATEGORY_TINTS } from "@/lib/activity-text";
 import { errorText, useSession } from "@/lib/session";
+import { rememberReturn, sessionStore } from "@/lib/return-to";
 
 // ── Data ───────────────────────────────────────────────
 
@@ -48,7 +49,11 @@ export function SignedIn({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
   React.useEffect(() => {
-    if (ready && !token) router.replace("/sign-in");
+    if (ready && !token) {
+      // Back here after signing in (a live split's link, SE4).
+      rememberReturn(sessionStore(), `${window.location.pathname}${window.location.search}`);
+      router.replace("/sign-in");
+    }
   }, [ready, token, router]);
   if (!mounted || !ready || !token) return <div className="spinner" role="status">Loading…</div>;
   return <>{children}</>;

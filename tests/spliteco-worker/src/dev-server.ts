@@ -80,6 +80,24 @@ async function seed(): Promise<void> {
   }
 }
 
+const RECEIPT_STUB = {
+  store: "The Beach Shack",
+  total: 441600,
+  currency: "INR",
+  sumMinor: 384000,
+  totalMatches: true,
+  lines: [
+    { text: "Prawn curry", name: "Prawn curry", priceMinor: 68000, confidence: "check", reason: "no price from before" },
+    { text: "Fish thali x2", name: "Fish thali", quantity: 2, unit: "pcs", priceMinor: 84000, confidence: "sure" },
+    { text: "Chkn xacuti", name: "Chicken xacuti", priceMinor: 56000, confidence: "sure" },
+    { text: "Kingfshr x6", name: "Kingfisher", quantity: 6, unit: "pcs", priceMinor: 108000, confidence: "check", reason: "unclear" },
+    { text: "Garlic naan x4", name: "Garlic naan", quantity: 4, unit: "pcs", priceMinor: 36000, confidence: "sure" },
+    { text: "Bebinca", name: "Bebinca", priceMinor: 32000, confidence: "sure" },
+    { text: "GST 5%", priceMinor: 19200, confidence: "check", reason: "not_food" },
+    { text: "Svc chg 10%", priceMinor: 38400, confidence: "check", reason: "not_food" },
+  ],
+};
+
 const tokens = new Map<string, string>(PEOPLE.map((p) => [`dev_${p.id}`, p.id]));
 const challenges = new Map<string, string>();
 
@@ -144,6 +162,17 @@ async function handle(method: string, url: URL, headers: Headers, body: string):
     if (!orgId) return fail(404, "not_found", "No group has that code");
     h.grant(actor, { id: orgId as never, publicId: `org_${orgId.replace(/-/g, "")}`, name: "" }, "builder");
     return ok({ orgId: `org_${orgId.replace(/-/g, "")}`, slug: "group", memberId: "mem_dev", alreadyMember: false }, 201);
+  }
+  // SE4: Cookpool's receipt reader, stubbed — the dev API has no model. It
+  // answers the canvas's Beach Shack bill (one line hard to read), or with
+  // SPLITECO_DEV_RECEIPT=unavailable what the route answers without a key.
+  if (path === "/v1/kitchen/me/ai/receipt" && method === "POST") {
+    if (process.env.SPLITECO_DEV_RECEIPT === "unavailable") {
+      return Response.json({ error: { code: "internal_error", message: "AI is not set up", details: { reason: "ai_unavailable" }, requestId: "req_dev" } }, { status: 503 });
+    }
+    const { image } = JSON.parse(body || "{}") as { image?: string };
+    if (typeof image !== "string" || image.length < 100) return fail(422, "validation_failed", "Send a photo");
+    return ok(RECEIPT_STUB);
   }
   if (path.startsWith("/v1/spliteco/")) {
     const forwarded: Record<string, string> = {};

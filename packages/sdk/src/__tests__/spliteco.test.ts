@@ -41,6 +41,11 @@ describe("SplitecoClient", () => {
     ["remind", (c: Cookpool) => c.spliteco.remind({ to: "usr_a" }), "POST", "/v1/spliteco/reminders"],
     ["profile", (c: Cookpool) => c.spliteco.profile(), "GET", "/v1/spliteco/me/profile"],
     ["set profile", (c: Cookpool) => c.spliteco.setProfile({ upiVpa: "anu@okaxis" }), "PUT", "/v1/spliteco/me/profile"],
+    // SE4.
+    ["open live", (c: Cookpool) => c.spliteco.openLive(ORG, { title: "Dinner", payers: [], items: [], adjustments: [] }), "POST", `/v1/spliteco/groups/${ORG}/live`],
+    ["live", (c: Cookpool) => c.spliteco.live("KTCH2345"), "GET", "/v1/spliteco/live/KTCH2345"],
+    ["claim live", (c: Cookpool) => c.spliteco.claimLive("KTCH2345", { itemPosition: 0 }), "POST", "/v1/spliteco/live/KTCH2345/claims"],
+    ["lock live", (c: Cookpool) => c.spliteco.lockLive("KTCH2345"), "POST", "/v1/spliteco/live/KTCH2345/lock"],
   ])("%s", async (_name, call, method, path) => {
     const f = capture(ok({}));
     await call(client(f.fetch));

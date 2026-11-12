@@ -8,6 +8,13 @@ spec:
   affects:
     - default/cookpool/spliteco-worker
     - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-worker-tests
+    - default/cookpool/spliteco-web-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/contracts-tests
+    - default/cookpool/kitchen-engine
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
     - default/cookpool/db
     - default/cookpool/db-tests
     - default/cookpool/contracts

@@ -15,6 +15,9 @@ import type {
   SplitecoInsightsQuery,
   SplitecoInsightsResponse,
   SplitecoGroupSettingsRequest,
+  SplitecoLiveClaimRequest,
+  SplitecoLiveOpenRequest,
+  SplitecoLiveResponse,
   SplitecoGroupSettingsResponse,
   SplitecoMoveRequest,
   SplitecoProfileRequest,
@@ -216,6 +219,28 @@ export class SplitecoClient {
   /** PUT /v1/spliteco/me/profile — set your UPI ID (null removes it). */
   setProfile(body: SplitecoProfileRequest, opts: RequestOptions = {}): Promise<SplitecoProfileResponse> {
     return this.transport.request<SplitecoProfileResponse>({ method: "PUT", path: `${BASE}/me/profile`, body }, opts);
+  }
+
+  // ── SE4: live split ──────────────────────────────────────
+
+  /** POST /v1/spliteco/groups/{org}/live — open a live split from an itemized draft; answers its short code. */
+  openLive(groupId: string, body: SplitecoLiveOpenRequest, opts: RequestOptions = {}): Promise<SplitecoLiveResponse> {
+    return this.transport.request<SplitecoLiveResponse>({ method: "POST", path: `${BASE}/groups/${seg(groupId)}/live`, body }, opts);
+  }
+
+  /** GET /v1/spliteco/live/{code} — the session, its claims and who is here (marks you here too). Poll it every 2 s. */
+  live(code: string, opts: RequestOptions = {}): Promise<SplitecoLiveResponse> {
+    return this.transport.request<SplitecoLiveResponse>({ method: "GET", path: `${BASE}/live/${seg(code)}` }, opts);
+  }
+
+  /** POST /v1/spliteco/live/{code}/claims — set or clear a claim ("I had this"); your own, or anyone's if you opened it. */
+  claimLive(code: string, body: SplitecoLiveClaimRequest, opts: RequestOptions = {}): Promise<SplitecoLiveResponse> {
+    return this.transport.request<SplitecoLiveResponse>({ method: "POST", path: `${BASE}/live/${seg(code)}/claims`, body }, opts);
+  }
+
+  /** POST /v1/spliteco/live/{code}/lock — the opener posts it as one itemized expense once every item is claimed. */
+  lockLive(code: string, opts: RequestOptions = {}): Promise<SplitecoLiveResponse> {
+    return this.transport.request<SplitecoLiveResponse>({ method: "POST", path: `${BASE}/live/${seg(code)}/lock`, body: {} }, opts);
   }
 
   /**

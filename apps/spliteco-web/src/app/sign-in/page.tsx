@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
 import { errorText, makeClient, useSession } from "@/lib/session";
 import { useMe } from "@/lib/me";
+import { sessionStore, takeReturn } from "@/lib/return-to";
 
 // Sign in with your Cookpool account: an email, then the 6-digit code sent to
 // it. Google is offered only on a build with NEXT_PUBLIC_SPLITECO_GOOGLE=on —
@@ -25,7 +26,7 @@ export default function SignInPage() {
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (ready && token) router.replace("/");
+    if (ready && token) router.replace(takeReturn(sessionStore()));
   }, [ready, token, router]);
 
   const client = React.useMemo(() => makeClient(null), []);
@@ -52,8 +53,8 @@ export default function SignInPage() {
     try {
       const r = await client.auth.loginComplete({ challengeId: challenge.id, code: code.trim() });
       setMe(r.user);
+      // The effect above goes on (back to where sign-in was asked for) once the token is in.
       signIn(r.token);
-      router.replace("/");
     } catch (err) {
       setError(errorText(err) === "Something went wrong. Try again." ? "That code didn't work. Check it and try again." : errorText(err));
     } finally {

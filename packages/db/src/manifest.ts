@@ -480,5 +480,14 @@ export const manifest: MigrationManifest = {
       description:
         "Spliteco settle up: ledger_reminders (rmd_ ids; org, from, to, amount, currency, sent_at; indexed by pair and time — at most one per pair per 24 hours), spliteco_profiles (subject_id, upi_vpa — a UPI ID shown only to people who share a group — and default_currency) and spliteco_group_settings (org_id, simplify_debts default 1). Payments stay kitchen_txns settlements with their bucket. Additive (cookpool-spliteco SE-3)",
     },
+    {
+      id: "550_spliteco_live_split",
+      context: "kitchen",
+      path: "550_spliteco_live_split/up.sql",
+      checksum:
+        "b07efb77c42d0cf0e3367d8c2885a011e884a0f2f4c7ac30913d1dff9b441dd1",
+      description:
+        "Spliteco live split: ledger_live_sessions (lvs_ ids; org, an 8-character join code unique across sessions, the itemized draft as JSON, open | locked, created_by, created_at, expires_at 24 h on, the posted txn_id), ledger_live_claims (session, item_position, subject_id, mode portion | pct | exact and value as an item share's) and ledger_live_presence (who last read it, when). No money until the lock posts one itemized expense. Additive (cookpool-spliteco SE-5)",
+    },
   ],
 };
