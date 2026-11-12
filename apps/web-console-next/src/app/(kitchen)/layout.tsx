@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { newFrame } from "@/lib/features";
 import { useRequireAuth } from "@/lib/use-async";
@@ -18,7 +18,7 @@ import { PageTransitions } from "@/components/kitchen/transition-ui";
 import { EdgeSwipeBack, PullToRefresh, TabSwipe } from "@/components/kitchen/gestures-ui";
 import { KITCHEN_NEW_LOOK_CLASS, KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
-import { isWideKitchenPage } from "@/components/kitchen/nav";
+import { isWideKitchenPage, tabBarHidden } from "@/components/kitchen/nav";
 import { useProfile } from "@/components/kitchen/data";
 import { firstRunRedirect } from "@/components/kitchen/sign-in";
 
@@ -78,7 +78,11 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
   const ready = useRequireAuth({ returnHere: true, signOutOnUnauthorized: true });
   // Read only where `ready` (the browser, after hydration): the host names the environment.
   const frameNew = ready && newFrame();
-  const wide = isWideKitchenPage(usePathname());
+  const pathname = usePathname();
+  const wide = isWideKitchenPage(pathname);
+  // The query (Cooked! is `?cooked=1`) is read in a Suspense'd probe, so the page stays static.
+  const [search, setSearch] = React.useState("");
+  const barHidden = tabBarHidden(frameNew, pathname, search);
   useAskForNameOnce(ready);
   const [addOpen, setAddOpen] = React.useState(false);
   const openAdd = React.useCallback(() => setAddOpen(true), []);
@@ -91,7 +95,14 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
   return (
     // `overflow-x-clip`: nothing in the frame widens the page — not even `<main>` while
     // the edge swipe slides it away, which would let the phone pan or zoom out (PW-7).
-    <div ref={frame} className={cn(...KITCHEN_THEME_CLASSES, newLook && KITCHEN_NEW_LOOK_CLASS, "min-h-dvh overflow-x-clip bg-background text-foreground min-[900px]:flex")}>
+    <div
+      ref={frame}
+      data-tabbar={frameNew ? (barHidden ? "hidden" : "shown") : undefined}
+      className={cn(...KITCHEN_THEME_CLASSES, newLook && KITCHEN_NEW_LOOK_CLASS, "min-h-dvh overflow-x-clip bg-background text-foreground min-[900px]:flex")}
+    >
+      <React.Suspense fallback={null}>
+        <SearchProbe onSearch={setSearch} />
+      </React.Suspense>
       <a
         href="#kitchen-main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-card focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:shadow-lg"
@@ -110,7 +121,7 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
         id="kitchen-main"
         className={cn(
           "mx-auto w-full min-w-0 max-w-2xl px-4",
-          "pb-[calc(env(safe-area-inset-bottom)+6.5rem)] pt-[calc(env(safe-area-inset-top)+1.25rem)]",
+          "pb-[var(--cp-main-bottom,calc(env(safe-area-inset-bottom)+6.5rem))] pt-[calc(env(safe-area-inset-top)+1.25rem)]",
           "min-[900px]:max-w-5xl min-[900px]:flex-1 min-[900px]:px-10 min-[900px]:pb-14 min-[900px]:pt-10",
           wide && "min-[1280px]:max-w-[90rem]",
         )}
@@ -121,7 +132,7 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
       </main>
 
       {frameNew ? <SessionBar /> : null}
-      {ready ? <KitchenTabBar onAdd={openAdd} addOpen={addOpen} newFrame={frameNew} /> : null}
+      {ready && !barHidden ? <KitchenTabBar onAdd={openAdd} addOpen={addOpen} newFrame={frameNew} /> : null}
       {ready && !frameNew ? <AddSheet open={addOpen} onOpenChange={setAddOpen} /> : null}
       {ready ? <AppNotify /> : null}
       {ready ? <EdgeSwipeBack frame={frame} page={main} /> : null}
@@ -133,6 +144,13 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
       {frameNew ? <PageTransitions /> : null}
     </div>
   );
+}
+
+/** Reports the page's query (`?cooked=1` hides the tab bar on Cooked!); inside Suspense, as `useSearchParams` needs. */
+function SearchProbe({ onSearch }: { onSearch: (search: string) => void }) {
+  const search = useSearchParams()?.toString() ?? "";
+  React.useEffect(() => onSearch(search), [search, onSearch]);
+  return null;
 }
 
 /**

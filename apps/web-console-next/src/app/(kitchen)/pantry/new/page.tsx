@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON_QUIET, K_INPUT, K_TITLE } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { Chip } from "@/components/kitchen/ledger-ui";
 import { memberLabel } from "@/components/kitchen/members";
@@ -104,7 +104,7 @@ export default function AddItemPage() {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load your kitchen. {pantries.error?.message ?? ""}</p>
-        <Button variant="outline" className={K_BUTTON} onClick={pantries.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={pantries.reload}>
           Try again
         </Button>
       </KCard>
@@ -311,7 +311,7 @@ function AddItemForm({
             autoFocus={startFill === null}
             aria-invalid={!!err("name")}
             aria-describedby={err("name") ? "item-name-error" : undefined}
-            className={cn(K_INPUT, "h-[52px] text-[17px] font-bold sm:h-[52px]")}
+            className={cn(K_INPUT, "h-[52px] text-[17px] font-medium sm:h-[52px]")}
           />
         </div>
         <FieldError id="item-name-error" message={err("name")} />
@@ -325,7 +325,7 @@ function AddItemForm({
           fieldRef={nameFieldRef}
         />
         {filled ? (
-          <p className="flex items-center gap-2 rounded-xl bg-cp-herb-tint px-3 py-2.5 text-[13px] font-bold text-[#165C3A]">
+          <p className="flex items-center gap-2 rounded-xl bg-cp-accent-tint px-3 py-2.5 text-[13px] font-normal text-cp-accent-text">
             <History className="h-4 w-4 shrink-0" aria-hidden />
             {FILLED_FROM_BEFORE}
           </p>
@@ -389,7 +389,7 @@ function AddItemForm({
         </div>
         {/* Numbers only, once they read (no "Enter a quantity and price…" before). */}
         {preview.perUnit ? (
-          <p id="item-unit-line" role="status" aria-live="polite" className="text-sm font-bold tabular-nums text-primary">
+          <p id="item-unit-line" role="status" aria-live="polite" className="text-sm font-medium tabular-nums text-cp-accent-text">
             {preview.perUnit}
           </p>
         ) : null}
@@ -514,7 +514,7 @@ function AddItemForm({
                   setBoughtOpen(true);
                   window.requestAnimationFrame(() => document.getElementById("item-bought")?.focus());
                 }}
-                className="min-h-11 rounded-lg px-1 font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-h-11 rounded-lg px-1 font-medium text-cp-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Change
               </button>
@@ -540,7 +540,7 @@ function AddItemForm({
     <div className="space-y-4">
       <header className="flex items-center gap-1">
         <BackButton />
-        <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Bought</h1>
+        <h1 className={K_TITLE}>Bought</h1>
       </header>
 
       <form onSubmit={submit} noValidate className="max-w-xl space-y-6">
@@ -576,8 +576,8 @@ function AddItemForm({
         ) : null}
 
         {/* The one main button, named, in thumb reach (SM-15): "Add Milk · ₹68.00 / to Flat 4B". */}
-        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:max-w-sm">
-          <Button ref={addRef} type="submit" className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")} loading={busy}>
+        <div data-toast-above="" className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 min-[900px]:static min-[900px]:max-w-sm">
+          <Button ref={addRef} type="submit" className={cn(MAIN_BUTTON, "shadow-cp-nav min-[900px]:shadow-none")} loading={busy}>
             <MainButtonLabel title={main.title} who={main.who} />
           </Button>
         </div>
@@ -586,7 +586,7 @@ function AddItemForm({
   );
 }
 
-const LEGEND = "mb-2 block text-sm font-extrabold";
+const LEGEND = "mb-2 block text-[15px] font-medium";
 
 function FieldError({ id, message }: { id: string; message: string | undefined }) {
   if (!message) return null;

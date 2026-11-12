@@ -35,7 +35,7 @@ export function RunLineEditor({
       <button type="button" aria-label={`Less ${name}`} disabled={!ticked.canLess} onClick={() => onStep(-1)} className={STEPPER}>
         <Minus className="h-5 w-5" aria-hidden />
       </button>
-      <span role="status" className="min-w-16 text-center text-[15px] font-extrabold tabular-nums">
+      <span role="status" className="min-w-16 text-center text-[15px] font-medium tabular-nums">
         {ticked.step.words}
       </span>
       <button type="button" aria-label={`More ${name}`} disabled={!ticked.canMore} onClick={() => onStep(1)} className={STEPPER}>
@@ -43,8 +43,9 @@ export function RunLineEditor({
       </button>
       <label
         className={cn(
-          "flex min-h-11 items-center gap-1 rounded-xl border px-2.5 text-[15px] font-extrabold focus-within:ring-2 focus-within:ring-ring",
-          ticked.priceMinor === null ? "border-destructive" : "border-[#C9CFC6]",
+          // A field keeps its boundary (RV-19): the input token, or the expired red when the price doesn't read.
+          "flex min-h-11 items-center gap-1 rounded-xl border bg-card px-2.5 text-[15px] font-medium focus-within:ring-2 focus-within:ring-ring",
+          ticked.priceMinor === null ? "border-destructive" : "border-input",
         )}
       >
         <span aria-hidden>{ticked.prefix}</span>
@@ -56,7 +57,7 @@ export function RunLineEditor({
           aria-label={`Price of ${name}`}
           aria-invalid={ticked.priceMinor === null}
           autoComplete="off"
-          className="w-16 bg-transparent text-[15px] font-extrabold tabular-nums text-foreground outline-none"
+          className="w-16 bg-transparent text-[15px] font-medium tabular-nums text-foreground outline-none"
         />
       </label>
       <button
@@ -64,7 +65,7 @@ export function RunLineEditor({
         aria-expanded={choosing}
         aria-label={`${name} goes to ${ticked.pantryLabel} · change`}
         onClick={onChoose}
-        className="min-h-11 min-w-11 rounded-full bg-[#E6EEF8] px-3 text-xs font-extrabold text-[#1D4F91] transition-colors hover:bg-[#D9E5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-11 min-w-11 rounded-full bg-cp-owed-tint px-3 text-[13px] font-medium text-cp-owed transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {ticked.pantryLabel}
       </button>
@@ -80,8 +81,8 @@ export function RunLineEditor({
                 aria-pressed={here}
                 onClick={() => onPantry(key)}
                 className={cn(
-                  "min-h-11 rounded-full border px-3.5 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  here ? "border-foreground bg-foreground text-background" : "border-[#D5DAD2] bg-card text-foreground hover:bg-accent",
+                  "min-h-11 rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  here ? "bg-cp-accent-tint text-cp-accent-text" : "bg-muted text-foreground hover:bg-cp-line",
                 )}
               >
                 {pantryChipLabel(p)}
@@ -95,4 +96,4 @@ export function RunLineEditor({
 }
 
 const STEPPER =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#C9CFC6] bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-cp-line text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";

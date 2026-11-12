@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-19
+  title: "Tab bar on pushed screens, shared bits and pantry flows"
+spec:
+  goal: "Pushed screens drawn without a tab bar hide it; shared faces, group tints, chips and the card-border rule follow the tokens; add item, shopping run, receipt scan and stock check are restyled."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-19.TaskContract.yaml
+  doneWhen:
+    - "item, recipe, cook session, Cooked and Groups hide the tab bar; bottom bars sit at the screen bottom"
+    - "faces, GroupAvatar tints, ledger Chip and Segmented use tokens; bordered cards lose borders in the new frame"
+    - "add item, shopping run, receipt scan and stock check have no raw hex and no bold"
+    - "every gap in this task's part of the revamp audit is fixed or recorded as a departure in the status file; prod's old frame unchanged"
+  gates: []

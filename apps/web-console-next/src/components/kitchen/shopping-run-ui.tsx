@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useProfile } from "./data";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_ROWS, K_TITLE } from "./kit";
 import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { useBack } from "./back-ui";
 import { useMyRoles } from "./people-data";
@@ -39,8 +39,8 @@ import { RECEIPT_ADJUST_DEFAULT, adjustCard, adjustedSummary, includedAdjustMino
 
 /**
  * The shopping run (cookpool-pantry PN-6, design §6.3, the canvas's
- * BuyAgain), `/pantry/run`: "Shopping run · Tick what you bought · change
- * what differs", then FINISHED, RUNNING LOW and YOU USUALLY BUY, each line
+ * BuyAgain), `/pantry/run`: "Shopping run" (RV-19 dropped its helper line:
+ * the footer keeps the screen's one), then FINISHED, RUNNING LOW and YOU USUALLY BUY, each line
  * "Like last time: 2 L · ₹136 · Flat 4B" until ticked. Ticking (a 44 px
  * tick) opens the amount's − / +, the price (last time's for that amount,
  * editable) and the pantry (another you add to). Something new adds one
@@ -166,10 +166,8 @@ export function ShoppingRun() {
         {showsReceipt ? (
           <ReceiptHeading />
         ) : (
-          <span className="flex min-w-0 flex-1 flex-col">
-            <h1 className="text-2xl font-extrabold leading-tight tracking-[-0.02em]">Shopping run</h1>
-            <span className="text-[13px] font-bold text-muted-foreground">Tick what you bought · change what differs</span>
-          </span>
+          // One helper line on the screen (RV-19): the footer's; the main button already says "Tick what you bought".
+          <h1 className={cn(K_TITLE, "min-w-0 flex-1")}>Shopping run</h1>
         )}
       </header>
 
@@ -198,21 +196,21 @@ export function ShoppingRun() {
           ) : restock.error ? (
             <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
               <p className="text-sm text-muted-foreground">Couldn&apos;t load what to restock. {restock.error.message}</p>
-              <Button variant="outline" className={K_BUTTON} onClick={restock.reload}>
+              <Button variant="ghost" className={K_BUTTON_QUIET} onClick={restock.reload}>
                 Try again
               </Button>
             </KCard>
           ) : groups.length === 0 ? (
             <KCard className="p-4">
-              <p className="text-[15px] font-semibold text-muted-foreground">Nothing finished or running low</p>
+              <p className="text-[15px] font-normal text-muted-foreground">Nothing finished or running low</p>
             </KCard>
           ) : (
             groups.map((g) => (
               <section key={g.id} aria-labelledby={`run-${g.id}`} className="flex flex-col gap-1.5">
-                <h2 id={`run-${g.id}`} className="px-0.5 text-xs font-extrabold tracking-[0.06em] text-foreground/80">
+                <h2 id={`run-${g.id}`} className="px-1 text-[13px] font-medium text-muted-foreground">
                   {g.title}
                 </h2>
-                <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] border border-[#E3E6E0] bg-card">
+                <ul className={K_ROWS}>
                   {g.lines.map((l) => (
                     <RunLineView
                       key={l.key}
@@ -242,7 +240,7 @@ export function ShoppingRun() {
 
       <Link
         href="/pantry/new"
-        className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-[#9AA39D] text-[15px] font-extrabold text-foreground/80 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-cp-accent-tint text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
         Something new
@@ -251,14 +249,14 @@ export function ShoppingRun() {
       {/* The one main button, in thumb reach (SM-15), above the tab bar. */}
       <div
         data-toast-above=""
-        className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 -mx-4 flex flex-col gap-2 bg-gradient-to-t from-background from-[78%] to-transparent px-4 pb-1 pt-3 min-[900px]:static min-[900px]:mx-0 min-[900px]:max-w-sm min-[900px]:bg-none min-[900px]:px-0"
+        className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 -mx-4 flex flex-col gap-2 bg-gradient-to-t from-background from-[78%] to-transparent px-4 pb-1 pt-3 min-[900px]:static min-[900px]:mx-0 min-[900px]:max-w-sm min-[900px]:bg-none min-[900px]:px-0"
       >
-        <p className="text-center text-[13px] font-bold text-foreground/80">{footer.problem ?? "Paid by you · each goes to its own pantry"}</p>
+        <p className="text-center text-[13px] font-normal text-muted-foreground">{footer.problem ?? "Paid by you · each goes to its own pantry"}</p>
         <Button
           type="button"
           onClick={add}
           disabled={!footer.ready}
-          className={cn(MAIN_BUTTON, footer.count === 0 && "bg-[#ECEEE9] text-muted-foreground disabled:opacity-100", "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")}
+          className={cn(MAIN_BUTTON, footer.count === 0 && "bg-muted text-muted-foreground disabled:opacity-100", "shadow-cp-nav min-[900px]:shadow-none")}
         >
           <MainButtonLabel title={footer.label} />
         </Button>
@@ -290,7 +288,7 @@ function RunLineView({
 }) {
   const on = ticked !== null;
   return (
-    <li className={cn(on && "bg-muted/40")}>
+    <li className={cn(on && "bg-cp-accent-tint/50")}>
       <div className="flex min-h-16 items-center gap-2.5 py-2 pl-2 pr-3">
         {line.tickable ? (
           <button
@@ -299,22 +297,22 @@ function RunLineView({
             aria-label={`${on ? "Untick" : "Tick"} ${line.name}`}
             onClick={onTick}
             className={cn(
-              "grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              on ? "border-primary bg-primary text-primary-foreground" : "border-[#C9CFC6] bg-card text-[#C9CFC6] hover:bg-accent",
+              "grid h-11 w-11 shrink-0 place-items-center rounded-[14px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              on ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-cp-line text-muted-foreground hover:bg-muted",
             )}
           >
             <Check className="h-5 w-5" strokeWidth={2.6} aria-hidden />
           </button>
         ) : (
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border-[1.5px] border-dashed border-[#D5DAD2] text-muted-foreground" aria-hidden>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-muted text-muted-foreground" aria-hidden>
             <Lock className="h-4 w-4" />
           </span>
         )}
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className={cn("truncate text-base font-extrabold", !line.tickable && "text-muted-foreground")}>{line.name}</span>
-          <span className="truncate text-xs font-semibold text-muted-foreground">{on ? line.why : (line.locked ?? line.like)}</span>
+          <span className={cn("truncate text-base font-medium", !line.tickable && "text-muted-foreground")}>{line.name}</span>
+          <span className="truncate text-[13px] font-normal text-muted-foreground">{on ? line.why : (line.locked ?? line.like)}</span>
         </span>
-        {ticked ? <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{ticked.priceMinor !== null ? `${ticked.prefix}${ticked.priceText}` : ""}</span> : null}
+        {ticked ? <span className="shrink-0 text-[15px] font-medium tabular-nums">{ticked.priceMinor !== null ? `${ticked.prefix}${ticked.priceText}` : ""}</span> : null}
       </div>
       {ticked ? (
         <RunLineEditor

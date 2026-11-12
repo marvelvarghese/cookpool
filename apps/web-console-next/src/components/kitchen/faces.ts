@@ -15,9 +15,14 @@ export function faceOrder(people: readonly string[], meId: string | null, names?
   return sortMembers(people, meId, names);
 }
 
-/** Your face is the app's green; everyone else's is one of these, by their id (the canvas's colours, white text 4.9:1 or more). */
-export const ME_FACE = "#1F7A4D";
-export const FACE_COLORS: readonly string[] = ["#6B4FBB", "#B4365A", "#0F766E", "#9A6700", "#3D5A80", "#8B5E34"];
+/**
+ * Your face is the app's green; everyone else's is one of these, by their id
+ * (the canvas's colours, white text 4.8:1 or more). They are the `.cookpool`
+ * face tokens (RV-19, globals.css), as CSS colours for a `style`, so yours
+ * follows the accent into dark mode.
+ */
+export const ME_FACE = "hsl(var(--cp-face-me))";
+export const FACE_COLORS: readonly string[] = [1, 2, 3, 4, 5, 6].map((n) => `hsl(var(--cp-face-${n}))`);
 
 /** A person's colour: the same on every screen, on every device. */
 export function faceColor(subjectId: string, meId: string | null): string {

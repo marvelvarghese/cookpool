@@ -615,3 +615,57 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - The old frame on `cookpool-prod.localhost:47931/pantry` rendered today's list as before.
 
 **Deploy.** Only the console changes; it has no package or worker dependency to redeploy.
+
+### RV1 — Tab bar on pushed screens, shared bits and pantry flows (RV-19)
+
+**Built** (`apps/web-console-next`). **Console-only:** no route, no migration, no contracts, SDK or worker change. Spec: the revamp audit's "Tab bar and shared parts" section and the boards `RvItem`, `RvRecipe`, `RvCookStep`, `RvCooked`, `RvGroups` (drawn without the tab bar).
+
+- **Pushed screens hide the tab bar** (new frame only). `tabBarHidden(newFrame, pathname, search)` in `nav.ts` is true on:
+  - an item's page `/pantry/<ref>` (not `/pantry/new` or `/pantry/run`; a stock check `/pantry/<ref>/check` keeps the bar);
+  - a recipe's page `/recipes/<id>` (not `new`, `edit` or `plan`);
+  - the cooking session `/cook/session` (guided and tick);
+  - Cooked! (`/dishes/<ref>?cooked=1`, until its Done drops the parameter);
+  - the Groups list `/groups` (not a group's page).
+  - The kitchen layout reads the query in a Suspense'd `SearchProbe` (pages stay static) and skips `KitchenTabBar` there. Today's frame always shows its bar.
+- **The bar's room as CSS variables, for other tasks to adopt.** The layout's wrapper carries `data-tabbar="shown"|"hidden"` in the new frame (nothing in today's frame). `globals.css` turns it into:
+  - `--cp-tabbar-space`: `calc(max(14px, env(safe-area-inset-bottom)) + 76px)` where the bar shows; `0px` where it is hidden and from 900px.
+  - `--cp-bottom-bar`: where a sticky bottom bar's bottom edge sits: the same as `--cp-tabbar-space` where the bar shows; `max(12px, env(safe-area-inset-bottom))` where it is hidden; `24px` from 900px.
+  - `--cp-main-bottom`: `<main>`'s end padding where the bar is hidden (`env(safe-area-inset-bottom) + 1.5rem`). Where it shows, `<main>` falls back to today's `env(safe-area-inset-bottom) + 6.5rem`.
+  - **How to adopt it:** write `bottom-[var(--cp-bottom-bar,<today's offset>)]` (e.g. `bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))]`). Today's frame sets no variable, so the fallback keeps its offset. Add item, the shopping run and the stock check use it. **The screens that hide the bar have no shared helper, so their bars were not changed here.** They still sit at the tab bar's height until their owners switch them: the item page's sticky bar (`pantry/[itemRef]/page.tsx`, RV-15); the session's `cook-session-screen.tsx:460`, guided `cook-guided-ui.tsx:407/1043/1162`, recipe `recipe-views.tsx:318` and Cooked `cooked-ui.tsx:93` (RV-16). The cooking session's phone bar (`SessionBarCard`, `cook-session-ui.tsx:485`) shows on `/groups` and should also move to `--cp-bottom-bar`.
+- **Faces** (`faces.ts`): `ME_FACE` and `FACE_COLORS` are now `hsl(var(--cp-face-me))` and `hsl(var(--cp-face-1…6))`. The face tokens are the canvas's six colours; yours is the accent `#167A4A` in light and `#15803D` in dark (white initials, 5:1).
+- **Main button words** (`faces-ui.tsx` `MainButtonLabel`): 17px Medium over a 12px Regular line under `.cookpool-new`; today's frame keeps 16/13.
+- **Group tints** (new `group-tint.ts`; `kit.tsx` `GroupAvatar`): six tints (green, blue, amber on existing tokens; purple, teal, slate on new `--cp-purple(-tint)`, `--cp-teal(-tint)`, `--cp-slate(-tint)` tokens with dark pairs, as `cp-*` Tailwind colours). The tint is picked by a hash of the group id (the name when a caller has no id). It is applied only under `.cookpool-new`, so today's frame keeps the green tint. `data-tint` names it. Groups, the sidebar and the group picker pass `id`.
+- **Chip and Segmented** (`ledger-ui.tsx`), new frame only: no border, Medium. A chip is on the muted fill, or on the accent tint with accent text when picked. Segmented is a muted track with the choice on the accent.
+- **The card-border rule** (`globals.css`): `.cookpool-new [class*="rounded"].border.bg-card` loses its border for the card shadow. Inputs, textareas, selects, labels, buttons, anything with a `role`, `aria-pressed`/`-checked`/`-selected`, dashed borders and anything that directly holds a field keep their boundary.
+- **Restyled to tokens, Medium/Regular only, no bordered cards** (both frames, since the light tokens are today's values):
+  - Add item (`pantry/new/page.tsx`): the 26px title, 15px Medium legends, the "filled from before" note on the accent tint, a quiet Retry, the sticky bar on `--cp-bottom-bar`, and the token shadow.
+  - `shopping-run-ui`: the 26px title, rows in `K_ROWS`, ticks as RV-13's (accent, or the line fill), "Something new" as a tint pill, and the footer as the one helper line. **The header's "Tick what you bought · change what differs" is dropped**, because the main button already says "Tick what you bought".
+  - `run-line-editor-ui`: borderless steppers and pantry choices on tints. The price field keeps an `input` border.
+  - `receipt-scan-ui`: the camera screen in black and white with token accents; `AiChip` and `AI_EDGE` on accent → cook colour tokens (all green in dark). These are shared with Say it and the recipe photo, which keep the same look. The run's Scan a receipt button drops its sub-line.
+  - `receipt-run-ui`: Matched · N / Check · N in sentence case, CHECK cards on the amber tint, Yes on ink, Change on the card. The name field keeps an `input` border.
+  - `stock-check-ui`: the 26px title, mark chips on tints, Cookpool thinks / You say tiles, radio rows on the tint, and token shadows.
+
+**Departures.**
+- **The tints, the Chip/Segmented look and the main-button sizes apply only under `.cookpool-new`.** Today's frame renders them as before. The restyled pantry flows use the tokens in both frames.
+- **Group tints come from the id only where the caller passes it.** Money (`money-ui.tsx`, frozen by owner decision 6), the join page, sign-in's group card, `PantryBadge` and the dish maker still pass only the name, so a group can show a different tint there until those owners add `id={…}` (a one-word change each).
+- **The shopping run's section titles stay uppercase** ("FINISHED", "RUNNING LOW", "YOU USUALLY BUY"). They come from `shopping-run.ts`, and tests pin them; they are now 13px Medium muted.
+- **Group detail and Community** are also drawn without a tab bar on their boards. They were outside this task's list and keep the bar.
+
+**Pinned copy changed:** none. The dropped helper lines were not pinned.
+
+**Tests.**
+- `tests/web-console-next`: 126 suites, 2,469 tests, all passing.
+  - New `kitchen-tabbar-shared.test.ts` (14): which screens hide the bar and which keep it (including `/pantry/new`, `/pantry/run`, a stock check, recipe forms, a group page, a plain dish and `?cooked=0`); today's frame never hides it; the layout renders by the rule with `data-tabbar` and a Suspense'd probe; the variables' values; the sticky bars' fallback; the card-border rule and its exclusions; group tints stable from the id, spread over six, drawn only under `.cookpool-new`, kept across a rename, with dark pairs; face tokens; MainButtonLabel's 17/500 and 12/400; Chip and Segmented's new look; no raw hex, no heavy weight and no `rgba(` in the six restyled files.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: every kitchen page static, 45 pages served as files.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 49190 ran behind RV-13's in-memory mock, copied and never committed, plus a restock route, on `cookpool-stage.localhost:49191`. The resource log listed only that host.
+- `/groups` had no tab bar (`data-tabbar="hidden"`), with tinted tiles (blue and slate in the mock).
+- On an item's page the bar was gone and `<main>` ended 24px from the bottom.
+- `/pantry/run` kept the bar. Ticking Milk filled its tick with the accent and opened the borderless steppers, the bordered price field and the blue pantry pill, and the main button read "Add 1 · ₹68" in green (dark).
+- Add item showed borderless chips on the muted fill with the picked chip on the tint, and fields with their boundary.
+- The stock check showed tint chips and tiles in dark.
+- `cookpool-prod.localhost`: Groups kept today's bar with + Add, green tiles and 104px end padding.
+- Not opened: the receipt scan screens (the mock has no `/me/ai`, so Scan a receipt stays hidden). The recipe, session and Cooked screens were checked by the rule's tests.
+
+**Deploy.** Only the console changes; there is no package or worker to redeploy. **Land before RV-15 and RV-16**, which can then move their bottom bars to `--cp-bottom-bar`.

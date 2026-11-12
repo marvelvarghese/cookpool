@@ -134,7 +134,7 @@ export function KitchenSidebar({ onAdd, addOpen, newFrame = false }: { onAdd: ()
                     aria-current={active ? "page" : undefined}
                     className={cn(ROW, "font-medium", active ? "bg-accent text-primary" : "hover:bg-accent")}
                   >
-                    <GroupAvatar name={g.name} size="sm" className="h-7 w-7 rounded-lg text-[11px]" />
+                    <GroupAvatar name={g.name} id={g.id} size="sm" className="h-7 w-7 rounded-lg text-[11px]" />
                     <span className="truncate">{g.name}</span>
                   </Link>
                 </li>

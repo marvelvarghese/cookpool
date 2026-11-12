@@ -4,6 +4,7 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { groupInitials } from "./groups";
+import { groupTint, type GroupTint } from "./group-tint";
 import { dayText } from "./when";
 
 /**
@@ -87,13 +88,21 @@ const AVATAR_SIZES = {
   lg: "h-14 w-14 rounded-[16px] text-lg",
 } as const;
 
-/** A group's two-letter avatar in a green-tint rounded square. */
-export function GroupAvatar({ name, size = "md", className }: { name: string; size?: keyof typeof AVATAR_SIZES; className?: string }) {
+/**
+ * A group's two-letter avatar in a rounded square: the green tint in today's
+ * frame; in the new frame (RV-19) the group's own tint, stable from its `id`
+ * (`groupTint`; a screen without the id falls back to the name). It carries
+ * `data-tint` so the tint is readable in tests.
+ */
+export function GroupAvatar({ name, id, size = "md", className }: { name: string; id?: string | null; size?: keyof typeof AVATAR_SIZES; className?: string }) {
+  const tint = groupTint(id || name);
   return (
     <span
       aria-hidden
+      data-tint={tint}
       className={cn(
         "grid shrink-0 place-items-center bg-cp-herb-tint font-medium text-cp-accent-text",
+        NEW_LOOK_TINTS[tint],
         AVATAR_SIZES[size],
         className,
       )}
@@ -102,6 +111,16 @@ export function GroupAvatar({ name, size = "md", className }: { name: string; si
     </span>
   );
 }
+
+/** Each group tint under `.cookpool-new` only (whole class names, so Tailwind keeps them). */
+const NEW_LOOK_TINTS: Record<GroupTint, string> = {
+  green: "[.cookpool-new_&]:bg-cp-accent-tint [.cookpool-new_&]:text-cp-accent-text",
+  blue: "[.cookpool-new_&]:bg-cp-owed-tint [.cookpool-new_&]:text-cp-owed",
+  amber: "[.cookpool-new_&]:bg-cp-soon-tint [.cookpool-new_&]:text-cp-soon",
+  purple: "[.cookpool-new_&]:bg-cp-purple-tint [.cookpool-new_&]:text-cp-purple",
+  teal: "[.cookpool-new_&]:bg-cp-teal-tint [.cookpool-new_&]:text-cp-teal",
+  slate: "[.cookpool-new_&]:bg-cp-slate-tint [.cookpool-new_&]:text-cp-slate",
+};
 
 /** An icon in a tinted circle. */
 export function IconBubble({
