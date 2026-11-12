@@ -1,0 +1,16 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-14
+  title: "Dark mode is black with the green"
+spec:
+  goal: "The new frame's dark mode uses a black ground and the light mode's green accent instead of Gold, as the canvas boards now show."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-14.TaskContract.yaml
+  doneWhen:
+    - "in dark mode the ground is #000000, cards #141414, the accent #22C55E with black text, accent text #4ADE80; no gold remains"
+    - "money colours, use soon and expired keep their dark values; the foundation test pins the new values"
+  gates: []

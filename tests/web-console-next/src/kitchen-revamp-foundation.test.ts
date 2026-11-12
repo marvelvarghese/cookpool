@@ -76,27 +76,27 @@ describe("the tokens (design §1)", () => {
     expect(light["cp-shadow-card"]).toBe("0 1px 2px rgba(23, 32, 27, 0.06), 0 4px 14px rgba(23, 32, 27, 0.06)");
   });
 
-  it("carry the dark values: Gold with no orange anywhere, and money you owe in pink", () => {
+  it("carry the dark values: black with the green (RV-14), no orange anywhere, and money you owe in pink", () => {
     expectColours(dark, {
-      background: "#0F1412",
-      card: "#1A211D",
-      foreground: "#F2F5F3",
-      "muted-foreground": "#A3ADA7",
-      primary: "#FACC15",
-      "primary-foreground": "#0F1412",
-      "cp-card": "#1A211D",
-      "cp-line": "#26302A",
-      "cp-accent-text": "#FDE68A",
-      "cp-accent-tint": "#3A3112",
-      "cp-on-accent": "#0F1412",
+      background: "#000000",
+      card: "#141414",
+      foreground: "#F5F5F5",
+      "muted-foreground": "#A3A3A3",
+      primary: "#22C55E",
+      "primary-foreground": "#000000",
+      "cp-card": "#141414",
+      "cp-line": "#262626",
+      "cp-accent-text": "#4ADE80",
+      "cp-accent-tint": "#0F2E1C",
+      "cp-on-accent": "#000000",
       "cp-owed": "#93C5FD",
       "cp-owed-tint": "#16264A",
       "cp-owe": "#F9A8D4",
       "cp-expired": "#FCA5A5",
       "cp-expired-tint": "#3A1A1A",
-      "cp-nav-bg": "#1A211D",
-      "cp-cook": "#FACC15",
-      "cp-tomato": "#FACC15",
+      "cp-nav-bg": "#141414",
+      "cp-cook": "#22C55E",
+      "cp-tomato": "#22C55E",
     });
     expect(dark["cp-shadow-card"]).toBe("none");
     // No orange: no colour token in dark has a hue between 10° and 40°.
