@@ -1,0 +1,80 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: spliteco-web
+  description: The Spliteco app (cookpool-spliteco SE1) — Next.js 15 on Workers via OpenNext, its own address, install and Deep ocean theme, talking only to api-edge
+spec:
+  type: cloudflare-workers-assets-turbo
+  lifecycle: production
+  owner: platform
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  domain: starter-ui
+  path: apps/spliteco-web
+  # Its own lane per environment: a Next.js build is a long job.
+  lane: isolated
+  # The app answers `/api/*` by calling api-edge over a service binding
+  # (wrangler.jsonc `env.<env>.services`, API_EDGE → cookpool-api-edge-<env>):
+  # a deploy-time prerequisite, so on main it deploys after api-edge.
+  dependsOn:
+    - component: api-edge
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+  # wrangler picks the environment's section of wrangler.jsonc from
+  # CLOUDFLARE_ENV: the composition deploys with `--name`, not `--env`.
+  env:
+    CLOUDFLARE_ENV: "{{ .environment }}"
+  subscribe:
+    environments:
+      - name: dev
+        profile: verify
+      - name: stage
+        dependencyRules:
+          - mode: advisory
+            when:
+              triggerRef: github-pull-request
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+      - name: prod
+        dependencyRules:
+          - mode: advisory
+            when:
+              triggerRef: github-pull-request
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+  parameters:
+    nodeVersion: "22"
+    pnpmVersion: "10.12.1"
+    workspaceDir: ../..
+    appDir: .
+    turboFilter: "@saas/spliteco-web"
+    wranglerConfig: wrangler.jsonc
+    workerEntrypoint: .open-next/worker.js
+    assetsDir: .open-next/assets
+    # cookpool-spliteco-web-{dev,stage,prod}.cookpool.workers.dev until the
+    # owner attaches a custom domain (risk SE-G).
+    workerName: cookpool-spliteco-web
+    environmentAwareWorkerName: true
+    workersDevSubdomain: cookpool
+    installCommand: pnpm install --frozen-lockfile
+    buildCommand: pnpm exec turbo run build --filter=@saas/spliteco-web
+    # The page must name Spliteco, and `/api/health` must reach api-edge over
+    # the binding with the client's address taken from it.
+    smokeCommand: "html=$(curl -sfL \"${DEPLOYED_URL}/\") && echo \"${html}\" | grep -q 'Spliteco' && api=$(curl -sf \"${DEPLOYED_URL}/api/health\") && echo \"${api}\" | grep -q '\"source\":\"console\"'"
+  labels:
+    team: platform
+    layer: delivery
+    surface: spliteco-web
+    runtime: cloudflare
