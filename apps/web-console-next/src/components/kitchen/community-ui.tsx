@@ -5,7 +5,7 @@ import Link from "./link";
 import { ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KCard } from "./kit";
+import { KCard, K_TITLE } from "./kit";
 import { BackButton } from "./back-ui";
 import { useSettled } from "./recipe-ui";
 import {
@@ -27,9 +27,11 @@ import {
   PeopleListSkeleton,
   PersonRowView,
   ProfileFace,
+  SEARCH_LABEL,
   SectionLabel,
 } from "./community-views";
 import { HandleSetup } from "./community-setup-ui";
+import { ShareCookButton } from "./community-share-cook-ui";
 import { CommunityFeed } from "./community-feed-ui";
 import { useUnreadActivity } from "./community-posts-data";
 import { useFollowRow } from "./community-profile-ui";
@@ -93,6 +95,8 @@ export function CommunityScreen() {
       {top === "loading" ? <Skeleton className="h-16 w-full rounded-[20px]" /> : top === "card" ? <SetupCard /> : null}
       {/* CM-6: Following · Discover (`?tab=`), the post cards. */}
       <CommunityFeed />
+      {/* RV-18: the board's one main button, sticky above the tab bar. */}
+      <ShareCookButton />
     </div>
   );
 }
@@ -106,7 +110,7 @@ function SetupCard() {
     >
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-base font-medium">Pick a handle</span>
-        <span className="text-[13px] font-medium text-muted-foreground">To follow cooks, and be found</span>
+        <span className="text-[13px] font-normal text-muted-foreground">To follow cooks, and be found</span>
       </span>
       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
     </Link>
@@ -129,9 +133,10 @@ export function PeopleSearchScreen() {
   return (
     <div className="flex w-full max-w-xl flex-col gap-3.5">
       <div className="flex items-center gap-2">
-        <label className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-[14px] border-[1.5px] border-foreground bg-card px-3.5 focus-within:ring-2 focus-within:ring-ring">
+        {/* RV-18: the card with its shadow, no ink border; the ring shows while typing. */}
+        <label className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-[14px] bg-card px-3.5 shadow-cp-card focus-within:ring-2 focus-within:ring-ring">
           <Search className="h-[18px] w-[18px] shrink-0 text-muted-foreground" strokeWidth={2.2} aria-hidden />
-          <span className="sr-only">Search people</span>
+          <span className="sr-only">{SEARCH_LABEL}</span>
           <input
             type="search"
             autoFocus
@@ -145,7 +150,7 @@ export function PeopleSearchScreen() {
             className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
           />
         </label>
-        <Link href={COMMUNITY_HREF} className="flex min-h-11 items-center px-1.5 text-[15px] font-medium text-primary hover:underline">
+        <Link href={COMMUNITY_HREF} className="flex min-h-11 items-center px-1.5 text-[15px] font-medium text-cp-accent-text hover:underline">
           Cancel
         </Link>
       </div>
@@ -170,7 +175,7 @@ export function PeopleSearchScreen() {
       ) : view.kind === "loading" ? (
         <PeopleListSkeleton />
       ) : view.kind === "empty" ? (
-        <p className="px-6 py-6 text-center text-[15px] font-medium text-muted-foreground">{view.text}</p>
+        <p className="px-6 py-6 text-center text-[15px] font-normal text-muted-foreground">{view.text}</p>
       ) : (
         <section aria-labelledby="sg-people" className="flex flex-col gap-1.5">
           <SectionLabel id="sg-people">People</SectionLabel>
@@ -196,8 +201,8 @@ export function BlockedPeopleScreen() {
       <div className="-ml-2.5 flex min-h-11 items-center">
         <BackButton />
       </div>
-      <h1 className="text-[26px] font-medium leading-tight tracking-[-0.02em]">Blocked people</h1>
-      <p className="text-sm font-medium text-muted-foreground">You don&apos;t see each other anywhere. They aren&apos;t told.</p>
+      <h1 className={K_TITLE}>Blocked people</h1>
+      <p className="text-sm font-normal text-muted-foreground">You don&apos;t see each other anywhere. They aren&apos;t told.</p>
       {blocks.loading ? (
         <PeopleListSkeleton />
       ) : blocks.error && !blocks.data ? (
@@ -213,7 +218,7 @@ export function BlockedPeopleScreen() {
                 <ProfileFace userId={row.userId} initials={row.initials} />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-[15px] font-medium">{row.name}</span>
-                  {row.sub ? <span className="truncate text-xs font-medium text-muted-foreground">{row.sub}</span> : null}
+                  {row.sub ? <span className="truncate text-[13px] font-normal text-muted-foreground">{row.sub}</span> : null}
                 </span>
                 <button
                   type="button"
@@ -252,7 +257,7 @@ export function YouCommunity() {
       >
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-base font-medium">Your public profile</span>
-          <span className="text-[13px] font-medium text-muted-foreground">Pick a handle so cooks can follow you</span>
+          <span className="text-[13px] font-normal text-muted-foreground">Pick a handle so cooks can follow you</span>
         </span>
         <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
       </Link>
@@ -265,17 +270,17 @@ export function YouCommunity() {
       <KCard className="flex items-center gap-1 px-2 py-1.5">
         <Link href={profileHref(profile.handle)} className={cn(cell, "min-w-0 flex-1")}>
           <span className="max-w-full truncate text-[15px] font-medium">{atHandle(profile.handle)}</span>
-          <span className="text-xs font-medium text-muted-foreground">{profile.privacy === "private" ? "Private" : "Public"}</span>
+          <span className="text-xs font-normal text-muted-foreground">{profile.privacy === "private" ? "Private" : "Public"}</span>
         </Link>
         <Link href={profileHref(profile.handle, "followers")} className={cell}>
           <span className="text-[17px] font-medium tabular-nums">{counts ? countText(counts.followers) : "–"}</span>
-          <span className="text-xs font-medium text-muted-foreground">Followers</span>
+          <span className="text-xs font-normal text-muted-foreground">Followers</span>
         </Link>
         <Link href={profileHref(profile.handle, "following")} className={cell}>
           <span className="text-[17px] font-medium tabular-nums">{counts ? countText(counts.following) : "–"}</span>
-          <span className="text-xs font-medium text-muted-foreground">Following</span>
+          <span className="text-xs font-normal text-muted-foreground">Following</span>
         </Link>
-        <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center rounded-xl px-2.5 text-sm font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center rounded-xl px-2.5 text-sm font-medium text-cp-accent-text hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           Edit
         </Link>
       </KCard>

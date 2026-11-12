@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-18
+  title: "You, Community and sign-in match the boards"
+spec:
+  goal: "You, its settings pages, Community and its pages, and sign-in follow RvYou, RvCommunity and RvSignIn, keeping every sign-in flow and the name field."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-18.TaskContract.yaml
+  doneWhen:
+    - "You rows and their page titles match; settings, notifications, assistants and connect use the tokens"
+    - "Community has Share a cook, one link per post; activity, post, profile and search use the tokens"
+    - "sign-in links Terms and Privacy, drops extra rings and helper lines, and Google, passkey, code and join links still work"
+    - "every gap in this task's part of the revamp audit is fixed or recorded as a departure in the status file; prod's old frame unchanged"
+  gates: []

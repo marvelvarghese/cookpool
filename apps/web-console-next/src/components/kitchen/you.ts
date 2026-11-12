@@ -9,6 +9,8 @@
 import { qk } from "@/lib/query-keys";
 import { cleanDisplayName } from "./sign-in";
 import { nameInitials } from "./members";
+import { ASSISTANTS_TITLE } from "./assistants";
+import { AI_SETTINGS_TITLE } from "./ai-settings";
 
 export const YOU_TITLE = "You";
 export const CHANGE_NAME = "Change your name";
@@ -102,12 +104,22 @@ export interface YouGroup {
   rows: YouRow[];
 }
 
+/** Push notifications: You's row and, in the new frame, its page's title. */
+export const PUSH_TITLE = "Push notifications";
+/** Help: Can't sign in?'s page, and its Privacy and terms section. */
+export const HELP_CENTRE = "Help centre";
+export const PRIVACY_AND_TERMS = "Privacy and terms";
+/** Both open the help page with You as its `next`, so its Back leads back here. */
+export const HELP_CENTRE_HREF = "/login/help?next=%2Fyou";
+export const PRIVACY_HREF = "/login/help?next=%2Fyou#privacy";
+
 /**
  * You's short grouped lists (`RvYou`): each row a label and a chevron, each
- * opening a page the app already has. "Passkeys" only where passkeys run;
- * elsewhere the same page lists the other ways in, so the row reads "Email".
- * The board's Voice cooking, Email digest and Help rows have no page of
- * their own yet, so they are not drawn.
+ * opening a page the app already has, and named as that page is titled
+ * (RV-18): Connected apps, AI settings and Push notifications. "Passkeys"
+ * only where passkeys run; elsewhere the same page lists the other ways in,
+ * so the row reads "Email". The board's Voice cooking and Email digest rows
+ * have no page of their own yet, so they are not drawn.
  */
 export function youGroups(opts: { passkeys: boolean }): YouGroup[] {
   return [
@@ -125,11 +137,19 @@ export function youGroups(opts: { passkeys: boolean }): YouGroup[] {
       title: "Sign-in and security",
       rows: [
         { id: "signin", label: opts.passkeys ? "Passkeys" : "Email", href: "/you/security" },
-        { id: "apps", label: "Connected apps", href: "/you/assistants" },
+        { id: "apps", label: ASSISTANTS_TITLE, href: "/you/assistants" },
       ],
     },
-    { id: "ai", title: "Cookpool AI", rows: [{ id: "ai", label: "AI settings", href: "/you/ai" }] },
-    { id: "notify", title: "Notifications", rows: [{ id: "push", label: "Push", href: "/you/notifications" }] },
+    { id: "ai", title: "Cookpool AI", rows: [{ id: "ai", label: AI_SETTINGS_TITLE, href: "/you/ai" }] },
+    { id: "notify", title: "Notifications", rows: [{ id: "push", label: PUSH_TITLE, href: "/you/notifications" }] },
+    {
+      id: "help",
+      title: "Help",
+      rows: [
+        { id: "help", label: HELP_CENTRE, href: HELP_CENTRE_HREF },
+        { id: "privacy", label: PRIVACY_AND_TERMS, href: PRIVACY_HREF },
+      ],
+    },
   ];
 }
 

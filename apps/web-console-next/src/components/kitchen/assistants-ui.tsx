@@ -14,7 +14,8 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "./back-ui";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "./kit";
+import { SEG_OFF, SEG_ON, SEG_TRACK } from "./rv-look";
 import { copyLink } from "./recipe-share";
 import {
   ASSISTANTS_HREF,
@@ -36,19 +37,20 @@ import {
 } from "./assistants";
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const LABEL = "text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground";
+// RV-18: section headings as the boards draw them (17 px, Medium), not 12 px capitals.
+const LABEL = K_SECTION;
 
 /** You's row (new frame): opens Connected assistants. */
 export function AssistantsRow() {
   return (
     <Link
       href={ASSISTANTS_HREF}
-      className={cn("flex min-h-16 items-center gap-3 rounded-[20px] border bg-card px-4 py-2.5 transition-colors hover:bg-accent", FOCUS)}
+      className={cn("flex min-h-16 items-center gap-3 rounded-cp-card bg-card px-4 py-2.5 shadow-cp-card transition-colors hover:bg-accent", FOCUS)}
     >
       <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] bg-cp-herb-tint text-primary">
         <Plug className="h-[18px] w-[18px]" strokeWidth={2} />
       </span>
-      <span className="min-w-0 flex-1 text-base font-extrabold">{ASSISTANTS_TITLE}</span>
+      <span className="min-w-0 flex-1 text-base font-medium">{ASSISTANTS_TITLE}</span>
       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
     </Link>
   );
@@ -109,14 +111,14 @@ export function AssistantsScreen() {
       <header className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <BackButton />
-          <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">{ASSISTANTS_TITLE}</h1>
+          <h1 className={K_TITLE}>{ASSISTANTS_TITLE}</h1>
         </div>
-        <p className="text-sm font-semibold text-muted-foreground">{ASSISTANTS_LEAD}</p>
+        <p className="text-sm font-normal text-muted-foreground">{ASSISTANTS_LEAD}</p>
       </header>
 
-      <KCard className="flex flex-col gap-2.5 rounded-[20px] p-3.5">
+      <KCard className="flex flex-col gap-2.5 p-3.5">
         <h2 className={LABEL}>{CONNECTOR_LABEL}</h2>
-        <div className="flex items-center gap-2 rounded-[14px] border bg-background py-1.5 pl-3 pr-1.5">
+        <div className="flex items-center gap-2 rounded-[14px] bg-secondary py-1.5 pl-3 pr-1.5">
           <span className="min-w-0 flex-1 select-all truncate font-mono text-[13px]" title={url ?? undefined}>
             {url ?? NO_CONNECTOR}
           </span>
@@ -125,7 +127,7 @@ export function AssistantsScreen() {
             disabled={!url}
             onClick={() => void copy()}
             aria-label={copied ? "Copied" : "Copy the connector URL"}
-            className="h-11 min-w-[76px] shrink-0 gap-1 rounded-[10px] bg-foreground px-3 text-[13px] font-extrabold text-background hover:bg-foreground/90"
+            className="h-11 min-w-[76px] shrink-0 gap-1 rounded-[10px] px-3 text-sm font-medium"
           >
             {copied ? (
               <>
@@ -136,7 +138,7 @@ export function AssistantsScreen() {
             )}
           </Button>
         </div>
-        <div role="tablist" aria-label="Your assistant" className="grid grid-cols-3 gap-1 rounded-[14px] bg-[#ECEEE9] p-1">
+        <div role="tablist" aria-label="Your assistant" className={cn("grid grid-cols-3 gap-1", SEG_TRACK)}>
           {ASSISTANT_TABS.map((t) => (
             <button
               key={t.id}
@@ -147,8 +149,8 @@ export function AssistantsScreen() {
               aria-controls="assistant-steps"
               onClick={() => setTab(t.id)}
               className={cn(
-                "min-h-11 rounded-[11px] text-sm font-extrabold",
-                t.id === shown.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+                "min-h-11 rounded-xl text-sm font-medium transition-colors",
+                t.id === shown.id ? SEG_ON : SEG_OFF,
                 FOCUS,
               )}
             >
@@ -157,12 +159,12 @@ export function AssistantsScreen() {
           ))}
         </div>
         <div id="assistant-steps" role="tabpanel" aria-labelledby={`assistant-tab-${shown.id}`} className="flex flex-col gap-1.5">
-          <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm font-semibold text-[#3F4842]">
+          <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm font-normal text-foreground">
             {shown.steps.map((s) => (
               <li key={s}>{s}</li>
             ))}
           </ol>
-          {shown.note ? <p className="text-xs font-semibold text-[#8A5A00]">{shown.note}</p> : null}
+          {shown.note ? <p className="text-[13px] font-normal text-cp-soon">{shown.note}</p> : null}
         </div>
       </KCard>
 
@@ -171,26 +173,26 @@ export function AssistantsScreen() {
           {list.loading ? "Connected" : connectedLabel(rows.length)}
         </h2>
         {list.loading ? (
-          <Skeleton className="h-16 w-full rounded-[20px]" />
+          <Skeleton className="h-16 w-full rounded-cp-card" />
         ) : list.error && !list.data ? (
-          <KCard className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] p-4">
+          <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
             <p className="text-sm text-muted-foreground">Couldn&apos;t load your assistants.</p>
-            <Button variant="outline" className={K_BUTTON} onClick={list.reload}>
+            <Button variant="outline" className={K_BUTTON_QUIET} onClick={list.reload}>
               Try again
             </Button>
           </KCard>
         ) : rows.length === 0 ? (
-          <KCard className="rounded-[20px] px-4 py-3.5 text-sm font-semibold text-muted-foreground">None yet</KCard>
+          <KCard className="px-4 py-3.5 text-sm font-normal text-muted-foreground">None yet</KCard>
         ) : (
-          <ul className="overflow-hidden rounded-[20px] border bg-card">
-            {rows.map((row, i) => (
-              <li key={row.id} className={cn("flex min-h-16 items-center gap-3 px-3.5 py-2.5", i < rows.length - 1 && "border-b border-[#ECEEE9]")}>
-                <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#ECEEE9]">
+          <ul className={K_ROWS}>
+            {rows.map((row) => (
+              <li key={row.id} className="flex min-h-16 items-center gap-3 px-3.5 py-2.5">
+                <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary">
                   <Plug className="h-5 w-5" strokeWidth={1.8} />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[15px] font-extrabold">{row.name}</span>
-                  <span className="text-xs font-semibold text-muted-foreground">{row.sub}</span>
+                  <span className="truncate text-base font-medium">{row.name}</span>
+                  <span className="text-[13px] font-normal text-muted-foreground">{row.sub}</span>
                 </span>
                 <Button
                   type="button"
@@ -199,7 +201,7 @@ export function AssistantsScreen() {
                   disabled={dropping !== null}
                   onClick={() => void disconnect(row.id, row.name)}
                   aria-label={`Disconnect ${row.name}`}
-                  className="h-11 shrink-0 rounded-xl border-[#F3C2BD] bg-card px-3 text-[13px] font-extrabold text-destructive hover:bg-cp-expired-tint hover:text-destructive"
+                  className="h-11 shrink-0 rounded-xl border-0 bg-cp-expired-tint px-3 text-sm font-medium text-destructive shadow-none hover:bg-cp-expired-tint/80 hover:text-destructive"
                 >
                   Disconnect
                 </Button>
@@ -209,7 +211,7 @@ export function AssistantsScreen() {
         )}
       </section>
 
-      <section aria-labelledby="assistants-can" className="flex flex-col gap-1.5 rounded-[18px] border bg-card px-3.5 py-3 text-sm font-semibold text-[#3F4842]">
+      <section aria-labelledby="assistants-can" className={cn(K_CARD, "flex flex-col gap-1.5 px-3.5 py-3 text-sm font-normal text-foreground")}>
         <h2 id="assistants-can" className={LABEL}>
           What it can do
         </h2>

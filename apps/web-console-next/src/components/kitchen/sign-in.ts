@@ -40,8 +40,21 @@ export const INVALID_EMAIL_NOTICE = "Enter your email address, like you@example.
 export const INVALID_CODE_NOTICE = "Enter the 6-digit code from the email.";
 export const NETWORK_NOTICE = "Couldn't reach Cookpool. Check your connection and try again.";
 export const GENERIC_NOTICE = "Something went wrong. Try again in a moment.";
-/** The Terms line. There are no /terms or /privacy pages yet, so it names them without links. */
+/**
+ * The Terms line. There are no /terms or /privacy pages yet, so on Sign in
+ * "Terms" and "Privacy notice" link to Can't sign in?'s Privacy and terms
+ * section (RV-18, `termsHref`).
+ */
 export const TERMS_SENTENCE = "By continuing you agree to the Terms and the Privacy notice.";
+/** The words before the first link, as Sign in draws `TERMS_SENTENCE`. */
+export const TERMS_LEAD = "By continuing you agree to the ";
+/** The id of Can't sign in?'s Privacy and terms section. */
+export const PRIVACY_SECTION_ID = "privacy";
+
+/** Where Terms and Privacy notice go: the help page (with the sign-in's `next`), at its Privacy and terms section. */
+export function termsHref(helpHref: string): string {
+  return `${helpHref.split("#")[0]}#${PRIVACY_SECTION_ID}`;
+}
 
 /**
  * The line under "Email me a code" on a phone. "The same buttons" only reads

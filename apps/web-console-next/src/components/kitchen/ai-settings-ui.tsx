@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setAiSwitch, useAiSwitch, type AiSwitchKey } from "@/lib/ai-switches";
 import { BackButton } from "./back-ui";
-import { K_BUTTON, K_CARD, K_TITLE } from "./kit";
+import { K_BUTTON_QUIET, K_CARD, K_TITLE } from "./kit";
 import { useAiStatus } from "./receipt-data";
 import { AiChip } from "./receipt-scan-ui";
 import { AI_SETTINGS_HEADING, AI_SETTINGS_HREF, AI_SETTINGS_LEAD, AI_SETTINGS_TITLE, aiSettingsView, type UseBar } from "./ai-settings";
@@ -21,7 +21,8 @@ import { AI_SETTINGS_HEADING, AI_SETTINGS_HREF, AI_SETTINGS_LEAD, AI_SETTINGS_TI
  */
 
 const CARD = K_CARD;
-const LABEL = "text-[13px] font-medium text-muted-foreground";
+// RV-18: a card's heading at 15 px, not a 13 px grey label.
+const LABEL = "text-[15px] font-medium text-foreground";
 
 /** Settings' row to it, in the new frame. */
 export function AiSettingsRow() {
@@ -96,7 +97,7 @@ export function AiSettingsScreen() {
         ) : view.state === "failed" ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-normal text-muted-foreground">Couldn&apos;t load today&apos;s use</span>
-            <Button variant="outline" className={K_BUTTON} onClick={status.reload}>
+            <Button variant="outline" className={K_BUTTON_QUIET} onClick={status.reload}>
               Try again
             </Button>
           </div>
@@ -107,7 +108,7 @@ export function AiSettingsScreen() {
       </section>
 
       <section aria-label="What is sent" className={cn(CARD, "flex flex-col gap-1.5 px-4 py-3 text-sm font-normal text-muted-foreground")}>
-        <span className={cn(LABEL, "text-foreground")}>What is sent</span>
+        <span className={LABEL}>What is sent</span>
         {view.sent.map((l) => (
           <span key={l}>{l}</span>
         ))}

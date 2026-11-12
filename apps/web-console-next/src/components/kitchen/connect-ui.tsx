@@ -10,6 +10,7 @@ import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "./data";
+import { K_CARD, K_QUIET } from "./kit";
 import { shownName } from "./you";
 import {
   ALLOWED_TEXT,
@@ -109,14 +110,14 @@ export function ConnectScreen() {
     <div className="mx-auto flex w-full max-w-md flex-col gap-4 pt-2">
       <TwoIcons />
       <header className="flex flex-col gap-1 text-center">
-        <h1 className="text-[22px] font-extrabold leading-tight tracking-[-0.01em]">{CONSENT_TITLE}</h1>
-        <div className="text-sm font-semibold text-muted-foreground [overflow-wrap:anywhere]">
+        <h1 className="text-[22px] font-medium leading-tight tracking-[-0.01em]">{CONSENT_TITLE}</h1>
+        <div className="text-sm font-normal text-muted-foreground [overflow-wrap:anywhere]">
           {you === null ? <Skeleton className="mx-auto h-4 w-56" /> : <RequestedBy name={name} you={you} />}
         </div>
-        <p className="text-xs font-semibold text-muted-foreground [overflow-wrap:anywhere]">{returnsToLine(info)}</p>
+        <p className="text-[13px] font-normal text-muted-foreground [overflow-wrap:anywhere]">{returnsToLine(info)}</p>
       </header>
 
-      <div className="overflow-hidden rounded-[20px] border bg-card">
+      <div className={cn(K_CARD, "overflow-hidden")}>
         {SCOPE_ROWS.map((row, i) => {
           const on = switches[row.scope];
           return (
@@ -127,24 +128,24 @@ export function ConnectScreen() {
               aria-checked={on}
               disabled={busy !== null}
               onClick={() => setSwitches((s) => flipScope(s, row.scope))}
-              className={cn("flex min-h-16 w-full items-center gap-3 px-3.5 py-2.5 text-left", i < SCOPE_ROWS.length - 1 && "border-b border-[#ECEEE9]", FOCUS)}
+              className={cn("flex min-h-16 w-full items-center gap-3 px-3.5 py-2.5 text-left", i < SCOPE_ROWS.length - 1 && "border-b border-cp-line", FOCUS)}
             >
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="text-[15px] font-extrabold">{row.label}</span>
-                <span className="text-xs font-semibold text-muted-foreground">{row.sub}</span>
+                <span className="text-base font-medium">{row.label}</span>
+                <span className="text-[13px] font-normal text-muted-foreground">{row.sub}</span>
               </span>
-              <span aria-hidden className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-[#C9CFC6]")}>
-                <span className={cn("absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
+              <span aria-hidden className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-input")}>
+                <span className={cn("absolute top-[3px] h-[22px] w-[22px] rounded-full bg-cp-card shadow-cp-card transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
               </span>
             </button>
           );
         })}
       </div>
 
-      <p className="rounded-2xl bg-[#FDF1D6] px-3.5 py-3 text-[13px] font-bold text-[#5C3D00]">{NEVER_MOVES_MONEY}</p>
-      <p className="text-center text-xs font-semibold text-muted-foreground">{DISCONNECT_HINT}</p>
+      <p className="rounded-2xl bg-cp-soon-tint px-3.5 py-3 text-[13px] font-medium text-cp-soon">{NEVER_MOVES_MONEY}</p>
+      <p className="text-center text-[13px] font-normal text-muted-foreground">{DISCONNECT_HINT}</p>
       {problem ? (
-        <p role="alert" className="text-center text-sm font-bold text-destructive">
+        <p role="alert" className="text-center text-sm font-medium text-destructive">
           {problem}
         </p>
       ) : null}
@@ -156,7 +157,7 @@ export function ConnectScreen() {
           disabled={busy !== null}
           loading={busy === "cancel"}
           onClick={() => void cancel()}
-          className="h-[58px] rounded-[18px] border-[#C9CFC6] bg-card text-base font-extrabold text-foreground hover:bg-accent"
+          className={cn("h-14 rounded-[18px] text-base font-medium", K_QUIET)}
         >
           Cancel
         </Button>
@@ -165,7 +166,7 @@ export function ConnectScreen() {
           disabled={busy !== null || !canAllow(switches)}
           loading={busy === "allow"}
           onClick={() => void allow()}
-          className="h-[58px] rounded-[18px] text-[17px] font-extrabold"
+          className="h-14 rounded-[18px] text-base font-medium"
         >
           Allow
         </Button>
@@ -178,7 +179,7 @@ export function ConnectScreen() {
 function RequestedBy({ name, you }: { name: string; you: string }) {
   return (
     <>
-      Requested by <b className="text-foreground">{name}</b> · signed in as {you}
+      Requested by <b className="font-medium text-foreground">{name}</b> · signed in as {you}
     </>
   );
 }
@@ -187,11 +188,11 @@ function RequestedBy({ name, you }: { name: string; you: string }) {
 function TwoIcons() {
   return (
     <div aria-hidden className="flex items-center justify-center gap-3.5">
-      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#ECEEE9] text-foreground">
+      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-secondary text-foreground">
         <Plug className="h-7 w-7" strokeWidth={1.8} />
       </span>
-      <ArrowLeftRight className="h-5 w-5 text-[#9AA39D]" strokeWidth={2} />
-      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-primary text-2xl font-extrabold text-primary-foreground">C</span>
+      <ArrowLeftRight className="h-5 w-5 text-muted-foreground" strokeWidth={2} />
+      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-primary text-2xl font-medium text-primary-foreground">C</span>
     </div>
   );
 }
@@ -203,7 +204,7 @@ function ConnectEnd({ outcome }: { outcome: ConnectOutcome }) {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4 pt-10 text-center">
       <TwoIcons />
-      <p role="status" className="text-lg font-extrabold [overflow-wrap:anywhere]">
+      <p role="status" className="text-lg font-medium [overflow-wrap:anywhere]">
         {text}
       </p>
     </div>
@@ -215,7 +216,7 @@ function ConnectSkeleton() {
     <div aria-hidden className="mx-auto flex w-full max-w-md flex-col gap-4 pt-2">
       <Skeleton className="mx-auto h-14 w-40 rounded-2xl" />
       <Skeleton className="mx-auto h-7 w-72" />
-      <Skeleton className="h-64 w-full rounded-[20px]" />
+      <Skeleton className="h-64 w-full rounded-cp-card" />
       <Skeleton className="h-[58px] w-full rounded-[18px]" />
     </div>
   );

@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GroupAvatar, K_CARD } from "./kit";
+import { CARD_EDGE } from "./rv-look";
 import {
   NAME_EYEBROW,
   NAME_FOOTNOTE,
@@ -173,11 +174,13 @@ export function GoogleMark({ className = "h-5 w-5" }: { className?: string }) {
 
 /**
  * The secondary sign-in buttons (`RvSignIn`): Google and Passkey side by
- * side, on the card with its soft shadow (a line in dark, where the card has
- * none).
+ * side, on the card with its soft shadow and no ring in light; a 1 px line
+ * in dark, where the card has none (RV-18, `CARD_EDGE`).
  */
-export const SIGN_IN_SECONDARY =
-  "flex h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border-0 bg-card px-4 text-[15px] font-medium text-foreground shadow-cp-card ring-1 ring-inset ring-cp-line transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70";
+export const SIGN_IN_SECONDARY = cn(
+  "flex h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border-0 bg-card px-4 text-[15px] font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70",
+  CARD_EDGE,
+);
 
 export function GoogleButton({
   onClick,

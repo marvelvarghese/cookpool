@@ -28,6 +28,7 @@ import {
   type ProfileDraft,
 } from "./community";
 import { HandleNoteView, PrivacyRow, SectionLabel } from "./community-views";
+import { K_TITLE } from "./kit";
 import { useBlocks, useHandleAvailability, useMyCommunityProfile, useSaveMyProfile } from "./community-data";
 
 /**
@@ -39,8 +40,9 @@ import { useBlocks, useHandleAvailability, useMyCommunityProfile, useSaveMyProfi
  * People I approve); Blocked people; Save.
  */
 
-const FIELD_LABEL = "text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground";
-const FIELD = "h-12 rounded-[14px] border-border bg-card text-base";
+// RV-18: labels as Sign in's (14 px, Medium, not uppercase); fields with the boards' 1.5 px field line.
+const FIELD_LABEL = "text-sm font-medium text-foreground";
+const FIELD = "h-12 rounded-[14px] border-[1.5px] border-input bg-card text-base";
 
 export function HandleSetupScreen() {
   return (
@@ -139,8 +141,8 @@ function HandleSetupForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-3.5" noValidate>
       <div className="flex flex-col gap-1">
-        <h1 className="text-[26px] font-medium leading-tight tracking-[-0.02em]">{HANDLE_SETUP_TITLE}</h1>
-        <p className="text-sm font-medium text-muted-foreground">{HANDLE_SETUP_SUB}</p>
+        <h1 className={K_TITLE}>{HANDLE_SETUP_TITLE}</h1>
+        <p className="text-sm font-normal text-muted-foreground">{HANDLE_SETUP_SUB}</p>
       </div>
 
       <label className="flex flex-col gap-1.5">
@@ -155,10 +157,10 @@ function HandleSetupForm({
         <span
           className={cn(
             "flex h-12 items-center rounded-[14px] border-[1.5px] bg-card px-3.5 focus-within:ring-2 focus-within:ring-ring",
-            note.tone === "ok" ? "border-primary" : note.tone === "bad" ? "border-destructive" : "border-border",
+            note.tone === "ok" ? "border-primary" : note.tone === "bad" ? "border-destructive" : "border-input",
           )}
         >
-          <span aria-hidden className="text-base font-medium text-muted-foreground">
+          <span aria-hidden className="text-base font-normal text-muted-foreground">
             @
           </span>
           <input
@@ -170,7 +172,7 @@ function HandleSetupForm({
             maxLength={21}
             aria-describedby="handle-note"
             onChange={(e) => edit({ handle: e.target.value.replace(/^@/, "").toLowerCase() })}
-            className="min-w-0 flex-1 bg-transparent text-base font-medium outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base font-normal outline-none"
           />
         </span>
         <HandleNoteView id="handle-note" note={refusal ? { text: refusal, tone: "bad" } : note} />
@@ -184,7 +186,7 @@ function HandleSetupForm({
           maxLength={PROFILE_ABOUT_MAX}
           placeholder="What do you cook?"
           onChange={(e) => edit({ about: e.target.value })}
-          className="resize-none rounded-[14px] border-border bg-card text-[15px]"
+          className="resize-none rounded-[14px] border-[1.5px] border-input bg-card text-[15px]"
         />
       </label>
 
@@ -199,7 +201,7 @@ function HandleSetupForm({
 
       {intro ? null : <BlockedLink />}
       {profile && !intro ? (
-        <Link href={profileHref(profile.handle)} className="flex min-h-11 items-center px-1 text-[15px] font-medium text-primary hover:underline">
+        <Link href={profileHref(profile.handle)} className="flex min-h-11 items-center px-1 text-[15px] font-medium text-cp-accent-text hover:underline">
           See your profile
         </Link>
       ) : null}
@@ -227,7 +229,7 @@ function BlockedLink() {
   return (
     <Link
       href={BLOCKED_HREF}
-      className="flex min-h-12 items-center justify-between rounded-[14px] border border-border bg-card px-3.5 text-[15px] font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-12 items-center justify-between rounded-[14px] bg-card px-3.5 text-[15px] font-medium shadow-cp-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       Blocked people
       <span className="flex items-center gap-0.5 tabular-nums text-muted-foreground">

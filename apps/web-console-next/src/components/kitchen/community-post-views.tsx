@@ -10,6 +10,7 @@ import { ProfileFace } from "./community-views";
 import { FEED_TAB_LABELS, feedHref, postNumbers, type PostCard, type StatTile } from "./community-posts";
 import type { ActivityLine } from "./community-activity";
 import { FEED_TABS } from "@saas/contracts/kitchen";
+import { SEG_OFF, SEG_ON, SEG_TRACK } from "./rv-look";
 
 /**
  * Posts' parts as they draw (cookpool-community CM-6, the canvas's
@@ -20,10 +21,10 @@ import { FEED_TABS } from "@saas/contracts/kitchen";
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-/** Following · Everyone (`RvCommunity`): two tabs in a track, the chosen one on the card; the choice is the address (`?tab=`). */
+/** Following · Everyone (`RvCommunity`): two tabs in a track, the chosen one on the card with no ring (RV-18); the choice is the address (`?tab=`). */
 export function FeedTabs({ tab }: { tab: FeedTab }) {
   return (
-    <nav aria-label="Feed" className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
+    <nav aria-label="Feed" className={cn("grid grid-cols-2 gap-1", SEG_TRACK)}>
       {FEED_TABS.map((t) => {
         const on = t === tab;
         return (
@@ -36,7 +37,7 @@ export function FeedTabs({ tab }: { tab: FeedTab }) {
             className={cn(
               "flex min-h-11 items-center justify-center rounded-xl text-[15px] font-medium transition-colors",
               FOCUS,
-              on ? "bg-card text-foreground shadow-cp-card ring-1 ring-inset ring-border/60" : "text-muted-foreground hover:text-foreground",
+              on ? SEG_ON : SEG_OFF,
             )}
           >
             {FEED_TAB_LABELS[t]}
@@ -47,14 +48,14 @@ export function FeedTabs({ tab }: { tab: FeedTab }) {
   );
 }
 
-/** The chosen stats: up to four tiles, value over label ("450 g" / "size"); white with a border on the page's ground (`onGround`). */
+/** The chosen stats: up to four tiles, value over label ("450 g" / "size"); on the page's ground (`onGround`) each is a card with its shadow, no border. */
 export function StatTiles({ tiles, onGround = false }: { tiles: readonly StatTile[]; onGround?: boolean }) {
   if (tiles.length === 0) return null;
   return (
     <dl className="grid grid-cols-4 gap-1.5">
       {tiles.map((t) => (
-        <div key={t.id} className={cn("flex min-w-0 flex-col-reverse rounded-xl px-2 py-1.5", onGround ? "border bg-card" : "bg-background")}>
-          <dt className="truncate text-[11px] font-medium text-muted-foreground">{t.label}</dt>
+        <div key={t.id} className={cn("flex min-w-0 flex-col-reverse rounded-xl px-2 py-1.5", onGround ? "bg-card shadow-cp-card" : "bg-background")}>
+          <dt className="truncate text-xs font-normal text-muted-foreground">{t.label}</dt>
           <dd className="truncate text-[15px] font-medium tabular-nums">{t.value}</dd>
         </div>
       ))}
@@ -75,7 +76,7 @@ export function PostHero({ card, tall = false }: { card: Pick<PostCard, "title" 
       )}
     >
       <span className="break-words text-[22px] font-medium leading-tight text-foreground">{card.title}</span>
-      {card.recipeLine ? <span className="text-[13px] font-medium text-muted-foreground">{card.recipeLine}</span> : null}
+      {card.recipeLine ? <span className="text-[13px] font-normal text-muted-foreground">{card.recipeLine}</span> : null}
     </span>
   );
 }
@@ -91,7 +92,7 @@ export function YumButton({ on, label, onClick, big = false }: { on: boolean; la
         "flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-medium tabular-nums transition-colors",
         FOCUS,
         big && "px-3.5 text-[15px]",
-        on ? "bg-cp-accent-tint text-cp-accent-text" : big ? "border border-border bg-card text-foreground hover:bg-accent" : "text-muted-foreground hover:bg-accent",
+        on ? "bg-cp-accent-tint text-cp-accent-text" : big ? "bg-secondary text-foreground hover:bg-accent" : "text-muted-foreground hover:bg-accent",
       )}
     >
       <Heart className={cn("h-[18px] w-[18px]", on && "fill-current")} strokeWidth={2.2} aria-hidden />
@@ -101,10 +102,11 @@ export function YumButton({ on, label, onClick, big = false }: { on: boolean; la
 }
 
 /**
- * One post in a feed or on a profile, compact (`RvCommunity`): the recipe's
- * tile, the dish, who and when, the numbers ("450 g · 48 min · 12 yums"),
- * and two icons — Yum and the save (`cookThis`, Cook this's copy). The
- * caption, the comments and the ⋯ menu are on the post's page.
+ * One post in a feed or on a profile, compact (`RvCommunity`): one link
+ * (RV-18) holding the recipe's tile, the dish, who and when, and the numbers
+ * ("450 g · 48 min · 12 yums"), opening the post; then two icons — Yum and the
+ * save (`cookThis`, Cook this's copy). The author, the caption, the comments
+ * and the ⋯ menu are on the post's page.
  */
 export function PostCardView({
   card,
@@ -120,22 +122,16 @@ export function PostCardView({
 }) {
   return (
     <article aria-labelledby={`post-${card.id}`} className="flex items-center gap-3 rounded-cp-card bg-card py-2.5 pl-2.5 pr-1.5 shadow-cp-card">
-      <Link href={card.href} tabIndex={-1} aria-hidden className="shrink-0 rounded-2xl">
+      <Link href={card.href} className={cn("flex min-w-0 flex-1 items-center gap-3 rounded-2xl", FOCUS)}>
         <PostTile tile={card.tile} />
-      </Link>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <Link href={card.href} id={`post-${card.id}`} className={cn("truncate rounded text-base font-medium hover:underline", FOCUS)}>
-          {card.title}
-        </Link>
-        {card.author.href ? (
-          <Link href={card.author.href} className={cn("truncate rounded text-[13px] font-normal text-muted-foreground hover:underline", FOCUS)}>
-            {card.byline}
-          </Link>
-        ) : (
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span id={`post-${card.id}`} className="truncate text-base font-medium">
+            {card.title}
+          </span>
           <span className="truncate text-[13px] font-normal text-muted-foreground">{card.byline}</span>
-        )}
-        <span className="truncate text-[13px] font-normal tabular-nums text-foreground">{postNumbers(card)}</span>
-      </span>
+          <span className="truncate text-[13px] font-normal tabular-nums text-foreground">{postNumbers(card)}</span>
+        </span>
+      </Link>
       <span className="flex shrink-0 flex-col">
         <button
           type="button"
@@ -194,10 +190,10 @@ export function ActivityLineView({ line, meId }: { line: ActivityLine; meId: str
       <Link href={line.href} className={cn("flex min-h-16 items-center gap-3 px-3 py-2.5 hover:bg-accent", FOCUS)}>
         <ProfileFace userId={line.faceId} meId={meId} initials={line.faceName.trim().charAt(0).toUpperCase() || "?"} />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="break-words text-[15px] font-medium leading-snug">
+          <span className="break-words text-[15px] font-normal leading-snug">
             <b className="font-medium">{line.who}</b> {line.what}
           </span>
-          <span className="text-xs font-medium text-muted-foreground">{line.when}</span>
+          <span className="text-[13px] font-normal text-muted-foreground">{line.when}</span>
         </span>
         {line.unread ? <span aria-label="New" className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" /> : null}
         <Icon className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />

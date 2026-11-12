@@ -9,7 +9,7 @@ import { faceColor } from "./faces";
 import { ACTIVITY_HREF, PEOPLE_SEARCH_HREF, type CountCell, type FollowButton, type HandleNote } from "./community";
 import { rowFollowLabel, type PersonRow } from "./community-people";
 import { bellLabel, unreadBadge } from "./community-activity";
-import { K_TITLE } from "./kit";
+import { K_QUIET, K_SECTION, K_TITLE } from "./kit";
 
 /**
  * Community's parts as they draw (cookpool-community CM-5, the canvas row
@@ -32,17 +32,20 @@ export function ProfileFace({ userId, initials, size = "sm", meId = null }: { us
   );
 }
 
-/** An uppercase section label, as the canvas's ("FROM YOUR GROUPS", "WHO CAN FOLLOW YOU"). */
+/** A section heading ("From your groups", "Who can follow you"): 17 px, Medium, as the boards draw them (RV-18; it was a 12 px uppercase label). */
 export function SectionLabel({ id, children }: { id?: string; children: React.ReactNode }) {
   return (
-    <h2 id={id} className="px-0.5 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+    <h2 id={id} className={cn(K_SECTION, "px-0.5")}>
       {children}
     </h2>
   );
 }
 
 const ROW_BUTTON = "min-h-11 min-w-[96px] shrink-0 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-export const OUTLINE_BUTTON = "border border-border bg-card text-foreground hover:bg-accent";
+/** The second choice beside the green one (Following, Unblock, Message): the quiet tint, no outline (RV-18). */
+export const OUTLINE_BUTTON = K_QUIET;
+/** A quiet "No": text only, so the row's one button is the green one. */
+export const PLAIN_BUTTON = "text-muted-foreground hover:bg-secondary hover:text-foreground";
 export const GREEN_BUTTON = "bg-primary text-primary-foreground hover:bg-primary/90";
 
 /** A person in a list: face and name open their profile; the button follows (or `action` replaces it). */
@@ -64,7 +67,7 @@ export function PersonRowView({
       </Link>
       <Link href={row.href} className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="truncate text-[15px] font-medium">{row.name}</span>
-        <span className="truncate text-xs font-medium text-muted-foreground">{row.sub}</span>
+        <span className="truncate text-[13px] font-normal text-muted-foreground">{row.sub}</span>
       </Link>
       {action ??
         (onFollow ? (
@@ -98,7 +101,7 @@ export function PeopleListSkeleton() {
 
 /** A grey line in a card: an empty list. */
 export function EmptyLine({ children }: { children: React.ReactNode }) {
-  return <p className="flex min-h-14 items-center rounded-cp-card bg-card shadow-cp-card px-4 text-sm font-medium text-muted-foreground">{children}</p>;
+  return <p className="flex min-h-14 items-center rounded-cp-card bg-card shadow-cp-card px-4 text-sm font-normal text-muted-foreground">{children}</p>;
 }
 
 /** Posts · Recipes · Followers · Following, beside the face; the last two open their lists. */
@@ -109,7 +112,7 @@ export function CountsRow({ cells }: { cells: readonly CountCell[] }) {
         const inner = (
           <>
             <dd className="text-lg font-medium leading-tight tabular-nums">{c.value}</dd>
-            <dt className="text-[11px] font-medium text-muted-foreground">{c.label}</dt>
+            <dt className="text-xs font-normal text-muted-foreground">{c.label}</dt>
           </>
         );
         return c.href ? (
@@ -126,7 +129,7 @@ export function CountsRow({ cells }: { cells: readonly CountCell[] }) {
   );
 }
 
-/** The profile's main button: green to follow or ask, outlined once you do. */
+/** The profile's main button: green to follow or ask, the quiet tint once you do. */
 export function FollowButtonView({ button, onClick, href }: { button: FollowButton; onClick?: () => void; href?: string }) {
   const cls = cn("flex min-h-12 items-center justify-center rounded-[14px] px-4 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", button.primary ? GREEN_BUTTON : OUTLINE_BUTTON);
   if (href) {
@@ -151,7 +154,7 @@ export function LockCard({ title, sub }: { title: string; sub: string }) {
         <Lock className="h-5 w-5" strokeWidth={2.2} />
       </span>
       <p className="text-base font-medium">{title}</p>
-      <p className="text-sm font-medium text-muted-foreground">{sub}</p>
+      <p className="text-sm font-normal text-muted-foreground">{sub}</p>
     </section>
   );
 }
@@ -164,7 +167,7 @@ export function CommunityHeader({ unread = null, back = null }: { unread?: numbe
     <header className="flex min-h-11 items-center gap-1.5">
       {back}
       <h1 className={cn(K_TITLE, "min-w-0 flex-1 truncate")}>Community</h1>
-      <Link href={PEOPLE_SEARCH_HREF} aria-label="Search people" className={icon}>
+      <Link href={PEOPLE_SEARCH_HREF} aria-label={SEARCH_LABEL} className={icon}>
         <Search className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
       </Link>
       <Link href={ACTIVITY_HREF} aria-label={bellLabel(unread)} className={cn(icon, "-mr-1.5")}>
@@ -179,12 +182,18 @@ export function CommunityHeader({ unread = null, back = null }: { unread?: numbe
   );
 }
 
+/**
+ * The search icon's name. The board says "Search people and recipes", but
+ * the page it opens finds people only (name or @handle), so it says so (RV-18).
+ */
+export const SEARCH_LABEL = "Search people";
+
 /** The search field on Community: a link that opens people search. */
 export function SearchLink() {
   return (
     <Link
       href={PEOPLE_SEARCH_HREF}
-      className="flex min-h-12 items-center gap-2.5 rounded-[14px] border border-border bg-card px-3.5 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-12 items-center gap-2.5 rounded-[14px] bg-card px-3.5 text-[15px] font-normal text-muted-foreground shadow-cp-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Search className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
       Search people
@@ -204,7 +213,7 @@ export function CommunityEntry({ href }: { href: string }) {
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-base font-medium">Community</span>
-        <span className="truncate text-[13px] font-medium text-muted-foreground">Follow cooks and see what they make</span>
+        <span className="truncate text-[13px] font-normal text-muted-foreground">Follow cooks and see what they make</span>
       </span>
       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
     </Link>
@@ -214,7 +223,7 @@ export function CommunityEntry({ href }: { href: string }) {
 /** The handle's line under its field, in its tone. */
 export function HandleNoteView({ note, id }: { note: HandleNote; id: string }) {
   return (
-    <span id={id} aria-live="polite" className={cn("text-[13px] font-medium", note.tone === "ok" ? "text-cp-accent-text" : note.tone === "bad" ? "text-destructive" : "text-muted-foreground")}>
+    <span id={id} aria-live="polite" className={cn("text-[13px] font-normal", note.tone === "ok" ? "text-cp-accent-text" : note.tone === "bad" ? "text-destructive" : "text-muted-foreground")}>
       {note.text}
     </span>
   );
@@ -230,12 +239,13 @@ export function PrivacyRow({ title, sub, on, onPick }: { title: string; sub: str
       onClick={onPick}
       className={cn(
         "flex min-h-16 w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-border bg-card hover:bg-accent",
+        // RV-18: no borders — the chosen one on the tint, the others on the card with its shadow.
+        on ? "bg-cp-accent-tint" : "bg-card shadow-cp-card hover:bg-accent",
       )}
     >
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-base font-medium">{title}</span>
-        <span className="text-[13px] font-medium text-muted-foreground">{sub}</span>
+        <span className="text-[13px] font-normal text-muted-foreground">{sub}</span>
       </span>
       <span aria-hidden className={cn("grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2", on ? "border-primary" : "border-input")}>
         <span className={cn("h-2.5 w-2.5 rounded-full", on ? "bg-primary" : "bg-transparent")} />

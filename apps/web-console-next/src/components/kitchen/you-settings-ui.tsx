@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { applyNewName, useProfile } from "@/components/kitchen/data";
-import { KCard, K_BUTTON, K_CARD } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_CARD, K_QUIET } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { InstallRow } from "@/components/kitchen/install-ui";
 import { NotificationsRow } from "@/components/kitchen/notify-ui";
@@ -105,6 +105,9 @@ export function YouSettings({ title = YOU_TITLE, sub = false }: { title?: string
   );
 }
 
+/** Today's frame's outlined secondary button (prod). */
+const OUTLINED = "border-border bg-card text-foreground hover:bg-accent";
+
 export function MeCard({ user }: { user: AuthUser }) {
   const { client } = useSession();
   const qc = useQueryClient();
@@ -117,6 +120,8 @@ export function MeCard({ user }: { user: AuthUser }) {
   const editButtonRef = React.useRef<HTMLButtonElement>(null);
   const returnFocus = React.useRef(false);
   const name = shownName(user);
+  // The new frame's Name and handle (RV-18): quiet tint buttons, no outline. Today's You keeps its outlined ones.
+  const quiet = newFrame();
 
   React.useEffect(() => {
     if (editing) {
@@ -221,7 +226,7 @@ export function MeCard({ user }: { user: AuthUser }) {
               variant="outline"
               disabled={saving}
               onClick={close}
-              className="h-[46px] rounded-[14px] border-border bg-card text-[15px] font-medium text-foreground hover:bg-accent"
+              className={cn("h-[46px] rounded-[14px] text-[15px] font-medium", quiet ? K_QUIET : OUTLINED)}
             >
               Cancel
             </Button>
@@ -236,7 +241,7 @@ export function MeCard({ user }: { user: AuthUser }) {
           type="button"
           variant="outline"
           onClick={startEdit}
-          className="h-[46px] gap-2 rounded-[14px] border-border bg-card text-[15px] font-medium text-foreground hover:bg-accent"
+          className={cn("h-[46px] gap-2 rounded-[14px] text-[15px] font-medium", quiet ? K_QUIET : OUTLINED)}
         >
           <Pencil className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden />
           {CHANGE_NAME}
