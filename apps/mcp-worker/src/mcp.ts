@@ -16,17 +16,26 @@ import type { Env, GrantProps } from "./env.js";
 import { requestIdOf } from "./http.js";
 import { KITCHEN_TOOLS } from "./tools/kitchen.js";
 import { MONEY_TOOLS, TIMER_TOOLS } from "./tools/money-timers.js";
+import { SPLITECO_READ_TOOLS, SPLITECO_WRITE_TOOLS } from "./tools/spliteco.js";
 import { errorText, isEdgeError, type ToolContext, type ToolDef } from "./tools/types.js";
 
 export const SERVER_INFO = { name: "cookpool", title: "Cookpool", version: "1.0.0" } as const;
 
 export const SERVER_INSTRUCTIONS =
-  "Cookpool keeps a person's pantries, recipes, shopping list and shared-cost balances. " +
-  "These tools read them and set kitchen timers. Nothing here moves money. " +
-  "Ids from one result (itm_, rcp_, tmr_, org_) can be passed to another tool.";
+  "Cookpool keeps a person's pantries, recipes, shopping list and shared-cost balances, and Spliteco their split expenses. " +
+  "These tools read them, set kitchen timers and, when allowed, log Spliteco expenses. Nothing here moves money: " +
+  "no tool records a payment (settle_up only links to the app). An expense is never saved straight away: " +
+  "draft_expense, edit_expense and move_expense answer a draft; show it to the person and call save_expense only after they say yes. " +
+  "Ids from one result (itm_, rcp_, tmr_, org_, usr_, txn_, drf_) can be passed to another tool.";
 
 /** Every tool this server has, in the order it lists them (MC-5 adds suggest_use and suggest_purchase). */
-export const ALL_TOOLS: ToolDef[] = [...KITCHEN_TOOLS, ...MONEY_TOOLS, ...TIMER_TOOLS] as unknown as ToolDef[];
+export const ALL_TOOLS: ToolDef[] = [
+  ...KITCHEN_TOOLS,
+  ...MONEY_TOOLS,
+  ...TIMER_TOOLS,
+  ...SPLITECO_READ_TOOLS,
+  ...SPLITECO_WRITE_TOOLS,
+] as unknown as ToolDef[];
 
 /** The scopes in force: what the grant holds, narrowed to what this access token carries. */
 export function grantedScopes(props: GrantProps, auth: OAuthResourceAuth | undefined): Set<AssistantScope> {
@@ -82,7 +91,7 @@ export async function runTool(tool: ToolDef, args: unknown, ctx: ToolContext): P
   } catch {
     return { isError: true, content: [{ type: "text", text: "Cookpool isn't answering right now. Try again shortly." }] };
   }
-  if (isEdgeError(outcome)) return { isError: true, content: [{ type: "text", text: errorText(outcome) }] };
+  if (isEdgeError(outcome)) return { isError: true, content: [{ type: "text", text: tool.explain?.(outcome) ?? errorText(outcome) }] };
   return {
     content: [
       { type: "text", text: outcome.summary },

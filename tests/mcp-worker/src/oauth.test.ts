@@ -25,7 +25,7 @@ import {
 } from "./helpers.js";
 
 describe("metadata", () => {
-  test("the authorization server publishes its endpoints, PKCE S256, the four scopes and registration", async () => {
+  test("the authorization server publishes its endpoints, PKCE S256, the five scopes and registration", async () => {
     const w = world();
     const meta = await json(await call(w, "/.well-known/oauth-authorization-server"));
     expect(meta).toMatchObject({
@@ -34,7 +34,7 @@ describe("metadata", () => {
       token_endpoint: `${ORIGIN}/token`,
       registration_endpoint: `${ORIGIN}/register`,
       code_challenge_methods_supported: ["S256"],
-      scopes_supported: ["kitchen.read", "money.read", "timers.write", "suggest.write"],
+      scopes_supported: ["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"],
     });
   });
 
@@ -238,7 +238,8 @@ describe("connect/complete", () => {
     const { accessToken } = await connect(w, ["money.read"]);
     const res = await rpc(w, accessToken, "tools/list");
     const tools = ((await res.json()) as { result: { tools: Array<{ name: string }> } }).result.tools.map((t) => t.name);
-    expect(tools).toEqual(["balances"]);
+    // Balances and Spliteco's reads; never a write the person did not allow.
+    expect(tools).toEqual(["balances", "find_people", "list_groups", "get_balances", "search_expenses", "get_activity", "get_insights", "settle_up"]);
   });
 
   test("reconnecting the same assistant ends the old grant and revokes its delegation", async () => {
@@ -300,6 +301,29 @@ describe("CORS on /connect/* only, for the console only", () => {
     const res = await call(w, "/connect/request?req=" + "a".repeat(43), { headers: { origin: "https://evil.test" } });
     expect(res.status).toBe(403);
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  test("the Spliteco app may call Disconnect, and nothing else (SE-6)", async () => {
+    const w = world();
+    const SPLITECO = "https://spliteco.test";
+    (w.env as { SPLITECO_ORIGIN?: string }).SPLITECO_ORIGIN = SPLITECO;
+    const pre = await call(w, "/connect/disconnect", { method: "OPTIONS", headers: { origin: SPLITECO, "access-control-request-method": "POST" } });
+    expect(pre.headers.get("access-control-allow-origin")).toBe(SPLITECO);
+    await connect(w, ["money.read"]);
+    const res = await call(w, "/connect/disconnect", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${SESSION}`, origin: SPLITECO },
+      body: JSON.stringify({ delegationId: DELEGATION }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe(SPLITECO);
+    // Consent stays the console's.
+    for (const path of ["/connect/complete", "/connect/deny"]) {
+      const refused = await call(w, path, { method: "POST", headers: { "content-type": "application/json", origin: SPLITECO }, body: "{}" });
+      expect([path, refused.status]).toEqual([path, 403]);
+    }
+    const read = await call(w, "/connect/request?req=" + "a".repeat(43), { headers: { origin: SPLITECO } });
+    expect(read.status).toBe(403);
   });
 
   test("/authorize and /mcp carry no console CORS", async () => {

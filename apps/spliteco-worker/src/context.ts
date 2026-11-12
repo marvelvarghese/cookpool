@@ -9,6 +9,10 @@ export interface ActorContext {
   subjectType: string;
   /** The delegation (assistant) the call came through, when one did (SE5). */
   delegationId: string | null;
+  /** That delegation's scopes, as api-edge resolved them (empty for a person's own session). */
+  scopes: string[];
+  /** The assistant's name as the person connected it ("Claude"); null without a delegation. */
+  clientName: string | null;
 }
 
 /** Test seams the router threads into every request. */

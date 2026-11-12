@@ -1,7 +1,8 @@
 // Spliteco at the edge (cookpool-spliteco SE1): `/v1/spliteco/…` reaches
 // spliteco-worker through its facade — session resolved, actor forwarded,
 // bodies on POST/PUT, the shared rate-limit and idempotency gate — and a
-// delegated token reaches none of it. Driven through the worker entrypoint.
+// delegated token reaches only what money.read and money.write allow (SE-6),
+// never a payment. Driven through the worker entrypoint.
 
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -102,11 +103,49 @@ describe("the spliteco facade", () => {
     expect(s.calls).toHaveLength(0);
   });
 
-  it("refuses a delegated token on every Spliteco path, before the worker is asked", async () => {
+  it("refuses a delegated token every payment route, before identity or the worker is asked (SE-6)", async () => {
     const s = spliteco();
-    const res = await worker.fetch(req("/v1/spliteco/me/home", "GET", { auth: false, headers: { authorization: `Bearer sps_dlg_${"0".repeat(32)}.secret` } }), env(s.fetcher) as never);
-    expect(res.status).toBe(403);
+    for (const [path, method] of [
+      [`/v1/spliteco/groups/${ORG}/settlements`, "POST"],
+      [`/v1/spliteco/settlements/txn_${"0".repeat(32)}/not-received`, "POST"],
+      ["/v1/spliteco/me/profile", "PUT"],
+      [`/v1/spliteco/groups/${ORG}/expenses`, "POST"],
+    ] as const) {
+      const res = await worker.fetch(req(path, method, { auth: false, body: {}, headers: { authorization: `Bearer sps_dlg_${"0".repeat(32)}.secret` } }), env(s.fetcher) as never);
+      expect([path, res.status]).toEqual([path, 403]);
+    }
     expect(s.calls).toHaveLength(0);
+  });
+
+  it("forwards an allowed delegated read with the delegation, its scopes and the assistant's name (SE-6)", async () => {
+    const s = spliteco();
+    const delegated: Fetcher = {
+      fetch: () =>
+        Promise.resolve(
+          Response.json({
+            data: { actor: { actorType: "user", actorId: "usr_anu", email: "anu@test.com", delegation: { id: "dlg_1", scopes: ["money.read"], clientName: "Claude · Work" } } },
+            meta: { requestId: "r", cursor: null },
+          }),
+        ),
+      connect() {
+        throw new Error("not implemented");
+      },
+    } as unknown as Fetcher;
+    const res = await worker.fetch(
+      req("/v1/spliteco/me/home", "GET", { auth: false, headers: { authorization: `Bearer sps_dlg_${"1".repeat(32)}.secret` } }),
+      { ENVIRONMENT: "test", IDENTITY_WORKER: delegated, SPLITECO_WORKER: s.fetcher } as never,
+    );
+    expect(res.status).toBe(200);
+    const headers = new Headers(s.calls[0]!.init.headers);
+    expect(headers.get("x-actor-delegation-id")).toBe("dlg_1");
+    expect(headers.get("x-actor-scopes")).toBe("money.read");
+    expect(decodeURIComponent(headers.get("x-actor-delegation-client")!)).toBe("Claude · Work");
+  });
+
+  it("never sends the assistant's name for a person's own session", async () => {
+    const s = spliteco();
+    await worker.fetch(req("/v1/spliteco/me/home", "GET", { headers: { "x-actor-delegation-client": "Claude" } }), env(s.fetcher) as never);
+    expect(new Headers(s.calls[0]!.init.headers).get("x-actor-delegation-client")).toBeNull();
   });
 
   it("has its own rate-limit family", () => {

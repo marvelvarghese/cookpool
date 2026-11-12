@@ -24,7 +24,7 @@ import { agoText, dayText, localDayOffset } from "./when";
 // ── Scopes and the consent switches ────────────────────────────────
 
 /** The scopes an assistant can be given (MC-2's DELEGATION_SCOPES, in order). */
-export const ASSISTANT_SCOPES = ["kitchen.read", "money.read", "timers.write", "suggest.write"] as const;
+export const ASSISTANT_SCOPES = ["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"] as const;
 export type AssistantScope = (typeof ASSISTANT_SCOPES)[number];
 
 export interface ScopeRow {
@@ -40,6 +40,8 @@ export const SCOPE_ROWS: readonly ScopeRow[] = [
   { scope: "money.read", label: "See your balances", sub: "Who owes whom, read only", on: false },
   { scope: "timers.write", label: "Set cooking timers", sub: "They ring on your phone", on: true },
   { scope: "suggest.write", label: "Suggest uses and purchases", sub: "They wait on Home for you to confirm", on: true },
+  // Spliteco (cookpool-spliteco SE-6): off unless the person turns it on.
+  { scope: "money.write", label: "Add and edit Spliteco expenses", sub: "Never records payments", on: false },
 ];
 
 export type ScopeSwitches = Readonly<Record<AssistantScope, boolean>>;

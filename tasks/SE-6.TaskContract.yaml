@@ -12,6 +12,20 @@ spec:
     - default/cookpool/api-edge-tests
     - default/cookpool/spliteco-worker
     - default/cookpool/spliteco-web
+    - default/cookpool/db-migrate
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - default/cookpool/notifications-client
+    - default/cookpool/notifications-client-tests
+    - default/cookpool/spliteco-worker-tests
+    - default/cookpool/spliteco-web-tests
+    - default/cookpool/contracts-tests
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
     - default/cookpool/contracts
     - default/cookpool/sdk
     - apps/mcp-worker/**
@@ -19,6 +33,7 @@ spec:
     - apps/spliteco-web/**
     - tests/mcp-worker/**
     - tests/spliteco-worker/**
+    - tests/spliteco-web/**
     - specs/epics/cookpool-spliteco/**
     - tasks/SE-6.TaskContract.yaml
   doneWhen:

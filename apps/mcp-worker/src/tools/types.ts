@@ -33,6 +33,8 @@ export interface ToolDef<Shape extends ZodRawShape = ZodRawShape> {
   inputSchema: Shape;
   /** True when it changes nothing. */
   readOnly: boolean;
+  /** Plain words for a refusal this tool knows better than errorText (null: the generic words). */
+  explain?: (err: EdgeError) => string | null;
   run(args: z.infer<z.ZodObject<Shape>>, ctx: ToolContext): Promise<ToolOutcome>;
 }
 

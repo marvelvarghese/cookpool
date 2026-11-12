@@ -22,7 +22,7 @@ import {
 } from "@saas/contracts/notifications";
 
 describe("push kinds", () => {
-  it("are someone set my portion, a dish to claim, someone paid me, (CM-3) the five social kinds and (SE-3) Spliteco's two — the templates' own keys", () => {
+  it("are someone set my portion, a dish to claim, someone paid me, (CM-3) the five social kinds and (SE-3, SE-6) Spliteco's three — the templates' own keys", () => {
     expect(NOTIFICATION_KINDS).toEqual([
       KITCHEN_EMAILS.PORTION_SET,
       KITCHEN_EMAILS.DISH_POSTED,
@@ -34,6 +34,7 @@ describe("push kinds", () => {
       KITCHEN_EMAILS.COOKED_YOURS,
       SPLITECO_EMAILS.REMINDER,
       SPLITECO_EMAILS.PAID_YOU,
+      SPLITECO_EMAILS.EXPENSE_FOR_YOU,
     ]);
     expect(NOTIFICATION_KINDS).toEqual([
       "kitchen.portion_set",
@@ -46,6 +47,7 @@ describe("push kinds", () => {
       "kitchen.cooked_yours",
       "spliteco.reminder",
       "spliteco.paid_you",
+      "spliteco.expense_for_you",
     ]);
     for (const kind of NOTIFICATION_KINDS) expect(isNotificationKind(kind)).toBe(true);
     for (const other of [KITCHEN_EMAILS.USE_SOON, KITCHEN_EMAILS.LOGGED_FOR_YOU, "invitation.created", "", null, 3]) {

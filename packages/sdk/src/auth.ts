@@ -14,6 +14,8 @@ import type {
   CreateDelegationResponse,
   DelegationsListResponse,
   RevokeDelegationResponse,
+  UpdateDelegationRequest,
+  UpdateDelegationResponse,
 } from "@saas/contracts/delegations";
 import type {
   PasskeyLoginOptionsResponse,
@@ -184,6 +186,18 @@ export class AuthClient {
   ): Promise<CreateDelegationResponse> {
     return this.transport.request<CreateDelegationResponse>(
       { method: "POST", path: "/v1/auth/delegations", body: input },
+      opts,
+    );
+  }
+
+  /**
+   * PATCH /v1/auth/delegations/:id — change what an assistant may do (Look
+   * only / Add & edit, cookpool-spliteco SE-6), within what was allowed when
+   * it was connected; in force at the edge within its 30 s actor cache.
+   */
+  updateDelegation(id: string, input: UpdateDelegationRequest, opts: RequestOptions = {}): Promise<UpdateDelegationResponse> {
+    return this.transport.request<UpdateDelegationResponse>(
+      { method: "PATCH", path: `/v1/auth/delegations/${encodeURIComponent(id)}`, body: input },
       opts,
     );
   }

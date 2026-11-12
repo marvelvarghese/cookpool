@@ -58,6 +58,12 @@ export function activityLine(entry: SplitecoActivityEntry, actorName: string): A
   return { actor, text, effect, tone: e > 0 ? "get" : e < 0 ? "owe" : "muted" };
 }
 
+/** The chip on a change an assistant made: "via Claude" (SE5); null for a person's own. */
+export function viaChip(entry: Pick<SplitecoActivityEntry, "viaDelegation" | "viaAssistant">): string | null {
+  if (!entry.viaDelegation && !entry.viaAssistant) return null;
+  return `via ${entry.viaAssistant?.trim() || "an assistant"}`;
+}
+
 /** "12 min ago", "3 h ago", "yesterday", "8 Nov". */
 export function timeAgo(iso: string, now = new Date()): string {
   const at = new Date(iso);

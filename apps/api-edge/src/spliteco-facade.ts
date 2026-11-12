@@ -3,15 +3,16 @@ import { errorResponse, withEdgeTimings } from "./http.js";
 import { replayOrExecute } from "./idempotency.js";
 import { resolveActor } from "./resolve-actor.js";
 import { createTimings } from "@saas/contracts/timing";
-import { ACTOR_DELEGATION_ID_HEADER, ACTOR_SCOPES_HEADER } from "@saas/contracts/delegations";
+import { ACTOR_DELEGATION_CLIENT_HEADER, ACTOR_DELEGATION_ID_HEADER, ACTOR_SCOPES_HEADER } from "@saas/contracts/delegations";
 
 // Spliteco (cookpool-spliteco SE1) → spliteco-worker:
 //   /v1/spliteco/…   groups, expenses, balances, activity, insights, export
 // The edge resolves the session, forwards the actor, and runs the shared
 // rate-limit and idempotency gate, exactly as for the kitchen
 // (./kitchen-facade.ts); spliteco-worker owns routing below the prefix.
-// Delegated tokens reach none of it: no entry in ./delegation-scopes.ts
-// allows a /v1/spliteco path until SE5's money.write.
+// Delegated tokens (assistants) reach only what ./delegation-scopes.ts allows
+// under money.read and money.write (SE-6) — never a payment — and the worker
+// checks the same again.
 const SPLITECO_RE = /^\/v1\/spliteco(?:\/.*)?$/;
 const ALLOWED_METHODS = new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
 const WITH_BODY = new Set(["POST", "PATCH", "PUT"]);
@@ -54,6 +55,8 @@ export async function handleSplitecoRoute(
     if (session.delegation) {
       headers.set(ACTOR_DELEGATION_ID_HEADER, session.delegation.id);
       headers.set(ACTOR_SCOPES_HEADER, session.delegation.scopes.join(","));
+      // SE-6: so Activity can say "via Claude".
+      headers.set(ACTOR_DELEGATION_CLIENT_HEADER, encodeURIComponent(session.delegation.clientName));
     }
     for (const name of FORWARDED_HEADERS) {
       const value = request.headers.get(name);

@@ -53,7 +53,7 @@ import { conflict, forbidden, notFound, readJsonObject, successResponse, unavail
 import { orgPublicId, parseOrgPublicId, txnPublicId } from "../ids.js";
 import { currencyOf, groupLabel, splitecoAudit } from "../ledger.js";
 import type { MemberGroup } from "../membership.js";
-import { myGroup, notInGroup, versionOf, writeOutcome } from "./expenses.js";
+import { myGroup, noticeOf, notInGroup, sharesOf, tell, versionOf, writeOutcome } from "./expenses.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -461,6 +461,11 @@ export async function handleLiveLock(ctx: RequestContext, codeParam: string): Pr
     );
     const outcome = writeOutcome(ctx, result, (t) => t.kind === "expense" && t.createdBy === session.createdBy);
     if (outcome instanceof Response) return outcome;
+    if (outcome === "posted") {
+      // SE5: everyone on the bill hears it was added, as for any expense.
+      const posted = await repos.ledger.getTxn(txn.id);
+      if (posted) await tell(ctx, noticeOf("added", posted, group, { before: [], after: sharesOf(posted) }));
+    }
     const locked = (await repos.live.byId(session.id)) ?? session;
     return answer(ctx, repos, locked, group);
   });

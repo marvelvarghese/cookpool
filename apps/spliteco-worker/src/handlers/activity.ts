@@ -15,7 +15,7 @@ import { requireOrgAction } from "../authz.js";
 import type { RequestContext } from "../context.js";
 import { notFound, successResponse, unavailable } from "../http.js";
 import { orgPublicId, parseOrgPublicId, txnPublicId } from "../ids.js";
-import { groupLabel, withRepo } from "../ledger.js";
+import { assistantOf, groupLabel, withRepo } from "../ledger.js";
 import type { MemberGroup } from "../membership.js";
 
 const LIMIT = 200;
@@ -61,6 +61,7 @@ export function activityEntries(rows: readonly SplitecoTxnRecord[], groups: read
       otherGroupName: other ? groupLabel(other) : null,
       myEffectMinor: mine ? mine.paidMinor - mine.owedMinor : 0,
       viaDelegation: t.viaDelegation,
+      viaAssistant: assistantOf(t),
       seq: t.seq,
     });
   }

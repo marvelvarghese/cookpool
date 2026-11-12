@@ -27,9 +27,10 @@ import type { RequestContext } from "../context.js";
 import { itemRows, parseExpense, peopleNamed, splitExpense } from "../expense-input.js";
 import { conflict, errorResponse, notFound, readJsonObject, successResponse, unavailable, unprocessable, validationError } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
-import { parseOrgPublicId, parseTxnPublicId, txnPublicId } from "../ids.js";
+import { orgPublicId, parseOrgPublicId, parseTxnPublicId, txnPublicId } from "../ids.js";
 import { currencyOf, groupLabel, isCurrent, splitecoAudit, toSummary, withRepo } from "../ledger.js";
 import type { MemberGroup } from "../membership.js";
+import { sendExpenseForYou, type ExpenseChangeNotice } from "../notify.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -40,6 +41,37 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 function actorOf(ctx: RequestContext): string {
   const { actor } = ctx;
   return actor.subjectId;
+}
+
+/**
+ * Tell everyone on an expense what changed (SE5: `spliteco.expense_for_you`),
+ * after the write has committed. Best-effort: `ctx.defer` swallows anything
+ * it throws, so a failed notification never fails the money write.
+ */
+export async function tell(ctx: RequestContext, notice: ExpenseChangeNotice): Promise<void> {
+  await ctx.defer(() => sendExpenseForYou(ctx, notice));
+}
+
+export const sharesOf = (t: SplitecoTxnRecord) => t.splits.map((s) => ({ subjectId: s.subjectId, owedMinor: s.owedMinor }));
+
+export function noticeOf(
+  change: ExpenseChangeNotice["change"],
+  row: SplitecoTxnRecord,
+  group: MemberGroup | undefined,
+  extra: Partial<ExpenseChangeNotice> & Pick<ExpenseChangeNotice, "before" | "after">,
+): ExpenseChangeNotice {
+  return {
+    change,
+    aboutTxnPublicId: txnPublicId(row.id),
+    expensePublicId: txnPublicId(row.id),
+    app: row.app,
+    orgPublicId: orgPublicId(row.orgId),
+    groupName: groupLabel(group),
+    title: row.title,
+    totalMinor: row.totalMinor,
+    currency: row.currency,
+    ...extra,
+  };
 }
 
 /** The caller's group `orgId` (with its members), or null. */
@@ -117,6 +149,7 @@ export function versionOf(
     revises: input.revises ?? null,
     movedFrom: input.movedFrom ?? null,
     viaDelegation: ctx.actor.delegationId,
+    viaClient: ctx.actor.clientName,
     splitSpec: JSON.stringify(input.request),
     splits: input.splits,
     ...itemRows(input.request),
@@ -144,18 +177,24 @@ function reversalOf(ctx: RequestContext, original: SplitecoTxnRecord, idemKey: s
     reverses: original.id,
     deletedAt: deleted ? now : null,
     viaDelegation: ctx.actor.delegationId,
+    viaClient: ctx.actor.clientName,
     splits: reverseSplits(original.splits),
   };
 }
 
+export type ReadExpense =
+  | { ok: true; parsed: ReturnType<typeof parseExpense> & { ok: true }; splits: NewSplitecoTxn["splits"] }
+  | { ok: false; response: Response };
+
 /** Parse, split and member-check a request for group `group`. */
-async function readRequest(
-  ctx: RequestContext,
-  request: Request,
-  group: MemberGroup,
-): Promise<{ ok: true; parsed: ReturnType<typeof parseExpense> & { ok: true }; splits: NewSplitecoTxn["splits"] } | { ok: false; response: Response }> {
+async function readRequest(ctx: RequestContext, request: Request, group: MemberGroup): Promise<ReadExpense> {
   const body = await readJsonObject(request);
   if (!body) return { ok: false, response: validationError(ctx.requestId, { body: ["Must be a JSON object"] }) };
+  return readExpenseBody(ctx, body, group);
+}
+
+/** Parse, split and member-check an expense request body for group `group` (also an assistant's draft, SE5). */
+export function readExpenseBody(ctx: RequestContext, body: Record<string, unknown>, group: MemberGroup): ReadExpense {
   const parsed = parseExpense(body);
   if (!parsed.ok) return { ok: false, response: validationError(ctx.requestId, parsed.fields) };
   const split = splitExpense(parsed.value);
@@ -177,7 +216,7 @@ async function readRequest(
   return { ok: true, parsed, splits: split.splits };
 }
 
-function currencyRefused(ctx: RequestContext, requested: string | undefined, currency: string): Response | null {
+export function currencyRefused(ctx: RequestContext, requested: string | undefined, currency: string): Response | null {
   if (requested !== undefined && requested !== currency) {
     return unprocessable(ctx.requestId, `The group's ledger counts in ${currency}`, SPLITECO_ERROR_REASONS.CURRENCY_MISMATCH, { currency });
   }
@@ -227,6 +266,7 @@ export async function handleCreateExpense(ctx: RequestContext, request: Request,
     const outcome = writeOutcome(ctx, result, (t) => t.kind === "expense" && t.app === "spliteco" && t.createdBy === ctx.actor.subjectId);
     if (outcome instanceof Response) return outcome;
     const stored = outcome === "posted" ? await repo.getTxn(txn.id) : outcome;
+    if (stored && outcome === "posted") await tell(ctx, noticeOf("added", stored, group, { before: [], after: sharesOf(stored) }));
     return stored ? written(ctx, stored, group) : unavailable(ctx.requestId);
   });
 }
@@ -244,10 +284,10 @@ async function currentOf(repo: SplitecoRepository, t: SplitecoTxnRecord): Promis
   return at;
 }
 
-type Loaded = { ok: true; txn: SplitecoTxnRecord; group: MemberGroup } | { ok: false; response: Response };
+export type Loaded = { ok: true; txn: SplitecoTxnRecord; group: MemberGroup } | { ok: false; response: Response };
 
 /** Load an expense the caller may write, refusing Cookpool's rows and old versions. */
-async function loadWritable(ctx: RequestContext, repo: SplitecoRepository, txnParam: string, { needCurrent = true } = {}): Promise<Loaded> {
+export async function loadWritable(ctx: RequestContext, repo: SplitecoRepository, txnParam: string, { needCurrent = true } = {}): Promise<Loaded> {
   const id = parseTxnPublicId(txnParam);
   if (!id) return { ok: false, response: notFound(ctx.requestId) };
   const txn = await repo.getTxn(id);
@@ -336,6 +376,7 @@ export async function handleEditExpense(ctx: RequestContext, request: Request, t
     const outcome = writeOutcome(ctx, result, (t) => t.revises === original.id && t.createdBy === ctx.actor.subjectId);
     if (outcome instanceof Response) return outcome;
     const stored = outcome === "posted" ? await repo.getTxn(next.id) : outcome;
+    if (stored && outcome === "posted") await tell(ctx, noticeOf("edited", stored, group, { before: sharesOf(original), after: sharesOf(stored) }));
     return stored ? written(ctx, stored, group, 200) : unavailable(ctx.requestId);
   });
 }
@@ -369,6 +410,9 @@ export async function handleDeleteExpense(ctx: RequestContext, request: Request,
     );
     const outcome = writeOutcome(ctx, result, (t) => t.reverses === original.id);
     if (outcome instanceof Response) return outcome;
+    if (outcome === "posted") {
+      await tell(ctx, { ...noticeOf("deleted", original, group, { before: sharesOf(original), after: [] }), aboutTxnPublicId: txnPublicId(reversal.id) });
+    }
     const stored = await repo.getTxn(original.id);
     return stored ? written(ctx, stored, group, 200) : unavailable(ctx.requestId);
   });
@@ -420,6 +464,7 @@ export async function handleRestoreExpense(ctx: RequestContext, request: Request
     const outcome = writeOutcome(ctx, result, (t) => t.revises === original.id);
     if (outcome instanceof Response) return outcome;
     const stored = outcome === "posted" ? await repo.getTxn(next.id) : outcome;
+    if (stored && outcome === "posted") await tell(ctx, noticeOf("restored", stored, group, { before: [], after: sharesOf(stored) }));
     return stored ? written(ctx, stored, group) : unavailable(ctx.requestId);
   });
 }
@@ -451,6 +496,7 @@ async function copyOf(
     revises: at.revises ?? null,
     movedFrom: at.movedFrom ?? null,
     viaDelegation: ctx.actor.delegationId,
+    viaClient: ctx.actor.clientName,
     splitSpec: original.splitSpec,
     splits: original.splits,
     items: details.items.map(({ txnId: _t, ...rest }) => rest),
@@ -470,7 +516,7 @@ export async function handleMoveExpense(ctx: RequestContext, request: Request, t
   return withRepo(ctx, async (repo) => {
     const loaded = await loadWritable(ctx, repo, txnParam, { needCurrent: false });
     if (!loaded.ok) return loaded.response;
-    const { txn: original } = loaded;
+    const { txn: original, group: from } = loaded;
     const target = await myGroup(ctx, toOrg);
     if (target === "unavailable") return unavailable(ctx.requestId);
     if (!target) return notFound(ctx.requestId);
@@ -520,6 +566,9 @@ export async function handleMoveExpense(ctx: RequestContext, request: Request, t
     const outcome = writeOutcome(ctx, result, (t) => t.movedFrom === original.id);
     if (outcome instanceof Response) return outcome;
     const stored = outcome === "posted" ? await repo.getTxn(next.id) : outcome;
+    if (stored && outcome === "posted") {
+      await tell(ctx, noticeOf("moved", stored, target, { before: sharesOf(original), after: sharesOf(stored), fromGroupName: groupLabel(from) }));
+    }
     return stored ? written(ctx, stored, target) : unavailable(ctx.requestId);
   });
 }

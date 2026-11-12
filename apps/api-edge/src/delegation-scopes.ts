@@ -19,7 +19,14 @@ import { errorResponse } from "./http";
 // Never allowed, by having no entry: /v1/auth/… (the delegation routes
 // included), organizations, members, invitations, join codes, API keys,
 // billing, config, webhooks, integrations, notifications, usage, audit, admin,
-// and every kitchen write except a timer and (MC-5) a suggestion.
+// every kitchen write except a timer and (MC-5) a suggestion, and in Spliteco
+// (cookpool-spliteco SE-6, design §0.9): payments (settlements), "not
+// received", the profile and its UPI ID, group create and settings, the settle
+// plan, export, the direct-group route, live split, and the expense create,
+// edit and move routes themselves — an assistant adds, edits and moves only
+// through a draft (POST /v1/spliteco/drafts, then …/drafts/{drf}/save), so
+// nothing saves that the person was not shown. spliteco-worker checks the
+// same list again (apps/spliteco-worker/src/delegated.ts).
 //
 // Paths are matched whole (anchored), as kitchen-worker matches them. An id
 // segment is matched by its prefix (`itm_…`, `rcp_…`, `usr_…`, `tmr_…`), so a
@@ -36,6 +43,9 @@ interface AllowEntry {
 }
 
 const ORG = "[^/]+";
+const SPLITECO = "^/v1/spliteco";
+const S_ORG = "org_[^/]+";
+const S_TXN = "txn_[^/]+";
 
 export const DELEGATION_ALLOWLIST: readonly AllowEntry[] = [
   // kitchen.read — the pantry, recipes and what to buy.
@@ -80,6 +90,25 @@ export const DELEGATION_ALLOWLIST: readonly AllowEntry[] = [
 
   // suggest.write — a suggestion the person confirms on Home (the route is MC-5's).
   { name: "me.suggestions", scopes: ["suggest.write"], methods: ["POST"], pattern: /^\/v1\/kitchen\/me\/suggestions$/ },
+
+  // money.read — Spliteco's reads (SE-6).
+  { name: "spliteco.me.home", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/home$`) },
+  { name: "spliteco.me.groups", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/groups$`) },
+  { name: "spliteco.me.activity", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/activity$`) },
+  { name: "spliteco.me.search", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/search$`) },
+  { name: "spliteco.me.friend", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/friends/usr_[^/]+$`) },
+  { name: "spliteco.group", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/groups/${S_ORG}$`) },
+  { name: "spliteco.group.activity", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/groups/${S_ORG}/activity$`) },
+  { name: "spliteco.expense", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/expenses/${S_TXN}$`) },
+  { name: "spliteco.insights", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/insights$`) },
+
+  // money.write — Spliteco's expenses from a draft, comments and reminders; never a payment (SE-6).
+  { name: "spliteco.drafts", scopes: ["money.write"], methods: ["POST"], pattern: new RegExp(`${SPLITECO}/drafts$`) },
+  { name: "spliteco.draft.save", scopes: ["money.write"], methods: ["POST"], pattern: new RegExp(`${SPLITECO}/drafts/drf_[0-9a-f]{32}/save$`) },
+  { name: "spliteco.expense.delete", scopes: ["money.write"], methods: ["DELETE"], pattern: new RegExp(`${SPLITECO}/expenses/${S_TXN}$`) },
+  { name: "spliteco.expense.restore", scopes: ["money.write"], methods: ["POST"], pattern: new RegExp(`${SPLITECO}/expenses/${S_TXN}/restore$`) },
+  { name: "spliteco.expense.comments", scopes: ["money.write"], methods: ["POST"], pattern: new RegExp(`${SPLITECO}/expenses/${S_TXN}/comments$`) },
+  { name: "spliteco.reminders", scopes: ["money.write"], methods: ["POST"], pattern: new RegExp(`${SPLITECO}/reminders$`) },
 ];
 
 function entryFor(method: string, pathname: string): AllowEntry | null {

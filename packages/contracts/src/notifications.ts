@@ -200,6 +200,8 @@ export interface NotificationCategoryPreferences {
  *
  *   spliteco.reminder     someone I owe nudged me ("Anu sent a friendly nudge: ₹620.00")
  *   spliteco.paid_you     someone paid me in Spliteco ("Dev paid you ₹400.00 · UPI")
+ *   spliteco.expense_for_you  an expense I'm on was added or changed (SE-6;
+ *                         "Anu via Claude added “Sunset cruise” ₹3,200.00 · Goa Trip")
  */
 export const NOTIFICATION_KINDS = [
   "kitchen.portion_set",
@@ -214,6 +216,8 @@ export const NOTIFICATION_KINDS = [
   // Spliteco (SE-3): email, and push for a person who turned it on.
   "spliteco.reminder",
   "spliteco.paid_you",
+  // Spliteco (SE-6): an expense you're on was added, edited, deleted, restored or moved.
+  "spliteco.expense_for_you",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];

@@ -4,6 +4,9 @@
 //
 //   spliteco.reminder   a nudge to someone who owes you — once per reminder
 //   spliteco.paid_you   a payment recorded to you — once per payment
+//   spliteco.expense_for_you  an expense you're on was added, edited, deleted,
+//                       restored or moved — to everyone on it but whoever did
+//                       it, saying "<name> via Claude" when their assistant did (SE5)
 //
 // notifications-worker renders the template, checks suppression and the
 // person's preferences (email is on unless they turned it off; push goes to a
@@ -12,8 +15,11 @@
 // committed (`ctx.defer`) and never throws.
 
 import { KITCHEN_EMAIL_CATEGORY } from "@saas/contracts/kitchen";
+import { formatMinor } from "@saas/kitchen-engine/money";
 import {
   SPLITECO_EMAILS,
+  type SplitecoExpenseChange,
+  type SplitecoExpenseForYouEmail,
   type SplitecoEmail,
   type SplitecoPaidYouEmail,
   type SplitecoPaymentMethod,
@@ -48,7 +54,13 @@ function keyFor(template: SplitecoEmail, about: string, to: string): string | nu
 /** Ask notifications-worker to send one message to `to`. Null when they have no address. */
 async function send(
   ctx: RequestContext,
-  input: { orgPublicId: string; template: SplitecoEmail; data: SplitecoReminderEmail | SplitecoPaidYouEmail; to: string; about: string },
+  input: {
+    orgPublicId: string;
+    template: SplitecoEmail;
+    data: SplitecoReminderEmail | SplitecoPaidYouEmail | SplitecoExpenseForYouEmail;
+    to: string;
+    about: string;
+  },
 ): Promise<EnqueueNotificationResult | null> {
   const idempotencyKey = keyFor(input.template, input.about, input.to);
   if (!idempotencyKey) return null;
@@ -116,3 +128,65 @@ export async function sendPaidYou(
   });
   return result?.ok === true;
 }
+
+/** Who changed it, as the notification says it: "Anu", or "Anu via Claude" when their assistant did. */
+export async function changedBy(ctx: RequestContext): Promise<string | null> {
+  const name = await nameOf(ctx, ctx.actor.subjectId);
+  if (!ctx.actor.delegationId) return name;
+  return `${name ?? "Someone"} via ${ctx.actor.clientName ?? "an assistant"}`;
+}
+
+export interface ExpenseChangeNotice {
+  change: SplitecoExpenseChange;
+  /** The row this change wrote (`txn_…`): the idempotency key's subject. */
+  aboutTxnPublicId: string;
+  /** The expense as it reads now (`txn_…`): where the link goes. */
+  expensePublicId: string;
+  /** Who posted it: only Spliteco's own rows are told about (Cookpool posts its own). */
+  app: "cookpool" | "spliteco";
+  orgPublicId: string;
+  groupName: string;
+  fromGroupName?: string | null;
+  title: string;
+  totalMinor: number;
+  currency: string;
+  /** Everyone on it before the change (an edit's old version), each with their share. */
+  before: readonly { subjectId: string; owedMinor: number }[];
+  /** Everyone on it after (empty for a delete). */
+  after: readonly { subjectId: string; owedMinor: number }[];
+}
+
+/**
+ * `spliteco.expense_for_you` to everyone on the expense, before or after the
+ * change, except whoever made it. Run after the write has committed (through
+ * `ctx.defer`); a failed send fails nothing. Answers how many were taken.
+ */
+export async function sendExpenseForYou(ctx: RequestContext, notice: ExpenseChangeNotice): Promise<number> {
+  if (notice.app !== "spliteco") return 0;
+  const shares = new Map(notice.after.map((s) => [s.subjectId, s.owedMinor]));
+  const people = [...new Set([...notice.before, ...notice.after].map((s) => s.subjectId))].filter((id) => id !== ctx.actor.subjectId);
+  if (people.length === 0) return 0;
+  const actorName = await changedBy(ctx);
+  let taken = 0;
+  for (const to of people) {
+    const share = shares.get(to);
+    const data: SplitecoExpenseForYouEmail = {
+      actorName,
+      change: notice.change,
+      title: notice.title,
+      amount: formatMinor(notice.totalMinor, notice.currency),
+      groupName: notice.groupName,
+      fromGroupName: notice.fromGroupName ?? null,
+      yourShare: notice.change === "deleted" || share === undefined ? null : formatMinor(share, notice.currency),
+      expenseUrl: appLink(ctx.env, `/expense?id=${encodeURIComponent(notice.expensePublicId)}`),
+    };
+    try {
+      const result = await send(ctx, { orgPublicId: notice.orgPublicId, template: SPLITECO_EMAILS.EXPENSE_FOR_YOU, data, to, about: notice.aboutTxnPublicId });
+      if (result?.ok === true) taken += 1;
+    } catch {
+      /* one person's send never stops the others' */
+    }
+  }
+  return taken;
+}
+

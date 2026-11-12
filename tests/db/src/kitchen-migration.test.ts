@@ -31,6 +31,8 @@ describe("kitchen migrations", () => {
   const SPLITECO_SETTLE = "540_spliteco_settle_up";
   // And its live split (550, SE-5): ledger_live_sessions, _claims and _presence.
   const SPLITECO_LIVE = "550_spliteco_live_split";
+  // And its assistants (560, SE-6): ledger_drafts, and kitchen_txns.via_client.
+  const SPLITECO_ASSISTANTS = "560_spliteco_assistants";
 
   it("only creates, alters or writes kitchen_* tables, each create guarded with IF NOT EXISTS", () => {
     for (const m of kitchen) {
@@ -45,7 +47,7 @@ describe("kitchen migrations", () => {
       for (const [, kind, guard, name] of creates) {
         expect(guard).toBeDefined();
         if (kind!.toUpperCase() === "TABLE") {
-          expect(name).toMatch(m.id === SPLITECO ? /^(kitchen_|ledger_)/ : m.id === SPLITECO_SETTLE ? /^(ledger_|spliteco_)/ : m.id === SPLITECO_LIVE ? /^ledger_live_/ : /^kitchen_/);
+          expect(name).toMatch(m.id === SPLITECO ? /^(kitchen_|ledger_)/ : m.id === SPLITECO_SETTLE ? /^(ledger_|spliteco_)/ : m.id === SPLITECO_LIVE ? /^ledger_live_/ : m.id === SPLITECO_ASSISTANTS ? /^ledger_drafts$/ : /^kitchen_/);
         }
       }
       for (const [, table] of alters) expect(table).toMatch(m.id === SPLITECO ? /^(kitchen_txns|membership_organizations)$/ : /^kitchen_/);

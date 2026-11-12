@@ -5,6 +5,10 @@ import type {
   SplitecoCreateGroupRequest,
   SplitecoCreateGroupResponse,
   SplitecoDirectGroupResponse,
+  SplitecoDraftRequest,
+  SplitecoDraftResponse,
+  SplitecoSearchQuery,
+  SplitecoSearchResponse,
   SplitecoExpenseRequest,
   SplitecoExpenseResponse,
   SplitecoExport,
@@ -134,6 +138,24 @@ export class SplitecoClient {
       { method: "POST", path: `${BASE}/expenses/${seg(txnId)}/comments`, body },
       opts,
     );
+  }
+
+  /** GET /v1/spliteco/me/search?q&groupId&limit — current expenses by words in the title or note (SE5). */
+  search(query: SplitecoSearchQuery = {}, opts: RequestOptions = {}): Promise<SplitecoSearchResponse> {
+    return this.transport.request<SplitecoSearchResponse>(
+      { method: "GET", path: `${BASE}/me/search`, query: { q: query.q, groupId: query.groupId, limit: query.limit } },
+      opts,
+    );
+  }
+
+  /** POST /v1/spliteco/drafts — what an add, edit or move would save, for the person to see first; saves nothing (SE5). */
+  draft(body: SplitecoDraftRequest, opts: RequestOptions = {}): Promise<SplitecoDraftResponse> {
+    return this.transport.request<SplitecoDraftResponse>({ method: "POST", path: `${BASE}/drafts`, body }, opts);
+  }
+
+  /** POST /v1/spliteco/drafts/{drf}/save — save a draft exactly as it was shown; twice answers the same expense (SE5). */
+  saveDraft(token: string, opts: RequestOptions = {}): Promise<SplitecoWriteResponse> {
+    return this.transport.request<SplitecoWriteResponse>({ method: "POST", path: `${BASE}/drafts/${seg(token)}/save` }, opts);
   }
 
   /** GET /v1/spliteco/groups/{org}/activity — every change in the group, newest first. */

@@ -24,3 +24,5 @@ export type {
   SplitecoLiveRepository,
 } from "./live.js";
 export { createSplitecoLiveRepository, liveLockStatement } from "./live.js";
+export type { SplitecoDraftAction, SplitecoDraftRecord, SplitecoDraftsRepository } from "./drafts.js";
+export { createSplitecoDraftsRepository } from "./drafts.js";

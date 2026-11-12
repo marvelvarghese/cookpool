@@ -20,6 +20,7 @@
  *
  *   spliteco.reminder     "Anu sent a friendly nudge: ₹620.00 · Goa Trip"
  *   spliteco.paid_you     "Dev paid you ₹400.00 · UPI"
+ *   spliteco.expense_for_you  "Anu via Claude added “Sunset cruise” ₹3,200.00 · Goa Trip" (SE-6)
  *
  * The title is the app's name; `url` is the path in the app the email links
  * to (the service worker opens it on its own origin); `tag` is the caller's
@@ -36,7 +37,7 @@ import {
   type NotificationKind,
   type PushMessage,
 } from "@saas/contracts/notifications";
-import { oneLine, portionsPhrase, str, type TemplateData } from "./index.js";
+import { expenseChangeWords, oneLine, portionsPhrase, str, type TemplateData } from "./index.js";
 
 export const PUSH_TITLE = "Cookpool";
 /** Spliteco's kinds are titled with its own name. */
@@ -130,6 +131,15 @@ const RENDERERS: Record<NotificationKind, PushRenderer> = {
     const method = oneLine(str(data, "method"));
     const paid = amount ? `${payer} paid you ${amount}` : `${payer} paid you`;
     return { body: method ? `${paid} · ${method}` : paid, url: appPath(str(data, "personUrl"), "/") };
+  },
+  [SPLITECO_EMAILS.EXPENSE_FOR_YOU]: (data) => {
+    const actor = oneLine(str(data, "actorName")) || "Someone";
+    const amount = oneLine(str(data, "amount"));
+    const group = oneLine(str(data, "groupName"));
+    const did = `${actor} ${expenseChangeWords(data)}${amount ? ` ${amount}` : ""}`;
+    // A move already names where it went.
+    const where = group && oneLine(str(data, "change")) !== "moved" ? ` · ${group}` : "";
+    return { body: `${did}${where}`, url: appPath(str(data, "expenseUrl"), "/") };
   },
 };
 

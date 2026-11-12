@@ -9,7 +9,7 @@ and the official MCP TypeScript SDK (`@modelcontextprotocol/sdk` 1.32.2,
 
 | Route | Owner | What |
 |---|---|---|
-| `GET /.well-known/oauth-authorization-server` | provider | RFC 8414 metadata: endpoints, `S256`, the four scopes |
+| `GET /.well-known/oauth-authorization-server` | provider | RFC 8414 metadata: endpoints, `S256`, the five scopes |
 | `GET /.well-known/oauth-protected-resource/mcp` | provider | RFC 9728 metadata for `${MCP_PUBLIC_ORIGIN}/mcp` |
 | `POST /register` | provider | dynamic client registration (CIMD clients also accepted) |
 | `POST /token` | provider | code and refresh exchange, revocation |
@@ -22,7 +22,15 @@ and the official MCP TypeScript SDK (`@modelcontextprotocol/sdk` 1.32.2,
 | `GET /health` | `src/index.ts` | liveness |
 
 `/connect/*` answers CORS for `CONSOLE_ORIGIN` only, and refuses any other
-browser origin. Shapes: `packages/contracts/src/mcp-connect.ts`.
+browser origin — but for `/connect/disconnect`, which the Spliteco app's AI
+assistants page (`SPLITECO_ORIGIN`, cookpool-spliteco SE-6) may call too.
+
+Spliteco's tools (`src/tools/spliteco.ts`, SE-6): money.read lists
+find_people, list_groups, get_balances, search_expenses, get_activity,
+get_insights and settle_up (a link into the app; it calls nothing);
+money.write lists draft_expense, edit_expense and move_expense (drafts that
+save nothing), save_expense (a draft token only), delete_expense,
+restore_expense, add_comment and send_reminder. No tool calls a payment route. Shapes: `packages/contracts/src/mcp-connect.ts`.
 
 ## Trust
 

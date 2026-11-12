@@ -68,6 +68,12 @@ export function groupLabel(group: { name: string; kind: string } | undefined): s
   return group.kind === "direct" ? "Outside groups" : group.name;
 }
 
+/** The name an assistant's change reads as ("Claude"); "an assistant" for rows before its name was kept; null for a person's own. */
+export function assistantOf(t: Pick<SplitecoTxnRecord, "viaDelegation" | "viaClient">): string | null {
+  if (!t.viaDelegation) return null;
+  return t.viaClient ?? "an assistant";
+}
+
 export function toSummary(t: SplitecoTxnRecord, groupName: string, me: string): SplitecoExpenseSummary {
   const mine = t.splits.find((s) => s.subjectId === me);
   return {
@@ -90,6 +96,7 @@ export function toSummary(t: SplitecoTxnRecord, groupName: string, me: string): 
     myNetMinor: mine ? mine.paidMinor - mine.owedMinor : 0,
     locked: isLocked(t),
     viaDelegation: t.viaDelegation,
+    viaAssistant: assistantOf(t),
     paymentMethod: t.kind === "settlement" ? ((t.method as SplitecoPaymentMethod | null) ?? null) : null,
   };
 }

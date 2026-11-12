@@ -1,4 +1,5 @@
 import {
+  ACTOR_DELEGATION_CLIENT_HEADER,
   ACTOR_DELEGATION_ID_HEADER,
   ACTOR_SCOPES_HEADER,
   DELEGATION_CLIENT_ID_MAX,
@@ -18,14 +19,14 @@ import {
 import * as direct from "@saas/contracts/delegations";
 
 describe("contracts: delegated tokens (cookpool-mcp MC-2)", () => {
-  it("has exactly the four scopes, in order", () => {
-    expect(DELEGATION_SCOPES).toEqual(["kitchen.read", "money.read", "timers.write", "suggest.write"]);
+  it("has exactly the five scopes, in order (money.write is cookpool-spliteco SE-6's)", () => {
+    expect(DELEGATION_SCOPES).toEqual(["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"]);
     expect(direct.DELEGATION_SCOPES).toBe(DELEGATION_SCOPES);
   });
 
   it("knows a scope from anything else", () => {
     for (const s of DELEGATION_SCOPES) expect(isDelegationScope(s)).toBe(true);
-    for (const s of ["kitchen.write", "money.write", "KITCHEN.READ", "", "admin", 1, null, undefined]) {
+    for (const s of ["kitchen.write", "money.settle", "MONEY.WRITE", "KITCHEN.READ", "", "admin", 1, null, undefined]) {
       expect(isDelegationScope(s)).toBe(false);
     }
   });
@@ -43,6 +44,7 @@ describe("contracts: delegated tokens (cookpool-mcp MC-2)", () => {
     expect(DELEGATION_INTERNAL_ACTORS).toEqual(["mcp-worker"]);
     expect(ACTOR_DELEGATION_ID_HEADER).toBe("x-actor-delegation-id");
     expect(ACTOR_SCOPES_HEADER).toBe("x-actor-scopes");
+    expect(ACTOR_DELEGATION_CLIENT_HEADER).toBe("x-actor-delegation-client");
   });
 
   it("carries each refusal as a reason on an existing, pinned error code", () => {
@@ -67,6 +69,7 @@ describe("contracts: delegated tokens (cookpool-mcp MC-2)", () => {
       delegation: {
         id: "dlg_1",
         scopes: ["kitchen.read"],
+        grantedScopes: ["kitchen.read", "money.write"],
         clientName: "Claude",
         clientId: "cli_1",
         createdAt: "2026-11-09T12:00:00.000Z",

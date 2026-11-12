@@ -5,7 +5,10 @@ import { DELEGATED, callTool, connect, dataOf, fail, listTools, ok, rpc, world, 
 
 const KITCHEN = ["pantry_list", "pantry_running_low", "what_can_i_cook", "recipe_get", "recipe_search", "shopping_list"];
 const TIMERS = ["timer_start", "timer_list", "timer_cancel"];
-const ALL = ["kitchen.read", "money.read", "timers.write", "suggest.write"];
+const SPLITECO_READ = ["find_people", "list_groups", "get_balances", "search_expenses", "get_activity", "get_insights", "settle_up"];
+const SPLITECO_WRITE = ["draft_expense", "save_expense", "edit_expense", "move_expense", "delete_expense", "restore_expense", "add_comment", "send_reminder"];
+const ALL = ["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"];
+const WRITES = ["timer_start", "timer_cancel", "save_expense", "delete_expense", "restore_expense", "add_comment", "send_reminder"];
 
 async function connected(scopes: string[] = ALL): Promise<{ w: World; token: string }> {
   const w = world();
@@ -16,10 +19,12 @@ async function connected(scopes: string[] = ALL): Promise<{ w: World; token: str
 describe("tools are listed only for the scopes allowed", () => {
   test.each([
     [["kitchen.read"], KITCHEN],
-    [["money.read"], ["balances"]],
+    [["money.read"], ["balances", ...SPLITECO_READ]],
+    [["money.write"], SPLITECO_WRITE],
+    [["money.read", "money.write"], ["balances", ...SPLITECO_READ, ...SPLITECO_WRITE]],
     [["timers.write"], TIMERS],
     [["kitchen.read", "timers.write"], [...KITCHEN, ...TIMERS]],
-    [ALL, [...KITCHEN, "balances", ...TIMERS]],
+    [ALL, [...KITCHEN, "balances", ...TIMERS, ...SPLITECO_READ, ...SPLITECO_WRITE]],
   ])("%j lists %j", async (scopes, expected) => {
     const { w, token } = await connected(scopes);
     expect(await listTools(w, token)).toEqual(expected);
@@ -49,7 +54,7 @@ describe("tools are listed only for the scopes allowed", () => {
       expect(tool.description.length).toBeGreaterThan(20);
       expect(tool.description.length).toBeLessThan(260);
       expect(tool.inputSchema.type).toBe("object");
-      expect(tool.annotations.readOnlyHint).toBe(!["timer_start", "timer_cancel"].includes(tool.name));
+      expect(tool.annotations.readOnlyHint).toBe(!WRITES.includes(tool.name));
     }
   });
 

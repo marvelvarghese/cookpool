@@ -146,6 +146,13 @@ export const SPLITECO_ERROR_REASONS = {
   LIVE_EXPIRED: "live_expired",
   /** 422 `validation_failed`: there is no item at that position. */
   NO_SUCH_ITEM: "no_such_item",
+  // ── SE5: assistants ──
+  /** 403 `forbidden`: an assistant adds, edits and moves only from a draft the person saw (POST /drafts, then …/save). */
+  DRAFT_REQUIRED: "draft_required",
+  /** 409 `conflict`: the draft is older than SPLITECO_DRAFT_MINUTES; draft it again. */
+  DRAFT_EXPIRED: "draft_expired",
+  /** 403 `forbidden`: this assistant's access does not allow it (the same reason api-edge gives, DELEGATION_ERROR_REASONS.SCOPE). */
+  SCOPE: "scope",
 } as const;
 
 export type SplitecoErrorReason = (typeof SPLITECO_ERROR_REASONS)[keyof typeof SPLITECO_ERROR_REASONS];
@@ -285,8 +292,10 @@ export interface SplitecoExpenseSummary {
   myNetMinor: number;
   /** Edit, delete and move are not offered (Cookpool's rows, settlements). */
   locked: boolean;
-  /** The assistant that made it, when one did (SE5). */
+  /** The assistant that made it, when one did (SE5): its delegation (`dlg_…`). */
   viaDelegation: string | null;
+  /** That assistant's name as the person connected it ("Claude"); null when none did. */
+  viaAssistant: string | null;
   /** For a payment: how it was paid (null for anything else, or when not said). */
   paymentMethod: SplitecoPaymentMethod | null;
 }
@@ -503,7 +512,9 @@ export interface SplitecoActivityEntry {
   otherGroupName: string | null;
   /** What it did to the caller's balance: positive gets money back. */
   myEffectMinor: number;
+  /** The assistant the change came through (`dlg_…`), and its name ("via Claude"); null when the person made it. */
   viaDelegation: string | null;
+  viaAssistant: string | null;
 }
 
 export interface SplitecoActivityResponse {
@@ -703,6 +714,8 @@ export const SPLITECO_EMAILS = {
   REMINDER: "spliteco.reminder",
   /** Someone recorded a payment to you in Spliteco. */
   PAID_YOU: "spliteco.paid_you",
+  /** SE5: an expense you're on was added, edited, deleted, restored or moved — by a person, or through their assistant. */
+  EXPENSE_FOR_YOU: "spliteco.expense_for_you",
 } as const;
 
 export type SplitecoEmail = (typeof SPLITECO_EMAILS)[keyof typeof SPLITECO_EMAILS];
@@ -726,6 +739,32 @@ export interface SplitecoPaidYouEmail {
   groupName: string;
   /** The payer's page in Spliteco, where "Not received" is. */
   personUrl: string;
+}
+
+/** What happened to the expense, as `spliteco.expense_for_you` says it. */
+export type SplitecoExpenseChange = "added" | "edited" | "deleted" | "restored" | "moved";
+
+/**
+ * `spliteco.expense_for_you` (SE5): "Anu via Claude added “Sunset cruise”
+ * ₹3,200.00 · Goa Trip", to everyone on the expense but whoever changed it.
+ * Keyed `spliteco.expense_for_you:<txn>:<usr>` (the row the change wrote).
+ */
+export interface SplitecoExpenseForYouEmail {
+  [key: string]: string | number | boolean | null;
+  /** Who did it: "Anu", or "Anu via Claude" when their assistant did. */
+  actorName: string | null;
+  change: SplitecoExpenseChange;
+  title: string;
+  /** The expense's total, formatted. */
+  amount: string;
+  /** Where it is now (for a move: the group it went to). */
+  groupName: string;
+  /** For a move: the group it left. */
+  fromGroupName: string | null;
+  /** The recipient's share now, formatted; null when they are no longer on it (or it was deleted). */
+  yourShare: string | null;
+  /** The expense in Spliteco. */
+  expenseUrl: string;
 }
 
 // ── SE4: live split ─────────────────────────────────────────
@@ -848,6 +887,91 @@ export interface SplitecoLiveResponse {
 export function liveDraftTotal(draft: Pick<SplitecoLiveDraft, "items" | "adjustments">): number {
   const items = draft.items.reduce((s, it) => s + it.totalMinor, 0);
   return draft.adjustments.reduce((s, a) => s + (a.kind === "discount" ? -a.amountMinor : a.amountMinor), items);
+}
+
+// ── SE5: assistants (drafts and search) ─────────────────────
+//
+// An assistant connected over MCP (scope `money.write`) never writes an
+// expense straight away: it drafts, shows the person the draft, and saves it
+// only when they say yes (design §0.9, risk SE-F).
+//
+//   POST /v1/spliteco/drafts                 SplitecoDraftRequest → SplitecoDraftResponse (201); saves nothing
+//   POST /v1/spliteco/drafts/{drf}/save      → SplitecoWriteResponse: the add, edit or move, exactly as drafted
+//   GET  /v1/spliteco/me/search?q=&groupId=&limit=   → SplitecoSearchResponse (money.read)
+//
+// A draft is the caller's and the assistant's that made it: anyone else's
+// token reads the opaque 404. It lasts SPLITECO_DRAFT_MINUTES; saving it twice
+// answers the same expense (the draft's token is the write's idempotency key).
+// The save checks everything again — membership, the split, Cookpool's rows,
+// the current version — so a draft of something that changed meanwhile is
+// refused as the write would be. Delete and restore need no draft: a delete
+// is soft and restorable for SPLITECO_RESTORE_DAYS days.
+//
+// Settling up is never an assistant's (design §0.9): payments, "not
+// received", UPI IDs, group creation and settings, members and live split
+// answer 403 to every delegated token, at api-edge and again here.
+
+/** A draft can be saved for this many minutes after it is made. */
+export const SPLITECO_DRAFT_MINUTES = 10;
+/** Draft tokens: `drf_` and 32 hex. */
+export const SPLITECO_DRAFT_TOKEN_RE = /^drf_[0-9a-f]{32}$/;
+
+export type SplitecoDraftAction = "add" | "edit" | "move";
+
+export type SplitecoDraftRequest =
+  | { action: "add"; groupId: string; expense: SplitecoExpenseRequest }
+  | { action: "edit"; expenseId: string; expense: SplitecoExpenseRequest }
+  | { action: "move"; expenseId: string; toGroupId: string };
+
+/** One person on a draft: what they paid and their share. */
+export interface SplitecoDraftShare {
+  subjectId: string;
+  name: string | null;
+  paidMinor: number;
+  owedMinor: number;
+}
+
+export interface SplitecoDraft {
+  /** `drf_…`: pass it to …/save, and only once the person has said yes. */
+  token: string;
+  action: SplitecoDraftAction;
+  expiresAt: string;
+  /** Where it saves: the group it is added or edited in, or moved to. */
+  groupId: string;
+  groupName: string;
+  /** For an edit or a move: the expense (`txn_…`) it changes. */
+  expenseId: string | null;
+  title: string;
+  totalMinor: number;
+  currency: string;
+  category: SplitecoCategory | null;
+  method: SplitecoSplitMethod | null;
+  /** Everyone on it, as it would save. Σ paid = Σ owed = totalMinor. */
+  shares: SplitecoDraftShare[];
+  itemCount: number;
+  /** For an edit or a move: the expense as it is now. */
+  before: { groupId: string; groupName: string; title: string; totalMinor: number; shares: SplitecoDraftShare[] } | null;
+}
+
+export interface SplitecoDraftResponse {
+  draft: SplitecoDraft;
+}
+
+export interface SplitecoSearchQuery {
+  /** Words in the title or note (case-insensitive); every current expense when left out. */
+  q?: string;
+  /** `org_…`: only this group. */
+  groupId?: string;
+  /** At most this many (default 20, at most 50). */
+  limit?: number;
+}
+
+export interface SplitecoSearchResponse {
+  /** Current expenses and payments, newest first. */
+  expenses: SplitecoExpenseSummary[];
+  people: SplitecoPerson[];
+  /** More matched than `limit`. */
+  more: boolean;
 }
 
 // ── Helpers ─────────────────────────────────────────────────
