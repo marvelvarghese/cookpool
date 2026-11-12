@@ -1,0 +1,35 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-2
+  title: "Spliteco: groups, expenses, balances"
+spec:
+  goal: "Migration 520, the itemized maths, spliteco-worker behind api-edge and the Spliteco app let people add expenses six ways and see balances across every group they share."
+  affects:
+    - default/cookpool/spliteco-worker
+    - default/cookpool/spliteco-web
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/policy-engine
+    - default/cookpool/policy-engine-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/kitchen-engine
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - apps/spliteco-worker/**
+    - apps/spliteco-web/**
+    - tests/spliteco-worker/**
+    - tests/spliteco-web/**
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-2.TaskContract.yaml
+  doneWhen:
+    - "The Spliteco app opens on its stage URL, signs in with a Cookpool account and lists every group you're in, kitchens included"
+    - "Any of the six splits saves, itemized included with portions, % or exact per person plus tax and discount; Save stays off until it adds up"
+    - "Home, group and friend balances match Cookpool's for the same group to the paisa"
+    - "Edit, delete (restorable for 30 days) and move to another group change balances and show in Activity"
+    - "A group's insights charts and its CSV and JSON export work"
+  gates: []

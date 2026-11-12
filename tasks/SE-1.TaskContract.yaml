@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-1
+  title: "The Spliteco spec"
+spec:
+  goal: "The cookpool-spliteco doc set and the six SE contracts are on main, adopting the Spliteco design."
+  affects:
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-1.TaskContract.yaml
+    - tasks/SE-2.TaskContract.yaml
+    - tasks/SE-3.TaskContract.yaml
+    - tasks/SE-4.TaskContract.yaml
+    - tasks/SE-5.TaskContract.yaml
+    - tasks/SE-6.TaskContract.yaml
+  doneWhen:
+    - "README, design, implementation plan, risks and implementation status for cookpool-spliteco are on main"
+    - "tasks/SE-1 to SE-6 contracts are on main, one per milestone"
+  gates: []

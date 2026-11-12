@@ -1,0 +1,29 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-3
+  title: "Spliteco: settle up and reminders"
+spec:
+  goal: "People settle up in Spliteco by UPI, cash or bank, can mark a payment not received, switch simplify debts per group, and nudge each other at most once a day."
+  affects:
+    - default/cookpool/spliteco-worker
+    - default/cookpool/spliteco-web
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-client
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - apps/spliteco-worker/**
+    - apps/spliteco-web/**
+    - tests/spliteco-worker/**
+    - tests/spliteco-web/**
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-3.TaskContract.yaml
+  doneWhen:
+    - "Pay with UPI opens a UPI app with the payee's UPI ID, the amount and a note; the payment is recorded only after 'I paid'"
+    - "Cash and bank payments record in one tap; the person paid can mark one 'not received', which reverses it"
+    - "Simplify debts can be switched per group, and the settle plan shows the fewest payments"
+    - "Remind sends a push or email at most once per person per 24 hours"
+  gates: []

@@ -1,0 +1,31 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-4
+  title: "Cookpool hands its money to Spliteco"
+spec:
+  goal: "Cookpool kitchens show in Spliteco as linked groups with locked itemized rows, and Cookpool's own money screens become read-only views that open Spliteco."
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/spliteco-worker
+    - default/cookpool/spliteco-web
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/contracts
+    - default/cookpool/sdk
+    - apps/spliteco-worker/**
+    - apps/spliteco-web/**
+    - tests/spliteco-worker/**
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-4.TaskContract.yaml
+  doneWhen:
+    - "A new Cookpool kitchen appears in Spliteco's Groups by itself, tagged From Cookpool; groups made in Spliteco never appear in Cookpool"
+    - "Cookpool bills show in Spliteco as locked itemized rows with the why, and can't be edited or moved there"
+    - "Cookpool's Money and People screens show balances read-only with Settle in Spliteco, and no settle button is left"
+    - "Leaving a kitchen while a balance is open is still refused"
+  gates: []
