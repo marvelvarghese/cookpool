@@ -8,7 +8,7 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | SE1 — groups, expenses, balances | built, awaiting PR (SE-2) | |
 | SE2 — settle up and reminders | built, awaiting PR (SE-3) | |
 | SE3 — Cookpool hands its money over | | |
-| SE4 — bills from a photo, split together | | |
+| SE4 — bills from a photo, split together | built, awaiting PR (SE-5) | |
 | SE5 — your AI assistant logs splits | | |
 
 ## SE1 as built (SE-2)
@@ -53,3 +53,24 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **Push** rides on the email enqueue as for Cookpool's kinds, and is opt-in per kind; Cookpool's notification settings do not list the Spliteco kinds yet, so in practice these are emails until a push switch exists in an app. The push opens on the origin of the app that subscribed.
 - **The reminder's 24-hour guard** is a read then a guarded insert; of two racing reminders only one is sent, but the loser's audit event is still written.
 - **The UPI link** carries `pa`, `pn`, `am`, `cu=INR` and `tn` (the note, defaulting to the group's name); UPI is offered only for groups that count in INR.
+
+
+## SE4 as built (SE-5)
+
+SE4 was built before SE3: the cookpool-revamp epic is restyling Cookpool's Money screens, which SE3 rebuilds, so SE3 waits for it. SE4 needs only SE1's itemized model (sequencing note) and is stacked on SE2's branch.
+
+- **Migration 550** (`550_spliteco_live_split`): `ledger_live_sessions` (lvs_ ids; org, an 8-character code from membership's join-code alphabet, unique; the draft as JSON — title, category, note, payers, items, adjustments; `open|locked`; created_by, created_at, expires_at 24 h on; the posted `txn_id`, `locked_at`), `ledger_live_claims` (session, item_position, subject_id, mode and value as an item share, updated_at) and `ledger_live_presence` (session, subject, seen_at). Storage in `packages/db/src/spliteco/live.ts`; `SplitecoRepository.write` takes further audit events and statements for the same batch.
+- **API** (spliteco-worker, `handlers/live.ts`): `POST /v1/spliteco/groups/{org}/live` (needs `spliteco.expense.write`; the shares already set on Itemized carry over as claims; `spliteco.live.opened`), `GET /v1/spliteco/live/{code}` (the session, claims, who is here — read within 10 s — and the group's members; marks the caller here), `POST …/live/{code}/claims` (set or clear; your own, or anyone's for the opener — 403 `own_claims_only`), `POST …/live/{code}/lock` (opener only — 403 `not_the_opener`; 409 `not_all_claimed` with the unclaimed positions; posts one itemized expense through the expense path with `spliteco.expense.added` + `spliteco.live.locked` and the session's lock in one batch). After 24 h claims and the lock are 409 `live_expired` and the read says `expired`; a locked session answers claims with 409 `live_locked`. Contracts in `packages/contracts/src/spliteco.ts` (SE4 section), client `openLive`/`live`/`claimLive`/`lockLive`.
+- **App:** `/scan` (take or choose a photo → shrunk to a 1200 px JPEG → `client.kitchen.aiReceipt`, the existing kitchen route through api-edge; "Read N items and M charges", "Did we read this right?" with Looks right / Fix it, editable charges and printed total; Assign items and Split the total equally stay off until every flagged line is checked and lines + charges equal the printed total; the draft goes to Add expense in sessionStorage and nothing is saved until Save; without a key, a budget or today's receipts it offers "Enter the items by hand"). "Scan a receipt" on Add expense. The "Live" button on Itemized opens `/live/{code}` (QR from `qrcode-generator` 1.4.4, MIT, no dependencies; code, Copy invite link, presence faces, claimed bar, item rows with claimers and "I had this", the opener's who-had-it sheet, the ticker, the lock). It polls every 2 s while visible and stops when hidden, locked or ended (`lib/poll.ts`). A signed-out `/live/{code}` link goes through Sign in and comes back to it.
+
+## SE4 departures
+
+- **A third table, `ledger_live_presence`.** Design §1 lists sessions only and the brief two tables; presence "by last poll" needs a write per poll, kept out of the claims so a poll never touches them.
+- **Doubtful lines** are the reader's reading doubts only: no price, no name, reason `unclear`, or "not sure what …". Its other `check` reasons are about a kitchen's purchase history ("no price from before") and would flag almost every restaurant line, so they are not flagged.
+- **Charges are recognised in the app.** The receipt route returns lines and a `totalMatches` flag, not the adjustments it summed. Lines whose text reads as tax, service or discount become charges; when the route says the total matches but lines and charges fall short, the gap is shown as one "Taxes and charges" (or "Discount") line the person can relabel. kitchen-worker is outside SE-5's contract, so the route was not changed.
+- **PDFs are not read.** The route takes JPEG or WebP; a PDF asks for a screenshot instead. Any image the browser can draw is re-encoded to JPEG.
+- **A claim is one portion by default**; the opener's sheet sets one portion per person. Portions, % and exact claims are accepted by the API (and checked by the engine at the lock), but the Live screen offers only "I had this"; finer shares are set on Itemized before going live.
+- **The opener must still hold `spliteco.expense.write` at the lock**, and everyone named must still be a member (422 `not_in_group`). Reading and claiming need only membership (viewers may claim).
+- **Polling uses the edge's Spliteco budget** (60 reads a minute per person); a 2-second poll is 30. Not changed (risk SE-E).
+- **Sign-in returns to where it was asked for** (`lib/return-to.ts`, sessionStorage, own-origin paths only), for every page, not only live links.
+- **The dev API** (`tests/spliteco-worker/src/dev-server.ts`) stubs the receipt route with the canvas's Beach Shack bill (`SPLITECO_DEV_RECEIPT=unavailable` answers as without a key).
