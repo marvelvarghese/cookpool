@@ -5,7 +5,7 @@ import { frameRedirect } from "@web-console-next/lib/features";
 import { aiSwitchOn } from "@web-console-next/lib/ai-switches";
 import { encodeAttempts } from "@web-console-next/components/kitchen/receipt-image";
 import { recipeRequest, errorsFromDetails, setLine, moveLine, updateStep } from "@web-console-next/components/kitchen/recipe-form";
-import { MyRecipesSection } from "@web-console-next/components/kitchen/cook-hub-views";
+import { CookHubView } from "@web-console-next/components/kitchen/cook-hub-views";
 import {
   PHOTO_UNUSABLE,
   RECIPE_PHOTO_HREF,
@@ -102,12 +102,13 @@ describe("where Recipe from a photo shows", () => {
   it("never in today's frame, and today's My recipes is unchanged", () => {
     expect(recipePhotoShows({ isNewFrame: false, status: status(), switchOn: true })).toBe(false);
     expect(frameRedirect("/recipes/new", false)).toBe("/home");
-    const plain = renderToStaticMarkup(React.createElement(MyRecipesSection, { cards: [], loading: false, failed: false }));
-    const withNothing = renderToStaticMarkup(React.createElement(MyRecipesSection, { cards: [], loading: false, failed: false, photoAction: null }));
+    const hub = { cookNow: null, saved: [], recipesLoading: false, recipesFailed: false };
+    const plain = renderToStaticMarkup(React.createElement(CookHubView, hub));
+    const withNothing = renderToStaticMarkup(React.createElement(CookHubView, { ...hub, photoAction: null }));
     expect(withNothing).toBe(plain);
     expect(plain).not.toContain("From a photo");
     const withEntry = renderToStaticMarkup(
-      React.createElement(MyRecipesSection, { cards: [], loading: false, failed: false, photoAction: React.createElement("a", { href: RECIPE_PHOTO_HREF }, "From a photo") }),
+      React.createElement(CookHubView, { ...hub, photoAction: React.createElement("a", { href: RECIPE_PHOTO_HREF }, "From a photo") }),
     );
     expect(withEntry).toContain('href="/recipes/new?photo=1"');
   });

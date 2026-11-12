@@ -21,7 +21,8 @@ import { UNTICKED_CHOICES, type FinishEaterRow, type SessionBarView, type Sessio
  * (`session-bar.tsx`) hold those.
  */
 
-const INK = "#17201B";
+/** The cook strip (RV-4: the `cp-cook-bg` token, ink in light and the tint in dark). */
+const INK = "hsl(var(--cp-cook-bg))";
 
 /** The time now, every `ms` (the header's clock each second, the bar's minutes). */
 export function useNow(ms: number): Date {
@@ -42,12 +43,12 @@ export function SessionTopBar({ elapsed, onMinimize }: { elapsed: string; onMini
         type="button"
         onClick={onMinimize}
         aria-label="Minimize"
-        className="-ml-2.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[#3F4842] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="-ml-2.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronDown className="h-6 w-6" aria-hidden />
       </button>
-      <span className="flex-1 text-[13px] font-extrabold tracking-[0.04em] text-muted-foreground">COOKING</span>
-      <span className="flex items-center gap-1.5 text-[15px] font-extrabold tabular-nums text-[#3F4842]">
+      <span className="flex-1 text-[13px] font-medium tracking-[0.04em] text-muted-foreground">COOKING</span>
+      <span className="flex items-center gap-1.5 text-[15px] font-medium tabular-nums text-muted-foreground">
         <Timer className="h-[18px] w-[18px]" aria-hidden />
         <span className="sr-only">Cooking for </span>
         {elapsed}
@@ -65,13 +66,13 @@ export function SessionMeta({ chip, progress }: { chip: { label: string; href: s
           href={chip.href}
           className="-my-1 inline-flex min-h-11 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="inline-flex min-h-[34px] items-center rounded-full px-3 text-[13px] font-extrabold text-white" style={{ backgroundColor: INK }}>
+          <span className="inline-flex min-h-[34px] items-center rounded-full px-3 text-[13px] font-medium text-cp-cook-ink" style={{ backgroundColor: INK }}>
             {chip.label}
           </span>
         </Link>
       ) : null}
       {progress ? (
-        <span className="text-[13px] font-bold text-muted-foreground" aria-live="polite">
+        <span className="text-[13px] font-normal text-muted-foreground" aria-live="polite">
           {progress}
         </span>
       ) : null}
@@ -82,7 +83,7 @@ export function SessionMeta({ chip, progress }: { chip: { label: string; href: s
 // ── One line ──────────────────────────────────────────────────────
 
 export const STEP_BUTTON =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#C9CFC6] bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 
 /**
  * A line: the tick (green filled when ticked, the row tinted; dashed and off
@@ -121,8 +122,8 @@ export function SessionRow({
       id={`session-line-${view.key.replace(/[^A-Za-z0-9_-]/g, "-")}`}
       className={cn(
         "scroll-mt-24",
-        !last && "border-b border-[#ECEEE9]",
-        view.ticked ? "bg-[#EEF7F1]" : view.ask?.state === "waiting" ? "bg-[#FFFBF0]" : "bg-card",
+        !last && "border-b border-cp-line",
+        view.ticked ? "bg-cp-accent-tint" : view.ask?.state === "waiting" ? "bg-cp-soon-tint" : "bg-card",
         flagged && "outline outline-2 -outline-offset-2 outline-cp-expired",
       )}
     >
@@ -133,7 +134,7 @@ export function SessionRow({
               type="button"
               onClick={onAsk}
               aria-label={ask.buttonLabel ?? ask.button}
-              className="flex h-11 max-w-[42%] shrink-0 items-center gap-1.5 rounded-[14px] px-3 text-sm font-extrabold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-11 max-w-[42%] shrink-0 items-center gap-1.5 rounded-[14px] px-3 text-sm font-medium text-cp-cook-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               style={{ backgroundColor: INK }}
             >
               <Lock className="h-3.5 w-3.5 shrink-0" strokeWidth={2.6} aria-hidden />
@@ -144,7 +145,7 @@ export function SessionRow({
               aria-hidden
               className={cn(
                 "grid h-11 w-11 shrink-0 place-items-center rounded-[14px]",
-                ask.state === "approved" ? "bg-[#E4F2EA] text-primary" : ask.state === "waiting" ? "bg-[#FDF1D6] text-[#8A5A00]" : "bg-muted text-muted-foreground",
+                ask.state === "approved" ? "bg-cp-accent-tint text-primary" : ask.state === "waiting" ? "bg-cp-soon-tint text-cp-soon" : "bg-muted text-muted-foreground",
               )}
             >
               {ask.state === "approved" ? <Check className="h-5 w-5" strokeWidth={2.6} /> : ask.state === "declined" ? <X className="h-5 w-5" strokeWidth={2.4} /> : ask.state === "waiting" ? <Hourglass className="h-5 w-5" strokeWidth={2.2} /> : <Lock className="h-5 w-5" strokeWidth={2.2} />}
@@ -160,20 +161,20 @@ export function SessionRow({
           className={cn(
             "grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             !view.tickable
-              ? "cursor-default border-dashed border-[#C9CFC6] bg-background text-[#C9CFC6]"
+              ? "cursor-default border-dashed border-border bg-background text-muted-foreground/60"
               : view.ticked
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-[#C9CFC6] bg-card text-[#C9CFC6] hover:border-primary/60",
+                : "border-border bg-card text-muted-foreground/60 hover:border-primary/60",
           )}
         >
           <Check className="h-5 w-5" strokeWidth={2.6} aria-hidden />
         </button>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-px">
-          <span className={cn("truncate text-[15px] font-extrabold", view.missing && "text-muted-foreground line-through")}>{view.name}</span>
-          <span className="truncate text-xs font-semibold text-muted-foreground">{view.sub}</span>
+          <span className={cn("truncate text-[15px] font-medium", view.missing && "text-muted-foreground line-through")}>{view.name}</span>
+          <span className="truncate text-xs font-normal text-muted-foreground">{view.sub}</span>
           {ask?.text ? (
-            <span role="status" className={cn("text-xs font-extrabold leading-snug", ask.state === "approved" ? "text-[#165C3A]" : ask.state === "waiting" ? "text-[#8A5A00]" : "text-muted-foreground")}>
+            <span role="status" className={cn("text-xs font-medium leading-snug", ask.state === "approved" ? "text-cp-accent-text" : ask.state === "waiting" ? "text-cp-soon" : "text-muted-foreground")}>
               {ask.text}
             </span>
           ) : null}
@@ -183,7 +184,7 @@ export function SessionRow({
             type="button"
             onClick={onCancelAsk}
             aria-label={`Cancel the ask for ${view.name}`}
-            className="min-h-11 shrink-0 rounded-xl border border-[#E8C77A] bg-card px-3 text-sm font-extrabold text-[#5C3D00] transition-colors hover:bg-[#FFF8E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-11 shrink-0 rounded-xl border border-transparent bg-card px-3 text-sm font-medium text-cp-soon transition-colors hover:bg-cp-soon-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Cancel
           </button>
@@ -195,15 +196,15 @@ export function SessionRow({
             aria-controls={panelId}
             aria-label={`${view.name}: ${view.amount}. Change the amount`}
             className={cn(
-              "min-h-11 min-w-[76px] shrink-0 rounded-xl border px-3 text-[15px] font-extrabold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              open ? "border-transparent text-white" : "border-[#D5DAD2] bg-background text-foreground hover:bg-accent",
+              "min-h-11 min-w-[76px] shrink-0 rounded-xl border px-3 text-[15px] font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              open ? "border-transparent text-cp-cook-ink" : "border-border bg-background text-foreground hover:bg-accent",
             )}
             style={open ? { backgroundColor: INK } : undefined}
           >
             {view.amount}
           </button>
         ) : (
-          <span className="min-w-[76px] shrink-0 px-3 text-center text-[15px] font-extrabold tabular-nums text-muted-foreground">{view.amount}</span>
+          <span className="min-w-[76px] shrink-0 px-3 text-center text-[15px] font-medium tabular-nums text-muted-foreground">{view.amount}</span>
         )}
       </div>
       {open && view.canEdit ? (
@@ -214,7 +215,7 @@ export function SessionRow({
           <RepeatButton className={STEP_BUTTON} aria-label={view.moreLabel} disabled={!view.canMore} onStep={() => onStep(1)}>
             <Plus className="h-5 w-5" aria-hidden />
           </RepeatButton>
-          <span className="ml-auto text-right text-[13px] font-bold tabular-nums text-[#3F4842]" aria-live="polite">
+          <span className="ml-auto text-right text-[13px] font-normal tabular-nums text-muted-foreground" aria-live="polite">
             {view.costNote}
           </span>
         </div>
@@ -232,7 +233,7 @@ export const AddItemButton = React.forwardRef<HTMLButtonElement, { onClick: () =
       onClick={onClick}
       aria-haspopup="dialog"
       aria-expanded={expanded}
-      className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-[#9AA39D] text-[15px] font-extrabold text-[#3F4842] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-muted-foreground/50 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
       Add an item
@@ -255,21 +256,21 @@ export function StepsCard({
   onToggle: (index: number) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card">
+    <section className="overflow-hidden rounded-2xl bg-card shadow-cp-card">
       <button
         type="button"
         onClick={onOpen}
         aria-expanded={open}
         aria-controls="session-steps"
-        className="flex min-h-[52px] w-full items-center justify-between px-4 text-left text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex min-h-[52px] w-full items-center justify-between px-4 text-left text-[15px] font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         {title}
         <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <ol id="session-steps" aria-label="Steps" className="border-t border-[#ECEEE9]">
+        <ol id="session-steps" aria-label="Steps" className="border-t border-cp-line">
           {steps.map((s, i) => (
-            <li key={i} className={cn(i > 0 && "border-t border-[#ECEEE9]")}>
+            <li key={i} className={cn(i > 0 && "border-t border-cp-line")}>
               <button
                 type="button"
                 role="checkbox"
@@ -280,8 +281,8 @@ export function StepsCard({
                 <span
                   aria-hidden
                   className={cn(
-                    "mt-px grid h-6 w-6 shrink-0 place-items-center rounded-full border-[1.5px] text-xs font-extrabold",
-                    s.done ? "border-primary bg-primary text-primary-foreground" : "border-[#C9CFC6] text-muted-foreground",
+                    "mt-px grid h-6 w-6 shrink-0 place-items-center rounded-full border-[1.5px] text-xs font-medium",
+                    s.done ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground",
                   )}
                 >
                   {s.done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : i + 1}
@@ -301,11 +302,11 @@ export function StepsCard({
 /** "3 not ticked · Took them all / Leave them out" (Took them all is the default). */
 export function UntickedChoiceBox({ text, value, onChange }: { text: string; value: UntickedChoice; onChange: (v: UntickedChoice) => void }) {
   return (
-    <div className="space-y-2 rounded-2xl bg-[#FDF1D6] p-3">
-      <p id="session-unticked" className="text-sm font-extrabold text-[#6B4600]">
+    <div className="space-y-2 rounded-2xl bg-cp-soon-tint p-3">
+      <p id="session-unticked" className="text-sm font-medium text-cp-soon">
         {text}
       </p>
-      <div role="radiogroup" aria-labelledby="session-unticked" className="grid grid-cols-2 gap-[3px] rounded-xl bg-[#F3E2B8] p-[3px]">
+      <div role="radiogroup" aria-labelledby="session-unticked" className="grid grid-cols-2 gap-[3px] rounded-xl bg-cp-soon-tint p-[3px]">
         {UNTICKED_CHOICES.map((c) => {
           const on = c.id === value;
           return (
@@ -316,8 +317,8 @@ export function UntickedChoiceBox({ text, value, onChange }: { text: string; val
               aria-checked={on}
               onClick={() => onChange(c.id)}
               className={cn(
-                "min-h-11 rounded-[10px] text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                on ? "bg-white text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]" : "bg-transparent text-[#6B4600]",
+                "min-h-11 rounded-[10px] text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                on ? "bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]" : "bg-transparent text-cp-soon",
               )}
             >
               {c.label}
@@ -356,18 +357,18 @@ export function WhoAteList({
   return (
     <ul aria-label="Who ate" className="flex flex-col">
       {rows.map((r) => (
-        <li key={r.subjectId} className="flex min-h-14 items-center gap-3 border-b border-[#ECEEE9] py-1.5 last:border-b-0">
+        <li key={r.subjectId} className="flex min-h-14 items-center gap-3 border-b border-cp-line py-1.5 last:border-b-0">
           <Face subjectId={r.subjectId} meId={meId} names={names ?? null} />
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-base font-extrabold">{r.label}</span>
-            <span className={cn("text-xs font-semibold tabular-nums", r.half > 0 ? "text-[#3F4842]" : "text-muted-foreground")}>
+            <span className="truncate text-base font-medium">{r.label}</span>
+            <span className={cn("text-xs font-normal tabular-nums", r.half > 0 ? "text-muted-foreground" : "text-muted-foreground")}>
               {formatMinor(r.amountMinor, currency)}
             </span>
           </span>
           <RepeatButton className={STEP_BUTTON} aria-label={r.lessLabel} disabled={!r.canLess} onStep={() => onStep(r.subjectId, -1)}>
             <Minus className="h-5 w-5" aria-hidden />
           </RepeatButton>
-          <span className="min-w-7 text-center text-lg font-extrabold tabular-nums" aria-label={`${r.portions} portions for ${r.label}`}>
+          <span className="min-w-7 text-center text-lg font-medium tabular-nums" aria-label={`${r.portions} portions for ${r.label}`}>
             {r.portions}
           </span>
           <RepeatButton className={STEP_BUTTON} aria-label={r.moreLabel} disabled={!r.canMore} onStep={() => onStep(r.subjectId, 1)}>
@@ -388,10 +389,10 @@ export function SaveSwitch({ label, on, onChange }: { label: string; on: boolean
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      className="flex min-h-12 w-full items-center gap-3 rounded-xl text-left text-[15px] font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-12 w-full items-center gap-3 rounded-xl text-left text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span className="flex-1">{label}</span>
-      <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-[#C9CFC6]")}>
+      <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-muted-foreground/40")}>
         <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
       </span>
     </button>
@@ -416,14 +417,14 @@ export function DiscardPromptBody({
       <button
         type="button"
         onClick={onResume}
-        className="min-h-[52px] w-full rounded-[18px] bg-primary px-4 text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="min-h-[52px] w-full rounded-[18px] bg-primary px-4 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         {prompt.resume}
       </button>
       <button
         type="button"
         onClick={onDiscard}
-        className="min-h-[52px] w-full rounded-[18px] border border-input bg-card px-4 text-base font-extrabold text-cp-expired transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-[52px] w-full rounded-[18px] border border-input bg-card px-4 text-base font-medium text-cp-expired transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {prompt.discard}
       </button>
@@ -440,21 +441,21 @@ export function DiscardPromptBody({
  */
 export function SessionBarCard({ view, placement }: { view: SessionBarView; placement: "phone" | "sidebar" }) {
   const pot = (
-    <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-[#B4471F] text-white">
+    <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-cp-cook text-cp-on-cook">
       <CookingPot className="h-6 w-6" strokeWidth={2.1} />
     </span>
   );
   const words = (
     <span className="flex min-w-0 flex-1 flex-col">
-      <span className="truncate text-[15px] font-extrabold">{view.name}</span>
-      <span className="truncate text-xs font-semibold text-white/75">{view.meta}</span>
+      <span className="truncate text-[15px] font-medium">{view.name}</span>
+      <span className="truncate text-xs font-normal text-cp-cook-ink/75">{view.meta}</span>
     </span>
   );
   const resume = (className: string) => (
     <Link
       href={view.href}
       className={cn(
-        "inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-4 text-[15px] font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#17201B]",
+        "inline-flex min-h-11 items-center justify-center rounded-xl bg-cp-cook-ink px-4 text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cp-cook-ink focus-visible:ring-offset-2 focus-visible:ring-offset-cp-cook-bg",
         className,
       )}
       style={{ color: INK }}
@@ -465,7 +466,7 @@ export function SessionBarCard({ view, placement }: { view: SessionBarView; plac
   );
   if (placement === "sidebar") {
     return (
-      <section aria-label="Cooking now" className="mx-3 mb-3 rounded-[18px] p-3 text-white" style={{ backgroundColor: INK }}>
+      <section aria-label="Cooking now" className="mx-3 mb-3 rounded-[18px] p-3 text-cp-cook-ink" style={{ backgroundColor: INK }}>
         <div className="flex items-center gap-3">
           {pot}
           {words}
@@ -481,7 +482,7 @@ export function SessionBarCard({ view, placement }: { view: SessionBarView; plac
       // It stays put while the page moves (RC-11's page transitions). It sits 8px
       // above the floating tab bar (RV-2).
       data-vt-keep="session-bar"
-      className="fixed inset-x-3 bottom-[calc(max(14px,env(safe-area-inset-bottom))+76px)] z-40 mx-auto max-w-lg rounded-[18px] py-2 pl-2 pr-2 text-white shadow-[0_8px_24px_rgba(23,32,27,0.28)] min-[900px]:hidden"
+      className="fixed inset-x-3 bottom-[calc(max(14px,env(safe-area-inset-bottom))+76px)] z-40 mx-auto max-w-lg rounded-[18px] py-2 pl-2 pr-2 text-cp-cook-ink shadow-[0_8px_24px_rgba(23,32,27,0.28)] min-[900px]:hidden"
       style={{ backgroundColor: INK }}
     >
       <div className="flex items-center gap-3">

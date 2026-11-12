@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Check, ChevronRight, Megaphone, ReceiptText } from "lucide-react";
+import { Check, ChevronRight, Megaphone, ReceiptText, Share, UsersRound } from "lucide-react";
 import type { KitchenDish, MyGroupBalance } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { CLOSE_44, KCard, K_BUTTON } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON, K_CARD } from "./kit";
 import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { useMemberNames, useMyBalances } from "./people-data";
 import { useMembersOf } from "./pantry-data";
@@ -22,7 +22,6 @@ import { WhoAteList } from "./cook-session-ui";
 import { useCookedSeed, useSplitDish } from "./cooked-data";
 import {
   COOKED_TITLE,
-  NEXT_HEADING,
   cookedActions,
   cookedDoneLabel,
   cookedView,
@@ -36,11 +35,11 @@ import {
 } from "./cooked";
 
 /**
- * Cooked! (cookpool-community CM-9, the canvas's `CookDone`): where both
- * cook-session paths end in the new frame — the dish page at `?cooked=1`.
- * ✓, "Cooked!", "Chicken curry · 450 g · 48 min", the tiles, the group-items
- * note, then WHAT NEXT: Post to Community and Split with a group, each with
- * its done state, and "Not now · done" / "Done".
+ * Cooked! (cookpool-community CM-9; revamped in RV-4, the canvas's
+ * `RvCooked`): where both cook-session paths end in the new frame — the dish
+ * page at `?cooked=1`. ✓, the dish's name, "₹124 · 4 portions", the
+ * group-items note; then Split with a group (the one main button) and Post
+ * to Community (quiet), each a ✓ row once done, and Done.
  */
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -72,36 +71,76 @@ export function CookedScreen({
     groupNames,
   });
   const actions = cookedActions({ postId, orgId: dish.orgId, groupName });
+  const split = actions.find((a) => a.id === "split")!;
+  const post = actions.find((a) => a.id === "post")!;
 
   return (
-    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-8rem)] flex-col gap-3.5 pb-2 min-[900px]:mx-auto min-[900px]:max-w-xl">
-      <span aria-hidden className="mt-2 grid h-[72px] w-[72px] place-items-center self-center rounded-full bg-cp-herb-tint text-primary">
-        <Check className="h-9 w-9" strokeWidth={2.6} />
-      </span>
-      <div className="flex flex-col gap-1 text-center">
-        <h1 className="text-[28px] font-extrabold tracking-[-0.02em]">{COOKED_TITLE}</h1>
-        <p className="break-words text-base font-bold text-[#3F4842] tabular-nums">{view.subtitle}</p>
+    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-8rem)] flex-col gap-[22px] pb-2 pt-10 min-[900px]:mx-auto min-[900px]:max-w-xl">
+      <div className="flex flex-col items-center gap-3.5 text-center">
+        <span aria-hidden className="grid h-[72px] w-[72px] place-items-center rounded-full bg-cp-accent-tint text-cp-accent-text">
+          <Check className="h-[34px] w-[34px]" strokeWidth={2.6} />
+        </span>
+        <h1 className="break-words text-[30px] font-medium leading-tight tracking-[-0.02em]">
+          <span className="sr-only">{COOKED_TITLE} </span>
+          {dish.name}
+        </h1>
+        <p className="text-[17px] font-normal tabular-nums text-muted-foreground">{view.fact}</p>
+        {view.note && view.note !== view.fact ? <p className="text-[13px] font-normal text-muted-foreground">{view.note}</p> : null}
       </div>
-      <dl className={cn("grid gap-1.5", view.tiles.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
-        {view.tiles.map((t) => (
-          <div key={t.label} className="flex flex-col-reverse items-center rounded-[14px] border bg-card p-2">
-            <dt className="text-[11px] font-bold text-muted-foreground">{t.label}</dt>
-            <dd className="text-[17px] font-extrabold tabular-nums">{t.value}</dd>
-          </div>
-        ))}
-      </dl>
-      {view.note ? <p className="text-center text-[13px] font-semibold text-muted-foreground">{view.note}</p> : null}
 
-      <h2 className="mt-1.5 text-xs font-extrabold uppercase tracking-[0.06em] text-[#3F4842]">{NEXT_HEADING}</h2>
-      <NextActionList actions={actions} postId={postId} dishId={dish.id} onPost={onPost} onSplit={onSplit} />
+      <div className="flex-1" />
 
-      {/* The one main button, held above the tab bar: leave Cooked! for the dish. */}
-      <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 mt-auto pt-1 min-[900px]:bottom-6">
-        <Button type="button" variant="outline" onClick={onDone} className={cn(K_BUTTON, "min-h-[60px] w-full rounded-[18px] border-[#C9CFC6] bg-card text-[17px] font-extrabold")}>
+      <div data-toast-above="" className="sticky bottom-[calc(max(14px,env(safe-area-inset-bottom))+76px)] z-30 flex flex-col gap-2.5 bg-gradient-to-t from-background from-80% to-transparent pt-3 min-[900px]:bottom-6">
+        {split.done ? (
+          <DoneRow text={groupName ? `Split with ${groupName}` : "Split"} />
+        ) : (
+          <button
+            type="button"
+            onClick={onSplit}
+            data-dish={dish.id}
+            className={cn("flex min-h-[60px] items-center justify-center gap-2.5 rounded-[18px] bg-primary px-4 text-lg font-medium text-primary-foreground transition-colors hover:bg-primary/90", FOCUS)}
+          >
+            <UsersRound className="h-[22px] w-[22px]" strokeWidth={2.2} aria-hidden />
+            {split.title}
+          </button>
+        )}
+        {post.done && postId ? (
+          <DoneRow text="Posted to Community" href={postHref(postId)} />
+        ) : (
+          <button
+            type="button"
+            onClick={onPost}
+            data-dish={dish.id}
+            className={cn("flex min-h-14 items-center justify-center gap-2.5 rounded-[18px] bg-cp-accent-tint px-4 text-base font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80", FOCUS)}
+          >
+            <Share className="h-5 w-5" strokeWidth={2.2} aria-hidden />
+            {post.title}
+          </button>
+        )}
+        <button type="button" onClick={onDone} className={cn("min-h-[52px] rounded-[18px] text-base font-medium text-muted-foreground transition-colors hover:bg-accent", FOCUS)}>
           {cookedDoneLabel(actions)}
-        </Button>
+        </button>
       </div>
     </div>
+  );
+}
+
+/** A next step once done: ✓ and its words on a card, opening the post when there is one. */
+function DoneRow({ text, href }: { text: string; href?: string }) {
+  const inner = (
+    <>
+      <Check className="h-5 w-5 shrink-0 text-cp-accent-text" strokeWidth={2.6} aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-base font-medium">{text}</span>
+      {href ? <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden /> : null}
+    </>
+  );
+  const cls = cn(K_CARD, "flex min-h-14 items-center gap-2.5 rounded-[18px] px-4");
+  return href ? (
+    <Link href={href} className={cn(cls, "transition-colors hover:bg-accent", FOCUS)}>
+      {inner}
+    </Link>
+  ) : (
+    <div className={cls}>{inner}</div>
   );
 }
 
@@ -132,7 +171,7 @@ export function NextActionList({
         const cls = cn(
           "flex min-h-[76px] w-full items-center gap-3 rounded-[20px] px-3.5 py-3 text-left transition-colors",
           FOCUS,
-          a.done ? "border-[1.5px] border-[#B9DCC8] bg-[#F2F8F4]" : "border border-[#D5DAD2] bg-card hover:bg-accent",
+          a.done ? "bg-cp-accent-tint" : "bg-card shadow-cp-card hover:bg-accent",
         );
         let el: React.ReactNode;
         if (a.done && a.id === "post" && postId) {
@@ -166,17 +205,17 @@ function ActionCardBody({ action }: { action: CookedAction }) {
   const Icon = action.id === "post" ? Megaphone : ReceiptText;
   return (
     <>
-      <span aria-hidden className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px]", action.id === "post" ? "bg-[#FCE9DF] text-[#B4471F]" : "bg-[#E6EEF8] text-[#1D4ED8]")}>
+      <span aria-hidden className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px]", action.id === "post" ? "bg-cp-tomato-tint text-cp-cook" : "bg-cp-owed-tint text-cp-owed")}>
         <Icon className="h-[22px] w-[22px]" strokeWidth={2.1} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[17px] font-extrabold">{action.title}</span>
-        <span className="text-[13px] font-semibold text-muted-foreground">{action.sub}</span>
+        <span className="text-[17px] font-medium">{action.title}</span>
+        <span className="text-[13px] font-normal text-muted-foreground">{action.sub}</span>
       </span>
       {action.done ? (
-        <span className="shrink-0 text-[15px] font-extrabold text-[#165C3A]">{action.doneText}</span>
+        <span className="shrink-0 text-[15px] font-medium text-cp-accent-text">{action.doneText}</span>
       ) : (
-        <ChevronRight className="h-5 w-5 shrink-0 text-[#9AA39D]" aria-hidden />
+        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
       )}
     </>
   );
@@ -248,11 +287,11 @@ export function SplitSheet({
     <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, CLOSE_44)}>
         <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-        <SheetTitle className="pr-12 text-[22px] font-extrabold">Who ate?</SheetTitle>
+        <SheetTitle className="pr-12 text-[22px] font-medium">Who ate?</SheetTitle>
         <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
           {!balances.loading && usable.length === 0 ? (
             <KCard className="space-y-2 p-4">
-              <p className="text-[15px] font-bold">No group to split it with</p>
+              <p className="text-[15px] font-medium">No group to split it with</p>
               <p className="text-sm text-muted-foreground">You need a group you cook in that counts in {dish.currency}.</p>
               <Button asChild variant="outline" className={K_BUTTON}>
                 <Link href="/groups">Your groups</Link>
@@ -290,7 +329,7 @@ export function SplitSheet({
                   onStep={(id, d) => setHalves((h) => ({ ...h, [id]: Math.max(0, (h[id] ?? 0) + d) }))}
                 />
               ) : null}
-              {left ? <p className="px-1 text-sm font-semibold text-muted-foreground tabular-nums">{left}</p> : null}
+              {left ? <p className="px-1 text-sm font-normal text-muted-foreground tabular-nums">{left}</p> : null}
             </>
           )}
           {problem ? (

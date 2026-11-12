@@ -263,12 +263,12 @@ describe("the prompt (GuidePrompt, design §3.1)", () => {
     ]);
   });
 
-  it("offers Start step by step (the main button, in the cook colour) and Just tick what I use", () => {
+  it("offers Start step by step (the main button, on the accent since RV-4) and Just tick what I use", () => {
     const out = html(React.createElement(GuidePromptView, { view: promptView(curry(), NOW)!, lockState: "off", pushHint: false, on: promptOn }));
     expect(out).toContain("Cook it step by step");
     expect(out).toContain(">Start step by step<");
     expect(out).toContain(">Just tick what I use<");
-    expect(out).toContain("bg-[#B4471F]");
+    expect(out).toContain("bg-primary text-primary-foreground");
     expect(out).toContain('data-dimmed="false"');
     expect(out).toContain("BEFORE YOU START");
     expect(out).toContain("Your screen stays on while you cook");
@@ -294,7 +294,7 @@ describe("the prompt (GuidePrompt, design §3.1)", () => {
     expect(v).toMatchObject({ dimmed: true, sub: "Starts after the long prep", startSub: "After: Soak the rajma in plenty of water" });
     const out = html(React.createElement(GuidePromptView, { view: v, lockState: "off", pushHint: false, on: promptOn }));
     expect(out.indexOf('data-long-prep="idle"')).toBeLessThan(out.indexOf("Cook it step by step"));
-    expect(out).toContain("bg-[#FDF1D6]");
+    expect(out).toContain("bg-cp-soon-tint");
     expect(out).toContain(">Soak now · ping me<");
     expect(out).toContain(">Already done<");
     expect(out).toContain('data-dimmed="true"');
@@ -450,21 +450,26 @@ describe("a step (GuideStep, design §3.3)", () => {
     expect(v.speech).toEqual(["Add the onions and a pinch of salt. Stir now and then.", "Until golden brown"]);
   });
 
-  it("draws it: flames in the cook colour, 44 px chips, the checkpoint on the tint, the ring, Done in herb green", () => {
-    const out = html(React.createElement(GuideStepView, { view: stepScreen(onions(), at(200))!, strip: [], pushHint: false, on: stepOn }));
-    expect(count(out, 'data-lit="true"')).toBe(2);
-    expect(out).toContain("Medium flame");
-    expect(out).toContain("text-[26px]");
+  // RV-4 (the canvas's `RvCookStep`): the dish's name, a thin bar and "2 of 8", one heat and time chip,
+  // the step in big type, what to watch for in one line, the timer chip, the lines as chips, Add amounts quiet.
+  it("draws it: the bar, one heat chip, big type, the check line, the timer chip, 44 px chips, Done on the accent", () => {
+    const out = html(React.createElement(GuideStepView, { view: stepScreen(onions(), at(200))!, strip: [], pushHint: false, on: { ...stepOn, onAddAmounts: () => undefined } }));
+    expect(out).toContain('data-heat="2"');
+    expect(out).toContain("Medium flame · 5–7 min");
+    expect(out).toContain("text-[30px]");
+    expect(out).toMatch(/role="progressbar"[^>]*aria-valuenow="2"/);
+    expect(out).toContain(">2 of 8<");
+    expect(out).toContain(">Chicken curry<");
     expect(out).toContain('aria-pressed="false"');
     expect(out).toContain("min-h-11");
-    expect(out).toContain("LOOK FOR");
+    expect(out).toContain("Look for: ");
     expect(out).toContain("Until golden brown");
-    expect(out).toContain("background-color:#E4F2EA");
-    expect(out).toContain('stroke="#B4471F"');
     expect(out).toContain("Usually 7–9 min at this size · 23 cooks");
     expect(out).toContain(">Start<");
+    expect(out).toContain(">Add amounts<");
     expect(out).toContain("Tip: Do not rush them");
-    expect(out).toContain("bg-[#1F7A4D]");
+    expect(out).toContain("bg-primary text-primary-foreground");
+    expect(out).not.toContain("font-extrabold");
     expect(out).toContain('aria-label="Read this step aloud"');
     expect(out).toContain(`href="/recipes/${CURRY_ID}/plan?f=450"`);
     expect(out).toContain('aria-label="Previous step"');
@@ -560,7 +565,8 @@ describe("hands off: Start and go on, and the timer strip (design §3.3, §3.4)"
     expect(strip).toEqual([{ id: "t1", stepKey: "c-simmer", phase: "cook", label: "Simmer · step 5", left: "16:00", ended: false }]);
     const out = html(React.createElement(GuideStepView, { view: stepScreen(later, at(480))!, strip, pushHint: false, on: stepOn }));
     expect(out).toContain("Simmer · step 5");
-    expect(out).toContain("background-color:#17201B");
+    // RV-4: other steps' timers are card pills.
+    expect(out).toMatch(/aria-label="Simmer · step 5: 16:00. Open it" class="[^"]*rounded-full[^"]*bg-card/);
     // The strip never shows the step's own timer.
     expect(timerStrip(later, at(480), "c-simmer")).toEqual([]);
     s = goToStep(later, "c-simmer", at(480));
@@ -760,7 +766,7 @@ describe("Done (GuideDone, design §3.6)", () => {
     expect(out).toMatch(/role="switch" aria-checked="false"[^>]*>.*Use today&#x27;s times next time/);
     expect(out).toContain("Who ate?");
     expect(out).toContain("₹140.78 · post to Flat 4B");
-    expect(out).toContain("bg-[#B4471F]");
+    expect(out).toContain("bg-primary text-primary-foreground");
   });
 });
 

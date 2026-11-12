@@ -10,6 +10,7 @@ import {
   factorChip,
   floorToGrid,
   haveLine,
+  haveShort,
   ingredientRows,
   lineAmountText,
   mainAmountMilli,
@@ -22,12 +23,13 @@ import {
   recipeEditHref,
   recipeHref,
   sessionHref,
+  recipeMetaLine,
   startLine,
   stepMain,
   stepPortions,
   useAllFor,
 } from "@web-console-next/components/kitchen/recipes";
-import { HowMuchCard, IngredientsSection, RecipeHeader, SaveCopyView, StartCookingBar, StepsSection } from "@web-console-next/components/kitchen/recipe-views";
+import { IngredientsSection, RecipeHeader, SaveCopyView, ServingsStepper, StartCookingBar, StepsSection, UseAllChip } from "@web-console-next/components/kitchen/recipe-views";
 import { ANU, CURRY_LINES, curryMatch, line, recipe } from "./kitchen-recipe-fixtures";
 
 // cookpool-recipes RC-5 (design §3.2, §3.3, the canvas's `Recipe`): the
@@ -283,6 +285,17 @@ describe("the header and its one action", () => {
     expect(html).toContain("45 min");
   });
 
+  // RV-4 (the canvas's `RvRecipe`): one line under the name.
+  it("says Serves 4 · 35 min · Have 7 of 9 under the name", () => {
+    expect(haveShort(curryMatch(1000).summary)).toBe("Have 6 of 8");
+    expect(haveShort({ lines: 8, have: 7, always: 1, short: 0, missing: 0 })).toBe("Have all 8");
+    expect(recipeMetaLine("4", 35, "Have 7 of 9")).toBe("Serves 4 · 35 min · Have 7 of 9");
+    expect(recipeMetaLine("about 2", null, null)).toBe("Serves about 2");
+    const html = renderToStaticMarkup(React.createElement(RecipeHeader, { recipe: recipe(), meId: null, servesLabel: "about 2", have: "Have 6 of 8" }));
+    expect(html).toContain("Serves about 2 · 45 min · Have 6 of 8");
+    expect(renderToStaticMarkup(React.createElement(RecipeHeader, { recipe: recipe(), meId: null }))).toContain("Serves 4 · 45 min");
+  });
+
   it("reads Save, then Saved — opening your copy once it is written", () => {
     expect(renderToStaticMarkup(React.createElement(SaveCopyView, { savedId: null, saving: false, onSave: () => undefined }))).toContain(">Save<");
     const saving = renderToStaticMarkup(React.createElement(SaveCopyView, { savedId: null, saving: true, onSave: () => undefined }));
@@ -293,26 +306,26 @@ describe("the header and its one action", () => {
 });
 
 describe("the page as it draws", () => {
-  it("has the How much card: main item, the factor, Use all, portions", () => {
-    const html = renderToStaticMarkup(React.createElement(HowMuchCard, { recipe: CURRY, factorMilli: 1000, match: curryMatch(1000), onFactor: () => undefined }));
-    expect(html).toContain("MAIN ITEM");
-    expect(html).toContain("1 kg");
-    expect(html).toContain("As written · serves 4");
-    expect(html).toContain("Use all 450 g you have");
-    expect(html).toContain("Portions");
-    expect(html).toContain('aria-label="Less chicken"');
-    const scaled = renderToStaticMarkup(React.createElement(HowMuchCard, { recipe: CURRY, factorMilli: 450, match: curryMatch(450), onFactor: () => undefined }));
-    expect(scaled).toContain("×0.45 · every line follows");
-    expect(scaled).toContain("about 2");
-    expect(scaled).not.toContain("Use all");
+  // RV-4: the servings − 4 + beside Ingredients, and Use all as a quiet chip (the main item's own − + is gone).
+  it("has the servings stepper and Use all", () => {
+    const html = renderToStaticMarkup(React.createElement(ServingsStepper, { recipe: CURRY, factorMilli: 1000, onFactor: () => undefined }));
+    expect(html).toContain('aria-label="Servings"');
+    expect(html).toContain('aria-label="Fewer portions"');
+    expect(html).toContain('aria-label="More portions"');
+    expect(html).toContain(">4<");
+    expect(renderToStaticMarkup(React.createElement(ServingsStepper, { recipe: CURRY, factorMilli: 450, onFactor: () => undefined }))).toContain("about 2");
+    expect(renderToStaticMarkup(React.createElement(UseAllChip, { recipe: CURRY, factorMilli: 1000, match: curryMatch(1000), onFactor: () => undefined }))).toContain("Use all 450 g you have");
+    expect(renderToStaticMarkup(React.createElement(UseAllChip, { recipe: CURRY, factorMilli: 450, match: curryMatch(450), onFactor: () => undefined }))).toBe("");
   });
 
   it("lists the ingredients with their statuses and the main line marked", () => {
     const html = renderToStaticMarkup(
       React.createElement(IngredientsSection, { rows: ingredientRows(CURRY, 1000, curryMatch(1000)), match: curryMatch(1000) }),
     );
-    expect(html).toContain("Have 6 of 8 · 2 to get");
+    // RV-4: one line per row — the dot, the name, the amount; the status is said to a screen reader.
     expect(html).toContain(" · main");
+    expect(html).toContain('class="sr-only"');
+    expect(html).toContain("border-2 border-cp-owe");
     expect(html).toContain("Short · you have 450 g");
     expect(html).toContain("Missing");
   });
@@ -330,7 +343,8 @@ describe("the page as it draws", () => {
     const html = renderToStaticMarkup(React.createElement(StartCookingBar, { href: sessionHref("rcp_curry", 450), line: startLine(CURRY, 450) }));
     expect(html).toContain('href="/cook/session?recipe=rcp_curry&amp;f=450"');
     expect(html).toContain("Start cooking");
-    expect(html).toContain("For about 2 · chicken 450 g");
+    // RV-4: under the button no more; a screen reader still hears it.
+    expect(html).toContain('<span class="sr-only">, For about 2 · chicken 450 g</span>');
   });
 });
 

@@ -322,6 +322,8 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
         onBack: () => save((s) => stepBy(s, -1, at())),
         onDone: () => save((s) => markStepDone(s, key, at())),
         onStrip: openStrip,
+        // RV-4: "Add amounts" opens Before you start, where the lines take their amounts.
+        onAddAmounts: () => save((s) => showPrep(s, at())),
       };
       const wait = waitScreen(session, view, now);
       if (wait) {

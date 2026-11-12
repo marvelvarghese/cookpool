@@ -89,7 +89,7 @@ export function EditRecipeScreen() {
   if (!canEditRecipe(recipe.data.recipe)) {
     return (
       <KCard className="flex flex-col gap-3 p-5">
-        <h1 className="text-lg font-bold">Only its owner can change {recipe.data.recipe.name}</h1>
+        <h1 className="text-lg font-medium">Only its owner can change {recipe.data.recipe.name}</h1>
         <Button asChild variant="outline" className={cn(K_BUTTON, "self-start")}>
           <Link href={recipeHref(recipeId)}>Open it</Link>
         </Button>
@@ -99,7 +99,7 @@ export function EditRecipeScreen() {
   return <RecipeFormScreen key={recipe.data.recipe.id} recipe={recipe.data.recipe} />;
 }
 
-const LEGEND = "mb-2 block text-sm font-extrabold";
+const LEGEND = "mb-2 block text-sm font-medium";
 
 function FieldError({ id, message }: { id: string; message: string | undefined }) {
   if (!message) return null;
@@ -128,7 +128,7 @@ export interface RecipeFormStart {
 
 function CheckNote({ message }: { message: string | undefined }) {
   if (!message) return null;
-  return <p className="mt-1 text-[13px] font-extrabold text-[#8A5A00]">⚠ {message}</p>;
+  return <p className="mt-1 text-[13px] font-medium text-cp-soon">⚠ {message}</p>;
 }
 
 /** The form itself: a new recipe (`recipe` null) or yours to change; `start` fills a new one, `top` sits under its header. */
@@ -192,15 +192,15 @@ export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe
     <div className="flex w-full max-w-xl flex-col gap-4">
       <header className="flex items-center gap-1">
         {start ? <BackControl onClick={start.onBack} /> : <BackButton />}
-        <h1 className="min-w-0 flex-1 text-[26px] font-extrabold leading-tight tracking-tight">{recipe ? "Edit recipe" : "New recipe"}</h1>
+        <h1 className="min-w-0 flex-1 text-[26px] font-medium leading-tight tracking-tight">{recipe ? "Edit recipe" : "New recipe"}</h1>
         {start ? <AiChip /> : null}
       </header>
       {top ?? null}
       {start && markCount(marks) > 0 ? (
-        <div role="note" className="rounded-2xl bg-[#FDF1D6] px-4 py-3 text-sm font-bold text-[#5C3D00]">
+        <div role="note" className="rounded-2xl bg-cp-soon-tint px-4 py-3 text-sm font-normal text-cp-soon">
           ⚠ {markCount(marks)} {markCount(marks) === 1 ? "thing" : "things"} to check · marked below
           {marks.other.map((m) => (
-            <span key={m} className="mt-1 block font-semibold">
+            <span key={m} className="mt-1 block font-medium">
               {m}
             </span>
           ))}
@@ -239,7 +239,7 @@ export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe
               <button type="button" aria-label="Serves fewer" disabled={form.servesHalf <= 1} onClick={() => setForm((f) => stepServes(f, -1))} className={STEP_BUTTON}>
                 −
               </button>
-              <span aria-live="polite" className="min-w-10 text-center text-lg font-extrabold tabular-nums">
+              <span aria-live="polite" className="min-w-10 text-center text-lg font-medium tabular-nums">
                 {halvesText(form.servesHalf)}
               </span>
               <button type="button" aria-label="Serves more" onClick={() => setForm((f) => stepServes(f, 1))} className={STEP_BUTTON}>
@@ -251,7 +251,7 @@ export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe
           </div>
           <div data-field="minutes">
             <Label htmlFor="recipe-minutes" className={LEGEND}>
-              Minutes <span className="font-semibold text-muted-foreground">· optional</span>
+              Minutes <span className="font-medium text-muted-foreground">· optional</span>
             </Label>
             <Input
               id="recipe-minutes"
@@ -282,10 +282,10 @@ export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe
 
         <section aria-labelledby="recipe-lines-h" className="flex flex-col gap-2.5" data-field="lines">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 id="recipe-lines-h" className="text-lg font-extrabold tracking-tight">
+            <h2 id="recipe-lines-h" className="text-lg font-medium tracking-tight">
               Ingredients
             </h2>
-            <span className="text-[13px] font-bold text-muted-foreground">Main scales the rest</span>
+            <span className="text-[13px] font-normal text-muted-foreground">Main scales the rest</span>
           </div>
           <ol className="flex flex-col gap-2.5">
             {form.lines.map((line, i) => (
@@ -313,7 +313,7 @@ export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe
             <Button
               type="button"
               variant="outline"
-              className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-[#C9CFC6] bg-card font-extrabold")}
+              className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-border bg-card font-medium")}
               onClick={() => {
                 const key = newKey();
                 setForm((f) => addLine(f, key));
@@ -363,7 +363,7 @@ export function RecipeFormScreen({ recipe, start, top }: { recipe: KitchenRecipe
             onClick={() => {
               if (remove(recipe)) router.replace("/cook");
             }}
-            className="flex min-h-11 items-center gap-2 self-start rounded-xl px-2 text-[15px] font-extrabold text-cp-expired hover:bg-cp-expired-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-h-11 items-center gap-2 self-start rounded-xl px-2 text-[15px] font-medium text-cp-expired hover:bg-cp-expired-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Trash2 className="h-[18px] w-[18px]" aria-hidden />
             Delete recipe
@@ -385,7 +385,7 @@ function focusFirstError(form: HTMLFormElement | null) {
 }
 
 const STEP_BUTTON =
-  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#C9CFC6] bg-card text-xl font-bold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-card text-xl font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 
 const ICON_BUTTON =
   "grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-30";
@@ -440,11 +440,11 @@ function LineEditor({
 
   return (
     <div
-      className={cn("flex flex-col gap-2.5 rounded-[18px] border bg-card p-3", check && "border-[1.5px] border-[#E8C77A]")}
+      className={cn("flex flex-col gap-2.5 rounded-[18px] bg-card shadow-cp-card p-3", check && "border-[1.5px] border-transparent")}
       role="group"
       aria-label={line.name.trim() || position}
     >
-      {check ? <p className="text-[13px] font-extrabold text-[#8A5A00]">⚠ {check}</p> : null}
+      {check ? <p className="text-[13px] font-medium text-cp-soon">⚠ {check}</p> : null}
       <div ref={fieldRef}>
         <Label htmlFor={`${id}-name`} className="sr-only">
           {position}
@@ -457,7 +457,7 @@ function LineEditor({
           placeholder={index === 0 ? "Chicken" : "Onions"}
           aria-invalid={!!errors?.name}
           aria-describedby={errors?.name ? `${id}-name-error` : link ? `${id}-link` : undefined}
-          className={cn(K_INPUT, "font-semibold")}
+          className={cn(K_INPUT, "font-medium")}
           {...typeahead.inputProps({
             count: views.length,
             onPick: pick,
@@ -466,7 +466,7 @@ function LineEditor({
         />
         <FieldError id={`${id}-name-error`} message={errors?.name} />
         {link && !errors?.name ? (
-          <p id={`${id}-link`} className={cn("mt-1 px-1 text-xs font-bold", link.linked ? "text-[#165C3A]" : "text-muted-foreground")}>
+          <p id={`${id}-link`} className={cn("mt-1 px-1 text-xs font-normal", link.linked ? "text-cp-accent-text" : "text-muted-foreground")}>
             {link.text}
           </p>
         ) : null}
@@ -484,7 +484,7 @@ function LineEditor({
 
       <div className="flex flex-wrap items-center gap-2">
         {line.toTaste ? (
-          <span className="flex min-h-11 flex-1 items-center px-1 text-[15px] font-bold text-muted-foreground">To taste</span>
+          <span className="flex min-h-11 flex-1 items-center px-1 text-[15px] font-medium text-muted-foreground">To taste</span>
         ) : (
           <>
             <Label htmlFor={`${id}-qty`} className="sr-only">
@@ -509,7 +509,7 @@ function LineEditor({
               value={line.unit}
               onChange={(e) => onChange({ unit: e.target.value })}
               aria-invalid={!!errors?.unit}
-              className="h-11 min-w-20 rounded-xl border border-input bg-background px-3 text-[15px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-11 min-w-20 rounded-xl border border-input bg-background px-3 text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {unitOptions(line).map((u) => (
                 <option key={u} value={u}>
@@ -519,15 +519,15 @@ function LineEditor({
             </select>
           </>
         )}
-        <label className="ml-auto flex min-h-11 items-center gap-2 text-sm font-bold">
+        <label className="ml-auto flex min-h-11 items-center gap-2 text-sm font-normal">
           <Switch checked={line.toTaste} onCheckedChange={(toTaste) => onChange({ toTaste })} aria-label={`${line.name.trim() || position}: to taste`} />
           <span aria-hidden>To taste</span>
         </label>
       </div>
       <FieldError id={`${id}-qty-error`} message={errors?.quantity ?? errors?.unit} />
 
-      <div className="flex items-center gap-1 border-t border-[#ECEEE9] pt-1.5">
-        <label className={cn("flex min-h-11 flex-1 items-center gap-2 text-sm font-extrabold", line.toTaste ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer")}>
+      <div className="flex items-center gap-1 border-t border-cp-line pt-1.5">
+        <label className={cn("flex min-h-11 flex-1 items-center gap-2 text-sm font-medium", line.toTaste ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer")}>
           <input
             type="radio"
             name="recipe-main"
@@ -535,7 +535,7 @@ function LineEditor({
             checked={isMain}
             disabled={line.toTaste}
             onChange={onMain}
-            className="h-5 w-5 accent-[#1F7A4D]"
+            className="h-5 w-5 accent-primary"
           />
           Main
         </label>

@@ -38,7 +38,7 @@ import {
   type ScreenLockState,
   type WakeLockSentinelLike,
 } from "@web-console-next/components/kitchen/cook-guided-device";
-import { GuidePromptView, PingAndScreen, TimerCard } from "@web-console-next/components/kitchen/cook-guided-ui";
+import { GuidePromptView, PingAndScreen, TimerChip } from "@web-console-next/components/kitchen/cook-guided-ui";
 import { promptView } from "@web-console-next/components/kitchen/cook-guided-screens";
 import { ME } from "./kitchen-pantry-fixtures";
 import { NOW, at, curry } from "./kitchen-cook-guided-fixtures";
@@ -277,7 +277,7 @@ describe("too_many_timers (GC-3's limit of 10)", () => {
     expect(h.calls).toHaveLength(1);
     const card = timerCard(h.read(), h.read().guide!.steps.find((s) => s.key === "c-simmer")!, at(600))!;
     expect(card).toMatchObject({ state: "running", clock: "14:00", pushNote: "Rings here only: 10 timers are set already" });
-    const out = renderToStaticMarkup(React.createElement(TimerCard, { timer: card, pushHint: true, on: { onStart: none, onPause: none, onResume: none, onPlus: none } }));
+    const out = renderToStaticMarkup(React.createElement(TimerChip, { timer: card, pushHint: true, on: { onStart: none, onPause: none, onResume: none, onPlus: none } }));
     expect(out).toContain("Rings here only: 10 timers are set already");
     await h.run(at(1440));
     expect(h.rings).toEqual([at(1440).getTime()]);
@@ -304,12 +304,12 @@ describe("no push on this device", () => {
     const s = startTimer(markStepDone(startCooking(chooseMode(curry(), "guided", NOW), NOW), "c-oil", at(10)), "c-onions", at(20));
     const card = stepScreen(s, at(30))!.timer!;
     const on = { onStart: none, onPause: none, onResume: none, onPlus: none };
-    const out = renderToStaticMarkup(React.createElement(TimerCard, { timer: card, pushHint: true, on }));
+    const out = renderToStaticMarkup(React.createElement(TimerChip, { timer: card, pushHint: true, on }));
     expect(out).toContain('href="/you/notifications"');
     expect(out).toContain("Turn on notifications to hear timers with the phone locked");
-    expect(renderToStaticMarkup(React.createElement(TimerCard, { timer: card, pushHint: false, on }))).not.toContain("/you/notifications");
+    expect(renderToStaticMarkup(React.createElement(TimerChip, { timer: card, pushHint: false, on }))).not.toContain("/you/notifications");
     const idle = stepScreen(markStepDone(startCooking(chooseMode(curry(), "guided", NOW), NOW), "c-oil", at(10)), at(30))!.timer!;
-    expect(renderToStaticMarkup(React.createElement(TimerCard, { timer: idle, pushHint: true, on }))).not.toContain("/you/notifications");
+    expect(renderToStaticMarkup(React.createElement(TimerChip, { timer: idle, pushHint: true, on }))).not.toContain("/you/notifications");
   });
 });
 

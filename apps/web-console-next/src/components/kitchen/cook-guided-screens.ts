@@ -337,6 +337,10 @@ export interface StepScreenView {
   of: number;
   /** "STEP 3 OF 8 · 14 MIN IN". */
   header: string;
+  /** The dish's name, over the step (RV-4); "Cooking" for one with none. */
+  title: string;
+  /** "3 of 8", beside the progress bar (RV-4). */
+  countText: string;
   /** "Step 3 of 8". */
   progressLabel: string;
   segments: SegmentState[];
@@ -395,6 +399,8 @@ export function stepScreen(s: CookSession, now: Date): StepScreenView | null {
     number: i + 1,
     of: cook.length,
     header: `STEP ${i + 1} OF ${cook.length} · ${minutesIn(g, now)} MIN IN`,
+    title: s.name.trim() || "Cooking",
+    countText: `${i + 1} of ${cook.length}`,
     progressLabel: `Step ${i + 1} of ${cook.length}`,
     segments,
     text: step.text,

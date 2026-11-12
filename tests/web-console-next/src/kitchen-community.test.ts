@@ -281,12 +281,13 @@ describe("Community opens HandleSetup the first time, without a profile", () => 
     expect(communityTop(myProfile(), false)).toBe("none");
   });
 
-  it("the Cook hub gains a Community entry, above My recipes", () => {
-    const out = html(React.createElement(CookHubView, { cookNow: [], cards: [], recipesLoading: false, recipesFailed: false, community: React.createElement(CommunityEntry, { href: COMMUNITY_HREF }) }));
+  // RV-4 (the canvas's `RvCook`): the lists come first; Community is quiet, after New recipe.
+  it("the Cook hub gains a Community entry, after New recipe", () => {
+    const out = html(React.createElement(CookHubView, { cookNow: [], saved: [], recipesLoading: false, recipesFailed: false, community: React.createElement(CommunityEntry, { href: COMMUNITY_HREF }) }));
     expect(out).toContain('href="/community"');
-    expect(out.indexOf('href="/community"')).toBeLessThan(out.indexOf("My recipes"));
+    expect(out.indexOf('href="/community"')).toBeGreaterThan(out.indexOf("New recipe"));
     // Without it, the hub is as it was.
-    expect(html(React.createElement(CookHubView, { cookNow: [], cards: [], recipesLoading: false, recipesFailed: false }))).not.toContain("/community");
+    expect(html(React.createElement(CookHubView, { cookNow: [], saved: [], recipesLoading: false, recipesFailed: false }))).not.toContain("/community");
   });
 });
 

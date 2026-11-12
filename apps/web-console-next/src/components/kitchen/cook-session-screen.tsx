@@ -152,7 +152,7 @@ function StartFromRecipe({ meId, recipeId, f }: { meId: string; recipeId: string
   if (error) {
     return (
       <KCard className="space-y-3 p-5">
-        <p className="text-[15px] font-bold">Couldn&apos;t start cooking that recipe.</p>
+        <p className="text-[15px] font-medium">Couldn&apos;t start cooking that recipe.</p>
         <p className="text-sm text-muted-foreground">
           {error.code === "not_found" ? "It isn't one you can see any more." : error.message}
         </p>
@@ -186,7 +186,7 @@ function AskOneAtATime({ session, onResume, onDiscard }: { session: CookSession;
       <Sheet open onOpenChange={(open) => (open ? undefined : onResume())}>
         <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET, CLOSE_44)}>
           <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-          <SheetTitle className="pr-12 text-[22px] font-extrabold leading-tight">{prompt.title}</SheetTitle>
+          <SheetTitle className="pr-12 text-[22px] font-medium leading-tight">{prompt.title}</SheetTitle>
           <DiscardPromptBody prompt={prompt} onResume={onResume} onDiscard={onDiscard} />
         </SheetContent>
       </Sheet>
@@ -343,7 +343,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
                 maxLength={140}
                 placeholder="What are you making?"
                 autoComplete="off"
-                className="h-[52px] rounded-[14px] bg-card px-3.5 text-[22px] font-extrabold tracking-tight sm:h-[52px] sm:text-[22px]"
+                className="h-[52px] rounded-[14px] bg-card px-3.5 text-[22px] font-medium tracking-tight sm:h-[52px] sm:text-[22px]"
               />
             </div>
             <SuggestionList
@@ -357,13 +357,13 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
             />
           </div>
         ) : (
-          <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">{session.name}</h1>
+          <h1 className="text-[26px] font-medium leading-tight tracking-tight">{session.name}</h1>
         )}
         <SessionMeta chip={chip} progress={session.lines.length > 0 ? progressText(session) : null} />
       </div>
 
       {views.length > 0 ? (
-        <section aria-label="Ingredients" className="overflow-hidden rounded-[22px] border bg-card">
+        <section aria-label="Ingredients" className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
           <ul>
             {views.map((v, i) => (
               <SessionRow
@@ -405,8 +405,8 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
 
       <div className="flex justify-center">
         {discarding ? (
-          <div className="flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl border bg-card p-3">
-            <span className="text-sm font-semibold">Discard this session? Nothing is posted.</span>
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl bg-card shadow-cp-card p-3">
+            <span className="text-sm font-normal">Discard this session? Nothing is posted.</span>
             <span className="flex gap-2">
               <Button variant="outline" className={K_BUTTON} onClick={() => setDiscarding(false)}>
                 Keep cooking
@@ -420,7 +420,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
           <button
             type="button"
             onClick={() => setDiscarding(true)}
-            className="min-h-11 rounded-xl px-3 text-sm font-semibold text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-11 rounded-xl px-3 text-sm font-normal text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Discard session
           </button>
@@ -448,7 +448,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
       }}>
         <SheetContent side="bottom" aria-describedby={undefined} className={cn(PICKER_SHEET, CLOSE_44)}>
           <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-          <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-extrabold">Add an item</SheetTitle>
+          <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-medium">Add an item</SheetTitle>
           <PantryPanel
             variant="sheet"
             idPrefix="session-pantry"
@@ -462,7 +462,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
             onAddNew={(line) => save((s) => addBoughtLine(s, line))}
             newKey={() => `new:${session.seq}`}
           />
-          <Button type="button" className={cn(K_BUTTON, "mb-[env(safe-area-inset-bottom)] h-12 w-full shrink-0 text-base font-extrabold")} onClick={() => setAddOpen(false)}>
+          <Button type="button" className={cn(K_BUTTON, "mb-[env(safe-area-inset-bottom)] h-12 w-full shrink-0 text-base font-medium")} onClick={() => setAddOpen(false)}>
             Done
           </Button>
         </SheetContent>

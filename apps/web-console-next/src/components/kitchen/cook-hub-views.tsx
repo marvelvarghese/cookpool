@@ -2,30 +2,20 @@
 
 import * as React from "react";
 import Link from "./link";
-import { BookOpen, Bookmark, ChevronRight, CookingPot, Plus } from "lucide-react";
+import { BookOpen, Bookmark, ChevronRight, Plus, Search } from "lucide-react";
 import type { CookNowEntry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { shareKey, sharePart } from "@/lib/transitions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON, K_CARD, K_TITLE, SectionHeading } from "./kit";
 import { BLANK_SESSION_HREF, NEW_RECIPE_HREF, recipeHref } from "./recipes";
 import type { PersonRecipeRow } from "./explore";
-import {
-  cookNowCounts,
-  cookNowFilterLabel,
-  cookNowRows,
-  defaultCookNowFilter,
-  showsCookNow,
-  type CookNowCard,
-  type CookNowFilter,
-  type MyRecipeCard,
-  type ProfileRecipeRow,
-} from "./cook-hub";
+import { HUB_FIRST, cookNowHubRows, hubMatches, type CookNowCard, type HubRow, type ProfileRecipeRow } from "./cook-hub";
 
 /**
- * The lists of recipes as they draw (cookpool-recipes RC-5): the Cook hub
- * and its sections, Home's Cook now strip and You's recipes; and (RC-8) a
+ * The lists of recipes as they draw (cookpool-recipes RC-5; the Cook tab
+ * revamped in RV-4): the Cook tab and its lists, Home's Cook now strip and You's recipes; and (RC-8) a
  * person's recipes with Save on each row — from what was
  * read, with no reads or writes of their own, so each is rendered in tests.
  * `cook-hub-ui.tsx`, `cook-now-slot.tsx` and `profile-ui.tsx` put them over
@@ -37,10 +27,16 @@ function pressIn(read: () => void): { onPointerDown: () => void; onMouseEnter: (
   return { onPointerDown: read, onMouseEnter: read, onFocus: read };
 }
 
-/** The hub as it draws, from what was read (null: not yet). */
+/**
+ * The Cook tab as it draws (RV-4, the canvas's `RvCook`), from what was
+ * read (null: not yet): "Cook" and the one main button, New dish (a blank
+ * session); Find a recipe; Cook now — what you have everything for — and
+ * Saved recipes, each a card of rows (tile, name, one tag), three then "See
+ * all N"; then New recipe, Explore, From a photo and Community, quiet.
+ */
 export function CookHubView({
   cookNow,
-  cards,
+  saved,
   recipesLoading,
   recipesFailed,
   onReloadRecipes,
@@ -48,50 +44,160 @@ export function CookHubView({
   extraAction,
   photoAction,
   community,
+  initialQuery = "",
 }: {
   cookNow: readonly CookNowEntry[] | null;
-  cards: readonly MyRecipeCard[] | null;
+  /** Saved recipes' rows (`savedHubRows`), null until read. */
+  saved: readonly HubRow[] | null;
   recipesLoading: boolean;
   recipesFailed: boolean;
   onReloadRecipes?: (() => void) | undefined;
   prefetch?: ((recipeId: string) => void) | undefined;
   /** Beside New recipe (RC-8: Explore). */
   extraAction?: React.ReactNode;
-  /** Under New recipe (cookpool-ai AI-9): "📷 From a photo". */
+  /** Under them (cookpool-ai AI-9): "📷 From a photo". */
   photoAction?: React.ReactNode;
-  /** Above My recipes (cookpool-community CM-5): the Community entry. */
+  /** Last (cookpool-community CM-5): the Community entry. */
   community?: React.ReactNode;
+  initialQuery?: string;
 }) {
+  const [query, setQuery] = React.useState(initialQuery);
+  const searching = query.trim() !== "";
+  const now = (cookNow ? cookNowHubRows(cookNow) : []).filter((r) => hubMatches(r, query));
+  const mine = (saved ?? []).filter((r) => hubMatches(r, query));
   return (
-    <div className="flex w-full max-w-xl flex-col gap-4">
-      <header className="flex min-h-11 items-center">
-        <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em]">Cook</h1>
+    <div className="flex w-full max-w-xl flex-col gap-[22px]">
+      <header className="flex min-h-11 items-center gap-3">
+        <h1 className={cn(K_TITLE, "flex-1")}>Cook</h1>
+        <Link
+          href={BLANK_SESSION_HREF}
+          className="flex min-h-11 items-center gap-1.5 rounded-[14px] bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
+          New dish
+        </Link>
       </header>
-      <StartCookingButton />
-      {cookNow && showsCookNow(cookNow) ? <CookNowSection entries={cookNow} prefetch={prefetch} /> : null}
-      {community ?? null}
-      <MyRecipesSection cards={cards} loading={recipesLoading} failed={recipesFailed} onReload={onReloadRecipes} prefetch={prefetch} extraAction={extraAction} photoAction={photoAction} />
+
+      <label className={cn(K_CARD, "flex min-h-[54px] items-center gap-2.5 rounded-[18px] px-4 text-muted-foreground")}>
+        <Search className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+        <span className="sr-only">Find a recipe</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Find a recipe"
+          className="min-h-11 min-w-0 flex-1 border-0 bg-transparent text-base font-normal text-foreground outline-none placeholder:text-muted-foreground"
+        />
+      </label>
+
+      {now.length > 0 ? <HubList id="cook-now-h" title="Cook now" rows={now} searching={searching} prefetch={prefetch} /> : null}
+
+      {recipesLoading ? (
+        <div className="space-y-2.5" aria-hidden>
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-48 w-full rounded-cp-card" />
+        </div>
+      ) : recipesFailed ? (
+        <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load your recipes.</p>
+          {onReloadRecipes ? (
+            <Button variant="outline" className={K_BUTTON} onClick={onReloadRecipes}>
+              Try again
+            </Button>
+          ) : null}
+        </KCard>
+      ) : mine.length > 0 ? (
+        <HubList id="saved-recipes-h" title="Saved recipes" rows={mine} searching={searching} prefetch={prefetch} />
+      ) : null}
+
+      {searching && now.length === 0 && mine.length === 0 && !recipesLoading ? (
+        <p className={cn(K_CARD, "px-4 py-6 text-center text-[15px] font-normal text-muted-foreground")}>Nothing matches</p>
+      ) : !searching && now.length === 0 && saved && saved.length === 0 && !recipesLoading && !recipesFailed ? (
+        <p className={cn(K_CARD, "px-4 py-6 text-center text-[15px] font-normal text-muted-foreground")}>No recipes yet</p>
+      ) : null}
+
+      <div className="flex flex-col gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5">
+          <Link href={NEW_RECIPE_HREF} className={HUB_QUIET}>
+            <BookOpen className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
+            New recipe
+          </Link>
+          {extraAction ?? null}
+        </div>
+        {photoAction ?? null}
+        {community ?? null}
+      </div>
     </div>
   );
 }
 
-/** The cook colour, for Start cooking (the pot on From your groups' cards wears it too). */
-export const COOK_COLOR = "#B4471F";
+/** A quiet 44 px link on the tint (New recipe, Explore). */
+export const HUB_QUIET =
+  "flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-cp-accent-tint px-4 text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-/** Start cooking: a blank session (RC-6's page). Full width, in the cook colour, the pot before it. */
-export function StartCookingButton() {
+const TAG: Record<HubRow["tone"], string> = {
+  have: "bg-cp-accent-tint text-cp-accent-text",
+  need: "bg-cp-owe-tint text-cp-owe",
+  plain: "bg-cp-line text-muted-foreground",
+};
+
+/** A list on the Cook tab: its title and count, a card of rows, three then "See all N" (all while searching). */
+export function HubList({
+  id,
+  title,
+  rows,
+  searching = false,
+  prefetch = noPrefetch,
+}: {
+  id: string;
+  title: string;
+  rows: readonly HubRow[];
+  searching?: boolean;
+  prefetch?: ((recipeId: string) => void) | undefined;
+}) {
+  const [all, setAll] = React.useState(false);
+  const open = all || searching;
+  const shown = open ? rows : rows.slice(0, HUB_FIRST);
   return (
-    <Link
-      href={BLANK_SESSION_HREF}
-      className="flex min-h-[60px] items-center justify-center gap-2.5 rounded-[18px] bg-[#B4471F] px-4 text-[17px] font-extrabold text-white shadow-sm transition-colors hover:bg-[#9C3D1A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-    >
-      <CookingPot className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
-      Start cooking
-    </Link>
+    <section aria-labelledby={id} className="flex flex-col gap-2.5">
+      <SectionHeading id={id} count={`· ${rows.length}`}>
+        {title}
+      </SectionHeading>
+      <div className={cn(K_CARD, "overflow-hidden")}>
+        <ul className="divide-y divide-cp-line">
+          {shown.map((r) => (
+            <li key={r.id} data-vt-card="">
+              <Link
+                {...pressIn(() => prefetch(r.id))}
+                href={r.href}
+                share={shareKey("recipe", r.id)}
+                className="flex min-h-16 items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              >
+                <RecipeTileView tile={r.tile} className="h-[42px] w-[42px] rounded-[14px] text-base" part={sharePart("tile")} />
+                <span {...sharePart("title")} className="min-w-0 flex-1 truncate text-base font-medium">
+                  {r.name}
+                </span>
+                <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", TAG[r.tone])}>{r.tag}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        {rows.length > HUB_FIRST && !searching ? (
+          <button
+            type="button"
+            aria-expanded={all}
+            onClick={() => setAll((a) => !a)}
+            className="min-h-12 w-full border-t border-cp-line text-sm font-medium text-cp-accent-text transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            {all ? "Show less" : `See all ${rows.length}`}
+          </button>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
-/** A recipe's tile: its initial on its colour. `part`: what lets it travel into the recipe's page (RC-11). */
+/** A recipe's tile: its initial on its colour (the line and ink in dark, as the boards). `part`: what lets it travel into the recipe's page (RC-11). */
 export function RecipeTileView({
   tile,
   className,
@@ -105,8 +211,12 @@ export function RecipeTileView({
     <span
       aria-hidden
       {...part}
-      style={{ backgroundColor: tile.bg, color: tile.fg }}
-      className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[17px] font-extrabold", className)}
+      style={{ "--cp-tile-bg": tile.bg, "--cp-tile-fg": tile.fg } as React.CSSProperties}
+      className={cn(
+        "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--cp-tile-bg)] text-[17px] font-medium text-[var(--cp-tile-fg)]",
+        "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:text-foreground",
+        className,
+      )}
     >
       {tile.initial}
     </span>
@@ -151,162 +261,7 @@ export function Segmented<T extends string>({
   );
 }
 
-/** Cook now: "Can make N" | "Missing 1 · N", a row each, Start on each. */
-export function CookNowSection({
-  entries,
-  initialFilter,
-  prefetch = noPrefetch,
-}: {
-  entries: readonly CookNowEntry[];
-  initialFilter?: CookNowFilter;
-  /** Warm a recipe's page on press. */
-  prefetch?: ((recipeId: string) => void) | undefined;
-}) {
-  const [filter, setFilter] = React.useState<CookNowFilter>(() => initialFilter ?? defaultCookNowFilter(entries));
-  const counts = cookNowCounts(entries);
-  const rows = cookNowRows(entries, filter);
-  return (
-    <section aria-labelledby="cook-now-h" className="flex flex-col gap-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="cook-now-h" className="text-lg font-extrabold tracking-tight">
-          Cook now
-        </h2>
-        <Segmented
-          label="Show"
-          value={filter}
-          onChange={setFilter}
-          options={(["can", "one"] as const).map((id) => ({ id, label: cookNowFilterLabel(id, counts) }))}
-        />
-      </div>
-      {rows.length === 0 ? (
-        <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">
-          {filter === "can" ? "Nothing you can make yet" : "Nothing missing just one"}
-        </p>
-      ) : (
-        <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[22px] border bg-card">
-          {rows.map((r) => (
-            <li key={r.id} data-vt-card="" className="flex items-center gap-3 py-2.5 pl-3.5 pr-3">
-              <RecipeTileView tile={r.tile} part={sharePart("tile")} />
-              <Link
-                {...pressIn(() => prefetch(r.id))}
-                href={r.href}
-                share={shareKey("recipe", r.id)}
-                className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span {...sharePart("title")} className="truncate text-base font-extrabold">{r.name}</span>
-                <span className={cn("truncate text-[13px] font-bold tabular-nums", r.tone === "have" ? "text-[#165C3A]" : "text-muted-foreground")}>
-                  {r.meta}
-                </span>
-              </Link>
-              <Link
-                href={r.startHref}
-                className="flex min-h-11 shrink-0 items-center rounded-xl border border-[#C9CFC6] bg-card px-3.5 text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                Start
-                <span className="sr-only"> cooking {r.name}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 const noPrefetch = (_recipeId: string): void => undefined;
-
-/** My recipes: the count, New recipe (Explore joins it in RC-8), a card per recipe. */
-export function MyRecipesSection({
-  cards,
-  loading,
-  failed,
-  onReload,
-  extraAction,
-  photoAction,
-  prefetch = noPrefetch,
-}: {
-  cards: readonly MyRecipeCard[] | null;
-  loading: boolean;
-  failed: boolean;
-  onReload?: (() => void) | undefined;
-  /** The second button beside New recipe (RC-8's Explore). */
-  extraAction?: React.ReactNode;
-  /** Under them (cookpool-ai AI-9): "📷 From a photo", which renders nothing unless AI is on. */
-  photoAction?: React.ReactNode;
-  prefetch?: ((recipeId: string) => void) | undefined;
-}) {
-  return (
-    <section aria-labelledby="my-recipes-h" className="flex flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="my-recipes-h" className="text-lg font-extrabold tracking-tight">
-          My recipes
-        </h2>
-        {cards ? <span className="text-[13px] font-bold tabular-nums text-muted-foreground">{cards.length}</span> : null}
-      </div>
-      <div className="grid grid-cols-2 gap-2.5">
-        <Link
-          href={NEW_RECIPE_HREF}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-[#C9CFC6] bg-card text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
-          New recipe
-        </Link>
-        {extraAction ?? null}
-      </div>
-      {photoAction ?? null}
-      {loading ? (
-        <div className="space-y-2.5" aria-hidden>
-          <Skeleton className="h-[148px] w-full rounded-[22px]" />
-          <Skeleton className="h-[148px] w-full rounded-[22px]" />
-        </div>
-      ) : failed ? (
-        <KCard className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] p-4">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load your recipes.</p>
-          {onReload ? (
-            <Button variant="outline" className={K_BUTTON} onClick={onReload}>
-              Try again
-            </Button>
-          ) : null}
-        </KCard>
-      ) : !cards || cards.length === 0 ? (
-        <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">No recipes yet</p>
-      ) : (
-        <ul className="flex flex-col gap-2.5">
-          {cards.map((c) => (
-            <li key={c.id}>
-              <article className="flex flex-col gap-2.5 rounded-[22px] border bg-card px-4 py-3.5 shadow-[0_1px_2px_rgba(23,32,27,0.04)]">
-                <Link
-                  {...pressIn(() => prefetch(c.id))}
-                  href={c.href}
-                  share={shareKey("recipe", c.id)}
-                  className="flex min-w-0 flex-col gap-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span {...sharePart("title")} className="truncate text-[17px] font-extrabold">{c.name}</span>
-                  <span className="truncate text-[13px] font-semibold text-muted-foreground">{c.items}</span>
-                </Link>
-                <p className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] font-bold tabular-nums text-[#3F4842]">
-                  {c.meta.map((m, i) => (
-                    <React.Fragment key={m}>
-                      {i > 0 ? <span aria-hidden className="h-[3px] w-[3px] rounded-full bg-[#9AA39D]" /> : null}
-                      <span>{m}</span>
-                    </React.Fragment>
-                  ))}
-                </p>
-                <Link
-                  href={c.startHref}
-                  className="flex min-h-[46px] items-center justify-center rounded-[14px] bg-cp-herb-tint text-[15px] font-extrabold text-[#165C3A] transition-colors hover:bg-[#D3EADC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  Start cooking
-                  <span className="sr-only"> {c.name}</span>
-                </Link>
-              </article>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
 
 /** The strip as it draws: nothing when there are no cards. */
 export function CookNowStrip({ cards, prefetch }: { cards: readonly CookNowCard[]; prefetch?: ((recipeId: string) => void) | undefined }) {

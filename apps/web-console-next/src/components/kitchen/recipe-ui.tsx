@@ -12,7 +12,7 @@ import { KCard, K_BUTTON } from "./kit";
 import { BackButton } from "./back-ui";
 import { useProfile } from "./data";
 import { savedCopyOf } from "./cook-hub";
-import { WRITTEN_FACTOR, canEditRecipe, clampFactor, ingredientRows, parseRecipeRef, recipeEditHref, recipeHref, sessionHref, startLine } from "./recipes";
+import { WRITTEN_FACTOR, canEditRecipe, clampFactor, haveShort, ingredientRows, parseRecipeRef, portionsAt, recipeEditHref, recipeHref, sessionHref, startLine } from "./recipes";
 import { useCopyRecipe, useMyRecipes, useRecipe, useRecipeMatch, useSaveDishAsRecipe } from "./recipes-data";
 import { canShareRecipe } from "./recipe-share";
 import { ShareSheet } from "./recipe-share-ui";
@@ -21,20 +21,24 @@ import { FoodAsks } from "./food-ask-ui";
 import { hasTimedSteps, recipePlanHref, stepRows } from "./guided-steps";
 import { LongPrepCard } from "./long-prep-ui";
 import {
-  HowMuchCard,
   IngredientsSection,
   RecipeHeader,
   RecipeNotFound,
   RecipeSkeleton,
   SaveCopyView,
+  ServingsStepper,
   StartCookingBar,
   StepsSection,
+  UseAllChip,
 } from "./recipe-views";
 import { useKitchenRouter } from "./transition-ui";
 
 /**
- * A recipe (cookpool-recipes RC-5, design §3, the canvas's `Recipe`),
- * `/recipes/[id]`, in the new frame only. Back; its name; who it is from
+ * A recipe (cookpool-recipes RC-5, design §3, the canvas's `Recipe`;
+ * revamped in RV-4 to the canvas's `RvRecipe`: "Serves 4 · 35 min · Have 7
+ * of 9" under the name, the servings − 4 + beside Ingredients, dot rows,
+ * the steps open, and Start cooking on the accent), `/recipes/[id]`, in the
+ * new frame only. Back; its name; who it is from
  * ("from Anu" with her face, or "by Cookpool") and its minutes; Edit for its
  * owner, Save (your own copy) for anyone else — "Saved" once you have one,
  * opening it.
@@ -111,19 +115,21 @@ function RecipeView({ recipe, code, initialFactor }: { recipe: KitchenRecipe; co
   const rows = ingredientRows(recipe, factor, match.data);
   const [sharing, setSharing] = React.useState(false);
 
+  const have = match.data ? haveShort(match.data.summary) : null;
+
   return (
-    <div className="flex w-full max-w-xl flex-col gap-4 pb-2">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex w-full max-w-xl flex-col gap-[22px] pb-2">
+      <div className="-mb-3 flex items-center justify-between gap-3">
         <BackButton />
         {canEditRecipe(recipe) ? (
-          <div className="-mr-1 flex items-center gap-1.5">
+          <div className="-mr-2.5 flex items-center">
             {canShareRecipe(recipe) ? <ShareIconButton onClick={() => setSharing(true)} /> : null}
             <Link
               href={recipeEditHref(recipe.id)}
-              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#C9CFC6] bg-card px-3.5 text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Edit"
+              className="grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Pencil className="h-4 w-4" strokeWidth={2.2} aria-hidden />
-              Edit
+              <Pencil className="h-5 w-5" strokeWidth={2} aria-hidden />
             </Link>
           </div>
         ) : recipe.mine ? null : (
@@ -131,13 +137,18 @@ function RecipeView({ recipe, code, initialFactor }: { recipe: KitchenRecipe; co
         )}
       </div>
 
-      <RecipeHeader recipe={recipe} meId={meId} />
+      <RecipeHeader recipe={recipe} meId={meId} servesLabel={portionsAt(recipe, factor).label} have={have} />
+
+      <UseAllChip recipe={recipe} factorMilli={factor} match={match.data} onFactor={setFactor} />
 
       <LongPrepCard recipe={recipe} code={code} />
 
-      <HowMuchCard recipe={recipe} factorMilli={factor} match={match.data} onFactor={setFactor} />
-
-      <IngredientsSection rows={rows} match={match.data} failed={!!match.error && !match.data} onRetry={match.reload} />
+      <IngredientsSection
+        rows={rows}
+        failed={!!match.error && !match.data}
+        onRetry={match.reload}
+        action={<ServingsStepper recipe={recipe} factorMilli={factor} onFactor={setFactor} />}
+      />
 
       <FoodAsks recipe={recipe} match={match.data} />
 
@@ -146,6 +157,7 @@ function RecipeView({ recipe, code, initialFactor }: { recipe: KitchenRecipe; co
           steps={recipe.steps}
           rows={stepRows(recipe, factor)}
           planHref={hasTimedSteps(recipe) ? recipePlanHref(recipe.id, factor, code) : null}
+          initiallyOpen
         />
       ) : null}
 
@@ -191,7 +203,7 @@ export function SaveAsRecipeButton({ dishId }: { dishId: string }) {
         type="button"
         variant="outline"
         loading={busy}
-        className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-[#C9CFC6] bg-card font-extrabold")}
+        className={cn(K_BUTTON, "h-12 gap-2 self-start rounded-[14px] border-border bg-card font-medium")}
         onClick={async () => {
           setBusy(true);
           setError(null);

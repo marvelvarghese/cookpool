@@ -429,6 +429,17 @@ export function haveLine(summary: Pick<RecipeMatchSummary, "lines" | "have" | "a
   return { text: `Have ${summary.have + summary.always} of ${summary.lines} · ${toGet} to get`, complete: false };
 }
 
+/** The recipe page's short count (RV-4, the canvas's `RvRecipe`): "Have 7 of 9", or "Have all 9". */
+export function haveShort(summary: Pick<RecipeMatchSummary, "lines" | "have" | "always" | "short" | "missing">): string {
+  if (summary.short + summary.missing === 0) return `Have all ${summary.lines}`;
+  return `Have ${summary.have + summary.always} of ${summary.lines}`;
+}
+
+/** Its one line under the title: "Serves 4 · 35 min · Have 7 of 9" (what is known so far). */
+export function recipeMetaLine(servesLabel: string, minutes: number | null | undefined, have: string | null): string {
+  return [`Serves ${servesLabel}`, minutes ? minutesText(minutes) : null, have].filter(Boolean).join(" · ");
+}
+
 // ── Save a dish as a recipe (design §3.5) ─────────────────────────
 
 /**

@@ -161,7 +161,6 @@ export function parseCookedSeed(raw: string | null | undefined): CookedSeed {
 // ── Cooked! ───────────────────────────────────────────────────────
 
 export const COOKED_TITLE = "Cooked!";
-export const NEXT_HEADING = "What next · any, in any order";
 
 export interface CookedTile {
   value: string;
@@ -179,6 +178,12 @@ export interface CookedView {
    * null when it took nothing from a group.
    */
   note: string | null;
+  /**
+   * RV-4 (the canvas's `RvCooked`): its one line under the name, "₹124 · 4
+   * portions"; "₹0 · nothing taken from the pantry" for a dish of no
+   * ingredients (RV-7).
+   */
+  fact: string;
 }
 
 /** The first letter in lower case, unless the word reads as a name ("MTR"). */
@@ -236,7 +241,12 @@ export function cookedView(
   tiles.push({ value: portionsText(Math.max(1, dish.portionsHalf)), label: dish.portionsHalf <= 2 ? "serving" : "servings" });
   tiles.push({ value: shortMoney(dish.totalMinor, dish.currency), label: dish.orgId ? "cost" : "cost · yours" });
   const note = dish.ingredients.length === 0 ? nothingTakenText(dish.currency) : groupItemsNote(dish, ctx.groupNames);
-  return { subtitle, tiles, note };
+  const halves = Math.max(1, dish.portionsHalf);
+  const fact =
+    dish.ingredients.length === 0
+      ? nothingTakenText(dish.currency)
+      : `${shortMoney(dish.totalMinor, dish.currency)} · ${portionsText(halves)} ${halves <= 2 ? "portion" : "portions"}`;
+  return { subtitle, tiles, note, fact };
 }
 
 export type CookedActionId = "post" | "split";

@@ -22,7 +22,7 @@ export function ShareIconButton({ onClick }: { onClick: () => void }) {
       aria-label="Share"
       aria-haspopup="dialog"
       onClick={onClick}
-      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[#3F4842] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Share className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
     </button>
@@ -40,17 +40,17 @@ function OptionRow({ option, on, onPick }: { option: ShareOption; on: boolean; o
       onClick={onPick}
       className={cn(
         "flex min-h-[68px] w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-[#D5DAD2] bg-card hover:bg-accent",
+        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-border bg-card hover:bg-accent",
       )}
     >
-      <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", on ? "bg-primary text-white" : "bg-background text-[#3F4842]")}>
+      <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", on ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground")}>
         <Icon className="h-5 w-5" strokeWidth={2} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-base font-extrabold">{option.title}</span>
-        <span className="text-[13px] font-semibold text-muted-foreground">{option.sub}</span>
+        <span className="text-base font-medium">{option.title}</span>
+        <span className="text-[13px] font-normal text-muted-foreground">{option.sub}</span>
       </span>
-      <span aria-hidden className={cn("grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2", on ? "border-primary" : "border-[#9AA39D]")}>
+      <span aria-hidden className={cn("grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2", on ? "border-primary" : "border-muted-foreground/50")}>
         <span className={cn("h-2.5 w-2.5 rounded-full", on ? "bg-primary" : "bg-transparent")} />
       </span>
     </button>
@@ -97,15 +97,15 @@ export function ShareSheetBody({
 
       {visibility === "link" || visibility === "public" ? (
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2 rounded-[14px] border border-[#E3E6E0] bg-background py-1.5 pl-3.5 pr-1.5">
-            <span aria-live="polite" className="min-w-0 flex-1 break-all text-[15px] font-bold leading-snug text-[#3F4842]">
+          <div className="flex items-center gap-2 rounded-[14px] border border-border bg-background py-1.5 pl-3.5 pr-1.5">
+            <span aria-live="polite" className="min-w-0 flex-1 break-all text-[15px] font-medium leading-snug text-muted-foreground">
               {linkUrl ?? LINK_MAKING_TEXT}
             </span>
             <button
               type="button"
               onClick={onCopy}
               disabled={!linkUrl}
-              className="min-h-11 shrink-0 rounded-[10px] bg-foreground px-4 text-[15px] font-extrabold text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+              className="min-h-11 shrink-0 rounded-[10px] bg-foreground px-4 text-[15px] font-medium text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
             >
               {copied ? "Copied" : "Copy"}
             </button>
@@ -115,14 +115,14 @@ export function ShareSheetBody({
               type="button"
               onClick={onRotate}
               disabled={!linkUrl || rotating}
-              className="min-h-11 rounded-lg px-1 text-[13px] font-extrabold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="min-h-11 rounded-lg px-1 text-[13px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               New link
             </button>
             <button
               type="button"
               onClick={onTurnOff}
-              className="min-h-11 rounded-lg px-1 text-[13px] font-extrabold text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-11 rounded-lg px-1 text-[13px] font-medium text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Turn off
             </button>
@@ -130,7 +130,7 @@ export function ShareSheetBody({
         </div>
       ) : null}
 
-      <p className="flex min-h-11 items-center gap-2 text-sm font-bold tabular-nums text-[#3F4842]">
+      <p className="flex min-h-11 items-center gap-2 text-sm font-normal tabular-nums text-muted-foreground">
         <Bookmark className="h-4 w-4" strokeWidth={2.2} aria-hidden />
         {savedByText(savedBy)}
       </p>
@@ -138,7 +138,7 @@ export function ShareSheetBody({
       <button
         type="button"
         onClick={onDone}
-        className="min-h-14 w-full rounded-2xl bg-primary text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="min-h-14 w-full rounded-2xl bg-primary text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         Done
       </button>
