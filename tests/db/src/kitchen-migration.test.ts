@@ -26,6 +26,9 @@ describe("kitchen migrations", () => {
   // design §1: its tables are the shared ledger's `ledger_*` explanation
   // tables, and it marks groups with membership_organizations.made_in / kind.
   const SPLITECO = "530_spliteco_ledger";
+  // And its settle-up migration (540, SE-3): ledger_reminders, and the two
+  // spliteco_* tables a person's profile and a group's switches live in.
+  const SPLITECO_SETTLE = "540_spliteco_settle_up";
 
   it("only creates, alters or writes kitchen_* tables, each create guarded with IF NOT EXISTS", () => {
     for (const m of kitchen) {
@@ -39,7 +42,9 @@ describe("kitchen migrations", () => {
       expect(creates.length + alters.length + writes.length).toBeGreaterThan(0);
       for (const [, kind, guard, name] of creates) {
         expect(guard).toBeDefined();
-        if (kind!.toUpperCase() === "TABLE") expect(name).toMatch(m.id === SPLITECO ? /^(kitchen_|ledger_)/ : /^kitchen_/);
+        if (kind!.toUpperCase() === "TABLE") {
+          expect(name).toMatch(m.id === SPLITECO ? /^(kitchen_|ledger_)/ : m.id === SPLITECO_SETTLE ? /^(ledger_|spliteco_)/ : /^kitchen_/);
+        }
       }
       for (const [, table] of alters) expect(table).toMatch(m.id === SPLITECO ? /^(kitchen_txns|membership_organizations)$/ : /^kitchen_/);
       for (const [, table] of writes) expect([m.id, table]).toEqual([m.id, expect.stringMatching(/^kitchen_/)]);

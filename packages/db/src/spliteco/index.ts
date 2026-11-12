@@ -12,3 +12,5 @@ export type {
   SplitecoRepository,
 } from "./repository.js";
 export { createSplitecoRepository, splitecoTxnStatements } from "./repository.js";
+export type { SplitecoProfileRecord, SplitecoGroupSettingsRecord, SplitecoReminderRecord } from "./repository.js";
+export { PAYMENT_SOURCE_KIND } from "./repository.js";

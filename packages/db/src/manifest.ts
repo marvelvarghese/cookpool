@@ -471,5 +471,14 @@ export const manifest: MigrationManifest = {
       description:
         "Spliteco on Cookpool's ledger: membership_organizations.made_in (cookpool default | spliteco) and kind (kitchen default | trip | home | couple | other | direct); kitchen_txns.app (cookpool default | spliteco), bucket (kitchen default | other: two balances per kitchen group), category, revises and moved_from (each unique when set: a version is replaced or moved once), deleted_at (on a delete's reversal), via_delegation and split_spec (JSON); ledger_txn_items, ledger_txn_item_shares (portion ×1000, basis points or minor units), ledger_txn_adjustments (tax, service, discount) and ledger_comments (cmt_ ids). Append-only (cookpool-spliteco SE-2)",
     },
+    {
+      id: "540_spliteco_settle_up",
+      context: "kitchen",
+      path: "540_spliteco_settle_up/up.sql",
+      checksum:
+        "c395bb09c5b6d3f80de881b2528c17899bc048eb627fc430494642f8278324fd",
+      description:
+        "Spliteco settle up: ledger_reminders (rmd_ ids; org, from, to, amount, currency, sent_at; indexed by pair and time — at most one per pair per 24 hours), spliteco_profiles (subject_id, upi_vpa — a UPI ID shown only to people who share a group — and default_currency) and spliteco_group_settings (org_id, simplify_debts default 1). Payments stay kitchen_txns settlements with their bucket. Additive (cookpool-spliteco SE-3)",
+    },
   ],
 };
