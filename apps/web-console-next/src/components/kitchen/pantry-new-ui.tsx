@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "./link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Camera, ChevronDown, ChevronRight, Plus, Refrigerator, Search } from "lucide-react";
+import { Camera, ChevronDown, Plus, Refrigerator, Search } from "lucide-react";
 import type { KitchenItem, ReachableItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useFoldedSections } from "@/lib/pantry-device";
 import { useProfile } from "./data";
-import { IconBubble, KCard, K_BUTTON } from "./kit";
+import { IconBubble, KCard, K_BUTTON, K_BUTTON_QUIET, K_ROWS, K_SECTION, K_TITLE } from "./kit";
+import { RING, SeeAllButton, pillClass } from "./new-home-parts-ui";
+import { sectionRows, useSoonTiles, type UseSoonTile } from "./pantry-look";
 import { useMemberNames } from "./people-data";
 import { useLogUse, usePantries, usePantryItems, useUsualBucket, useUsuals } from "./pantry-data";
 import { useLogSeveral } from "./log-several-data";
@@ -29,7 +31,6 @@ import {
   showChips,
   showParams,
   toggleFold,
-  useSoonCard,
   type PantryRow,
   type PantryShow,
 } from "./pantry-list";
@@ -138,7 +139,9 @@ export function NewPantry() {
   const searching = query.trim() !== "";
   const sections = kindSections(rows, { show, query });
   const chips = list ? showChips({ items: rows.map((r) => r.item), statuses, pantries: list, recentSlugs, show }) : [];
-  const card = useSoonCard(rows, { show, query });
+  // Use soon (RV-3, the board's strip of three): past its date first, then the soonest.
+  const soon = useSoonTiles(rows, { show, query });
+  const [allIn, setAllIn] = React.useState<ReadonlySet<string>>(() => new Set());
   const strip = searching ? [] : nowStrip(rows, usualList);
   const byId = React.useMemo(() => new Map(rows.map((r) => [r.id, r] as const)), [rows]);
   const finished = finishedRows(restock.data, { show, query, now });
@@ -211,22 +214,22 @@ export function NewPantry() {
   const nothingAnywhere = !loading && !failed && rows.length === 0;
 
   return (
-    <div className="space-y-3 min-[900px]:max-w-[760px] min-[900px]:space-y-4">
+    <div className="space-y-5 min-[900px]:max-w-[760px]">
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] min-[900px]:text-[30px]">Pantry</h1>
+        <h1 className={K_TITLE}>Pantry</h1>
         <span className="flex items-center gap-2">
           {scanShows ? (
             <Link
               href={RECEIPT_SCAN_HREF}
               aria-label="Scan a receipt"
-              className="grid h-11 w-11 place-items-center rounded-[14px] border-[1.5px] border-transparent text-[#165C3A] transition-colors [background:linear-gradient(hsl(var(--card)),hsl(var(--card)))_padding-box,linear-gradient(135deg,#1F7A4D,#B4471F)_border-box] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className={cn("grid h-11 w-11 place-items-center rounded-[14px] bg-cp-accent-tint text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80", RING)}
             >
               <Camera className="h-5 w-5" strokeWidth={2.2} aria-hidden />
             </Link>
           ) : null}
           <Link
             href={boughtHref()}
-            className="flex min-h-11 items-center gap-1.5 rounded-[14px] bg-primary px-3.5 text-[15px] font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className={cn("flex min-h-11 items-center gap-1.5 rounded-[14px] bg-primary px-4 text-[15px] font-medium text-primary-foreground transition-colors hover:bg-primary/90", RING)}
           >
             <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
             Bought
@@ -249,7 +252,7 @@ export function NewPantry() {
       ) : null}
 
       <div className="flex items-center gap-2">
-        <label className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 rounded-[14px] border border-[#D5DAD2] bg-card px-3.5 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+        <label className="flex min-h-[54px] min-w-0 flex-1 items-center gap-2.5 rounded-[18px] bg-card px-4 text-muted-foreground shadow-cp-card focus-within:ring-2 focus-within:ring-ring">
           <Search className="h-5 w-5 shrink-0" aria-hidden />
           <span className="sr-only">Find in your pantries</span>
           <input
@@ -260,10 +263,10 @@ export function NewPantry() {
               setQuery(e.target.value);
               setOpenId(null);
             }}
-            placeholder="Find in your pantries"
+            placeholder="Find an item"
             autoComplete="off"
             enterKeyHint="search"
-            className="h-11 min-w-0 flex-1 bg-transparent text-base font-semibold text-foreground outline-none placeholder:font-semibold placeholder:text-muted-foreground"
+            className="h-11 min-w-0 flex-1 bg-transparent text-base font-normal text-foreground outline-none placeholder:text-muted-foreground"
           />
         </label>
         {rows.length > 0 ? (
@@ -271,10 +274,7 @@ export function NewPantry() {
             type="button"
             aria-pressed={several}
             onClick={toggleSeveral}
-            className={cn(
-              "min-h-11 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              several ? "border-foreground bg-foreground text-background" : "border-[#D5DAD2] bg-card text-foreground hover:bg-accent",
-            )}
+            className={cn(pillClass(several ? "main" : "quiet"), "min-h-11")}
           >
             Log several
           </button>
@@ -285,10 +285,10 @@ export function NewPantry() {
         <PantrySkeleton />
       ) : failed ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load your pantries. {(pantries.error ?? items.error)?.message ?? ""}</p>
+          <p className="text-sm font-normal text-muted-foreground">Couldn&apos;t load your pantries. {(pantries.error ?? items.error)?.message ?? ""}</p>
           <Button
             variant="outline"
-            className={K_BUTTON}
+            className={K_BUTTON_QUIET}
             onClick={() => {
               pantries.reload();
               items.reload();
@@ -314,29 +314,18 @@ export function NewPantry() {
                 aria-pressed={c.on}
                 onClick={() => choose(c.on && c.show.kind !== "all" ? { kind: "all" } : c.show)}
                 className={cn(
-                  "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  c.on ? "border-foreground bg-foreground text-background" : "border-[#D5DAD2] bg-card text-foreground hover:bg-accent",
+                  "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  c.on ? "bg-primary text-primary-foreground" : "bg-card text-foreground shadow-cp-card hover:bg-muted/50",
                 )}
               >
-                {c.dot ? <span aria-hidden className={cn("h-2 w-2 rounded-full", c.dot === "soon" ? "bg-[#D97706]" : "bg-[#C2410C]")} /> : null}
+                {c.dot ? <span aria-hidden className={cn("h-2 w-2 rounded-full", c.dot === "soon" ? "bg-cp-soon" : "bg-cp-owe")} /> : null}
                 {c.label}
-                <span className="font-bold opacity-70">{c.count}</span>
+                <span className="font-normal opacity-70">{c.count}</span>
               </button>
             ))}
           </div>
 
-          {card ? (
-            <Link
-              href={card.href}
-              className="flex items-center gap-3 rounded-[18px] border border-[#F0D9A0] bg-[#FDF1D6] px-3.5 py-3 text-[#4A3200] transition-colors hover:bg-[#FBE9C0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-[15px] font-extrabold">{card.title}</span>
-                <span className="text-[13px] font-bold text-[#6B4600]">{card.sub}</span>
-              </span>
-              <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
-            </Link>
-          ) : null}
+          {soon.length > 0 ? <UseSoonStrip tiles={soon} /> : null}
 
           {sections.length === 0 ? (
             <NothingShown show={show} query={query} />
@@ -345,23 +334,25 @@ export function NewPantry() {
               const holdsOpen = openId !== null && s.rows.some((r) => r.id === openId);
               const open = sectionOpen(s.kind, { folded, searching, holdsOpenRow: holdsOpen });
               const headingId = `pantry-kind-${s.kind}`;
+              // Three, then See all (RV-3); all of them while searching, or when the opened row is further down.
+              const shownRows = sectionRows(s.rows, { all: allIn.has(s.kind), searching, openId });
               return (
-                <section key={s.kind} aria-labelledby={headingId} className="flex flex-col gap-1.5">
+                <section key={s.kind} aria-labelledby={headingId} className="flex flex-col gap-2">
                   <button
                     type="button"
                     aria-expanded={open}
                     onClick={() => setFolded(toggleFold(folded, s.kind))}
-                    className="flex min-h-11 items-center gap-2 rounded-lg px-0.5 text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-h-11 items-center gap-2 rounded-lg px-0.5 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <span id={headingId} className="flex-1 text-left text-xs font-extrabold uppercase tracking-[0.06em]">
-                      {s.label}
+                    <span id={headingId} className={cn(K_SECTION, "flex-1 text-left")}>
+                      {s.label} <span className="font-normal tabular-nums text-muted-foreground">· {s.count}</span>
                     </span>
-                    <span className="text-xs font-extrabold tabular-nums">{s.count}</span>
-                    <ChevronDown className={cn("h-[18px] w-[18px] transition-transform motion-reduce:transition-none", !open && "-rotate-90")} aria-hidden />
+                    <ChevronDown className={cn("h-[18px] w-[18px] text-muted-foreground transition-transform motion-reduce:transition-none", !open && "-rotate-90")} aria-hidden />
                   </button>
                   {open ? (
-                    <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] border border-[#E3E6E0] bg-card">
-                      {s.rows.map((r) => (
+                    <div className={K_ROWS}>
+                    <ul className="divide-y divide-cp-line">
+                      {shownRows.rows.map((r) => (
                         <PantryRowView
                           key={r.id}
                           row={r}
@@ -381,6 +372,21 @@ export function NewPantry() {
                         />
                       ))}
                     </ul>
+                    {shownRows.more ? (
+                      <SeeAllButton
+                        label={shownRows.label}
+                        all={allIn.has(s.kind)}
+                        onToggle={() =>
+                          setAllIn((cur) => {
+                            const next = new Set(cur);
+                            if (next.has(s.kind) || shownRows.label === "Show less") next.delete(s.kind);
+                            else next.add(s.kind);
+                            return next;
+                          })
+                        }
+                      />
+                    ) : null}
+                    </div>
                   ) : null}
                 </section>
               );
@@ -390,7 +396,7 @@ export function NewPantry() {
           {/* Finished this week (PN-6, design §6.1), just above Always have. */}
           {finishedSection}
 
-          {items.data?.truncated ? <p className="text-[13px] text-muted-foreground">Showing the first 1,000 items.</p> : null}
+          {items.data?.truncated ? <p className="text-[13px] font-normal text-muted-foreground">Showing the first 1,000 items.</p> : null}
         </>
       )}
 
@@ -411,6 +417,32 @@ export function NewPantry() {
   );
 }
 
+/** "Use soon" (the board's strip): three tiles, each the item's name and one fact, opening its page; Cook opens Cook now. */
+function UseSoonStrip({ tiles }: { tiles: readonly UseSoonTile[] }) {
+  return (
+    <section aria-labelledby="pantry-use-soon" className="space-y-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="pantry-use-soon" className={K_SECTION}>
+          Use soon
+        </h2>
+        <Link href="/cook" className={cn("flex min-h-11 items-center rounded-lg px-1 text-sm font-medium text-cp-accent-text", RING)}>
+          Cook
+        </Link>
+      </div>
+      <ul className="grid grid-cols-3 gap-2.5">
+        {tiles.map((t) => (
+          <li key={t.id} className="min-w-0">
+            <Link href={t.href} className={cn("flex min-h-[76px] flex-col justify-between gap-1.5 rounded-[18px] bg-card p-3 shadow-cp-card", RING)}>
+              <span className="truncate text-[15px] font-medium">{t.name}</span>
+              <span className={cn("truncate text-[13px] font-medium", t.tone === "expired" ? "text-cp-expired" : "text-foreground")}>{t.fact}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function NothingShown({ show, query }: { show: PantryShow; query: string }) {
   const q = query.trim();
   const text = q
@@ -422,9 +454,9 @@ function NothingShown({ show, query }: { show: PantryShow; query: string }) {
         : "Nothing here yet";
   return (
     <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
-      <p className="min-w-0 text-[15px] font-semibold text-muted-foreground">{text}</p>
+      <p className="min-w-0 text-[15px] font-normal text-muted-foreground">{text}</p>
       {q || show.kind === "pantry" ? (
-        <Button asChild variant="outline" className={K_BUTTON}>
+        <Button asChild variant="outline" className={K_BUTTON_QUIET}>
           <Link href={addItemHref(show)}>
             <Plus aria-hidden />
             Bought it?
@@ -439,7 +471,7 @@ function EmptyPantries() {
   return (
     <KCard className="flex flex-col items-center px-6 py-10 text-center">
       <IconBubble icon={Refrigerator} className="h-14 w-14" />
-      <h2 className="mt-4 text-lg font-bold tracking-tight">Nothing in your pantries yet</h2>
+      <h2 className={cn(K_SECTION, "mt-4")}>Nothing in your pantries yet</h2>
       <Button asChild className={cn(K_BUTTON, "mt-4")}>
         <Link href="/pantry/new">
           <Plus aria-hidden />
@@ -463,7 +495,7 @@ function PantrySkeleton() {
         <Skeleton className="h-11 w-28 rounded-full" />
         <Skeleton className="h-11 w-28 rounded-full" />
       </div>
-      <Skeleton className="h-40 w-full rounded-[20px]" />
+      <Skeleton className="h-40 w-full rounded-cp-card" />
     </div>
   );
 }

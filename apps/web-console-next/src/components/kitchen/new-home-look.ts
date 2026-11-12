@@ -1,0 +1,99 @@
+/**
+ * The revamped Home's words (cookpool-revamp RV-3, the canvas's
+ * `HomeRevamp`), as data: the balance pill beside "Hi, Rahul", the resume
+ * strip's second line, Cook now's tag, and the one line under each dish in
+ * "Your groups cooked". Also the rule every revamped list follows: three
+ * rows, then "See all N".
+ *
+ * Dependency-free (contract types only), so it is unit-testable.
+ */
+
+import type { CookNowEntry } from "@saas/contracts/kitchen";
+import type { HomeMoney } from "./home";
+
+// ── Three, then See all ──────────────────────────────────────────
+
+/** A revamped list shows this many rows, then "See all N". */
+export const SEE_ALL_AFTER = 3;
+
+export interface FirstThree<T> {
+  rows: T[];
+  /** Whether there are more than three: the list offers See all (or Show less). */
+  more: boolean;
+  /** "See all 13", or "Show less" while all are shown. */
+  label: string;
+}
+
+/** The first three rows (all of them with `all`), and the See all button's words. */
+export function firstThree<T>(rows: readonly T[], all: boolean, after: number = SEE_ALL_AFTER): FirstThree<T> {
+  const more = rows.length > after;
+  return {
+    rows: all || !more ? [...rows] : rows.slice(0, after),
+    more,
+    label: all ? "Show less" : `See all ${rows.length}`,
+  };
+}
+
+// ── The balance pill ─────────────────────────────────────────────
+
+export interface BalancePill {
+  /** "+₹62.50" (money back) or "−₹25.00" (money you owe). */
+  text: string;
+  /** Its name: "You get back ₹62.50". */
+  label: string;
+  tone: "owed" | "owe";
+}
+
+/**
+ * The pill beside "Hi, Rahul": your main balance as a signed number, opening
+ * Money. Nothing while settled up, in no group, or before it is read.
+ */
+export function balancePill(money: Pick<HomeMoney, "main" | "noGroups"> | null): BalancePill | null {
+  if (!money || money.noGroups) return null;
+  const { main } = money;
+  if (main.tone === "settled" || !main.amount) return null;
+  return { text: `${main.tone === "owed" ? "+" : "−"}${main.amount}`, label: main.text, tone: main.tone };
+}
+
+// ── The resume strip ─────────────────────────────────────────────
+
+/** The strip's second line, without the bar's "Cooking · ": "12 min · 3 of 7 in". */
+export function resumeMeta(meta: string): string {
+  return meta.replace(/^Cooking · /, "");
+}
+
+/** Home shows the session as its own strip, so the floating bar stays off Home. */
+export function homeShowsResume(pathname: string | null | undefined): boolean {
+  const path = pathname && pathname.length > 1 ? pathname.replace(/\/+$/, "") : (pathname ?? "");
+  return path === "/home";
+}
+
+// ── Cook now ─────────────────────────────────────────────────────
+
+export interface CookNowTag {
+  /** "Have all", "Need yogurt", "Need 2". */
+  text: string;
+  tone: "have" | "need";
+}
+
+/** A Cook now card's tag: "Have all" in the accent, else what you need in the owe colour. */
+export function cookNowTag(entry: Pick<CookNowEntry, "match">): CookNowTag {
+  const missing = entry.match.missing;
+  if (missing === 0) return { text: "Have all", tone: "have" };
+  const first = entry.match.missingNames[0]?.trim();
+  if (missing === 1 && first) return { text: `Need ${first.charAt(0).toLowerCase()}${first.slice(1)}`, tone: "need" };
+  return { text: `Need ${missing}`, tone: "need" };
+}
+
+// ── Your groups cooked ───────────────────────────────────────────
+
+/**
+ * One line under a dish your groups cooked: "Anu · you had 1 · ₹31.20 each";
+ * "Anu · Flat 4B · 3 h ago" when you had none.
+ */
+export function groupsCookedMeta(card: { groupName: string; when: string; each: string; youHad: string }, cook: string): string {
+  if (card.youHad === "0") return `${cook} · ${card.groupName} · ${card.when}`;
+  // An exact amount is already money ("₹40.00"): no "each" after it.
+  if (/[^\d½\s]/.test(card.youHad)) return `${cook} · you had ${card.youHad}`;
+  return `${cook} · you had ${card.youHad} · ${card.each} each`;
+}

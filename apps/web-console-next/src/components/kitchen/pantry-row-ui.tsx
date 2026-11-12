@@ -7,7 +7,8 @@ import { cn } from "@/lib/cn";
 import { NoteLine } from "./item-note-ui";
 import { SwipeRow, type SwipeAction } from "./row-gestures-ui";
 import { swipeUseLabel } from "./item-actions";
-import { LEVEL_COLORS, type LevelTone, type PantryRow, type RowTag } from "./pantry-list";
+import { type LevelTone, type PantryRow, type RowTag } from "./pantry-list";
+import { pillClass } from "./new-home-parts-ui";
 import type { MemberNames } from "./members";
 import { SetRow } from "./set-row-ui";
 import { useAskToUse, useCancelAsk } from "./ask-data";
@@ -28,16 +29,19 @@ import { AskStatusLine } from "./ask-ui";
 
 const TAG: Record<RowTag["tone"], string> = {
   pantry: "bg-muted text-muted-foreground",
-  soon: "bg-[#FDF1D6] text-[#8A5A00]",
-  low: "bg-[#FDF1D6] text-[#8A5A00]",
-  expired: "bg-[#FDECEC] text-[#B42318]",
+  soon: "bg-cp-soon-tint text-cp-soon",
+  low: "bg-cp-soon-tint text-cp-soon",
+  expired: "bg-cp-expired-tint text-cp-expired",
   // The canvas's AskRequest: amber, with a lock (PN-9).
-  ask: "bg-[#FDF1D6] text-[#8A5A00]",
+  ask: "bg-cp-soon-tint text-cp-soon",
 };
+
+/** The bar's fill (RV-3, the board): muted while there is plenty, amber when low or use soon, red once expired. */
+const LEVEL_FILL: Record<LevelTone, string> = { ok: "bg-muted-foreground", low: "bg-cp-soon", expired: "bg-cp-expired" };
 
 export function RowTagPill({ tag }: { tag: RowTag }) {
   return (
-    <span className={cn("inline-flex min-w-0 shrink items-center gap-1 truncate whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-extrabold", TAG[tag.tone])}>
+    <span className={cn("inline-flex min-w-0 shrink items-center gap-1 truncate whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", TAG[tag.tone])}>
       {tag.tone === "ask" ? <Lock className="h-3 w-3 shrink-0" aria-hidden /> : null}
       <span className="truncate">{tag.label}</span>
     </span>
@@ -47,8 +51,8 @@ export function RowTagPill({ tag }: { tag: RowTag }) {
 /** How much is left, as a bar in the level's colour (design §2.3). Decorative: the words beside it say the amount. */
 export function LevelBar({ percent, tone, className }: { percent: number; tone: LevelTone; className?: string }) {
   return (
-    <span aria-hidden className={cn("block h-1.5 shrink-0 overflow-hidden rounded-full bg-[#ECEEE9]", className)}>
-      <span className="block h-full rounded-full" style={{ width: `${percent}%`, backgroundColor: LEVEL_COLORS[tone] }} />
+    <span aria-hidden className={cn("block h-1 shrink-0 overflow-hidden rounded-full bg-cp-line", className)}>
+      <span className={cn("block h-full rounded-full", LEVEL_FILL[tone])} style={{ width: `${percent}%` }} />
     </span>
   );
 }
@@ -116,12 +120,12 @@ export function PantryRowView({
   const body = (
     <>
       <span className="flex min-w-0 items-center gap-2">
-        <span className={cn("min-w-0 shrink truncate text-base font-extrabold leading-snug", row.struck && "text-muted-foreground line-through")}>{row.name}</span>
+        <span className={cn("min-w-0 shrink truncate text-base font-medium leading-snug", row.struck && "text-muted-foreground line-through")}>{row.name}</span>
         {row.tag ? <RowTagPill tag={row.tag} /> : null}
       </span>
       <span className="mt-1.5 flex min-w-0 items-center gap-2">
-        <LevelBar percent={row.percent} tone={row.level} className="w-16" />
-        <span className="min-w-0 truncate text-[13px] font-semibold text-muted-foreground">
+        <LevelBar percent={row.percent} tone={row.level} className="w-14" />
+        <span className="min-w-0 truncate text-[13px] font-normal text-muted-foreground">
           <span className="sr-only">Left: </span>
           {row.levelText}
         </span>
@@ -137,9 +141,9 @@ export function PantryRowView({
       onLongPress={row.pending || !row.canUse ? undefined : onMore}
       aria-busy={row.pending || undefined}
       data-row-id={row.id}
-      frontClassName={cn(open && "bg-[#FBFCFA]")}
+      frontClassName={cn(open && "bg-muted/40")}
     >
-      <div className="flex min-h-[68px] items-center gap-2.5 py-2.5 pl-3.5 pr-2.5">
+      <div className="flex min-h-16 items-center gap-3 py-2.5 pl-3.5 pr-3">
         {opens ? (
           <button
             type="button"
@@ -158,7 +162,7 @@ export function PantryRowView({
             type="button"
             aria-label={askEnd.label}
             onClick={ask}
-            className="flex h-11 max-w-[46%] shrink-0 items-center gap-1.5 rounded-[12px] border border-[#17201B] bg-[#17201B] px-3 text-sm font-extrabold text-white transition-colors hover:bg-[#17201B]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-11 max-w-[46%] shrink-0 items-center gap-1.5 rounded-[14px] bg-foreground px-3.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Lock className="h-3.5 w-3.5 shrink-0" strokeWidth={2.6} aria-hidden />
             <span className="truncate">{askEnd.words}</span>
@@ -168,7 +172,7 @@ export function PantryRowView({
             type="button"
             aria-label={askEnd.label}
             onClick={() => void cancelAsk(askEnd.ask)}
-            className="h-11 shrink-0 rounded-[12px] border border-[#E8C77A] bg-card px-3 text-sm font-extrabold text-[#5C3D00] transition-colors hover:bg-[#FFF8E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(pillClass(), "h-11 bg-cp-soon-tint text-cp-soon hover:bg-cp-soon-tint/80")}
           >
             Cancel
           </button>
@@ -178,15 +182,12 @@ export function PantryRowView({
             aria-label={several ? `${inTray ? "Take out of" : "Add to"} the tray: ${chip.words} of ${row.name}` : chip.label}
             aria-pressed={several ? inTray : undefined}
             onClick={onChip}
-            className={cn(
-              "flex h-11 max-w-[42%] shrink-0 items-center gap-1.5 rounded-[12px] border px-3 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              several && inTray ? "border-primary bg-primary text-primary-foreground" : "border-[#C9CFC6] bg-card text-foreground hover:bg-accent",
-            )}
+            className={cn(pillClass(several && inTray ? "main" : "quiet"), "h-11 max-w-[42%]")}
           >
             {several ? (
               <span
                 aria-hidden
-                className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full", inTray ? "bg-primary-foreground text-primary" : "border-[1.5px] border-[#C9CFC6] text-transparent")}
+                className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full", inTray ? "bg-primary-foreground text-primary" : "border-[1.5px] border-current text-transparent opacity-60")}
               >
                 <Check className="h-3 w-3" strokeWidth={3.2} />
               </span>
@@ -198,9 +199,9 @@ export function PantryRowView({
             type="button"
             aria-label={chip.label}
             onClick={onToggle}
-            className="h-11 shrink-0 rounded-[12px] border border-[#C9CFC6] bg-card px-3 text-sm font-extrabold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(pillClass(), "h-11")}
           >
-            Use…
+            Use
           </button>
         )}
       </div>

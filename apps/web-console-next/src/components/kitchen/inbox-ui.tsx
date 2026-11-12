@@ -26,6 +26,8 @@ import { pressIn, usePrefetchKitchen } from "./prefetch";
 import type { RecentRow } from "./home";
 import type { AsyncState } from "@/lib/query";
 import { useKitchenRouter } from "./transition-ui";
+import { KCard, K_ROWS, SectionHeading } from "./kit";
+import { RowsSkeleton, SeeAllButton, pillClass } from "./new-home-parts-ui";
 
 /**
  * Home's to-do list (Cookpool CP-23; SM-10 as the canvas draws it): at most
@@ -44,6 +46,14 @@ const TONES: Record<InboxTone, { icon: LucideIcon; className: string; label: str
   flag: { icon: Flag, className: "bg-muted text-muted-foreground", label: "Flag" },
 };
 
+/** The revamped Home's second line: the same colours at the regular weight. */
+const FRESH_SUB_TONES: Record<HomeTodo["subTone"], string> = {
+  muted: "font-normal text-muted-foreground",
+  expired: "font-normal text-cp-expired",
+  soon: "font-normal text-cp-soon",
+  owe: "font-normal text-cp-owe",
+};
+
 const SUB_TONES: Record<HomeTodo["subTone"], string> = {
   muted: "text-muted-foreground",
   expired: "font-semibold text-cp-expired",
@@ -54,12 +64,26 @@ const SUB_TONES: Record<HomeTodo["subTone"], string> = {
 /** A row's button: 44px tall, the green one for what settles it, outlined otherwise. */
 const ROW_BUTTON = "h-11 shrink-0 rounded-[14px] px-4 text-[15px] font-extrabold";
 
+/** The revamped Home's row buttons (RV-3, the canvas's HomeRevamp): 44 px pills on the tint, or on the accent for what settles the row. */
+const FRESH_QUIET = cn(pillClass("quiet"), "h-11 border-0 shadow-none");
+const FRESH_MAIN = cn(pillClass("main"), "h-11 shadow-none");
+
+/** The look a list's rows take: today's, or the revamped Home's. */
+const RowLook = React.createContext(false);
+
+/** A row's button classes: the outlined or green one today; the tint or accent pill on the revamped Home. */
+function useRowButton(): (main: boolean) => string {
+  const fresh = React.useContext(RowLook);
+  return (main) => (fresh ? (main ? FRESH_MAIN : FRESH_QUIET) : ROW_BUTTON);
+}
+
 export function HomeTodoList({
   inbox,
   meId,
   names,
   className,
   lead,
+  fresh = false,
 }: {
   inbox: AsyncState<InboxResponse>;
   meId: string | null;
@@ -67,7 +91,25 @@ export function HomeTodoList({
   className?: string;
   /** What goes first in To do (cookpool-pantry PN-9: the ask cards, in the new frame); with it, To do is never "All clear". */
   lead?: React.ReactNode;
+  /** The revamped Home (RV-3): "Needs you" with its count, borderless rows, pill buttons, See all at the foot. */
+  fresh?: boolean;
 }) {
+  return fresh ? (
+    <FreshTodoList inbox={inbox} meId={meId} names={names} className={className} lead={lead} />
+  ) : (
+    <TodayTodoList inbox={inbox} meId={meId} names={names} className={className} lead={lead} />
+  );
+}
+
+type TodoListProps = {
+  inbox: AsyncState<InboxResponse>;
+  meId: string | null;
+  names: MemberNames;
+  className?: string | undefined;
+  lead?: React.ReactNode;
+};
+
+function TodayTodoList({ inbox, meId, names, className, lead }: TodoListProps) {
   const now = React.useMemo(() => new Date(), []);
   const [all, setAll] = React.useState(false);
   const todos = inbox.data ? homeTodos(inbox.data, { meId, names, now }, { all }) : null;
@@ -131,6 +173,64 @@ export function HomeTodoList({
   );
 }
 
+/**
+ * The revamped Home's Needs you (RV-3, the canvas's HomeRevamp): "Needs you ·
+ * 3", then the lead (asks, split reminders), then one card of rows — each
+ * one line under its title and one button — three, then See all at the foot.
+ */
+function FreshTodoList({ inbox, meId, names, className, lead }: TodoListProps) {
+  const now = React.useMemo(() => new Date(), []);
+  const [all, setAll] = React.useState(false);
+  const todos = inbox.data ? homeTodos(inbox.data, { meId, names, now }, { all }) : null;
+  const listId = React.useId();
+  const [menu, setMenu] = React.useState<ItemMenuTarget | null>(null);
+  const count = todos ? (todos.total === 0 && !lead ? "· all done" : todos.total > 0 ? `· ${todos.total}` : null) : null;
+
+  return (
+    <RowLook.Provider value>
+      <section aria-labelledby="home-todo" className={cn("space-y-2.5", className)}>
+        <SectionHeading id="home-todo" count={count}>
+          Needs you
+        </SectionHeading>
+        {inbox.loading ? (
+          <RowsSkeleton />
+        ) : inbox.error || !todos ? (
+          <KCard className="flex min-h-16 items-center justify-between gap-3 px-4 py-2">
+            <p className="text-sm font-normal text-muted-foreground">Couldn&apos;t load your to-dos.</p>
+            <button type="button" className={FRESH_QUIET} onClick={inbox.reload}>
+              Try again
+            </button>
+          </KCard>
+        ) : todos.total === 0 && lead ? (
+          lead
+        ) : todos.total === 0 ? (
+          <KCard role="status" className="flex min-h-16 items-center gap-3 px-3.5">
+            <span aria-hidden className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[14px] bg-cp-accent-tint text-cp-accent-text">
+              <Check className="h-5 w-5" strokeWidth={2.4} />
+            </span>
+            <span className="text-base font-medium">All clear</span>
+          </KCard>
+        ) : (
+          <>
+            {lead}
+            <div className={K_ROWS}>
+              <ul id={listId} className="divide-y divide-cp-line">
+                {todos.rows.map((todo) => (
+                  <li key={todo.key}>
+                    <TodoRow todo={todo} meId={meId} names={names} onMenu={setMenu} />
+                  </li>
+                ))}
+              </ul>
+              {todos.total > HOME_TODOS ? <SeeAllButton label={all ? "Show less" : `See all ${todos.total}`} all={all} onToggle={() => setAll((v) => !v)} /> : null}
+            </div>
+          </>
+        )}
+        <ItemActionsSheet target={menu} onClose={() => setMenu(null)} meId={meId} />
+      </section>
+    </RowLook.Provider>
+  );
+}
+
 function TodoRow({
   todo,
   meId,
@@ -163,13 +263,16 @@ function TodoRow({
   };
   // A payment's method chips open under the row, like a dish's portion chips.
   const [paying, setPaying] = React.useState(false);
+  // The revamped Home (RV-3): a dish's chips open under the row from "I had some".
+  const fresh = React.useContext(RowLook);
+  const [claiming, setClaiming] = React.useState(false);
 
   const head = (
     <div className="flex items-center gap-3">
       {todo.faceId ? (
-        <Face subjectId={todo.faceId} meId={meId} names={names} />
+        <Face subjectId={todo.faceId} meId={meId} names={names} className={fresh ? "h-[42px] w-[42px] text-sm font-medium" : ""} />
       ) : (
-        <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", tone.className)}>
+        <span aria-hidden className={cn("grid shrink-0 place-items-center", fresh ? "h-[42px] w-[42px] rounded-[14px]" : "h-10 w-10 rounded-xl", tone.className)}>
           <Icon className="h-5 w-5" strokeWidth={2} />
         </span>
       )}
@@ -177,14 +280,24 @@ function TodoRow({
         <Link
           {...pressIn(readAhead)}
           href={todo.href}
-          className="block truncate rounded text-base font-extrabold leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn("block truncate rounded text-base leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", fresh ? "font-medium" : "font-extrabold")}
         >
           <span className="sr-only">{tone.label}: </span>
           {todo.title}
         </Link>
-        <p className={cn("truncate text-[13px] tabular-nums", SUB_TONES[todo.subTone])}>{todo.sub}</p>
+        <p className={cn("truncate text-[13px] tabular-nums", fresh ? FRESH_SUB_TONES[todo.subTone] : SUB_TONES[todo.subTone])}>{todo.sub}</p>
       </div>
-      <RowAction action={action} soon={soon} title={todo.title} meId={meId} names={names} paying={paying} onPay={() => setPaying(true)} />
+      <RowAction
+        action={action}
+        soon={soon}
+        title={todo.title}
+        meId={meId}
+        names={names}
+        paying={paying}
+        onPay={() => setPaying(true)}
+        claiming={claiming}
+        onClaim={() => setClaiming((c) => !c)}
+      />
     </div>
   );
 
@@ -208,16 +321,18 @@ function TodoRow({
             use: soon.kind === "log" && soon.run ? { words: soon.words, run: soon.run } : null,
           })
         }
-        frontClassName="px-4 py-3"
+        frontClassName={fresh ? "flex min-h-16 flex-col justify-center py-2.5 pl-3.5 pr-3" : "px-4 py-3"}
       >
         {head}
       </SwipeRow>
     );
   }
   return (
-    <div className="space-y-2.5 px-4 py-3">
+    <div className={fresh ? "space-y-2.5 py-2.5 pl-3.5 pr-3" : "space-y-2.5 px-4 py-3"}>
       {head}
-      {action.kind === "claim" ? <ClaimChips dishId={action.dishId} meId={meId} names={names} /> : null}
+      {action.kind === "claim" && (!fresh || claiming) ? (
+        <ClaimChips dishId={action.dishId} meId={meId} names={names} onPicked={fresh ? () => setClaiming(false) : undefined} />
+      ) : null}
       {action.kind === "pay" && paying ? <PayChips action={action} meId={meId} onDone={() => setPaying(false)} /> : null}
     </div>
   );
@@ -231,6 +346,8 @@ function RowAction({
   names,
   paying,
   onPay,
+  claiming,
+  onClaim,
 }: {
   action: InboxAction;
   soon: SoonUse | null;
@@ -239,16 +356,26 @@ function RowAction({
   names: MemberNames;
   paying: boolean;
   onPay: () => void;
+  claiming: boolean;
+  onClaim: () => void;
 }) {
+  const fresh = React.useContext(RowLook);
+  const button = useRowButton();
   switch (action.kind) {
     case "claim":
-      return null;
+      // Today: the chips are always under the row. Revamped: one button opens them.
+      return fresh ? (
+        <button type="button" aria-expanded={claiming} onClick={onClaim} className={FRESH_QUIET}>
+          {claiming ? "Close" : "I had some"}
+          <span className="sr-only"> of {title}</span>
+        </button>
+      ) : null;
     case "finalize":
       return <FinalizeButton dishId={action.dishId} groupName={action.groupName} meId={meId} names={names} />;
     case "split":
     case "open":
       return (
-        <Button asChild variant="outline" className={ROW_BUTTON}>
+        <Button asChild variant="outline" className={button(false)}>
           <Link href={action.href} aria-label={`${action.label}: ${title}`}>
             {action.kind === "split" ? "Set" : "Open"}
           </Link>
@@ -259,7 +386,7 @@ function RowAction({
     case "pay":
       return action.canRecord && !paying ? (
         <Button
-          className={ROW_BUTTON}
+          className={button(true)}
           disabled={!meId}
           aria-label={`Paid: ${formatMinor(action.amountMinor, action.currency)} to ${action.toLabel} in ${action.groupName}`}
           onClick={onPay}
@@ -272,7 +399,7 @@ function RowAction({
 
 // ── How much did you have: 0 · ½ · 1 · 1½ · 2 ────────────────────
 
-function ClaimChips({ dishId, meId, names }: { dishId: string; meId: string | null; names: MemberNames }) {
+function ClaimChips({ dishId, meId, names, onPicked }: { dishId: string; meId: string | null; names: MemberNames; onPicked?: (() => void) | undefined }) {
   const dish = useDish(dishId);
   if (!meId || !dish.data || dish.data.state !== "open") {
     return (
@@ -283,11 +410,22 @@ function ClaimChips({ dishId, meId, names }: { dishId: string; meId: string | nu
       </div>
     );
   }
-  return <ClaimChipRow dish={dish.data} meId={meId} names={names} />;
+  return <ClaimChipRow dish={dish.data} meId={meId} names={names} onPicked={onPicked} />;
 }
 
-function ClaimChipRow({ dish, meId, names }: { dish: NonNullable<ReturnType<typeof useDish>["data"]>; meId: string; names: MemberNames }) {
+function ClaimChipRow({
+  dish,
+  meId,
+  names,
+  onPicked,
+}: {
+  dish: NonNullable<ReturnType<typeof useDish>["data"]>;
+  meId: string;
+  names: MemberNames;
+  onPicked?: (() => void) | undefined;
+}) {
   const claimer = useClaimer(dish, meId, names);
+  const fresh = React.useContext(RowLook);
   const max = claimableHalf(dish);
   return (
     <div role="group" aria-label={`Your portions of ${dish.name}`} className="grid grid-cols-5 gap-1.5">
@@ -300,10 +438,15 @@ function ClaimChipRow({ dish, meId, names }: { dish: NonNullable<ReturnType<type
             aria-pressed={on}
             aria-label={portionsText(h)}
             disabled={h > max}
-            onClick={() => claimer.set(h, { now: true })}
+            onClick={() => {
+              claimer.set(h, { now: true });
+              onPicked?.();
+            }}
             className={cn(
-              "min-h-11 rounded-xl border text-[15px] font-extrabold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40",
-              on ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-accent",
+              "min-h-11 text-[15px] tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40",
+              fresh
+                ? cn("rounded-[12px] font-medium", on ? "bg-primary text-primary-foreground" : "bg-cp-accent-tint text-cp-accent-text hover:bg-cp-accent-tint/80")
+                : cn("rounded-xl border font-extrabold", on ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-accent"),
             )}
           >
             {halfText(h)}
@@ -319,13 +462,18 @@ function ClaimChipRow({ dish, meId, names }: { dish: NonNullable<ReturnType<type
 function FinalizeButton({ dishId, groupName, meId, names }: { dishId: string; groupName: string | null; meId: string | null; names: MemberNames }) {
   const dish = useDish(dishId);
   if (!dish.data || (dish.data.state !== "open" && dish.data.state !== "draft")) {
-    return (
-      <Button className={ROW_BUTTON} disabled>
-        Finalize
-      </Button>
-    );
+    return <FinalizeWaiting />;
   }
   return <FinalizeNow dish={dish.data} groupName={groupName} meId={meId} names={names} />;
+}
+
+function FinalizeWaiting() {
+  const button = useRowButton();
+  return (
+    <Button className={button(true)} disabled>
+      Finalize
+    </Button>
+  );
 }
 
 function FinalizeNow({
@@ -341,8 +489,9 @@ function FinalizeNow({
 }) {
   // At once (SM-5): the dish reads finalized everywhere and this row goes, with "Correct it" on the toast.
   const actions = useDishActions({ dish, meId, names, groupName });
+  const button = useRowButton();
   return (
-    <Button className={ROW_BUTTON} loading={actions.busy === "finalize"} disabled={actions.busy !== null} onClick={() => void actions.finalize()}>
+    <Button className={button(true)} loading={actions.busy === "finalize"} disabled={actions.busy !== null} onClick={() => void actions.finalize()}>
       Finalize<span className="sr-only"> {dish.name}</span>
     </Button>
   );
@@ -409,15 +558,16 @@ function useSoonUse(todo: HomeTodo, meId: string | null, names: MemberNames): So
 }
 
 function UseButton({ soon }: { soon: SoonUse }) {
+  const button = useRowButton();
   if (soon.kind === "open") {
     return (
-      <Button asChild variant="outline" className={ROW_BUTTON}>
+      <Button asChild variant="outline" className={button(false)}>
         <Link href={soon.href}>Use</Link>
       </Button>
     );
   }
   return (
-    <Button variant="outline" className={ROW_BUTTON} disabled={!soon.run} aria-label={soon.label} onClick={() => soon.run?.()}>
+    <Button variant="outline" className={button(false)} disabled={!soon.run} aria-label={soon.label} onClick={() => soon.run?.()}>
       {soon.words}
     </Button>
   );
@@ -427,6 +577,7 @@ function UseButton({ soon }: { soon: SoonUse }) {
 
 function PayChips({ action, meId, onDone }: { action: Extract<InboxAction, { kind: "pay" }>; meId: string | null; onDone: () => void }) {
   const record = useRecordPayment();
+  const fresh = React.useContext(RowLook);
   // Recorded at once (SM-5): the row leaves Home and the Undo toast is up
   // before the server answers; a refusal brings it back and says why.
   const pick = (method: SettlementMethod) => {
@@ -447,7 +598,10 @@ function PayChips({ action, meId, onDone }: { action: Extract<InboxAction, { kin
           key={m.id}
           type="button"
           onClick={() => pick(m.id)}
-          className="min-h-11 flex-1 rounded-xl border border-input bg-card text-[15px] font-extrabold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(
+            "min-h-11 flex-1 text-[15px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            fresh ? "rounded-[12px] bg-cp-accent-tint font-medium text-cp-accent-text hover:bg-cp-accent-tint/80" : "rounded-xl border border-input bg-card font-extrabold hover:bg-accent",
+          )}
         >
           {m.label}
         </button>

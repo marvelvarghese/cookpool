@@ -32,10 +32,10 @@ export function NowStripView({
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id={headingId} className="text-xs font-extrabold tracking-[0.06em] text-foreground/80">
+        <h2 id={headingId} className="text-[17px] font-medium leading-snug">
           {nowHeading(bucket)}
         </h2>
-        <span className="text-xs font-bold text-muted-foreground">{several ? "Tap each one you had" : "One tap logs it"}</span>
+        {several ? <span className="text-[13px] font-normal text-muted-foreground">Tap each one you had</span> : null}
       </div>
       <ul className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
         {chips.map((c) => {
@@ -48,23 +48,23 @@ export function NowStripView({
                 aria-pressed={several ? on : undefined}
                 onClick={() => onChip(c)}
                 className={cn(
-                  "flex min-h-[76px] min-w-[112px] max-w-[180px] flex-col items-start gap-0.5 rounded-2xl border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  on ? "border-primary bg-[#E4F2EA]" : "border-[#E3E6E0] bg-card hover:bg-accent",
+                  "flex min-h-[76px] min-w-[112px] max-w-[180px] flex-col items-start gap-0.5 rounded-[18px] px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  on ? "bg-cp-accent-tint ring-2 ring-inset ring-primary" : "bg-card shadow-cp-card hover:bg-muted/40",
                 )}
               >
                 <span className="flex w-full items-center justify-between gap-2">
-                  <span className="truncate text-[15px] font-extrabold">{c.name}</span>
+                  <span className="truncate text-[15px] font-medium">{c.name}</span>
                   {several ? (
                     <span
                       aria-hidden
-                      className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full", on ? "bg-primary text-primary-foreground" : "border-[1.5px] border-[#C9CFC6] text-transparent")}
+                      className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full", on ? "bg-primary text-primary-foreground" : "border-[1.5px] border-input text-transparent")}
                     >
                       <Check className="h-3 w-3" strokeWidth={3.2} />
                     </span>
                   ) : null}
                 </span>
-                <span className="max-w-full truncate text-sm font-extrabold text-[#165C3A]">{c.words}</span>
-                <span className="max-w-full truncate text-[11px] font-bold text-muted-foreground">{c.why}</span>
+                <span className="max-w-full truncate text-sm font-medium text-cp-accent-text">{c.words}</span>
+                <span className="max-w-full truncate text-[11px] font-normal text-muted-foreground">{c.why}</span>
               </button>
             </li>
           );
@@ -87,17 +87,17 @@ export function LogTray({ tray, onLog }: { tray: readonly TrayEntry[]; onLog: ()
       data-toast-above=""
       className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 -mx-4 flex flex-col gap-2 bg-background px-4 pb-1 pt-2.5 shadow-[0_-14px_14px_-6px_hsl(var(--background))] min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-t-2xl min-[900px]:px-0"
     >
-      <p className="truncate text-[13px] font-bold text-foreground/80">{trayLine(tray)}</p>
+      <p className="truncate text-[13px] font-normal text-foreground/80">{trayLine(tray)}</p>
       <button
         type="button"
         onClick={onLog}
-        className="min-h-[60px] w-full rounded-[18px] bg-primary px-4 text-[17px] font-extrabold text-primary-foreground shadow-[0_8px_24px_rgba(23,32,27,0.18)] transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[900px]:shadow-none"
+        className="min-h-[60px] w-full rounded-[18px] bg-primary px-4 text-[17px] font-medium text-primary-foreground shadow-cp-nav transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[900px]:shadow-none"
       >
         {trayButton(tray)}
       </button>
       <Link
         href="/cook"
-        className="flex min-h-11 items-center self-center rounded-lg px-2 text-[13px] font-extrabold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-11 items-center self-center rounded-lg px-2 text-[13px] font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         A meal for others? Cook it instead
       </Link>

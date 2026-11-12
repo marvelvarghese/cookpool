@@ -6,6 +6,7 @@ import type { AskInboxItem, InboxResponse, KitchenAsk } from "@saas/contracts/ki
 import { cn } from "@/lib/cn";
 import { qk } from "@/lib/query";
 import { Face } from "./faces-ui";
+import { pillClass } from "./new-home-parts-ui";
 import type { MemberNames } from "./members";
 import { useAnswerAsk } from "./ask-data";
 import {
@@ -136,9 +137,9 @@ function AskCardView({
   };
 
   const frame = cn(
-    "scroll-mt-24 rounded-[20px] bg-card p-3.5 transition-shadow",
-    answered ? "border border-[#E3E6E0]" : "border-[1.5px] border-[#D97706]",
-    highlight && "ring-4 ring-[#D97706]/35",
+    "scroll-mt-24 rounded-cp-card bg-card p-3.5 shadow-cp-card transition-shadow",
+    answered ? "" : "border-[1.5px] border-cp-soon",
+    highlight && "ring-4 ring-cp-soon/35",
   );
 
   if (answered) {
@@ -147,22 +148,22 @@ function AskCardView({
       <article data-ask-id={listed.id} className={frame} aria-label={text.title}>
         <div className="flex items-center gap-3">
           <span className="flex min-w-0 flex-1 flex-col">
-            <span role="status" className="text-[15px] font-extrabold">
+            <span role="status" className="text-[15px] font-medium">
               {text.title}
             </span>
-            <span className="text-[13px] font-semibold text-muted-foreground">{text.sub}</span>
+            <span className="text-[13px] font-normal text-muted-foreground">{text.sub}</span>
           </span>
           <button
             type="button"
             onClick={() => void undo()}
             disabled={!answered.undo || busy}
-            className="min-h-11 shrink-0 rounded-xl border border-[#C9CFC6] bg-card px-3 text-sm font-extrabold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className={pillClass()}
           >
             Undo
           </button>
         </div>
         {error ? (
-          <p role="alert" className="mt-2 text-[13px] font-bold text-[#B42318]">
+          <p role="alert" className="mt-2 text-[13px] font-normal text-cp-expired">
             {error}
           </p>
         ) : null}
@@ -177,17 +178,17 @@ function AskCardView({
         <div className="flex items-start gap-3">
           <Face subjectId={card.askerId} meId={meId} names={names} />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span id={`${switchId}-title`} className="text-[17px] font-extrabold leading-snug">
+            <span id={`${switchId}-title`} className="text-base font-medium leading-snug">
               {card.title}
             </span>
-            <span className="text-[13px] font-semibold tabular-nums text-muted-foreground">{card.sub}</span>
+            <span className="text-[13px] font-normal tabular-nums text-muted-foreground">{card.sub}</span>
           </span>
         </div>
-        <div className="flex items-center justify-between gap-2 rounded-[14px] bg-[#EEF3FD] px-3 py-2.5 text-sm font-extrabold tabular-nums text-[#1D4ED8]">
+        <div className="flex items-center justify-between gap-2 rounded-[14px] bg-cp-owed-tint px-3 py-2.5 text-sm font-medium tabular-nums text-cp-owed">
           <span>{card.money.label}</span>
           <span>{card.money.value}</span>
         </div>
-        {card.short ? <p className="px-1 text-sm font-extrabold text-[#8A5A00]">{card.short}</p> : null}
+        {card.short ? <p className="px-1 text-sm font-medium text-cp-soon">{card.short}</p> : null}
         <button
           type="button"
           role="switch"
@@ -195,13 +196,13 @@ function AskCardView({
           onClick={() => setAlways((a) => !a)}
           className="flex min-h-12 items-center gap-3 rounded-xl px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="min-w-0 flex-1 text-[15px] font-bold">{card.always}</span>
-          <span aria-hidden className={cn("flex h-7 w-12 shrink-0 rounded-full p-[3px] transition-colors", always ? "justify-end bg-primary" : "justify-start bg-[#C9CFC6]")}>
+          <span className="min-w-0 flex-1 text-[15px] font-normal">{card.always}</span>
+          <span aria-hidden className={cn("flex h-7 w-12 shrink-0 rounded-full p-[3px] transition-colors", always ? "justify-end bg-primary" : "justify-start bg-input")}>
             <span className="h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)]" />
           </span>
         </button>
         {error ? (
-          <p role="alert" className="px-1 text-[13px] font-bold text-[#B42318]">
+          <p role="alert" className="px-1 text-[13px] font-normal text-cp-expired">
             {error}
           </p>
         ) : null}
@@ -209,7 +210,7 @@ function AskCardView({
           <button
             type="button"
             onClick={() => void decline()}
-            className="min-h-[52px] rounded-2xl border border-[#C9CFC6] bg-card text-base font-extrabold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(pillClass(), "min-h-12 text-[15px]")}
           >
             Decline
           </button>
@@ -217,7 +218,7 @@ function AskCardView({
             type="button"
             disabled={!canApprove(ask)}
             onClick={() => void approve()}
-            className="min-h-[52px] rounded-2xl bg-primary text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+            className={cn(pillClass("main"), "min-h-12 text-[15px]")}
           >
             {card.approve}
           </button>

@@ -23,7 +23,8 @@ import { runOutEstimate, whoHadIt } from "./item-use";
 import { useAskToUse, useAsks, useCancelAsk, useMinuteNow } from "./ask-data";
 import { askButtonText, askName, askStatus } from "./ask-before-use";
 import { ASK_BUTTON, AskLockIcon, AskStatusLine, AskWaitBox } from "./ask-ui";
-import { RING_COLORS, canBuyAgain, canCheck, checkHref, levelRing, ringDash } from "./item-page";
+import { canBuyAgain, canCheck, checkHref, levelRing, ringDash, type RingTone } from "./item-page";
+import { K_CARD, K_SECTION } from "./kit";
 import { useSetState } from "./set-row-ui";
 import { AmountPicker } from "./amount-picker-ui";
 
@@ -48,7 +49,10 @@ export interface ItemPartsCtx {
 
 /** A quiet button beside the chips: the actions row. */
 const ACTION =
-  "flex min-h-[48px] min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-[14px] border border-input bg-card px-2.5 text-sm font-extrabold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex min-h-12 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-card px-2.5 text-sm font-medium text-foreground shadow-cp-card transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/** The ring's colour (RV-3, the board): ink while there is plenty, amber when low or use soon, red once expired. */
+const RING_STROKE: Record<RingTone, string> = { ok: "stroke-foreground", low: "stroke-cp-soon", expired: "stroke-cp-expired" };
 
 // ── The level ring ─────────────────────────────────────────────────
 
@@ -60,17 +64,17 @@ export function LevelRingCard({ item, usual, meId, names }: Pick<ItemPartsCtx, "
   const chip = expiryChip(item);
   const long = expiryText(item);
   return (
-    <section aria-label="How much is left" className="flex items-center gap-4 rounded-[22px] border bg-card p-4">
+    <section aria-label="How much is left" className={cn(K_CARD, "flex items-center gap-4 p-4")}>
       <span className="relative h-24 w-24 shrink-0" role="img" aria-label={ring.label}>
         <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden className="block">
-          <circle cx="48" cy="48" r={RING_R} fill="none" stroke="#ECEEE9" strokeWidth="10" />
+          <circle cx="48" cy="48" r={RING_R} fill="none" className="stroke-cp-line" strokeWidth="10" />
           {ring.percent > 0 ? (
             <circle
               cx="48"
               cy="48"
               r={RING_R}
               fill="none"
-              stroke={RING_COLORS[ring.tone]}
+              className={RING_STROKE[ring.tone]}
               strokeWidth="10"
               strokeLinecap="round"
               strokeDasharray={ringDash(ring.percent, RING_R)}
@@ -79,17 +83,16 @@ export function LevelRingCard({ item, usual, meId, names }: Pick<ItemPartsCtx, "
           ) : null}
         </svg>
         <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-xl font-extrabold tabular-nums leading-none">{ring.percent}%</span>
-          <span className="mt-0.5 text-[11px] font-bold text-muted-foreground">left</span>
+          <span className="text-lg font-medium tabular-nums leading-none">{ring.percent}%</span>
         </span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex flex-wrap items-baseline gap-x-1.5">
-          <span className="text-[22px] font-extrabold leading-tight tracking-tight tabular-nums">{ring.left}</span>
-          <span className="text-[15px] font-semibold text-muted-foreground">{ring.of}</span>
+          <span className="text-xl font-medium leading-tight tabular-nums">{ring.left}</span>
+          <span className="text-[15px] font-normal text-muted-foreground">{ring.of}</span>
         </span>
-        {ring.worth ? <span className="text-sm font-bold tabular-nums text-foreground/80">{ring.worth}</span> : null}
-        <span className="text-[13px] font-semibold text-muted-foreground">{ring.detail}</span>
+        {ring.worth ? <span className="text-sm font-normal tabular-nums text-muted-foreground">{ring.worth}</span> : null}
+        <span className="truncate text-[13px] font-normal text-muted-foreground">{ring.detail}</span>
         {chip && long && item.qtyLeftMilli > 0 ? <UseByPill chip={{ ...chip, label: long }} className="mt-1 self-start px-2.5 py-1" /> : null}
       </span>
     </section>
@@ -133,7 +136,7 @@ export function QuickUse({ itemRef, item, usual, roster, meId, names }: ItemPart
   };
   if (status?.phase === "waiting") return <AskWaitBox status={status} onCancel={() => void cancelAsk(status.ask)} />;
   return (
-    <section aria-label={who ? `Ask ${who} for some` : "Use some"} className="flex flex-col gap-3 rounded-[22px] border bg-card p-3.5">
+    <section aria-label={who ? `Ask ${who} for some` : "Use some"} className={cn(K_CARD, "flex flex-col gap-3 p-3.5")}>
       {status ? <AskStatusLine status={status} className="mt-0 px-1" /> : null}
       <AmountPicker item={item} name={item.name} pick={pick} start={set.start} why={set.why} onPick={set.setPick} />
       <div className="grid grid-cols-[2fr_1fr] gap-2">
@@ -147,7 +150,7 @@ export function QuickUse({ itemRef, item, usual, roster, meId, names }: ItemPart
             type="button"
             disabled={!ready}
             onClick={use}
-            className="flex min-h-[52px] min-w-0 items-center justify-center gap-2 rounded-[14px] bg-primary px-2 text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+            className="flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-[14px] bg-primary px-2 text-[15px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
           >
             <Check className="h-5 w-5 shrink-0" strokeWidth={2.8} aria-hidden />
             <span className="truncate">Use {write.what}</span>
@@ -157,9 +160,9 @@ export function QuickUse({ itemRef, item, usual, roster, meId, names }: ItemPart
           type="button"
           aria-haspopup="dialog"
           onClick={() => setSheet({ row, item: { ...item, canUse: true }, usual })}
-          className="min-h-[52px] rounded-[14px] border border-[#C9CFC6] bg-card text-[15px] font-extrabold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-12 rounded-[14px] bg-cp-accent-tint text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          More…
+          More
         </button>
       </div>
       {/* The Pantry's More… sheet (PN-5): how much, who had it, Log, Finish it, Wasted, Cook with it. */}
@@ -176,11 +179,11 @@ export function RunOutCard({ item, moves }: { item: KitchenItem; moves: readonly
   const estimate = moves ? runOutEstimate(moves, item, now) : null;
   if (!estimate) return null;
   return (
-    <section aria-label="At this rate" className="flex items-center gap-3 rounded-[18px] bg-[#E6EEF8] px-3.5 py-3">
-      <Timer className="h-[22px] w-[22px] shrink-0 text-[#1D4F91]" aria-hidden />
-      <span className="flex min-w-0 flex-col">
-        <span className="text-[15px] font-extrabold text-[#12305A]">{estimate.line}</span>
-        <span className="text-[13px] font-semibold text-[#1D4F91]">{estimate.rate}</span>
+    <section aria-label="At this rate" className="flex min-h-11 items-center gap-2.5 px-0.5">
+      <Timer className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="min-w-0 truncate text-[15px] font-medium">
+        {estimate.line}
+        <span className="font-normal text-muted-foreground"> · {estimate.rate}</span>
       </span>
     </section>
   );
@@ -195,17 +198,17 @@ export function WhoHadItCard({ item, moves, meId, names }: { item: KitchenItem; 
   if (rows.length === 0) return null;
   return (
     <section aria-labelledby="who-had-it-heading" className="space-y-2.5">
-      <h2 id="who-had-it-heading" className="text-[17px] font-extrabold">
+      <h2 id="who-had-it-heading" className={K_SECTION}>
         Who had it
       </h2>
-      <ul className="flex gap-2 overflow-x-auto pb-1">
+      <ul className="flex gap-5 overflow-x-auto pb-1">
         {rows.map((r) => (
-          <li key={r.subjectId} className="flex min-w-[96px] flex-1 flex-col items-center gap-1 rounded-[16px] border bg-card px-2 py-2.5 text-center">
-            <Face subjectId={r.subjectId} meId={meId} names={names} className="h-9 w-9" />
-            <span className="max-w-full truncate text-[13px] font-extrabold">
+          <li key={r.subjectId} className="flex min-w-[64px] shrink-0 flex-col items-center gap-1.5 text-center">
+            <Face subjectId={r.subjectId} meId={meId} names={names} className="h-12 w-12 text-[15px] font-medium" />
+            <span className="max-w-[96px] truncate text-[13px] font-medium">
               {r.name} <span className="tabular-nums">{r.shareText}</span>
             </span>
-            <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+            <span className="max-w-[96px] truncate text-xs font-normal tabular-nums text-muted-foreground">
               {r.qtyText}
               {r.costMinor > 0 ? ` · ${shortMoney(r.costMinor, item.currency)}` : ""}
             </span>
