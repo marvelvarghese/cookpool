@@ -561,3 +561,57 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - The owner replaced dark mode's Gold with the light mode's green on black (canvas, 12 Nov). `globals.css`'s dark block (`prefers-color-scheme: dark`, new frame only) now sets ground `#000000`, cards and the tab bar `#141414`, lines `#262626`, borders `#333333`, ink `#F5F5F5`, muted `#A3A3A3`, the accent, ring, success and cook colour `#22C55E` with black text, accent text `#4ADE80`, tint `#0F2E1C`. Money back (blue), money you owe (pink), use soon (amber) and expired (red) are unchanged.
 - The dark `theme-color` is `#000000` (was `#09090b`).
 - `kitchen-revamp-foundation.test.ts` pins the new dark values; its no-orange check still passes. design.md §1 and the README's decisions record the change.
+
+### RV1 — Kitchen: tick to pick, Log once, one flat list (RV-13)
+
+**Built** (`apps/web-console-next`, new frame only; with `newFrame()` false `/pantry` still renders today's `TodaysPantry`). **Console-only:** no route, no migration, no contracts, SDK or worker change. Spec: the board `RvKitchen` and its note `tickRules`.
+
+- **A tick picks** (`kitchen-picks.ts`, pure; `kitchen-tick-ui.tsx`). A Kitchen tick only marks the row: it turns green, the tick is `aria-pressed`, and the amount box and unit stay editable. Ticking again unpicks it. Nothing is written until Log. `useKitchenTicks` now holds `boxes`, `picked` (kept in the order things were picked) and `logged`. The single-use write (`useLogUse`) is gone from the row. Ask-first rows keep their Ask and Cancel buttons and can't be picked.
+- **`TickRow` picked mode** (`tick-row-ui.tsx`). It takes a new optional prop, `picked?: boolean`: green row, pressed tick, editable box with a transparent border and accent text, and the unit button in the accent. While a row is picked, Enter only puts the keyboard away. Without the prop the row behaves as before. The cook session (RV-11) still passes `done` and never `picked`, so its ticks and its locked done rows are unchanged.
+- **The Log button** (`KitchenLogBar`). It shows only while at least one row is picked: accent background, check icon, "Log 2 items" over "Milk 1 glass · Eggs 2" (`logBar`, `pickWords`; the unit word is dropped when it is the thing itself), truncated to one line.
+  - It is sticky at the end of the page, so it can never cover the last rows. It sits at `max(14px, safe-area) + 82px` (the board's 96 px above the screen edge), or +150px while the cooking bar shows, and at `bottom-6` from 900px.
+  - It is marked `data-toast-above`, so toasts lift above it.
+- **Log once** (`useLogPicks`). One tap logs every picked row through Log several's path (`useLogSeveral`). Each row is its own use on the existing route, with its own idempotency key, for you alone (nobody named in your own pantry), sent one after another.
+  - The box becomes a step through `pickStep`: a count of a measure, otherwise an amount in the base unit. That is exactly what a tick wrote before.
+  - The picks clear at once, and ONE toast reads "Logged 2 items". Its Undo undoes every use, the last one first, and picks the rows again with what their boxes held (as the board does).
+  - A logged row's line reads "Logged 1 glass · just now" in the accent text (new `TickTone` `"logged"`) until reload.
+  - A refused row is picked again with what it had. The toast becomes "Logged 1 of 2 items · Couldn't log Butter. Still ticked." When every row is refused, it shows Log several's existing refusal.
+- **`useLogSeveral`, additive only** (`log-several-data.ts`). It now resolves to the refused entries (it used to resolve to `void`; Say what you used ignores the result). It takes `onRestore` (called when Undo is pressed). An `ask_first` refusal turns the row into its ask row, as a single use already does (PN-9, new frame only).
+- **The unit picker on every row.** Why it didn't work on stage:
+  1. The unit button was disabled with no ▾ whenever the item had one unit. That covers every pack, most counted things bought under a dozen, and grams of anything bought under 1 kg with no measures (Paneer, Butter, Tomatoes in the mock).
+  2. It was disabled once ticked, and a tick logged at once, so there was never a picked row to change.
+  - Now the button and its ▾ show and work whenever the box is editable, on unpicked and picked rows alike (`unitPickerOn`). They stay locked only while `done` (the cook session).
+  - An item with one unit opens its single chip plus **Add a measure**, which links to the item's page (Counted as).
+  - Picking a chip converts the grey amount and is kept as the usual unit (`saveUsualUnit`, unchanged).
+- **One flat list, no folding** (`pantry-list.ts` `pantrySections`, replacing `kindSections` / `sectionOpen` / `toggleFold`).
+  - Order: Usual now · <bucket>, then one section per pantry (each group by its name, in the pantry chips' order, groups opened last first), then yours titled **Mine**.
+  - Each section shows three rows, then See all. Use soon comes first, then running low, then by name. The heading reads "Flat 4B · 6", with "2 ticked" on the right (`tickPickedText`, which replaces `tickLoggedText`).
+  - There is no fold chevron and no section by kind. The kinds survive only for naming a typed category on a row.
+  - Search, the filter chips (still filtering the rows inside the pantry sections), Use soon, Finished this week (still folding, as before) and Always have are unchanged. Searching shows every matching row. The board's footnote sits under the sections.
+
+**Departures.**
+- **A row listed in Usual now is left out of its pantry's section** (the board lists each item once). With a filter chip or a search, Usual now is empty, so every row shows in its pantry.
+- **Groups come before Mine**, as on the board, although the pantry chips put yours first.
+- **Undo picks the rows again**, as the board does; the brief only says Undo undoes the uses.
+- **Add a measure** for one-unit items isn't on the board. Without it a one-unit item's ▾ would open a single chip and nothing else.
+
+**Pinned copy changed:** the section count "2 logged" → "2 ticked" (`tickPickedText`; `kitchen-tick-row.test.ts`), because the board's words changed with what a tick does.
+
+**Tests.**
+- `tests/web-console-next`: 125 suites, 2,455 tests, all passing.
+  - New `kitchen-picks.test.ts` (14): pick and unpick in order; logged rows out, refused ones back; no single-use write left in the row; the button's words ("Log 2 items", "Milk 1 glass · Eggs 2", "Log 1 item"); the sticky, safe-area, toast-lift placement; one Log several call with `pickToast` and `onRestore` and an idempotency key per use; send in order and undo last-first, skipping the refused; the toasts ("Logged 2 items", "Logged 1 of 2 items · Couldn't log Milk. Still ticked."); the logged line.
+  - The unit picker on unpicked and picked rows: ▾ on a one-unit item, Add a measure, converting 1 glass → 250 ml on a picked row and what Log then writes, and still locked when `done` (the cook rows pass `done`, never `picked`).
+  - `kitchen-pantry-new.test.ts`: the kind-section and fold tests are replaced by `pantrySections` tests: by pantry in the chips' order with Mine last, never by kind, use soon first, chip and search filtering, a search showing all four matching dals with no See all, three rows then "See all 4" with Usual now's row left out, and no fold chevron in the screen.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 45 pages served as files.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 47930 ran behind RV-10's in-memory mock, copied and never committed, on `cookpool-stage.localhost:47931`. In the copy, Butter's uses are refused with 409 `insufficient_stock`. The resource log listed only that host.
+- The list showed Usual now · Evening (Milk, Eggs), then Flat 4B · 6 (three rows and See all 6), then Mine · 3, with no fold chevron. Paneer (g only) showed its ▾.
+- Ticking Milk and Eggs turned both rows green, put "2 ticked" on Usual now, and showed "Log 2 items · Milk 1 glass · Eggs 2" above the tab bar. No request was made.
+- Milk's ▾ on the picked row opened glasses · ml · L. Choosing ml made the box read 250 and the button read "Milk 250 ml · Eggs 2".
+- With Butter added, Log 3 items posted three uses (Milk `250 ml`, Eggs `2 pcs`, Butter refused). One toast read "Logged 2 of 3 items · Couldn't log Butter. Still ticked.", lifted above "Log 1 item · Butter 100 g". The Milk and Eggs rows read "Logged 250 ml · just now" and "Logged 2 eggs · just now" in green.
+- Atta and Cheese slices were logged, then undone from the toast. The mock took two undos (the last first), and both rows were picked again under "Log 2 items".
+- In dark mode, the gold tick, Log button and logged lines showed.
+- The old frame on `cookpool-prod.localhost:47931/pantry` rendered today's list as before.
+
+**Deploy.** Only the console changes; it has no package or worker dependency to redeploy.

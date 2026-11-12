@@ -18,6 +18,10 @@ import { refreshPantry, undoRefusal, undoStockMove } from "./pantry-data";
 import { trayToast, type TrayEntry } from "./now-strip";
 import { sendInOrder, undoLastFirst } from "./log-several";
 import type { MemberNames } from "./members";
+import { applyPatches } from "@/lib/optimistic";
+import { newFrame } from "@/lib/features";
+import { queryCacheOf } from "./optimistic-data";
+import { askFirstRefusalFields, askItemPatches } from "./ask-before-use";
 
 /**
  * Log several (cookpool-pantry PN-5, design §1.3): the tray's uses, written
@@ -27,12 +31,14 @@ import type { MemberNames } from "./members";
  * is left drops wherever each item is listed, and each history gains its
  * row, before the first answer. A refused one is put back exactly and the
  * toast says which; Undo reverses every one that was written, the last
- * first.
+ * first. It answers with the refused entries (RV-13's Log keeps them
+ * picked); `onRestore` runs the moment Undo is pressed.
  */
 export function useLogSeveral() {
   const { client } = useSession();
   const qc = useQueryClient();
   const offer = useUndoToast();
+  const isNew = newFrame();
   return React.useCallback(
     (
       tray: readonly TrayEntry[],
@@ -41,9 +47,11 @@ export function useLogSeveral() {
         names?: MemberNames | null;
         /** The toast's words (Say what you used, AI-7: "Logged 2 · ₹42.50"); the tray's own "Logged 3 for you" by default. */
         toast?: (tray: readonly TrayEntry[], refused?: readonly TrayEntry[]) => { title: string; description?: string };
+        /** Undo was pressed: put the screen's own state back (RV-13: the rows are picked again). */
+        onRestore?: () => void;
       },
-    ): Promise<void> => {
-      if (tray.length === 0) return Promise.resolve();
+    ): Promise<TrayEntry[]> => {
+      if (tray.length === 0) return Promise.resolve([]);
       const { meId } = ctx;
       const at = new Date().toISOString();
       const writes = tray.map((entry) => {
@@ -102,6 +110,7 @@ export function useLogSeveral() {
         restore: () => {
           undone = true;
           for (const w of writes) w.write.restore(stockReturnPatches(w.change));
+          ctx.onRestore?.();
         },
       });
 
@@ -115,18 +124,22 @@ export function useLogSeveral() {
           }
           w.write.rollback();
           refused.push(w.entry);
+          // You must ask first (cookpool-pantry PN-9): its row turns into the ask row at once, as a single use's does.
+          const asking = isNew ? askFirstRefusalFields(r.error) : null;
+          if (asking) applyPatches(queryCacheOf(qc), askItemPatches(w.entry.item.id, asking));
         });
         for (const w of writes) refreshPantry(qc, w.entry.ref.kind === "group" ? w.entry.ref.orgId : null);
-        if (undone || refused.length === 0) return;
+        if (undone || refused.length === 0) return refused;
         if (refused.length === writes.length) {
           const first = answers.find((r): r is Extract<typeof r, { ok: false }> => !r.ok)!;
           const why = logRefusal(first.error, { item: refused[0]!.item, meId, names: ctx.names ?? null }).message;
           toast.refuse(refusedToast(`Couldn't log ${refused.length === 1 ? refused[0]!.name : `these ${refused.length}`}`, why));
-          return;
+          return refused;
         }
         toast.update(words(tray, refused));
+        return refused;
       });
     },
-    [client, qc, offer],
+    [client, qc, offer, isNew],
   );
 }

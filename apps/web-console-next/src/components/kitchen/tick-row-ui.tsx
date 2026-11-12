@@ -5,7 +5,7 @@ import Link from "./link";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RING } from "./new-home-parts-ui";
-import { cleanTyped, tickUnitChoice, type TickAmount, type TickMeta, type TickState } from "./tick-row";
+import { cleanTyped, tickUnitChoice, unitPickerOn, type TickAmount, type TickMeta, type TickState } from "./tick-row";
 
 /**
  * The tick row (cookpool-revamp RV-10, the canvas's RvKitchen "Tick to
@@ -19,7 +19,12 @@ import { cleanTyped, tickUnitChoice, type TickAmount, type TickMeta, type TickSt
  *   is reported through `onUnit` (the caller keeps it as the usual).
  * - The tick runs `onTick`. Once `done`, the row is green, the box is locked
  *   on what was logged, and the tick (pressed) runs `onTick` again: the
- *   caller undoes.
+ *   caller undoes. That is the cook session's tick (RV-11).
+ * - Picked (`picked`, the Kitchen since RV-13): the row is green and the tick
+ *   pressed, but the box and its unit stay editable — nothing is written
+ *   until the caller's Log; the tick runs `onTick` again to unpick.
+ * - The unit button always shows its ▾ while the box is editable (RV-13: one
+ *   unit opens a single chip, with Add a measure when the row has a page).
  *
  * Controlled: the caller holds `state` (typed, unit) and `done`, so the same
  * item can show in two places with one state. Pure parts in tick-row.ts.
@@ -33,6 +38,7 @@ const META_TONE: Record<TickMeta["tone"], string> = {
   soon: "text-cp-soon",
   expired: "text-cp-expired",
   owe: "text-cp-owe",
+  logged: "text-cp-accent-text",
 };
 
 /** The small column header: ITEM · LAST TIME | AMOUNT | ✓ (decorative; each control has its own name). */
@@ -67,7 +73,13 @@ export interface TickRowProps {
   onUnit?: (unitId: string) => void;
   /** Logged: the row is green and the box is locked on this amount ("1", "glass"). */
   done: { number: string; word: string } | null;
-  /** The tick: log it, or (while `done`) undo it. */
+  /**
+   * Picked for the caller's Log (RV-13, the Kitchen): green, the tick pressed,
+   * the box and its unit still editable. Left out (the cook session), the
+   * row is `done` or not.
+   */
+  picked?: boolean;
+  /** The tick: log it, or (while `done`) undo it; with `picked` given, pick or unpick it. */
   onTick: () => void;
   /** Instead of the tick (the Kitchen's ask-first rows: Ask, Cancel). */
   end?: React.ReactNode;
@@ -81,11 +93,14 @@ export interface TickRowProps {
 
 const defaultTickLabel = (words: string, name: string, done: boolean) => (done ? `Logged ${words} of ${name}, undo` : `Log ${words} of ${name}`);
 
-export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, onTick, end, busy = false, tickLabel = defaultTickLabel, children }: TickRowProps) {
+export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, picked, onTick, end, busy = false, tickLabel = defaultTickLabel, children }: TickRowProps) {
   const [unitsOpen, setUnitsOpen] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const chipsId = React.useId();
-  const showUnits = unitsOpen && !done && !!amount && amount.units.length > 1;
+  // Green: logged (the cook session) or picked (the Kitchen); only `done` locks the box.
+  const on = !!done || !!picked;
+  const canUnit = unitPickerOn(amount, !!done);
+  const showUnits = unitsOpen && canUnit;
   const words = done ? `${done.number} ${done.word}` : (amount?.words ?? fixed ?? "");
   const fixedOnly = !amount && fixed !== null;
   const nameBody = (
@@ -96,7 +111,7 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
     </>
   );
   return (
-    <div data-row-id={id} className={cn(done && "bg-cp-accent-tint")}>
+    <div data-row-id={id} data-picked={picked || undefined} className={cn(on && "bg-cp-accent-tint")}>
       <div className={cn(GRID, "min-h-16 py-2")}>
         {href ? (
           <Link href={href} className={cn("flex min-h-11 min-w-0 flex-col justify-center gap-0.5 rounded-lg text-foreground", RING)}>
@@ -107,13 +122,19 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
         )}
 
         {fixedOnly ? (
-          <span className={cn("truncate px-1 text-right text-[15px] font-normal", done ? "text-cp-accent-text" : "text-muted-foreground")}>{fixed}</span>
+          <span className={cn("truncate px-1 text-right text-[15px] font-normal", on ? "text-cp-accent-text" : "text-muted-foreground")}>{fixed}</span>
         ) : amount || done ? (
           <div
             onClick={() => inputRef.current?.focus()}
             className={cn(
               "flex min-h-11 cursor-text items-center gap-1 rounded-xl border pl-2.5 pr-1",
-              done ? "border-transparent bg-transparent" : amount?.invalid ? "border-cp-expired bg-card" : "border-border bg-card focus-within:ring-2 focus-within:ring-ring",
+              done
+                ? "border-transparent bg-transparent"
+                : amount?.invalid
+                  ? "border-cp-expired bg-card"
+                  : picked
+                    ? "border-transparent bg-transparent focus-within:ring-2 focus-within:ring-ring"
+                    : "border-border bg-card focus-within:ring-2 focus-within:ring-ring",
             )}
           >
             <input
@@ -131,13 +152,15 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !busy) {
                   e.preventDefault();
-                  onTick();
+                  // Picked already: Enter only puts the keyboard away (a second tick would unpick).
+                  if (picked) e.currentTarget.blur();
+                  else onTick();
                 }
               }}
               className={cn(
                 "w-full min-w-0 bg-transparent text-right text-[17px] tabular-nums outline-none placeholder:text-muted-foreground disabled:opacity-100",
-                state.typed || done ? "font-medium" : "font-normal",
-                done ? "text-cp-accent-text" : "text-foreground",
+                state.typed || on ? "font-medium" : "font-normal",
+                on ? "text-cp-accent-text placeholder:text-cp-accent-text" : "text-foreground",
               )}
             />
             <button
@@ -145,19 +168,19 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
               aria-expanded={showUnits}
               aria-controls={showUnits ? chipsId : undefined}
               aria-label={`Unit: ${done?.word ?? amount?.word ?? ""}, change`}
-              disabled={!!done || !amount || amount.units.length < 2}
+              disabled={!canUnit}
               onClick={(e) => {
                 e.stopPropagation();
                 setUnitsOpen((o) => !o);
               }}
               className={cn(
                 "flex min-h-8 shrink-0 items-center gap-0.5 rounded-md pl-1 pr-0.5 text-[13px] font-normal disabled:cursor-default",
-                done ? "text-cp-accent-text" : "text-muted-foreground",
+                on ? "text-cp-accent-text" : "text-muted-foreground",
                 RING,
               )}
             >
               {done?.word ?? amount?.word}
-              {amount && amount.units.length > 1 && !done ? <ChevronDown className="h-3 w-3" strokeWidth={2.4} aria-hidden /> : null}
+              {canUnit ? <ChevronDown className="h-3 w-3" strokeWidth={2.4} aria-hidden /> : null}
             </button>
           </div>
         ) : (
@@ -169,14 +192,14 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
         ) : amount || done || fixedOnly ? (
           <button
             type="button"
-            aria-pressed={!!done}
-            aria-label={tickLabel(words, name, !!done)}
+            aria-pressed={on}
+            aria-label={tickLabel(words, name, on)}
             aria-busy={busy || undefined}
             disabled={busy}
             onClick={onTick}
             className={cn(
               "flex h-11 w-12 items-center justify-center rounded-xl transition-colors disabled:opacity-60",
-              done ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-cp-line text-muted-foreground hover:bg-muted",
+              on ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-cp-line text-muted-foreground hover:bg-muted",
               RING,
             )}
           >
@@ -212,6 +235,12 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
               </button>
             );
           })}
+          {/* One unit only: its own measures are added on its page (Counted as). */}
+          {amount.units.length < 2 && href ? (
+            <Link href={href} className={cn("flex min-h-10 items-center rounded-full px-3.5 text-sm font-medium text-cp-accent-text hover:bg-cp-accent-tint/60", RING)}>
+              Add a measure
+            </Link>
+          ) : null}
         </div>
       ) : null}
     </div>

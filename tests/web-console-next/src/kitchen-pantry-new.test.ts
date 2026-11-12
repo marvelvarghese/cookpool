@@ -4,53 +4,55 @@ import {
   PANTRY_KINDS,
   addItemHref,
   boughtHref,
+  MINE_LABEL,
   kindOf,
-  kindSections,
   pantryHrefFromUse,
   pantryRow,
   parseShow,
+  pantrySections,
   quickUseFieldHref,
-  sectionOpen,
   showChips,
   showParams,
-  toggleFold,
   useByDay,
   useSoonCard,
   type PantryShow,
 } from "@web-console-next/components/kitchen/pantry-list";
-import { ANU, DEV, FLAT, ME, NAMES, PERSONAL_REF, groupPantry, makeItem, makeUsual as usual, morningUsual as morning, personalPantry } from "./kitchen-pantry-fixtures";
+import { sectionRows } from "@web-console-next/components/kitchen/pantry-look";
+import { readFileSync } from "node:fs";
+import { cwd } from "node:process";
+import { ANU, DEV, FLAT, LUNCH, ME, NAMES, PERSONAL_REF, groupPantry, groupRef, makeItem, makeUsual as usual, morningUsual as morning, personalPantry } from "./kitchen-pantry-fixtures";
 
 // cookpool-pantry PN-5 (design §1, §2.3, §4): the new Pantry's list — sections
-// by kind, the chips and their counts, each row's tag, level and suggestion
+// (by pantry since RV-13), the chips and their counts, each row's tag, level and suggestion
 // chip — and where Home's field and /use lead in each frame.
 
 const milk = (o: Parameters<typeof makeItem>[0] = {}) => makeItem({ name: "Milk", category: "dairy", unit: "L", bought: "1", priceMinor: 6800, ...o });
 const row = (item: ReachableItem, u: KitchenUsual | null = null, showPantry = true) => ({ ...pantryRow(item, { usual: u, showPantry, meId: ME, names: NAMES }), item });
 
-describe("sections by kind (design §1.6)", () => {
-  it("run Dairy, Veg, Fruit, Grains, Protein, Spices, Leftovers, Other, each with its count, empty ones left out", () => {
-    expect(PANTRY_KINDS.map((k) => k.label)).toEqual(["Dairy", "Veg", "Fruit", "Grains", "Protein", "Spices", "Leftovers", "Other"]);
+describe("sections by pantry (RV-13, the board's one flat list)", () => {
+  const flat = groupRef(FLAT);
+  const lunch = groupRef(LUNCH);
+
+  it("are one per pantry — each group by its name in the chips' order, then yours as Mine — with counts, empty ones left out", () => {
     const items = [
-      makeItem({ name: "Snacks mix", category: "Snacks" }),
-      makeItem({ name: "Atta", category: "grains" }),
-      makeItem({ name: "Dal makhani", category: "Leftovers" }),
-      makeItem({ name: "Milk", category: "dairy" }),
-      makeItem({ name: "Onions", category: "veg" }),
-      makeItem({ name: "Turmeric", category: "spices" }),
-      makeItem({ name: "Curd", category: "Dairy" }),
+      makeItem({ name: "Atta", category: "grains", pantry: PERSONAL_REF }),
+      makeItem({ name: "Milk", category: "dairy", pantry: flat }),
+      makeItem({ name: "Rice", category: "grains", pantry: lunch }),
+      makeItem({ name: "Onions", category: "veg", pantry: flat }),
     ].map((i) => row(i));
-    const sections = kindSections(items, { show: { kind: "all" } });
-    expect(sections.map((s) => [s.label, s.count])).toEqual([
-      ["Dairy", 2],
-      ["Veg", 1],
-      ["Grains", 1],
-      ["Spices", 1],
-      ["Leftovers", 1],
-      ["Other", 1],
+    const sections = pantrySections(items, { show: { kind: "all" }, order: ["personal", LUNCH.orgId, FLAT.orgId] });
+    expect(MINE_LABEL).toBe("Mine");
+    expect(sections.map((s) => [s.key, s.label, s.count])).toEqual([
+      [LUNCH.orgId, "Lunch club", 1],
+      [FLAT.orgId, "Flat 4B", 2],
+      ["personal", "Mine", 1],
     ]);
+    // Never by kind: dairy and veg share Flat 4B's section.
+    expect(sections[1]!.rows.map((r) => r.name)).toEqual(["Milk", "Onions"]);
   });
 
-  it("put a category outside the list under Other, labelled as typed", () => {
+  it("keep a kind only for naming a typed category on the row", () => {
+    expect(PANTRY_KINDS.map((k) => k.label)).toEqual(["Dairy", "Veg", "Fruit", "Grains", "Protein", "Spices", "Leftovers", "Other"]);
     expect(kindOf("Snacks")).toBe("other");
     expect(kindOf(" VEG ")).toBe("veg");
     expect(kindOf("leftovers")).toBe("leftovers");
@@ -61,35 +63,47 @@ describe("sections by kind (design §1.6)", () => {
   it("list use soon first (expired, then soonest), then running low, then by name", () => {
     const items = [
       makeItem({ name: "Zucchini", category: "veg" }),
-      makeItem({ name: "beans", category: "veg" }),
+      makeItem({ name: "beans", category: "fruit" }),
       makeItem({ name: "Tomatoes", category: "veg", daysToUseBy: 2 }),
-      makeItem({ name: "Spinach", category: "veg", daysToUseBy: -1 }),
+      makeItem({ name: "Spinach", category: "dairy", daysToUseBy: -1 }),
       makeItem({ name: "Peas", category: "veg", daysToUseBy: 0 }),
       makeItem({ name: "Carrots", category: "veg", bought: "1", left: "0.1" }),
     ].map((i) => row(i));
-    expect(kindSections(items, { show: { kind: "all" } })[0]!.rows.map((r) => r.name)).toEqual(["Spinach", "Peas", "Tomatoes", "Carrots", "beans", "Zucchini"]);
+    const sections = pantrySections(items, { show: { kind: "all" } });
+    expect(sections).toHaveLength(1);
+    expect(sections[0]!.rows.map((r) => r.name)).toEqual(["Spinach", "Peas", "Tomatoes", "Carrots", "beans", "Zucchini"]);
   });
 
-  it("show only what the choice and the search let through", () => {
+  it("show only what the chip and the search let through; a search shows every match", () => {
     const items = [
       makeItem({ name: "Toor dal", category: "grains" }),
       makeItem({ name: "Milk", category: "dairy", daysToUseBy: 1 }),
       makeItem({ name: "Paneer", category: "dairy", pantry: PERSONAL_REF }),
+      ...["Moong dal", "Chana dal", "Urad dal"].map((name) => makeItem({ name, category: "grains" })),
     ].map((i) => row(i));
-    expect(kindSections(items, { show: { kind: "soon" } }).flatMap((s) => s.rows.map((r) => r.name))).toEqual(["Milk"]);
-    expect(kindSections(items, { show: { kind: "pantry", key: "personal" } }).flatMap((s) => s.rows.map((r) => r.name))).toEqual(["Paneer"]);
-    expect(kindSections(items, { show: { kind: "all" }, query: "dal toor" }).flatMap((s) => s.rows.map((r) => r.name))).toEqual(["Toor dal"]);
-    expect(kindSections(items, { show: { kind: "all" }, query: "rice" })).toEqual([]);
+    const names = (show: PantryShow, query = "") => pantrySections(items, { show, query }).flatMap((s) => s.rows.map((r) => r.name));
+    expect(names({ kind: "soon" })).toEqual(["Milk"]);
+    expect(names({ kind: "pantry", key: "personal" })).toEqual(["Paneer"]);
+    expect(names({ kind: "all" }, "dal toor")).toEqual(["Toor dal"]);
+    expect(pantrySections(items, { show: { kind: "all" }, query: "rice" })).toEqual([]);
+    // Four dals match: the section shows them all, with no See all.
+    const dals = pantrySections(items, { show: { kind: "all" }, query: "dal" })[0]!;
+    expect(sectionRows(dals.rows, { all: false, searching: true, openId: null })).toMatchObject({ more: false });
+    expect(sectionRows(dals.rows, { all: false, searching: true, openId: null }).rows).toHaveLength(4);
   });
 
-  it("fold on a tap and stay open while searching or holding the open row", () => {
-    const folded = toggleFold(new Set(), "dairy");
-    expect([...folded]).toEqual(["dairy"]);
-    expect([...toggleFold(folded, "dairy")]).toEqual([]);
-    expect(sectionOpen("dairy", { folded, searching: false, holdsOpenRow: false })).toBe(false);
-    expect(sectionOpen("dairy", { folded, searching: true, holdsOpenRow: false })).toBe(true);
-    expect(sectionOpen("dairy", { folded, searching: false, holdsOpenRow: true })).toBe(true);
-    expect(sectionOpen("veg", { folded, searching: false, holdsOpenRow: false })).toBe(true);
+  it("show three rows then See all, and leave out what Usual now lists", () => {
+    const items = ["Atta", "Bread", "Curd", "Dal", "Eggs"].map((name) => row(makeItem({ name })));
+    const [flatSection] = pantrySections(items, { show: { kind: "all" }, exclude: new Set([items[0]!.id]) });
+    expect(flatSection!.rows.map((r) => r.name)).toEqual(["Bread", "Curd", "Dal", "Eggs"]);
+    expect(sectionRows(flatSection!.rows, { all: false, searching: false, openId: null })).toMatchObject({ more: true, label: "See all 4" });
+    expect(sectionRows(flatSection!.rows, { all: false, searching: false, openId: null }).rows).toHaveLength(3);
+  });
+
+  it("have no fold: the Kitchen draws no fold chevron and no kind sections", () => {
+    const ui = readFileSync(`${cwd()}/../../apps/web-console-next/src/components/kitchen/pantry-new-ui.tsx`, "utf8");
+    expect(ui).not.toMatch(/ChevronDown|kindSections|toggleFold|sectionOpen/);
+    expect(ui).toContain("pantrySections(");
   });
 });
 
