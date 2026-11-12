@@ -12,6 +12,11 @@ spec:
     - default/cookpool/api-edge-tests
     - default/cookpool/spliteco-worker
     - default/cookpool/spliteco-web
+    - default/cookpool/db-migrate
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - default/cookpool/notifications-client
+    - default/cookpool/notifications-client-tests
     - default/cookpool/spliteco-worker-tests
     - default/cookpool/spliteco-web-tests
     - default/cookpool/contracts-tests
