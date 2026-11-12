@@ -15,18 +15,22 @@
   // Smart Placement, as kitchen-worker: run next to the Asia–Pacific database.
   "placement": { "mode": "smart" },
   "vars": {
-    "ENVIRONMENT": "local"
+    "ENVIRONMENT": "local",
+    "APP_URL": "http://localhost:3002"
   },
   "env": {
     "dev": {
       "vars": {
-        "ENVIRONMENT": "dev"
+        "ENVIRONMENT": "dev",
+        "APP_URL": "http://localhost:3002"
       }
     },
     "stage": {
       "workers_dev": false,
       "vars": {
-        "ENVIRONMENT": "stage"
+        "ENVIRONMENT": "stage",
+        // The links in reminders and "paid you" (SE2): the app's workers.dev host until a domain is attached.
+        "APP_URL": "https://cookpool-spliteco-web-stage.cookpool.workers.dev"
       },
       "d1_databases": [
         {
@@ -47,13 +51,20 @@
         {
           "binding": "IDENTITY_WORKER",
           "service": "cookpool-identity-worker-stage"
+        },
+        // Reminders and "paid you" (SE2): POST /v1/notifications, email plus push.
+        {
+          "binding": "NOTIFICATIONS_WORKER",
+          "service": "cookpool-notifications-worker-stage"
         }
       ]
     },
     "prod": {
       "workers_dev": false,
       "vars": {
-        "ENVIRONMENT": "prod"
+        "ENVIRONMENT": "prod",
+        // The links in reminders and "paid you" (SE2): the app's workers.dev host until a domain is attached.
+        "APP_URL": "https://cookpool-spliteco-web-prod.cookpool.workers.dev"
       },
       "d1_databases": [
         {
@@ -74,6 +85,11 @@
         {
           "binding": "IDENTITY_WORKER",
           "service": "cookpool-identity-worker-prod"
+        },
+        // Reminders and "paid you" (SE2): POST /v1/notifications, email plus push.
+        {
+          "binding": "NOTIFICATIONS_WORKER",
+          "service": "cookpool-notifications-worker-prod"
         }
       ]
     }

@@ -2,7 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: spliteco-worker
-  description: Cloudflare Worker for Spliteco (cookpool-spliteco) — groups, expenses split six ways, balances, activity, insights and export on Cookpool's shared ledger, under /v1/spliteco
+  description: Cloudflare Worker for Spliteco (cookpool-spliteco) — groups, expenses split six ways, balances, settling up, reminders, activity, insights and export on Cookpool's shared ledger, under /v1/spliteco
 spec:
   type: cloudflare-worker-turbo
   lifecycle: production
@@ -35,6 +35,8 @@ spec:
             triggerRef: github-pull-request
     # People's names: POST /v1/internal/identity/users/lookup.
     - component: identity-worker
+    # Reminders and "paid you" (SE2): POST /v1/notifications.
+    - component: notifications-worker
     - component: cloudflare-d1
       mode: enforced
       modeRules:

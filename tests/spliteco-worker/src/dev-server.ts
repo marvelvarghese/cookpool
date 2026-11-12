@@ -74,6 +74,10 @@ async function seed(): Promise<void> {
     payers: [{ subjectId: DEV, amountMinor: 98000 }],
     split: { method: "equal", participants: [ME, DEV] },
   });
+  // SE2: Meera and Dev take UPI; Anu has no UPI ID yet (Settle up shows UPI off for her).
+  for (const [as, upiVpa] of [[MEERA, "meera.r@okaxis"], [DEV, "devk@ybl"]] as const) {
+    await h.call("PUT", "/v1/spliteco/me/profile", { as, body: { upiVpa } });
+  }
 }
 
 const tokens = new Map<string, string>(PEOPLE.map((p) => [`dev_${p.id}`, p.id]));

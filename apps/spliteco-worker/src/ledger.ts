@@ -9,13 +9,15 @@ import type {
   SplitecoCategory,
   SplitecoExpenseRequest,
   SplitecoExpenseSummary,
+  SplitecoPaymentMethod,
   SplitecoSplitMethod,
   SplitecoTxnKind,
 } from "@saas/contracts/spliteco";
 import { createSqlExecutor } from "@saas/db/d1";
 import type { AppendEventWithAuditInput } from "@saas/db/events";
 import { createSplitecoRepository, type SplitecoRepository, type SplitecoTxnRecord } from "@saas/db/spliteco";
-import { balances, settlePlan, type Txn } from "@saas/kitchen-engine/ledger";
+import { balances, type Txn } from "@saas/kitchen-engine/ledger";
+import { planFor } from "@saas/kitchen-engine/settle";
 import type { RequestContext } from "./context.js";
 import { unavailable } from "./http.js";
 import { orgPublicId, txnPublicId } from "./ids.js";
@@ -88,6 +90,7 @@ export function toSummary(t: SplitecoTxnRecord, groupName: string, me: string): 
     myNetMinor: mine ? mine.paidMinor - mine.owedMinor : 0,
     locked: isLocked(t),
     viaDelegation: t.viaDelegation,
+    paymentMethod: t.kind === "settlement" ? ((t.method as SplitecoPaymentMethod | null) ?? null) : null,
   };
 }
 
@@ -121,9 +124,9 @@ export function groupBalances(rows: readonly SplitecoTxnRecord[]): Map<string, n
 }
 
 /** The settle plan's payments that involve `me`: + they pay me, − I pay them, largest first (within each bucket, summed). */
-export function myPlan(rows: readonly SplitecoTxnRecord[], me: string): { subjectId: string; amountMinor: number }[] {
+export function myPlan(rows: readonly SplitecoTxnRecord[], me: string, simplify = true): { subjectId: string; amountMinor: number }[] {
   const out: { subjectId: string; amountMinor: number }[] = [];
-  for (const p of bucketedPlan(rows)) {
+  for (const p of bucketedPlan(rows, simplify)) {
     if (p.toId === me) out.push({ subjectId: p.fromId, amountMinor: p.amountMinor });
     else if (p.fromId === me) out.push({ subjectId: p.toId, amountMinor: -p.amountMinor });
   }
@@ -137,11 +140,20 @@ export function bucketRows(rows: readonly SplitecoTxnRecord[], bucket: (typeof B
   return rows.filter((t) => t.bucket === bucket);
 }
 
-/** The fewest payments, worked out within each bucket (simplify runs within each balance), then summed per pair. */
-export function bucketedPlan(rows: readonly SplitecoTxnRecord[]): { fromId: string; toId: string; amountMinor: number }[] {
+/** One bucket's plan: the fewest payments when the group simplifies debts, else pair by pair (SE2). */
+export function bucketPlan(rows: readonly SplitecoTxnRecord[], bucket: (typeof BUCKETS)[number], simplify = true) {
+  return planFor(engineTxns(bucketRows(rows, bucket)), simplify);
+}
+
+/**
+ * The plan worked out within each bucket (simplify runs within each balance),
+ * then summed per pair: the fewest payments, or with `simplify` off, each
+ * pair's own net.
+ */
+export function bucketedPlan(rows: readonly SplitecoTxnRecord[], simplify = true): { fromId: string; toId: string; amountMinor: number }[] {
   const net = new Map<string, number>();
   for (const bucket of BUCKETS) {
-    for (const p of settlePlan(engineTxns(bucketRows(rows, bucket))).payments) {
+    for (const p of bucketPlan(rows, bucket, simplify)) {
       const [lo, hi, sign] = p.fromId < p.toId ? [p.fromId, p.toId, 1] : [p.toId, p.fromId, -1];
       const key = `${lo}\u0000${hi}`;
       net.set(key, (net.get(key) ?? 0) + sign * p.amountMinor);

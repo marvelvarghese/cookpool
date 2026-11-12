@@ -15,6 +15,12 @@ export interface ActorContext {
 export interface SplitecoDeps {
   /** The clock every write stamps. */
   now?: () => Date;
+  /**
+   * Keeps the invocation alive for work after the response (the runtime's
+   * `ExecutionContext.waitUntil`, which index.ts passes). Without one (tests),
+   * deferred work runs before the response instead — never dropped.
+   */
+  waitUntil?: (work: Promise<unknown>) => void;
 }
 
 export interface RequestContext {
@@ -27,4 +33,10 @@ export interface RequestContext {
   groups: Groups;
   /** What people are called. */
   people: People;
+  /**
+   * Run `work` after the response, best-effort (SE2's reminder and paid-you
+   * sends, once the write has committed). It never fails the request;
+   * anything it throws is swallowed.
+   */
+  defer(work: () => Promise<unknown>): Promise<void>;
 }
