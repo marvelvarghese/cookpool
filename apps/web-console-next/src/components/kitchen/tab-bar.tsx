@@ -5,7 +5,12 @@ import Link from "./link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { listenForDrags, prefersReducedMotion } from "@/lib/gestures";
+import { normalizePath, transitions } from "@/lib/transitions";
 import { isTabActiveIn, kitchenTabs } from "./nav";
+import { barDirection, barTabAt } from "./tab-swipe";
+import { rememberTab } from "./tab-preview";
+import { navigate } from "./transition-ui";
 import { kitchenIcon } from "./icons";
 
 /**
@@ -76,40 +81,148 @@ function TodayTabBar({ onAdd, addOpen }: { onAdd: () => void; addOpen: boolean }
   );
 }
 
+/** A light tap of the motor as the bar's highlight crosses to another tab, where the phone has one; never with reduced motion. */
+function tick(): void {
+  if (prefersReducedMotion()) return;
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(8);
+  } catch {
+    // Some browsers refuse vibrate outside a user gesture; a missing tick is fine.
+  }
+}
+
+/** The floating bar's padding (Tailwind `p-1.5`), inside which the five cells sit. */
+const BAR_PAD_PX = 6;
+
 /**
  * The new frame's tab bar (cookpool-revamp RV-2, design §3, the `HomeRevamp`
  * board's <nav>): it floats 12px from the sides and 14px from the bottom (or
  * above the home indicator, whichever is higher), radius 24, on `nav-bg` (ink
  * in light mode, the card in dark). The current tab is filled with the accent,
  * its words `on-accent`; the others are `nav-ink`. Labels are 11px, Medium.
+ *
+ * Sliding along it (RV-12): a finger pressed on the bar and moved sideways
+ * takes the fill with it, gliding from tab to tab under the finger with a
+ * light haptic at each crossing; lifting opens the tab it is on (the page
+ * slides that way, `swipe-next`/`swipe-prev`). A plain tap is the link's, as
+ * before. The slide reads the finger through PW-7's `listenForDrags`.
  */
 function FloatingTabBar() {
   const pathname = usePathname();
+  const tabs = kitchenTabs(true).filter((item) => item.kind === "link");
+  const active = tabs.findIndex((item) => isTabActiveIn(true, item.id, pathname));
+  const nav = React.useRef<HTMLElement>(null);
+  // The tab under the sliding finger; null when no slide is on (the bar is exactly RV-2's).
+  const [slideAt, setSlideAt] = React.useState<number | null>(null);
+  const activeRef = React.useRef(active);
+  activeRef.current = active;
+  const hrefs = tabs.map((t) => t.href).join(" ");
+
+  React.useEffect(() => {
+    const el = nav.current;
+    if (!el) return;
+    const list = hrefs.split(" ");
+    let at = -1;
+    let rect = { left: 0, width: 0 };
+    let startX = 0;
+    let swallow = 0;
+    // A slide that lifted on a tab must not also be the link's click.
+    const onClick = (e: MouseEvent) => {
+      if (performance.now() < swallow) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    el.addEventListener("click", onClick, true);
+    const stop = listenForDrags(el, {
+      begin(start) {
+        const r = el.getBoundingClientRect();
+        rect = { left: r.left, width: r.width };
+        startX = start.x;
+        at = -1;
+        return (dx, dy) => Math.abs(dx) > Math.abs(dy);
+      },
+      move(dx) {
+        const next = barTabAt(startX + dx, rect, list.length, BAR_PAD_PX);
+        if (at === -1) {
+          // The fill starts where it is (the current tab), then glides under the finger.
+          at = activeRef.current >= 0 ? activeRef.current : next;
+          setSlideAt(at);
+        }
+        if (next === at) return;
+        at = next;
+        tick();
+        requestAnimationFrame(() => setSlideAt(next));
+      },
+      end(_drag, cancelled) {
+        const to = at;
+        at = -1;
+        swallow = performance.now() + 500;
+        const from = activeRef.current;
+        const direction = barDirection(from, to);
+        const href = list[to];
+        // Lifting on the tab already shown does nothing (on a page under it, it goes to its root, as a tap does).
+        const here = href !== undefined && normalizePath(window.location.pathname) === normalizePath(href);
+        if (cancelled || to < 0 || !href || here) {
+          setSlideAt(null);
+          return;
+        }
+        rememberTab(window.location.pathname);
+        const go = () => {
+          if (!navigate(href, { kind: "tab" })) window.location.assign(href);
+        };
+        if (direction) transitions.tabSwiped(direction, go);
+        else go();
+        // The fill stays on the chosen tab until the page shows it current.
+        window.setTimeout(() => setSlideAt(null), 1500);
+      },
+    });
+    return () => {
+      stop();
+      el.removeEventListener("click", onClick, true);
+    };
+  }, [hrefs]);
+
+  // The new tab is current: the bar is RV-2's again.
+  React.useEffect(() => setSlideAt(null), [pathname]);
+
+  const lit = slideAt ?? active;
   return (
     <nav
+      ref={nav}
       aria-label="Main"
       data-toast-above=""
       // It stays put while the page moves (RC-11's page transitions).
       data-vt-keep="tabs"
+      // Its drags are its own (the slide): the edge swipe never starts here.
+      data-gestures="off"
       className={cn(
         "fixed inset-x-3 bottom-[max(14px,env(safe-area-inset-bottom))] z-40 mx-auto max-w-lg",
         "h-[68px] rounded-[24px] bg-cp-nav-bg p-1.5 shadow-cp-nav min-[900px]:hidden",
       )}
     >
-      <ul className="grid h-full grid-cols-5 items-center">
-        {kitchenTabs(true).map((item) => {
-          if (item.kind !== "link") return null;
-          const active = isTabActiveIn(true, item.id, pathname);
+      {slideAt !== null ? (
+        <span
+          aria-hidden
+          data-tab-highlight=""
+          className="pointer-events-none absolute bottom-1.5 left-1.5 top-1.5 w-[calc((100%-12px)/5)] rounded-[18px] bg-primary transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none"
+          style={{ transform: `translate3d(${slideAt * 100}%, 0, 0)` }}
+        />
+      ) : null}
+      <ul className="relative grid h-full grid-cols-5 items-center">
+        {tabs.map((item, i) => {
+          const current = i === active;
           const Icon = kitchenIcon(item.icon);
           return (
             <li key={item.id}>
               <Link
                 href={item.href}
-                aria-current={active ? "page" : undefined}
+                aria-current={current ? "page" : undefined}
                 className={cn(
                   "flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-[18px] text-[11px] font-medium transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  active ? "bg-primary text-primary-foreground" : "text-cp-nav-ink",
+                  // While a slide is on, the fill is the gliding highlight's; the words follow it.
+                  slideAt === null ? (current ? "bg-primary text-primary-foreground" : "text-cp-nav-ink") : i === lit ? "text-primary-foreground" : "text-cp-nav-ink",
                 )}
               >
                 <Icon className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />

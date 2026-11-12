@@ -442,4 +442,70 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - Typing 3 over Eggs' grey 2 and ticking sent `{"quantity":"3","unit":"pcs"}`, with the toast "Logged 3 eggs · ₹8.50 · Undo". The toast's Undo sent `…/me/moves/mov_13/undo` and unticked the row.
 - Milk's unit opened glasses · ml · L. Picking ml made the grey amount 250 ml and kept `u:ml` for the food. In dark, the tick sent `{"quantity":"250","unit":"ml",…}` and the row turned gold.
 
+### RV1 — Native-feeling tab swipe, and swiping on the tab bar (RV-12)
+
+**Built** (`apps/web-console-next`). No routes, no migrations, no contracts or SDK change. New frame only, below 900 px, as RV-9's swipe.
+
+- **The page tracks the finger** (`TabSwipe`, `gestures-ui.tsx`):
+  - `<main>` follows one to one (`tabSwipeOffset(pathname, dx, width)`, never past a full width). RV-9's 0.3× follow with a 72 px cap is gone.
+  - The tab beside comes in alongside it, one width away. It is an absolutely positioned, `aria-hidden`, `pointer-events-none` layer (`fixed top-0 z-30 h-dvh`, under the bars) that moves with the finger.
+  - Moves still come through PW-7's `listenForDrags`. They are coalesced to one paint per `requestAnimationFrame`, with `translate3d` only, and `will-change: transform` on both layers only while dragging. Nothing is transformed at rest.
+  - Reversing mid-drag swaps the preview to the other neighbour.
+- **What the neighbour layer shows** (`components/kitchen/tab-preview.ts`, new): a snapshot. It is a detached `cloneNode` of `<main>` (ids and inline view-transition names stripped), taken:
+  - about 1 s after arriving on a tab root, at idle (`requestIdleCallback`);
+  - again as the tab is left by a swipe or the bar.
+  - A tab not seen yet this visit shows its title (`K_TITLE`) over the frame's skeleton.
+  - The copies live in memory only, so a reload starts with skeletons.
+  - **Why a snapshot, not the live page or an early navigation:** both of those mount a whole React tab (queries, effects, layout) in the first frames of the gesture, which is where a mid-range phone drops frames. Navigating early would also bring a view transition and a scroll reset mid-drag. With a snapshot, the drag only moves two composited layers. Then `router.push` (via `navigate(href, { kind: null })`, so nothing animates twice) commits once the spring has settled, and the real page replaces the copy in the same frame (a layout effect resets the page on arrival).
+- **Release** (`tabSwipeRelease(pathname, dx, vx, width)`):
+  - Opens the tab beside past 35% of the width (`TAB_SWIPE_FRACTION`), or on a flick of ≥ 0.5 px/ms toward it after 24 px (PW-7's `FLICK_PX_PER_MS`/`FLICK_MIN_PX`).
+  - A flick back (≥ 0.5 px/ms away) cancels however far it went. Nothing opens past either end.
+- **Settle:** a critically damped spring, in closed form (`springAt`, `springFrame`), with ω = 0.028/ms (`TAB_SPRING_OMEGA`). It starts at the finger's release speed.
+  - From rest, a full width settles in about 300 ms.
+  - It is done within 0.5 px and below 0.05 px/ms, at 450 ms at most, or the moment it would pass its target (so a fast flick never shows the gap beyond the tab).
+  - A cancelled swipe springs back the same way.
+- **Rubber band** past Home and You (`rubberBand`: (1 − 1/(|dx|·0.55/w + 1))·w). `tabSwipeClaims` now takes a sideways drag toward an end too (RV-9 ignored it), so the page resists and springs back.
+- **Reduced motion:** nothing moves. On release the same rule decides, and the tab opens with the existing `reduced` fade (`transitions.tabSwiped`).
+- **Kept unchanged:** the 8 px decision with no `preventDefault` before it, the 1.6 ratio, the 24 px edges, and every exclusion (sideways scrollers, `OWN_DRAGS`, `NO_TAB_SWIPE`, open sheets and dialogs).
+- **The tab bar slides** (`FloatingTabBar`, `tab-bar.tsx`):
+  - A sideways drag on the bar (through `listenForDrags`; `|dx| > |dy|`, decided at 8 px) shows a gliding highlight: `[data-tab-highlight]`, `bg-primary`, 200 ms transform, none with reduced motion.
+  - The highlight starts on the current tab and moves to the cell under the finger (`barTabAt`: five equal cells inside the 6 px padding, clamped to the ends). The label under it turns `text-primary-foreground`.
+  - Each crossing calls `navigator.vibrate(8)`, only where it exists and never with reduced motion.
+  - Lifting on another tab opens it with RV-9's `swipe-next`/`swipe-prev` slide (`barDirection`). Lifting on the tab already shown does nothing. The click that follows a slide is swallowed.
+  - A plain tap is the link's, as before. At rest the bar's markup is RV-2's (current tab `bg-primary text-primary-foreground`).
+  - The bar gains `data-gestures="off"`, so the installed iPhone's edge swipe never starts on it.
+  - It works on every page that shows the bar.
+
+**Departures**
+- **Distance threshold:** 35% of the width replaces RV-9's 64 px, and flicks now count. RV-9's status said flicks were ignored on purpose; RV-12 asks for them.
+- **The swipe no longer uses the `swipe-next`/`swipe-prev` view transitions:** the page has already moved with the finger. Those styles now serve the bar's slide. The swipe's no-view-transitions fallback (iOS before 18) is no longer needed: the spring works everywhere.
+- **The first visit to a tab shows a skeleton**, not live data, as the neighbour.
+- **A new swipe can't start during the ~300 ms settle.**
+
+**Pinned values changed** (`tests/web-console-next/src/kitchen-tab-swipe.test.ts`, each on purpose):
+- `TAB_SWIPE_PX` (64) → `TAB_SWIPE_FRACTION` 0.35 and `TAB_SWIPE_FLICK_PX_PER_MS` 0.5.
+- `TAB_SWIPE_RESISTANCE`/`TAB_SWIPE_MAX_PX` removed: the offset is 1:1, and rubber-banded toward an end.
+- `tabSwipeClaims("/home", 30, 0)` and `("/you", -30, 0)`: false → true (rubber band).
+- `tabSwipeRelease` takes `vx` and `width`.
+- "a short swipe springs back" now holds still before lifting. The same swipe, flicked, opens the tab (new test).
+
+**Tests.**
+- `tests/web-console-next`: 119 suites, 2,355 tests, all passing.
+- New `kitchen-tab-swipe-native.test.ts` (16 tests): release by distance, by flick, a flick back, the ends; the rubber band; the spring (closed form and its derivative, about 300 ms with no overshoot, spring back, the release speed carries, the cap); the bar's finger-to-cell mapping, its ends and direction; the bar at rest (RV-2's markup, `data-gestures="off"`); and the haptic guard.
+- `kitchen-tab-swipe.test.ts`: 19 tests (RV-9's 18, updated as above, plus 1).
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 44 pages served as files.
+
+**Browser check.** Headless Chromium (Playwright) at 390 × 844, touch and mobile, light and dark, CPU throttled 4× to stand in for a mid-range phone.
+- **Setup:** `next dev` on 47720 behind RV-10's in-memory API mock on `cookpool-stage.localhost:47721` (never committed). Every request to another host was aborted and logged: none were made.
+- **Input:** real touches through CDP `Input.dispatchTouchEvent`. The throttled flick was sent as in-page `TouchEvent`s, because CDP itself can't send a flick fast enough under throttle.
+- **Slow drag** Kitchen → left, 120 px: `<main>` at −120 px, and Cook's layer at +270 px beside it.
+- **Cancel:** let go there, slowly. It sprang back (−67 px 60 ms later, then at rest with no transform) and stayed on Kitchen.
+- **Flick** (about 90 px at about 1 px/ms, under 4× throttle) switched Cook → Money.
+- **Rubber band:** Home dragged right by 200 px moved 85.8 px and sprang back.
+- **Vertical scroll:** a vertical drag scrolled the page by 285 px, with no transform.
+- **The bar:** sliding from Kitchen to Money moved the highlight to `translate3d(300%)`, lit "Money" and ticked twice. Lifting opened `/money`. A plain tap on Cook opened `/cook`.
+- **A seen neighbour:** swiping right on Cook showed Kitchen's copy (not the skeleton).
+- **Frame rate** (`requestAnimationFrame` intervals, read with `performance.now()`, 4× throttle): during the slow drag, 60 fps (avg 16.67 ms, worst 16.8 ms, 0 frames over 20 ms, 148 frames). During the throttled flick and its settle, 60.6 fps (one 24.8 ms frame, at the commit). This is headless desktop Chromium with a CPU throttle, not a real phone.
+
 **Deploy.** Only the console changes.

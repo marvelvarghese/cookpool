@@ -24,7 +24,12 @@ import {
 import { edgeSwipeBackOn, pullsToRefresh, readEdgeSwipeEnv, type EdgeSwipeEnv } from "./gestures";
 import { shownBackAction, useBack } from "./back-ui";
 import { navigate } from "./transition-ui";
-import { tabSwipeOffset, tabSwipeOn, tabSwipeRelease, tabSwipeRule } from "./tab-swipe";
+import { neighbourTab, springFrame, tabSwipeDirection, tabSwipeOffset, tabSwipeOn, tabSwipeRelease, tabSwipeRule } from "./tab-swipe";
+import { rememberTab, rememberWhenIdle, tabSnapshot } from "./tab-preview";
+import { NEW_FRAME_TABS } from "./nav";
+import { K_TITLE } from "./kit";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { TabSwipeDirection } from "@/lib/transitions";
 
 /**
  * The kitchen frame's gestures (cookpool-app PW-7, design §5), mounted once
@@ -291,17 +296,28 @@ function sheetOpen(): boolean {
   return document.querySelector('[role="dialog"], [role="alertdialog"]') !== null;
 }
 
+// Before paint where there is a DOM (the arrival resets the page in the frame it shows); a no-op prerendered.
+const useIsoLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+
+const translate = (x: number) => (x !== 0 ? `translate3d(${x}px, 0, 0)` : "");
+
 /**
- * Swiping between the tabs (cookpool-revamp RV-9), on the five tabs' roots
- * in the new frame, on a phone. A drag on the page that turns out sideways
- * (`tabSwipeRule`: more than 1.6× as sideways as up or down, known by the
- * first moves) moves the page a little with the finger; let go past 64 px
- * and the tab beside it opens with a slide that way (`swipe-next` or
- * `swipe-prev`, the page transitions); short of that it springs back. A drag
- * that turns vertical is the browser's scroll, untouched. Touches on what
- * scrolls sideways, swipe rows, fields, sliders, sheets and the bars, or
- * within 24 px of either side, are never taken. With reduced motion the
- * page doesn't move: the tab just opens.
+ * Swiping between the tabs (cookpool-revamp RV-9, made native in RV-12), on
+ * the five tabs' roots in the new frame, on a phone. A drag on the page that
+ * turns out sideways (`tabSwipeRule`: more than 1.6× as sideways as up or
+ * down, known by the first moves) takes the page with the finger, one to
+ * one, and the tab beside it comes in alongside: a copy of how it last looked
+ * (tab-preview.ts), or its title over a skeleton. Moves are coalesced to one
+ * paint per frame, by `translate3d` only, with `will-change` while it drags.
+ *
+ * Let go past 35% of the width or flick (0.5 px/ms) and the page springs the
+ * rest of the way (a critically damped spring, about 300 ms, starting at the
+ * finger's speed), then the tab opens (`router.push`, no second animation);
+ * short of that, or on a flick back, it springs back. Past the first and
+ * last tabs the page rubber-bands. A drag that turns vertical is the
+ * browser's scroll, untouched. Touches on what scrolls sideways, swipe rows,
+ * fields, sliders, sheets and the bars, or within 24 px of either side, are
+ * never taken. With reduced motion nothing moves: the tab just opens.
  */
 export function TabSwipe({ page }: { /** Where a swipe may start, and what moves (the kitchen's `<main>`). */ page: React.RefObject<HTMLElement | null> }) {
   const pathname = usePathname() ?? "";
@@ -313,65 +329,183 @@ export function TabSwipe({ page }: { /** Where a swipe may start, and what moves
     return () => window.removeEventListener("resize", read);
   }, []);
   const on = width !== null && tabSwipeOn(pathname, { newFrame: newFrame(), width });
+
+  const layer = React.useRef<HTMLDivElement>(null);
+  const host = React.useRef<HTMLDivElement>(null);
+  const skeleton = React.useRef<HTMLDivElement>(null);
+  const title = React.useRef<HTMLHeadingElement>(null);
+  // Settling or opening the tab: no new swipe until the page is back or gone.
+  const busy = React.useRef(false);
   const leaving = React.useRef<number | null>(null);
+  const frame = React.useRef<number | null>(null);
+
+  const hidePreview = React.useCallback(() => {
+    const l = layer.current;
+    if (!l) return;
+    l.style.display = "none";
+    l.style.transform = "";
+    l.style.willChange = "";
+    l.dataset.tab = "";
+    host.current?.replaceChildren();
+  }, []);
 
   const reset = React.useCallback(() => {
     if (leaving.current !== null) window.clearTimeout(leaving.current);
     leaving.current = null;
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    busy.current = false;
     const main = page.current;
     if (main) {
       main.style.transition = "";
       main.style.transform = "";
+      main.style.willChange = "";
     }
-  }, [page]);
+    hidePreview();
+  }, [page, hidePreview]);
 
   React.useEffect(() => reset, [reset]);
-  React.useEffect(() => {
+  useIsoLayoutEffect(() => {
     reset();
   }, [pathname, on, reset]);
+  // Each tab is copied once the person has been on it a moment, for the swipe back to show.
+  React.useEffect(() => (on ? rememberWhenIdle(pathname) : undefined), [on, pathname]);
 
   React.useEffect(() => {
     const main = page.current;
-    if (!on || !main) return;
+    const l = layer.current;
+    if (!on || !main || !l) return;
     let still = false;
+    let started = false;
+    let w = 0;
+    let dxNow = 0;
+    // Which side the preview is on: +1 the next tab (to the right), −1 the previous.
+    let side = 0;
 
-    const slide = (x: number, settle: boolean) => {
-      main.style.transition = settle ? `transform ${SETTLE_MS}ms ${SETTLE_EASE}` : "none";
-      // No transform at rest: a transformed box would hold the page's fixed parts.
-      main.style.transform = x !== 0 ? `translate3d(${x}px, 0, 0)` : "";
+    // The tab beside, that way, into the preview (its copy, or its title over a skeleton); false if there is none.
+    const showNeighbour = (direction: TabSwipeDirection | null): boolean => {
+      const href = direction ? neighbourTab(pathname, direction) : null;
+      if (!href || !direction) {
+        if (side !== 0) hidePreview();
+        side = 0;
+        return false;
+      }
+      side = direction === "next" ? 1 : -1;
+      if (l.dataset.tab === href) return true;
+      const copy = tabSnapshot(href);
+      host.current?.replaceChildren(...(copy ? [copy] : []));
+      if (skeleton.current) skeleton.current.style.display = copy ? "none" : "";
+      if (title.current) title.current.textContent = NEW_FRAME_TABS.find((t) => t.href === href)?.label ?? "";
+      const rect = main.getBoundingClientRect();
+      l.style.left = `${rect.left}px`;
+      l.style.width = `${rect.width}px`;
+      l.style.willChange = "transform";
+      l.style.display = "block";
+      l.dataset.tab = href;
+      return true;
+    };
+
+    // The page at `x`, and the tab beside one width away from it.
+    const place = (x: number) => {
+      main.style.transform = translate(x);
+      if (side !== 0) l.style.transform = `translate3d(${x + side * w}px, 0, 0)`;
+    };
+
+    const paintDrag = () => {
+      frame.current = null;
+      const x = tabSwipeOffset(pathname, dxNow, w);
+      showNeighbour(tabSwipeDirection(x));
+      place(x);
+    };
+
+    const settle = (from: number, to: number, v0: number, done: () => void) => {
+      const d0 = from - to;
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const f = springFrame(d0, v0, now - t0);
+        place(to + f.d);
+        if (f.done) {
+          frame.current = null;
+          done();
+        } else frame.current = requestAnimationFrame(step);
+      };
+      frame.current = requestAnimationFrame(step);
+    };
+
+    const open = (href: string, direction: TabSwipeDirection, animated: boolean) => {
+      // The new screen resets the page; if none comes, put it back anyway.
+      leaving.current = window.setTimeout(reset, 1500);
+      // This tab as it looks now, for the swipe back.
+      rememberTab(pathname);
+      const go = () => {
+        if (!navigate(href, { kind: animated ? null : "tab" })) window.location.assign(href);
+      };
+      // Animated: the page is there already, nothing more plays. Reduced: the tab step's own (a short fade).
+      if (animated) go();
+      else transitions.tabSwiped(direction, go);
     };
 
     return listenForDrags(main, {
       begin(start, target) {
-        if (leaving.current !== null) return null;
+        if (busy.current) return null;
         still = prefersReducedMotion();
+        started = false;
         return tabSwipeRule(start, target, main, { pathname, width: window.innerWidth, sheetOpen: sheetOpen() });
       },
       move(dx) {
-        if (!still) slide(tabSwipeOffset(pathname, dx), false);
+        if (still) return;
+        if (!started) {
+          started = true;
+          w = window.innerWidth;
+          main.style.transition = "none";
+          main.style.willChange = "transform";
+        }
+        dxNow = dx;
+        frame.current ??= requestAnimationFrame(paintDrag);
       },
       end(drag, cancelled) {
-        const to = cancelled ? null : tabSwipeRelease(pathname, drag.dx);
-        if (!to) {
-          if (!still) slide(0, true);
+        if (frame.current !== null) cancelAnimationFrame(frame.current);
+        frame.current = null;
+        const width = still || !started ? window.innerWidth : w;
+        const to = cancelled ? null : tabSwipeRelease(pathname, drag.dx, drag.vx, width);
+        if (still || !started) {
+          if (to) open(to.href, to.direction, false);
           return;
         }
-        // The new screen resets the page; if none comes, put it back anyway.
-        leaving.current = window.setTimeout(reset, 1500);
-        const go = () => {
-          if (!navigate(to.href, { kind: "tab" })) window.location.assign(to.href);
-        };
-        if (still || transitions.supported()) {
-          // The page transition slides from where the finger left the page (or, reduced, just switches).
-          transitions.tabSwiped(to.direction, go);
+        busy.current = true;
+        const from = tabSwipeOffset(pathname, drag.dx, w);
+        if (to) {
+          showNeighbour(to.direction);
+          settle(from, to.direction === "next" ? -w : w, drag.vx, () => open(to.href, to.direction, true));
           return;
         }
-        // No view transitions (iOS before 18): the page slides away itself, then the tab opens.
-        slide(to.direction === "next" ? -window.innerWidth : window.innerWidth, true);
-        window.setTimeout(go, SETTLE_MS);
+        // Back: at the finger's speed when it was following one to one; a rubber band just eases home.
+        const following = tabSwipeDirection(from) !== null && neighbourTab(pathname, tabSwipeDirection(from)!) !== null;
+        settle(from, 0, following ? drag.vx : 0, () => {
+          main.style.willChange = "";
+          hidePreview();
+          side = 0;
+          busy.current = false;
+        });
       },
     });
-  }, [on, page, pathname, reset]);
+  }, [on, page, pathname, reset, hidePreview]);
 
-  return null;
+  return (
+    <div
+      ref={layer}
+      aria-hidden
+      // The tab beside, while a swipe drags (RV-12): under the bars, over nothing else.
+      className="pointer-events-none fixed top-0 z-30 h-dvh overflow-hidden bg-background"
+      style={{ display: "none" }}
+    >
+      <div ref={skeleton} className="space-y-5 px-4 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
+        <h1 ref={title} className={K_TITLE} />
+        <Skeleton className="h-14 w-full rounded-2xl" />
+        <Skeleton className="h-36 w-full rounded-[20px]" />
+        <Skeleton className="h-28 w-full rounded-[20px]" />
+      </div>
+      <div ref={host} />
+    </div>
+  );
 }
