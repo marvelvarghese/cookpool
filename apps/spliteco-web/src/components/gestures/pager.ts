@@ -32,10 +32,13 @@ export function usePager({ index, count, onChange }: { index: number; count: num
   const [dragging, setDragging] = React.useState(false);
   const live = useLatest({ index, count, onChange });
 
-  // At rest (and after each change), the track sits on its page.
+  // At rest (and after each change), the track sits on its page; the first
+  // placement is instant, so a deep link opens on its page without sliding there.
+  const placed = React.useRef<HTMLElement | null>(null);
   React.useEffect(() => {
     if (!track) return;
-    track.style.transition = settleTransition(true);
+    track.style.transition = settleTransition(placed.current === track);
+    placed.current = track;
     track.style.transform = `translate3d(${-index * 100}%, 0, 0)`;
     setPosition(index);
   }, [track, index]);
