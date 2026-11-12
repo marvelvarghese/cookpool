@@ -23,6 +23,9 @@ import { METHOD_LABELS, buildRequest, emptyItem, switchFromItems, formFromInput,
 import { problemText } from "@/lib/problems";
 import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
 import { useMe } from "@/lib/me";
+import { applyScan, takeScan, type ScanHandoff } from "@/lib/scan";
+import { liveDraftFrom } from "@/lib/live";
+import { sessionStore } from "@/lib/return-to";
 
 type View = "main" | "paid" | "split" | "items";
 
@@ -70,6 +73,9 @@ function Add() {
   const [busy, setBusy] = React.useState(false);
   const keyRef = React.useRef<string | null>(null);
   const titleTouchedCategory = React.useRef(false);
+  // A scanned receipt handed over by /scan (SE4), read once and kept for this form.
+  const scanRef = React.useRef<ScanHandoff | null | undefined>(undefined);
+  const [liveBusy, setLiveBusy] = React.useState(false);
 
   const setForm = React.useCallback((f: ExpenseForm | ((f: ExpenseForm) => ExpenseForm)) => {
     keyRef.current = null;
@@ -121,16 +127,26 @@ function Add() {
           if (x.expense.input) setFormState(formFromInput(x.expense.input, members, meId));
           else setError("Cookpool posted this one — change it in Cookpool.");
         } else {
+          if (scanRef.current === undefined) scanRef.current = params.get("from") === "scan" ? takeScan(sessionStore()) : null;
+          const scan = scanRef.current;
           setFormState((cur) => {
             const method = (params.get("method") as SplitecoSplitMethod | null) ?? cur?.method ?? "equal";
-            const next = newForm(members, meId, method);
+            let next = newForm(members, meId, method);
             if (cur) {
               next.title = cur.title;
               next.amountText = cur.amountText;
               next.category = cur.category;
               next.note = cur.note;
               next.occurredOn = cur.occurredOn;
+              // Items typed (or scanned) so far stay, with only this group's people on them.
+              if (cur.method === "items" && next.method === "items" && cur.items.length > 0) {
+                const inGroup = new Set(members);
+                next.items = cur.items.map((it) => ({ ...it, shares: Object.fromEntries(Object.entries(it.shares).filter(([id]) => inGroup.has(id))) }));
+                next.adjustments = cur.adjustments;
+              }
             }
+            // The scan fills the items (or the total) once; nothing is saved until Save.
+            if (scan && !cur) next = applyScan(next, scan.draft, scan.how);
             return next;
           });
           if (params.get("method") === "items" && !openedItems.current) {
@@ -198,6 +214,24 @@ function Add() {
     }
   }
 
+  async function openLive() {
+    if (!group || !form) return;
+    const draft = liveDraftFrom(form);
+    if (!draft.ok) {
+      setError(draft.why);
+      return;
+    }
+    setLiveBusy(true);
+    setError(null);
+    try {
+      const r = await client.spliteco.openLive(group.group.id, draft.request, { idempotencyKey: newIdempotencyKey() });
+      router.push(`/live/${r.session.code}`);
+    } catch (err) {
+      setError(errorText(err));
+      setLiveBusy(false);
+    }
+  }
+
   if (view === "paid") return <PaidByView ctx={ctx} onDone={back} />;
   if (view === "split") {
     return (
@@ -226,6 +260,7 @@ function Add() {
         canSave={built.ok}
         busy={busy}
         error={error}
+        {...(editId ? {} : { onLive: openLive, liveBusy })}
       />
     );
   }
@@ -260,6 +295,12 @@ function Add() {
             <Icon name={group.group.kind} size={16} />
             {groupLabel}
           </button>
+          {editId ? null : (
+            <button className="chip" style={{ marginLeft: "auto" }} onClick={() => router.push(`/scan?group=${encodeURIComponent(group.group.id)}`)}>
+              <Icon name="camera" size={16} />
+              Scan a receipt
+            </button>
+          )}
         </div>
 
         <section className="card" style={{ gap: 12, padding: 18 }}>

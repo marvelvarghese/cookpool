@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { sessionStore, takeReturn } from "@/lib/return-to";
 import { useSession } from "@/lib/session";
 
 // Where Google returns (only on a build with NEXT_PUBLIC_SPLITECO_GOOGLE=on):
@@ -30,7 +31,7 @@ export default function OAuthCallbackPage() {
     const token = params.get("token");
     if (token) {
       signIn(token);
-      router.replace("/");
+      router.replace(takeReturn(sessionStore()));
       return;
     }
     setError(ERROR_COPY[params.get("error") ?? ""] ?? "Something went wrong during sign-in. Please try again.");

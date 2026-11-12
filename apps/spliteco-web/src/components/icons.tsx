@@ -13,6 +13,18 @@ const PATHS: Record<string, React.ReactNode> = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  camera: (
+    <>
+      <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </>
+  ),
+  live: (
+    <>
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14" />
+    </>
+  ),
   activity: <path d="M3 12h4l3-7 4 14 3-7h4" />,
   you: (
     <>
