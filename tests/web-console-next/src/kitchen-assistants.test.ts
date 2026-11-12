@@ -42,22 +42,25 @@ const DLG = "dlg_0123456789abcdef0123456789abcdef";
 const TOKEN = "sps_dlg_0123456789abcdef0123456789abcdef.secret";
 
 describe("the consent switches", () => {
-  it("are the four scopes in order, all on but balances", () => {
+  it("are the five scopes in order, all on but money (balances, and Spliteco's expenses)", () => {
     expect(SCOPE_ROWS.map((r) => r.scope)).toEqual([...ASSISTANT_SCOPES]);
-    expect(ASSISTANT_SCOPES).toEqual(["kitchen.read", "money.read", "timers.write", "suggest.write"]);
+    expect(ASSISTANT_SCOPES).toEqual(["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"]);
     expect(SCOPE_ROWS.map((r) => r.label)).toEqual([
       "Read your kitchen",
       "See your balances",
       "Set cooking timers",
       "Suggest uses and purchases",
+      "Add and edit Spliteco expenses",
     ]);
-    expect(defaultSwitches()).toEqual({ "kitchen.read": true, "money.read": false, "timers.write": true, "suggest.write": true });
+    expect(SCOPE_ROWS.find((r) => r.scope === "money.write")!.sub).toBe("Never records payments");
+    expect(defaultSwitches()).toEqual({ "kitchen.read": true, "money.read": false, "timers.write": true, "suggest.write": true, "money.write": false });
     expect(chosenScopes(defaultSwitches())).toEqual(["kitchen.read", "timers.write", "suggest.write"]);
   });
 
   it("flip one at a time, keep the stored order, and Allow needs one on", () => {
     let s = flipScope(defaultSwitches(), "money.read");
     expect(chosenScopes(s)).toEqual(["kitchen.read", "money.read", "timers.write", "suggest.write"]);
+    expect(chosenScopes(flipScope(s, "money.write"))).toEqual(["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"]);
     s = flipScope(flipScope(flipScope(flipScope(s, "kitchen.read"), "money.read"), "timers.write"), "suggest.write");
     expect(chosenScopes(s)).toEqual([]);
     expect(canAllow(s)).toBe(false);

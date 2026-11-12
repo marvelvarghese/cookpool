@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { SplitecoActivityEntry, SplitecoActivityResponse } from "@saas/contracts/spliteco";
 import { filterEntries, type ActivityFilter as Filter } from "@/lib/view";
 import { Avatar, Loading, Screen, useLoad } from "@/components/ui";
-import { activityLine, timeAgo } from "@/lib/activity-text";
+import { activityLine, timeAgo, viaChip } from "@/lib/activity-text";
 import { nameOf, namesFrom } from "@/lib/people";
 import { useMe } from "@/lib/me";
 
@@ -69,7 +69,7 @@ function Entries({ data, filter, me }: { data: SplitecoActivityResponse; filter:
                   <span style={{ fontSize: 14, lineHeight: 1.4, color: "var(--text-2)" }}>
                     <b style={{ color: "var(--text)" }}>{line.actor}</b> {line.text}
                   </span>
-                  {e.viaDelegation ? <span className="tag" style={{ alignSelf: "flex-start" }}>via an assistant</span> : null}
+                  {viaChip(e) ? <span className="tag" style={{ alignSelf: "flex-start" }}>{viaChip(e)}</span> : null}
                   <span className={`small bold ${line.tone === "get" ? "get" : line.tone === "owe" ? "owe" : "dim"}`}>{line.effect}</span>
                   <span className="dim" style={{ fontSize: 11 }}>{timeAgo(e.at)}</span>
                 </div>

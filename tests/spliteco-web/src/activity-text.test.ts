@@ -17,6 +17,7 @@ const base: SplitecoActivityEntry = {
   otherGroupName: null,
   myEffectMinor: -130_717,
   viaDelegation: null,
+  viaAssistant: null,
 };
 
 describe("activity text", () => {

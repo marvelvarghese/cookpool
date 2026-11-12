@@ -9,7 +9,7 @@ import { Avatar, BackButton, Loading, Screen, Sheet, useLoad, useQueryParam, use
 import { whoPaid } from "@/components/expense-row";
 import { formatMoney, splitMoney } from "@/lib/money";
 import { nameOf, namesFrom } from "@/lib/people";
-import { CATEGORY_LABELS, longDate, timeAgo } from "@/lib/activity-text";
+import { CATEGORY_LABELS, longDate, timeAgo, viaChip } from "@/lib/activity-text";
 import { METHOD_LABELS } from "@/lib/split-form";
 import { historyText, myItems } from "@/lib/expense-view";
 import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
@@ -168,6 +168,7 @@ function Expense({ data, me, reload }: { data: SplitecoExpenseResponse; me: stri
         </div>
         <span className="small dim" style={{ fontSize: 13 }}>
           {whoPaid(e, names, me).replace(/ paid .*$/, " paid")} · {longDate(e.occurredAt)} · {e.groupName} · added by {nameOf(names, e.createdBy, me)}
+          {e.viaDelegation ? ` ${viaChip(e)}` : ""}
         </span>
         {e.note ? <p className="muted" style={{ margin: 0, fontSize: 14 }}>“{e.note}”</p> : null}
       </section>

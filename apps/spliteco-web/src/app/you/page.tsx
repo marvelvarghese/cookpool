@@ -61,16 +61,6 @@ export default function YouPage() {
     }
   }
 
-  const soon = (label: string, note: string) => (
-    <div className="row-between soon" style={{ minHeight: 52, borderBottom: "1px solid var(--line-soft)" }} aria-disabled="true">
-      <span className="stack" style={{ gap: 1 }}>
-        <span style={{ fontSize: 15, fontWeight: 600 }}>{label}</span>
-        <span className="small dim">{note}</span>
-      </span>
-      <span className="small dim">Coming soon</span>
-    </div>
-  );
-
   return (
     <Screen>
       <header className="hdr"><h1 className="h1">You</h1></header>
@@ -103,7 +93,14 @@ export default function YouPage() {
           </span>
           <Icon name="chevron" />
         </Link>
-        {soon("AI assistants", "Let Claude or ChatGPT log splits for you")}
+        <Link href="/you/assistants" className="lrow">
+          <span className="cat" style={{ background: "var(--cobalt-soft)", color: "var(--text)" }}><Icon name="sparkle" /></span>
+          <span className="main">
+            <span className="title">AI assistants</span>
+            <span className="sub">Let Claude, ChatGPT or Gemini log splits for you</span>
+          </span>
+          <Icon name="chevron" />
+        </Link>
       </section>
 
       <section aria-label="Preferences" className="stack s4">
