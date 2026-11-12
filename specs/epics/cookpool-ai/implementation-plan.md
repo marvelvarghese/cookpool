@@ -45,6 +45,15 @@ Each task is one pull request on `orun/AI-k-<slug>`, with its contract in `tasks
 - **AI-11: swaps and ideas in Cook now** (design §6).
 - **AI-12: close-out.**
 
+## AI6 — receipts and bills, round two
+
+- **AI-14: discounts, taxes and charges.** The read returns adjustments as their own lines, and after a scan the app asks whether item prices should include them.
+- **AI-15: Money, Scan a bill.** Add expense is filled from a photo by the same reader. Itemized splitting is left to Spliteco SE4.
+
+**Done when**
+- a receipt with a discount and GST asks once, then adds items whose costs add up to what was paid
+- a bill photo in Money fills Add expense
+
 ## Sequencing
 
 - **AI-2 first.** It builds the client, escalation, caching, limits and migration 470.

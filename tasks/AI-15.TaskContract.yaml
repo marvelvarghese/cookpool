@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-15
+  title: "Money: scan a bill"
+spec:
+  goal: "Add expense in Money gains Scan a bill: the photo is read by the receipt reader and fills the amount, title and date, asking the same taxes and discounts question."
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-15.TaskContract.yaml
+  doneWhen:
+    - "Add expense offers Scan a bill where AI is available, using the existing receipt route and the photo shrink"
+    - "the read fills the title, the date and the total, and asks whether to include taxes and charges and apply discounts"
+    - "the person still chooses who paid and the split before saving; nothing is saved by the scan alone"
+    - "itemized splitting is left for Spliteco SE4, which reuses this read"
+  gates: []
