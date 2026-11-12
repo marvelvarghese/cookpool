@@ -3,6 +3,7 @@
 //   POST   /v1/auth/delegations         { scopes, clientName, clientId, requestId? }
 //            → 201 { delegation, token }   (the token is shown this once)
 //   GET    /v1/auth/delegations         → { delegations }   (live ones, newest first)
+//   PATCH  /v1/auth/delegations/{dlg}   { scopes } → { delegation }   (within what was allowed at connect; SE-6)
 //   DELETE /v1/auth/delegations/{dlg}   → { id, revokedAt }
 //     A signed-in session only: a delegated token or an API key gets 403
 //     `forbidden` with `details.reason: "session_required"` (api-edge refuses
@@ -25,6 +26,7 @@ import {
   type DelegationsListResponse,
   type RefreshDelegationResponse,
   type RevokeDelegationResponse,
+  type UpdateDelegationResponse,
 } from "@saas/contracts/delegations";
 import { createTimings } from "@saas/contracts/timing";
 import { errorResponse, extractBearerToken, notFound, successResponse, validationError, withTimings } from "../http.js";
@@ -126,6 +128,22 @@ export async function handleRevokeDelegation(
     const result = await service.revoke(token, decodeURIComponent(id));
     if (isFailure(result)) return failure(result, requestId);
     return successResponse<RevokeDelegationResponse>(result, requestId);
+  });
+}
+
+export async function handleUpdateDelegation(
+  request: Request,
+  env: Env,
+  requestId: string,
+  deps?: DelegationHandlerDeps,
+): Promise<Response> {
+  const token = extractBearerToken(request);
+  const id = new URL(request.url).pathname.match(DELEGATION_ID_RE)?.[1] ?? "";
+  return withService(request, env, requestId, "identity.delegation.patch", deps, async (service) => {
+    const parsed = await readJson(request);
+    const result = await service.update(token, decodeURIComponent(id), parsed.ok ? parsed.body : undefined);
+    if (isFailure(result)) return failure(result, requestId);
+    return successResponse<UpdateDelegationResponse>(result, requestId);
   });
 }
 

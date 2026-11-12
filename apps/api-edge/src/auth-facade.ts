@@ -29,7 +29,8 @@ const AUTH_MULTI_METHOD_ROUTES: Record<string, Set<string>> = {
   "/v1/auth/delegations": new Set(["GET", "POST"]),
 };
 
-// DELETE /v1/auth/delegations/{dlg} (MC-2): revoke one.
+// DELETE /v1/auth/delegations/{dlg} (MC-2): revoke one. PATCH (cookpool-spliteco
+// SE-6): change what it may do, within what was allowed at connect.
 const DELEGATION_ID_RE = /^\/v1\/auth\/delegations\/[^/]+$/;
 
 // DELETE /v1/auth/passkeys/{pky} (PK-2): remove one. Matched after the exact
@@ -84,15 +85,17 @@ export async function handleAuthRoute(
   const expectedMethod = AUTH_ROUTES[pathname];
   const allowedMethods = AUTH_MULTI_METHOD_ROUTES[pathname];
   const oauth = isOAuthRoute(pathname);
-  // Both take one DELETE: revoke a delegation (MC-2), remove a passkey (PK-2).
-  const delegation = DELEGATION_ID_RE.test(pathname) || PASSKEY_ID_RE.test(pathname);
+  // Both take one DELETE: revoke a delegation (MC-2), remove a passkey (PK-2);
+  // a delegation also takes PATCH (SE-6).
+  const delegationId = DELEGATION_ID_RE.test(pathname);
+  const delegation = delegationId || PASSKEY_ID_RE.test(pathname);
 
   if (!expectedMethod && !allowedMethods && !oauth && !delegation) {
     return errorResponse("not_found", `Route not found: ${pathname}`, 404, requestId);
   }
 
   if (delegation) {
-    if (request.method !== "DELETE") {
+    if (request.method !== "DELETE" && !(delegationId && request.method === "PATCH")) {
       return errorResponse("unsupported", "Method not allowed", 405, requestId);
     }
   } else if (oauth) {

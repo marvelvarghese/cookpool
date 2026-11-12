@@ -2,9 +2,10 @@
 //   POST/GET /v1/auth/delegations, DELETE /v1/auth/delegations/{dlg} — a
 //   signed-in session only.
 
-import type { DelegationsListResponse, RevokeDelegationResponse } from "@saas/contracts/delegations";
+import type { DelegationsListResponse, RevokeDelegationResponse, UpdateDelegationResponse } from "@saas/contracts/delegations";
 import { hashSha256 } from "../../../apps/identity-worker/src/crypto";
-import { handleListDelegations, handleRevokeDelegation } from "../../../apps/identity-worker/src/handlers/delegations";
+import { handleListDelegations, handleRevokeDelegation, handleUpdateDelegation } from "../../../apps/identity-worker/src/handlers/delegations";
+import { route } from "../../../apps/identity-worker/src/router";
 import {
   BODY,
   DAY,
@@ -29,6 +30,8 @@ describe("POST /v1/auth/delegations", () => {
       id: expect.stringMatching(/^dlg_[0-9a-f]{32}$/),
       // Stored once each, in the contract's order.
       scopes: ["kitchen.read", "timers.write"],
+      // What was allowed at connect: the ceiling a PATCH changes within (SE-6).
+      grantedScopes: ["kitchen.read", "timers.write"],
       clientName: "Claude",
       clientId: "cli_abc123",
       createdAt: T0.toISOString(),
@@ -179,5 +182,69 @@ describe("GET and DELETE /v1/auth/delegations", () => {
     }
     // Meera's still works.
     expect("error" in (await w.auth.resolveBearer(theirs.token))).toBe(false);
+  });
+});
+
+// cookpool-spliteco SE-6: Look only / Add & edit, per assistant.
+describe("PATCH /v1/auth/delegations/{dlg}", () => {
+  const SPLITECO = { ...BODY, scopes: ["money.read", "money.write", "kitchen.read"] };
+  const patch = (w: World, token: string | null, id: string, body: unknown) =>
+    handleUpdateDelegation(req(`/v1/auth/delegations/${id}`, "PATCH", token, body), env, "req_t", w.deps);
+
+  it("narrows to Look only and back to Add & edit, within what was allowed at connect, and resolves the new scopes", async () => {
+    const w = world();
+    const { token } = await signIn(w);
+    const out = await created(w, token, SPLITECO);
+    expect(out.delegation.grantedScopes).toEqual(["kitchen.read", "money.read", "money.write"]);
+
+    const look = await patch(w, token, out.delegation.id, { scopes: ["kitchen.read", "money.read"] });
+    expect(look.status).toBe(200);
+    const narrowed = ((await look.json()) as { data: UpdateDelegationResponse }).data.delegation;
+    expect(narrowed.scopes).toEqual(["kitchen.read", "money.read"]);
+    expect(narrowed.grantedScopes).toEqual(["kitchen.read", "money.read", "money.write"]);
+    const resolved = await w.auth.resolveBearer(out.token);
+    expect(resolved).toMatchObject({ delegation: { scopes: ["kitchen.read", "money.read"] } });
+
+    const back = await patch(w, token, out.delegation.id, { scopes: ["money.write", "money.read", "kitchen.read"] });
+    expect(((await back.json()) as { data: UpdateDelegationResponse }).data.delegation.scopes).toEqual(["kitchen.read", "money.read", "money.write"]);
+    const events = w.repo._securityEvents.filter((e) => e.eventType === "delegation.updated");
+    expect(events).toHaveLength(2);
+    expect(events[0]!.metadata).toMatchObject({ scopes: ["kitchen.read", "money.read"], previousScopes: ["kitchen.read", "money.read", "money.write"] });
+    expect(JSON.stringify(events)).not.toContain(out.token.split(".")[1]!);
+  });
+
+  it("refuses to widen beyond what was allowed at connect: Add & edit needs a reconnect", async () => {
+    const w = world();
+    const { token } = await signIn(w);
+    const out = await created(w, token, { ...BODY, scopes: ["money.read"] });
+    const res = await patch(w, token, out.delegation.id, { scopes: ["money.read", "money.write"] });
+    expect(await errorOf(res)).toMatchObject({ status: 422, code: "validation_failed", fields: { scopes: [expect.stringContaining("money.write")] } });
+  });
+
+  it.each([[{ scopes: [] }], [{ scopes: ["money.pay"] }], [{ scopes: "money.read" }], [{}], ["not json"]])("refuses the body %j", async (body) => {
+    const w = world();
+    const { token } = await signIn(w);
+    const out = await created(w, token, SPLITECO);
+    expect(await errorOf(await patch(w, token, out.delegation.id, body))).toMatchObject({ status: 422, code: "validation_failed" });
+  });
+
+  it("is 404 for someone else's, a revoked one, an unknown and a malformed id; a session only", async () => {
+    const w = world();
+    const { token: anu } = await signIn(w);
+    const { token: meera } = await signIn(w, "meera@cookpool.test");
+    const theirs = await created(w, meera, SPLITECO);
+    const mine = await created(w, anu, SPLITECO);
+    await handleRevokeDelegation(req(`/v1/auth/delegations/${mine.delegation.id}`, "DELETE", anu), env, "req_t", w.deps);
+    for (const id of [theirs.delegation.id, mine.delegation.id, `dlg_${"f".repeat(32)}`, "dlg_nope"]) {
+      expect(await errorOf(await patch(w, anu, id, { scopes: ["money.read"] }))).toMatchObject({ status: 404, code: "not_found" });
+    }
+    // A delegated token can never change one.
+    expect((await patch(w, theirs.token, theirs.delegation.id, { scopes: ["money.read"] })).status).toBe(403);
+    expect((await patch(w, null, theirs.delegation.id, { scopes: ["money.read"] })).status).toBe(401);
+  });
+
+  it("is routed: PATCH and DELETE on a delegation, nothing else", async () => {
+    const res = await route(req(`/v1/auth/delegations/dlg_${"f".repeat(32)}`, "PUT", null), env);
+    expect(res.status).toBe(405);
   });
 });

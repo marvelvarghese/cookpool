@@ -8,7 +8,7 @@ import type { Env } from "@api-edge/env";
 export const ORG = "org_0123456789abcdef0123456789abcdef";
 export const USER = "usr_0123456789abcdef0123456789abcdef";
 export const DLG = "dlg_0123456789abcdef0123456789abcdef";
-export const ALL_SCOPES = ["kitchen.read", "money.read", "timers.write", "suggest.write"];
+export const ALL_SCOPES = ["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"];
 
 export const SESSION_TOKEN = "sps_ses_0123456789abcdef0123456789abcdef.secret";
 export const delegatedToken = (n = 0) => `sps_dlg_${String(n).padStart(32, "0")}.secret`;
@@ -50,6 +50,7 @@ const BINDINGS = [
   "NOTIFICATIONS_WORKER",
   "INTEGRATIONS_WORKER",
   "KITCHEN_WORKER",
+  "SPLITECO_WORKER",
 ] as const;
 
 function urlOf(input: string | Request | URL): string {

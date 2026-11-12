@@ -58,6 +58,7 @@ export function toDelegation(d: StoredDelegation): Delegation {
   return {
     id: delegationPublicId(d.id),
     scopes: canonicalScopes(d.scopes),
+    grantedScopes: canonicalScopes(d.grantedScopes ?? d.scopes),
     clientName: d.clientName,
     clientId: d.clientId,
     createdAt: d.createdAt.toISOString(),
@@ -235,6 +236,57 @@ export function createDelegationService(deps: DelegationServiceDeps) {
         });
       }
       return { id: delegationPublicId(revoked.value.id), revokedAt: at.toISOString() };
+    },
+
+    /**
+     * Change what one of the caller's live delegations may do (SE-6: Look
+     * only / Add & edit): at least one scope, every one among what was
+     * allowed when it was connected. The edge's actor cache holds the old
+     * scopes for at most 30 s.
+     */
+    async update(token: string | null, publicId: string, body: unknown): Promise<{ delegation: Delegation } | DelegationFailure> {
+      const who = await sessionUser(token);
+      if (isFailure(who)) return who;
+      const notFound: DelegationFailure = { status: 404, code: "not_found", message: "Delegation not found" };
+      const uuid = parseDelegationPublicId(publicId);
+      if (!uuid) return notFound;
+      const raw = body && typeof body === "object" && !Array.isArray(body) ? (body as { scopes?: unknown }).scopes : undefined;
+      const invalid = (message: string): DelegationFailure => ({
+        status: 422,
+        code: "validation_failed",
+        message: "Validation failed",
+        details: { fields: { scopes: [message] } },
+      });
+      if (!Array.isArray(raw) || raw.length === 0) return invalid("Must be a non-empty array of scopes");
+      if (!raw.every(isDelegationScope)) return invalid(`Every scope must be one of ${DELEGATION_SCOPES.join(", ")}`);
+      const scopes = canonicalScopes(raw);
+      const id = uuid.toLowerCase();
+      const existing = await delegations.getById(id);
+      const at = now();
+      if (
+        !existing.ok ||
+        existing.value.userId !== who.userId ||
+        existing.value.revokedAt !== null ||
+        existing.value.expiresAt.getTime() <= at.getTime()
+      ) {
+        return notFound;
+      }
+      const ceiling = canonicalScopes(existing.value.grantedScopes ?? existing.value.scopes);
+      const beyond = scopes.filter((s) => !ceiling.includes(s));
+      if (beyond.length > 0) {
+        return invalid(`Only what was allowed when it was connected (${ceiling.join(", ")}); connect it again to allow ${beyond.join(", ")}`);
+      }
+      const updated = await delegations.updateScopes(id, who.userId, scopes, at);
+      if (!updated.ok) {
+        return updated.error.kind === "not_found" ? notFound : { status: 500, code: "internal_error", message: "Failed to update delegation" };
+      }
+      await event("delegation.updated", who.userId, who.sessionId, {
+        delegationId: delegationPublicId(id),
+        clientName: updated.value.clientName,
+        scopes,
+        previousScopes: canonicalScopes(existing.value.scopes),
+      });
+      return { delegation: toDelegation(updated.value) };
     },
 
     /** Internal (mcp-worker): a new secret and 90 more days, while the delegation is live. */

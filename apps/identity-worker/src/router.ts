@@ -17,6 +17,7 @@ import {
   handleInternalRefreshDelegation,
   handleListDelegations,
   handleRevokeDelegation,
+  handleUpdateDelegation,
 } from "./handlers/delegations.js";
 import {
   handleListPasskeys,
@@ -138,6 +139,8 @@ export async function route(request: Request, env: Env): Promise<Response> {
 
     if (DELEGATION_ID_RE.test(url.pathname)) {
       if (request.method === "DELETE") return handleRevokeDelegation(request, env, requestId);
+      // Look only / Add & edit (cookpool-spliteco SE-6).
+      if (request.method === "PATCH") return handleUpdateDelegation(request, env, requestId);
       return methodNotAllowed(requestId);
     }
 

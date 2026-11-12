@@ -21,7 +21,7 @@ export function createFakeDelegations(identity: IdentityRepository): Delegations
   _touches: number;
 } {
   const rows = new Map<string, StoredDelegation>();
-  const strip = ({ tokenHash: _t, ...d }: StoredDelegation): Delegation => ({ ...d, scopes: [...d.scopes] });
+  const strip = ({ tokenHash: _t, ...d }: StoredDelegation): Delegation => ({ ...d, scopes: [...d.scopes], grantedScopes: [...d.grantedScopes] });
 
   const fake = {
     _rows: rows,
@@ -35,6 +35,7 @@ export function createFakeDelegations(identity: IdentityRepository): Delegations
         clientName: input.clientName,
         clientId: input.clientId,
         scopes: [...input.scopes],
+        grantedScopes: [...input.scopes],
         tokenHash: input.tokenHash,
         createdAt: input.createdAt,
         lastUsedAt: null,
@@ -80,6 +81,15 @@ export function createFakeDelegations(identity: IdentityRepository): Delegations
       }
       row.tokenHash = tokenHash;
       row.expiresAt = expiresAt;
+      return { ok: true, value: strip(row) };
+    },
+
+    async updateScopes(id: string, userId: string, scopes: string[], now: Date): Promise<IdentityResult<Delegation>> {
+      const row = rows.get(id);
+      if (!row || row.userId !== userId || row.revokedAt !== null || row.expiresAt.getTime() <= now.getTime()) {
+        return { ok: false, error: { kind: "not_found" } };
+      }
+      row.scopes = [...scopes];
       return { ok: true, value: strip(row) };
     },
 
