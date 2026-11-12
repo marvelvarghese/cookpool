@@ -213,17 +213,17 @@ function Review(props: {
 
       {status.toCheck.map((line) => (
         <section key={line.key} aria-label={`Check ${line.name || line.text}`} style={{ padding: 14, borderRadius: 18, background: "rgba(242,150,60,0.08)", border: "1px solid rgba(242,150,60,0.4)", display: "flex", flexDirection: "column", gap: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, color: "#F5B266", letterSpacing: "0.05em", textTransform: "uppercase" }}>Did we read this right?</span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: "#F5B266", letterSpacing: "0.05em", textTransform: "uppercase" }}>Did we read this right?</span>
           {fixing === line.key ? (
             <FixLine line={line} currency={cur} onDone={(fix) => { setDraft(fixLine(draft, line.key, fix)); setFixing(null); }} onRemove={() => { setDraft(removeLine(draft, line.key)); setFixing(null); }} />
           ) : (
             <>
               <div className="row-between">
                 <div className="stack s4">
-                  <span style={{ fontSize: 15, fontWeight: 700 }}>{line.name || "Unreadable line"}{line.qty > 1 ? ` × ${line.qty}` : ""}</span>
+                  <span style={{ fontSize: 15, fontWeight: 500 }}>{line.name || "Unreadable line"}{line.qty > 1 ? ` × ${line.qty}` : ""}</span>
                   <span className="small muted" style={{ fontFamily: "ui-monospace, monospace" }}>printed &quot;{line.text}&quot; · {line.doubt}</span>
                 </div>
-                <span style={{ fontSize: 15, fontWeight: 800, color: "var(--money)" }}>{line.priceMinor === null ? "—" : formatMoney(line.priceMinor, cur)}</span>
+                <span style={{ fontSize: 15, fontWeight: 500, color: "var(--money)" }}>{line.priceMinor === null ? "—" : formatMoney(line.priceMinor, cur)}</span>
               </div>
               <div className="grid2" style={{ gap: 8 }}>
                 <button className="btn saffron" disabled={line.priceMinor === null || !line.name.trim()} onClick={() => setDraft(confirmLine(draft, line.key))}>Looks right</button>
@@ -244,7 +244,7 @@ function Review(props: {
           ) : (
             <button key={l.key} className="row-between" aria-label={`${l.name}, ${formatMoney(l.priceMinor ?? 0, cur)}. Edit`} onClick={() => setFixing(l.key)} style={{ padding: "10px 0", borderBottom: "1px solid var(--line-soft)", background: "transparent", border: 0, borderBottomStyle: "solid", color: "var(--text)", textAlign: "left", width: "100%" }}>
               <span style={{ fontSize: 14 }}>{l.name}{l.qty > 1 ? ` × ${l.qty}` : ""}</span>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>{formatMoney(l.priceMinor ?? 0, cur)}</span>
+              <span style={{ fontSize: 14, fontWeight: 500 }}>{formatMoney(l.priceMinor ?? 0, cur)}</span>
             </button>
           ),
         )}

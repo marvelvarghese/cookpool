@@ -105,11 +105,11 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
           <span>{groupName} · {payer} · itemized</span>
         </div>
         {onLive ? (
-          <button className="pillbtn" onClick={onLive} disabled={liveBusy} aria-label="Split live: everyone at the table claims their own items" style={{ fontWeight: 700, color: "var(--ok)" }}>
+          <button className="pillbtn" onClick={onLive} disabled={liveBusy} aria-label="Split live: everyone at the table claims their own items" style={{ fontWeight: 500, color: "var(--ok)" }}>
             <Icon name="live" size={16} /> {liveBusy ? "Opening…" : "Live"}
           </button>
         ) : null}
-        <button className="pillbtn" onClick={onBack} style={{ fontWeight: 700 }}>Done</button>
+        <button className="pillbtn" onClick={onBack} style={{ fontWeight: 500 }}>Done</button>
       </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
@@ -121,13 +121,13 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
         <span style={{ fontSize: 14 }} className="muted">
           Split method <b style={{ color: "var(--text)" }}>Itemized</b>
         </span>
-        <button className="pillbtn" aria-expanded={switching} onClick={() => setSwitching(!switching)} style={{ background: "var(--raised)", fontWeight: 700 }}>
+        <button className="pillbtn" aria-expanded={switching} onClick={() => setSwitching(!switching)} style={{ background: "var(--raised)", fontWeight: 500 }}>
           Change ▾
         </button>
       </div>
       {switching ? (
         <section aria-label="Change split method" className="ipanel">
-          <span style={{ fontSize: 14, fontWeight: 700 }}>Switch to another method?</span>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>Switch to another method?</span>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 6 }}>
             {SWITCH_TO.map((m) => (
               <button
@@ -158,7 +158,7 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
       ) : null}
       <label className="field">
         <span className="sr">What was it for?</span>
-        <input placeholder="What was it for? (Beach shack dinner)" maxLength={200} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} style={{ fontWeight: 600 }} />
+        <input placeholder="What was it for? (Beach shack dinner)" maxLength={200} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} style={{ fontWeight: 500 }} />
       </label>
       <p className="muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
         One item per slide — swipe or use the arrows. Tap a face to add them; tap again to say how much they had.
@@ -170,7 +170,7 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
             <button className="iconbtn" aria-label="Previous item" onClick={() => go(cur - 1)} disabled={cur === 0} style={{ opacity: cur > 0 ? 1 : 0.4 }}>
               <Icon name="back" />
             </button>
-            <span style={{ fontSize: 14, fontWeight: 700 }} aria-live="polite">Item {cur + 1} of {count}</span>
+            <span style={{ fontSize: 14, fontWeight: 500 }} aria-live="polite">Item {cur + 1} of {count}</span>
             <button className="iconbtn" aria-label="Next item" onClick={() => go(cur + 1)} disabled={cur >= count - 1} style={{ opacity: cur < count - 1 ? 1 : 0.4 }}>
               <Icon name="chevron" />
             </button>
@@ -186,7 +186,7 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
                   aria-selected={on}
                   aria-label={`${it.name || `Item ${i + 1}`}${bad ? ", needs fixing" : ""}`}
                   onClick={() => go(i)}
-                  style={{ flex: "none", height: 36, padding: "0 12px", borderRadius: 999, background: on ? "var(--cobalt-soft)" : "var(--surface)", border: `1px solid ${on ? "var(--cobalt-ring)" : "var(--line)"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
+                  style={{ flex: "none", height: 36, padding: "0 12px", borderRadius: 999, background: on ? "var(--cobalt-soft)" : "var(--surface)", border: `1px solid ${on ? "var(--cobalt-ring)" : "var(--line)"}`, color: on ? "var(--text)" : "var(--muted)", fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}
                 >
                   <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: bad ? "var(--owe)" : "var(--ok)" }} />
                   {it.name || `Item ${i + 1}`}
@@ -230,13 +230,13 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
                   value={item.name}
                   maxLength={120}
                   onChange={(e) => updateItem(item.key, (it) => ({ ...it, name: e.target.value }))}
-                  style={{ background: "transparent", border: 0, outline: "none", color: "var(--text)", fontSize: 15, fontWeight: 700, padding: 0, minWidth: 0 }}
+                  style={{ background: "transparent", border: 0, outline: "none", color: "var(--text)", fontSize: 15, fontWeight: 500, padding: 0, minWidth: 0 }}
                 />
                 <span className="small" style={{ color: status.tone === "bad" ? "var(--owe)" : status.tone === "warn" ? "var(--money)" : "var(--dim)" }}>
                   {status.text}
                 </span>
               </div>
-              <span className="money" style={{ fontSize: 15, fontWeight: 800 }}>{total === null ? "—" : formatShort(total, currency)}</span>
+              <span className="money" style={{ fontSize: 15, fontWeight: 500 }}>{total === null ? "—" : formatShort(total, currency)}</span>
               <button
                 aria-label={`Actions for ${item.name || `item ${index + 1}`}`}
                 aria-expanded={menuOn}
@@ -323,15 +323,15 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
                 }}
               >
                 <Icon name="plus" size={22} />
-                <span style={{ fontSize: 12, fontWeight: 700 }}>Add</span>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>Add</span>
               </button>
             </div>
             <span className="small dim">{peopleLine(peopleOn(item, form.members).length, form.members.length)}</span>
             {picker === item.key ? (
               <section aria-label={`Who had ${item.name || "this item"}`} className="ipanel">
                 <div className="row-between">
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>Who had {item.name || "this"}?</span>
-                  <button className="pillbtn" style={{ fontWeight: 700 }} onClick={() => setPicker(null)}>Done</button>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>Who had {item.name || "this"}?</span>
+                  <button className="pillbtn" style={{ fontWeight: 500 }} onClick={() => setPicker(null)}>Done</button>
                 </div>
                 <label className="field">
                   <Icon name="search" size={18} />
@@ -361,8 +361,8 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
                         onClick={() => updateItem(item.key, (it) => setShare(it, m, { ...DEFAULT_SHARE }))}
                       >
                         <span className="avatar" style={{ width: 32, height: 32, background: t.bg, color: t.fg, fontSize: 12 }}>{initialOf(name)}</span>
-                        <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{name}</span>
-                        <span aria-hidden="true" style={{ fontSize: 20, fontWeight: 800, color: "var(--link)" }}>+</span>
+                        <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{name}</span>
+                        <span aria-hidden="true" style={{ fontSize: 20, fontWeight: 600, color: "var(--link)" }}>+</span>
                       </button>
                     );
                   })}
@@ -416,7 +416,7 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
       <Adjustments ctx={ctx} subtotal={subtotal} />
 
       <section aria-label="Each person pays" className="panel" style={{ borderColor: "var(--line-strong)", gap: 12 }}>
-        <span style={{ fontSize: 15, fontWeight: 700 }}>Each person&apos;s share</span>
+        <span style={{ fontSize: 15, fontWeight: 500 }}>Each person&apos;s share</span>
         <div className="grid2" style={{ gap: 8 }}>
           {(owed?.ok ? sharesToShow(owed.value.breakdown) : []).map((line) => {
             const id = line.subjectId;
@@ -427,7 +427,7 @@ export function ItemizedView({ ctx, title, groupName, onBack, onSwitch, onSave, 
                 <span className="avatar" style={{ width: 32, height: 32, background: t.bg, color: t.fg, fontSize: 12 }}>{initialOf(name)}</span>
                 <div className="stack" style={{ gap: 1, minWidth: 0 }}>
                   <span className="small muted ellipsis">{name}</span>
-                  <span className="money" style={{ fontSize: 15, fontWeight: 800 }}>{formatMoney(line.owedMinor, currency)}</span>
+                  <span className="money" style={{ fontSize: 15, fontWeight: 500 }}>{formatMoney(line.owedMinor, currency)}</span>
                 </div>
               </div>
             );
@@ -474,7 +474,7 @@ function SharePanel(props: {
       <div className="row-between">
         <span className="inline" style={{ gap: 8 }}>
           <span className="avatar" style={{ width: 26, height: 26, background: t.bg, color: t.fg, fontSize: 11 }}>{initialOf(props.name)}</span>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>How much {props.name} had</span>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>How much {props.name} had</span>
         </span>
         <button aria-label="Close" className="iconbtn" style={{ width: 44, height: 44, borderRadius: 10, background: "var(--raised)", border: 0, color: "var(--muted)" }} onClick={props.onClose}>
           <Icon name="close" size={16} />
@@ -517,7 +517,7 @@ function SharePanel(props: {
         </div>
       )}
       <div className="stack" style={{ gap: 4, padding: "10px 12px", borderRadius: 12, background: "var(--surface)" }}>
-        <span style={{ fontSize: 14, fontWeight: 700 }}>
+        <span style={{ fontSize: 14, fontWeight: 500 }}>
           {props.name} pays <span className="money">{formatMoney(props.currentMinor, props.currency)}</span> of {formatShort(props.totalMinor, props.currency)}
         </span>
         <span className="small dim" style={{ lineHeight: 1.45 }}>{modeHint(share.mode, qty)}</span>
@@ -550,7 +550,7 @@ function Adjustments({ ctx, subtotal }: { ctx: FormCtx; subtotal: number }) {
   const net = adjustmentsTotal(form);
   return (
     <section aria-label="Tax and discount" className="item" style={{ gap: 10 }}>
-      <span style={{ fontSize: 15, fontWeight: 700 }}>Tax, service &amp; discount</span>
+      <span style={{ fontSize: 15, fontWeight: 500 }}>Tax, service &amp; discount</span>
       {form.adjustments.length === 0 ? <span className="small dim">None — add GST, a service charge or a discount below.</span> : null}
       {form.adjustments.map((a) => {
         const amount = adjustmentAmount(a, subtotal);

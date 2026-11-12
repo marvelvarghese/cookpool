@@ -77,7 +77,7 @@ function Home({ data }: { data: SplitecoHomeResponse }) {
       <section aria-label="Balances with friends" className="stack s4">
         <div className="row-between" style={{ paddingBottom: 4 }}>
           <h2 className="h2">Balances</h2>
-          <Link href="/groups?tab=friends" style={{ fontSize: 13, fontWeight: 600, padding: "10px 0" }}>
+          <Link href="/groups?tab=friends" style={{ fontSize: 13, fontWeight: 500, padding: "10px 0" }}>
             See all
           </Link>
         </div>

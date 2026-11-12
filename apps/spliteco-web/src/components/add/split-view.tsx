@@ -68,7 +68,7 @@ export function SplitView({ ctx, onDone, onItems }: { ctx: FormCtx; onDone: () =
       <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }} className="muted">{METHOD_HINTS[form.method]}</p>
       {isItems ? (
         <div className="goldbox stack s14" style={{ padding: 20, borderRadius: 22 }}>
-          <span style={{ fontSize: 17, fontWeight: 700 }}>Split it item by item</span>
+          <span style={{ fontSize: 17, fontWeight: 500 }}>Split it item by item</span>
           <span className="muted" style={{ fontSize: 14, lineHeight: 1.5 }}>
             Add each item, then tap who had what. Tax, service and discounts spread by what each person had.
           </span>
@@ -83,8 +83,8 @@ export function SplitView({ ctx, onDone, onItems }: { ctx: FormCtx; onDone: () =
               <div key={id} className="prow">
                 <Avatar id={id} name={name} me={me} size={38} />
                 <div className="main">
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>{name}</span>
-                  <span className="money" style={{ fontSize: 13, fontWeight: 700 }}>{name === "You" ? "owe" : "owes"} {o === null ? "—" : formatMoney(o, currency)}</span>
+                  <span style={{ fontSize: 15, fontWeight: 500 }}>{name}</span>
+                  <span className="money" style={{ fontSize: 13, fontWeight: 500 }}>{name === "You" ? "owe" : "owes"} {o === null ? "—" : formatMoney(o, currency)}</span>
                 </div>
                 <Control ctx={ctx} id={id} name={name} />
               </div>

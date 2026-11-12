@@ -28,7 +28,7 @@ export default function InsightsPage() {
     <Screen nav={false}>
       <header className="hdr">
         <BackButton label="Back" />
-        <div className="hdr-title"><h1 style={{ fontSize: 20, fontWeight: 800 }}>Insights</h1></div>
+        <div className="hdr-title"><h1 style={{ fontSize: 20, fontWeight: 600 }}>Insights</h1></div>
         {groupId ? (
           <Link href={`/share?group=${encodeURIComponent(groupId)}`} className="iconbtn" aria-label="Export to CSV">
             <Icon name="download" />
@@ -40,7 +40,7 @@ export default function InsightsPage() {
       <div className="grid2" style={{ gap: 8 }}>
         <label className="field" style={{ padding: "0 10px" }}>
           <span className="sr">Group</span>
-          <select value={groupId ?? ""} onChange={(e) => setGroupId(e.target.value || null)} style={{ fontSize: 14, fontWeight: 600, background: "var(--surface)" }}>
+          <select value={groupId ?? ""} onChange={(e) => setGroupId(e.target.value || null)} style={{ fontSize: 14, fontWeight: 500, background: "var(--surface)" }}>
             <option value="">All groups</option>
             {(groups.data?.groups ?? []).map((g) => (
               <option key={g.id} value={g.id}>{g.name}</option>
@@ -49,7 +49,7 @@ export default function InsightsPage() {
         </label>
         <label className="field" style={{ padding: "0 10px" }}>
           <span className="sr">Month</span>
-          <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ fontSize: 14, fontWeight: 600 }} />
+          <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ fontSize: 14, fontWeight: 500 }} />
         </label>
       </div>
       <Loading load={load}>{load.data ? <Insights data={load.data} me={me?.id ?? null} groupName={groups.data?.groups.find((g) => g.id === groupId)?.name ?? null} /> : null}</Loading>
@@ -69,7 +69,7 @@ function Donut({ title, subtitle, slices, totalLabel, currency }: { title: strin
   return (
     <section aria-label={title} className="panel" style={{ gap: 14 }}>
       <div className="stack" style={{ gap: 2, alignItems: "center", textAlign: "center" }}>
-        <span style={{ fontSize: 16, fontWeight: 700 }}>{title}</span>
+        <span style={{ fontSize: 16, fontWeight: 500 }}>{title}</span>
         <span className="small dim">{subtitle}</span>
       </div>
       {total === 0 ? (
@@ -97,7 +97,7 @@ function Donut({ title, subtitle, slices, totalLabel, currency }: { title: strin
               ))}
             </svg>
             <div className="donut-center">
-              <span style={{ fontSize: 24, fontWeight: 800 }}>{formatShort(sel ? sel.value : total, currency)}</span>
+              <span style={{ fontSize: 24, fontWeight: 600 }}>{formatShort(sel ? sel.value : total, currency)}</span>
               <span className="small dim">{sel ? sel.name : totalLabel}</span>
             </div>
           </div>
@@ -106,7 +106,7 @@ function Donut({ title, subtitle, slices, totalLabel, currency }: { title: strin
               <button key={s.name} aria-pressed={pick === i} onClick={() => setPick(pick === i ? -1 : i)} style={{ color: CHART_COLORS[i % CHART_COLORS.length] }}>
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: CHART_COLORS[i % CHART_COLORS.length], flex: "none" }} />
                 <span className="stack" style={{ gap: 1, minWidth: 0, color: "var(--text)" }}>
-                  <span className="ellipsis" style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</span>
+                  <span className="ellipsis" style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</span>
                   <span className="small dim">{formatShort(s.value, currency)} · {pcts[i]}%</span>
                 </span>
               </button>
@@ -141,7 +141,7 @@ function Insights({ data, me, groupName }: { data: SplitecoInsightsResponse; me:
       />
       <section aria-label="Month by month" className="panel">
         <div className="stack" style={{ gap: 2, alignItems: "center" }}>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>Month by month</span>
+          <span style={{ fontSize: 16, fontWeight: 500 }}>Month by month</span>
           <span className="small dim">Your share, last 6 months</span>
         </div>
         <div
@@ -153,7 +153,7 @@ function Insights({ data, me, groupName }: { data: SplitecoInsightsResponse; me:
             const last = i === data.byMonth.length - 1;
             return (
               <div key={m.month}>
-                <span className="small" style={{ color: last ? "var(--text)" : "var(--dim)", fontWeight: 700 }}>{compactAmount(m.amountMinor)}</span>
+                <span className="small" style={{ color: last ? "var(--text)" : "var(--dim)", fontWeight: 500 }}>{compactAmount(m.amountMinor)}</span>
                 <div className="col" style={{ height: heights[i], background: last ? "#60A5FA" : "var(--line-strong)" }} />
                 <span className="small" style={{ color: last ? "var(--text)" : "var(--dim)" }}>{periodLabel(m.month)}</span>
               </div>

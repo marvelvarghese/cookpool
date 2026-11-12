@@ -129,7 +129,7 @@ function InGroup({ groupId, to }: { groupId: string; to: string | null }) {
         <BackButton href={`/group?id=${encodeURIComponent(groupId)}`} label="Back to the group" />
         <span className="hdr-title">Settle up</span>
         {to ? (
-          <Link href={`/settle?group=${encodeURIComponent(groupId)}`} style={{ fontSize: 14, fontWeight: 600, padding: "10px 0" }}>
+          <Link href={`/settle?group=${encodeURIComponent(groupId)}`} style={{ fontSize: 14, fontWeight: 500, padding: "10px 0" }}>
             Change
           </Link>
         ) : (
