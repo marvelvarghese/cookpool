@@ -17,7 +17,7 @@ import {
   type FanOutResult,
 } from "../billing-client.js";
 import { isSoloMode } from "../solo-mode.js";
-import { MAX_GROUPS_PER_PERSON, isOpenGroups } from "../open-groups.js";
+import { MAX_GROUPS_PER_PERSON, countsTowardCap, isOpenGroups } from "../open-groups.js";
 
 /** Plan code assigned to every organization at bootstrap. Stable contract with
  * billing-worker's plan catalog (plan-catalog.ts DEFAULT_PLAN_CODE). */
@@ -36,7 +36,15 @@ const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 interface CreateOrgBody {
   name?: unknown;
   slug?: unknown;
+  /** cookpool-spliteco (migration 530): where it is made, `cookpool` (default) or `spliteco`. */
+  madeIn?: unknown;
+  /** kitchen (default) | trip | home | couple | other. `direct` is made only by the internal direct-groups route. */
+  kind?: unknown;
 }
+
+/** The kinds the public route accepts (`direct` is internal-only). */
+export const PUBLIC_ORG_KINDS: readonly string[] = ["kitchen", "trip", "home", "couple", "other"];
+export const ORG_MADE_IN: readonly string[] = ["cookpool", "spliteco"];
 
 export interface CreateOrganizationDeps {
   repo: Pick<MembershipRepository, "bootstrapOrganization">;
@@ -124,7 +132,7 @@ async function gateAdditionalOrg(
   // (the earliest org may be someone else's group the person joined) and no
   // multi-org plan check — only a per-person cap. See ../open-groups.ts.
   if (isOpenGroups(env)) {
-    if (existing.length >= MAX_GROUPS_PER_PERSON) {
+    if (countsTowardCap(existing) >= MAX_GROUPS_PER_PERSON) {
       return {
         kind: "block",
         response: errorResponse(
@@ -259,6 +267,13 @@ export async function handleCreateOrganization(
     fields.name = [`Must be between ${NAME_MIN} and ${NAME_MAX} characters`];
   }
 
+  if (body.madeIn !== undefined && (typeof body.madeIn !== "string" || !ORG_MADE_IN.includes(body.madeIn))) {
+    fields.madeIn = [`Must be one of: ${ORG_MADE_IN.join(", ")}`];
+  }
+  if (body.kind !== undefined && (typeof body.kind !== "string" || !PUBLIC_ORG_KINDS.includes(body.kind))) {
+    fields.kind = [`Must be one of: ${PUBLIC_ORG_KINDS.join(", ")}`];
+  }
+
   let slug: string;
   if (body.slug !== undefined) {
     if (typeof body.slug !== "string" || body.slug.length < SLUG_MIN || body.slug.length > SLUG_MAX) {
@@ -266,12 +281,17 @@ export async function handleCreateOrganization(
     } else if (!SLUG_RE.test(body.slug.toLowerCase())) {
       fields.slug = ["Must contain only lowercase letters, numbers, and hyphens, and start/end with alphanumeric"];
     }
+    // The hidden two-person groups own the `direct-` slugs (./direct-groups.ts).
+    if (typeof body.slug === "string" && body.slug.toLowerCase().startsWith("direct-")) {
+      fields.slug = ["Slugs starting with direct- are reserved"];
+    }
     slug = body.slug as string;
   } else if (typeof body.name === "string") {
     slug = generateSlugFromName(body.name);
     if (slug.length < SLUG_MIN) {
       slug = `org-${slug || crypto.randomUUID().slice(0, 8)}`;
     }
+    if (slug.startsWith("direct-")) slug = `group-${slug}`.slice(0, SLUG_MAX).replace(/-+$/, "");
   } else {
     slug = "";
   }
@@ -293,7 +313,11 @@ export async function handleCreateOrganization(
   const slugLower = slug.toLowerCase();
 
   const bootstrapInput = {
-    org: { id: orgId, name: orgName, slug, slugLower, parentOrgId: null as string | null, createdAt: now },
+    org: {
+      id: orgId, name: orgName, slug, slugLower, parentOrgId: null as string | null, createdAt: now,
+      madeIn: typeof body.madeIn === "string" ? body.madeIn : "cookpool",
+      kind: typeof body.kind === "string" ? body.kind : "kitchen",
+    },
     member: { id: memberId, orgId, subjectId: actor.subjectId, subjectType: actor.subjectType, createdAt: now },
     roleAssignment: { id: roleAssignmentId, orgId, subjectId: actor.subjectId, subjectType: actor.subjectType, role: "owner", scopeKind: "organization", scopeRef: null, createdAt: now },
   };

@@ -74,6 +74,10 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "kitchen.dish.finalize_any",
     "kitchen.txn.reverse_any",
     "kitchen.settings.manage",
+    // Spliteco (cookpool-spliteco SE1): read the ledger, and add, edit, delete,
+    // restore, move and comment on expenses.
+    "spliteco.ledger.read",
+    "spliteco.expense.write",
   ],
   admin: [
     "organization.read",
@@ -132,6 +136,10 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "kitchen.dish.finalize_any",
     "kitchen.txn.reverse_any",
     "kitchen.settings.manage",
+    // Spliteco (cookpool-spliteco SE1): read the ledger, and add, edit, delete,
+    // restore, move and comment on expenses.
+    "spliteco.ledger.read",
+    "spliteco.expense.write",
   ],
   builder: [
     "organization.read",
@@ -159,6 +167,8 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "kitchen.expense.create",
     "kitchen.settlement.create",
     "kitchen.txn.flag",
+    "spliteco.ledger.read",
+    "spliteco.expense.write",
   ],
   viewer: [
     "organization.read",
@@ -173,6 +183,7 @@ const ORG_ROLE_PERMISSIONS: Record<OrganizationRole, readonly string[]> = {
     "organization.integration.read",
     "kitchen.pantry.read",
     "kitchen.ledger.read",
+    "spliteco.ledger.read",
   ],
   billing_admin: [
     "organization.read",
@@ -321,6 +332,10 @@ const ALL_KNOWN_ACTIONS: ReadonlySet<string> = new Set([
   "kitchen.dish.finalize_any",
   "kitchen.txn.reverse_any",
   "kitchen.settings.manage",
+  // Spliteco (cookpool-spliteco SE1): every group role reads the ledger;
+  // members, admins and owners write expenses. Billing admins hold neither.
+  "spliteco.ledger.read",
+  "spliteco.expense.write",
 ]);
 
 function isOrgRole(role: string): role is OrganizationRole {
