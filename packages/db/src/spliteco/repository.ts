@@ -130,6 +130,34 @@ export interface NewSplitecoTxn {
   adjustments?: readonly Omit<SplitecoAdjustmentRecord, "txnId">[];
 }
 
+/** A person's Spliteco profile (migration 540). */
+export interface SplitecoProfileRecord {
+  subjectId: string;
+  upiVpa: string | null;
+  defaultCurrency: string;
+  updatedAt: string;
+}
+
+/** Spliteco's switches for one group; a group without a row reads as the defaults. */
+export interface SplitecoGroupSettingsRecord {
+  orgId: string;
+  simplifyDebts: boolean;
+}
+
+/** One reminder sent (ledger_reminders). */
+export interface SplitecoReminderRecord {
+  id: string;
+  orgId: string;
+  fromSubject: string;
+  toSubject: string;
+  amountMinor: number;
+  currency: string;
+  sentAt: string;
+}
+
+/** The source_kind every row of one payment carries; source_id is the payment's id (SE-3). */
+export const PAYMENT_SOURCE_KIND = "payment";
+
 export type SplitecoWriteError =
   | { kind: "invalid"; reason: string }
   /** The group counts in another currency. */
@@ -160,6 +188,27 @@ export interface SplitecoRepository {
   /** Insert `txns` (in order) and `audit`, all in one batch. */
   write(txns: readonly NewSplitecoTxn[], audit?: AppendEventWithAuditInput): Promise<SplitecoWriteResult>;
   addComment(comment: SplitecoCommentRecord): Promise<SplitecoCommentRecord>;
+  /** Every row of one payment (its bucket rows), oldest first (SE-3). */
+  paymentRows(orgId: string, paymentId: string): Promise<SplitecoTxnRecord[]>;
+  /** The profiles of these people that exist. */
+  profiles(subjectIds: readonly string[]): Promise<Map<string, SplitecoProfileRecord>>;
+  /** Create or replace a person's own profile. */
+  setProfile(profile: SplitecoProfileRecord): Promise<SplitecoProfileRecord>;
+  /** Each group's settings, the defaults for a group without a row. */
+  groupSettings(orgIds: readonly string[]): Promise<Map<string, SplitecoGroupSettingsRecord>>;
+  setGroupSettings(settings: SplitecoGroupSettingsRecord, by: string, at: string): Promise<SplitecoGroupSettingsRecord>;
+  /** The newest reminder `from` sent each of `toSubjects`, if any. */
+  lastReminders(fromSubject: string, toSubjects: readonly string[]): Promise<Map<string, SplitecoReminderRecord>>;
+  /**
+   * Record a reminder and its audit event in one batch — unless `from` sent
+   * `to` one at or after `notBefore`: then nothing is written and the answer
+   * is `{ ok: false, last }`.
+   */
+  addReminder(
+    reminder: SplitecoReminderRecord,
+    notBefore: string,
+    audit: AppendEventWithAuditInput,
+  ): Promise<{ ok: true } | { ok: false; last: SplitecoReminderRecord | null }>;
 }
 
 type Row = Record<string, unknown>;
@@ -217,6 +266,18 @@ function mapTxn(row: Row): SplitecoTxnRecord {
     reversedReplacedBy: str(row.reversed_replaced_by),
     reversedMovedToOrg: str(row.reversed_moved_to_org),
     splits: [],
+  };
+}
+
+function mapReminder(r: Row): SplitecoReminderRecord {
+  return {
+    id: String(r.id),
+    orgId: String(r.org_id),
+    fromSubject: String(r.from_subject),
+    toSubject: String(r.to_subject),
+    amountMinor: Number(r.amount_minor),
+    currency: String(r.currency),
+    sentAt: String(r.sent_at),
   };
 }
 
@@ -449,6 +510,126 @@ export function createSplitecoRepository(executor: SqlExecutor): SplitecoReposit
         }
         return { ok: false, error: { kind: "internal", message: err instanceof Error ? err.message : String(err) } };
       }
+    },
+
+    async paymentRows(orgId, paymentId) {
+      const result = await executor.execute(
+        `WITH page AS (SELECT ${TXN_COLUMNS} FROM kitchen_txns t WHERE t.org_id = $1 AND t.source_kind = $2 AND t.source_id = $3)
+         SELECT page.*, s.subject_id AS s_subject_id, s.paid_minor AS s_paid_minor, s.owed_minor AS s_owed_minor
+         FROM page LEFT JOIN kitchen_txn_splits s ON s.txn_id = page.id
+         ORDER BY page.seq, s.position`,
+        [orgId, PAYMENT_SOURCE_KIND, paymentId],
+      );
+      return fold(result.rows);
+    },
+
+    async profiles(subjectIds) {
+      const out = new Map<string, SplitecoProfileRecord>();
+      if (subjectIds.length === 0) return out;
+      const result = await executor.execute(
+        `SELECT subject_id, upi_vpa, default_currency, updated_at FROM spliteco_profiles
+         WHERE subject_id IN (SELECT value FROM json_each($1))`,
+        [JSON.stringify([...new Set(subjectIds)])],
+      );
+      for (const r of result.rows) {
+        out.set(String(r.subject_id), {
+          subjectId: String(r.subject_id),
+          upiVpa: str(r.upi_vpa),
+          defaultCurrency: String(r.default_currency),
+          updatedAt: String(r.updated_at),
+        });
+      }
+      return out;
+    },
+
+    async setProfile(profile) {
+      await executor.execute(
+        `INSERT INTO spliteco_profiles (subject_id, upi_vpa, default_currency, updated_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (subject_id) DO UPDATE SET
+           upi_vpa = excluded.upi_vpa, default_currency = excluded.default_currency, updated_at = excluded.updated_at`,
+        [profile.subjectId, profile.upiVpa, profile.defaultCurrency, profile.updatedAt],
+      );
+      return profile;
+    },
+
+    async groupSettings(orgIds) {
+      const out = new Map<string, SplitecoGroupSettingsRecord>();
+      for (const orgId of orgIds) out.set(orgId, { orgId, simplifyDebts: true });
+      if (orgIds.length === 0) return out;
+      const result = await executor.execute(
+        `SELECT org_id, simplify_debts FROM spliteco_group_settings WHERE org_id IN (SELECT value FROM json_each($1))`,
+        [JSON.stringify([...new Set(orgIds)])],
+      );
+      for (const r of result.rows) out.set(String(r.org_id), { orgId: String(r.org_id), simplifyDebts: Number(r.simplify_debts) === 1 });
+      return out;
+    },
+
+    async setGroupSettings(settings, by, at) {
+      await executor.execute(
+        `INSERT INTO spliteco_group_settings (org_id, simplify_debts, updated_by, updated_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (org_id) DO UPDATE SET
+           simplify_debts = excluded.simplify_debts, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+        [settings.orgId, settings.simplifyDebts ? 1 : 0, by, at],
+      );
+      return settings;
+    },
+
+    async lastReminders(fromSubject, toSubjects) {
+      const out = new Map<string, SplitecoReminderRecord>();
+      if (toSubjects.length === 0) return out;
+      const result = await executor.execute(
+        `SELECT id, org_id, from_subject, to_subject, amount_minor, currency, sent_at FROM ledger_reminders
+         WHERE from_subject = $1 AND to_subject IN (SELECT value FROM json_each($2))
+         ORDER BY sent_at DESC`,
+        [fromSubject, JSON.stringify([...new Set(toSubjects)])],
+      );
+      for (const r of result.rows) {
+        const to = String(r.to_subject);
+        if (!out.has(to)) out.set(to, mapReminder(r));
+      }
+      return out;
+    },
+
+    async addReminder(reminder, notBefore, audit) {
+      const recent = await executor.execute(
+        `SELECT id, org_id, from_subject, to_subject, amount_minor, currency, sent_at FROM ledger_reminders
+         WHERE from_subject = $1 AND to_subject = $2 AND sent_at >= $3
+         ORDER BY sent_at DESC LIMIT 1`,
+        [reminder.fromSubject, reminder.toSubject, notBefore],
+      );
+      if (recent.rows[0]) return { ok: false, last: mapReminder(recent.rows[0]) };
+      // Guarded again inside the batch: of two reminders racing past the
+      // read above, the second inserts no row and is answered as refused, so
+      // nothing is sent twice (its audit event still lands, naming a
+      // reminder id that has no row).
+      await executeBatch(executor, [
+        {
+          text: `INSERT INTO ledger_reminders (id, org_id, from_subject, to_subject, amount_minor, currency, sent_at)
+                 SELECT $1, $2, $3, $4, $5, $6, $7
+                 WHERE NOT EXISTS (
+                   SELECT 1 FROM ledger_reminders WHERE from_subject = $3 AND to_subject = $4 AND sent_at >= $8
+                 )`,
+          params: [
+            reminder.id,
+            reminder.orgId,
+            reminder.fromSubject,
+            reminder.toSubject,
+            reminder.amountMinor,
+            reminder.currency,
+            reminder.sentAt,
+            notBefore,
+          ],
+        },
+        ...eventWithAuditStatements(audit),
+      ]);
+      const written = await executor.execute(`SELECT id FROM ledger_reminders WHERE id = $1`, [reminder.id]);
+      if (written.rows.length === 0) {
+        const last = await this.lastReminders(reminder.fromSubject, [reminder.toSubject]);
+        return { ok: false, last: last.get(reminder.toSubject) ?? null };
+      }
+      return { ok: true };
     },
 
     async addComment(comment) {

@@ -31,7 +31,7 @@ describe("charts", () => {
 const row = (over: Partial<SplitecoExpenseSummary>): SplitecoExpenseSummary => ({
   id: "txn_1", groupId: "org_1", groupName: "Goa Trip", kind: "expense", app: "spliteco", bucket: "other", title: "Dinner", category: "food",
   method: "equal", totalMinor: 100_000, currency: "INR", occurredAt: "2026-11-10T12:00:00.000Z", createdAt: "2026-11-10T12:00:00.000Z",
-  createdBy: "usr_a", payers: [{ subjectId: "usr_a", paidMinor: 100_000 }], splits: [], myNetMinor: 0, locked: false, viaDelegation: null, ...over,
+  createdBy: "usr_a", payers: [{ subjectId: "usr_a", paidMinor: 100_000 }], splits: [], myNetMinor: 0, locked: false, viaDelegation: null, paymentMethod: null, ...over,
 });
 
 describe("rows", () => {

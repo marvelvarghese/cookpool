@@ -13,6 +13,8 @@ import {
 } from "./handlers/expenses.js";
 import { handleCreateGroup, handleDirectGroup, handleFriend, handleGroup, handleGroups, handleHome } from "./handlers/groups.js";
 import { handleExport, handleInsights } from "./handlers/insights.js";
+import { handleGetProfile, handlePutProfile, handleSendReminder } from "./handlers/reminders.js";
+import { handleCreateSettlement, handleGroupSettings, handleNotReceived, handleSettlePlan } from "./handlers/settle.js";
 import { errorResponse, methodNotAllowed, routeNotFound, successResponse, unauthenticated, withTimings } from "./http.js";
 import { createPeople } from "./identity-client.js";
 import { generateRequestId } from "./ids.js";
@@ -43,6 +45,33 @@ const ROUTES: Route[] = [
     methods: { POST: (ctx, _r, [usr]) => handleDirectGroup(ctx, usr!) },
   },
   { name: "spliteco.me.friend", pattern: new RegExp(`${P}/me/friends/${ID}$`), methods: { GET: (ctx, _r, [usr]) => handleFriend(ctx, usr!) } },
+  {
+    name: "spliteco.me.profile",
+    pattern: new RegExp(`${P}/me/profile$`),
+    methods: { GET: (ctx) => handleGetProfile(ctx), PUT: (ctx, r) => handlePutProfile(ctx, r) },
+  },
+  // SE2: settle up, the plan, the simplify switch, not received, reminders.
+  {
+    name: "spliteco.group.settlements",
+    pattern: new RegExp(`${P}/groups/${ID}/settlements$`),
+    methods: { POST: (ctx, r, [org]) => handleCreateSettlement(ctx, r, org!) },
+  },
+  {
+    name: "spliteco.group.settle_plan",
+    pattern: new RegExp(`${P}/groups/${ID}/settle-plan$`),
+    methods: { GET: (ctx, _r, [org]) => handleSettlePlan(ctx, org!) },
+  },
+  {
+    name: "spliteco.group.settings",
+    pattern: new RegExp(`${P}/groups/${ID}/settings$`),
+    methods: { PUT: (ctx, r, [org]) => handleGroupSettings(ctx, r, org!) },
+  },
+  {
+    name: "spliteco.settlement.not_received",
+    pattern: new RegExp(`${P}/settlements/${ID}/not-received$`),
+    methods: { POST: (ctx, r, [txn]) => handleNotReceived(ctx, r, txn!) },
+  },
+  { name: "spliteco.reminders", pattern: new RegExp(`${P}/reminders$`), methods: { POST: (ctx, r) => handleSendReminder(ctx, r) } },
   { name: "spliteco.groups", pattern: new RegExp(`${P}/groups$`), methods: { POST: (ctx, r) => handleCreateGroup(ctx, r) } },
   {
     name: "spliteco.group.expenses",
@@ -87,6 +116,21 @@ const ROUTES: Route[] = [
   { name: "spliteco.insights", pattern: new RegExp(`${P}/insights$`), methods: { GET: (ctx, _r, _p, url) => handleInsights(ctx, url) } },
 ];
 
+/** Work after the response: handed to `waitUntil` when there is one, else run before the response. Never throws. */
+export function deferrer(deps: Pick<SplitecoDeps, "waitUntil">): RequestContext["defer"] {
+  return async (work) => {
+    const run = (async () => {
+      try {
+        await work();
+      } catch {
+        /* best-effort */
+      }
+    })();
+    if (deps.waitUntil) deps.waitUntil(run);
+    else await run;
+  };
+}
+
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
 function resolveRequestId(request: Request): string {
@@ -111,6 +155,7 @@ export async function route(request: Request, env: Env, deps: SplitecoDeps = {})
             membership: { configured: !!env.MEMBERSHIP_WORKER },
             policy: { configured: !!env.POLICY_WORKER },
             identity: { configured: !!env.IDENTITY_WORKER },
+            notifications: { configured: !!env.NOTIFICATIONS_WORKER },
           },
         },
         requestId,
@@ -131,6 +176,7 @@ export async function route(request: Request, env: Env, deps: SplitecoDeps = {})
         now: deps.now ?? (() => new Date()),
         groups: createGroups(env.MEMBERSHIP_WORKER, requestId),
         people: createPeople(env.IDENTITY_WORKER, requestId),
+        defer: deferrer(deps),
       };
       const endTotal = ctx.timings.start("total");
       const response = await handler(ctx, request, match.slice(1), url);

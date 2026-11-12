@@ -9,7 +9,13 @@
 
 // ── Policy actions ──────────────────────────────────────────
 
-/** Every Spliteco policy action (design §2). Reading is every group role; writing is every role but viewer. */
+/**
+ * Every Spliteco policy action (design §2). Reading is every group role;
+ * writing is every role but viewer. SE2's payments, reminders and the
+ * simplify switch are gated on `spliteco.expense.write` (the same roles):
+ * a separate `spliteco.settlement.write` grant needs the policy engine,
+ * which SE-3's contract does not reach (IMPLEMENTATION-STATUS, SE2).
+ */
 export const SPLITECO_ACTIONS = ["spliteco.ledger.read", "spliteco.expense.write"] as const;
 
 export type SplitecoAction = (typeof SPLITECO_ACTIONS)[number];
@@ -108,6 +114,25 @@ export const SPLITECO_ERROR_REASONS = {
   IDEMPOTENCY_KEY_REUSED: "idempotency_key_reused",
   /** 404-free refusal, 403 `forbidden`: you share no group with this person, so you cannot split with them outside one. */
   NO_SHARED_GROUP: "no_shared_group",
+  // ── SE2: settle up and reminders ──
+  /** 422 `validation_failed`: the payment is more than the payer owes the payee (`details.owed`: per balance). */
+  OVER_SETTLED: "over_settled",
+  /** 409 `conflict`: the payer owes the payee nothing here (a payment), or they owe you nothing (a reminder). */
+  NOTHING_OWED: "nothing_owed",
+  /** 422 `validation_failed`: the split across Kitchen and Other does not add up to the amount. */
+  SPLIT_MISMATCH: "split_mismatch",
+  /** 403 `forbidden`: only the person paid can say a payment was not received. */
+  NOT_THE_PAYEE: "not_the_payee",
+  /** 409 `conflict`: that row is not a payment. */
+  NOT_A_SETTLEMENT: "not_a_settlement",
+  /** 409 `conflict`: that payment was already marked not received (or reversed). */
+  ALREADY_REVERSED: "already_reversed",
+  /** 409 `conflict`: you reminded them in the last 24 hours (`details.lastSentAt`, `details.nextAllowedAt`). */
+  REMINDED_RECENTLY: "reminded_recently",
+  /** 403 `forbidden`: payments and reminders are made in an app, never by an assistant (design §0.9). */
+  NOT_FROM_AN_ASSISTANT: "not_from_an_assistant",
+  /** 422 `validation_failed`: a payment needs two different people. */
+  SAME_PERSON: "same_person",
 } as const;
 
 export type SplitecoErrorReason = (typeof SPLITECO_ERROR_REASONS)[keyof typeof SPLITECO_ERROR_REASONS];
@@ -249,6 +274,8 @@ export interface SplitecoExpenseSummary {
   locked: boolean;
   /** The assistant that made it, when one did (SE5). */
   viaDelegation: string | null;
+  /** For a payment: how it was paid (null for anything else, or when not said). */
+  paymentMethod: SplitecoPaymentMethod | null;
 }
 
 export interface SplitecoItemShare {
@@ -400,6 +427,12 @@ export interface SplitecoGroupResponse {
   /** People named on the rows who are not members any more. */
   people: SplitecoPerson[];
   canWrite: boolean;
+  /** SE2: the group's switches. */
+  settings: SplitecoGroupSettings;
+  /** SE2: each member's UPI ID, when they set one (members share this group, so they may see it). */
+  upi: { subjectId: string; upiVpa: string }[];
+  /** SE2: when the caller last reminded each person here, if ever. */
+  reminded: { subjectId: string; sentAt: string }[];
 }
 
 export interface SplitecoFriendResponse {
@@ -412,6 +445,12 @@ export interface SplitecoFriendResponse {
   directGroupId: string | null;
   /** Current rows that name both, newest first. */
   expenses: SplitecoExpenseSummary[];
+  /** SE2: their UPI ID, when they set one and still share a group with the caller. */
+  upiVpa: string | null;
+  /** SE2: when the caller last reminded them, if ever. */
+  lastRemindedAt: string | null;
+  /** SE2: the payments between the two in each group's plan (simplified or not, as each group is set). */
+  plans: { groupId: string; groupName: string; currency: string; fromSubjectId: string; toSubjectId: string; amountMinor: number }[];
 }
 
 export interface SplitecoDirectGroupResponse {
@@ -502,6 +541,178 @@ export interface SplitecoExport {
     items: SplitecoItem[];
     adjustments: SplitecoAdjustment[];
   })[];
+}
+
+// ── SE2: settle up ──────────────────────────────────────────
+//
+// A payment is recorded only when the payer confirms it ("I paid"): a UPI
+// payment is the app's deep link, then the payer's confirm; cash and bank are
+// one tap. It is stored as `kitchen_txns` settlement rows, one per balance it
+// pays (a kitchen group's Kitchen first, then Other), and the person paid can
+// mark it not received, which reverses it. Never through an assistant.
+
+/** How a payment was made, as Spliteco records it (Cookpool's `other` is not offered here). */
+export const SPLITECO_PAYMENT_METHODS = ["upi", "cash", "bank"] as const;
+export type SplitecoPaymentMethod = (typeof SPLITECO_PAYMENT_METHODS)[number] | "other";
+
+/** POST /v1/spliteco/groups/{org}/settlements — the caller paid `toSubjectId`. */
+export interface SplitecoSettlementRequest {
+  toSubjectId: string;
+  amountMinor: number;
+  method: (typeof SPLITECO_PAYMENT_METHODS)[number];
+  /** A reference or a word ("UTR 4123…"), up to SPLITECO_LIMITS.note. */
+  note?: string | null;
+  /**
+   * For a group made in Cookpool: how much pays each balance. Left out, the
+   * payment pays Kitchen first, then Other. Each part must be within what is
+   * owed there, and the parts add up to `amountMinor`.
+   */
+  split?: { kitchen?: number; other?: number } | null;
+}
+
+export interface SplitecoPayment {
+  /** `txn_…` of the payment's first row; any of its rows' ids works on not-received. */
+  id: string;
+  groupId: string;
+  fromSubjectId: string;
+  toSubjectId: string;
+  amountMinor: number;
+  currency: string;
+  method: SplitecoPaymentMethod | null;
+  note: string | null;
+  /** The rows it was recorded as, one per balance it pays. */
+  parts: { txnId: string; bucket: SplitecoBucket; amountMinor: number }[];
+  recordedAt: string;
+  recordedBy: string;
+  /** `not_received` once the person paid said so (the rows are reversed). */
+  state: "recorded" | "not_received";
+}
+
+export interface SplitecoSettlementResponse {
+  payment: SplitecoPayment;
+}
+
+/** The plan a group settles by, balance by balance (SE2). */
+export interface SplitecoSettlePlanResponse {
+  groupId: string;
+  currency: string;
+  simplifyDebts: boolean;
+  /** Each balance's payments: the fewest when simplified, else pair by pair; `pairs` is how many pairs owe before simplifying. */
+  buckets: {
+    bucket: SplitecoBucket;
+    payments: { fromSubjectId: string; toSubjectId: string; amountMinor: number }[];
+    pairs: number;
+  }[];
+  /** The balances' payments summed per pair. */
+  plan: { fromSubjectId: string; toSubjectId: string; amountMinor: number }[];
+  /** What the caller owes each person in each balance: what a payment to them may cover. */
+  mine: { toSubjectId: string; owed: { kitchen: number; other: number } }[];
+}
+
+export interface SplitecoGroupSettings {
+  /** On (the default): the plan is the fewest payments. Off: each pair settles what is between them. */
+  simplifyDebts: boolean;
+}
+
+/** PUT /v1/spliteco/groups/{org}/settings. */
+export interface SplitecoGroupSettingsRequest {
+  simplifyDebts: boolean;
+}
+
+export interface SplitecoGroupSettingsResponse {
+  settings: SplitecoGroupSettings;
+}
+
+// ── SE2: reminders ──────────────────────────────────────────
+
+/** A person can be reminded by the same person at most once per this many hours. */
+export const SPLITECO_REMINDER_HOURS = 24;
+
+/** POST /v1/spliteco/reminders. */
+export interface SplitecoReminderRequest {
+  /** Who owes the caller (`usr_…`). */
+  to: string;
+  /** The group it is about (`org_…`); left out, the group they owe the caller most in. */
+  groupId?: string | null;
+}
+
+export interface SplitecoReminder {
+  /** `rmd_…`. */
+  id: string;
+  groupId: string;
+  toSubjectId: string;
+  amountMinor: number;
+  currency: string;
+  sentAt: string;
+  /** SPLITECO_REMINDER_HOURS after sentAt. */
+  nextAllowedAt: string;
+}
+
+export interface SplitecoReminderResponse {
+  reminder: SplitecoReminder;
+  /** Whether notifications-worker took it (email, and push when they turned it on). */
+  delivered: boolean;
+}
+
+// ── SE2: your profile ───────────────────────────────────────
+
+/** A UPI ID (VPA): a handle, "@", and the bank's handle — "devk@okaxis", "98100.12345@ybl". */
+export const UPI_VPA_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{1,63}@[A-Za-z][A-Za-z0-9]{1,31}$/;
+
+export function isUpiVpa(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 100 && UPI_VPA_RE.test(value);
+}
+
+export interface SplitecoProfile {
+  /** Your UPI ID: people who share a group with you pay you with it. */
+  upiVpa: string | null;
+  /** The currency groups you make start in. */
+  defaultCurrency: string;
+}
+
+export interface SplitecoProfileResponse {
+  profile: SplitecoProfile;
+}
+
+/** PUT /v1/spliteco/me/profile — `upiVpa: null` removes it. */
+export interface SplitecoProfileRequest {
+  upiVpa: string | null;
+  defaultCurrency?: string;
+}
+
+// ── SE2: what Spliteco sends ────────────────────────────────
+//
+// Through notifications-worker's enqueue (email, plus Web Push for a person
+// who turned the kind on), with amounts formatted and links absolute.
+
+export const SPLITECO_EMAILS = {
+  /** Someone you owe nudged you (POST /v1/spliteco/reminders). */
+  REMINDER: "spliteco.reminder",
+  /** Someone recorded a payment to you in Spliteco. */
+  PAID_YOU: "spliteco.paid_you",
+} as const;
+
+export type SplitecoEmail = (typeof SPLITECO_EMAILS)[keyof typeof SPLITECO_EMAILS];
+
+/** `spliteco.reminder`: "Anu sent a friendly nudge: ₹620.00 for Goa Trip". Keyed `spliteco.reminder:<rmd>:<usr>`. */
+export interface SplitecoReminderEmail {
+  [key: string]: string | number | boolean | null;
+  fromName: string | null;
+  amount: string;
+  groupName: string;
+  /** Where to pay: the Settle up screen in Spliteco. */
+  payUrl: string;
+}
+
+/** `spliteco.paid_you`: "Dev paid you ₹400.00 · UPI". Keyed `spliteco.paid_you:<txn>:<usr>`. */
+export interface SplitecoPaidYouEmail {
+  [key: string]: string | number | boolean | null;
+  payerName: string | null;
+  amount: string;
+  method: string | null;
+  groupName: string;
+  /** The payer's page in Spliteco, where "Not received" is. */
+  personUrl: string;
 }
 
 // ── Helpers ─────────────────────────────────────────────────

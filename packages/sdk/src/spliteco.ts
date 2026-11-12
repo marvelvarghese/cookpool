@@ -14,7 +14,16 @@ import type {
   SplitecoHomeResponse,
   SplitecoInsightsQuery,
   SplitecoInsightsResponse,
+  SplitecoGroupSettingsRequest,
+  SplitecoGroupSettingsResponse,
   SplitecoMoveRequest,
+  SplitecoProfileRequest,
+  SplitecoProfileResponse,
+  SplitecoReminderRequest,
+  SplitecoReminderResponse,
+  SplitecoSettlePlanResponse,
+  SplitecoSettlementRequest,
+  SplitecoSettlementResponse,
   SplitecoWriteResponse,
 } from "@saas/contracts/spliteco";
 
@@ -155,6 +164,58 @@ export class SplitecoClient {
       { method: "GET", path: `${BASE}/groups/${seg(groupId)}/export.json` },
       opts,
     );
+  }
+
+  // ── SE2: settle up and reminders ──
+
+  /**
+   * POST /v1/spliteco/groups/{org}/settlements — record that you paid someone,
+   * only once you confirm it ("I paid"). Never more than you owe them.
+   */
+  settle(groupId: string, body: SplitecoSettlementRequest, opts: RequestOptions = {}): Promise<SplitecoSettlementResponse> {
+    return this.transport.request<SplitecoSettlementResponse>(
+      { method: "POST", path: `${BASE}/groups/${seg(groupId)}/settlements`, body },
+      opts,
+    );
+  }
+
+  /** POST /v1/spliteco/settlements/{txn}/not-received — the person paid says it never came; it is reversed. */
+  notReceived(txnId: string, opts: RequestOptions = {}): Promise<SplitecoSettlementResponse> {
+    return this.transport.request<SplitecoSettlementResponse>(
+      { method: "POST", path: `${BASE}/settlements/${seg(txnId)}/not-received` },
+      opts,
+    );
+  }
+
+  /** GET /v1/spliteco/groups/{org}/settle-plan — the plan balance by balance, and what you owe each person. */
+  settlePlan(groupId: string, opts: RequestOptions = {}): Promise<SplitecoSettlePlanResponse> {
+    return this.transport.request<SplitecoSettlePlanResponse>(
+      { method: "GET", path: `${BASE}/groups/${seg(groupId)}/settle-plan` },
+      opts,
+    );
+  }
+
+  /** PUT /v1/spliteco/groups/{org}/settings — simplify debts on or off. */
+  setGroupSettings(groupId: string, body: SplitecoGroupSettingsRequest, opts: RequestOptions = {}): Promise<SplitecoGroupSettingsResponse> {
+    return this.transport.request<SplitecoGroupSettingsResponse>(
+      { method: "PUT", path: `${BASE}/groups/${seg(groupId)}/settings`, body },
+      opts,
+    );
+  }
+
+  /** POST /v1/spliteco/reminders — nudge someone who owes you; at most once a day per person (409 otherwise). */
+  remind(body: SplitecoReminderRequest, opts: RequestOptions = {}): Promise<SplitecoReminderResponse> {
+    return this.transport.request<SplitecoReminderResponse>({ method: "POST", path: `${BASE}/reminders`, body }, opts);
+  }
+
+  /** GET /v1/spliteco/me/profile — your UPI ID and default currency. */
+  profile(opts: RequestOptions = {}): Promise<SplitecoProfileResponse> {
+    return this.transport.request<SplitecoProfileResponse>({ method: "GET", path: `${BASE}/me/profile` }, opts);
+  }
+
+  /** PUT /v1/spliteco/me/profile — set your UPI ID (null removes it). */
+  setProfile(body: SplitecoProfileRequest, opts: RequestOptions = {}): Promise<SplitecoProfileResponse> {
+    return this.transport.request<SplitecoProfileResponse>({ method: "PUT", path: `${BASE}/me/profile`, body }, opts);
   }
 
   /**

@@ -33,6 +33,14 @@ describe("SplitecoClient", () => {
     ["group activity", (c: Cookpool) => c.spliteco.groupActivity(ORG), "GET", `/v1/spliteco/groups/${ORG}/activity`],
     ["insights", (c: Cookpool) => c.spliteco.insights({ groupId: ORG, month: "2026-11" }), "GET", `/v1/spliteco/insights?groupId=${ORG}&month=2026-11`],
     ["export json", (c: Cookpool) => c.spliteco.exportJson(ORG), "GET", `/v1/spliteco/groups/${ORG}/export.json`],
+    // SE2.
+    ["settle", (c: Cookpool) => c.spliteco.settle(ORG, { toSubjectId: "usr_a", amountMinor: 100, method: "cash" }), "POST", `/v1/spliteco/groups/${ORG}/settlements`],
+    ["not received", (c: Cookpool) => c.spliteco.notReceived(TXN), "POST", `/v1/spliteco/settlements/${TXN}/not-received`],
+    ["settle plan", (c: Cookpool) => c.spliteco.settlePlan(ORG), "GET", `/v1/spliteco/groups/${ORG}/settle-plan`],
+    ["group settings", (c: Cookpool) => c.spliteco.setGroupSettings(ORG, { simplifyDebts: false }), "PUT", `/v1/spliteco/groups/${ORG}/settings`],
+    ["remind", (c: Cookpool) => c.spliteco.remind({ to: "usr_a" }), "POST", "/v1/spliteco/reminders"],
+    ["profile", (c: Cookpool) => c.spliteco.profile(), "GET", "/v1/spliteco/me/profile"],
+    ["set profile", (c: Cookpool) => c.spliteco.setProfile({ upiVpa: "anu@okaxis" }), "PUT", "/v1/spliteco/me/profile"],
   ])("%s", async (_name, call, method, path) => {
     const f = capture(ok({}));
     await call(client(f.fetch));

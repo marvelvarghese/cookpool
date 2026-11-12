@@ -52,11 +52,10 @@ function Home({ data }: { data: SplitecoHomeResponse }) {
           </p>
         ) : null}
         <div className="inline" style={{ flexWrap: "nowrap" }}>
-          <button className="btn flex1" disabled aria-disabled="true" title="Coming soon">
+          <Link href="/settle" className="btn flex1">
             <Icon name="swap" size={18} stroke={2} />
             Settle up
-            <span className="tag">Soon</span>
-          </button>
+          </Link>
           <Link href="/insights" className="btn ghost flex1">
             <Icon name="pie" size={18} stroke={2} color="#FFC857" />
             Insights

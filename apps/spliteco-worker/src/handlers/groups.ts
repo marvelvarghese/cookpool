@@ -26,13 +26,14 @@ import {
   type SplitecoMoney,
 } from "@saas/contracts/spliteco";
 import type { SplitecoTxnRecord } from "@saas/db/spliteco";
-import { pairLines, settlePlan } from "@saas/kitchen-engine/ledger";
+import { pairLines } from "@saas/kitchen-engine/ledger";
 import { requireOrgAction } from "../authz.js";
 import type { RequestContext } from "../context.js";
 import { forbidden, notFound, readJsonObject, successResponse, unavailable, validationError } from "../http.js";
 import { orgPublicId, parseOrgPublicId } from "../ids.js";
 import {
   BUCKETS,
+  bucketPlan,
   bucketRows,
   bucketedPlan,
   byGroup,
@@ -51,7 +52,7 @@ import { Fields, oneOf, text } from "../validate.js";
 
 const SUBJECT_RE = /^[A-Za-z0-9][\w-]{0,127}$/;
 
-export function groupSummary(group: MemberGroup, rows: readonly SplitecoTxnRecord[], currency: string, me: string): SplitecoGroupSummary {
+export function groupSummary(group: MemberGroup, rows: readonly SplitecoTxnRecord[], currency: string, me: string, simplify = true): SplitecoGroupSummary {
   return {
     id: group.publicId,
     name: groupLabel(group),
@@ -61,7 +62,7 @@ export function groupSummary(group: MemberGroup, rows: readonly SplitecoTxnRecor
     currency,
     memberCount: group.members.length,
     myBalanceMinor: groupBalances(rows).get(me) ?? 0,
-    myPlan: myPlan(rows, me),
+    myPlan: myPlan(rows, me, simplify),
     myBuckets:
       group.madeIn === "cookpool"
         ? {
@@ -142,15 +143,25 @@ async function friendsOf(
 }
 
 type Everything =
-  | { ok: true; groups: MemberGroup[]; rowsByOrg: Map<string, SplitecoTxnRecord[]>; currencies: Map<string, string> }
+  | {
+      ok: true;
+      groups: MemberGroup[];
+      rowsByOrg: Map<string, SplitecoTxnRecord[]>;
+      currencies: Map<string, string>;
+      /** Whether each group simplifies debts (SE2). */
+      simplify: Map<string, boolean>;
+    }
   | { ok: false; response: Response };
 
 async function loadEverything(ctx: RequestContext, repo: Parameters<Parameters<typeof withRepo>[1]>[0]): Promise<Everything> {
   const mine = await ctx.timings.measure("membership", () => ctx.groups.of(ctx.actor.subjectId));
   if (!mine.ok) return { ok: false, response: unavailable(ctx.requestId) };
   const orgIds = mine.groups.map((g) => g.orgId);
-  const [rows, currencies] = await ctx.timings.measure("db", () => Promise.all([repo.listTxns(orgIds), repo.currencies(orgIds)]));
-  return { ok: true, groups: mine.groups, rowsByOrg: byGroup(rows), currencies };
+  const [rows, currencies, settings] = await ctx.timings.measure("db", () =>
+    Promise.all([repo.listTxns(orgIds), repo.currencies(orgIds), repo.groupSettings(orgIds)]),
+  );
+  const simplify = new Map([...settings].map(([orgId, s]) => [orgId, s.simplifyDebts]));
+  return { ok: true, groups: mine.groups, rowsByOrg: byGroup(rows), currencies, simplify };
 }
 
 export function handleHome(ctx: RequestContext): Promise<Response> {
@@ -196,7 +207,7 @@ export function handleGroups(ctx: RequestContext): Promise<Response> {
     const me = ctx.actor.subjectId;
     const groups = all.groups
       .filter((g) => g.kind !== "direct")
-      .map((g) => groupSummary(g, all.rowsByOrg.get(g.orgId) ?? [], currencyOf(all.currencies, g.orgId), me))
+      .map((g) => groupSummary(g, all.rowsByOrg.get(g.orgId) ?? [], currencyOf(all.currencies, g.orgId), me, all.simplify.get(g.orgId) ?? true))
       .sort((a, b) => a.name.localeCompare(b.name));
     const friends = await friendsOf(ctx, all.groups, all.rowsByOrg, all.currencies, { includeZero: true });
     return successResponse<SplitecoGroupsResponse>({ groups, friends }, ctx.requestId);
@@ -253,8 +264,18 @@ export async function handleGroup(ctx: RequestContext, orgParam: string): Promis
     if (!mine.ok) return unavailable(ctx.requestId);
     const group = mine.groups.find((g) => g.orgId === orgId);
     if (!group) return notFound(ctx.requestId);
-    const [rows, currencies] = await ctx.timings.measure("db", () => Promise.all([repo.listTxns([orgId]), repo.currencies([orgId])]));
+    const memberIdList = group.members.map((m) => m.subjectId);
     const me = ctx.actor.subjectId;
+    const [rows, currencies, settings, profiles, reminders] = await ctx.timings.measure("db", () =>
+      Promise.all([
+        repo.listTxns([orgId]),
+        repo.currencies([orgId]),
+        repo.groupSettings([orgId]),
+        repo.profiles(memberIdList),
+        repo.lastReminders(me, memberIdList.filter((id) => id !== me)),
+      ]),
+    );
+    const simplify = settings.get(orgId)?.simplifyDebts ?? true;
     const currency = currencyOf(currencies, orgId);
     const label = groupLabel(group);
 
@@ -270,12 +291,12 @@ export async function handleGroup(ctx: RequestContext, orgParam: string): Promis
     const names = await ctx.people.names([...memberIds, ...others]);
     return successResponse<SplitecoGroupResponse>(
       {
-        group: groupSummary(group, rows, currency, me),
+        group: groupSummary(group, rows, currency, me, simplify),
         members: group.members.map((m) => ({ subjectId: m.subjectId, name: names.get(m.subjectId) ?? null, role: m.role })),
         balances: [...byPerson.entries()]
           .map(([subjectId, balanceMinor]) => ({ subjectId, balanceMinor }))
           .sort((a, b) => b.balanceMinor - a.balanceMinor || (a.subjectId < b.subjectId ? -1 : a.subjectId > b.subjectId ? 1 : 0)),
-        plan: bucketedPlan(rows).map((p) => ({ fromSubjectId: p.fromId, toSubjectId: p.toId, amountMinor: p.amountMinor })),
+        plan: bucketedPlan(rows, simplify).map((p) => ({ fromSubjectId: p.fromId, toSubjectId: p.toId, amountMinor: p.amountMinor })),
         buckets:
           group.madeIn === "cookpool"
             ? BUCKETS.map((bucket) => {
@@ -287,7 +308,7 @@ export async function handleGroup(ctx: RequestContext, orgParam: string): Promis
                     .map((subjectId) => ({ subjectId, balanceMinor: bal.get(subjectId) ?? 0 }))
                     .filter((b) => b.balanceMinor !== 0 || memberIds.has(b.subjectId))
                     .sort((a, b) => b.balanceMinor - a.balanceMinor || (a.subjectId < b.subjectId ? -1 : 1)),
-                  plan: settlePlan(engineTxns(own)).payments.map((p) => ({ fromSubjectId: p.fromId, toSubjectId: p.toId, amountMinor: p.amountMinor })),
+                  plan: bucketPlan(rows, bucket, simplify).map((p) => ({ fromSubjectId: p.fromId, toSubjectId: p.toId, amountMinor: p.amountMinor })),
                   myBalanceMinor: bal.get(me) ?? 0,
                 };
               })
@@ -296,6 +317,12 @@ export async function handleGroup(ctx: RequestContext, orgParam: string): Promis
         expenses: [...current].reverse().map((t) => toSummary(t, label, me)),
         people: others.map((subjectId) => ({ subjectId, name: names.get(subjectId) ?? null })),
         canWrite: WRITE_ROLES.has(group.role),
+        settings: { simplifyDebts: simplify },
+        upi: memberIdList.flatMap((subjectId) => {
+          const vpa = profiles.get(subjectId)?.upiVpa;
+          return vpa ? [{ subjectId, upiVpa: vpa }] : [];
+        }),
+        reminded: [...reminders.values()].map((r) => ({ subjectId: r.toSubject, sentAt: r.sentAt })),
       },
       ctx.requestId,
     );
@@ -323,12 +350,18 @@ export function handleFriend(ctx: RequestContext, usrParam: string): Promise<Res
     const balances: SplitecoMoney[] = [];
     const byGroupLines: SplitecoFriendResponse["byGroup"] = [];
     const expenses: SplitecoFriendResponse["expenses"] = [];
+    const plans: SplitecoFriendResponse["plans"] = [];
     for (const group of shared) {
       const rows = all.rowsByOrg.get(group.orgId) ?? [];
       const currency = currencyOf(all.currencies, group.orgId);
       const amount = pairwise(rows, me).get(friendId) ?? 0;
       addMoney(balances, currency, amount);
       byGroupLines.push({ groupId: group.publicId, groupName: groupLabel(group), kind: group.kind, currency, amountMinor: amount });
+      for (const p of bucketedPlan(rows, all.simplify.get(group.orgId) ?? true)) {
+        if ((p.fromId === me && p.toId === friendId) || (p.fromId === friendId && p.toId === me)) {
+          plans.push({ groupId: group.publicId, groupName: groupLabel(group), currency, fromSubjectId: p.fromId, toSubjectId: p.toId, amountMinor: p.amountMinor });
+        }
+      }
       for (const t of rows) {
         if (!isCurrent(t)) continue;
         const ids = new Set(t.splits.map((s) => s.subjectId));
@@ -337,7 +370,13 @@ export function handleFriend(ctx: RequestContext, usrParam: string): Promise<Res
     }
     expenses.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0));
     const direct = shared.find((g) => g.kind === "direct");
-    const name = (await ctx.people.names([friendId])).get(friendId) ?? null;
+    // Their UPI ID only while the two still share a group (SE2).
+    const sharesNow = shared.some((g) => g.members.some((m) => m.subjectId === friendId));
+    const [name, profiles, reminders] = await Promise.all([
+      ctx.people.names([friendId]).then((n) => n.get(friendId) ?? null),
+      sharesNow ? repo.profiles([friendId]) : Promise.resolve(new Map<string, { upiVpa: string | null }>()),
+      repo.lastReminders(me, [friendId]),
+    ]);
     return successResponse<SplitecoFriendResponse>(
       {
         friend: { subjectId: friendId, name },
@@ -345,6 +384,9 @@ export function handleFriend(ctx: RequestContext, usrParam: string): Promise<Res
         byGroup: byGroupLines,
         directGroupId: direct ? direct.publicId : null,
         expenses,
+        upiVpa: profiles.get(friendId)?.upiVpa ?? null,
+        lastRemindedAt: reminders.get(friendId)?.sentAt ?? null,
+        plans: plans.sort((a, b) => b.amountMinor - a.amountMinor),
       },
       ctx.requestId,
     );
@@ -374,7 +416,7 @@ export function handleDirectGroup(ctx: RequestContext, usrParam: string): Promis
     if (!made) return unavailable(ctx.requestId);
     const orgId = parseOrgPublicId(made.organization.orgId);
     if (!orgId) return unavailable(ctx.requestId);
-    const [rows, currencies] = await Promise.all([repo.listTxns([orgId]), repo.currencies([orgId])]);
+    const [rows, currencies, settings] = await Promise.all([repo.listTxns([orgId]), repo.currencies([orgId]), repo.groupSettings([orgId])]);
     const group: MemberGroup = {
       orgId,
       publicId: orgPublicId(orgId),
@@ -389,7 +431,7 @@ export function handleDirectGroup(ctx: RequestContext, usrParam: string): Promis
       ],
     };
     return successResponse<SplitecoDirectGroupResponse>(
-      { group: groupSummary(group, rows, currencyOf(currencies, orgId), me) },
+      { group: groupSummary(group, rows, currencyOf(currencies, orgId), me, settings.get(orgId)?.simplifyDebts ?? true) },
       ctx.requestId,
       made.created ? 201 : 200,
     );

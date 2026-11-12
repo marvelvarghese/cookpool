@@ -10,6 +10,8 @@
 //     membership rows directly, as a join would.
 //   - POLICY_WORKER runs the real policy engine.
 //   - IDENTITY_WORKER answers the people lookup from `profile`.
+//   - NOTIFICATIONS_WORKER records every enqueue it is sent (`sent`), for
+//     the reminders and "paid you" (SE2), and answers as the worker does.
 //   - `kitchen` sends a request through kitchen-worker's router over the same
 //     database and bindings, so a test can post in Cookpool and read in
 //     Spliteco (and back).
@@ -22,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import { authorize } from "@saas/policy-engine";
 import type { AuthorizationRequest, OrganizationRole } from "@saas/contracts/policy";
 import type { UsersLookupRequest } from "@saas/contracts/auth";
+import type { EnqueueNotificationRequest } from "@saas/contracts/notifications";
 import { manifest } from "@saas/db";
 import { asUuid, type Uuid } from "@saas/db/ids";
 import { D1ApiAdapter } from "@saas/db/runner";
@@ -120,6 +123,8 @@ export interface Harness {
   membership(method: string, path: string, opts: CallOptions): Promise<Response>;
   beforeNextBatch(write: (db: DatabaseSync) => void): void;
   decisions: Array<{ action: string; allow: boolean }>;
+  /** Every notification enqueued (by Spliteco or Cookpool), with the worker that asked. */
+  sent: Array<{ internalActor: string | null; body: EnqueueNotificationRequest }>;
   close(): void;
 }
 
@@ -167,9 +172,11 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     });
     return Response.json({ data: { users }, meta: { requestId: "req_identity", cursor: null } });
   });
-  const notificationsWorker = fetcher(async () =>
-    Response.json({ data: { notification: { id: "ntf_x", status: "sent" } }, meta: { requestId: "r", cursor: null } }, { status: 201 }),
-  );
+  const sent: Harness["sent"] = [];
+  const notificationsWorker = fetcher(async (request) => {
+    sent.push({ internalActor: request.headers.get("x-internal-actor"), body: (await request.json()) as EnqueueNotificationRequest });
+    return Response.json({ data: { notification: { id: "ntf_x", status: "sent" } }, meta: { requestId: "r", cursor: null } }, { status: 201 });
+  });
 
   const base: Record<string, unknown> = {
     ENVIRONMENT: "test",
@@ -177,6 +184,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     MEMBERSHIP_WORKER: membershipWorker,
     POLICY_WORKER: policyWorker,
     IDENTITY_WORKER: identityWorker,
+    NOTIFICATIONS_WORKER: notificationsWorker,
+    APP_URL: "https://spliteco.test",
   };
   for (const [key, value] of Object.entries(options.env ?? {})) {
     if (value === undefined) delete base[key];
@@ -198,6 +207,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     db,
     env,
     decisions,
+    sent,
     group(name, { madeIn = "cookpool", kind = madeIn === "cookpool" ? "kitchen" : "trip" } = {}) {
       const id = asUuid(randomUUID());
       const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${id.slice(0, 6)}`;

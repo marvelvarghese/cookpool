@@ -315,3 +315,33 @@ describe("preferences, per kind and per channel", () => {
     expect(await fields(await get(repo, `subjectKind=user&subjectId=${DEV}`))).toHaveProperty(["orgId"]);
   });
 });
+
+describe("Spliteco's kinds (SE-3)", () => {
+  it("email the reminder and the payment, and push each beside its email under the email's key", async () => {
+    const repo = memoryRepo();
+    const pushes: TemplatePush[] = [];
+    const deps = service(repo, async (p) => void pushes.push(p));
+    const reminder = portionSet({
+      templateKey: "spliteco.reminder",
+      templateData: { fromName: "Anu", amount: "₹620.00", groupName: "Goa Trip", payUrl: "https://spliteco.test/settle?group=org_1&to=usr_anu" },
+      idempotencyKey: `spliteco.reminder:rmd_1:${DEV}`,
+    });
+    const paid = portionSet({
+      templateKey: "spliteco.paid_you",
+      templateData: { payerName: "Anu", amount: "₹300.00", method: "UPI", groupName: "Goa Trip", personUrl: "https://spliteco.test/friend?id=usr_anu" },
+      idempotencyKey: `spliteco.paid_you:txn_1:${DEV}`,
+    });
+    for (const request of [reminder, paid]) {
+      const result = await enqueueNotification(deps, request);
+      expect("outcome" in result && result.outcome.status).toBe("created");
+    }
+    expect(repo.notifications.map((n) => [n.templateKey, n.status])).toEqual([
+      ["spliteco.reminder", "sent"],
+      ["spliteco.paid_you", "sent"],
+    ]);
+    expect(pushes.map((p) => [p.templateKey, p.tag])).toEqual([
+      ["spliteco.reminder", `spliteco.reminder:rmd_1:${DEV}`],
+      ["spliteco.paid_you", `spliteco.paid_you:txn_1:${DEV}`],
+    ]);
+  });
+});

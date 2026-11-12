@@ -21,6 +21,7 @@
   "dependencies": {
     "@saas/contracts": "workspace:*",
     "@saas/db": "workspace:*",
-    "@saas/kitchen-engine": "workspace:*"
+    "@saas/kitchen-engine": "workspace:*",
+    "@saas/notifications-client": "workspace:*"
   }
 }
