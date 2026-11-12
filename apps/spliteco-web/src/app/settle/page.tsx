@@ -1,41 +1,47 @@
 "use client";
 
-// Settle up (SE2, canvas SettleUp): who pays whom, the amount with "All" or
-// "Part of it", and UPI, cash or bank.
+// Settle up (SE2; V2Settle since spliteco-calm SL5): who pays whom, the big
+// amount with All, Part (and Kitchen / Other where a kitchen group owes on
+// both), the UPI · Cash · Bank tiles and the slider.
 //
 //   /settle                     everyone you owe, across your groups
 //   /settle?group=org_…         everyone you owe in that group
 //   /settle?group=org_…&to=usr_ paying one person
 //
-// The ways to pay and the "did it go through?" panel are the shared parts
-// (packages/spliteco-ui, SE3) Cookpool's Settle up draws too, in Deep ocean.
-// UPI opens the person's UPI app with a `upi://pay` link and records nothing;
-// back in the app, "I paid ₹X" records it and "It didn't" doesn't. Cash and
-// bank record in one tap. The person paid can mark it "Not received" later.
+// UPI: "Open UPI app" opens the person's UPI app with a `upi://pay` link and
+// records nothing; the slider ("Slide when paid") moves only after that, and
+// sliding is the payer's "I paid". Cash and bank: "Slide to record". The
+// slide shows the tick and Undo at once and the record call waits UNDO_MS
+// behind it (lib/slide-pay.ts), so Undo sends nothing. The person paid can
+// mark it "Not received" later. The rules are shared with Cookpool's Money
+// tab (@saas/spliteco-ui/settle); the tiles and slider are Spliteco's own.
 
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SplitecoGroupResponse, SplitecoGroupsResponse, SplitecoSettlePlanResponse } from "@saas/contracts/spliteco";
-import { Avatar, BackButton, Loading, Screen, useLoad, useQueryParam } from "@/components/ui";
+import { Avatar, BackButton, Loading, Screen, useLoad, useQueryParam, useToast } from "@/components/ui";
 import { Icon } from "@/components/icons";
-import { PayMethods, UpiConfirm, methodNote } from "@saas/spliteco-ui/components";
-import { formatMoney, formatShort, moneyInput, parseMoney, splitMoney } from "@/lib/money";
+import { Slider } from "@/components/gestures/slider";
+import { useLatest } from "@/components/gestures/motion";
+import { formatMoney, formatShort, moneyInput, parseMoney } from "@/lib/money";
 import { nameOf, namesFrom } from "@/lib/people";
 import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
 import { useMe } from "@/lib/me";
+import { payOptions, upiLink, upiUnavailable, type PayMethod } from "@/lib/settle";
 import {
-  checkAmount,
-  ctaText,
-  initialSettle,
-  kitchenFirst,
-  payOptions,
-  settleStep,
-  upiLink,
-  upiUnavailable,
-  type PayMethod,
-  type SettleEvent,
-} from "@/lib/settle";
+  SlidePay,
+  allocationShown,
+  hasBothBalances,
+  partChips,
+  payAmount,
+  slideEnabled,
+  slideLabel,
+  slideText,
+  upiTileState,
+  type PayPart,
+  type SlidePhase,
+} from "@/lib/slide-pay";
 
 export default function SettlePage() {
   const group = useQueryParam("group");
@@ -178,6 +184,12 @@ function PickPayee({ group, plan, me }: { group: SplitecoGroupResponse; plan: Sp
   );
 }
 
+const METHOD_TILES: { id: PayMethod; name: string; icon: string }[] = [
+  { id: "upi", name: "UPI", icon: "📲" },
+  { id: "cash", name: "Cash", icon: "💵" },
+  { id: "bank", name: "Bank", icon: "🏦" },
+];
+
 function Pay({ group, plan, to, me }: { group: SplitecoGroupResponse; plan: SplitecoSettlePlanResponse; to: string; me: string | null }) {
   const { client } = useSession();
   const router = useRouter();
@@ -185,51 +197,76 @@ function Pay({ group, plan, to, me }: { group: SplitecoGroupResponse; plan: Spli
   const payee = nameOf(names, to, me);
   const currency = plan.currency;
   const option = payOptions(plan).find((o) => o.toSubjectId === to) ?? null;
-  const owedMinor = option?.totalMinor ?? 0;
+  const owed = option?.owed ?? { kitchen: 0, other: 0 };
   const vpa = group.upi.find((u) => u.subjectId === to)?.upiVpa ?? null;
   const upiOff = upiUnavailable({ vpa, name: payee, currency });
   const kitchenGroup = group.group.madeIn === "cookpool";
+  const both = hasBothBalances(kitchenGroup, owed);
+  const groupName = group.group.kind === "direct" ? "Spliteco" : group.group.name;
 
-  const [mode, setMode] = React.useState<"all" | "part">("all");
+  const [part, setPart] = React.useState<PayPart>("all");
   const [partText, setPartText] = React.useState("");
+  const [kitchenText, setKitchenText] = React.useState<string | null>(null);
+  const [method, setMethod] = React.useState<PayMethod>(upiOff ? "cash" : "upi");
   const [note, setNote] = React.useState("");
-  const [flow, setFlow] = React.useState(() => initialSettle(upiOff ? "cash" : "upi"));
-  const [splitOwn, setSplitOwn] = React.useState(false);
-  const [kitchenText, setKitchenText] = React.useState("");
+  const [openedLink, setOpenedLink] = React.useState<string | null>(null);
+  const [phase, setPhase] = React.useState<SlidePhase>("slide");
+  const [toast, say] = useToast();
   const key = React.useRef(newIdempotencyKey());
 
-  const amount = checkAmount(mode, parseMoney(partText), owedMinor, currency);
+  const amount = payAmount({
+    part,
+    owed,
+    partMinor: parseMoney(partText),
+    ownKitchenMinor: kitchenText === null ? null : (parseMoney(kitchenText) ?? 0),
+    kitchenGroup,
+    currency,
+  });
   const amountMinor = amount.ok ? amount.amountMinor : 0;
-  const auto = option ? kitchenFirst(amountMinor, option.owed) : { kitchen: 0, other: amountMinor };
-  const ownKitchen = parseMoney(kitchenText) ?? 0;
-  const split = kitchenGroup && splitOwn ? { kitchen: ownKitchen, other: amountMinor - ownKitchen } : null;
-  const splitOk = !split || (split.kitchen >= 0 && split.other >= 0 && split.kitchen <= (option?.owed.kitchen ?? 0) && split.other <= (option?.owed.other ?? 0));
-  const groupName = group.group.kind === "direct" ? "Spliteco" : group.group.name;
-  const link = upiLink({ vpa, name: payee, amountMinor, note: note.trim() || groupName, currency });
+  const split = amount.ok ? amount.split : null;
+  const shown = allocationShown(amountMinor, owed, split);
+  const noteText = note.trim();
+  const link = upiLink({ vpa, name: payee, amountMinor, note: noteText || groupName, currency });
+  const amountText = formatShort(amountMinor || option?.totalMinor || 0, currency);
+  const canSlide = slideEnabled({ method, amountOk: amount.ok, link, openedLink });
 
-  // The flow's state lives in a ref as well, so a press is handled once
-  // against the latest state (never inside a React updater, which may run twice).
-  const flowRef = React.useRef(flow);
+  // Slide → tick + Undo; the record call waits UNDO_MS behind it, and leaving
+  // the page sends what is waiting (pagehide or unmount).
+  const live = React.useRef(true);
+  const sayLatest = useLatest(say);
+  const pay = React.useMemo(
+    () =>
+      new SlidePay({
+        change: (p) => {
+          if (live.current) setPhase(p);
+        },
+        failed: (err) => {
+          if (live.current) sayLatest.current(`Not recorded · ${errorText(err)}`);
+        },
+      }),
+    [sayLatest],
+  );
+  React.useEffect(() => {
+    live.current = true;
+    const leave = () => pay.flush();
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      pay.flush();
+      live.current = false;
+    };
+  }, [pay]);
 
-  async function record(method: PayMethod) {
-    try {
-      await client.spliteco.settle(
-        group.group.id,
-        { toSubjectId: to, amountMinor, method, note: note.trim() || null, ...(split ? { split } : {}) },
-        { idempotencyKey: key.current },
-      );
-      dispatch({ type: "saved" });
-    } catch (err) {
-      dispatch({ type: "failed", message: errorText(err) });
-    }
+  function slid() {
+    if (!canSlide || !amount.ok) return;
+    const body = { toSubjectId: to, amountMinor: amount.amountMinor, method, note: noteText || null, ...(amount.split ? { split: amount.split } : {}) };
+    pay.slide(() => client.spliteco.settle(group.group.id, body, { idempotencyKey: key.current }));
   }
 
-  function dispatch(event: SettleEvent) {
-    const { state, effect } = settleStep(flowRef.current, event);
-    flowRef.current = state;
-    setFlow(state);
-    if (effect === "open_upi" && link) window.location.href = link;
-    if (effect === "record") void record(state.method);
+  function openUpi() {
+    if (!link) return;
+    setOpenedLink(link);
+    window.location.href = link;
   }
 
   if (!option) {
@@ -241,125 +278,121 @@ function Pay({ group, plan, to, me }: { group: SplitecoGroupResponse; plan: Spli
     );
   }
 
-  if (flow.step === "done") {
-    return (
-      <section className="stack" style={{ alignItems: "center", textAlign: "center", gap: 12 }} role="status">
-        <span className="cat" style={{ width: 64, height: 64, background: "rgba(127,216,176,0.16)", color: "#7FD8B0" }}><Icon name="check" size={30} /></span>
-        <h1 className="h1" style={{ fontSize: 24 }}>Recorded {formatShort(amountMinor, currency)} to {payee}</h1>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{payee} gets a heads-up, and can mark it &ldquo;not received&rdquo; if it never arrived.</p>
-        <button className="btn big" onClick={() => router.push(`/group?id=${encodeURIComponent(group.group.id)}`)}>Done</button>
-      </section>
-    );
-  }
-
-  const { whole, fraction } = splitMoney(amountMinor || owedMinor, currency);
+  const locked = phase !== "slide";
   return (
-    <>
-      <section className="stack" style={{ alignItems: "center", gap: 10 }}>
-        <div className="inline" style={{ gap: 18, flexWrap: "nowrap" }}>
-          <span className="stack" style={{ alignItems: "center", gap: 4 }}>
-            <Avatar id={me ?? "me"} name="You" me={me} size={56} />
-            <span className="small bold">You</span>
-          </span>
-          <Icon name="swap" size={22} color="#FFC857" />
-          <span className="stack" style={{ alignItems: "center", gap: 4 }}>
-            <Avatar id={to} name={payee} me={me} size={56} />
-            <span className="small bold">{payee}</span>
-          </span>
-        </div>
-        <span className="small dim">You pay {payee} · {groupName}</span>
-        <div className="bigmoney owe" aria-live="polite">
-          <span className="w">{whole}</span>
-          <span className="f">{fraction}</span>
-        </div>
-        <div role="radiogroup" aria-label="How much" className="seg" style={{ width: 260 }}>
-          <button role="radio" aria-checked={mode === "all"} onClick={() => setMode("all")}>All {formatShort(owedMinor, currency)}</button>
-          <button
-            role="radio"
-            aria-checked={mode === "part"}
-            onClick={() => {
-              setMode("part");
-              if (!partText) setPartText(moneyInput(owedMinor));
-            }}
-          >
-            Part of it
-          </button>
-        </div>
-        {mode === "part" ? (
-          <label className="amount-box" style={{ minWidth: 180 }}>
-            <span>{currency === "INR" ? "₹" : currency}</span>
-            <input inputMode="decimal" aria-label="Amount you paid" value={partText} onChange={(e) => setPartText(e.target.value)} autoFocus style={{ width: 140 }} />
-          </label>
-        ) : null}
-        {!amount.ok && mode === "part" ? <p className="error" role="alert">{amount.message}</p> : null}
-      </section>
+    <div className="settle">
+      <div className="settle-faces">
+        <Avatar id={me ?? "me"} name="You" me={me} size={64} />
+        <svg aria-label="pays" role="img" width="32" height="20" viewBox="0 0 32 20" fill="none" stroke="var(--line-strong)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 10h26M21 3l7 7-7 7" /></svg>
+        <Avatar id={to} name={payee} me={me} size={64} />
+      </div>
 
-      {kitchenGroup && amountMinor > 0 && option.owed.kitchen > 0 && option.owed.other > 0 ? (
-        <section aria-label="Which balance it pays" className="panel" style={{ gap: 8, padding: 14 }}>
-          <div className="row-between">
-            <span className="small bold muted">Pays Kitchen first, then Other</span>
-            <button className="pillbtn" onClick={() => {
-              setSplitOwn(!splitOwn);
-              setKitchenText(moneyInput(auto.kitchen));
-            }}>{splitOwn ? "Kitchen first" : "Change split"}</button>
+      <div className="settle-amount">
+        <span className="settle-name">{payee}{groupName !== "Spliteco" ? <span className="dim"> · {groupName}</span> : null}</span>
+        <span className="settle-big" aria-live="polite">{amountText}</span>
+        <div role="radiogroup" aria-label="How much" className="settle-parts">
+          {partChips({ kitchenGroup, owed, currency }).map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              role="radio"
+              aria-checked={part === c.id}
+              disabled={locked}
+              onClick={() => {
+                setPart(c.id);
+                if (c.id === "part" && !partText) setPartText(moneyInput(option.totalMinor));
+                if (c.id !== "part") setKitchenText(null);
+              }}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+        {part === "part" ? (
+          <div className="settle-part">
+            <label className="amount-box">
+              <span>{currency === "INR" ? "₹" : currency}</span>
+              <input inputMode="decimal" aria-label="Amount you paid" value={partText} disabled={locked} onChange={(e) => setPartText(e.target.value)} autoFocus style={{ width: 120 }} />
+            </label>
+            {both && amountMinor > 0 ? (
+              kitchenText === null ? (
+                <button type="button" className="settle-split" disabled={locked} onClick={() => setKitchenText(moneyInput(shown.kitchen))}>
+                  Kitchen {formatShort(shown.kitchen, currency)} · Other {formatShort(shown.other, currency)} · Change
+                </button>
+              ) : (
+                <label className="amount-box">
+                  <span>Kitchen</span>
+                  <input inputMode="decimal" aria-label="Kitchen part" value={kitchenText} disabled={locked} onChange={(e) => setKitchenText(e.target.value)} style={{ width: 90 }} />
+                  <span className="small muted">Other {formatShort(Math.max(0, amountMinor - (parseMoney(kitchenText) ?? 0)), currency)}</span>
+                </label>
+              )
+            ) : null}
           </div>
-          {splitOwn ? (
-            <div className="row-between">
-              <label className="amount-box">
-                <span>Kitchen</span>
-                <input inputMode="decimal" aria-label="Kitchen part" value={kitchenText} onChange={(e) => setKitchenText(e.target.value)} />
-              </label>
-              <span className="small muted">Other {formatMoney(Math.max(0, amountMinor - ownKitchen), currency)}</span>
-            </div>
-          ) : (
-            <div className="row-between small">
-              <span className="muted">Kitchen {formatMoney(auto.kitchen, currency)}</span>
-              <span className="muted">Other {formatMoney(auto.other, currency)}</span>
-            </div>
-          )}
-          {!splitOk ? <p className="error" role="alert">Each part must be within what you owe there (Kitchen {formatMoney(option.owed.kitchen, currency)}, Other {formatMoney(option.owed.other, currency)}).</p> : null}
-        </section>
+        ) : null}
+        {!amount.ok && part === "part" ? <p className="error" role="alert">{amount.message}</p> : null}
+      </div>
+
+      <div role="radiogroup" aria-label="How you paid" className="settle-methods">
+        {METHOD_TILES.map((m) => {
+          const off = m.id === "upi" && upiOff !== null;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              role="radio"
+              aria-checked={method === m.id}
+              aria-disabled={off || undefined}
+              disabled={off || locked}
+              title={off ? (upiOff ?? undefined) : undefined}
+              onClick={() => setMethod(m.id)}
+            >
+              <span aria-hidden="true" className="ic">{m.icon}</span>
+              {m.name}
+              {off ? <span className="off">{upiTileState(upiOff, currency)}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+      {upiOff && method !== "upi" ? <p className="small dim center" style={{ margin: 0 }}>{upiOff}</p> : null}
+
+      {method === "upi" && !locked ? (
+        <button type="button" className={`settle-upi ${openedLink === link && link ? "opened" : ""}`} disabled={!link} onClick={openUpi}>
+          {openedLink === link && link ? `UPI app opened · ${vpa}` : `Open UPI app · ${amountText}`}
+        </button>
       ) : null}
 
-      <PayMethods
-        value={flow.method}
-        upiOff={upiOff}
-        locked={flow.step !== "pick"}
-        onPick={(method) => dispatch({ type: "pick", method })}
-        note={(m) => methodNote(m, { upiOff, amount: formatShort(amountMinor, currency), vpa, note: note.trim() || groupName, payee })}
-      />
+      {method !== "upi" && !locked ? (
+        <input
+          className="input settle-note"
+          maxLength={60}
+          value={note}
+          aria-label={method === "bank" ? "Reference (optional)" : "Note (optional)"}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder={method === "bank" ? "Reference (optional)" : "Note (optional)"}
+        />
+      ) : null}
 
-      <label className="stack s8">
-        <span className="small muted bold">{flow.method === "bank" ? "Reference (optional)" : "Note (optional)"}</span>
-        <input className="input" maxLength={60} value={note} onChange={(e) => setNote(e.target.value)} placeholder={flow.method === "bank" ? "UTR or IMPS reference" : groupName} />
-      </label>
-
-      <div style={{ height: 150 }} />
-      <div className="footer-fixed">
-        <div>
-          {flow.step === "confirm" ? (
-            <UpiConfirm
-              payee={payee}
-              amountText={formatShort(amountMinor, currency)}
-              link={link}
-              error={flow.error}
-              onPaid={() => dispatch({ type: "paid" })}
-              onDidnt={() => dispatch({ type: "didnt" })}
-            />
-          ) : (
-            <>
-              {flow.error ? <p className="error" role="alert">{flow.error}</p> : null}
-              <button
-                className="btn big"
-                disabled={!amount.ok || !splitOk || flow.step === "saving" || (flow.method === "upi" && !link)}
-                onClick={() => dispatch({ type: "go" })}
-              >
-                {flow.step === "saving" ? "Recording…" : ctaText(flow.method, amountMinor, payee, currency)}
-              </button>
-            </>
-          )}
-        </div>
+      <div className="settle-foot">
+        {phase === "slide" ? (
+          <Slider text={slideText(method)} label={slideLabel(method, amountText, payee)} disabled={!canSlide} onFire={slid} />
+        ) : (
+          <div role="status" className="settle-done">
+            <span className="tick"><Icon name="check" size={30} /></span>
+            <span className="paid">Paid {amountText}</span>
+            {phase === "held" ? (
+              <button type="button" className="undo" onClick={() => pay.undo()}>Undo</button>
+            ) : phase === "sending" ? (
+              <span className="small dim">Recording…</span>
+            ) : (
+              <>
+                <span className="small dim">{payee} can mark it &ldquo;not received&rdquo;.</span>
+                <button type="button" className="undo" onClick={() => router.push(`/group?id=${encodeURIComponent(group.group.id)}`)}>Done</button>
+              </>
+            )}
+          </div>
+        )}
       </div>
-    </>
+      {toast}
+    </div>
   );
 }

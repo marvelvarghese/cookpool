@@ -332,8 +332,37 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 .slider.off { opacity: 0.4; }
 .slider-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding-left: 40px; font-size: 16px; font-weight: 500; color: var(--muted); }
 .slider-knob { position: absolute; left: 4px; top: 4px; width: 56px; height: 56px; border-radius: 50%; background: var(--cobalt); color: #fff; display: flex; align-items: center; justify-content: center; touch-action: none; cursor: grab; }
+
+/* ── Settle (V2Settle, SL5) ─────────────────────────── */
+.settle { display: flex; flex-direction: column; gap: 0; min-height: calc(100dvh - 120px); }
+.settle-faces { display: flex; align-items: center; justify-content: center; gap: 18px; padding-top: 24px; }
+.settle-amount { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 24px; }
+.settle-name { font-size: 15px; color: var(--dim); }
+.settle-big { font-size: 60px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; color: var(--money); }
+.settle-parts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding-top: 10px; }
+.settle-parts button { height: 34px; padding: 0 14px; border-radius: 17px; background: var(--surface); border: 0; color: var(--dim); font-size: 14px; font-weight: 500; }
+.settle-parts button[aria-checked="true"] { background: var(--cobalt-soft); color: #fff; }
+.settle-part { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; padding-top: 8px; }
+.settle-split { height: 34px; padding: 0 12px; border-radius: 17px; background: none; border: 0; color: var(--link); font-size: 13px; font-weight: 500; }
+.settle-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 32px; }
+.settle-methods button { height: 84px; border-radius: 20px; background: var(--surface); border: 0; color: var(--text); font-size: 13px; font-weight: 500; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.settle-methods button[aria-checked="true"] { background: var(--raised); box-shadow: 0 0 0 2px var(--cobalt); }
+.settle-methods button[aria-disabled="true"] { opacity: 0.45; }
+.settle-methods .ic { font-size: 24px; line-height: 1; }
+.settle-methods .off { font-size: 11px; color: var(--dim); }
+.settle-upi { margin-top: 14px; height: 48px; border-radius: 16px; background: var(--cobalt); border: 0; color: #fff; font-size: 15px; font-weight: 500; }
+.settle-upi.opened { background: var(--surface); color: var(--dim); }
+.settle-upi:disabled { opacity: 0.5; }
+.settle-note { margin-top: 14px; }
+.settle-foot { margin-top: auto; padding: 24px 0 calc(20px + env(safe-area-inset-bottom)); }
+.settle-done { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.settle-done .tick { width: 64px; height: 64px; border-radius: 50%; background: var(--cook); color: var(--ground); display: flex; align-items: center; justify-content: center; animation: settle-pop 0.35s ease-out; }
+.settle-done .paid { font-size: 17px; font-weight: 500; }
+.settle-done .undo { height: 40px; padding: 0 18px; border-radius: 20px; background: var(--surface); border: 0; color: var(--link); font-size: 14px; font-weight: 500; }
+@keyframes settle-pop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.08); } 100% { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .tabbar .pill, .pager-track, .swipe-front, .slider-knob, .sheet { transition: none !important; }
+  .settle-done .tick { animation: none; }
 }
 
 /* ── Sign in (V2SignIn) ─────────────────────────────── */
