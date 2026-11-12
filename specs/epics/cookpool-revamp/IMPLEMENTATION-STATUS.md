@@ -870,3 +870,90 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - RV-19's `back.ts` maps `/people/:subjectId`'s parent to `/money` already; `/money?group=` returns to `/money` by its own Back.
 
 **Deploy.** Only the console changes; nothing to redeploy elsewhere.
+
+### RV1 — Kitchen: title switcher, shared staples, shopping list (RV-21)
+
+Built to the owner-approved boards `RvKitchenB` and `RvShopping`, with the owner's changes during the task (below).
+
+**Migration 600 (`600_kitchen_staples`, context kitchen).** Additive. On stage and then prod it:
+- creates `kitchen_staples`: `id` (UUID), `owner_kind` `user` | `group`, `owner_id` (a `usr_…`, or the group's UUID), `name` 1–60, `name_key` = lower(trim(name)), `food_key` (references `kitchen_foods`, nullable), `status` `ok` | `low` | `out`, `last_price_minor`, `currency`, `last_qty_milli`, `last_unit`, `want_qty_milli`, `want_unit`, `last_txn_id`, `bought_at`, `created_by/at`, `updated_by/at`; unique index on (owner_kind, owner_id, name_key);
+- creates `kitchen_shopping_items`: `id`, `owner_kind`, `owner_id`, `name`, `name_key`, `qty_milli`, `unit`, `added_by`, `created_at`; unique index on (owner_kind, owner_id, name_key);
+- copies every saved personal Always have list (`kitchen_always_have` joined to `kitchen_foods`) into `kitchen_staples` as `user` staples with the food's name, status ok, the row's `created_at`. It uses INSERT OR IGNORE on the unique index, so a rerun adds nothing twice. Ids are random v4 UUIDs made in SQL;
+- changes, drops and deletes nothing. `kitchen_always_have` and `kitchen_always_have_lists` stay. No LIKE or GLOB.
+
+**Personal Always have, decided.** The personal list now lives in staples:
+- `getAlwaysHave` (Cook now, recipe matches) reads the person's `user` staples that link to a food.
+- `PUT /me/always-have` replaces those rows. A same-named staple without a food takes the food. Staples without a food are left alone.
+- The PUT still writes `kitchen_always_have` too, so a worker still on the old code reads the same list during a deploy. The FK refusal of an unknown food is kept the same way.
+- Until a person first changes their list they read salt and water. The staples read shows these with ids derived from SHA-256(person, food), and every personal write first runs `seedPersonal`, which writes them under those ids (INSERT OR IGNORE) and marks the list saved.
+- Behaviour kept: Cook now counts only your own staples; group staples don't count as there (follow-up if wanted).
+
+**Routes** (kitchen-worker; api-edge's facade routes every `/v1/kitchen/…` and `/v1/organizations/{org}/kitchen/…` by prefix, so the edge needed no change; no new policy actions; contracts in `contracts/src/kitchen-staples.ts`, SDK section "Always have per pantry and the shopping list"):
+- `GET /v1/kitchen/me/staples` → `{ pantries: StaplePantry[] }`: yours, then each group by name. `StaplePantry = { owner: {kind:"personal"} | {kind:"group",orgId,slug,name}, currency, splitAmong: usr_…[] (the group's current roster; [] for yours), staples: KitchenStaple[], isSet, items: ShoppingItem[] }`.
+- `KitchenStaple = { id stp_…, name, foodKey, status, lastPriceMinor, currency, lastQtyMilli, lastUnit, wantQtyMilli, wantUnit, boughtAt, updatedBy, updatedAt }`; `ShoppingItem = { id shp_…, name, qtyMilli, unit, addedBy, createdAt }`.
+- `POST /me/staples` `{ name, foodKey? }` → 201 `{ staple }` (without a foodKey the name is matched to the food list as items are); `PATCH /me/staples/{stp}` `{ status?, wantQtyMilli?, wantUnit? }` → `{ staple }`; `DELETE /me/staples/{stp}` → `{ staple }`; `POST /me/staples/{stp}/bought` `{ priceMinor ≥ 0, currency?, qtyMilli?, unit? }` → 200 `{ staple, txn: null }` (price and amount recorded, status ok, the list's amount cleared, nothing split).
+- `POST /me/shopping` `{ name, qtyMilli?, unit? }` → 201 `{ item }`; `PATCH /me/shopping/{shp}` `{ qtyMilli, unit }`; `DELETE /me/shopping/{shp}` → `{ item }`; `POST /me/shopping/clear` `{ itemIds?, stapleIds? }` → `{ items, staples }`.
+- The same under `/v1/organizations/{org}/kitchen/…`: `GET staples` (kitchen.pantry.read) → `StaplePantry`; `POST/PATCH/DELETE staples…`, `shopping…` and `shopping/clear` (kitchen.item.create: not a viewer).
+- `POST …/staples/{stp}/bought` (kitchen.expense.create, Idempotency-Key) → 201 `{ staple, txn }`. It posts ONE plain `expense` (Kitchen bucket, title the staple's name) for `priceMinor > 0`, paid by the caller and split `equal` among the group's current roster with the engine's largest remainder. It goes through `repo.postTxn`, the path every Cookpool and Spliteco-era (SE3) bill takes. The staple's update (ok, price, amount, `last_txn_id`) rides in the same batch through a new optional `PostTxnInput.extra`. The same key replays without posting or updating again. The audit event is `kitchen.expense.added` with `stapleId`; everyone named gets the "logged for you" email, as an expense does.
+- Clear (owner change): for when a shopping run is saved. In one batch it deletes the given hand-added lines and sets the given staples back to ok. Nothing is split, because the run records what was paid. Ids not in that pantry are skipped.
+- Refusals use pinned codes only: the opaque 404 for a non-member, a viewer's write, or a staple or line not in that pantry; 409 `conflict` with `reason: already_listed`; 422 with field errors, or `currency_mismatch`.
+- `contracts`: `shoppingLines(pantry)` is the one rule for a pantry's list. It gives the staples running low or out (asking `want…`, else `last…` amount, `source: "staple"`), then the hand-added lines (`source: "hand"`).
+
+**Console** (new frame only; `newFrame()` false renders today's Pantry unchanged, checked on `cookpool-prod.localhost`):
+- Title switcher: "Kitchen ▾" or "<pantry> ▾". The sheet "Pantries" lists All kitchens, Mine, then each group, each with "N items · N people", the use-soon dot and count, and the current one checked. The choice is kept in localStorage (`cookpool.kitchen.view`), and `?pantry=` still wins on arrival. All is Usual now, then each pantry: three rows, then "See all N", which switches to that pantry, then its Always have. A pantry is "Items · N" with all its rows, then its Always have. A pantry with no rows still shows its staples.
+- Header: List with a count badge, linking to `/pantry/list` (staples low or out plus hand lines, every pantry), and **+ Groceries** (the shopping run).
+- Say it in search: the ✦ inside the field toggles "Say what you used", tinted. Enter sends the sentence to AI-7's read (`/me/ai/uses`, unchanged) and **ticks** the rows it names with the unit and number said (`saidTicks`). The Log bar then logs them, as for any tick. No match gives a toast. The ✦ is hidden whenever Say it was hidden (no AI, switched off). The separate Say it box and its sheet are gone from the Kitchen.
+- Rows: use soon was already first in each section. The line reads "Use by tomorrow" in amber or "Expired" in red. A 3 px stock bar sits under the name: the accent, amber under 1/5, the expired tint, at least 4 %, with screen-reader text. The Use soon strip and the filter chips are removed (audit decision 3). The Log bar now sits on RV-19's `--cp-bottom-bar`.
+- Always have chips at the bottom of each pantry, with a dot: none, amber, or red. A tap opens a sheet with Running low · Out · **Got more**. Got more shows the price (last price in grey), then "₹60 each · You, Anu, Meera" and **Split ₹180 equally**, or for your own "Just you · no split" and **Add ₹320**. Every write is optimistic with an Undo toast: status Undo PATCHes it back; Got more Undo reverses the group's bill and restores the status; add and remove Undo each other. + Add opens a name field. "Remove from Always have" is in the chip's sheet. Viewers see the chips without editing.
+- Finished this week (owner change): three rows, then See all. **Add to list** adds the name to its pantry's list, then reads "On the list", with Undo in the toast.
+- `/pantry/list` (owner change: a plain list for now; RV-22 builds the design on these routes): it is grouped by pantry. Staples show the "Always have" tag, a dot, the amount and the last price; hand lines show who added them and the amount, with ✕. Each pantry has + Add, and **Done shopping** links to `/pantry/run`. It is a static page, new frame only (today's frame goes to `/pantry`), with no tab bar (RV-19's rule already covered it), Back to `/pantry`, and no pull to refresh.
+
+**Departures.**
+- The owner's copy: "+ Bought" is **+ Groceries**; the chip sheet says **Got more**; the list's button says **Done shopping**; Finished's "Bought again" is **Add to list**.
+- `/pantry/list` is the plain list above, not the RvShopping board: no device ticks and no "Bought N items" prefilling the run. The run is not prefilled; RV-22 will build that and call `shopping/clear` when a run is saved.
+- Buying a group staple through the shopping run stocks it as an item (split by use), as any run line. Only the chip's Got more splits it equally.
+- Say it now ticks rows for you alone. The sheet's "Anu and I" consumers and its per-line costs are gone with the sheet.
+- The Kitchen header drops the receipt camera; Scan a receipt stays at the top of the shopping run.
+- The rows' column header (ITEM · LAST TIME | AMOUNT | ✓) and the footnote "Tick what you used, then Log once…" are gone, as on the board.
+- Your own staple's Bought may be ₹0; a group's must cost something.
+- The old Always have card (food-list search, ✕ chips) is no longer drawn on the new Kitchen. Its add now takes any name; a food is linked when the name matches.
+
+**Pins changed.**
+- `kitchen-picks.test.ts`: the Log bar's class is now `bottom-[calc(var(--cp-bottom-bar,…+76px))+6px)]`.
+- `static-pages.test.ts`: 18 `_redirects` rules (the list is a fourth pin).
+- `gestures.test.ts`: `/pantry/list` is in NO_PULL.
+
+**Tests.**
+- `tests/db`: 47 suites, 991 tests. New `kitchen-staples-migration.test.ts` (6) covers: registration, last in the manifest; additive text with no LIKE or GLOB; the copy and a rerun; the CHECKs and the unique name; seeding under fixed ids and Always have through staples; and a Bought's statement. Nothing else changed.
+- `tests/kitchen-worker`: 61 suites, 1,241 tests. New `staples.test.ts` (9) covers:
+  - the default list written on the first change, under the same ids;
+  - Cook now's list being the same rows, plus the PUT;
+  - duplicates, unknown foods and bad statuses refused; remove and 404s;
+  - a personal Bought;
+  - group authz: a viewer and an outsider get 404 on every write and read;
+  - equal split: ₹100.01 among four is 2501/2500/2500/2500 and sums exactly; the payer paid all; an idempotent replay; a member who left drops out of the next split (₹180 → 6000 × 3);
+  - refusals write nothing;
+  - list lines with amounts;
+  - clear.
+- `tests/contracts`: 348 tests (new `kitchen-staples.test.ts`, 2).
+- `tests/web-console-next`: 2,502 tests. New `kitchen-staples.test.ts` (15) covers the switcher, titles and kept views, the row line and stock bar, chips, status toasts, the Got more sheet for a group and for your own, the list count and rows, amounts, the tab bar on `/pantry/list`, and Say it ticks.
+- Typecheck and lint pass for db, contracts, sdk, kitchen-worker and web-console-next. `console-artifact.mjs build` serves all 46 pages as files, with 18 `_redirects` rules.
+
+**Browser check** (390 × 844, light and dark).
+- Setup: `next dev` on 49830 behind an uncommitted in-memory mock on `cookpool-stage.localhost:49831` (the audit mock plus staples, restock, AI status and a sentence read). Every request was to that host.
+- Kitchen on All: the pantry sections, the stock bars (Onions amber at 15 %, Curd expired tint), and chips with amber and red dots.
+- The switcher picked Flat 4B: "Items · 6", kept in localStorage.
+- Tea → Got more → "₹60 each · You, Anu Thomas, Meera" → Split ₹180 equally: the POST was 201, the dot cleared, the badge went 5 → 4, and the toast read "Tea ₹180 · ₹60 each" with Undo.
+- ✦ with "2 eggs and some milk" + Enter ticked Eggs 2 and Milk 250 ml: "Log 2 items".
+- In dark, black and green.
+- `/pantry/list`: Mine and Flat 4B with tags, dots, amounts and Done shopping, and no tab bar.
+- Finished this week's Add to list turned Butter into "On the list", and the badge went 4 → 5.
+- `cookpool-prod.localhost/pantry` rendered today's Pantry.
+
+**Deploy.**
+- kitchen-worker, the console and the migrations folder (db-migrate) change in their own paths, so all three redeploy. The sdk, contracts and db change with them.
+- **Order doesn't matter.** The pipeline runs db-migrate and kitchen-worker side by side, so the new worker can serve before 600 has run. It tolerates that:
+  - Always have (Cook now, recipe matches, `GET/PUT /me/always-have`) falls back to the old `kitchen_always_have` list on D1's `no such table: kitchen_staples` (`isNoSuchTable`, `packages/db/src/d1/errors.ts`). The PUT kept writing that list, so nothing is lost; 600 then copies it in.
+  - Until 600 runs, the staple and shopping routes answer the worker's existing 503 (`internal_error`, "Service unavailable").
+  - Tests: `tests/db` 992 (a pre-600 database reads and writes Always have, refuses an unknown food, and has the list read from staples after 600) and `tests/kitchen-worker` 1,242 (the fallback through the router, and 503 on the new routes).
+- api-edge is unchanged.

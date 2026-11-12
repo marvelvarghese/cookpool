@@ -75,7 +75,8 @@ describe("the Log button", () => {
   it("sits above the tab bar, clear of the safe area, marked for toasts to lift above it", () => {
     const ui = read("kitchen-tick-ui.tsx");
     expect(ui).toContain("sticky z-30");
-    expect(ui).toContain("bottom-[calc(max(14px,env(safe-area-inset-bottom))+82px)]");
+    // RV-21: RV-19's --cp-bottom-bar (0 where a pushed screen hides the bar), 6 px above the bar's room.
+    expect(ui).toContain("bottom-[calc(var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+76px))+6px)]");
     expect(ui).toMatch(/data-toast-above=""/);
   });
 });

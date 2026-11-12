@@ -125,6 +125,8 @@ export const qk = {
   kitchenRecipeLink: (code: string) => ["kitchenRecipeBook", "link", code] as const,
   // Always have (RC-8): the foods you count as there.
   kitchenAlwaysHave: () => ["kitchenAlwaysHave"] as const,
+  // Always have per pantry and the shopping list (RV-21): every pantry's staples and hand-added lines.
+  kitchenStaples: () => ["kitchenStaples"] as const,
   kitchenFoods: (q: string) => ["kitchenFoods", q] as const,
   // Cookpool's dishes (CP-17): one dish (its page) and a group's dishes (the
   // group's Dishes tab). Both start with `kitchenDishes()`, so one

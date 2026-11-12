@@ -20,7 +20,9 @@ export type KitchenIdPrefix =
   | "pst" // a post (CM-3)
   | "cmt" // a comment on a post (CM-3)
   | "rpt" // a report (CM-3)
-  | "act"; // an Activity row (CM-3)
+  | "act" // an Activity row (CM-3)
+  | "stp" // an Always have staple (RV-21)
+  | "shp"; // a hand-added shopping list line (RV-21)
 
 export function generateRequestId(): string {
   const buf = new Uint8Array(12);

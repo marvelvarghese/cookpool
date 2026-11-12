@@ -151,6 +151,22 @@ import type { SplitDishRequest, SplitDishResponse, SplitReminderDismissResponse 
  * `/v1/organizations/:orgId/kitchen/…` for one group, and
  * `/v1/kitchen/me/…` for the caller across every group.
  */
+// Always have per pantry and the shopping list (RV-21).
+import type {
+  AddShoppingItemRequest,
+  AddStapleRequest,
+  ClearShoppingRequest,
+  ClearShoppingResponse,
+  ShoppingItemResponse,
+  StapleBoughtRequest,
+  StapleBoughtResponse,
+  StaplePantry,
+  StapleResponse,
+  StaplesResponse,
+  UpdateShoppingItemRequest,
+  UpdateStapleRequest,
+} from "@saas/contracts/kitchen";
+
 export class KitchenClient {
   constructor(private readonly transport: Transport) {}
 
@@ -1654,6 +1670,77 @@ export class KitchenClient {
       { method: "POST", path: this.mePath(`dishes/${encodeURIComponent(dishId)}/split-reminder/restore`), body: {} },
       opts,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Always have per pantry and the shopping list (cookpool-revamp RV-21)
+  //
+  // `pantry` is null for your own, else the group's `org_…`. A group's
+  // `stapleBought` posts one expense split equally among its members: pass
+  // `opts.idempotencyKey`, the same key twice posts once.
+  // -------------------------------------------------------------------------
+
+  private staplesPath(pantry: string | null, rest: string): string {
+    return pantry === null ? this.mePath(rest) : this.groupPath(pantry, rest);
+  }
+
+  /** GET /v1/kitchen/me/staples — your pantry's staples and list lines, then each group's by name. */
+  staples(opts: RequestOptions = {}): Promise<StaplesResponse> {
+    return this.transport.request<StaplesResponse>({ method: "GET", path: this.mePath("staples") }, opts);
+  }
+
+  /** GET /v1/organizations/:orgId/kitchen/staples — one group's. */
+  groupStaples(orgId: string, opts: RequestOptions = {}): Promise<StaplePantry> {
+    return this.transport.request<StaplePantry>({ method: "GET", path: this.groupPath(orgId, "staples") }, opts);
+  }
+
+  /** POST …/staples — add to Always have (409 `already_listed` for a name it has). */
+  addStaple(pantry: string | null, body: AddStapleRequest, opts: RequestOptions = {}): Promise<StapleResponse> {
+    return this.transport.request<StapleResponse>({ method: "POST", path: this.staplesPath(pantry, "staples"), body }, opts);
+  }
+
+  /** PATCH …/staples/:stapleId — Running low, Out, back to ok, or the amount the list asks for. */
+  updateStaple(pantry: string | null, stapleId: string, body: UpdateStapleRequest, opts: RequestOptions = {}): Promise<StapleResponse> {
+    return this.transport.request<StapleResponse>(
+      { method: "PATCH", path: this.staplesPath(pantry, `staples/${encodeURIComponent(stapleId)}`), body },
+      opts,
+    );
+  }
+
+  /** DELETE …/staples/:stapleId — off Always have; the staple as it was. */
+  removeStaple(pantry: string | null, stapleId: string, opts: RequestOptions = {}): Promise<StapleResponse> {
+    return this.transport.request<StapleResponse>({ method: "DELETE", path: this.staplesPath(pantry, `staples/${encodeURIComponent(stapleId)}`) }, opts);
+  }
+
+  /** POST …/staples/:stapleId/bought — got more: a group's posts the equal split; yours records the price. */
+  stapleBought(pantry: string | null, stapleId: string, body: StapleBoughtRequest, opts: RequestOptions = {}): Promise<StapleBoughtResponse> {
+    return this.transport.request<StapleBoughtResponse>(
+      { method: "POST", path: this.staplesPath(pantry, `staples/${encodeURIComponent(stapleId)}/bought`), body },
+      opts,
+    );
+  }
+
+  /** POST …/shopping — a line added by hand (409 `already_listed` for a name on the list). */
+  addShoppingItem(pantry: string | null, body: AddShoppingItemRequest, opts: RequestOptions = {}): Promise<ShoppingItemResponse> {
+    return this.transport.request<ShoppingItemResponse>({ method: "POST", path: this.staplesPath(pantry, "shopping"), body }, opts);
+  }
+
+  /** PATCH …/shopping/:itemId — its amount. */
+  updateShoppingItem(pantry: string | null, itemId: string, body: UpdateShoppingItemRequest, opts: RequestOptions = {}): Promise<ShoppingItemResponse> {
+    return this.transport.request<ShoppingItemResponse>(
+      { method: "PATCH", path: this.staplesPath(pantry, `shopping/${encodeURIComponent(itemId)}`), body },
+      opts,
+    );
+  }
+
+  /** DELETE …/shopping/:itemId — off the list; the line as it was. */
+  removeShoppingItem(pantry: string | null, itemId: string, opts: RequestOptions = {}): Promise<ShoppingItemResponse> {
+    return this.transport.request<ShoppingItemResponse>({ method: "DELETE", path: this.staplesPath(pantry, `shopping/${encodeURIComponent(itemId)}`) }, opts);
+  }
+
+  /** POST …/shopping/clear — a run was saved: its lines deleted, its staples back to ok, in one batch. */
+  clearShopping(pantry: string | null, body: ClearShoppingRequest, opts: RequestOptions = {}): Promise<ClearShoppingResponse> {
+    return this.transport.request<ClearShoppingResponse>({ method: "POST", path: this.staplesPath(pantry, "shopping/clear"), body }, opts);
   }
 
   private postPath(postId: string, rest: string): string {

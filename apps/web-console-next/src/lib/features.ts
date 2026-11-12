@@ -41,6 +41,8 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/you/settings": "/you",
   // The shopping run (cookpool-pantry PN-6): today's frame has none, so its visitor goes to the Pantry.
   "/pantry/run": "/pantry",
+  // The shopping list (cookpool-revamp RV-21): today's frame has none, so its visitor goes to the Pantry.
+  "/pantry/list": "/pantry",
   // The cooking session (RC-6).
   "/cook/session": "/home",
   // The recipe screens (RC-5): a recipe, writing one and editing one.

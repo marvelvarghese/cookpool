@@ -19,6 +19,9 @@ import { logBar, loggedMeta, pickStep, pickToast, togglePick, withPicks, without
 import { useLogSeveral } from "./log-several-data";
 import type { TrayEntry } from "./now-strip";
 import { TickRow } from "./tick-row-ui";
+// The board's row line and stock bar (RV-21).
+import { kitchenRowMeta, stockBar } from "./kitchen-staples";
+import { StockBar } from "./kitchen-staples-ui";
 
 /**
  * The Kitchen's tick rows (cookpool-revamp RV-10, the canvas's RvKitchen):
@@ -92,15 +95,19 @@ export function KitchenTickRow({
   const unitKey = usualUnitKey(item);
   const amount = kitchenTickAmount(row, ticks);
   const left = item.qtyLeftMilli > 0 ? `${qtyText(item.qtyLeftMilli, item.dimension)} left` : row.levelText;
-  const meta = logged
+  const useBy = item.daysToUseBy !== null ? useByDay(item) : null;
+  const base = logged
     ? loggedMeta(logged)
     : tickMeta({
         last: lastUseText(usual, item, now),
         left,
         expired: row.status.expired,
         soon: row.status.soon,
-        useBy: item.daysToUseBy !== null ? useByDay(item) : null,
+        useBy,
       });
+  // RV-21 (RvKitchenB): "Use by tomorrow" in amber, "Expired" in red, and the stock bar under the name.
+  const meta = kitchenRowMeta(base, row.status, useBy);
+  const bar = stockBar(item, row.status);
   // An ask logs for you alone; your own pantry names nobody.
   const consumers = item.pantry.kind === "personal" ? [] : meId ? [meId] : [];
 
@@ -160,6 +167,7 @@ export function KitchenTickRow({
         end={end}
         tickLabel={(words, name, on) => (on ? `Ticked ${words} of ${name}, untick` : `Tick ${words} of ${name}`)}
       >
+        <StockBar {...bar} />
         {row.note ? <NoteLine note={row.note} /> : null}
         {askStatus ? <AskStatusLine status={askStatus} /> : null}
       </TickRow>
@@ -240,7 +248,10 @@ export function KitchenLogBar({ lines, onLog, aboveSessionBar = false }: { lines
       data-toast-above=""
       className={cn(
         "sticky z-30 min-[900px]:bottom-6",
-        aboveSessionBar ? "bottom-[calc(max(14px,env(safe-area-inset-bottom))+150px)]" : "bottom-[calc(max(14px,env(safe-area-inset-bottom))+82px)]",
+        // Above the tab bar's room (RV-19's --cp-bottom-bar), and the cooking bar while it shows.
+        aboveSessionBar
+          ? "bottom-[calc(var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+76px))+74px)]"
+          : "bottom-[calc(var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+76px))+6px)]",
       )}
     >
       <button

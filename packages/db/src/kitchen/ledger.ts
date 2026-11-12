@@ -405,8 +405,8 @@ export function createLedgerRepository(executor: SqlExecutor): LedgerRepository 
   }
 
   return {
-    postTxn({ txn, splits, audit }) {
-      return writeTxn({ record: txnRecordOf(txn, splits), audit });
+    postTxn({ txn, splits, audit, extra }) {
+      return writeTxn({ record: txnRecordOf(txn, splits), audit, ...(extra ? { extra } : {}) });
     },
 
     async reverseTxn({ original, reversal, splits, audit }) {

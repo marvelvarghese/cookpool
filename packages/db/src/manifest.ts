@@ -525,5 +525,14 @@ export const manifest: MigrationManifest = {
       description:
         "Cookpool's recipes are replaced by 13 Kerala recipes: every live kitchen_recipes row with is_system = 1 (or owner usr_cookpool) other than 590's own gets deleted_at and updated_at set to now, the app's soft delete (no row hard-deleted, so dishes, posts, activity, step times and saved copies keep working); then 13 recipes under usr_cookpool (fixed ids c00c0590-…, serves 4, tools) with their lines on the food list and guided steps keyed c00c0590-<recipe>-<step>, inserted re-runnably (ON CONFLICT DO NOTHING for the recipe, DELETE then plain INSERT for lines and steps); 16 new names for rice, coconut and kokum, and items named exactly one of them linked (Cookpool RV-20)",
     },
+    {
+      id: "600_kitchen_staples",
+      context: "kitchen",
+      path: "600_kitchen_staples/up.sql",
+      checksum:
+        "92525e95779b68efcac45f856a24c25328d7a937b5d55492c219a0ae19b49092",
+      description:
+        "Always have per pantry and the shopping list: kitchen_staples (a person's, owner_kind user and their usr_ id, or a group's, owner_kind group and its UUID; one name_key per pantry; food_key on the food list or NULL; status ok | low | out; the last price, currency, amount and unit; the list's own amount; the last expense a group Bought posted) and kitchen_shopping_items (lines added by hand, one name per pantry, an optional amount, who added them). Every saved personal Always have list (kitchen_always_have) is copied in as personal staples (INSERT OR IGNORE, so a rerun adds nothing twice); kitchen_always_have stays, unread, for a worker still on the old code. Additive (Cookpool RV-21)",
+    },
   ],
 };
