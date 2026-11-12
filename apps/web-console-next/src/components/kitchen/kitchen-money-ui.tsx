@@ -5,10 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRight, Receipt } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import type { SplitecoGroupResponse } from "@saas/contracts/spliteco";
-import { AddBillForm, BalanceCard, WhyList } from "@saas/spliteco-ui/components";
-import { balanceView } from "@saas/spliteco-ui/balance";
+import { AddBillForm } from "@saas/spliteco-ui/components";
 import { SplitecoUiProvider } from "@saas/spliteco-ui/theme";
-import { whyRows, whySections } from "@saas/spliteco-ui/why";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
@@ -16,13 +14,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { useProfile } from "./data";
-import { CLOSE_44, KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_SECTION } from "./kit";
+import { CLOSE_44, K_CARD } from "./kit";
 import { GroupPickerList } from "./group-picker";
 import { refreshLedger } from "./ledger-data";
 import { addKitchenBill, handoffCode, moneyError, useKitchenGroup } from "./kitchen-money-data";
 import { COOKPOOL_SPLITECO_THEME } from "./spliteco-theme";
-import { MORE_IN_SPLITECO, handoffUrl, splitecoOriginFor } from "./spliteco-link";
-import { useKitchenRouter } from "./transition-ui";
+import { handoffUrl, splitecoOriginFor } from "./spliteco-link";
+import { SPLITECO_LINE } from "./money-page";
 import { BillScanPanel, useBillPrefill, useBillScan, useScanBillShows } from "./bill-scan-ui";
 
 /**
@@ -41,84 +39,8 @@ export function kitchenGroupsOf<T extends Pick<PublicOrganization, "id"> & { mad
 }
 
 /** Names by subject id from a kitchen read. */
-function namesOf(data: SplitecoGroupResponse | null): Map<string, string | null> {
+export function namesOf(data: SplitecoGroupResponse | null): Map<string, string | null> {
   return new Map([...(data?.members ?? []), ...(data?.people ?? [])].map((p) => [p.subjectId, p.name] as const));
-}
-
-const CHIP = "inline-flex h-11 shrink-0 items-center rounded-full px-4 text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-/** Which kitchen: chips, one per group, when there is more than one. */
-function KitchenChips({ groups, value, onPick }: { groups: readonly PublicOrganization[]; value: string; onPick: (id: string) => void }) {
-  if (groups.length < 2) return null;
-  return (
-    <div role="tablist" aria-label="Kitchen" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-      {groups.map((g) => {
-        const on = g.id === value;
-        return (
-          <button
-            key={g.id}
-            type="button"
-            role="tab"
-            aria-selected={on}
-            onClick={() => onPick(g.id)}
-            className={cn(CHIP, on ? "bg-primary text-primary-foreground" : "bg-card text-foreground shadow-cp-card")}
-          >
-            {g.name}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-export function KitchenMoney({ groups, orgId, onPick }: { groups: readonly PublicOrganization[]; orgId: string; onPick: (id: string) => void }) {
-  const router = useKitchenRouter();
-  const profile = useProfile();
-  const me = profile.data?.id ?? null;
-  const read = useKitchenGroup(orgId);
-  const data = read.data;
-  const names = React.useMemo(() => namesOf(data), [data]);
-  const view = React.useMemo(() => (data ? balanceView(data, me, names) : null), [data, me, names]);
-  const sections = React.useMemo(() => (data ? whySections(whyRows(data.expenses, me, names), new Date()) : []), [data, me, names]);
-
-  return (
-    <SplitecoUiProvider theme={COOKPOOL_SPLITECO_THEME}>
-      <section aria-labelledby="money-kitchen" className="space-y-2.5">
-        <h2 id="money-kitchen" className={K_SECTION}>
-          Kitchen money
-        </h2>
-        <KitchenChips groups={groups} value={orgId} onPick={onPick} />
-        {read.loading && !data ? (
-          <div className="space-y-2.5" aria-hidden>
-            <Skeleton className="h-36 w-full rounded-[22px]" />
-            <Skeleton className="h-40 w-full rounded-[22px]" />
-          </div>
-        ) : read.error || !data || !view ? (
-          <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-            <p className="text-sm text-muted-foreground">Couldn&apos;t load this kitchen&apos;s money.</p>
-            <Button variant="outline" className={K_BUTTON} onClick={read.reload}>
-              Try again
-            </Button>
-          </KCard>
-        ) : (
-          <div className="space-y-[22px]">
-            <BalanceCard
-              view={view}
-              title={view.groupName}
-              badge={
-                <>
-                  <span aria-hidden className="h-2 w-2 rounded-full bg-primary" />
-                  powered by Spliteco
-                </>
-              }
-              onSettle={(to) => router.push(`/money/settle?group=${encodeURIComponent(orgId)}&to=${encodeURIComponent(to.subjectId)}`)}
-            />
-            <WhyList sections={sections} title="Why" empty="Nothing in this kitchen's money yet" />
-          </div>
-        )}
-      </section>
-    </SplitecoUiProvider>
-  );
 }
 
 /**
@@ -150,27 +72,25 @@ export function MoreInSpliteco({ orgId }: { orgId: string | null }) {
   }
 
   return (
-    <section aria-labelledby="money-spliteco" className={cn(K_CARD, "flex flex-col gap-3 p-[18px]")}>
-      <div className="flex items-center gap-2.5">
-        <span aria-hidden className="relative block h-6 w-[30px]">
-          <span className="absolute left-0 top-0.5 h-5 w-5 rounded-full border-[2.5px] border-primary" />
-          <span className="absolute right-0 top-0.5 h-5 w-5 rounded-full bg-cp-accent-tint" />
-        </span>
-        <h2 id="money-spliteco" className={K_SECTION}>
+    <section aria-labelledby="money-spliteco" className={cn(K_CARD, "flex min-h-16 items-center gap-3 py-2.5 pl-4 pr-3")}>
+      <span aria-hidden className="relative block h-6 w-[30px] shrink-0">
+        <span className="absolute left-0 top-0.5 h-5 w-5 rounded-full border-[2.5px] border-primary" />
+        <span className="absolute right-0 top-0.5 h-5 w-5 rounded-full bg-cp-accent-tint" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-px">
+        <h2 id="money-spliteco" className="text-[15px] font-medium leading-snug">
           More in Spliteco
         </h2>
-      </div>
-      <p className="text-[13px] font-normal leading-relaxed text-muted-foreground">Same account, same kitchen balance. Spliteco adds what a kitchen doesn&apos;t need:</p>
-      <ul className="grid grid-cols-2 gap-2 text-[13px] font-normal">
-        {MORE_IN_SPLITECO.map((t) => (
-          <li key={t} className="rounded-xl bg-muted px-2.5 py-2.5">
-            {t}
-          </li>
-        ))}
-      </ul>
-      <Button variant="ghost" className={cn(K_BUTTON_QUIET, "h-11 w-full gap-1.5")} onClick={() => void open()} loading={busy}>
-        Open Spliteco
-        <ArrowUpRight className="h-4 w-4" aria-hidden />
+        <span className="truncate text-[13px] font-normal text-muted-foreground">{SPLITECO_LINE}</span>
+      </span>
+      <Button
+        variant="ghost"
+        className="h-11 shrink-0 gap-1 rounded-[14px] px-3 text-sm font-medium text-cp-accent-text hover:bg-cp-accent-tint"
+        onClick={() => void open()}
+        loading={busy}
+      >
+        Open
+        <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.4} aria-hidden />
       </Button>
     </section>
   );
@@ -186,11 +106,14 @@ export function AddBillSheet({
   onOpenChange,
   groups,
   preferred,
+  startScan = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   groups: readonly PublicOrganization[];
   preferred: string | null;
+  /** Opened from Money's scan button: the form opens on Scan a bill's photo step. */
+  startScan?: boolean;
 }) {
   const [picked, setPicked] = React.useState<string | null>(null);
   React.useEffect(() => {
@@ -228,7 +151,7 @@ export function AddBillSheet({
               />
             )
           ) : (
-            <BillForm orgId={group.id} onDone={() => onOpenChange(false)} />
+            <BillForm orgId={group.id} startScan={startScan} onDone={() => onOpenChange(false)} />
           )}
         </div>
       </SheetContent>
@@ -236,7 +159,7 @@ export function AddBillSheet({
   );
 }
 
-function BillForm({ orgId, onDone }: { orgId: string; onDone: () => void }) {
+function BillForm({ orgId, startScan, onDone }: { orgId: string; startScan: boolean; onDone: () => void }) {
   const { client } = useSession();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -246,6 +169,11 @@ function BillForm({ orgId, onDone }: { orgId: string; onDone: () => void }) {
   const scanShows = useScanBillShows();
   const scan = useBillScan();
   const prefill = useBillPrefill(scan, read.data?.group.currency ?? "INR");
+  const { open: openScan } = scan;
+  // From the header's scan button: straight to the photo step, once.
+  React.useEffect(() => {
+    if (startScan && scanShows) openScan();
+  }, [startScan, scanShows, openScan]);
   const formStart = React.useMemo(() => (prefill ? { title: prefill.title, amount: prefill.amount } : null), [prefill]);
   const me = profile.data?.id ?? null;
   if (read.loading || !me) return <Skeleton className="h-72 w-full rounded-[22px]" aria-hidden />;

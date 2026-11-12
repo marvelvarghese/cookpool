@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-17
+  title: "Money, groups and people match the boards"
+spec:
+  goal: "Money, a balance's why, groups and people follow RvMoney, RvMoneyGroup, RvGroups and RvGroup, with one settle path and the Spliteco parts folded in."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-17.TaskContract.yaml
+  doneWhen:
+    - "Money follows RvMoney: Add a bill with scan, one net card with the only Settle up, People and Groups three then All, Spliteco one quiet row"
+    - "a person's or group's balance and its why follow RvMoneyGroup; group balances read from your view in the money colours"
+    - "group Latest rows are one line; people, settle, group settings, add bill, new and join group use the tokens"
+    - "every money, group and people gap in the revamp audit is fixed or recorded as a departure; prod's old frame unchanged"
+  gates: []

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "@/components/kitchen/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import type { MyBalancesResponse } from "@saas/contracts/kitchen";
 import type { PublicOrganization } from "@saas/contracts/membership";
@@ -20,6 +20,7 @@ import { useMemberNames, useMyBalances } from "@/components/kitchen/people-data"
 import { everyoneIn, peopleMoney, type PeopleRow } from "@/components/kitchen/people";
 import { PaymentRow, recordable } from "@/components/kitchen/settle-card";
 import { groupPlansFromBalances, mergeAllGroups, paymentsYoursFirst } from "@/components/kitchen/settle";
+import { moneyGroupHref } from "@/components/kitchen/money-page";
 
 /**
  * People (CP-9) and Settle up (CP-8), one screen since SM-11 — the People
@@ -32,6 +33,32 @@ import { groupPlansFromBalances, mergeAllGroups, paymentsYoursFirst } from "@/co
  * admin records anyone's payment) and its people; × goes back to all.
  */
 export default function PeoplePage() {
+  return newFrame() ? <PeopleToMoney /> : <TodayPeople />;
+}
+
+/**
+ * The new frame (cookpool-revamp RV-17): Money is the one place for who pays
+ * whom, so People's old addresses lead there — `/people` to Money's Settle up
+ * (`/money?settle=1`), `/people?group=<slug>` (a group's Settle up; Home, a
+ * dish and `/settle` still link it) to that group's balance and its why
+ * (`/money?group=org_…`). Every Pay there goes to the one settle path,
+ * spliteco-worker's Kitchen-only `/money/settle`. Today's frame keeps the page.
+ */
+function PeopleToMoney() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const groups = useGroups();
+  const slug = searchParams?.get("group") ?? null;
+  const orgId = slug ? (groups.data?.find((g) => g.slug === slug)?.id ?? null) : null;
+  const waiting = !!slug && groups.loading;
+  React.useEffect(() => {
+    if (waiting) return;
+    router.replace(orgId ? moneyGroupHref(orgId) : "/money?settle=1", { scroll: false });
+  }, [waiting, orgId, router]);
+  return <Skeleton className="h-[180px] w-full rounded-[22px]" aria-hidden />;
+}
+
+function TodayPeople() {
   const searchParams = useSearchParams();
   const groups = useGroups();
   const profile = useProfile();

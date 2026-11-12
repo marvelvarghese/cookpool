@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useGroups, useProfile } from "@/components/kitchen/data";
 import { RepeatButton } from "@/components/kitchen/row-gestures-ui";
-import { KCard, K_BUTTON, K_INPUT } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_BUTTON_QUIET, K_INPUT } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { useAddExpense, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { Money, Segmented } from "@/components/kitchen/ledger-ui";
@@ -63,7 +63,7 @@ export default function AddExpensePage() {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load your groups.</p>
-        <Button variant="outline" className={K_BUTTON} onClick={groups.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={groups.reload}>
           Try again
         </Button>
       </KCard>
@@ -120,7 +120,7 @@ function ExpenseLoader({ group }: { group: PublicOrganization }) {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load who&apos;s in {group.name}.</p>
-        <Button variant="outline" className={K_BUTTON} onClick={balances.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={balances.reload}>
           Try again
         </Button>
       </KCard>
@@ -447,8 +447,8 @@ function ExpenseFormView({
         </div>
 
         {/* The one main button, in thumb reach above the tab bar on a phone. */}
-        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:col-start-2">
-          <Button type="submit" className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")} loading={busy}>
+        <div data-toast-above="" className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 min-[900px]:static min-[900px]:col-start-2">
+          <Button type="submit" className={cn(MAIN_BUTTON, "shadow-cp-nav min-[900px]:shadow-none")} loading={busy}>
             <MainButtonLabel title={main.title} who={main.who} />
           </Button>
         </div>
@@ -518,7 +518,7 @@ function MoneyInput({
 
 function SharesStepper({ value, name, onStep }: { value: number; name: string; onStep: (delta: number) => void }) {
   const btn =
-    "grid h-11 w-11 place-items-center rounded-full border border-input bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+    "grid h-11 w-11 place-items-center rounded-full bg-cp-accent-tint text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <div className="flex shrink-0 items-center gap-1" role="group" aria-label={`Shares for ${name}`}>
       <RepeatButton className={btn} aria-label={`One share fewer for ${name}`} disabled={value <= 0} onStep={() => onStep(-1)}>

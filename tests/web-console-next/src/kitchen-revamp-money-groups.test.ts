@@ -104,9 +104,10 @@ describe("Money's and Groups' group rows", () => {
     expect(groupFact(undefined)).toBeNull();
   });
 
-  it("read '4 people · +₹87.00' on Groups", () => {
-    expect(groupMeta(DATA.groups[0])).toEqual({ people: "4 people", fact: { tone: "owed", text: "+₹87.00" } });
-    expect(groupMeta(DATA.groups[1])).toEqual({ people: "1 person", fact: { tone: "owe", text: "−₹25.00" } });
+  // RV-17: whole rupees where whole, as RvGroups writes them.
+  it("read '4 people · +₹87' on Groups", () => {
+    expect(groupMeta(DATA.groups[0])).toEqual({ people: "4 people", fact: { tone: "owed", text: "+₹87" } });
+    expect(groupMeta(DATA.groups[1])).toEqual({ people: "1 person", fact: { tone: "owe", text: "−₹25" } });
     expect(groupMeta(DATA.groups[2])).toEqual({ people: "5 people", fact: { tone: "settled", text: "settled" } });
     expect(groupMeta(null)).toBeNull();
   });
@@ -134,8 +135,10 @@ describe("a group's page", () => {
 
   it("shows your balance as a signed pill, Settled at zero", () => {
     const data = { currency: "INR", balances: [{ subjectId: ME, balanceMinor: 84_200 }, { subjectId: ANU, balanceMinor: -84_200 }] };
-    expect(groupPill(data, ME)).toEqual({ tone: "owed", text: "+₹842.00" });
-    expect(groupPill(data, ANU)).toEqual({ tone: "owe", text: "−₹842.00" });
+    // RV-17: whole rupees where whole, as RvGroup writes it.
+    expect(groupPill(data, ME)).toEqual({ tone: "owed", text: "+₹842" });
+    expect(groupPill(data, ANU)).toEqual({ tone: "owe", text: "−₹842" });
+    expect(groupPill({ currency: "INR", balances: [{ subjectId: ME, balanceMinor: 2450 }] }, ME)).toEqual({ tone: "owed", text: "+₹24.50" });
     expect(groupPill(data, DEV)).toEqual({ tone: "settled", text: "Settled" });
   });
 

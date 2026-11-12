@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "./data";
 import { BackControl } from "./back-ui";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET } from "./kit";
+import { moneyGroupHref, safeSettleBack } from "./money-page";
 import { refreshLedger } from "./ledger-data";
 import { payKitchen, useKitchenGroup } from "./kitchen-money-data";
 import { COOKPOOL_SPLITECO_THEME } from "./spliteco-theme";
@@ -24,13 +25,18 @@ import { useKitchenRouter } from "./transition-ui";
  * nothing until "I paid"; cash and bank record in one tap — and recorded with
  * `bucket: "kitchen"`, so it pays Kitchen only and never more than it. It
  * shows in Spliteco at once: both apps write the one ledger.
+ *
+ * The one settle path in Cookpool's new frame (RV-17): Money's Settle up, a
+ * person's and a group's all lead here.
  */
 export function KitchenSettleScreen() {
   const params = useSearchParams();
   const orgId = params?.get("group") ?? null;
   const to = params?.get("to") ?? null;
   const router = useKitchenRouter();
-  const back = React.useCallback(() => router.replace(orgId ? `/money?group=${encodeURIComponent(orgId)}` : "/money"), [router, orgId]);
+  // Back and Done return where Settle up was opened (Money, a person or a group; `safeSettleBack`), else this kitchen on Money.
+  const backTo = safeSettleBack(params?.get("back")) ?? (orgId ? moneyGroupHref(orgId) : "/money");
+  const back = React.useCallback(() => router.replace(backTo), [router, backTo]);
 
   return (
     <div className="space-y-[18px] pb-28 min-[900px]:max-w-xl">
@@ -47,7 +53,7 @@ function Nothing({ onBack, text = "Nothing to settle here." }: { onBack: () => v
   return (
     <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
       <p className="text-sm text-muted-foreground">{text}</p>
-      <Button variant="outline" className={K_BUTTON} onClick={onBack}>
+      <Button variant="ghost" className={K_BUTTON_QUIET} onClick={onBack}>
         Back to Money
       </Button>
     </KCard>

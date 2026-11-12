@@ -41,7 +41,7 @@ import {
 } from "@/components/kitchen/groups";
 import { roleWords } from "@/components/kitchen/group-page";
 import { formatJoinCode, joinUrl } from "@/components/kitchen/join-code";
-import { KCard, K_BUTTON } from "@/components/kitchen/kit";
+import { KCard, K_BUTTON, K_BUTTON_QUIET, K_SECTION } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { refreshLedger, useBalances, useGroupRole } from "@/components/kitchen/ledger-data";
 import { Face } from "@/components/kitchen/faces-ui";
@@ -77,7 +77,7 @@ export default function GroupSettingsPage() {
     return (
       <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this group.</p>
-        <Button variant="outline" className={K_BUTTON} onClick={groups.reload}>
+        <Button variant="ghost" className={K_BUTTON_QUIET} onClick={groups.reload}>
           Try again
         </Button>
       </KCard>
@@ -98,7 +98,7 @@ function SettingsView({ group, onLeft }: { group: PublicOrganization; onLeft: ()
     <div className="space-y-4">
       <header className="flex min-h-11 items-center gap-1">
         <BackButton />
-        <h1 className="min-w-0 flex-1 truncate text-[26px] font-medium leading-tight tracking-tight">Settings</h1>
+        <h1 className="min-w-0 flex-1 truncate text-[26px] font-medium leading-tight tracking-[-0.02em]">Settings</h1>
       </header>
 
       <div className="grid gap-4 min-[900px]:grid-cols-2 min-[900px]:items-start">
@@ -133,7 +133,7 @@ function SettingsView({ group, onLeft }: { group: PublicOrganization; onLeft: ()
   );
 }
 
-const CARD_TITLE = "text-base font-medium tracking-tight";
+const CARD_TITLE = K_SECTION;
 
 // ── Invite ─────────────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ function InviteCard({ group }: { group: PublicOrganization }) {
       ) : code.error ? (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load the link.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={code.reload}>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={code.reload}>
             Try again
           </Button>
         </div>
@@ -192,9 +192,9 @@ function InviteCard({ group }: { group: PublicOrganization }) {
             </Button>
           </div>
           <div className={cn("mt-2 grid gap-2", canShare && "grid-cols-2")}>
-            <CopyButton value={link} label="Copy link" copiedLabel="Copied" className="h-11 w-full rounded-xl px-4 text-[15px] font-medium" />
+            <CopyButton value={link} label="Copy link" copiedLabel="Copied" variant="ghost" className={cn(K_BUTTON_QUIET, "w-full px-4")} />
             {canShare ? (
-              <Button className={cn(K_BUTTON, "w-full")} onClick={share}>
+              <Button variant="ghost" className={cn(K_BUTTON_QUIET, "w-full")} onClick={share}>
                 <Share2 aria-hidden />
                 Share
               </Button>
@@ -232,7 +232,7 @@ function RulesCard({ group, manager, roleKnown }: { group: PublicOrganization; m
       ) : settings.error || !settings.data ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load the rules.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={settings.reload}>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={settings.reload}>
             Try again
           </Button>
         </div>
@@ -396,12 +396,12 @@ function MembersCard({
       ) : error || !members ? (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load who&apos;s in it.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={reload}>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={reload}>
             Try again
           </Button>
         </div>
       ) : (
-        <ul className="mt-1 divide-y">
+        <ul className="mt-1 divide-y divide-cp-line">
           {sorted.map((m) => {
             const role = roleFromKitchen(m.role);
             const words = roleWords(role);
@@ -627,8 +627,8 @@ function LeaveCard({
         </div>
       ) : null}
       <Button
-        variant="outline"
-        className={cn(K_BUTTON, "w-full border-destructive/40 text-destructive hover:bg-cp-expired-tint hover:text-destructive")}
+        variant="ghost"
+        className={cn(K_BUTTON, "w-full border-0 bg-cp-expired-tint text-cp-expired hover:bg-cp-expired-tint/80 hover:text-cp-expired")}
         onClick={() => setConfirm(true)}
       >
         <DoorOpen aria-hidden />

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonRow } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useProfile } from "./data";
-import { CLOSE_44, KCard, K_BUTTON, K_CARD, K_ROWS, K_SECTION } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION } from "./kit";
 import { BackButton } from "./back-ui";
 import { useBalances, useGroupRole } from "./ledger-data";
 import { ActivityFeed } from "./activity-feed";
@@ -23,17 +23,20 @@ import { GroupDishesPanel } from "./dish-ui";
 import {
   GROUP_TABS,
   GROUP_TAB_ROWS,
-  balanceFact,
+  balanceFromYou,
   groupAddChoices,
-  groupBalanceRows,
   groupFaces,
   groupMoney,
+  groupMoneyHref,
   groupPill,
-  groupSettleHref,
   groupTabFrom,
   groupTabHref,
+  pantryFactTone,
   type GroupTab,
 } from "./group-page";
+import { balanceView } from "@saas/spliteco-ui/balance";
+import { useKitchenGroup } from "./kitchen-money-data";
+import { namesOf } from "./kitchen-money-ui";
 
 /**
  * One group in the new look (the revamp RV-5, the canvas's `RvGroup`): Back,
@@ -52,6 +55,7 @@ export function GroupDetail({ group }: { group: PublicOrganization }) {
   const balances = useBalances(group.id);
   const router = useRouter();
   const tab = groupTabFrom(useSearchParams()?.get("tab"));
+  const [latestAll, setLatestAll] = React.useState(false);
   const pick = (next: GroupTab) => {
     if (next !== tab) router.replace(groupTabHref(group.slug, next), { scroll: false });
   };
@@ -100,10 +104,24 @@ export function GroupDetail({ group }: { group: PublicOrganization }) {
         {tab === "activity" ? (
           <>
             <section aria-labelledby="group-latest" className="space-y-2.5">
-              <h2 id="group-latest" className={cn(K_SECTION, "flex min-h-11 items-center")}>
-                Latest
-              </h2>
-              <ActivityFeed orgId={group.id} slug={group.slug} meId={myId} canReverseAny={manager} canWrite={canWrite} limit={GROUP_TAB_ROWS} />
+              <div className="flex min-h-11 items-center justify-between">
+                <h2 id="group-latest" className={K_SECTION}>
+                  Latest
+                </h2>
+                <button type="button" aria-expanded={latestAll} onClick={() => setLatestAll(!latestAll)} className={MORE}>
+                  {latestAll ? "Show less" : "See all"}
+                </button>
+              </div>
+              <ActivityFeed
+                orgId={group.id}
+                slug={group.slug}
+                meId={myId}
+                canReverseAny={manager}
+                canWrite={canWrite}
+                limit={GROUP_TAB_ROWS}
+                variant="line"
+                expanded={latestAll}
+              />
             </section>
             <section aria-labelledby="group-dishes" className="space-y-2.5">
               <h2 id="group-dishes" className={cn(K_SECTION, "flex min-h-11 items-center")}>
@@ -115,7 +133,7 @@ export function GroupDetail({ group }: { group: PublicOrganization }) {
         ) : tab === "pantry" ? (
           <PantryTab orgId={group.id} />
         ) : (
-          <MoneyTab slug={group.slug} balances={balances} myId={myId} names={names} />
+          <MoneyTab group={group} myId={myId} names={names} />
         )}
       </div>
 
@@ -165,7 +183,7 @@ function BalancePill({ group, myId, balances }: { group: PublicOrganization; myI
   const pill = groupPill(balances.data, myId);
   const className = cn("flex min-h-10 items-center rounded-full px-3.5 text-[15px] font-medium tabular-nums", PILL_TONE[pill.tone]);
   return money.settleUp ? (
-    <Link href={groupSettleHref(group.slug)} aria-label={`${money.line.text}. Settle up`} className={cn(className, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}>
+    <Link href={groupMoneyHref(group.id)} aria-label={`${money.line.text}. Settle up`} className={cn(className, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}>
       {pill.text}
     </Link>
   ) : (
@@ -196,7 +214,7 @@ function PantryTab({ orgId }: { orgId: string }) {
       ) : items.error && !items.data ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load the pantry.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={items.reload}>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={items.reload}>
             Try again
           </Button>
         </KCard>
@@ -214,7 +232,13 @@ function PantryTab({ orgId }: { orgId: string }) {
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[15px] font-normal">{item.name}</span>
                   <span className="shrink-0 text-sm font-medium text-muted-foreground tabular-nums">
-                    {chip ? `${leftText(item)} · ${chip.label}` : leftText(item)}
+                    {leftText(item)}
+                    {chip ? (
+                      <>
+                        {" · "}
+                        <span className={pantryFactTone(chip) === "expired" ? "text-cp-expired" : undefined}>{chip.label}</span>
+                      </>
+                    ) : null}
                   </span>
                 </Link>
               </li>
@@ -226,39 +250,58 @@ function PantryTab({ orgId }: { orgId: string }) {
   );
 }
 
-/** Everyone else with money open, three, then See all (Settle up on this group). */
-function MoneyTab({ slug, balances, myId, names }: { slug: string; balances: BalancesState; myId: string | null; names: MemberNames }) {
-  const rows = balances.data ? groupBalanceRows(balances.data, myId, names) : [];
+/**
+ * Balances from your view (RvGroup; the revamp audit's Group 4–5): everyone
+ * in the group with what is between you two in the Kitchen plan — "+₹610"
+ * blue when they owe you, "−₹24" orange when you owe them, "Square" — the
+ * same read Settle up pays against. Three, then See all (the group's balance
+ * and its why on Money, where Settle up is).
+ */
+function MoneyTab({ group, myId, names }: { group: PublicOrganization; myId: string | null; names: MemberNames }) {
+  const read = useKitchenGroup(group.id);
+  const kitchenNames = React.useMemo(() => namesOf(read.data ?? null), [read.data]);
+  const view = React.useMemo(() => (read.data ? balanceView(read.data, myId, kitchenNames) : null), [read.data, myId, kitchenNames]);
+  const rows = view?.rows ?? [];
   return (
     <section aria-labelledby="group-balances" className="space-y-2.5">
       <div className="flex min-h-11 items-center justify-between">
         <h2 id="group-balances" className={K_SECTION}>
           Balances
         </h2>
-        <Link href={groupSettleHref(slug)} className={MORE}>
+        <Link href={groupMoneyHref(group.id)} className={MORE}>
           See all
         </Link>
       </div>
-      {!balances.data ? (
+      {read.loading && !read.data ? (
         <KCard className="px-4" aria-hidden>
           <SkeletonRow />
           <SkeletonRow />
         </KCard>
+      ) : read.error || !view ? (
+        <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load the balances.</p>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={read.reload}>
+            Try again
+          </Button>
+        </KCard>
       ) : rows.length === 0 ? (
-        <p className={cn(K_CARD, "flex min-h-14 items-center px-4 text-sm text-muted-foreground")}>Everyone is settled up</p>
+        <p className={cn(K_CARD, "flex min-h-14 items-center px-4 text-sm text-muted-foreground")}>No one else here yet</p>
       ) : (
         <ul className={K_ROWS}>
-          {rows.slice(0, GROUP_TAB_ROWS).map((r) => (
-            <li key={r.subjectId}>
-              <Link href={`/people/${encodeURIComponent(r.subjectId)}`} className={ROW}>
-                <Face subjectId={r.subjectId} meId={myId} names={names} className="h-9 w-9 text-[13px] font-medium" />
-                <span className="min-w-0 flex-1 truncate text-[15px] font-normal">{r.label}</span>
-                <span className={cn("shrink-0 text-sm font-medium tabular-nums", TONE[r.tone])} aria-label={`${r.words} ${r.amount}`}>
-                  {balanceFact(r)}
-                </span>
-              </Link>
-            </li>
-          ))}
+          {rows.slice(0, GROUP_TAB_ROWS).map((r) => {
+            const fact = balanceFromYou(r.amountMinor, view.currency);
+            return (
+              <li key={r.subjectId}>
+                <Link href={`/people/${encodeURIComponent(r.subjectId)}`} className={ROW}>
+                  <Face subjectId={r.subjectId} meId={myId} names={names} className="h-9 w-9 text-[13px] font-medium" />
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-normal">{r.name}</span>
+                  <span className={cn("shrink-0 text-sm font-medium tabular-nums", TONE[fact.tone])} aria-label={r.text}>
+                    {fact.text}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
@@ -270,7 +313,7 @@ function AddButton({ group }: { group: PublicOrganization }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <div className="sticky bottom-[calc(max(14px,env(safe-area-inset-bottom))+82px)] z-10 pt-2 min-[900px]:static min-[900px]:pt-0">
+      <div className="sticky bottom-[var(--cp-bottom-bar,calc(max(14px,env(safe-area-inset-bottom))+82px))] z-10 pt-2 min-[900px]:static min-[900px]:pt-0">
         <Button aria-haspopup="dialog" onClick={() => setOpen(true)} className="h-auto min-h-14 w-full gap-2 rounded-[18px] text-base font-medium shadow-cp-nav">
           <Plus className="h-5 w-5" strokeWidth={2.4} aria-hidden />
           Add

@@ -27,7 +27,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CLOSE_44, KCard, K_BUTTON } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON, K_CARD, K_QUIET, K_ROWS } from "./kit";
+import { Face } from "./faces-ui";
+import { latestFact, latestTitle } from "./group-page";
+import type { MemberNames } from "./members";
 import { KindBubble } from "./ledger-ui";
 import { activityRow, flattenActivity, withTxnReversed, type ActivityRow } from "./activity";
 import { refreshLedger, useActivityFeed, useOfferUndo } from "./ledger-data";
@@ -51,6 +54,8 @@ export function ActivityFeed({
   canReverseAny,
   canWrite = true,
   limit,
+  variant = "card",
+  expanded: expandedProp,
 }: {
   orgId: string;
   /** Unused since SM-11 (the empty feed no longer repeats the page's Add a bill). */
@@ -61,6 +66,14 @@ export function ActivityFeed({
   canWrite?: boolean;
   /** Rows shown before "See all"; every row when left out. */
   limit?: number;
+  /**
+   * "line" (the group page, RV-17's RvGroup): one line per row — a face, who
+   * did what, one coloured fact from your view — with Undo and Flag behind the
+   * row (a tap opens them; your own use or waste still swipes to Undo).
+   */
+  variant?: "card" | "line";
+  /** Controlled "See all" (the group page's heading holds it); the feed's own button when left out. */
+  expanded?: boolean;
 }) {
   const { client } = useSession();
   const qc = useQueryClient();
@@ -77,7 +90,9 @@ export function ActivityFeed({
   }, []);
 
   const txns = React.useMemo(() => flattenActivity(feed.data?.pages ?? []), [feed.data]);
-  const [expanded, setExpanded] = React.useState(false);
+  const [expandedOwn, setExpanded] = React.useState(false);
+  const expanded = expandedProp ?? expandedOwn;
+  const line = variant === "line";
 
   // The entry a link points at (`?txn=`): into view once listed, else a few more pages.
   const focusTxn = useSearchParams()?.get("txn") ?? null;
@@ -141,14 +156,30 @@ export function ActivityFeed({
     );
   }
   if (txns.length === 0) {
-    return <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">Nothing yet</p>;
+    return <p className={cn(K_CARD, "flex min-h-14 items-center px-4 text-sm font-normal text-muted-foreground")}>Nothing yet</p>;
   }
 
   return (
     <div className="space-y-3">
-      <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
+      <ul className={line ? K_ROWS : "divide-y overflow-hidden rounded-[22px] border bg-card"}>
         {shown.map((txn) => {
           const row = activityRow(txn, { meId, canReverseAny, now, names, canWrite });
+          if (line) {
+            return (
+              <LineItem
+                key={txn.id}
+                row={row}
+                title={latestTitle(txn, meId, names)}
+                fact={latestFact(txn, meId)}
+                who={txn.createdBy}
+                meId={meId}
+                names={names}
+                focused={txn.id === focusTxn}
+                onUndo={() => void undo(txn)}
+                onFlag={() => setFlagging(txn)}
+              />
+            );
+          }
           return (
             <ActivityItem
               key={txn.id}
@@ -161,20 +192,20 @@ export function ActivityFeed({
         })}
       </ul>
 
-      {!all && txns.length > shown.length ? (
+      {!all && txns.length > shown.length && expandedProp === undefined ? (
         <Button variant="ghost" className={cn(K_BUTTON, "w-full text-primary")} onClick={() => setExpanded(true)}>
           See all
         </Button>
-      ) : feed.hasNextPage ? (
+      ) : feed.hasNextPage && all ? (
         <Button
-          variant="outline"
-          className={cn(K_BUTTON, "w-full bg-card")}
+          variant={line ? "ghost" : "outline"}
+          className={cn(K_BUTTON, line ? K_QUIET : "bg-card", "w-full")}
           loading={feed.isFetchingNextPage}
           onClick={() => void feed.fetchNextPage()}
         >
           Load more
         </Button>
-      ) : txns.length > 10 ? (
+      ) : txns.length > 10 && all ? (
         <p className="py-2 text-center text-sm text-muted-foreground">That&apos;s everything.</p>
       ) : null}
 
@@ -205,12 +236,12 @@ function ActivityItem({ row, focused, onUndo, onFlag }: { row: ActivityRow; focu
     >
       <KindBubble glyph={row.glyph} label={row.kindLabel} tone={row.reversed ? "neutral" : row.kindTone} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
-        <p className={cn("truncate text-[15px] font-semibold leading-snug", row.reversed && "text-muted-foreground line-through")}>
+        <p className={cn("truncate text-[15px] font-medium leading-snug", row.reversed && "text-muted-foreground line-through")}>
           {row.title}
         </p>
         <p className="truncate text-sm text-muted-foreground">
           {row.reversed ? (
-            <span className="mr-1.5 inline-block rounded-full bg-muted px-2 py-px align-[1px] text-[11px] font-semibold uppercase tracking-wide">
+            <span className="mr-1.5 inline-block rounded-full bg-muted px-2 py-px align-[1px] text-[11px] font-medium uppercase tracking-wide">
               Undone
             </span>
           ) : null}
@@ -219,7 +250,7 @@ function ActivityItem({ row, focused, onUndo, onFlag }: { row: ActivityRow; focu
       </div>
       <div className="shrink-0 text-right">
         {row.amountText ? (
-          <p className={cn("text-[15px] font-bold tabular-nums", amountClass, row.reversed && "line-through")}>
+          <p className={cn("text-[15px] font-medium tabular-nums", amountClass, row.reversed && "line-through")}>
             <span aria-hidden>{row.amountText}</span>
             <span className="sr-only">{row.amountWords}</span>
           </p>
@@ -256,6 +287,82 @@ function ActivityItem({ row, focused, onUndo, onFlag }: { row: ActivityRow; focu
         </DropdownMenu>
       ) : (
         <span aria-hidden className="-mr-2 w-11 shrink-0" />
+      )}
+    </SwipeRow>
+  );
+}
+
+const FACT_TONE = { owed: "text-cp-owed", owe: "text-cp-owe", settled: "text-muted-foreground" } as const;
+
+/** One Latest row (RvGroup): face, who did what, one coloured fact; Undo and Flag behind the row. */
+function LineItem({
+  row,
+  title,
+  fact,
+  who,
+  meId,
+  names,
+  focused,
+  onUndo,
+  onFlag,
+}: {
+  row: ActivityRow;
+  title: string;
+  fact: { text: string; tone: keyof typeof FACT_TONE };
+  who: string;
+  meId: string | null;
+  names: MemberNames;
+  focused: boolean;
+  onUndo: () => void;
+  onFlag: () => void;
+}) {
+  const hasMenu = row.canUndo || row.canFlag;
+  const body = (
+    <>
+      <Face subjectId={who} meId={meId} names={names} className="h-9 w-9 text-[13px] font-medium" />
+      <span className={cn("min-w-0 flex-1 truncate text-[15px] font-normal", row.reversed && "text-muted-foreground line-through")}>{title}</span>
+      <span className={cn("shrink-0 text-sm font-medium tabular-nums", row.reversed ? "text-muted-foreground line-through" : FACT_TONE[fact.tone])}>
+        <span aria-hidden>{row.reversed ? "Undone" : fact.text}</span>
+        <span className="sr-only">{row.reversed ? "Undone" : row.amountWords}</span>
+      </span>
+    </>
+  );
+  const rowClass = "flex min-h-14 w-full items-center gap-3 px-3.5 py-2 text-left";
+  return (
+    <SwipeRow
+      id={`txn-${row.id}`}
+      aria-current={focused ? "true" : undefined}
+      className="scroll-mt-24"
+      action={row.canSwipeUndo ? { label: "Undo", tone: "undo", run: onUndo } : null}
+      frontClassName={cn(focused && "[background-image:linear-gradient(hsl(var(--cp-soon-tint)/0.6),hsl(var(--cp-soon-tint)/0.6))]")}
+    >
+      {hasMenu ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`${title}, ${row.whoWhen}. Actions`}
+            className={cn(rowClass, "transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring")}
+          >
+            {body}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44 rounded-xl p-1.5">
+            {row.canUndo ? (
+              <DropdownMenuItem onSelect={onUndo} className="min-h-11 rounded-lg px-3 text-[15px]">
+                <Undo2 className="h-4 w-4" aria-hidden />
+                Undo
+              </DropdownMenuItem>
+            ) : null}
+            {row.canFlag ? (
+              <DropdownMenuItem onSelect={onFlag} className="min-h-11 rounded-lg px-3 text-[15px]">
+                <Flag className="h-4 w-4" aria-hidden />
+                Flag
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <div className={rowClass} aria-label={`${title}, ${row.whoWhen}`}>
+          {body}
+        </div>
       )}
     </SwipeRow>
   );
@@ -309,7 +416,7 @@ function FlagDialog({ orgId, txn, onClose }: { orgId: string; txn: KitchenTxn | 
     <Dialog open={txn !== null} onOpenChange={(open) => (open ? null : onClose())}>
       <DialogContent className={cn("max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[22px] sm:max-w-md", CLOSE_44)}>
         <DialogHeader>
-          <DialogTitle className="pr-10 text-xl font-extrabold">Flag &ldquo;{txn?.title}&rdquo;</DialogTitle>
+          <DialogTitle className="pr-10 text-xl font-medium">Flag &ldquo;{txn?.title}&rdquo;</DialogTitle>
           <DialogDescription>Tell whoever logged it what looks wrong.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4" noValidate>

@@ -10,14 +10,13 @@ import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "./data";
-import { KCard, K_BUTTON, K_CARD, K_TITLE } from "./kit";
-import { BackButton } from "./back-ui";
+import { KCard, K_BUTTON, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "./kit";
+import { BackButton, useBack } from "./back-ui";
 import { Face } from "./faces-ui";
 import { RECIPES_AND_COOKS, YOU_COOKS_HREF } from "./you";
 import { useMemberNames, usePerson } from "./people-data";
-import { firstName, personName, recordOptions } from "./people";
-import type { MoneyLine } from "./home";
-import { personBalance } from "./money-page";
+import { firstName, personName } from "./people";
+import { personSettleRows, personWhyRows } from "./money-page";
 import { useMyDishes } from "./cooks-data";
 import {
   PROFILE_DISH_DAYS,
@@ -32,7 +31,8 @@ import {
   yourGroupsLine,
   type CookRow,
 } from "./cooks";
-import { PersonSkeleton, RecordPayment, WhyGroup, safeDecode } from "./person-ui";
+import { PersonSkeleton, safeDecode } from "./person-ui";
+import { BalanceHeader, BalanceSection, WhyCard } from "./money-group-ui";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import { useMyRecipes, usePrefetchRecipe } from "./recipes-data";
 import { profileListFrom, profileRecipeRows, recipeStats, type ProfileList } from "./cook-hub";
@@ -96,7 +96,7 @@ export function YourCooks() {
       {dishes.failed ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load your cooks.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={dishes.reload}>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={dishes.reload}>
             Try again
           </Button>
         </KCard>
@@ -140,7 +140,7 @@ function CooksAWeek({ counts, loading }: { counts: readonly number[]; loading: b
         <h2 id="you-cooks-week" className="text-[17px] font-medium">
           Cooks a week
         </h2>
-        {loading ? null : <span className="truncate text-[13px] font-semibold tabular-nums text-muted-foreground">{cooksAWeekText(counts)}</span>}
+        {loading ? null : <span className="truncate text-[13px] font-normal tabular-nums text-muted-foreground">{cooksAWeekText(counts)}</span>}
       </div>
       {loading ? (
         <Skeleton className="mt-3 h-[92px] w-full rounded-xl" />
@@ -151,7 +151,7 @@ function CooksAWeek({ counts, loading }: { counts: readonly number[]; loading: b
             const words = `${cooksText(n)}, ${weekLabel(weeksAgo)}`;
             return (
               <li key={i} title={words} aria-label={words} className="flex h-[92px] flex-col items-center justify-end gap-1">
-                <span aria-hidden className={cn("h-4 text-xs font-bold tabular-nums text-foreground", i !== last && "invisible")}>
+                <span aria-hidden className={cn("h-4 text-xs font-medium tabular-nums text-foreground", i !== last && "invisible")}>
                   {n}
                 </span>
                 <span
@@ -165,7 +165,7 @@ function CooksAWeek({ counts, loading }: { counts: readonly number[]; loading: b
         </ol>
       )}
       {loading ? null : (
-        <div aria-hidden className="mt-1.5 flex justify-between text-xs font-semibold text-muted-foreground">
+        <div aria-hidden className="mt-1.5 flex justify-between text-xs font-normal text-muted-foreground">
           <span>8 weeks ago</span>
           <span>This week</span>
         </div>
@@ -237,18 +237,18 @@ function CookList({
   const prefetch = usePrefetchKitchen();
   return (
     <section aria-labelledby={id} className="min-w-0 space-y-2">
-      <h2 id={id} className={cn("text-lg font-extrabold tracking-tight", hideTitle && "sr-only")}>
+      <h2 id={id} className={cn(K_SECTION, hideTitle && "sr-only")}>
         {title}
       </h2>
       {loading ? (
-        <div className="space-y-px overflow-hidden rounded-[22px] border bg-card" aria-hidden>
+        <div className={K_ROWS} aria-hidden>
           <Skeleton className="h-16 w-full rounded-none" />
           <Skeleton className="h-16 w-full rounded-none" />
         </div>
       ) : rows.length === 0 ? (
-        <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">{empty}</p>
+        <p className={cn(K_CARD, "flex min-h-14 items-center px-4 text-sm text-muted-foreground")}>{empty}</p>
       ) : (
-        <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
+        <ul className={K_ROWS}>
           {rows.map((row) => (
             <li key={row.dishId}>
               <Link
@@ -257,12 +257,12 @@ function CookList({
                 className="flex min-h-16 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] font-bold">{row.name}</span>
+                  <span className="block truncate text-[15px] font-medium">{row.name}</span>
                   <span className="block truncate text-[13px] text-muted-foreground">
                     {row.where} · {row.when}
                   </span>
                 </span>
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground">{row.portions}</span>
+                <span className="shrink-0 text-sm font-normal tabular-nums text-muted-foreground">{row.portions}</span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
               </Link>
             </li>
@@ -287,7 +287,7 @@ export function NewPerson() {
         <PersonSkeleton />
       ) : person.error?.code === "not_found" ? (
         <KCard className="flex flex-col items-center px-6 py-10 text-center">
-          <h1 className="text-lg font-bold tracking-tight">
+          <h1 className={K_SECTION}>
             {myId && subjectId === myId ? "That's you" : "You don't share a group with them"}
           </h1>
           <Button asChild className={cn(K_BUTTON, "mt-4")}>
@@ -297,7 +297,7 @@ export function NewPerson() {
       ) : person.error || !person.data ? (
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load this person.</p>
-          <Button variant="outline" className={K_BUTTON} onClick={person.reload}>
+          <Button variant="ghost" className={K_BUTTON_QUIET} onClick={person.reload}>
             Try again
           </Button>
         </KCard>
@@ -308,8 +308,6 @@ export function NewPerson() {
   );
 }
 
-const TONE: Record<MoneyLine["tone"], string> = { owed: "text-cp-owed", owe: "text-cp-owe", settled: "text-foreground" };
-
 function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string | null }) {
   // Their own name from their read, so their face has its initials before the cross-group read answers.
   const own = React.useMemo(() => [{ subjectId: view.subjectId, displayName: view.displayName }], [view.subjectId, view.displayName]);
@@ -317,12 +315,19 @@ function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string 
   const groups = useGroups();
   const dishes = useMyDishes(PROFILE_DISH_DAYS);
   const [now] = React.useState(() => new Date());
+  const back = useBack();
   const name = personName(view);
   const first = firstName(view);
-  const balance = personBalance(view);
-  const options = recordOptions(view, myId);
+  // The balance and its why from your view (the approved board RvMoneyGroup): Settle up lists who pays
+  // whom per group, each Pay going to the one settle path (`/money/settle`), each "pays you" with Remind.
+  const pays = React.useMemo(() => personSettleRows({ ...view, displayName: name }), [view, name]);
+  const nets = React.useMemo(() => {
+    const open = view.totals.filter((t) => t.netMinor !== 0);
+    return (open.length > 0 ? open : view.totals.slice(0, 1)).map((t) => ({ currency: t.currency, minor: t.netMinor }));
+  }, [view.totals]);
+  const why = React.useMemo(() => personWhyRows(view, now), [view, now]);
   // Money is open between you only in groups you view: nothing to settle here.
-  const viewOnly = options.length === 0 && view.groups.some((g) => g.planMinor !== 0);
+  const viewOnly = pays.length === 0 && view.groups.some((g) => g.planMinor !== 0);
   const shared = React.useMemo(() => new Set(view.groups.map((g) => g.orgId)), [view.groups]);
   const groupNames = React.useMemo(
     () => new Map([...(groups.data ?? []).map((g) => [g.id, g.name] as const), ...view.groups.map((g) => [g.orgId, g.name] as const)]),
@@ -347,38 +352,17 @@ function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string 
   const prefetchRecipe = usePrefetchRecipe();
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 min-[900px]:grid-cols-[minmax(0,340px)_minmax(0,1fr)] min-[900px]:items-start min-[900px]:gap-6">
-        <div className="space-y-3 min-[900px]:sticky min-[900px]:top-6">
-          <header aria-labelledby="person-name" className="flex items-center gap-2.5">
-            <BackButton />
-            <Face subjectId={view.subjectId} meId={myId} names={names} className="h-16 w-16 text-xl" />
-            <div className="min-w-0 flex-1">
-              <h1 id="person-name" className="truncate text-2xl font-extrabold tracking-[-0.02em] min-[900px]:text-[26px]">
-                {name}
-              </h1>
-              {sharedGroupsLine(view.groups) ? <p className="truncate text-sm text-muted-foreground">{sharedGroupsLine(view.groups)}</p> : null}
-            </div>
-          </header>
+    <div className="space-y-[22px] min-[900px]:max-w-2xl">
+      <BalanceHeader
+        onBack={back}
+        badge={<Face subjectId={view.subjectId} meId={myId} names={names} className="h-[42px] w-[42px] text-sm font-medium" />}
+        name={name}
+        sub={sharedGroupsLine(view.groups)}
+      />
+      <BalanceSection nets={nets} pays={pays} back={`/people/${encodeURIComponent(view.subjectId)}`} viewOnly={viewOnly} />
+      <WhyCard rows={why} empty={`Nothing between you and ${first} yet`} />
 
-          <section aria-label="Between you two" className={cn("grid gap-3 rounded-[22px] border bg-card px-[18px] py-3", balance.length > 1 && "grid-cols-2")}>
-            {balance.map((l) => (
-              <p key={l.currency} className="min-w-0">
-                <span className="block truncate text-[13px] font-bold text-muted-foreground">{l.amount ? l.label : ""}</span>
-                <span className={cn("block truncate text-[28px] font-extrabold leading-tight tracking-tight tabular-nums", TONE[l.tone])}>
-                  {l.amount ?? l.label}
-                </span>
-              </p>
-            ))}
-          </section>
-          {options.length > 0 ? (
-            <RecordPayment name={first} fullName={name} myId={myId} options={options} title="Settle up" />
-          ) : viewOnly ? (
-            <p className="px-1 text-sm font-semibold text-muted-foreground">View only</p>
-          ) : null}
-        </div>
-
-        <div className="min-w-0 space-y-5">
+      <div className="min-w-0 space-y-5">
           <div className="space-y-3">
             <dl className="grid grid-cols-3 gap-2">
               <Stat label="Cooks" value={dishes.loading ? null : cookCountText(cookTotal, dishes.complete)} />
@@ -401,7 +385,7 @@ function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string 
             ) : dishes.failed ? (
               <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <p className="text-sm text-muted-foreground">Couldn&apos;t load {first}&apos;s cooks.</p>
-                <Button variant="outline" className={K_BUTTON} onClick={dishes.reload}>
+                <Button variant="ghost" className={K_BUTTON_QUIET} onClick={dishes.reload}>
                   Try again
                 </Button>
               </KCard>
@@ -409,16 +393,6 @@ function PersonProfile({ view, myId }: { view: PersonViewResponse; myId: string 
               <CookList title={`${first}'s cooks`} hideTitle rows={cooks} loading={dishes.loading} empty="No cooks in your groups yet" />
             )}
           </div>
-
-          <section aria-labelledby="person-why" className="min-w-0 space-y-3">
-            <h2 id="person-why" className="text-lg font-extrabold tracking-tight">
-              Why
-            </h2>
-            {view.groups.map((g) => (
-              <WhyGroup key={g.orgId} group={g} view={view} name={first} myId={myId} names={names} />
-            ))}
-          </section>
-        </div>
       </div>
     </div>
   );
