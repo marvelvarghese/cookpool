@@ -1,0 +1,25 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-5
+  title: "Spliteco: bills from a photo, split together"
+spec:
+  goal: "A receipt photo becomes a checked itemized draft, and a live split lets people at the table claim their own items before the bill posts."
+  affects:
+    - default/cookpool/spliteco-worker
+    - default/cookpool/spliteco-web
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/contracts
+    - default/cookpool/sdk
+    - apps/spliteco-worker/**
+    - apps/spliteco-web/**
+    - tests/spliteco-worker/**
+    - tests/spliteco-web/**
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-5.TaskContract.yaml
+  doneWhen:
+    - "A receipt photo becomes an itemized draft with doubtful lines flagged; it must match the printed total before assigning"
+    - "A live split shows a code and QR; people who sign in claim their items and see each other's claims within 3 seconds"
+    - "The bill locks when every item is claimed and posts as one itemized expense"
+  gates: []

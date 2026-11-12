@@ -1,0 +1,29 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-6
+  title: "Spliteco: your AI assistant logs splits"
+spec:
+  goal: "Assistants connected to the Cookpool MCP server can draft, save, edit, delete and move Spliteco expenses with the user's confirmation, and can never record a payment."
+  affects:
+    - default/cookpool/mcp-worker
+    - default/cookpool/mcp-worker-tests
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/spliteco-worker
+    - default/cookpool/spliteco-web
+    - default/cookpool/contracts
+    - default/cookpool/sdk
+    - apps/mcp-worker/**
+    - apps/spliteco-worker/**
+    - apps/spliteco-web/**
+    - tests/mcp-worker/**
+    - tests/spliteco-worker/**
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-6.TaskContract.yaml
+  doneWhen:
+    - "An assistant with Add & edit access drafts, saves, edits, deletes and moves an expense; nothing saves without the user's confirm"
+    - "Asking an assistant to settle returns a link into the app; no MCP tool records a payment"
+    - "Activity shows via <assistant> on every change an assistant made, and the people on it are notified"
+    - "Settings > AI assistants lists each one with Look only, Add & edit and Disconnect"
+  gates: []
