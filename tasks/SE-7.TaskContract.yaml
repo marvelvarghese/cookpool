@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-7
+  title: "Close the Spliteco epic"
+spec:
+  goal: "The cookpool-spliteco doc set records every milestone as shipped, with its PR, the order it shipped in, and what is still unverified."
+  affects:
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-7.TaskContract.yaml
+  doneWhen:
+    - "IMPLEMENTATION-STATUS lists SE0-SE5 as shipped with their PRs and the order they shipped in"
+    - "The README status reads Shipped and its Shipped as row names the PRs and the live URL"
+  gates: []

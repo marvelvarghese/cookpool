@@ -8,7 +8,7 @@ Spliteco is for anyone who shares costs: flatmates, a trip, a dinner table. They
 
 | Field | Value |
 |-------|-------|
-| Status | Draft: the milestone plan is approved; the design awaits review in its spec PR |
+| Status | ✅ Shipped (2026-11-12) |
 | Cluster | **SE** (SE0–SE5) |
 | Owner(s) | **The money API:** a new `apps/spliteco-worker` behind `apps/api-edge`. **The ledger:** `packages/db` (tables, statements) and `packages/kitchen-engine` (the maths), shared with `apps/kitchen-worker`. **The app:** a new `apps/spliteco-web`. **The wire:** `packages/contracts`, `packages/sdk`. **Groups:** `apps/membership-worker`. **Assistants:** `apps/mcp-worker`. |
 | Builds on | `cirrus-baseline` (v27) — identity, membership, policy, notifications; `cookpool-kitchen` (the ledger: `kitchen_txns`, splits, settlements, the settle plan); `cookpool-ai` (receipt reading); `cookpool-mcp` (delegated tokens and the MCP server). |
@@ -18,7 +18,7 @@ Spliteco is for anyone who shares costs: flatmates, a trip, a dinner table. They
 | Needs from the owner | Later, a custom domain for the app. Each person enters their own UPI ID (SE2). |
 | Cost | No new paid service. Receipt reading uses the existing `ANTHROPIC_API_KEY` (SE4). |
 | Gate | SE1 is the day Spliteco opens with your groups and balances. SE3 is the day Cookpool's Money tab runs on it. |
-| Shipped as | |
+| Shipped as | #115, #120, #122, #125, #131, #133 and the close-out; live at https://cookpool-spliteco-web-prod.cookpool.workers.dev |
 
 ## Read order
 

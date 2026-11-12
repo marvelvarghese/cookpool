@@ -4,12 +4,19 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 | Milestone | State | PR |
 |---|---|---|
-| SE0 — the spec | | |
-| SE1 — groups, expenses, balances | built, awaiting PR (SE-2) | |
-| SE2 — settle up and reminders | built, awaiting PR (SE-3) | |
-| SE3 — Cookpool hands its money over | built, awaiting PR (SE-4) | |
-| SE4 — bills from a photo, split together | built, awaiting PR (SE-5) | |
-| SE5 — your AI assistant logs splits | built, awaiting PR (SE-6) | |
+| SE0 — the spec | ✅ shipped | #115 (9d69129) |
+| SE1 — groups, expenses, balances | ✅ shipped | #120 (825cd6e) |
+| SE2 — settle up and reminders | ✅ shipped | #122 |
+| SE3 — Cookpool's money runs on Spliteco | ✅ shipped | #133 (bb653cc) |
+| SE4 — bills from a photo, split together | ✅ shipped | #125 (fb7b304) |
+| SE5 — your AI assistant logs splits | ✅ shipped | #131 (0dca61f) |
+| close-out | ✅ shipped | this PR (SE-7) |
+
+**Order shipped:** SE0, SE1, SE2, SE4, SE5, SE3. SE3 was built last because the cookpool-revamp epic was restyling Cookpool's Money screens (RV-5); it then used the revamp look. Migrations: 530, 540, 550, 560, 570 (identity delegation access), 580 (identity handoff codes).
+
+**Live:** https://cookpool-spliteco-web-prod.cookpool.workers.dev (stage: `-stage`); API under `/v1/spliteco` on `cookpool-api-edge-<env>.cookpool.workers.dev`; MCP at `https://cookpool-mcp-worker-<env>.cookpool.workers.dev/mcp`.
+
+**Not yet verified with real accounts:** signed-in flows on the deployed hosts (all were covered by tests and local browser checks), a real UPI app, a real model reading a receipt, a real assistant connecting, and Google/passkey sign-in on the workers.dev hosts.
 
 ## SE1 as built (SE-2)
 
