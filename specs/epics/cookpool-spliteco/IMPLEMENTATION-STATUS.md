@@ -10,13 +10,16 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | SE3 — Cookpool's money runs on Spliteco | ✅ shipped | #133 (bb653cc) |
 | SE4 — bills from a photo, split together | ✅ shipped | #125 (fb7b304) |
 | SE5 — your AI assistant logs splits | ✅ shipped | #131 (0dca61f) |
-| close-out | ✅ shipped | this PR (SE-7) |
+| close-out | ✅ shipped | #135 (SE-7) |
+| fix: Google sign-in | ✅ shipped | this PR (SE-8) |
 
 **Order shipped:** SE0, SE1, SE2, SE4, SE5, SE3. SE3 was built last because the cookpool-revamp epic was restyling Cookpool's Money screens (RV-5); it then used the revamp look. Migrations: 530, 540, 550, 560, 570 (identity delegation access), 580 (identity handoff codes).
 
 **Live:** https://cookpool-spliteco-web-prod.cookpool.workers.dev (stage: `-stage`); API under `/v1/spliteco` on `cookpool-api-edge-<env>.cookpool.workers.dev`; MCP at `https://cookpool-mcp-worker-<env>.cookpool.workers.dev/mcp`.
 
 **Not yet verified with real accounts:** signed-in flows on the deployed hosts (all were covered by tests and local browser checks), a real UPI app, a real model reading a receipt, a real assistant connecting, and Google/passkey sign-in on the workers.dev hosts.
+
+**SE-8 (after close-out):** Google sign-in failed on the Spliteco hosts with "OAuth state verification failed". The start ran on Spliteco's `/api`, so its state cookie was set on the Spliteco host, while Google returns to api-edge's callback. The start now runs on api-edge's own host (`apps/spliteco-web/src/lib/oauth.ts`, as the console's `oauthBaseUrl`). Nothing changed in Google's settings or identity-worker.
 
 ## SE1 as built (SE-2)
 
