@@ -124,6 +124,14 @@ describe("KitchenClient — receipts (AI-3)", () => {
     expect(AI_RECEIPT_MAX_BYTES).toBe(1_572_864);
   });
 
+  it("returns the receipt's adjustments as sent (AI-14), and a read without them as it was", async () => {
+    const adjusted = { ...receipt, total: 24350, adjustments: [{ kind: "tax", label: "GST 5%", amountMinor: 750 }] };
+    const f = capture(ok(adjusted));
+    const res = await client(f.fetch).kitchen.aiReceipt("/9j/4AAQSkZJRg==");
+    expect(res.adjustments).toEqual([{ kind: "tax", label: "GST 5%", amountMinor: 750 }]);
+    expect((await client(capture(ok(receipt)).fetch).kitchen.aiReceipt("/9j/")).adjustments).toBeUndefined();
+  });
+
   it("decodes a bad photo as a validation error on image", async () => {
     const f = capture(failed("validation_failed", 422, { fields: { image: ["Must be at most 1.5 MB"] } }));
     const err = await client(f.fetch).kitchen.aiReceipt("x").catch((e: unknown) => e);

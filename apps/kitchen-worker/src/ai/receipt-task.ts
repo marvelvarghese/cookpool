@@ -1,5 +1,11 @@
 import { UNITS, UNIT_KEYS, isUnit, toMilli, type UnitKey } from "@saas/kitchen-engine/units";
-import { AI_RECEIPT_MAX_LINES, type AiReceiptImageType } from "@saas/contracts/kitchen";
+import {
+  AI_RECEIPT_ADJUSTMENT_KINDS,
+  AI_RECEIPT_MAX_LINES,
+  type AiReceiptAdjustment,
+  type AiReceiptAdjustmentKind,
+  type AiReceiptImageType,
+} from "@saas/contracts/kitchen";
 import type { AiCheck, AiTask } from "./runner.js";
 import type { JsonSchema } from "./schema.js";
 
@@ -7,7 +13,8 @@ import type { JsonSchema } from "./schema.js";
 // it. The model only READS: store, date and time, the total, each line as
 // printed with a plain item name, the amount bought, the charged price and
 // whether it is food, and the adjustments that change the total (an added
-// tax, a discount, round-off). Matching the lines to the caller's history and
+// tax, a discount, a charge, round-off — each with its kind, AI-14).
+// Matching the lines to the caller's history and
 // the food list happens afterwards, on the server, with no model
 // (./receipt-match.ts).
 //
@@ -36,10 +43,10 @@ Each line:
 - text: the item line exactly as printed (one line of the receipt, without the price columns' layout), e.g. "MLK PNR 200G" or "AASHIRVAAD ATTA 5KG".
 - name: the plain, everyday name of the item, without brand, pack size or codes: "MLK PNR 200G" → "Paneer"; "AMUL TAAZA 500ML" → "Milk"; "TATA SALT 1KG" → "Salt"; "AASHIRVAAD ATTA 5KG" → "Atta"; "ONION" → "Onion". Use a common English or Indian name (atta, dal, paneer, dahi, ghee). null when you cannot tell what it is.
 - quantity and unit: the total amount bought on the line. unit is one of: ${UNIT_KEYS.join(", ")}. Read weights and volumes from the line: "1KG" → 1 kg, "500G"/"500GM" → 500 g, "1L"/"1LTR" → 1 L, "200ML" → 200 ml. Apply a multiplier: "2 X 68.00", "×2" or a quantity column of 2 means two of them, so "2 X" a 500 g pack is 1000 g, and 2 loose items are 2 pcs. A weighed item ("0.756 KG @ 40.00") is that weight. A single item with no size printed is 1 pcs. Both null only when the line shows no amount at all.
-- priceMinor: the amount charged for the whole line, in paise (₹68.00 → 6800, ₹1,250.50 → 125050). When a line shows MRP and a selling price (or "Rate" and "Amount", or a discount on the line), take the amount actually charged, never the MRP. With a multiplier, the line's total (2 X 68.00 → 13600). 0 for a free item.
-- isFood: true for food and drink you cook or eat (vegetables, fruit, dairy, grains, flour, dal, oil, spices, snacks, drinks); false for anything else (soap, detergent, cleaning, toiletries, medicine, bags, delivery or packing fees, tips).
+- priceMinor: the amount charged for the whole line, in paise (₹68.00 → 6800, ₹1,250.50 → 125050). When a line shows MRP and a selling price (or "Rate" and "Amount", or a discount on the line or printed under it), take the amount actually charged, never the MRP. With a multiplier, the line's total (2 X 68.00 → 13600). 0 for a free item.
+- isFood: true for food and drink you cook or eat (vegetables, fruit, dairy, grains, flour, dal, oil, spices, snacks, drinks); false for anything else (soap, detergent, cleaning, toiletries, medicine, bags, tips).
 
-Adjustments (each { text, amountMinor }, amountMinor in paise, negative for a discount or savings): a tax ADDED on top of the items, a bill discount or coupon, a delivery or handling fee printed in the totals, round-off (+ or −). These are never lines. Not adjustments: a GST/CGST/SGST summary or "incl. of taxes" breakdown already inside the prices, "You saved" or MRP savings already in the selling prices, subtotals, payment details (cash, card, UPI, change), loyalty points, item counts.
+Adjustments (each { kind, text, amountMinor }, amountMinor in paise): kind discount (a bill discount or coupon, negative), tax (a tax ADDED on top of the items), charge (a delivery, packing or handling fee in the totals) or roundoff (the round-off, + or −). These are never lines. Not adjustments: a GST/CGST/SGST summary or "incl. of taxes" breakdown already inside the prices, "You saved" or MRP savings already in the selling prices, subtotals, payment details (cash, card, UPI, change), loyalty points, item counts.
 
 Rules:
 - Never invent a line, an amount or a price; leave out what you cannot read.
@@ -80,8 +87,8 @@ const SCHEMA: JsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["text", "amountMinor"],
-        properties: { text: { type: "string" }, amountMinor: { type: "integer" } },
+        required: ["kind", "text", "amountMinor"],
+        properties: { kind: { type: "string", enum: AI_RECEIPT_ADJUSTMENT_KINDS }, text: { type: "string" }, amountMinor: { type: "integer" } },
       },
     },
   },
@@ -101,7 +108,7 @@ interface ReceiptAnswer {
     priceMinor: number;
     isFood: boolean;
   }>;
-  adjustments: Array<{ text: string; amountMinor: number }>;
+  adjustments: Array<{ kind: AiReceiptAdjustmentKind; text: string; amountMinor: number }>;
 }
 
 /** What the task gets: the photo, already checked (type, size). */
@@ -129,6 +136,8 @@ export interface ReceiptRead {
   date: string | null;
   total: number | null;
   lines: ReadLine[];
+  /** The adjustments (AI-14): discounts negative, taxes and charges positive, round-off either; none zero. */
+  adjustments: AiReceiptAdjustment[];
   /** The adjustments' sum (taxes added, discounts, round-off), in minor units. */
   adjustmentsMinor: number;
 }
@@ -177,13 +186,36 @@ function checkLine(line: ReceiptAnswer["lines"][number], at: string): { read: Re
 
 const totalOk = (total: number | null): boolean => total === null || (Number.isSafeInteger(total) && total >= 0);
 
-function shaped(answer: ReceiptAnswer, lines: ReadLine[], total: number | null, adjustments: ReceiptAnswer["adjustments"]): ReceiptRead {
+const ADJUSTMENT_LABELS: Record<AiReceiptAdjustmentKind, string> = { discount: "Discount", tax: "Tax", charge: "Charge", roundoff: "Round-off" };
+
+/**
+ * The adjustments as returned (AI-14): the sign follows the kind — a
+ * discount is always taken off (a model often writes "DISCOUNT 50.00" as
+ * +5000); a tax or charge read as negative is money off, so it is a
+ * discount; round-off keeps its sign. Zero amounts are dropped; an unknown
+ * kind is read as round-off when it is the only sign-free one left.
+ */
+export function shapeAdjustments(adjustments: ReceiptAnswer["adjustments"]): AiReceiptAdjustment[] {
+  const out: AiReceiptAdjustment[] = [];
+  for (const a of adjustments) {
+    if (!Number.isSafeInteger(a.amountMinor) || a.amountMinor === 0) continue;
+    const read: AiReceiptAdjustmentKind = (AI_RECEIPT_ADJUSTMENT_KINDS as readonly string[]).includes(a.kind) ? a.kind : "roundoff";
+    const kind: AiReceiptAdjustmentKind = (read === "tax" || read === "charge") && a.amountMinor < 0 ? "discount" : read;
+    const amountMinor = kind === "discount" ? -Math.abs(a.amountMinor) : a.amountMinor;
+    out.push({ kind, label: clip(a.text, TEXT_MAX) ?? ADJUSTMENT_LABELS[kind], amountMinor });
+  }
+  return out;
+}
+
+function shaped(answer: ReceiptAnswer, lines: ReadLine[], total: number | null, read: ReceiptAnswer["adjustments"]): ReceiptRead {
   const date = answer.date && /^\d{4}-\d{2}-\d{2}$/.test(answer.date.trim()) ? answer.date.trim() : null;
+  const adjustments = shapeAdjustments(read);
   return {
     store: clip(answer.store, STORE_MAX),
     date,
     total,
     lines,
+    adjustments,
     adjustmentsMinor: adjustments.reduce((sum, a) => sum + a.amountMinor, 0),
   };
 }
@@ -225,9 +257,11 @@ export function salvageReceipt(answer: ReceiptAnswer): ReceiptRead | null {
  * The output cap (AI-13), sized from the schema: a line is about 26 tokens
  * of compact JSON ({"text":"AASHIRVAAD ATTA 5KG","name":"Atta","quantity":5,
  * "unit":"kg","priceMinor":27500,"isFood":true}), so AI_RECEIPT_MAX_LINES
- * lines, plus store, date, time, total and a few adjustments (~140).
+ * lines, plus store, date, time and total (~40) and up to eight adjustments
+ * of about 20 ({"kind":"tax","text":"CGST 2.5%","amountMinor":1050}; AI-14
+ * added the kind: was ~140 for all of these).
  */
-export const RECEIPT_MAX_TOKENS = AI_RECEIPT_MAX_LINES * 26 + 140;
+export const RECEIPT_MAX_TOKENS = AI_RECEIPT_MAX_LINES * 26 + 200;
 
 export const RECEIPT_TASK: AiTask<ReceiptInput, ReceiptRead> = {
   feature: "receipt",

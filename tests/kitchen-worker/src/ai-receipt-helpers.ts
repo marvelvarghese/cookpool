@@ -44,13 +44,20 @@ export const line = (text: string, name: string | null, quantity: number | null,
   isFood,
 });
 
+/** An adjustment as the model reads it (AI-14: with its kind). */
+export interface ModelAdjustment {
+  kind: "discount" | "tax" | "charge" | "roundoff";
+  text: string;
+  amountMinor: number;
+}
+
 export interface ModelRead {
   store?: string | null;
   date?: string | null;
   time?: string | null;
   total?: number | null;
   lines: ModelLine[];
-  adjustments?: Array<{ text: string; amountMinor: number }>;
+  adjustments?: ModelAdjustment[];
 }
 
 /** The model's answer for a receipt. */

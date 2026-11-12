@@ -201,8 +201,13 @@ export function matchReceipt(input: MatchInput): AiReceiptResponse {
 
   const sumMinor = read.lines.reduce((sum, l) => sum + (l.isFood ? l.priceMinor : 0), 0);
   const allMinor = read.lines.reduce((sum, l) => sum + l.priceMinor, 0);
-  const totalMatches =
-    read.total !== null && (Math.abs(allMinor + read.adjustmentsMinor - read.total) <= 1 || Math.abs(allMinor - read.total) <= 1);
+  // The lines plus the adjustments meet the total (AI-14). When only the lines
+  // alone do, the "adjustments" were a summary already inside the prices (an
+  // included GST breakdown, "you saved"): they are dropped, not returned.
+  const meets = (minor: number) => read.total !== null && Math.abs(minor - read.total) <= 1;
+  const inside = read.adjustments.length > 0 && !meets(allMinor + read.adjustmentsMinor) && meets(allMinor);
+  const adjustments = inside ? [] : read.adjustments;
+  const totalMatches = meets(allMinor + (inside ? 0 : read.adjustmentsMinor));
 
   return {
     ...(read.store ? { store: read.store } : {}),
@@ -211,5 +216,6 @@ export function matchReceipt(input: MatchInput): AiReceiptResponse {
     sumMinor,
     totalMatches,
     lines,
+    adjustments,
   };
 }

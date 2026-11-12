@@ -137,10 +137,10 @@ describe("receipts: Indian receipts read through (AI-3)", () => {
         line("ONION 0.756 KG @ 40.00", "Onion", 0.756, "kg", 3024),
         line("VIM BAR 3 X 9.00", "Dishwash bar", 3, "pcs", 2700, false),
       ],
-      // An added cess and the round-off: they adjust the total, never a line.
+      // A bill discount and a zero round-off: they adjust the total, never a line.
       adjustments: [
-        { text: "CESS", amountMinor: -24 },
-        { text: "ROUND OFF", amountMinor: 0 },
+        { kind: "discount", text: "CESS", amountMinor: -24 },
+        { kind: "roundoff", text: "ROUND OFF", amountMinor: 0 },
       ],
     });
     expect(data.store).toBe("DMart");
@@ -166,7 +166,7 @@ describe("receipts: Indian receipts read through (AI-3)", () => {
       total: 10000,
       lines: [line("ATTA 5KG", "Atta", 5, "kg", 10000)],
       // Wrongly read as an adjustment: the lines alone still meet the total.
-      adjustments: [{ text: "CGST 2.5% incl.", amountMinor: 238 }],
+      adjustments: [{ kind: "tax", text: "CGST 2.5% incl.", amountMinor: 238 }],
     });
     expect(data.totalMatches).toBe(true);
     w.close();
