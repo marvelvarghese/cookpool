@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | In progress: design approved by the owner on 2026-11-13 |
+| Status | ✅ Shipped (2026-11-13) |
 | Cluster | **SL** (SL0–SL6) |
 | Owner(s) | `apps/spliteco-web`, its tests in `tests/spliteco-web`. No worker, route or migration changes. |
 | Builds on | `cookpool-spliteco` (EP-13, the app as shipped); `cookpool-revamp` (the look's rules) and `cookpool-app` PW-7/PW-8 (the gestures, `apps/web-console-next/src/lib/gestures.ts` and `row-gestures.ts`). |
@@ -14,7 +14,7 @@
 | Decisions locked | (1) **Deep ocean stays**; Cookpool's rules come over, not its colours. (2) **Every gesture has a tap twin** — a gesture only makes something faster. (3) **Gestures are pure modules plus thin React**, no gesture library, as in Cookpool. (4) **+ and − on every amount**, so colour is never alone. (5) **One keypad** types into the amount or the selected person's field. (6) **Save waits until the split adds up**, and its label says what is missing. |
 | Design | Claude Design canvas row 7: https://claude.ai/artifact/SyrCkQEe95pwPdQTFkqLWH (`V2SignIn`, `V2Home`, `V2Group`, `V2Add`, `V2Itemized`, `V2Settle`) |
 | Gate | SL2 is the day stage swipes. SL4 is the day Add shows every share. |
-| Shipped as | |
+| Shipped as | #146, #149, #152, #153, #155, #156 and the close-out; live at https://cookpool-spliteco-web-prod.cookpool.workers.dev |
 
 ## Read order
 

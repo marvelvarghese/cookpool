@@ -6,11 +6,17 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 |---|---|---|
 | SL0 — the spec | ✅ shipped | #146 (4f33619) |
 | SL1 — the calm foundation | ✅ shipped | #149 (0f1e695) |
-| SL2 — Home, Groups, Activity | ✅ shipped | this PR (SL-3) |
-| SL3 — Group and expense | ✅ shipped | this PR (SL-4) |
-| SL4 — Add and Itemized | ✅ shipped | this PR (SL-5) |
-| SL5 — Settle | ✅ shipped | this PR (SL-6) |
-| SL6 — close-out | planned | |
+| SL2 — Home, Groups, Activity | ✅ shipped | #152 (d0f6c05) |
+| SL3 — Group and expense | ✅ shipped | #153 (0eaa466) |
+| SL4 — Add and Itemized | ✅ shipped | #155 (012c7df) |
+| SL5 — Settle | ✅ shipped | #156 (77d24eb) |
+| SL6 — close-out | ✅ shipped | this PR (SL-7) |
+
+**Order shipped:** SL0–SL5 in order, one milestone in flight, each built on the last one's branch while it was in review. No worker, route or migration changed. **Live:** https://cookpool-spliteco-web-prod.cookpool.workers.dev (stage: `-stage`).
+
+**Not yet verified on a real phone:** the gestures were checked with simulated touch at phone width against the local dev API; the edge swipe in the installed iOS app, the UPI hand-off with a real UPI app, and haptics have not been tried on a device.
+
+**Follow-ups:** Home's Remind should follow the simplified plan (the server can answer "nothing owed" to a positive net); the gesture modules exist twice, in Cookpool and Spliteco (risk SL-A).
 
 ## SL1 as built (SL-2)
 
