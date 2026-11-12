@@ -60,10 +60,11 @@ export interface EncodeAttempt extends Size {
  * The encodings to try, in order: the photo at 1200 px on the long side with
  * each quality, then 0.8 of that with each quality, and so on down to
  * RECEIPT_MIN_LONG_SIDE (a photo already smaller starts at its own size).
+ * `longSide` is where it starts: a recipe photo (AI-9) starts at 1600.
  */
-export function encodeAttempts(seen: Size): EncodeAttempt[] {
+export function encodeAttempts(seen: Size, longSide: number = RECEIPT_LONG_SIDE): EncodeAttempt[] {
   const attempts: EncodeAttempt[] = [];
-  let long = Math.min(RECEIPT_LONG_SIDE, Math.max(seen.width, seen.height));
+  let long = Math.min(longSide, Math.max(seen.width, seen.height));
   const floor = Math.min(RECEIPT_MIN_LONG_SIDE, long);
   for (;;) {
     const size = fitLongSide(seen, long);
