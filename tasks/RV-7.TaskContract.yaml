@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-7
+  title: "Finish a dish without amounts"
+spec:
+  goal: "Finish works with no amounts: the dish is saved at zero cost with no stock taken, in the app and in kitchen-worker."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - tasks/RV-7.TaskContract.yaml
+  doneWhen:
+    - "kitchen-worker accepts a cook with no ingredients and no new items as a zero-cost dish with no stock moves"
+    - "the cook session's Finish never refuses for missing amounts; Cooked shows zero cost and still offers Split and Post"
+  gates: []

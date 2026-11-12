@@ -1,0 +1,13 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-1
+  title: "The cookpool-revamp spec"
+spec:
+  goal: "Land the cookpool-revamp doc set and the RV task contracts."
+  affects:
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-*.TaskContract.yaml
+  doneWhen:
+    - "specs/epics/cookpool-revamp holds README, design, plan, risks and status linked to the approved canvas rows"
+  gates: []
