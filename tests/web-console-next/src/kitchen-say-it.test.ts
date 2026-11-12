@@ -79,7 +79,7 @@ describe("where Say what you used shows", () => {
 
   it("is a static page under You, back to Settings", () => {
     expect(STATIC_PAGES).toContain("/you/ai");
-    expect(backParent("/you/ai", {}, { newFrame: true })).toBe("/you/settings");
+    expect(backParent("/you/ai", {}, { newFrame: true })).toBe("/you");
   });
 });
 

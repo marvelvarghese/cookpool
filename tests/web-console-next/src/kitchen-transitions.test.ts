@@ -141,7 +141,8 @@ describe("the kind of a step (transitionKind)", () => {
     expect(routeDepth("/recipes/rcp_1")).toBe(1);
     expect(routeDepth("/recipes/rcp_1/plan")).toBe(2);
     expect(routeDepth("/groups/flat-4b/expense")).toBe(2);
-    expect(routeDepth("/you/notifications")).toBe(2);
+    // You → Notifications is You's own row since RV-6 (it was under settings).
+    expect(routeDepth("/you/notifications")).toBe(1);
     expect(routeDepth("/pantry/me:itm_1")).toBe(1);
   });
 });

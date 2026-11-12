@@ -111,7 +111,9 @@ describe("Back in the new frame", () => {
 
   it("takes settings back to You, and Notifications back to settings", () => {
     expect(backParent("/you/settings", {}, { newFrame: true })).toBe("/you");
-    expect(backParent("/you/notifications", {}, { newFrame: true })).toBe("/you/settings");
+    expect(backParent("/you/notifications", {}, { newFrame: true })).toBe("/you");
+    // RV-6: Your recipes and cooks, You's Account row.
+    expect(backParent("/you/cooks", {}, { newFrame: true })).toBe("/you");
   });
 
   it("keeps every other parent", () => {

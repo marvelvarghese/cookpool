@@ -17,7 +17,7 @@ export default function NotificationsPage() {
     <div className="flex w-full max-w-xl flex-col gap-[18px]">
       <header className="flex items-center gap-1">
         <BackButton />
-        <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">{NOTIFY_TITLE}</h1>
+        <h1 className="text-[26px] font-medium tracking-[-0.02em]">{NOTIFY_TITLE}</h1>
       </header>
       <NotificationsScreen />
     </div>

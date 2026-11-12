@@ -163,21 +163,21 @@ export function ShareCookSheet({
         // No keyboard on open: the caption is optional.
         onOpenAutoFocus={(e) => e.preventDefault()}
         className={cn("mx-auto flex h-[94dvh] max-w-xl flex-col gap-3 rounded-t-[28px] border-x-0 bg-background px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 min-[900px]:bottom-6 min-[900px]:h-[86dvh] min-[900px]:rounded-[28px] min-[900px]:border", CLOSE_44)}>
-        <div aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-[#D5DAD2] min-[900px]:hidden" />
+        <div aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
         <div className="-mx-5 min-h-0 flex-1 space-y-3.5 overflow-y-auto px-5 pb-2">
-          <span className="inline-flex rounded-full bg-cp-herb-tint px-2.5 py-1 text-xs font-extrabold text-[#165C3A]">{shareTopLine(dish, groupName)}</span>
-          <SheetTitle className="pr-12 text-[26px] font-extrabold tracking-[-0.02em]">{SHARE_TITLE}</SheetTitle>
+          <span className="inline-flex rounded-full bg-cp-herb-tint px-2.5 py-1 text-xs font-medium text-cp-accent-text">{shareTopLine(dish, groupName)}</span>
+          <SheetTitle className="pr-12 text-[26px] font-medium tracking-[-0.02em]">{SHARE_TITLE}</SheetTitle>
 
-          <div className="flex flex-col gap-3 rounded-[22px] border bg-card p-3.5">
+          <div className="flex flex-col gap-3 rounded-cp-card bg-card shadow-cp-card p-3.5">
             {/* CM-4: the photo slot turns on with uploads. */}
-            <button type="button" disabled aria-disabled className="flex h-[120px] flex-col items-center justify-center gap-1 rounded-2xl border-[1.5px] border-dashed border-[#C9CFC6] bg-background text-muted-foreground">
+            <button type="button" disabled aria-disabled className="flex h-[120px] flex-col items-center justify-center gap-1 rounded-2xl border-[1.5px] border-dashed border-border bg-background text-muted-foreground">
               <Camera className="h-6 w-6" strokeWidth={2} aria-hidden />
-              <span className="text-[15px] font-extrabold">{PHOTO_SOON}</span>
-              <span className="text-xs font-semibold">The recipe tile shows without one</span>
+              <span className="text-[15px] font-medium">{PHOTO_SOON}</span>
+              <span className="text-xs font-medium">The recipe tile shows without one</span>
             </button>
             <div className="flex flex-col">
-              <span className="break-words text-xl font-extrabold">{dish.name}</span>
-              <span className="text-[13px] font-bold text-muted-foreground">{composerRecipeLine(preview)}</span>
+              <span className="break-words text-xl font-medium">{dish.name}</span>
+              <span className="text-[13px] font-medium text-muted-foreground">{composerRecipeLine(preview)}</span>
             </div>
             <label className="flex flex-col gap-1.5">
               <SectionLabel>Say something</SectionLabel>
@@ -187,14 +187,14 @@ export function ShareCookSheet({
                 maxLength={POST_CAPTION_MAX}
                 placeholder={CAPTION_PLACEHOLDER}
                 onChange={(e) => set({ caption: e.target.value })}
-                className={cn("resize-none rounded-[14px] border border-[#D5DAD2] bg-card px-3 py-2.5 text-[15px] outline-none", FOCUS)}
+                className={cn("resize-none rounded-[14px] border border-border bg-card px-3 py-2.5 text-[15px] outline-none", FOCUS)}
               />
             </label>
           </div>
 
           <section aria-labelledby="show-h" className="flex flex-col gap-2">
             <SectionLabel id="show-h">What it shows</SectionLabel>
-            <div className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] border bg-card">
+            <div className="divide-y divide-cp-line overflow-hidden rounded-cp-card bg-card shadow-cp-card">
               {showRows(preview).map((row) => {
                 const on = d.show[row.id];
                 return (
@@ -206,16 +206,16 @@ export function ShareCookSheet({
                     onClick={() => set({ show: { ...d.show, [row.id]: !on } })}
                     className={cn("flex min-h-[52px] w-full items-center gap-3 px-3.5 text-left", FOCUS)}
                   >
-                    <span className="flex-1 text-[15px] font-bold">{row.label}</span>
-                    <span className="text-[13px] font-bold text-muted-foreground tabular-nums">{row.value ?? "if timed"}</span>
-                    <span aria-hidden className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-[#C9CFC6]")}>
+                    <span className="flex-1 text-[15px] font-medium">{row.label}</span>
+                    <span className="text-[13px] font-medium text-muted-foreground tabular-nums">{row.value ?? "if timed"}</span>
+                    <span aria-hidden className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-input")}>
                       <span className={cn("absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
                     </span>
                   </button>
                 );
               })}
             </div>
-            <p className="px-0.5 text-[13px] font-semibold text-muted-foreground">{NEVER_SHOWN}</p>
+            <p className="px-0.5 text-[13px] font-medium text-muted-foreground">{NEVER_SHOWN}</p>
           </section>
 
           <section aria-labelledby="who-h" className="flex flex-col gap-2">
@@ -230,17 +230,17 @@ export function ShareCookSheet({
               </div>
             )}
             {audiences.needsHandle && ready ? (
-              <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center px-0.5 text-[15px] font-extrabold text-primary hover:underline">
+              <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center px-0.5 text-[15px] font-medium text-primary hover:underline">
                 {PICK_HANDLE_TO_SHARE}
               </Link>
             ) : null}
           </section>
         </div>
         <div className="grid shrink-0 grid-cols-[1fr_2fr] gap-2">
-          <Button type="button" variant="outline" onClick={notNow} className={cn(K_BUTTON, "min-h-[60px] rounded-[18px] bg-card text-base font-extrabold")}>
+          <Button type="button" variant="outline" onClick={notNow} className={cn(K_BUTTON, "min-h-[60px] rounded-[18px] bg-card text-base font-medium")}>
             Not now
           </Button>
-          <Button type="button" disabled={!ready} onClick={post} className={cn(K_BUTTON, "min-h-[60px] rounded-[18px] text-[17px] font-extrabold")}>
+          <Button type="button" disabled={!ready} onClick={post} className={cn(K_BUTTON, "min-h-[60px] rounded-[18px] text-[17px] font-medium")}>
             {postButtonLabel(d.audience)}
           </Button>
         </div>
@@ -259,18 +259,18 @@ function AudienceButton({ label, sub, on, onPick }: { label: string; sub: string
       className={cn(
         "flex min-h-[60px] flex-col items-center justify-center rounded-2xl px-1.5 py-1.5 text-center transition-colors",
         FOCUS,
-        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-[#D5DAD2] bg-card hover:bg-accent",
+        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-border bg-card hover:bg-accent",
       )}
     >
-      <span className="text-[15px] font-extrabold">{label}</span>
-      <span className="text-[11px] font-bold leading-tight text-muted-foreground">{sub}</span>
+      <span className="text-[15px] font-medium">{label}</span>
+      <span className="text-[11px] font-medium leading-tight text-muted-foreground">{sub}</span>
     </button>
   );
 }
 
 /** The dish page's Share (yours, postable): opens the sheet, or "See your post" once this browser knows it. */
 export function DishShareButton({ postId, onShare }: { postId: string | null; onShare: () => void }) {
-  const cls = cn("flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-[#C9CFC6] bg-card text-[15px] font-extrabold hover:bg-accent", FOCUS);
+  const cls = cn("flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-border bg-card text-[15px] font-medium hover:bg-accent", FOCUS);
   if (postId) {
     return (
       <Link href={postHref(postId)} className={cls}>

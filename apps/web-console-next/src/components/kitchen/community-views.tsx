@@ -9,6 +9,7 @@ import { faceColor } from "./faces";
 import { ACTIVITY_HREF, PEOPLE_SEARCH_HREF, type CountCell, type FollowButton, type HandleNote } from "./community";
 import { rowFollowLabel, type PersonRow } from "./community-people";
 import { bellLabel, unreadBadge } from "./community-activity";
+import { K_TITLE } from "./kit";
 
 /**
  * Community's parts as they draw (cookpool-community CM-5, the canvas row
@@ -24,7 +25,7 @@ export function ProfileFace({ userId, initials, size = "sm", meId = null }: { us
     <span
       aria-hidden
       style={{ backgroundColor: faceColor(userId, meId) }}
-      className={cn("grid shrink-0 place-items-center rounded-full font-extrabold text-white", FACE_SIZES[size])}
+      className={cn("grid shrink-0 place-items-center rounded-full font-medium text-white", FACE_SIZES[size])}
     >
       {initials}
     </span>
@@ -34,14 +35,14 @@ export function ProfileFace({ userId, initials, size = "sm", meId = null }: { us
 /** An uppercase section label, as the canvas's ("FROM YOUR GROUPS", "WHO CAN FOLLOW YOU"). */
 export function SectionLabel({ id, children }: { id?: string; children: React.ReactNode }) {
   return (
-    <h2 id={id} className="px-0.5 text-xs font-extrabold uppercase tracking-[0.06em] text-[#3F4842]">
+    <h2 id={id} className="px-0.5 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
       {children}
     </h2>
   );
 }
 
-const ROW_BUTTON = "min-h-11 min-w-[96px] shrink-0 rounded-xl px-3 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-export const OUTLINE_BUTTON = "border border-[#C9CFC6] bg-card text-foreground hover:bg-accent";
+const ROW_BUTTON = "min-h-11 min-w-[96px] shrink-0 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+export const OUTLINE_BUTTON = "border border-border bg-card text-foreground hover:bg-accent";
 export const GREEN_BUTTON = "bg-primary text-primary-foreground hover:bg-primary/90";
 
 /** A person in a list: face and name open their profile; the button follows (or `action` replaces it). */
@@ -62,8 +63,8 @@ export function PersonRowView({
         <ProfileFace userId={row.userId} initials={row.initials} />
       </Link>
       <Link href={row.href} className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span className="truncate text-[15px] font-extrabold">{row.name}</span>
-        <span className="truncate text-xs font-semibold text-muted-foreground">{row.sub}</span>
+        <span className="truncate text-[15px] font-medium">{row.name}</span>
+        <span className="truncate text-xs font-medium text-muted-foreground">{row.sub}</span>
       </Link>
       {action ??
         (onFollow ? (
@@ -79,7 +80,7 @@ export function PersonRowView({
 /** A card of people rows. */
 export function PeopleList({ children, label }: { children: React.ReactNode; label?: string }) {
   return (
-    <ul aria-label={label} className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] border bg-card">
+    <ul aria-label={label} className="divide-y divide-cp-line overflow-hidden rounded-cp-card bg-card shadow-cp-card">
       {children}
     </ul>
   );
@@ -88,7 +89,7 @@ export function PeopleList({ children, label }: { children: React.ReactNode; lab
 /** A list that is loading: two grey rows. */
 export function PeopleListSkeleton() {
   return (
-    <div aria-hidden className="space-y-px overflow-hidden rounded-[20px] border bg-card">
+    <div aria-hidden className="space-y-px overflow-hidden rounded-cp-card bg-card shadow-cp-card">
       <Skeleton className="h-16 w-full rounded-none" />
       <Skeleton className="h-16 w-full rounded-none" />
     </div>
@@ -97,7 +98,7 @@ export function PeopleListSkeleton() {
 
 /** A grey line in a card: an empty list. */
 export function EmptyLine({ children }: { children: React.ReactNode }) {
-  return <p className="flex min-h-14 items-center rounded-[20px] border bg-card px-4 text-sm font-semibold text-muted-foreground">{children}</p>;
+  return <p className="flex min-h-14 items-center rounded-cp-card bg-card shadow-cp-card px-4 text-sm font-medium text-muted-foreground">{children}</p>;
 }
 
 /** Posts · Recipes · Followers · Following, beside the face; the last two open their lists. */
@@ -107,8 +108,8 @@ export function CountsRow({ cells }: { cells: readonly CountCell[] }) {
       {cells.map((c) => {
         const inner = (
           <>
-            <dd className="text-lg font-extrabold leading-tight tabular-nums">{c.value}</dd>
-            <dt className="text-[11px] font-bold text-muted-foreground">{c.label}</dt>
+            <dd className="text-lg font-medium leading-tight tabular-nums">{c.value}</dd>
+            <dt className="text-[11px] font-medium text-muted-foreground">{c.label}</dt>
           </>
         );
         return c.href ? (
@@ -127,7 +128,7 @@ export function CountsRow({ cells }: { cells: readonly CountCell[] }) {
 
 /** The profile's main button: green to follow or ask, outlined once you do. */
 export function FollowButtonView({ button, onClick, href }: { button: FollowButton; onClick?: () => void; href?: string }) {
-  const cls = cn("flex min-h-12 items-center justify-center rounded-[14px] px-4 text-base font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", button.primary ? GREEN_BUTTON : OUTLINE_BUTTON);
+  const cls = cn("flex min-h-12 items-center justify-center rounded-[14px] px-4 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", button.primary ? GREEN_BUTTON : OUTLINE_BUTTON);
   if (href) {
     return (
       <Link href={href} className={cls}>
@@ -145,30 +146,31 @@ export function FollowButtonView({ button, onClick, href }: { button: FollowButt
 /** The lock on a private profile you don't follow. */
 export function LockCard({ title, sub }: { title: string; sub: string }) {
   return (
-    <section aria-label={title} className="flex flex-col items-center gap-1.5 rounded-[20px] border bg-card px-4 py-7 text-center">
-      <span aria-hidden className="mb-1 grid h-11 w-11 place-items-center rounded-full bg-background text-[#3F4842]">
+    <section aria-label={title} className="flex flex-col items-center gap-1.5 rounded-cp-card bg-card shadow-cp-card px-4 py-7 text-center">
+      <span aria-hidden className="mb-1 grid h-11 w-11 place-items-center rounded-full bg-background text-muted-foreground">
         <Lock className="h-5 w-5" strokeWidth={2.2} />
       </span>
-      <p className="text-base font-extrabold">{title}</p>
-      <p className="text-sm font-semibold text-muted-foreground">{sub}</p>
+      <p className="text-base font-medium">{title}</p>
+      <p className="text-sm font-medium text-muted-foreground">{sub}</p>
     </section>
   );
 }
 
-/** Community's header: the title, and the bell opening Activity — with the unread count (CM-6) when there is one. */
-export function CommunityHeader({ unread = null }: { unread?: number | null }) {
+/** Community's header (`RvCommunity`): Back (`back`), the title, search, and the bell opening Activity — with the unread count (CM-6) when there is one. */
+export function CommunityHeader({ unread = null, back = null }: { unread?: number | null; back?: React.ReactNode }) {
   const badge = unreadBadge(unread);
+  const icon = "relative grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
-    <header className="flex min-h-11 items-center gap-2">
-      <h1 className="flex-1 text-[28px] font-extrabold leading-tight tracking-[-0.02em]">Community</h1>
-      <Link
-        href={ACTIVITY_HREF}
-        aria-label={bellLabel(unread)}
-        className="relative grid h-11 w-11 place-items-center rounded-xl text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+    <header className="flex min-h-11 items-center gap-1.5">
+      {back}
+      <h1 className={cn(K_TITLE, "min-w-0 flex-1 truncate")}>Community</h1>
+      <Link href={PEOPLE_SEARCH_HREF} aria-label="Search people" className={icon}>
+        <Search className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
+      </Link>
+      <Link href={ACTIVITY_HREF} aria-label={bellLabel(unread)} className={cn(icon, "-mr-1.5")}>
         <Bell className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
         {badge ? (
-          <span aria-hidden className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#B4471F] px-1 text-[10px] font-extrabold leading-none text-white">
+          <span aria-hidden className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-medium leading-none text-primary-foreground">
             {badge}
           </span>
         ) : null}
@@ -182,7 +184,7 @@ export function SearchLink() {
   return (
     <Link
       href={PEOPLE_SEARCH_HREF}
-      className="flex min-h-12 items-center gap-2.5 rounded-[14px] border border-[#D5DAD2] bg-card px-3.5 text-[15px] font-semibold text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-12 items-center gap-2.5 rounded-[14px] border border-border bg-card px-3.5 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Search className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
       Search people
@@ -195,14 +197,14 @@ export function CommunityEntry({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="flex min-h-16 items-center gap-3 rounded-[20px] border bg-card px-4 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-16 items-center gap-3 rounded-cp-card bg-card shadow-cp-card px-4 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cp-herb-tint text-primary">
         <UsersRound className="h-5 w-5" strokeWidth={2} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-base font-extrabold">Community</span>
-        <span className="truncate text-[13px] font-semibold text-muted-foreground">Follow cooks and see what they make</span>
+        <span className="text-base font-medium">Community</span>
+        <span className="truncate text-[13px] font-medium text-muted-foreground">Follow cooks and see what they make</span>
       </span>
       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
     </Link>
@@ -212,7 +214,7 @@ export function CommunityEntry({ href }: { href: string }) {
 /** The handle's line under its field, in its tone. */
 export function HandleNoteView({ note, id }: { note: HandleNote; id: string }) {
   return (
-    <span id={id} aria-live="polite" className={cn("text-[13px] font-bold", note.tone === "ok" ? "text-[#165C3A]" : note.tone === "bad" ? "text-[#B42318]" : "text-muted-foreground")}>
+    <span id={id} aria-live="polite" className={cn("text-[13px] font-medium", note.tone === "ok" ? "text-cp-accent-text" : note.tone === "bad" ? "text-destructive" : "text-muted-foreground")}>
       {note.text}
     </span>
   );
@@ -228,14 +230,14 @@ export function PrivacyRow({ title, sub, on, onPick }: { title: string; sub: str
       onClick={onPick}
       className={cn(
         "flex min-h-16 w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-[#D5DAD2] bg-card hover:bg-accent",
+        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-border bg-card hover:bg-accent",
       )}
     >
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-base font-extrabold">{title}</span>
-        <span className="text-[13px] font-semibold text-muted-foreground">{sub}</span>
+        <span className="text-base font-medium">{title}</span>
+        <span className="text-[13px] font-medium text-muted-foreground">{sub}</span>
       </span>
-      <span aria-hidden className={cn("grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2", on ? "border-primary" : "border-[#9AA39D]")}>
+      <span aria-hidden className={cn("grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2", on ? "border-primary" : "border-input")}>
         <span className={cn("h-2.5 w-2.5 rounded-full", on ? "bg-primary" : "bg-transparent")} />
       </span>
     </button>

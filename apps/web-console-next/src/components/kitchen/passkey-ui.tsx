@@ -13,7 +13,7 @@ import {
   register,
   thisDevice,
 } from "@/lib/passkey-device";
-import { NoticeBox } from "./sign-in-ui";
+import { NoticeBox, SIGN_IN_SECONDARY } from "./sign-in-ui";
 import {
   PASSKEY_ADD_FAILED_NOTICE,
   PASSKEY_BUTTON,
@@ -149,20 +149,18 @@ export function AddNoticeView({ notice }: { notice: AddNotice }) {
   );
 }
 
-const SPINNER = <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />;
+const SPINNER = <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />;
 
-/** "Sign in with a passkey": dark, above Google (`AuthWelcome`, `WebAuth`). */
-export function PasskeySignInButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
+/**
+ * Sign in with a passkey. On Sign in (`RvSignIn`, `short`) it is the
+ * secondary "Passkey" beside Google, with its full name for screen readers;
+ * elsewhere it reads in full.
+ */
+export function PasskeySignInButton({ onClick, busy, short = false }: { onClick: () => void; busy: boolean; short?: boolean }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={busy}
-      aria-busy={busy || undefined}
-      className="flex min-h-[54px] w-full items-center justify-center gap-2.5 rounded-2xl bg-[#17201B] px-5 text-base font-extrabold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-70"
-    >
-      {busy ? SPINNER : <KeyRound className="h-[22px] w-[22px]" strokeWidth={1.8} aria-hidden />}
-      {PASSKEY_BUTTON}
+    <button type="button" onClick={onClick} disabled={busy} aria-busy={busy || undefined} aria-label={short ? PASSKEY_BUTTON : undefined} className={SIGN_IN_SECONDARY}>
+      {busy ? SPINNER : <KeyRound className="h-5 w-5" strokeWidth={2} aria-hidden />}
+      {short ? "Passkey" : PASSKEY_BUTTON}
     </button>
   );
 }
@@ -230,23 +228,23 @@ export function PasskeyOfferScreen({
             <Check className="h-14 w-14" strokeWidth={2.2} />
           </span>
           <div role="status" className="flex flex-col gap-2 text-center">
-            <h1 id="passkey-offer-title" className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em]">
+            <h1 id="passkey-offer-title" className="text-[28px] font-medium leading-[1.15] tracking-[-0.025em]">
               {copy.doneTitle}
             </h1>
-            <p className="text-[15px] leading-normal text-[#3F4842]">{step === "already" ? passkeyAlreadyNotice(device) : copy.doneBody}</p>
+            <p className="text-[15px] leading-normal text-muted-foreground">{step === "already" ? passkeyAlreadyNotice(device) : copy.doneBody}</p>
           </div>
           <button
             ref={goRef}
             type="button"
             onClick={onFinish}
-            className="mt-auto min-h-14 rounded-2xl bg-[#17201B] text-base font-extrabold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="mt-auto min-h-14 rounded-[18px] bg-foreground text-base font-medium text-background hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Go on
           </button>
         </>
       ) : (
         <>
-          <span aria-hidden className="mt-6 grid h-28 w-28 place-items-center self-center rounded-[34px] bg-[#E4F2EA] text-primary">
+          <span aria-hidden className="mt-6 grid h-28 w-28 place-items-center self-center rounded-[34px] bg-cp-accent-tint text-cp-accent-text">
             {device === "iphone" || device === "ipad" ? (
               <ScanFace className="h-[60px] w-[60px]" strokeWidth={1.5} />
             ) : (
@@ -254,15 +252,15 @@ export function PasskeyOfferScreen({
             )}
           </span>
           <div className="flex flex-col gap-2 text-center">
-            <span className="text-[13px] font-extrabold uppercase tracking-[0.06em] text-primary">{copy.eyebrow}</span>
-            <h1 id="passkey-offer-title" className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em]">
+            <span className="text-[13px] font-medium text-cp-accent-text">{copy.eyebrow}</span>
+            <h1 id="passkey-offer-title" className="text-[28px] font-medium leading-[1.15] tracking-[-0.025em]">
               {copy.title}
             </h1>
-            <p className="text-[15px] leading-normal text-[#3F4842]">{copy.body}</p>
+            <p className="text-[15px] leading-normal text-muted-foreground">{copy.body}</p>
           </div>
-          <ul className="flex flex-col gap-2.5 rounded-[18px] border bg-card p-3.5">
+          <ul className="flex flex-col gap-2.5 rounded-cp-card bg-card p-4 shadow-cp-card">
             {copy.points.map((p) => (
-              <li key={p} className="flex gap-2.5 text-sm leading-[1.45] text-[#3F4842]">
+              <li key={p} className="flex gap-2.5 text-sm leading-[1.45] text-muted-foreground">
                 <Check className="mt-px h-[18px] w-[18px] shrink-0 text-primary" strokeWidth={2.2} aria-hidden />
                 {p}
               </li>
@@ -275,7 +273,7 @@ export function PasskeyOfferScreen({
                 ref={goRef}
                 type="button"
                 onClick={notNow}
-                className="min-h-14 rounded-2xl bg-[#17201B] text-base font-extrabold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="min-h-14 rounded-[18px] bg-foreground text-base font-medium text-background hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Go on
               </button>
@@ -286,7 +284,7 @@ export function PasskeyOfferScreen({
                   onClick={turnOn}
                   disabled={step === "busy"}
                   aria-busy={step === "busy" || undefined}
-                  className="flex min-h-14 items-center justify-center gap-2.5 rounded-2xl bg-primary text-base font-extrabold text-primary-foreground hover:bg-[#165C3A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-70"
+                  className="flex min-h-14 items-center justify-center gap-2.5 rounded-[18px] bg-primary text-base font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-70"
                 >
                   {step === "busy" ? SPINNER : null}
                   {tried ? "Try again" : copy.action}
@@ -295,7 +293,7 @@ export function PasskeyOfferScreen({
                   type="button"
                   onClick={notNow}
                   disabled={step === "busy"}
-                  className="min-h-12 rounded-lg text-[15px] font-bold text-[#3F4842] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  className="min-h-12 rounded-lg text-[15px] font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                 >
                   Not now
                 </button>
@@ -316,14 +314,14 @@ export function SecurityRow() {
     <Link
       href={SECURITY_PATH}
       className={cn(
-        "flex min-h-[60px] items-center gap-3 rounded-3xl border bg-card px-5 py-2.5 transition-colors hover:bg-accent",
+        "flex min-h-[60px] items-center gap-3 rounded-cp-card bg-card px-5 py-2.5 shadow-cp-card transition-colors hover:bg-accent",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
     >
-      <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] bg-cp-herb-tint text-primary">
+      <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] bg-cp-accent-tint text-cp-accent-text">
         <ShieldCheck className="h-[18px] w-[18px]" strokeWidth={2} />
       </span>
-      <span className="min-w-0 flex-1 text-[15px] font-semibold">{SECURITY_TITLE}</span>
+      <span className="min-w-0 flex-1 text-[15px] font-medium">{SECURITY_TITLE}</span>
       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
     </Link>
   );

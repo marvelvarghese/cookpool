@@ -46,7 +46,7 @@ export function ActivityScreen() {
     <div className="flex w-full max-w-xl flex-col gap-3">
       <div className="-ml-2.5 flex min-h-11 items-center gap-1">
         <BackButton />
-        <h1 className="text-[24px] font-extrabold leading-tight tracking-[-0.02em]">Activity</h1>
+        <h1 className="text-[24px] font-medium leading-tight tracking-[-0.02em]">Activity</h1>
       </div>
 
       {rows.length > 0 ? (
@@ -65,7 +65,7 @@ export function ActivityScreen() {
                         setAnswered((s) => new Set(s).add(row.userId));
                         answer(row, false);
                       }}
-                      className={cn("min-h-11 rounded-xl px-3 text-sm font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", OUTLINE_BUTTON)}
+                      className={cn("min-h-11 rounded-xl px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", OUTLINE_BUTTON)}
                     >
                       No<span className="sr-only">, decline {row.name}</span>
                     </button>
@@ -75,7 +75,7 @@ export function ActivityScreen() {
                         setAnswered((s) => new Set(s).add(row.userId));
                         answer(row, true);
                       }}
-                      className={cn("min-h-11 rounded-xl px-3 text-sm font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", GREEN_BUTTON)}
+                      className={cn("min-h-11 rounded-xl px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", GREEN_BUTTON)}
                     >
                       Accept<span className="sr-only"> {row.name}</span>
                     </button>
@@ -84,7 +84,7 @@ export function ActivityScreen() {
               />
             ))}
           </PeopleList>
-          {more ? <p className="px-1 text-[13px] font-semibold text-muted-foreground">{more} · on You</p> : null}
+          {more ? <p className="px-1 text-[13px] font-medium text-muted-foreground">{more} · on You</p> : null}
         </section>
       ) : null}
 
@@ -106,7 +106,7 @@ export function ActivityScreen() {
         groups.map((g) => (
           <section key={g.id} aria-labelledby={`act-${g.id}`} className="flex flex-col gap-1.5">
             <SectionLabel id={`act-${g.id}`}>{g.title}</SectionLabel>
-            <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] border bg-card">
+            <ul className="divide-y divide-cp-line overflow-hidden rounded-cp-card bg-card shadow-cp-card">
               {g.lines.map((line) => (
                 <ActivityLineView key={line.id} line={line} meId={me.data?.id ?? null} />
               ))}
@@ -115,11 +115,11 @@ export function ActivityScreen() {
         ))
       )}
       {read.hasMore ? (
-        <button type="button" onClick={read.loadMore} disabled={read.loadingMore} className="min-h-11 self-center rounded-xl px-4 text-[15px] font-extrabold text-primary hover:bg-accent disabled:opacity-60">
+        <button type="button" onClick={read.loadMore} disabled={read.loadingMore} className="min-h-11 self-center rounded-xl px-4 text-[15px] font-medium text-primary hover:bg-accent disabled:opacity-60">
           {read.loadingMore ? "Loading…" : "More"}
         </button>
       ) : null}
-      <p className="px-0.5 text-[13px] font-semibold text-muted-foreground">{ACTIVITY_PUSH_NOTE}</p>
+      <p className="px-0.5 text-[13px] font-medium text-muted-foreground">{ACTIVITY_PUSH_NOTE}</p>
     </div>
   );
 }

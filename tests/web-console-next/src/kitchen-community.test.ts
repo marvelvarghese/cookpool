@@ -233,7 +233,7 @@ describe("a profile: the relationship decides the button", () => {
     expect(green).toContain('aria-pressed="false"');
     const following = html(React.createElement(FollowButtonView, { button: followButton(rel("accepted"), "public"), onClick: () => undefined }));
     expect(following).toContain('aria-pressed="true"');
-    expect(following).toContain("border-[#C9CFC6]");
+    expect(following).toContain("border-border");
     const edit = html(React.createElement(FollowButtonView, { button: followButton(rel("none", { isYou: true }), "public"), href: HANDLE_SETUP_HREF }));
     expect(edit).toContain('href="/you/profile"');
   });

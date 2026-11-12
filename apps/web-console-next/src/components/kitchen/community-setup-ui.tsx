@@ -39,8 +39,8 @@ import { useBlocks, useHandleAvailability, useMyCommunityProfile, useSaveMyProfi
  * People I approve); Blocked people; Save.
  */
 
-const FIELD_LABEL = "text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground";
-const FIELD = "h-12 rounded-[14px] border-[#D5DAD2] bg-card text-base";
+const FIELD_LABEL = "text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground";
+const FIELD = "h-12 rounded-[14px] border-border bg-card text-base";
 
 export function HandleSetupScreen() {
   return (
@@ -77,9 +77,9 @@ export function HandleSetup({
   }
   if (mine.error && !mine.data) {
     return (
-      <p className="rounded-[20px] border bg-card p-4 text-sm text-muted-foreground">
+      <p className="rounded-cp-card bg-card shadow-cp-card p-4 text-sm text-muted-foreground">
         Couldn&apos;t load your profile.{" "}
-        <button type="button" onClick={mine.reload} className="min-h-11 font-extrabold text-primary hover:underline">
+        <button type="button" onClick={mine.reload} className="min-h-11 font-medium text-primary hover:underline">
           Try again
         </button>
       </p>
@@ -139,8 +139,8 @@ function HandleSetupForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-3.5" noValidate>
       <div className="flex flex-col gap-1">
-        <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.02em]">{HANDLE_SETUP_TITLE}</h1>
-        <p className="text-sm font-semibold text-muted-foreground">{HANDLE_SETUP_SUB}</p>
+        <h1 className="text-[26px] font-medium leading-tight tracking-[-0.02em]">{HANDLE_SETUP_TITLE}</h1>
+        <p className="text-sm font-medium text-muted-foreground">{HANDLE_SETUP_SUB}</p>
       </div>
 
       <label className="flex flex-col gap-1.5">
@@ -155,10 +155,10 @@ function HandleSetupForm({
         <span
           className={cn(
             "flex h-12 items-center rounded-[14px] border-[1.5px] bg-card px-3.5 focus-within:ring-2 focus-within:ring-ring",
-            note.tone === "ok" ? "border-primary" : note.tone === "bad" ? "border-[#B42318]" : "border-[#D5DAD2]",
+            note.tone === "ok" ? "border-primary" : note.tone === "bad" ? "border-destructive" : "border-border",
           )}
         >
-          <span aria-hidden className="text-base font-extrabold text-muted-foreground">
+          <span aria-hidden className="text-base font-medium text-muted-foreground">
             @
           </span>
           <input
@@ -170,7 +170,7 @@ function HandleSetupForm({
             maxLength={21}
             aria-describedby="handle-note"
             onChange={(e) => edit({ handle: e.target.value.replace(/^@/, "").toLowerCase() })}
-            className="min-w-0 flex-1 bg-transparent text-base font-bold outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base font-medium outline-none"
           />
         </span>
         <HandleNoteView id="handle-note" note={refusal ? { text: refusal, tone: "bad" } : note} />
@@ -184,7 +184,7 @@ function HandleSetupForm({
           maxLength={PROFILE_ABOUT_MAX}
           placeholder="What do you cook?"
           onChange={(e) => edit({ about: e.target.value })}
-          className="resize-none rounded-[14px] border-[#D5DAD2] bg-card text-[15px]"
+          className="resize-none rounded-[14px] border-border bg-card text-[15px]"
         />
       </label>
 
@@ -199,7 +199,7 @@ function HandleSetupForm({
 
       {intro ? null : <BlockedLink />}
       {profile && !intro ? (
-        <Link href={profileHref(profile.handle)} className="flex min-h-11 items-center px-1 text-[15px] font-extrabold text-primary hover:underline">
+        <Link href={profileHref(profile.handle)} className="flex min-h-11 items-center px-1 text-[15px] font-medium text-primary hover:underline">
           See your profile
         </Link>
       ) : null}
@@ -207,12 +207,12 @@ function HandleSetupForm({
       <button
         type="submit"
         disabled={!ready && !saved}
-        className="mt-1 min-h-[60px] w-full rounded-[18px] bg-primary text-[17px] font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+        className="mt-1 min-h-[60px] w-full rounded-[18px] bg-primary text-[17px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
       >
         {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
       </button>
       {intro && onLater ? (
-        <button type="button" onClick={onLater} className="min-h-11 text-[15px] font-extrabold text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onLater} className="min-h-11 text-[15px] font-medium text-muted-foreground hover:text-foreground">
           Not now
         </button>
       ) : null}
@@ -227,7 +227,7 @@ function BlockedLink() {
   return (
     <Link
       href={BLOCKED_HREF}
-      className="flex min-h-12 items-center justify-between rounded-[14px] border border-[#E3E6E0] bg-card px-3.5 text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-12 items-center justify-between rounded-[14px] border border-border bg-card px-3.5 text-[15px] font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       Blocked people
       <span className="flex items-center gap-0.5 tabular-nums text-muted-foreground">

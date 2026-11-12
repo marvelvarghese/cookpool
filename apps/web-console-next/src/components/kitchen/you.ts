@@ -79,3 +79,61 @@ export function signInRows(email: string, last: SignInWay | null): SignInRow[] {
  * every group's member list.
  */
 export const NAME_READS = [qk.kitchenMe(), qk.kitchenMembersAll()] as const;
+
+// ── You in the new look (cookpool-revamp RV-6, the `RvYou` board) ─────
+
+/** You's sign-out, in the new frame: quiet red text, the words the board uses. */
+export const SIGN_OUT = "Sign out";
+/** Account → its first row, and the page it opens (`/you/settings` in the new frame). */
+export const NAME_AND_HANDLE = "Name and handle";
+/** Account → your page's lists and numbers (`/you/cooks`). */
+export const RECIPES_AND_COOKS = "Your recipes and cooks";
+export const YOU_COOKS_HREF = "/you/cooks";
+
+export interface YouRow {
+  id: string;
+  label: string;
+  href: string;
+}
+
+export interface YouGroup {
+  id: string;
+  title: string;
+  rows: YouRow[];
+}
+
+/**
+ * You's short grouped lists (`RvYou`): each row a label and a chevron, each
+ * opening a page the app already has. "Passkeys" only where passkeys run;
+ * elsewhere the same page lists the other ways in, so the row reads "Email".
+ * The board's Voice cooking, Email digest and Help rows have no page of
+ * their own yet, so they are not drawn.
+ */
+export function youGroups(opts: { passkeys: boolean }): YouGroup[] {
+  return [
+    {
+      id: "account",
+      title: "Account",
+      rows: [
+        { id: "name", label: NAME_AND_HANDLE, href: "/you/settings" },
+        { id: "cooks", label: RECIPES_AND_COOKS, href: YOU_COOKS_HREF },
+        { id: "groups", label: "Groups", href: "/groups" },
+      ],
+    },
+    {
+      id: "security",
+      title: "Sign-in and security",
+      rows: [
+        { id: "signin", label: opts.passkeys ? "Passkeys" : "Email", href: "/you/security" },
+        { id: "apps", label: "Connected apps", href: "/you/assistants" },
+      ],
+    },
+    { id: "ai", title: "Cookpool AI", rows: [{ id: "ai", label: "AI settings", href: "/you/ai" }] },
+    { id: "notify", title: "Notifications", rows: [{ id: "push", label: "Push", href: "/you/notifications" }] },
+  ];
+}
+
+/** The line under your name: your @handle, else your email (no public profile yet). */
+export function youSubline(handle: string | null | undefined, email: string): string {
+  return handle ? `@${handle}` : email;
+}

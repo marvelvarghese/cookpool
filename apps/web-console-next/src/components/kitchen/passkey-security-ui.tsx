@@ -12,7 +12,7 @@ import { lastSignInMethod } from "@/lib/first-run";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "./back-ui";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON, K_SECTION, K_TITLE } from "./kit";
 import { useProfile } from "./data";
 import { GoogleMark, NoticeBox } from "./sign-in-ui";
 import { offersGoogle } from "./sign-in";
@@ -47,7 +47,7 @@ import {
  * in shows only the other ways in). No "Sign out everywhere" (out of scope).
  */
 
-const LABEL = "px-0.5 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground";
+const LABEL = K_SECTION;
 
 interface Pending {
   passkey: Passkey;
@@ -62,7 +62,7 @@ export function SecurityScreen() {
     <div className="flex w-full max-w-xl flex-col gap-4">
       <header className="flex items-center gap-2">
         <BackButton />
-        <h1 className="text-[22px] font-extrabold tracking-[-0.02em] min-[900px]:text-[26px]">{SECURITY_TITLE}</h1>
+        <h1 className={K_TITLE}>{SECURITY_TITLE}</h1>
       </header>
       {runs === null ? <Skeleton aria-hidden className="h-32 w-full rounded-[18px]" /> : runs ? <PasskeysSection /> : null}
       <OtherWays email={email} loading={profile.loading} />
@@ -154,24 +154,24 @@ function PasskeysSection() {
           No passkeys yet. Add one to sign in with Face ID or your fingerprint.
         </KCard>
       ) : (
-        <ul className="overflow-hidden rounded-[18px] border bg-card">
+        <ul className="overflow-hidden rounded-cp-card bg-card shadow-cp-card">
           {shown.map((p, i) => (
             <li
               key={p.id}
-              className={cn("flex min-h-16 items-center gap-3 py-2.5 pl-3.5 pr-2", i < shown.length - 1 && "border-b border-[#ECEEE9]")}
+              className={cn("flex min-h-16 items-center gap-3 py-2.5 pl-3.5 pr-2", i < shown.length - 1 && "border-b border-cp-line")}
             >
-              <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E4F2EA] text-primary">
+              <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cp-accent-tint text-cp-accent-text">
                 <KeyRound className="h-5 w-5" strokeWidth={1.8} />
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate text-[15px] font-extrabold">{p.deviceName}</span>
+                <span className="truncate text-base font-medium">{p.deviceName}</span>
                 <span className="text-[13px] text-muted-foreground">{passkeyMeta(p, now)}</span>
               </span>
               <button
                 type="button"
                 onClick={() => remove(p)}
                 aria-label={`Remove passkey ${p.deviceName}`}
-                className="min-h-11 rounded-xl px-3 text-sm font-extrabold text-destructive hover:bg-cp-expired-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-h-11 rounded-xl px-3 text-sm font-medium text-destructive hover:bg-cp-expired-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Remove
               </button>
@@ -185,7 +185,7 @@ function PasskeysSection() {
           variant="outline"
           loading={adding}
           onClick={add}
-          className="h-[52px] gap-2 rounded-2xl border-[#C9CFC6] bg-card text-[15px] font-extrabold text-primary hover:bg-accent"
+          className="h-[52px] gap-2 rounded-2xl border-0 bg-cp-accent-tint text-[15px] font-medium text-cp-accent-text shadow-none hover:bg-cp-accent-tint/80"
         >
           {adding ? null : <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />}
           {addResult?.retry ? "Try again" : "Add a passkey on this device"}
@@ -194,12 +194,12 @@ function PasskeysSection() {
       {addResult ? <AddNoticeView notice={addResult} /> : null}
       {notice ? <NoticeBox notice={{ tone: "error", text: notice }} /> : null}
       {pending ? (
-        <div role="status" className="flex items-center gap-2.5 rounded-[14px] bg-[#17201B] py-1.5 pl-3.5 pr-1.5 text-sm font-bold text-white">
+        <div role="status" className="flex items-center gap-2.5 rounded-[14px] bg-foreground py-1.5 pl-3.5 pr-1.5 text-sm font-medium text-background">
           <span className="flex-1">{PASSKEY_REMOVED}</span>
           <button
             type="button"
             onClick={undo}
-            className="min-h-11 rounded-[10px] bg-white px-3 text-sm font-extrabold text-[#17201B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-11 rounded-[10px] bg-background px-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Undo
           </button>
@@ -233,24 +233,24 @@ function OtherWays({ email, loading }: { email: string; loading: boolean }) {
       {loading ? (
         <Skeleton aria-hidden className="h-[60px] w-full rounded-[18px]" />
       ) : (
-        <ul className="overflow-hidden rounded-[18px] border bg-card">
+        <ul className="overflow-hidden rounded-cp-card bg-card shadow-cp-card">
           {rows.map((row, i) => (
             <li
               key={row.way}
-              className={cn("flex min-h-[60px] items-center gap-3 px-3.5 py-2.5", i < rows.length - 1 && "border-b border-[#ECEEE9]")}
+              className={cn("flex min-h-[60px] items-center gap-3 px-3.5 py-2.5", i < rows.length - 1 && "border-b border-cp-line")}
             >
               {row.way === "google" ? (
-                <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full border-[1.5px] border-[#D5DAD2]">
+                <span aria-hidden className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full border-[1.5px] border-border">
                   <GoogleMark className="h-4 w-4" />
                 </span>
               ) : (
                 <Mail className="h-[30px] w-[30px] shrink-0 text-foreground" strokeWidth={1.6} aria-hidden />
               )}
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-[15px] font-extrabold">{row.title}</span>
+                <span className="text-base font-medium">{row.title}</span>
                 <span className="text-[13px] text-muted-foreground [overflow-wrap:anywhere]">{row.subtitle}</span>
               </span>
-              {row.badge ? <span className="shrink-0 text-[13px] font-extrabold text-[#165C3A]">{row.badge}</span> : null}
+              {row.badge ? <span className="shrink-0 text-[13px] font-medium text-cp-accent-text">{row.badge}</span> : null}
             </li>
           ))}
         </ul>

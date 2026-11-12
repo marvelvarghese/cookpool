@@ -3,18 +3,17 @@
 import * as React from "react";
 import Link from "./link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Settings } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { PersonViewResponse, RecipeSummary } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { usePathParam } from "@/lib/page-param";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroups, useProfile } from "./data";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON, K_CARD, K_TITLE } from "./kit";
 import { BackButton } from "./back-ui";
 import { Face } from "./faces-ui";
-import { PersonAvatar } from "./sign-in-ui";
-import { personInitials, shownName } from "./you";
+import { RECIPES_AND_COOKS, YOU_COOKS_HREF } from "./you";
 import { useMemberNames, usePerson } from "./people-data";
 import { firstName, personName, recordOptions } from "./people";
 import type { MoneyLine } from "./home";
@@ -36,25 +35,23 @@ import {
 import { PersonSkeleton, RecordPayment, WhyGroup, safeDecode } from "./person-ui";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import { useMyRecipes, usePrefetchRecipe } from "./recipes-data";
-import { profileHref, profileListFrom, profileRecipeRows, recipeStats, type ProfileList } from "./cook-hub";
+import { profileListFrom, profileRecipeRows, recipeStats, type ProfileList } from "./cook-hub";
 import { PersonRecipesView, SaveCopyChip, Segmented, YourRecipes } from "./cook-hub-views";
 import { personHref, personListFrom, personRecipeRows, type PersonList, type PersonRecipeRow } from "./explore";
 import { usePersonRecipes, useSaveCopy } from "./recipe-travel-data";
-import { YouCommunity } from "./community-ui";
-import { AssistantsRow } from "./assistants-ui";
 
 /**
  * Your page and a person's in the new frame (cookpool-recipes RC-2, design
  * §1.4, the canvas's `Profile`). Both read your dishes and your groups' —
  * the one read the app already has — for the cooks they show.
  *
- * - **You** (`/you`): your face, name and groups; Cooks, Recipes, Saved by
- *   and Groups; "Cooks a week" over the last 8 weeks; then Recipes | Cooks
- *   (RC-5): your recipes, each with who can see it, or your recent cooks —
- *   the choice kept in the address (`?list=cooks`). The gear opens settings —
- *   today's You rows. Under the header (cookpool-community CM-5): your
- *   @handle, Followers and Following, follow requests when private, and
- *   Edit (HandleSetup).
+ * - **Your recipes and cooks** (`/you/cooks`, You's Account row since
+ *   cookpool-revamp RV-6; it was `/you` itself): the groups you are in;
+ *   Cooks, Recipes, Saved by and Groups; "Cooks a week" over the last 8
+ *   weeks; then Recipes | Cooks (RC-5): your recipes, each with who can see
+ *   it, or your recent cooks — the choice kept in the address
+ *   (`?list=cooks`). Your @handle, Followers and Following moved to Name and
+ *   handle (`/you/settings`).
  * - **A person** (`/people/[id]`): their face and name, "In Flat 4B with you";
  *   what is between you two ("You get back ₹40.00") with Settle up; Cooks,
  *   Recipes and Saved by; Recipes | Cooks (RC-8; `?list=cooks`) — the
@@ -64,12 +61,11 @@ import { AssistantsRow } from "./assistants-ui";
 
 // ── You ───────────────────────────────────────────────────────────
 
-export function YourPage() {
+export function YourCooks() {
   const profile = useProfile();
   const groups = useGroups();
   const dishes = useMyDishes(PROFILE_DISH_DAYS);
-  const user = profile.data;
-  const meId = user?.id ?? null;
+  const meId = profile.data?.id ?? null;
   const [now] = React.useState(() => new Date());
   const groupNames = React.useMemo(() => new Map((groups.data ?? []).map((g) => [g.id, g.name] as const)), [groups.data]);
   const counts = React.useMemo(() => cooksAWeek(dishes.dishes, meId, now), [dishes.dishes, meId, now]);
@@ -84,32 +80,11 @@ export function YourPage() {
 
   return (
     <div className="flex w-full max-w-xl flex-col gap-4 min-[900px]:gap-5">
-      <header className="flex items-center gap-3.5">
-        {user ? (
-          <PersonAvatar initials={personInitials(user)} className="h-16 w-16 text-[22px]" />
-        ) : (
-          <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
-        )}
-        <div className="min-w-0 flex-1">
-          {profile.loading ? (
-            <Skeleton className="h-7 w-40" />
-          ) : (
-            <h1 className="truncate text-2xl font-extrabold tracking-[-0.02em] min-[900px]:text-[26px]">{user ? shownName(user) : "You"}</h1>
-          )}
-          {groups.data ? <p className="truncate text-sm text-muted-foreground">{yourGroupsLine(groups.data) ?? "No groups yet"}</p> : null}
-        </div>
-        <Link
-          href="/you/settings"
-          aria-label="Settings"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#D5DAD2] bg-card text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Settings className="h-5 w-5" strokeWidth={1.9} aria-hidden />
-        </Link>
+      <header className="flex items-center gap-1">
+        <BackButton />
+        <h1 className={cn(K_TITLE, "min-w-0 flex-1 truncate")}>{RECIPES_AND_COOKS}</h1>
       </header>
-
-      <YouCommunity />
-
-      <AssistantsRow />
+      {groups.data ? <p className="-mt-2 truncate text-sm text-muted-foreground">{yourGroupsLine(groups.data) ?? "No groups yet"}</p> : null}
 
       <dl className="grid grid-cols-2 gap-2 min-[480px]:grid-cols-4">
         <Stat label="Cooks" value={dishes.loading ? null : cooks} />
@@ -142,9 +117,9 @@ export function YourPage() {
 /** One of the page's numbers: big, with its word under it. */
 function Stat({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="flex flex-col-reverse rounded-[20px] border bg-card px-4 py-3">
-      <dt className="text-[13px] font-bold text-muted-foreground">{label}</dt>
-      <dd className="text-[26px] font-extrabold leading-tight tracking-tight tabular-nums">
+    <div className={cn(K_CARD, "flex flex-col-reverse px-4 py-3")}>
+      <dt className="text-[13px] font-normal text-muted-foreground">{label}</dt>
+      <dd className="text-[26px] font-medium leading-tight tracking-tight tabular-nums">
         {value === null ? <Skeleton className="my-1 h-7 w-12" /> : value}
       </dd>
     </div>
@@ -160,9 +135,9 @@ function CooksAWeek({ counts, loading }: { counts: readonly number[]; loading: b
   const max = Math.max(1, ...counts);
   const last = counts.length - 1;
   return (
-    <section aria-labelledby="you-cooks-week" className="rounded-[22px] border bg-card px-4 pb-3 pt-3.5">
+    <section aria-labelledby="you-cooks-week" className={cn(K_CARD, "px-4 pb-3 pt-3.5")}>
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="you-cooks-week" className="text-base font-extrabold tracking-tight">
+        <h2 id="you-cooks-week" className="text-[17px] font-medium">
           Cooks a week
         </h2>
         {loading ? null : <span className="truncate text-[13px] font-semibold tabular-nums text-muted-foreground">{cooksAWeekText(counts)}</span>}
@@ -170,7 +145,7 @@ function CooksAWeek({ counts, loading }: { counts: readonly number[]; loading: b
       {loading ? (
         <Skeleton className="mt-3 h-[92px] w-full rounded-xl" />
       ) : (
-        <ol aria-label="Cooks a week, the last 8 weeks, oldest first" className="mt-3 grid grid-cols-8 items-end gap-0.5 border-b border-[#E3E6E0]">
+        <ol aria-label="Cooks a week, the last 8 weeks, oldest first" className="mt-3 grid grid-cols-8 items-end gap-0.5 border-b border-cp-line">
           {counts.map((n, i) => {
             const weeksAgo = last - i;
             const words = `${cooksText(n)}, ${weekLabel(weeksAgo)}`;
@@ -208,7 +183,7 @@ function ProfileListSwitch({ list }: { list: ProfileList }) {
       large
       value={list}
       onChange={(next) => {
-        if (next !== list) router.replace(profileHref(next), { scroll: false });
+        if (next !== list) router.replace(next === "cooks" ? `${YOU_COOKS_HREF}?list=cooks` : YOU_COOKS_HREF, { scroll: false });
       }}
       options={[
         { id: "recipes", label: "Recipes" },

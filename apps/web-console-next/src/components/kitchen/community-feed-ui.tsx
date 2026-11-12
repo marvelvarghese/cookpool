@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import Link from "./link";
+import { Bookmark } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import type { CommunityPost, FeedTab, PostRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON, K_SECTION } from "./kit";
 import { useProfile } from "./data";
 import { useKitchenRouter } from "./transition-ui";
 import { savedCopyOf } from "./cook-hub";
@@ -14,8 +15,8 @@ import { recipeHref } from "./recipes";
 import { useCopyRecipe, useMyRecipes } from "./recipes-data";
 import { EmptyLine, GREEN_BUTTON } from "./community-views";
 import { NO_COOKS_TEXT } from "./community";
-import { cookThis, feedEmpty, feedTabFrom, postCard } from "./community-posts";
-import { COOK_THIS_BUTTON, FeedTabs, PostCardSkeleton, PostCardView } from "./community-post-views";
+import { FEED_HEADINGS, cookThis, feedEmpty, feedTabFrom, postCard } from "./community-posts";
+import { COOK_THIS_BUTTON, FeedTabs, PostCardSkeleton, PostCardView, SAVE_ICON_BUTTON } from "./community-post-views";
 import { useFeed, useProfilePosts, useYum, type PagedRead } from "./community-posts-data";
 import { PostMenuSheet, ReportSheet, type ReportTarget } from "./community-report-ui";
 
@@ -35,18 +36,25 @@ function useMine() {
 }
 
 /** Cook this: your recipe opens; your copy opens ("Saved ✓"); else copy it, then open the copy. */
-export function CookThisButton({ recipe, mine }: { recipe: PostRecipe; mine: ReturnType<typeof useMine> }) {
+export function CookThisButton({ recipe, mine, icon = false }: { recipe: PostRecipe; mine: ReturnType<typeof useMine>; icon?: boolean }) {
   const router = useKitchenRouter();
   const copy = useCopyRecipe();
   const [state, setState] = React.useState<{ kind: "idle" } | { kind: "saving" } | { kind: "saved"; id: string }>({ kind: "idle" });
   const copyId = state.kind === "saved" ? state.id : savedCopyOf(recipe.id, mine.data);
   const what = cookThis(recipe, { ownIds: mine.ownIds, copyId: state.kind === "saving" ? null : copyId, saving: state.kind === "saving" });
   if (what.kind === "none") return null;
+  // On a compact card (`RvCommunity`): a bookmark, filled once the recipe is yours or saved.
+  const mark = icon ? <Bookmark className={cn("h-5 w-5", what.kind !== "copy" && "fill-current")} strokeWidth={2} aria-hidden /> : null;
+  const iconClass = cn(SAVE_ICON_BUTTON, what.kind === "copy" ? "text-muted-foreground" : "text-cp-accent-text");
   if (what.kind === "open" || what.kind === "saved") {
     return (
-      <Link href={recipeHref(what.recipeId)} className={COOK_THIS_BUTTON}>
-        {what.label}
-        <span className="sr-only"> · {recipe.name}</span>
+      <Link href={recipeHref(what.recipeId)} aria-label={icon ? `${what.label} · ${recipe.name}` : undefined} className={icon ? iconClass : COOK_THIS_BUTTON}>
+        {mark ?? (
+          <>
+            {what.label}
+            <span className="sr-only"> · {recipe.name}</span>
+          </>
+        )}
       </Link>
     );
   }
@@ -65,10 +73,15 @@ export function CookThisButton({ recipe, mine }: { recipe: PostRecipe; mine: Ret
           router.push(recipeHref(r.data.recipe.id));
         });
       }}
-      className={COOK_THIS_BUTTON}
+      aria-label={icon ? `${what.label} · save ${recipe.name} to your recipes` : undefined}
+      className={icon ? iconClass : COOK_THIS_BUTTON}
     >
-      {what.label}
-      <span className="sr-only"> · save {recipe.name} to your recipes</span>
+      {mark ?? (
+        <>
+          {what.label}
+          <span className="sr-only"> · save {recipe.name} to your recipes</span>
+        </>
+      )}
     </button>
   );
 }
@@ -108,7 +121,7 @@ export function PostList({ read, empty }: { read: PagedRead<CommunityPost>; empt
   if (read.items.length === 0) return <>{empty}</>;
   return (
     <>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {read.items.map((post) => (
           <PostCardView
             key={post.id}
@@ -116,13 +129,13 @@ export function PostList({ read, empty }: { read: PagedRead<CommunityPost>; empt
             meId={meId}
             onYum={() => yum(post)}
             onMore={() => setMenu(post)}
-            cookThis={post.recipe ? <CookThisButton recipe={post.recipe} mine={mine} /> : null}
+            cookThis={post.recipe ? <CookThisButton recipe={post.recipe} mine={mine} icon /> : null}
           />
         ))}
       </div>
       <div ref={end} aria-hidden className="h-px" />
       {hasMore ? (
-        <button type="button" onClick={loadMore} disabled={read.loadingMore} className="min-h-11 self-center rounded-xl px-4 text-[15px] font-extrabold text-primary hover:bg-accent disabled:opacity-60">
+        <button type="button" onClick={loadMore} disabled={read.loadingMore} className="min-h-11 self-center rounded-xl px-4 text-[15px] font-medium text-cp-accent-text hover:bg-accent disabled:opacity-60">
           {read.loadingMore ? "Loading…" : "More"}
         </button>
       ) : null}
@@ -132,14 +145,19 @@ export function PostList({ read, empty }: { read: PagedRead<CommunityPost>; empt
   );
 }
 
-/** Following · Discover, under Community's header and search. */
+/** Following · Everyone, under Community's header, with the tab's heading over its cards. */
 export function CommunityFeed() {
   const params = useSearchParams();
   const tab = feedTabFrom(params?.get("tab"));
   return (
     <>
       <FeedTabs tab={tab} />
-      <FeedTabBody key={tab} tab={tab} />
+      <section aria-labelledby="feed-h" className="flex flex-col gap-2.5">
+        <h2 id="feed-h" className={K_SECTION}>
+          {FEED_HEADINGS[tab]}
+        </h2>
+        <FeedTabBody key={tab} tab={tab} />
+      </section>
     </>
   );
 }
@@ -151,11 +169,11 @@ function FeedTabBody({ tab }: { tab: FeedTab }) {
     <PostList
       read={read}
       empty={
-        <section aria-label="Feed" className="flex flex-col items-center gap-1.5 rounded-[22px] border border-dashed border-[#D5DAD2] bg-card px-6 py-10 text-center">
-          <p className="text-base font-extrabold">{e.title}</p>
-          <p className="text-sm font-semibold text-muted-foreground">{e.sub}</p>
+        <section aria-label="Feed" className="flex flex-col items-center gap-1.5 rounded-cp-card border border-dashed border-border bg-card px-6 py-10 text-center">
+          <p className="text-base font-medium">{e.title}</p>
+          <p className="text-sm font-normal text-muted-foreground">{e.sub}</p>
           {e.action ? (
-            <Link href={e.action.href} className={cn("mt-2 flex min-h-11 items-center rounded-xl px-5 text-[15px] font-extrabold", GREEN_BUTTON)}>
+            <Link href={e.action.href} className={cn("mt-2 flex min-h-11 items-center rounded-xl px-5 text-[15px] font-medium", GREEN_BUTTON)}>
               {e.action.label}
             </Link>
           ) : null}

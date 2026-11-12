@@ -14,8 +14,8 @@ import { BackBar } from "./sign-in-screens-ui";
  */
 
 const CTA =
-  "flex min-h-[50px] items-center justify-center rounded-[14px] px-4 text-[15px] font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
-const CTA_PRIMARY = "bg-primary text-primary-foreground hover:bg-[#165C3A]";
+  "flex min-h-[50px] items-center justify-center rounded-[14px] px-4 text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+const CTA_PRIMARY = "bg-primary text-primary-foreground hover:bg-primary/90";
 const CTA_QUIET = "border border-input bg-card text-foreground hover:bg-accent";
 
 export function HelpScreen({
@@ -38,10 +38,10 @@ export function HelpScreen({
     <section aria-labelledby="help-title" className="flex flex-col gap-3.5">
       <BackBar href={backHref} />
       <div className="flex flex-col gap-2">
-        <h1 id="help-title" className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]">
+        <h1 id="help-title" className="text-[28px] font-medium leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]">
           {HELP_TITLE}
         </h1>
-        <p className="text-[15px] leading-normal text-[#3F4842]">{HELP_SUBTITLE}</p>
+        <p className="text-[15px] leading-normal text-muted-foreground">{HELP_SUBTITLE}</p>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -59,7 +59,7 @@ export function HelpScreen({
                 aria-expanded={on}
                 aria-controls={panelId}
                 onClick={() => setOpen(on ? null : it.id)}
-                className="flex min-h-14 w-full items-center gap-3 px-3.5 text-left text-base font-extrabold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className="flex min-h-14 w-full items-center gap-3 px-3.5 text-left text-base font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="flex-1">{it.question}</span>
                 <ChevronDown
@@ -72,7 +72,7 @@ export function HelpScreen({
                 <div id={panelId} className="flex flex-col gap-2.5 px-3.5 pb-3.5">
                   <ul className="flex flex-col gap-2.5">
                     {it.tips.map((tip) => (
-                      <li key={tip} className="flex gap-2.5 text-sm leading-[1.45] text-[#3F4842]">
+                      <li key={tip} className="flex gap-2.5 text-sm leading-[1.45] text-muted-foreground">
                         <span aria-hidden className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                         <span>{tip}</span>
                       </li>
@@ -98,9 +98,9 @@ export function HelpScreen({
         })}
       </div>
 
-      <div className="flex items-start gap-3 rounded-[18px] border bg-card p-3.5">
+      <div className="flex items-start gap-3 rounded-cp-card bg-card shadow-cp-card p-3.5">
         <ShieldCheck aria-hidden strokeWidth={2} className="h-[22px] w-[22px] shrink-0 text-primary" />
-        <span className="text-[13px] leading-normal text-[#3F4842]">{HELP_SAFETY}</span>
+        <span className="text-[13px] leading-normal text-muted-foreground">{HELP_SAFETY}</span>
       </div>
     </section>
   );

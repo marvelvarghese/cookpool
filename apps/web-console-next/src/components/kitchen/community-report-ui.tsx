@@ -23,12 +23,12 @@ const SHEET = cn(
   "mx-auto flex max-h-[92dvh] max-w-xl flex-col gap-2 rounded-t-[24px] border-x-0 bg-card px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-3 min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
   CLOSE_44,
 );
-const ITEM = "min-h-[52px] w-full rounded-[14px] px-4 text-base font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const PLAIN = "border border-[#D5DAD2] bg-card hover:bg-accent";
-const RED = "bg-[#FDECEA] text-[#B42318] hover:bg-[#FAD9D5]";
+const ITEM = "min-h-[52px] w-full rounded-[14px] px-4 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const PLAIN = "border border-border bg-card hover:bg-accent";
+const RED = "bg-cp-expired-tint text-destructive hover:bg-cp-expired-tint/80";
 
 function Grip() {
-  return <div aria-hidden className="mx-auto mb-1 h-[5px] w-10 shrink-0 rounded-full bg-[#D5DAD2] min-[900px]:hidden" />;
+  return <div aria-hidden className="mx-auto mb-1 h-[5px] w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />;
 }
 
 export interface ReportTarget {
@@ -59,7 +59,7 @@ export function ReportSheet({ target, onClose }: { target: ReportTarget | null; 
     <Sheet open={target !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={SHEET}>
         <Grip />
-        <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-extrabold">{target ? reportTitle(target.kind, target.handle) : "Report"}</SheetTitle>
+        <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-medium">{target ? reportTitle(target.kind, target.handle) : "Report"}</SheetTitle>
         <div className="-mx-5 min-h-0 flex-1 space-y-2 overflow-y-auto px-5 pb-1">
           <div role="radiogroup" aria-label="Why" className="flex flex-col gap-2">
             {REPORT_REASON_ROWS.map((r) => (
@@ -74,12 +74,12 @@ export function ReportSheet({ target, onClose }: { target: ReportTarget | null; 
               maxLength={REPORT_NOTE_MAX}
               onChange={(e) => setNote(e.target.value)}
               placeholder="What's wrong with it?"
-              className="resize-none rounded-[14px] border border-[#D5DAD2] bg-card px-3 py-2.5 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="resize-none rounded-[14px] border border-border bg-card px-3 py-2.5 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
-          <p className="text-[13px] font-semibold text-muted-foreground">They aren&apos;t told who reported it.</p>
+          <p className="text-[13px] font-medium text-muted-foreground">They aren&apos;t told who reported it.</p>
         </div>
-        <Button type="button" disabled={!reason} loading={busy} onClick={() => void send()} className="min-h-[52px] shrink-0 rounded-[16px] text-base font-extrabold">
+        <Button type="button" disabled={!reason} loading={busy} onClick={() => void send()} className="min-h-[52px] shrink-0 rounded-[16px] text-base font-medium">
           Report
         </Button>
       </SheetContent>
@@ -118,7 +118,7 @@ export function PostMenuSheet({
     <Sheet open={post !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={SHEET}>
         <Grip />
-        <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-extrabold">{post?.title ?? ""}</SheetTitle>
+        <SheetTitle className="flex min-h-11 items-center pr-12 text-lg font-medium">{post?.title ?? ""}</SheetTitle>
         {post ? (
           <div className="flex flex-col gap-2">
             {items.includes("audience") ? (
@@ -133,8 +133,8 @@ export function PostMenuSheet({
                       aria-checked={post.audience === a}
                       onClick={() => pick(a)}
                       className={cn(
-                        "min-h-[52px] rounded-2xl text-[15px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        post.audience === a ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-[#D5DAD2] bg-card hover:bg-accent",
+                        "min-h-[52px] rounded-2xl text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        post.audience === a ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-border bg-card hover:bg-accent",
                       )}
                     >
                       {AUDIENCE_WORDS[a]}
@@ -191,7 +191,7 @@ export function PostMenuSheet({
                 >
                   Block {atHandle(post.author.handle)}
                 </button>
-                <p className="text-center text-[13px] font-semibold text-muted-foreground">{words.blockNote}</p>
+                <p className="text-center text-[13px] font-medium text-muted-foreground">{words.blockNote}</p>
               </>
             ) : null}
           </div>

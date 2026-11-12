@@ -20,7 +20,10 @@ import {
   feedHref,
   feedTabFrom,
   postAddedPatches,
+  FEED_HEADINGS,
+  FEED_TAB_LABELS,
   postCard,
+  postNumbers,
   postMenuItems,
   postRemovedPatches,
   shortAgo,
@@ -193,16 +196,29 @@ describe("the post card", () => {
     expect(cookThis(r, { ownIds: new Set(), copyId: null, saving: false })).toEqual({ kind: "copy", label: "Cook this" });
   });
 
-  it("draws the card: author link, hero link to the post, Yum pressed state, comments and Cook this", () => {
+  it("draws the compact card (RV-6, RvCommunity): tile and title to the post, the byline to the author, the numbers, Yum and the save", () => {
     const out = renderToStaticMarkup(
       React.createElement(PostCardView, { card: postCard(post({ yums: { count: 1, mine: true, names: [] } }), NOW, new Set()), meId: "usr_me", onYum: () => undefined, onMore: () => undefined, cookThis: React.createElement("span", null, "COOK") }),
     );
     expect(out).toContain('href="/u/anucooks"');
     expect(out).toContain('href="/p/pst_1"');
+    expect(out).toContain(">Anu Mathew · 2 h<");
     expect(out).toContain('aria-pressed="true"');
-    expect(out).toContain("Yum · 1");
+    expect(out).toContain('aria-label="Yum · 1 · Chicken curry"');
     expect(out).toContain("COOK");
-    expect(out).toContain("Halved it for the three of us.");
+    // The caption, the comments and ⋯ live on the post's page now.
+    expect(out).not.toContain("Halved it for the three of us.");
+    expect(out).not.toContain('aria-label="More"');
+  });
+
+  it("says the compact card's numbers: size, time, Yums and comments", () => {
+    const c = postCard(post({ yums: { count: 1, mine: true, names: [] } }), NOW, new Set());
+    expect(c.byline).toBe("Anu Mathew · 2 h");
+    expect(postNumbers(c)).toBe(`450 g · ${c.tiles.find((t) => t.id === "time")!.value} · 1 yum · ${c.comments === 1 ? "1 comment" : `${c.comments} comments`}`);
+    expect(postNumbers({ tiles: [{ id: "size", value: "4", label: "portions" }], yum: { on: false, label: "Yum", count: 0 }, comments: 0 })).toBe("4 portions · 0 yums");
+    expect(postNumbers({ tiles: [{ id: "ate", value: "3", label: "ate" }], yum: { on: false, label: "Yum · 12", count: 12 }, comments: 1 })).toBe("12 yums · 1 comment");
+    expect(FEED_TAB_LABELS).toEqual({ following: "Following", discover: "Everyone" });
+    expect(FEED_HEADINGS).toEqual({ following: "From people you follow", discover: "New from everyone" });
   });
 });
 
