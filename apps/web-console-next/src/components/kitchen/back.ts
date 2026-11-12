@@ -47,6 +47,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/you": () => "/home",
   // You → Notifications (PW-6): You.
   "/you/notifications": () => "/you",
+  // You → Sign-in and security (cookpool-passkeys PK-4): You.
+  "/you/security": () => "/you",
   // The new frame's pages (RC-2), for a visitor of today's frame: Money sends them Home; settings is You's.
   "/money": () => "/home",
   "/you/settings": () => "/you",
@@ -105,6 +107,7 @@ const NEW_FRAME_PARENTS: Readonly<Record<string, ParentRule>> = {
   "/people/:subjectId": () => "/money",
   "/settle": () => "/money",
   "/you/notifications": () => "/you/settings",
+  "/you/security": () => "/you/settings",
 };
 
 /** The Cookpool screens that have a parent (every page of the app that is not a tab). */

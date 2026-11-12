@@ -54,12 +54,12 @@ export function clearNameAsked(): void {
   write(askedKey(), null);
 }
 
-export type SignInMethod = "google" | "code";
+export type SignInMethod = "google" | "code" | "passkey";
 
 /** How this device last signed in; null when it does not know. */
 export function lastSignInMethod(): SignInMethod | null {
   const value = read(methodKey());
-  return value === "google" || value === "code" ? value : null;
+  return value === "google" || value === "code" || value === "passkey" ? value : null;
 }
 
 /** Record how this device just signed in (null: a way You does not list, or unknown). */

@@ -110,7 +110,7 @@ describe("the account remembered on this device", () => {
     const ok = JSON.stringify({ name: " Rahul  Varghese ", email: "rahul@gmail.com", method: "google" });
     expect(parseRememberedAccount(ok)).toEqual({ name: "Rahul Varghese", email: "rahul@gmail.com", method: "google" });
     expect(parseRememberedAccount(JSON.stringify({ email: "a@b.co", method: "code" }))).toEqual({ name: "", email: "a@b.co", method: "code" });
-    for (const bad of [null, "", "{", "[]", "null", JSON.stringify({ email: "nope", method: "code" }), JSON.stringify({ email: "a@b.co", method: "passkey" })]) {
+    for (const bad of [null, "", "{", "[]", "null", JSON.stringify({ email: "nope", method: "code" }), JSON.stringify({ email: "a@b.co", method: "password" })]) {
       expect(parseRememberedAccount(bad)).toBeNull();
     }
   });

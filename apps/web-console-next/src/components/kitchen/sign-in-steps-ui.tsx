@@ -19,6 +19,8 @@ import {
 } from "./sign-in-screens";
 import { GoogleButton, NoticeBox, OrDivider, PersonAvatar, SIGN_IN_INPUT, SIGN_IN_PRIMARY, SIGN_IN_PRIMARY_IDLE } from "./sign-in-ui";
 import { AuthTabs, BackBar, CodeBoxesField, MailTile, RememberedAccountView, SignInFooter } from "./sign-in-screens-ui";
+import { PASSKEY_SIGN_IN_HELPER } from "./passkeys";
+import { PasskeySignInButton } from "./passkey-ui";
 
 /**
  * The sign-in page's two screens before you are in (Cookpool PK-3): the start
@@ -35,6 +37,10 @@ export interface StartStepProps {
   onContinue: () => void;
   onForget: () => void;
   continuing: boolean;
+  /** Sign in with a passkey (PK-4): only where passkeys run; null hides it. */
+  passkey?: { busy: boolean; onClick: () => void } | null;
+  /** A passkey sign-in that did not work, shown under its button (not the email field's). */
+  passkeyNotice?: string | null;
   withGoogle: boolean;
   googleBusy: boolean;
   onGoogle: () => void;
@@ -56,6 +62,8 @@ export function StartStep(p: StartStepProps) {
   const noticeId = p.notice ? "sign-in-notice" : undefined;
   const isNew = p.mode === "new";
   const showRemembered = !isNew && p.remembered !== null;
+  // The passkey button is Sign in's, above Google (`AuthWelcome`, `WebAuth`).
+  const withPasskey = !isNew && !!p.passkey;
   return (
     <section className="flex flex-1 flex-col gap-3.5 min-[900px]:gap-4">
       <AuthTabs mode={p.mode} onMode={p.onMode} />
@@ -70,12 +78,15 @@ export function StartStep(p: StartStepProps) {
         {showRemembered && p.remembered ? (
           <>
             <RememberedAccountView card={p.remembered} onContinue={p.onContinue} onForget={p.onForget} busy={p.continuing} />
+            {p.passkeyNotice ? <NoticeBox notice={{ tone: "error", text: p.passkeyNotice }} /> : null}
             {p.notice ? <NoticeBox id={noticeId} notice={p.notice} /> : null}
           </>
         ) : (
           <>
+            {withPasskey && p.passkey ? <PasskeySignInButton onClick={p.passkey.onClick} busy={p.passkey.busy} /> : null}
+            {withPasskey && p.passkeyNotice ? <NoticeBox notice={{ tone: "error", text: p.passkeyNotice }} /> : null}
             {p.withGoogle ? <GoogleButton onClick={p.onGoogle} busy={p.googleBusy} label={googleLabel(p.mode)} /> : null}
-            {p.withGoogle ? <OrDivider label="or with email" /> : null}
+            {p.withGoogle || withPasskey ? <OrDivider label="or with email" /> : null}
             <form
               noValidate
               className="flex flex-col gap-3"
@@ -140,7 +151,7 @@ export function StartStep(p: StartStepProps) {
               >
                 Email me a code
               </Button>
-              <span className="text-[13px] leading-[1.45] text-muted-foreground">{isNew ? SIGN_UP_HELPER : SIGN_IN_HELPER}</span>
+              <span className="text-[13px] leading-[1.45] text-muted-foreground">{isNew ? SIGN_UP_HELPER : withPasskey ? PASSKEY_SIGN_IN_HELPER : SIGN_IN_HELPER}</span>
             </form>
           </>
         )}
