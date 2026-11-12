@@ -414,12 +414,14 @@ export function discardPrompt(current: CookSession): { title: string; body: stri
 // ── Changing it ───────────────────────────────────────────────────
 
 /**
- * Is this line counted in what was taken (and so can be ticked)? A missing
- * line can't be, nor one the cook must ask for (PN-9: it reads Ask Meera
- * instead of a tick, and stays out of the dish).
+ * Can this line be ticked (went in)? Not one the cook must ask for (PN-9:
+ * it reads Ask Meera instead of a tick, and stays out of the dish). A
+ * missing line can (RV-16, the canvas's `RvCookLines`: it went in, from
+ * outside your kitchens), and counts in "3 of 7 in", but it is never
+ * charged: `includedLines` leaves it out of the dish.
  */
 export function tickable(line: SessionLine): boolean {
-  return !line.missing && !lineAsks(line);
+  return !lineAsks(line);
 }
 
 /** Tick a line in, or out again. A missing line stays unticked. */
@@ -1063,7 +1065,7 @@ export const UNTICKED_CHOICES: readonly { id: UntickedChoice; label: string }[] 
 
 /** Lines that could be ticked and aren't. */
 export function untickedCount(s: CookSession): number {
-  return s.lines.filter((l) => tickable(l) && !l.ticked).length;
+  return s.lines.filter((l) => !l.missing && tickable(l) && !l.ticked).length;
 }
 
 /** "3 not ticked"; null when every line is in. */

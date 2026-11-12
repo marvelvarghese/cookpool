@@ -6,7 +6,7 @@ import type { AiRecipeCheck, AiRecipeDraft } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { K_BUTTON } from "./kit";
+import { K_BUTTON, K_BUTTON_QUIET, K_QUIET } from "./kit";
 import { BackControl, useBack } from "./back-ui";
 import { AI_EDGE, AiChip } from "./receipt-scan-ui";
 import { shrinkReceiptPhoto } from "./receipt-photo";
@@ -59,7 +59,7 @@ export function RecipePhotoEntry() {
   const { shows } = useRecipePhotoShows();
   if (!shows) return null;
   return (
-    <Link href={RECIPE_PHOTO_HREF} className={cn(ENTRY, AI_EDGE)}>
+    <Link href={RECIPE_PHOTO_HREF} className={cn(ENTRY, "min-h-[52px] rounded-[18px] bg-card shadow-cp-card")}>
       <EntryInside />
     </Link>
   );
@@ -293,7 +293,7 @@ export function RecipePhotoFlow({ onBack, onTypeIt }: { onBack: () => void; onTy
           <span className="cookpool-photo-sk block h-16 rounded-lg" aria-hidden />
           <span className="cookpool-photo-sk block h-16 rounded-lg" aria-hidden />
           <span className="cookpool-photo-sk block h-16 rounded-lg" aria-hidden />
-          <Button type="button" variant="outline" className={cn(K_BUTTON, "self-center")} onClick={cancel}>
+          <Button type="button" variant="ghost" className={cn(K_BUTTON_QUIET, "self-center")} onClick={cancel}>
             Cancel
           </Button>
         </div>
@@ -310,7 +310,7 @@ export function RecipePhotoFlow({ onBack, onTypeIt }: { onBack: () => void; onTy
                 Try another photo
               </Button>
             ) : null}
-            <Button type="button" variant="outline" className={cn(K_BUTTON, error.kind !== "failed" && "col-span-2")} onClick={onTypeIt}>
+            <Button type="button" variant="ghost" className={cn(K_BUTTON_QUIET, error.kind !== "failed" && "col-span-2")} onClick={onTypeIt}>
               Type it in
             </Button>
           </div>
@@ -495,7 +495,7 @@ function Result({
           </p>
         ) : null}
         <div className="mx-auto grid w-full max-w-xl grid-cols-[1fr_2fr] gap-2">
-          <Button type="button" variant="outline" className="min-h-14 rounded-[18px] text-[15px] font-medium" onClick={() => onEdit(null)}>
+          <Button type="button" variant="ghost" className={cn(K_QUIET, "min-h-14 rounded-[18px] text-[15px] font-medium")} onClick={() => onEdit(null)}>
             Open in editor
           </Button>
           <Button type="button" className="min-h-14 rounded-[18px] text-base font-medium" loading={saving} onClick={onSave}>

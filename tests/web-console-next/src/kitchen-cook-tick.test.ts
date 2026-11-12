@@ -207,16 +207,19 @@ describe("the line under the name", () => {
 describe("the tick is went in: N of M in, the bar, and Finish's cost", () => {
   it("counts and costs only the ticked lines", () => {
     const s = curry();
-    expect(progressText(s)).toBe("0 of 5 in");
+    // RV-16: the missing yogurt can be ticked too, so it counts in M (it is never charged).
+    expect(progressText(s)).toBe("0 of 6 in");
     expect(cookTickPercent(s)).toBe(0);
     expect(cookFinishText(s)).toBe("₹0 · nothing taken from the kitchen");
     const two = tickLine(tickLine(s, "r:0"), "r:1");
-    expect(progressText(two)).toBe("2 of 5 in");
-    expect(cookTickPercent(two)).toBe(40);
+    expect(progressText(two)).toBe("2 of 6 in");
+    expect(cookTickPercent(two)).toBe(33);
     expect(cookFinishText(two)).toBe("₹138 so far · 2 in");
     expect(cookTickLabel("Onions", "2 onions", false)).toBe("Tick Onions, 2 onions");
     expect(cookTickLabel("Onions", "2 onions", true)).toBe("Onions went in, 2 onions, untick");
-    expect(cookTickPercent(tickLine(s, "r:1"))).toBe(20);
+    expect(cookTickPercent(tickLine(s, "r:1"))).toBe(17);
+    // The missing yogurt ticked: in the count, never in the cost.
+    expect(cookFinishText(tickLine(two, "r:2"))).toBe("₹138 so far · 3 in");
   });
 
   it("Finish always works: with nothing ticked it posts a dish of nothing; ticked lines go in at their amounts", () => {

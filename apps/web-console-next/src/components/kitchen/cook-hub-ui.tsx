@@ -4,10 +4,9 @@ import * as React from "react";
 import Link from "./link";
 import { Compass } from "lucide-react";
 import { savedHubRows } from "./cook-hub";
-import { CookHubView, HUB_QUIET } from "./cook-hub-views";
+import { CookHubView, HUB_QUIET, HubCommunityLink } from "./cook-hub-views";
 import { useCookNow, useMyRecipes, usePrefetchRecipe } from "./recipes-data";
 import { EXPLORE_HREF } from "./explore";
-import { CommunityEntry } from "./community-views";
 import { COMMUNITY_HREF } from "./community";
 import { RecipePhotoEntry } from "./recipe-photo-ui";
 
@@ -17,7 +16,8 @@ import { RecipePhotoEntry } from "./recipe-photo-ui";
  * session, the one main button); Find a recipe; Cook now (what you have
  * everything for) and Saved recipes, each row its tile, name and one tag,
  * three then See all; then New recipe and Explore (RC-8), From a photo
- * (cookpool-ai AI-9) and Community (cookpool-community CM-5), quiet.
+ * (cookpool-ai AI-9) and Community (cookpool-community CM-5), quiet; RV-16
+ * drops their helper lines.
  */
 export function CookHub() {
   const cookNow = useCookNow();
@@ -41,7 +41,7 @@ export function CookHub() {
         </Link>
       }
       photoAction={<RecipePhotoEntry />}
-      community={<CommunityEntry href={COMMUNITY_HREF} />}
+      community={<HubCommunityLink href={COMMUNITY_HREF} />}
     />
   );
 }

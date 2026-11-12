@@ -130,7 +130,12 @@ describe("the recipe page's Steps: each step's flame, range at the page's size, 
   it("draws each step with its parts, and The plan beside Steps", () => {
     const rows = stepRows(CURRY, 450);
     const html = renderToStaticMarkup(React.createElement(StepsSection, { steps: CURRY.steps, rows, planHref: recipePlanHref("rcp_curry", 450), initiallyOpen: true }));
-    expect(html).toContain("Steps · 8");
+    // RV-16 (RvRecipe): "Steps" with a muted count, no fold chevron when open, and one card of rows.
+    expect(html).toContain('Steps <span class="font-normal text-muted-foreground">· 8</span>');
+    expect(html).not.toContain("aria-expanded");
+    expect(html).toContain("divide-y");
+    expect(html).not.toMatch(/#[0-9A-Fa-f]{6}/);
+    expect(html).not.toMatch(/font-(semibold|bold|extrabold)/);
     expect(html).toContain('href="/recipes/rcp_curry/plan?f=450"');
     expect(html).toContain("The plan");
     expect(html).toContain("Medium flame");
@@ -243,12 +248,13 @@ describe("long prep first", () => {
   it("draws the amber card: the step, how long, Soak now · ping me and Already done; once started, when we'll ping", () => {
     const rows = longPrepRows("rcp_rajma", [soak!], {}, NOW);
     const html = renderToStaticMarkup(React.createElement(LongPrepCardView, { rows, busyKey: null, error: null, endsText: (iso: string) => pingTimeText(iso, NOW), onStart: () => undefined, onDone: () => undefined }));
-    expect(html).toContain("LONG PREP FIRST");
+    expect(html).toContain(">Long prep first<");
     expect(html).toContain("Soak the rajma overnight");
     expect(html).toContain("· 8 h");
     expect(html).toContain("Soak now · ping me");
     expect(html).toContain("Already done");
-    expect(html).toContain("bg-[#FDF1D6]");
+    expect(html).toContain("bg-cp-soon-tint");
+    expect(html).not.toMatch(/#[0-9A-Fa-f]{6}/);
     const endsAt = new Date(2026, 10, 8, 20, 0).toISOString();
     const started = longPrepRows("rcp_rajma", [soak!], markLongPrep({}, "rcp_rajma", "key0", { state: "started", at: NOW.toISOString(), endsAt, timerId: "tmr_1" }), NOW);
     const startedHtml = renderToStaticMarkup(React.createElement(LongPrepCardView, { rows: started, busyKey: null, error: null, endsText: (iso: string) => pingTimeText(iso, NOW), onStart: () => undefined, onDone: () => undefined }));
@@ -365,7 +371,9 @@ describe("the plan: totals, each step at the size, the rule in words, Meanwhile"
     expect(html).toContain('href="/cook/session?recipe=rcp_curry&amp;f=450"');
     expect(html).toContain("Start step by step");
     // A hands-off step's number is tinted.
-    expect(html).toMatch(/bg-cp-herb-tint text-\[#165C3A\][^>]*>6</);
+    // RV-16: numbers on the tint; a hands-off step's on the line's fill.
+    expect(html).toMatch(/bg-cp-line text-muted-foreground[^>]*>6</);
+    expect(html).not.toMatch(/#[0-9A-Fa-f]{6}/);
   });
 
   it("reads the recipe at its size (GC-7's ?f=), under the recipe's own key so writes reach it", () => {

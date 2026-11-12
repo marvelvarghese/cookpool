@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import Link from "./link";
-import { BookOpen, Bookmark, ChevronRight, Plus, Search } from "lucide-react";
+import { BookOpen, Bookmark, ChevronRight, Plus, Search, UsersRound } from "lucide-react";
 import type { CookNowEntry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { shareKey, sharePart } from "@/lib/transitions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KCard, K_BUTTON, K_CARD, K_TITLE, SectionHeading } from "./kit";
+import { KCard, K_BUTTON_QUIET, K_CARD, K_TITLE, SectionHeading } from "./kit";
 import { BLANK_SESSION_HREF, NEW_RECIPE_HREF, recipeHref } from "./recipes";
 import type { PersonRecipeRow } from "./explore";
 import { HUB_FIRST, cookNowHubRows, hubMatches, type CookNowCard, type HubRow, type ProfileRecipeRow } from "./cook-hub";
@@ -101,7 +101,7 @@ export function CookHubView({
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load your recipes.</p>
           {onReloadRecipes ? (
-            <Button variant="outline" className={K_BUTTON} onClick={onReloadRecipes}>
+            <Button variant="ghost" className={K_BUTTON_QUIET} onClick={onReloadRecipes}>
               Try again
             </Button>
           ) : null}
@@ -128,6 +128,23 @@ export function CookHubView({
         {community ?? null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Community on the Cook tab (RV-16, the audit's Cook 1): one quiet card row,
+ * its icon, "Community" and a chevron, without the helper sentence.
+ */
+export function HubCommunityLink({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex min-h-[52px] items-center gap-3 rounded-[18px] bg-card px-4 shadow-cp-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <UsersRound className="h-5 w-5 shrink-0 text-cp-accent-text" strokeWidth={2} aria-hidden />
+      <span className="flex-1 text-[15px] font-medium">Community</span>
+      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+    </Link>
   );
 }
 
@@ -241,7 +258,7 @@ export function Segmented<T extends string>({
   className?: string;
 }) {
   return (
-    <div role="group" aria-label={label} className={cn("flex rounded-xl bg-[#ECEEE9] p-[3px]", large && "w-full rounded-[14px]", className)}>
+    <div role="group" aria-label={label} className={cn("flex rounded-xl bg-muted p-[3px]", large && "w-full rounded-[14px]", className)}>
       {options.map((o) => (
         <button
           key={o.id}
@@ -249,9 +266,9 @@ export function Segmented<T extends string>({
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
           className={cn(
-            "min-h-11 flex-1 whitespace-nowrap rounded-[9px] px-2.5 text-[13px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "min-h-11 flex-1 whitespace-nowrap rounded-[9px] px-2.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             large && "rounded-[11px] text-[15px]",
-            value === o.id ? "bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]" : "text-muted-foreground hover:text-foreground",
+            value === o.id ? "bg-card text-foreground shadow-cp-card" : "text-muted-foreground hover:text-foreground",
           )}
         >
           {o.label}
@@ -269,12 +286,12 @@ export function CookNowStrip({ cards, prefetch }: { cards: readonly CookNowCard[
   return (
     <section aria-labelledby="home-cook-now" className="min-w-0 space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="home-cook-now" className="text-lg font-extrabold tracking-tight">
+        <h2 id="home-cook-now" className="text-lg font-medium tracking-tight">
           Cook now
         </h2>
         <Link
           href="/cook"
-          className="flex min-h-11 items-center rounded-lg px-1 text-sm font-extrabold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-11 items-center rounded-lg px-1 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           See all
         </Link>
@@ -286,11 +303,11 @@ export function CookNowStrip({ cards, prefetch }: { cards: readonly CookNowCard[
               {...pressIn(() => prefetch?.(c.id))}
               href={c.href}
               share={shareKey("recipe", c.id)}
-              className="flex h-full flex-col gap-2 rounded-[18px] border bg-card p-3 shadow-[0_1px_2px_rgba(23,32,27,0.04)] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-full flex-col gap-2 rounded-[18px] bg-card p-3 shadow-cp-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <RecipeTileView tile={c.tile} part={sharePart("tile")} />
-              <span {...sharePart("title")} className="line-clamp-2 text-[15px] font-extrabold leading-tight">{c.name}</span>
-              <span className={cn("truncate text-[13px] font-bold tabular-nums", c.tone === "have" ? "text-[#165C3A]" : "text-muted-foreground")}>{c.text}</span>
+              <span {...sharePart("title")} className="line-clamp-2 text-[15px] font-medium leading-tight">{c.name}</span>
+              <span className={cn("truncate text-[13px] font-normal tabular-nums", c.tone === "have" ? "text-cp-accent-text" : "text-muted-foreground")}>{c.text}</span>
             </Link>
           </li>
         ))}
@@ -317,7 +334,7 @@ export function YourRecipes({
   return (
     <section aria-label="Your recipes" className="min-w-0">
       {loading ? (
-        <div className="space-y-px overflow-hidden rounded-[22px] border bg-card" aria-hidden>
+        <div className="space-y-px overflow-hidden rounded-[22px] bg-card shadow-cp-card" aria-hidden>
           <Skeleton className="h-16 w-full rounded-none" />
           <Skeleton className="h-16 w-full rounded-none" />
         </div>
@@ -325,20 +342,20 @@ export function YourRecipes({
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load your recipes.</p>
           {onReload ? (
-            <Button variant="outline" className={K_BUTTON} onClick={onReload}>
+            <Button variant="ghost" className={K_BUTTON_QUIET} onClick={onReload}>
               Try again
             </Button>
           ) : null}
         </KCard>
       ) : rows.length === 0 ? (
-        <div className="flex min-h-14 items-center justify-between gap-3 rounded-[22px] border bg-card px-4 py-2">
+        <div className="flex min-h-14 items-center justify-between gap-3 rounded-[22px] bg-card px-4 py-2 shadow-cp-card">
           <p className="text-sm text-muted-foreground">No recipes yet</p>
-          <Link href={NEW_RECIPE_HREF} className="flex min-h-11 items-center rounded-lg px-1 text-sm font-extrabold text-primary hover:underline">
+          <Link href={NEW_RECIPE_HREF} className="flex min-h-11 items-center rounded-lg px-1 text-sm font-medium text-primary hover:underline">
             New recipe
           </Link>
         </div>
       ) : (
-        <ul className="divide-y overflow-hidden rounded-[22px] border bg-card">
+        <ul className="divide-y overflow-hidden rounded-[22px] bg-card shadow-cp-card">
           {rows.map((row) => (
             <li key={row.id}>
               <Link
@@ -348,8 +365,8 @@ export function YourRecipes({
                 className="flex min-h-16 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1">
-                  <span {...sharePart("title")} className="block truncate text-base font-extrabold">{row.name}</span>
-                  <span className="block truncate text-[13px] font-semibold text-muted-foreground">{row.meta}</span>
+                  <span {...sharePart("title")} className="block truncate text-base font-medium">{row.name}</span>
+                  <span className="block truncate text-[13px] font-normal text-muted-foreground">{row.meta}</span>
                 </span>
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
               </Link>
@@ -380,12 +397,12 @@ export function SaveCopyChip({
   onSave: () => void;
   icon?: boolean;
 }) {
-  const base = "flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-[15px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-  const saved = cn(base, "border border-[#B9DCC8] bg-cp-herb-tint text-[#165C3A]");
+  const base = "flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const saved = cn(base, "bg-cp-accent-tint text-cp-accent-text");
   const mark = (filled: boolean) => (icon ? <Bookmark className={cn("h-4 w-4", filled && "fill-current")} strokeWidth={2.2} aria-hidden /> : null);
   if (savedId) {
     return (
-      <Link href={recipeHref(savedId)} className={cn(saved, "hover:bg-[#D3EADC]")}>
+      <Link href={recipeHref(savedId)} className={cn(saved, "hover:bg-cp-accent-tint/80")}>
         {mark(true)}
         Saved
         <span className="sr-only"> · open your copy of {name}</span>
@@ -401,7 +418,7 @@ export function SaveCopyChip({
     );
   }
   return (
-    <button type="button" onClick={onSave} className={cn(base, "border border-[#C9CFC6] bg-card hover:bg-accent")}>
+    <button type="button" onClick={onSave} className={cn(base, "bg-card shadow-cp-card hover:bg-accent")}>
       {mark(false)}
       Save
       <span className="sr-only"> {name}</span>
@@ -428,7 +445,7 @@ export function PersonRecipesView({
   return (
     <section aria-label="Their recipes" className="min-w-0">
       {loading ? (
-        <div className="space-y-px overflow-hidden rounded-[22px] border bg-card" aria-hidden>
+        <div className="space-y-px overflow-hidden rounded-[22px] bg-card shadow-cp-card" aria-hidden>
           <Skeleton className="h-16 w-full rounded-none" />
           <Skeleton className="h-16 w-full rounded-none" />
         </div>
@@ -436,15 +453,15 @@ export function PersonRecipesView({
         <KCard className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load their recipes.</p>
           {onReload ? (
-            <Button variant="outline" className={K_BUTTON} onClick={onReload}>
+            <Button variant="ghost" className={K_BUTTON_QUIET} onClick={onReload}>
               Try again
             </Button>
           ) : null}
         </KCard>
       ) : rows.length === 0 ? (
-        <p className="flex min-h-14 items-center rounded-[22px] border bg-card px-4 text-sm text-muted-foreground">No recipes they share yet</p>
+        <p className="flex min-h-14 items-center rounded-[22px] bg-card px-4 text-sm text-muted-foreground shadow-cp-card">No recipes they share yet</p>
       ) : (
-        <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[22px] border bg-card">
+        <ul className="divide-y divide-cp-line overflow-hidden rounded-[22px] bg-card shadow-cp-card">
           {rows.map((row) => (
             <li key={row.id} className="flex min-h-16 items-center gap-3 py-2 pl-4 pr-3">
               <Link
@@ -453,8 +470,8 @@ export function PersonRecipesView({
                 share={shareKey("recipe", row.id)}
                 className="flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span {...sharePart("title")} className="truncate text-base font-extrabold">{row.name}</span>
-                <span className="truncate text-[13px] font-semibold tabular-nums text-muted-foreground">{row.meta}</span>
+                <span {...sharePart("title")} className="truncate text-base font-medium">{row.name}</span>
+                <span className="truncate text-[13px] font-normal tabular-nums text-muted-foreground">{row.meta}</span>
               </Link>
               {renderSave ? renderSave(row) : null}
             </li>
@@ -471,10 +488,10 @@ export function PersonRecipesView({
  */
 export function FeedRecipeRowView({ text, href, save }: { text: string; href: string; save?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2.5 border-t border-[#ECEEE9] pt-2">
+    <div className="flex items-center gap-2.5 border-t border-cp-line pt-2">
       <Link
         href={href}
-        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-sm font-extrabold text-[#165C3A] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-sm font-medium text-cp-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <BookOpen className="h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden />
         <span className="truncate">{text}</span>

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { CLOSE_44, KCard, K_BUTTON } from "./kit";
+import { CLOSE_44, KCard, K_BUTTON, K_BUTTON_QUIET } from "./kit";
 import { MAIN_BUTTON, MainButtonLabel } from "./faces-ui";
 import { useBack } from "./back-ui";
 import { useProfile } from "./data";
@@ -30,12 +30,12 @@ import { FinishSheet, SESSION_SHEET } from "./cook-finish-sheet";
 import { CookFinishSheet } from "./cooked-finish-sheet";
 import { rememberCookedSeed } from "./cooked-data";
 import { cookedSeedOf } from "./cooked";
-import { guidedScreen, guidedSessionFromRecipe, withLongPrepMemory } from "./cook-guided";
+import { chooseMode, guidedScreen, guidedSessionFromRecipe, withLongPrepMemory } from "./cook-guided";
 import { useCancelServerTimers, useGuideTimers } from "./cook-guided-data";
 import { GuidedCook } from "./cook-guided-screen";
 import { AddIngredientButton, CookTickBar, CookTickList, CookTickNote } from "./cook-tick-ui";
 import { cookFinishText } from "./cook-tick";
-import { AddItemButton, DiscardPromptBody, SessionMeta, SessionRow, SessionTopBar, StepsCard, useNow } from "./cook-session-ui";
+import { AddItemButton, DiscardPromptBody, SessionHeader, SessionMeta, SessionRow, SessionTopBar, StepsCard, useNow } from "./cook-session-ui";
 import {
   FINISH_OFFLINE_TEXT,
   SESSION_PARENT,
@@ -319,57 +319,89 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
     router.replace(SESSION_PARENT);
   };
 
+  // Blank: the name field, with dishes cooked before under it.
+  const nameField = (
+    <div className="space-y-2">
+      <div ref={nameFieldRef}>
+        <label htmlFor="session-name" className="sr-only">
+          What are you making?
+        </label>
+        <Input
+          id="session-name"
+          value={session.name}
+          {...typeahead.inputProps({
+            count: suggestions.length,
+            onPick: pickBefore,
+            onChange: (e) => {
+              const name = e.target.value;
+              save((s) => setName(s, name));
+            },
+          })}
+          maxLength={140}
+          placeholder="What are you making?"
+          autoComplete="off"
+          className="h-[52px] rounded-[14px] bg-card px-3.5 text-[22px] font-medium tracking-tight sm:h-[52px] sm:text-[22px]"
+        />
+      </div>
+      <SuggestionList
+        id="session-name-suggestions"
+        label="Cooked before"
+        views={suggestions.map(recipeSuggestion)}
+        active={typeahead.active}
+        onPick={pickBefore}
+        onHighlight={typeahead.highlight}
+        fieldRef={nameFieldRef}
+      />
+    </div>
+  );
+
   return (
     // As tall as the screen, so Finish sits at the bottom (in thumb reach) however short the list.
-    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-8rem)] flex-col gap-3.5 pb-2 min-[900px]:min-h-[calc(100dvh-6rem)]">
+    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-2.75rem-var(--cp-tabbar-space,84px))] flex-col gap-3.5 pb-2 min-[900px]:min-h-[calc(100dvh-6rem)]">
+      {ownDish ? (
+        // The new look (cookpool-revamp RV-16, the canvas's RvCookLines): Back, the name, "For 4 · 3 of 7 in", Steps.
+        <SessionHeader
+          title={session.name}
+          name={blank ? nameField : undefined}
+          sub={[forWhom(session) ? `For ${forWhom(session)}` : null, session.lines.length > 0 ? progressText(session) : null, elapsedText(session.startedAt, now)]
+            .filter(Boolean)
+            .join(" · ")}
+          steps={
+            session.guide
+              ? { label: "Steps", onClick: () => save((s) => chooseMode(s, "guided", new Date())) }
+              : session.steps.length > 0
+                ? {
+                    label: "Steps",
+                    onClick: () => {
+                      setStepsOpen(true);
+                      window.requestAnimationFrame(() => document.getElementById("session-steps-card")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+                    },
+                  }
+                : null
+          }
+          onMinimize={minimize}
+        />
+      ) : (
+        <>
       <SessionTopBar elapsed={elapsedText(session.startedAt, now)} onMinimize={minimize} />
-
-      <div className="space-y-2">
-        {blank ? (
-          <div className="space-y-2">
-            <div ref={nameFieldRef}>
-              <label htmlFor="session-name" className="sr-only">
-                What are you making?
-              </label>
-              <Input
-                id="session-name"
-                value={session.name}
-                {...typeahead.inputProps({
-                  count: suggestions.length,
-                  onPick: pickBefore,
-                  onChange: (e) => {
-                    const name = e.target.value;
-                    save((s) => setName(s, name));
-                  },
-                })}
-                maxLength={140}
-                placeholder="What are you making?"
-                autoComplete="off"
-                className="h-[52px] rounded-[14px] bg-card px-3.5 text-[22px] font-medium tracking-tight sm:h-[52px] sm:text-[22px]"
-              />
-            </div>
-            <SuggestionList
-              id="session-name-suggestions"
-              label="Cooked before"
-              views={suggestions.map(recipeSuggestion)}
-              active={typeahead.active}
-              onPick={pickBefore}
-              onHighlight={typeahead.highlight}
-              fieldRef={nameFieldRef}
-            />
-          </div>
-        ) : (
-          <h1 className="text-[26px] font-medium leading-tight tracking-tight">{session.name}</h1>
-        )}
-        <SessionMeta chip={chip} progress={session.lines.length > 0 ? progressText(session) : null} />
-      </div>
+  
+        <div className="space-y-2">
+          {blank ? (
+            nameField
+          ) : (
+            <h1 className="text-[26px] font-medium leading-tight tracking-tight">{session.name}</h1>
+          )}
+          <SessionMeta chip={chip} progress={session.lines.length > 0 ? progressText(session) : null} />
+        </div>
+        </>
+      )}
 
       {ownDish ? (
         // The new frame (cookpool-revamp RV-11, the canvas's RvCookLines): RV-10's tick rows.
         <>
           {session.lines.length > 0 ? <CookTickBar session={session} /> : null}
           {blank && session.lines.length === 0 ? (
-            <p className="px-1 text-sm text-muted-foreground">Name it, pick something you cooked before, or add what goes in.</p>
+            <p className="px-1 text-sm font-normal text-muted-foreground">Name it, pick something you cooked before, or add what goes in.</p>
           ) : null}
           <CookTickList
             session={session}
@@ -435,10 +467,10 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
           <div className="flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl bg-card shadow-cp-card p-3">
             <span className="text-sm font-normal">Discard this session? Nothing is posted.</span>
             <span className="flex gap-2">
-              <Button variant="outline" className={K_BUTTON} onClick={() => setDiscarding(false)}>
+              <Button variant="ghost" className={K_BUTTON_QUIET} onClick={() => setDiscarding(false)}>
                 Keep cooking
               </Button>
-              <Button variant="outline" className={cn(K_BUTTON, "text-cp-expired")} onClick={discard}>
+              <Button variant="ghost" className={cn(K_BUTTON, "bg-cp-expired-tint text-cp-expired hover:bg-cp-expired-tint/80")} onClick={discard}>
                 Discard
               </Button>
             </span>
@@ -454,17 +486,17 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
         )}
       </div>
 
-      {/* The one main button, in thumb reach above the tab bar: Finish, with the cost so far. */}
+      {/* The one main button, in thumb reach at the screen's foot (RV-19's --cp-bottom-bar: the session hides the tab bar): Finish, with the cost so far. */}
       <div
         data-toast-above=""
-        className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 mt-auto space-y-2 pt-1 min-[900px]:bottom-6"
+        className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 mt-auto space-y-2 pb-2 pt-1 min-[900px]:bottom-6"
       >
         {alert ? (
           <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">
             {alert}
           </p>
         ) : null}
-        <Button type="button" className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)]")} onClick={openFinish}>
+        <Button type="button" className={cn(MAIN_BUTTON, "rounded-[18px] shadow-cp-nav")} onClick={openFinish}>
           <MainButtonLabel title="Finish" who={ownDish ? cookFinishText(session) : finishButtonText(session, group?.name ?? null, group?.currency ?? null)} />
         </Button>
       </div>

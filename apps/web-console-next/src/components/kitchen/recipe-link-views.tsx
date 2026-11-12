@@ -7,7 +7,7 @@ import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET } from "./kit";
 import { Face } from "./faces-ui";
 import { recipeHref } from "./recipes";
 import { StepsSection } from "./recipe-views";
@@ -146,7 +146,7 @@ export function LinkGone() {
       <div className="min-w-0 space-y-3">
         <h1 className="text-lg font-medium">{LINK_GONE_TEXT}</h1>
         <p className="text-sm text-muted-foreground">Ask for a new one.</p>
-        <Button asChild variant="outline" className={K_BUTTON}>
+        <Button asChild variant="ghost" className={K_BUTTON_QUIET}>
           <Link href="/cook">Cook</Link>
         </Button>
       </div>

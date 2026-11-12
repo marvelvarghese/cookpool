@@ -120,8 +120,8 @@ function CookTickLine({
   onCancelAsk?: ((key: string) => void) | undefined;
 }) {
   const ask = sessionLineAskView(line, { meId, names, now });
-  // An ask on its way, or approved, holds the amount it asked for.
-  const locked = line.missing || (ask !== null && (ask.state === "waiting" || ask.state === "approved"));
+  // An ask on its way, or approved, holds the amount it asked for. A missing line keeps its box and tick (RV-16).
+  const locked = ask !== null && (ask.state === "waiting" || ask.state === "approved");
   const t = locked ? null : cookTickItem(line);
   const state = t ? cookTickState(line, t, held) : { typed: "", unit: null };
   const usualUnit = t?.real ? (usual[usualUnitKey(t.real)] ?? null) : null;
@@ -132,9 +132,7 @@ function CookTickLine({
   const words = amount ? amount.words : (fixed ?? "");
 
   let end: React.ReactNode = null;
-  if (line.missing) {
-    end = <span aria-hidden className="block h-11 w-12 rounded-xl border-[1.5px] border-dashed border-border" />;
-  } else if (ask) {
+  if (ask) {
     if (ask.cancel && onCancelAsk) {
       end = (
         <button type="button" onClick={() => onCancelAsk(line.key)} aria-label={`Cancel the ask for ${line.name}`} className={cn(END_BUTTON, "bg-cp-soon-tint text-cp-soon")}>

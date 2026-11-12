@@ -175,13 +175,14 @@ describe("Explore: search and kinds", () => {
     expect(exploreQuery("cookpool", "", "all")).not.toHaveProperty("kind");
   });
 
-  it("draws the search, the kind chips (the one chosen pressed and dark) and the switch", () => {
+  it("draws the search, the kind chips (the one chosen pressed, on the tint) and the switch", () => {
     const out = html(React.createElement(ExploreView, { ...VIEW, query: "dal", kind: "rice" }));
     expect(out).toContain('type="search"');
     expect(out).toContain('value="dal"');
     expect(out).toContain("Search recipes");
     expect(out.match(/aria-pressed="true"[^>]*>Rice</g)).toHaveLength(1);
-    expect(out).toMatch(/aria-pressed="true" class="[^"]*bg-foreground[^"]*">Rice</);
+    // RV-16: the chosen chip is on the tint, not ink.
+    expect(out).toMatch(/aria-pressed="true" class="[^"]*bg-cp-accent-tint[^"]*">Rice</);
     expect(out).toMatch(/aria-pressed="false"[^>]*>Snacks</);
   });
 });
@@ -232,8 +233,8 @@ describe("Explore: rows, fewest missing first", () => {
     const out = html(React.createElement(ExploreView, { ...VIEW, rows, renderSave: (r) => React.createElement(BookmarkButton, { name: r.name, savedId: null, saving: false, onSave: noop }) }));
     expect(out.match(/h-12 w-12/g)).toHaveLength(5);
     expect(out).toContain("✓ You have everything");
-    expect(out).toMatch(/text-\[#8A5A00\]">Missing yogurt</);
-    expect(out).toMatch(/text-\[#165C3A\]">✓ You have everything</);
+    expect(out).toMatch(/text-cp-soon">Missing yogurt</);
+    expect(out).toMatch(/text-cp-accent-text">✓ You have everything</);
     expect(out.match(/aria-label="Save /g)).toHaveLength(5);
     expect(html(React.createElement(ExploreView, { ...VIEW, rows: [] }))).toContain(EXPLORE_EMPTY_TEXT);
     expect(EXPLORE_EMPTY_TEXT).toBe("Nothing here yet");
@@ -243,7 +244,7 @@ describe("Explore: rows, fewest missing first", () => {
     const off = html(React.createElement(ExploreView, VIEW));
     expect(off).toMatch(/role="switch" aria-checked="false"/);
     const on = html(React.createElement(ExploreView, { ...VIEW, onlyCanMake: true }));
-    expect(on).toMatch(/role="switch" aria-checked="true" class="[^"]*bg-cp-herb-tint/);
+    expect(on).toMatch(/role="switch" aria-checked="true" class="[^"]*bg-cp-accent-tint/);
     expect(on).toContain("Only what I can make");
   });
 
@@ -310,7 +311,7 @@ describe("a person's page: Recipes | Cooks", () => {
     expect(out).toContain("Serves 2 · 20 min");
     expect(out.match(/>Save<span/g)).toHaveLength(2);
     expect(out).toContain('href="/recipes/rcp_mine"');
-    expect(out).toMatch(/border-\[#B9DCC8\] bg-cp-herb-tint[^>]*>Saved/);
+    expect(out).toMatch(/bg-cp-accent-tint text-cp-accent-text[^>]*>Saved/);
     expect(out).toContain("min-h-11");
   });
 

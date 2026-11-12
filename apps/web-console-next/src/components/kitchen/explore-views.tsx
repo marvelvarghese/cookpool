@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { shareKey, sharePart } from "@/lib/transitions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KCard, K_BUTTON } from "./kit";
+import { KCard, K_BUTTON_QUIET } from "./kit";
 import { recipeHref } from "./recipes";
 import { RecipeTileView, Segmented } from "./cook-hub-views";
 import { EXPLORE_EMPTY_TEXT, EXPLORE_HREF, EXPLORE_KINDS, EXPLORE_SOURCES, type ExploreKind, type ExploreRow } from "./explore";
@@ -24,7 +24,7 @@ export function ExploreButton() {
   return (
     <Link
       href={EXPLORE_HREF}
-      className="flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-[#C9CFC6] bg-card text-[15px] font-extrabold transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-12 items-center justify-center gap-2 rounded-[14px] bg-cp-accent-tint text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Compass className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
       Explore
@@ -98,14 +98,14 @@ export function ExploreView({
       <header className="flex items-center gap-2">
         {back ?? null}
         <div className="flex min-w-0 flex-col">
-          <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.02em]">Explore</h1>
-          <p className="truncate text-[13px] font-bold tabular-nums text-muted-foreground">{subtitle}</p>
+          <h1 className="text-[26px] font-medium leading-tight tracking-[-0.02em]">Explore</h1>
+          <p className="truncate text-[13px] font-normal tabular-nums text-muted-foreground">{subtitle}</p>
         </div>
       </header>
 
       <Segmented label="From" large value={source} onChange={onSource} options={EXPLORE_SOURCES} />
 
-      <label className="flex min-h-[52px] items-center gap-2.5 rounded-2xl border border-[#C9CFC6] bg-card px-4 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+      <label className="flex min-h-[52px] items-center gap-2.5 rounded-2xl bg-card px-4 text-muted-foreground focus-within:ring-2 focus-within:ring-ring shadow-cp-card">
         <Search className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
         <span className="sr-only">Search recipes</span>
         <input
@@ -114,7 +114,7 @@ export function ExploreView({
           onChange={(e) => onQuery(e.target.value)}
           placeholder="Dal, rice, eggs…"
           enterKeyHint="search"
-          className="min-h-12 min-w-0 flex-1 bg-transparent text-base font-semibold text-foreground outline-none placeholder:text-muted-foreground"
+          className="min-h-12 min-w-0 flex-1 bg-transparent text-base font-normal text-foreground outline-none placeholder:text-muted-foreground"
         />
       </label>
 
@@ -125,14 +125,14 @@ export function ExploreView({
         onClick={() => onOnlyCanMake(!onlyCanMake)}
         className={cn(
           "flex min-h-16 items-center gap-3 rounded-[18px] px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          onlyCanMake ? "border border-[#B9DCC8] bg-cp-herb-tint" : "border border-[#E3E6E0] bg-card hover:bg-accent",
+          onlyCanMake ? "bg-cp-accent-tint" : "bg-card shadow-cp-card hover:bg-accent",
         )}
       >
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="text-[15px] font-extrabold">Only what I can make</span>
-          <span className="text-[13px] font-semibold text-muted-foreground">From every pantry you&apos;re in</span>
+          <span className="text-[15px] font-medium">Only what I can make</span>
+          <span className="text-[13px] font-normal text-muted-foreground">From every pantry you&apos;re in</span>
         </span>
-        <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", onlyCanMake ? "bg-primary" : "bg-[#C9CFC6]")}>
+        <span aria-hidden className={cn("relative h-8 w-[52px] shrink-0 rounded-full transition-colors", onlyCanMake ? "bg-primary" : "bg-muted-foreground/40")}>
           <span className={cn("absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-sm transition-[left]", onlyCanMake ? "left-[23px]" : "left-[3px]")} />
         </span>
       </button>
@@ -145,8 +145,8 @@ export function ExploreView({
             aria-pressed={kind === k.id}
             onClick={() => onKind(k.id)}
             className={cn(
-              "min-h-11 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              kind === k.id ? "border-foreground bg-foreground text-background" : "border-[#D5DAD2] bg-card hover:bg-accent",
+              "min-h-11 shrink-0 whitespace-nowrap rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              kind === k.id ? "bg-cp-accent-tint text-cp-accent-text" : "bg-muted text-foreground hover:bg-accent",
             )}
           >
             {k.label}
@@ -164,26 +164,26 @@ export function ExploreView({
         <KCard className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] p-4">
           <p className="text-sm text-muted-foreground">Couldn&apos;t load these recipes.</p>
           {onReload ? (
-            <Button variant="outline" className={K_BUTTON} onClick={onReload}>
+            <Button variant="ghost" className={K_BUTTON_QUIET} onClick={onReload}>
               Try again
             </Button>
           ) : null}
         </KCard>
       ) : !rows || rows.length === 0 ? (
-        <p className="rounded-[18px] border border-dashed border-[#C9CFC6] bg-card px-4 py-6 text-center text-[15px] font-bold text-muted-foreground">{EXPLORE_EMPTY_TEXT}</p>
+        <p className="rounded-[18px] bg-card px-4 py-6 text-center text-[15px] font-normal text-muted-foreground shadow-cp-card">{EXPLORE_EMPTY_TEXT}</p>
       ) : (
         <ul aria-label="Recipes" className="flex flex-col gap-2">
           {rows.map((r) => (
-            <li key={r.id} data-vt-card="" className="flex min-h-[72px] items-center gap-3 rounded-[18px] border border-[#E3E6E0] bg-card py-2.5 pl-3 pr-1.5">
+            <li key={r.id} data-vt-card="" className="flex min-h-[72px] items-center gap-3 rounded-[18px] bg-card py-2.5 pl-3 pr-1.5 shadow-cp-card">
               <RecipeTileView tile={r.tile} className="h-12 w-12 rounded-[14px] text-[19px]" part={sharePart("tile")} />
               <Link
                 href={r.href}
                 share={shareKey("recipe", r.id)}
                 className="flex min-h-11 min-w-0 flex-1 flex-col gap-0.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span {...sharePart("title")} className="truncate text-base font-extrabold">{r.name}</span>
-                <span className="truncate text-[13px] font-semibold tabular-nums text-muted-foreground">{r.meta}</span>
-                <span className={cn("truncate text-[13px] font-extrabold", r.tone === "have" ? "text-[#165C3A]" : "text-[#8A5A00]")}>{r.match}</span>
+                <span {...sharePart("title")} className="truncate text-base font-medium">{r.name}</span>
+                <span className="truncate text-[13px] font-normal tabular-nums text-muted-foreground">{r.meta}</span>
+                <span className={cn("truncate text-[13px] font-medium", r.tone === "have" ? "text-cp-accent-text" : "text-cp-soon")}>{r.match}</span>
               </Link>
               {renderSave ? renderSave(r) : null}
             </li>

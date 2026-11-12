@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { CLOSE_44, K_BUTTON } from "./kit";
+import { CLOSE_44, K_BUTTON, K_BUTTON_QUIET } from "./kit";
 import { useKitchenRouter } from "./transition-ui";
 import { mainAmountMilli, mainLineOf } from "./recipes";
 import { useRecipe } from "./recipes-data";
@@ -173,11 +173,11 @@ export function ShareCookSheet({
             <button type="button" disabled aria-disabled className="flex h-[120px] flex-col items-center justify-center gap-1 rounded-2xl border-[1.5px] border-dashed border-border bg-background text-muted-foreground">
               <Camera className="h-6 w-6" strokeWidth={2} aria-hidden />
               <span className="text-[15px] font-medium">{PHOTO_SOON}</span>
-              <span className="text-xs font-medium">The recipe tile shows without one</span>
+              <span className="text-xs font-normal">The recipe tile shows without one</span>
             </button>
             <div className="flex flex-col">
               <span className="break-words text-xl font-medium">{dish.name}</span>
-              <span className="text-[13px] font-medium text-muted-foreground">{composerRecipeLine(preview)}</span>
+              <span className="text-[13px] font-normal text-muted-foreground">{composerRecipeLine(preview)}</span>
             </div>
             <label className="flex flex-col gap-1.5">
               <SectionLabel>Say something</SectionLabel>
@@ -187,7 +187,7 @@ export function ShareCookSheet({
                 maxLength={POST_CAPTION_MAX}
                 placeholder={CAPTION_PLACEHOLDER}
                 onChange={(e) => set({ caption: e.target.value })}
-                className={cn("resize-none rounded-[14px] border border-border bg-card px-3 py-2.5 text-[15px] outline-none", FOCUS)}
+                className={cn("resize-none rounded-[14px] border border-input bg-card px-3 py-2.5 text-[15px] font-normal outline-none", FOCUS)}
               />
             </label>
           </div>
@@ -207,15 +207,15 @@ export function ShareCookSheet({
                     className={cn("flex min-h-[52px] w-full items-center gap-3 px-3.5 text-left", FOCUS)}
                   >
                     <span className="flex-1 text-[15px] font-medium">{row.label}</span>
-                    <span className="text-[13px] font-medium text-muted-foreground tabular-nums">{row.value ?? "if timed"}</span>
+                    <span className="text-[13px] font-normal text-muted-foreground tabular-nums">{row.value ?? "if timed"}</span>
                     <span aria-hidden className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-input")}>
-                      <span className={cn("absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
+                      <span className={cn("absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-cp-card transition-[left]", on ? "left-[23px]" : "left-[3px]")} />
                     </span>
                   </button>
                 );
               })}
             </div>
-            <p className="px-0.5 text-[13px] font-medium text-muted-foreground">{NEVER_SHOWN}</p>
+            <p className="px-0.5 text-[13px] font-normal text-muted-foreground">{NEVER_SHOWN}</p>
           </section>
 
           <section aria-labelledby="who-h" className="flex flex-col gap-2">
@@ -237,7 +237,7 @@ export function ShareCookSheet({
           </section>
         </div>
         <div className="grid shrink-0 grid-cols-[1fr_2fr] gap-2">
-          <Button type="button" variant="outline" onClick={notNow} className={cn(K_BUTTON, "min-h-[60px] rounded-[18px] bg-card text-base font-medium")}>
+          <Button type="button" variant="ghost" onClick={notNow} className={cn(K_BUTTON_QUIET, "min-h-[60px] rounded-[18px] text-base")}>
             Not now
           </Button>
           <Button type="button" disabled={!ready} onClick={post} className={cn(K_BUTTON, "min-h-[60px] rounded-[18px] text-[17px] font-medium")}>
@@ -259,7 +259,7 @@ function AudienceButton({ label, sub, on, onPick }: { label: string; sub: string
       className={cn(
         "flex min-h-[60px] flex-col items-center justify-center rounded-2xl px-1.5 py-1.5 text-center transition-colors",
         FOCUS,
-        on ? "border-[1.5px] border-primary bg-cp-herb-tint" : "border border-border bg-card hover:bg-accent",
+        on ? "bg-cp-accent-tint ring-[1.5px] ring-inset ring-primary" : "bg-card shadow-cp-card hover:bg-accent",
       )}
     >
       <span className="text-[15px] font-medium">{label}</span>
@@ -270,7 +270,7 @@ function AudienceButton({ label, sub, on, onPick }: { label: string; sub: string
 
 /** The dish page's Share (yours, postable): opens the sheet, or "See your post" once this browser knows it. */
 export function DishShareButton({ postId, onShare }: { postId: string | null; onShare: () => void }) {
-  const cls = cn("flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-border bg-card text-[15px] font-medium hover:bg-accent", FOCUS);
+  const cls = cn("flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-cp-accent-tint text-[15px] font-medium text-cp-accent-text hover:bg-cp-accent-tint/80", FOCUS);
   if (postId) {
     return (
       <Link href={postHref(postId)} className={cls}>

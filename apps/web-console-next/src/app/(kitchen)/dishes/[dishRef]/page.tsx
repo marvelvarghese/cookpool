@@ -24,7 +24,8 @@ import { useMemberNames } from "@/components/kitchen/people-data";
 import { itemHref } from "@/components/kitchen/pantry";
 import { useDish, useDishActions, usePortions } from "@/components/kitchen/dish-data";
 import { DishChipPill, DishMoney, MoneyLines, PortionStepper, WhoHadSomeList } from "@/components/kitchen/dish-ui";
-import { groupSettleHref } from "@/components/kitchen/group-page";
+import { groupTabHref } from "@/components/kitchen/group-page";
+import { settleHref } from "@/components/kitchen/money-page";
 import { newFrame } from "@/lib/features";
 import { offersSaveAsRecipe } from "@/components/kitchen/recipes";
 import { SaveAsRecipeButton } from "@/components/kitchen/recipe-ui";
@@ -32,6 +33,7 @@ import { offersShare } from "@/components/kitchen/community-share";
 import { DishShareButton, ShareCookSheet, useSharedPost } from "@/components/kitchen/community-share-ui";
 import { COOKED_PARAM, SPLIT_PARAM, cookedActions, dishNextActions, showsCooked, splitParam } from "@/components/kitchen/cooked";
 import { CookedScreen, NextActionList, SplitSheet } from "@/components/kitchen/cooked-ui";
+import { useDeletePost } from "@/components/kitchen/community-posts-data";
 import { useKitchenRouter } from "@/components/kitchen/transition-ui";
 import {
   OVER_CLAIMED,
@@ -169,6 +171,8 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
   const canShare = offersShare(newFrame(), dish, meId);
   const [shareOpen, setShareOpen] = React.useState(false);
   const [sharedPost, setSharedPost] = useSharedPost(dish.id);
+  // Undo on Cooked!'s Posted row (RV-16): the post goes; its toast can put it back.
+  const deletePost = useDeletePost();
   const askedToShare = React.useRef(false);
   React.useEffect(() => {
     if (askedToShare.current || typeof window === "undefined") return;
@@ -328,6 +332,15 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
             setSplitOpen(true);
           }}
           onDone={() => router.replace(dishHref(dish.id))}
+          onUnpost={
+            sharedPost
+              ? () => {
+                  const id = sharedPost;
+                  setSharedPost(null);
+                  deletePost({ id, title: dish.name });
+                }
+              : undefined
+          }
         />
         {sheets}
       </>
@@ -352,7 +365,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
                   key={m.key}
                   onSelect={m.onSelect}
                   disabled={m.disabled ?? false}
-                  className={cn("min-h-11 rounded-lg px-3 text-[15px] font-semibold", m.destructive && "text-cp-expired focus:text-cp-expired")}
+                  className={cn("min-h-11 rounded-lg px-3 text-[15px] font-medium", m.destructive && "text-cp-expired focus:text-cp-expired")}
                 >
                   {m.label}
                 </DropdownMenuItem>
@@ -364,10 +377,10 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
 
       <header className="min-w-0 space-y-1">
         {/* Where a tapped dish card's title lands (RC-11's page transitions). */}
-        <h1 {...shareTarget(shareKey("dish", dish.id), "title")} className="break-words text-[28px] font-extrabold leading-tight tracking-tight">
+        <h1 {...shareTarget(shareKey("dish", dish.id), "title")} className="break-words text-[26px] font-medium leading-tight tracking-[-0.02em]">
           {dish.name}
         </h1>
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold text-muted-foreground">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-normal text-muted-foreground">
           <span className="tabular-nums">{dishByline(dish, people)}</span>
           <DishChipPill chip={dishStateChip(dish)} />
         </p>
@@ -378,23 +391,23 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
           {shared ? (
             <>
               <div className="space-y-2">
-                <p className={cn("text-[15px] font-extrabold tabular-nums", COUNT_TONES[count.tone])}>{count.text}</p>
+                <p className={cn("text-[15px] font-medium tabular-nums", COUNT_TONES[count.tone])}>{count.text}</p>
                 <PortionBar half={hadHalf} of={dish.portionsHalf} over={count.tone === "over"} />
               </div>
               <WhoHadSomeList rows={rows} meId={meId} names={names} stepperFor={stepperFor} />
               {split.over ? (
-                <p role="alert" className="rounded-[14px] bg-cp-expired-tint px-3.5 py-3 text-sm font-semibold text-cp-expired">
+                <p role="alert" className="rounded-[14px] bg-cp-expired-tint px-3.5 py-3 text-sm font-normal text-cp-expired">
                   {OVER_CLAIMED}
                 </p>
               ) : null}
               {/* While it is open, what is left shows once: in the count. */}
               {leftovers && (dish.state !== "open" || editing) ? (
-                <p className="px-1 text-sm font-semibold text-muted-foreground tabular-nums">
+                <p className="px-1 text-sm font-normal text-muted-foreground tabular-nums">
                   {leftovers}
                   {isCook && dish.state === "finalized" && dish.leftoverItemId && !editing ? (
                     <>
                       {" · "}
-                      <Link href={itemHref({ kind: "personal", itemId: dish.leftoverItemId })} className="font-bold text-primary underline-offset-2 hover:underline">
+                      <Link href={itemHref({ kind: "personal", itemId: dish.leftoverItemId })} className="font-medium text-primary underline-offset-2 hover:underline">
                         Open
                       </Link>
                     </>
@@ -408,7 +421,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
         <div className="min-w-0 space-y-4">
           {editing === "correct" ? (
             <div className="space-y-1.5">
-              <Label htmlFor="correct-note" className="text-sm font-semibold">
+              <Label htmlFor="correct-note" className="text-sm font-normal">
                 Why? (optional)
               </Label>
               <Input
@@ -454,7 +467,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
               Cancel
             </Button>
             <Button
-              className={cn(K_BUTTON, "h-[52px] flex-[1.4] text-base font-extrabold")}
+              className={cn(K_BUTTON, "h-[52px] flex-[1.4] text-base font-medium")}
               disabled={!dirty || split.over}
               loading={actions.busy === "shares" || actions.busy === "correct"}
               onClick={() => void saveEdit()}
@@ -470,7 +483,7 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
               </Button>
             ) : null}
             <Button
-              className={cn(K_BUTTON, "h-[60px] flex-[1.4] rounded-[18px] text-[17px] font-extrabold")}
+              className={cn(K_BUTTON, "h-[60px] flex-[1.4] rounded-[18px] text-[17px] font-medium")}
               disabled={split.over || portions.pending || (actions.busy !== null && actions.busy !== "finalize")}
               loading={actions.busy === "finalize"}
               onClick={() =>
@@ -483,8 +496,8 @@ function DishView({ dish, meId }: { dish: KitchenDish; meId: string | null }) {
             </Button>
           </>
         ) : dish.state === "finalized" && shared ? (
-          <Button asChild className={cn(K_BUTTON, "h-[60px] flex-1 rounded-[18px] text-[17px] font-extrabold")}>
-            <Link href={group ? groupSettleHref(group.slug) : "/people"}>Settle up</Link>
+          <Button asChild className={cn(K_BUTTON, "h-[60px] flex-1 rounded-[18px] text-[17px] font-medium")}>
+            <Link href={dishSettleHref(dish, meId, group?.slug ?? null)}>Settle up</Link>
           </Button>
         ) : null}
       </ActionBar>
@@ -538,7 +551,7 @@ function ActionBar({ children, above }: { children: React.ReactNode; above?: Rea
   return (
     <div
       data-toast-above=""
-      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 space-y-2 border-t bg-background px-4 pb-2 pt-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px] min-[900px]:border min-[900px]:px-4"
+      className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.25rem))] z-30 -mx-4 space-y-2 bg-background px-4 pb-2 pt-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px] min-[900px]:border min-[900px]:px-4"
     >
       {above}
       <div className="flex gap-2.5">{children}</div>
@@ -551,7 +564,7 @@ function DishNotFound() {
     <KCard className="flex gap-4 p-5">
       <CookingPot className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0 space-y-3">
-        <h1 className="text-lg font-bold">This dish isn&apos;t here</h1>
+        <h1 className="text-lg font-medium">This dish isn&apos;t here</h1>
         <Button asChild variant="outline" className={K_BUTTON}>
           <Link href="/groups">Your groups</Link>
         </Button>
@@ -572,4 +585,15 @@ function DishSkeleton() {
       <Skeleton className="h-72 w-full rounded-[22px]" />
     </div>
   );
+}
+
+/**
+ * Settle up on a finalized group dish (RV-17's one settle path): someone who
+ * ate pays the cook at `/money/settle`, back to the group; the cook, whom the
+ * others pay, sees the group's Money tab (else Money).
+ */
+function dishSettleHref(dish: Pick<KitchenDish, "orgId" | "cook">, meId: string | null, groupSlug: string | null): string {
+  const back = groupSlug ? `/groups/${encodeURIComponent(groupSlug)}` : null;
+  if (dish.orgId && meId && dish.cook !== meId) return settleHref(dish.orgId, dish.cook, back);
+  return groupSlug ? groupTabHref(groupSlug, "money") : "/money";
 }

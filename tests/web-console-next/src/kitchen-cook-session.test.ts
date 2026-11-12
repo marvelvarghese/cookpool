@@ -219,7 +219,7 @@ describe("the draft store (design §4.1)", () => {
     const after = createCookSessionStore({ storage: () => storage, prefix: () => "cookpool.next" });
     const back = after.read(ME);
     expect(back).toEqual(ticked);
-    expect(progressText(back!)).toBe("1 of 5 in");
+    expect(progressText(back!)).toBe("1 of 6 in");
     expect(openChoice(back, null)).toBe("resume");
   });
 
@@ -345,13 +345,16 @@ describe("a session from a recipe (design §4.2)", () => {
     expect(sessionFromRecipe(RECIPE, null, MATCH, NOW).lines.every((l) => l.lastTime === null)).toBe(true);
   });
 
-  it("keeps a missing line, struck through and left out: it can't be ticked, and nothing of it posts", () => {
+  it("keeps a missing line, struck through and left out: it ticks (RV-16), but nothing of it posts", () => {
     const s = curry();
     const yogurt = sessionLineView(s.lines[2]!, { meId: ME });
-    expect(yogurt).toMatchObject({ missing: true, tickable: false, canEdit: false, amount: "90 g" });
-    expect(tickLine(s, "r:2").lines[2]!.ticked).toBe(false);
+    expect(yogurt).toMatchObject({ missing: true, tickable: true, canEdit: false, amount: "90 g" });
+    const ticked = tickLine(s, "r:2");
+    expect(ticked.lines[2]!.ticked).toBe(true);
     expect(includedLines(s, "all").map((l) => l.key)).toEqual(["r:0", "r:1", "r:3", "r:4", "r:5"]);
-    expect(progressText(s)).toBe("0 of 5 in");
+    expect(includedLines(ticked, "out").map((l) => l.key)).toEqual([]);
+    expect(progressText(s)).toBe("0 of 6 in");
+    expect(progressText(ticked)).toBe("1 of 6 in");
   });
 
   it("ticks to-taste lines without an amount", () => {
@@ -437,7 +440,7 @@ describe("ticks", () => {
     const s = tickLine(curry(), "r:0");
     expect(s.lines[0]!.ticked).toBe(true);
     expect(sessionLineView(s.lines[0]!, { meId: ME })).toMatchObject({ ticked: true, checkLabel: "Untick Chicken" });
-    expect(progressText(tickLine(s, "r:1"))).toBe("2 of 5 in");
+    expect(progressText(tickLine(s, "r:1"))).toBe("2 of 6 in");
     expect(tickLine(s, "r:0").lines[0]!.ticked).toBe(false);
   });
 });
@@ -822,8 +825,8 @@ describe("the bar on every tab (design §4.4)", () => {
   const later = new Date(NOW.getTime() + 12 * 60_000 + 30_000);
 
   it("says what is cooking, for how long and how far, with Resume to the session", () => {
-    expect(sessionBarView(s, later)).toEqual({ name: "Chicken curry", meta: "Cooking · 12 min · 1 of 5 in", href: "/cook/session" });
-    expect(sessionBarView(s, new Date(NOW.getTime() + 65 * 60_000))?.meta).toBe("Cooking · 1 h 5 min · 1 of 5 in");
+    expect(sessionBarView(s, later)).toEqual({ name: "Chicken curry", meta: "Cooking · 12 min · 1 of 6 in", href: "/cook/session" });
+    expect(sessionBarView(s, new Date(NOW.getTime() + 65 * 60_000))?.meta).toBe("Cooking · 1 h 5 min · 1 of 6 in");
     expect(sessionBarView(null, later)).toBeNull();
     expect(sessionBarView(blankSession(NOW), later)).toBeNull();
   });
@@ -847,7 +850,7 @@ describe("the bar on every tab (design §4.4)", () => {
   it("is dark, with the pot in the cook colour and a white Resume", () => {
     const html = renderToStaticMarkup(React.createElement(SessionBarCard, { view: sessionBarView(s, later)!, placement: "phone" }));
     expect(html).toContain("Chicken curry");
-    expect(html).toContain("Cooking · 12 min · 1 of 5 in");
+    expect(html).toContain("Cooking · 12 min · 1 of 6 in");
     expect(html).toContain('href="/cook/session"');
     expect(html).toContain(">Resume<");
     // RV-4: the cook strip's tokens (ink in light, the tint in dark), the pot in the cook colour.
@@ -887,11 +890,12 @@ describe("a row, as drawn", () => {
     expect(html).toContain('aria-label="Untick Chicken"');
   });
 
-  it("strikes a missing line through, with a dashed tick that can't be pressed", () => {
+  it("strikes a missing line through, with a tick it keeps (RV-16)", () => {
     const html = row("r:2");
     expect(html).toContain("line-through");
-    expect(html).toContain("border-dashed");
-    expect(html).toMatch(/aria-pressed="false"[^>]*disabled=""/);
+    expect(html).not.toContain("border-dashed");
+    expect(html).toContain('aria-label="Tick Yogurt"');
+    expect(html).not.toMatch(/aria-pressed="false"[^>]*disabled=""/);
     expect(html).toContain("Not in your kitchen · left out");
   });
 

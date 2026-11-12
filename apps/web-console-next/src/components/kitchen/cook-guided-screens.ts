@@ -607,12 +607,18 @@ export interface PrepRowView {
 export interface PrepScreenView {
   /** "CHICKEN CURRY · FOR ABOUT 2 · ×0.45". */
   header: string;
+  /** The dish's name, for the header (RV-16, the canvas's `RvCookPrep`). */
+  title: string;
+  /** Gather's own count: the lines in, of all of them ("· 3 of 7"). */
+  gather: { done: number; of: number };
   tools: { index: number; name: string; ticked: boolean; checkLabel: string }[];
   prep: PrepRowView[];
   /** "6 of 10 ready". */
   ready: { done: number; of: number; text: string };
   /** "Start cooking", or "Back to cooking" once it has started. */
   startTitle: string;
+  /** The main button in the new look (RV-16): "Start step 1", "Back to step 3", or "Finish". */
+  startLabel: string;
   /** "Step 1 of 8". */
   startSub: string;
 }
@@ -656,10 +662,13 @@ export function prepScreen(s: CookSession, now: Date): PrepScreenView | null {
   const chip = scaleChip(s)?.label;
   return {
     header: [s.name.trim(), chip].filter((x): x is string => !!x).join(" · ").toUpperCase(),
+    title: s.name.trim() || "Your dish",
+    gather: { done: lines.ticked, of: lines.of },
     tools,
     prep,
-    ready: { done, of, text: `${done} of ${of} ready` },
+    ready: { done, of, text: `${done} of ${of}` },
     startTitle: g.cookStartedAt ? "Back to cooking" : "Start cooking",
+    startLabel: cook.length === 0 || firstOpen < 0 ? "Finish" : `${g.cookStartedAt ? "Back to step" : "Start step"} ${firstOpen + 1}`,
     startSub: cook.length === 0 || firstOpen < 0 ? "Finish" : `Step ${firstOpen + 1} of ${cook.length}`,
   };
 }
@@ -682,6 +691,10 @@ export interface DoneRowView {
 export interface DoneScreenView {
   /** "Chicken curry is done". */
   title: string;
+  /** The dish's name, as Done draws it (RV-16, the canvas's `RvCookDone`). */
+  name: string;
+  /** "37 min · 8 steps" under it. */
+  line: string;
   /** "47:12". */
   total: string;
   /** Hands on · Steps · Cost. */
@@ -741,6 +754,8 @@ export function doneScreen(s: CookSession, now: Date): DoneScreenView | null {
   const times = todaysStepTimes(s);
   return {
     title: `${s.name.trim() || "Your dish"} is done`,
+    name: s.name.trim() || "Your dish",
+    line: [totalMs > 0 ? realText(totalMs / 1000) : null, `${cook.length} ${cook.length === 1 ? "step" : "steps"}`].filter(Boolean).join(" · "),
     total: clockText(totalMs),
     stats: [
       { value: handsOn > 0 ? realText(handsOn) : "—", label: "Hands on" },
