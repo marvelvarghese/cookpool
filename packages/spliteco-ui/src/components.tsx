@@ -167,13 +167,35 @@ export interface AddBillFormProps {
   submitLabel?: string;
   /** An id prefix for the fields (several forms on a page). */
   idPrefix?: string;
+  /**
+   * What a scan read (Cookpool's Scan a bill, cookpool-ai AI-15): the title
+   * and the amount as the fields start with. When either changes, its field
+   * takes the new value; who paid and the split stay the person's.
+   */
+  prefill?: { title?: string; amount?: string } | null;
+}
+
+/** A prefill's fields that are set. */
+function definedOf(prefill: AddBillFormProps["prefill"]): Partial<BillDraft> {
+  const out: Partial<BillDraft> = {};
+  if (prefill?.title !== undefined) out.title = prefill.title;
+  if (prefill?.amount !== undefined) out.amount = prefill.amount;
+  return out;
 }
 
 /** What it was, how much, who paid, and who shares it equally. */
-export function AddBillForm({ members, me, currency, bucket = null, onSubmit, submitLabel = "Add bill", idPrefix = "bill" }: AddBillFormProps) {
+export function AddBillForm({ members, me, currency, bucket = null, onSubmit, submitLabel = "Add bill", idPrefix = "bill", prefill = null }: AddBillFormProps) {
   const { slots: s, money } = useSplitecoUi();
   const ids = React.useMemo(() => members.map((m) => m.subjectId), [members]);
-  const [draft, setDraft] = React.useState<BillDraft>(() => newBill(me, ids));
+  const [draft, setDraft] = React.useState<BillDraft>(() => ({ ...newBill(me, ids), ...definedOf(prefill) }));
+  const prefillTitle = prefill?.title;
+  const prefillAmount = prefill?.amount;
+  React.useEffect(() => {
+    if (prefillTitle !== undefined) setDraft((d) => (d.title === prefillTitle ? d : { ...d, title: prefillTitle }));
+  }, [prefillTitle]);
+  React.useEffect(() => {
+    if (prefillAmount !== undefined) setDraft((d) => (d.amount === prefillAmount ? d : { ...d, amount: prefillAmount }));
+  }, [prefillAmount]);
   const [errors, setErrors] = React.useState<BillErrors>({});
   const [busy, setBusy] = React.useState(false);
   const [failed, setFailed] = React.useState<string | null>(null);

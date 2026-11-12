@@ -13,6 +13,8 @@ spec:
     - default/cookpool/sdk
     - default/cookpool/web-console-next
     - default/cookpool/web-console-next-tests
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
     - specs/epics/cookpool-ai/**
     - tasks/AI-15.TaskContract.yaml
   doneWhen:

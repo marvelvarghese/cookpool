@@ -369,3 +369,64 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 **For later tasks:**
 - **AI-15:** reuse `spreadAdjustment` and `receiptAdjustments` / `includedAdjustMinor` from `receipt-adjust.ts`, and `ReceiptAdjustCard` with its own `adjustCard(...)` view-model (pass `itemsMinor`, `itemCount`, `paidMinor`).
 - **Deploy:** kitchen-worker's own source changed, so the merge redeploys it. The console changed too. Deploy order doesn't matter, because the console treats a missing `adjustments` as none.
+
+### AI6 — Money: scan a bill (AI-15)
+
+**Built.**
+- **Entry:** **Scan a bill**, a quiet button (`K_BUTTON_QUIET`) with a camera, at the top of Money's **+ Add a bill** sheet once a kitchen is picked (`BillForm` in `kitchen-money-ui.tsx`, above SE3's shared `AddBillForm`). It shows exactly where Scan a receipt does (`useScanBillShows` = AI-8's `useReceiptScanShows`): the new frame, `available` (no key, or the month's budget reached, makes it false), `features.receipt`, and this device's "Scan receipts" switch. Money is a new-frame tab, so today's frame is unchanged.
+- **The flow** (`bill-scan-ui.tsx`, `useBillScan`): the entry opens a pick card in the sheet: **Take a photo** (`capture="environment"`), **From photos**, and Close. The photo is shrunk with `shrinkReceiptPhoto` (1200 px, ≤ 1.5 M base64) and read with `client.kitchen.aiReceipt` through AI-8's `useReadReceipt`. While it reads, the card shows the photo, "Reading your bill…", a shimmer and Cancel. After the read, the bill's card shows the photo, "Beach Shack" and "8 Nov · 3 lines · bill ₹600", with a camera to scan another. Under it is AI-14's **`ReceiptAdjustCard`** when the bill has a tax, a charge or a discount.
+- **The prefill** (`bill-scan.ts`, pure):
+  - the **title** is the store, tidied and clipped to 120, else "Bill";
+  - the **date** is the receipt's when it is a real calendar day no later than today, else today. It is sent as `occurredAt` at local midday on that day; for today it is left out, so the server uses now;
+  - the **amount** is the printed total, or the lines (every line, food or not) plus the adjustments. Each switch turned off takes its part out (taxes and charges with the round-off, or the discounts), never below 0. With every switch on, it is the printed total. The card's total line uses AI-14's `adjustCard` (`itemsMinor` = base − adjustments, `paidMinor` = the printed total), so it always equals the amount.
+  - The title and the amount go into the form's fields, and each switch updates the amount field. Who paid and the split stay as the person set them. **Nothing is saved by the scan:** the form's own **Add bill** saves, through SE3's `addKitchenBill` (spliteco-worker, `bucket: "kitchen"`), with the date added.
+- **Refusals** use AI-8's `receiptError` words:
+  - no key: the entry hides, and an `ai_unavailable` read hides it at once;
+  - budget: "Cookpool AI is resting until the 1st · add by hand", and the entry hides;
+  - daily limit: "You've used today's AI scans · try tomorrow";
+  - anything else, or a read with no lines and no total: "Couldn't read this receipt · Retake or add by hand", with **Retake**;
+  - every refusal offers **Type it in**, which closes the scan and leaves the form as it was;
+  - a photo that can't be used: "Couldn't use this photo · try another" on the pick card.
+- **Server, a tiny additive change:** `POST /v1/kitchen/me/ai/receipt`'s `AiReceiptResponse` gains `date?: string` (`YYYY-MM-DD`, left out when none was read). The model already read the date (AI-3's schema and prompt); `receipt-match.ts` now passes it on. The prompt, `max_tokens`, model and cost are unchanged. It is optional in the type, so old clients ignore it.
+- **`packages/spliteco-ui`, a tiny additive change:** `AddBillForm` gains an optional `prefill?: { title?, amount? } | null`. The fields start with it and take each new value when it changes. spliteco-web doesn't pass it, so nothing changes there. `apps/spliteco-web` and `apps/spliteco-worker` are untouched. The contract's `affects` gains `spliteco-ui` and `spliteco-ui-tests` for this.
+
+**Departures and decisions.**
+- **The form is Money's shared `AddBillForm`** (SE3), not `expense-form.ts` or the group page's `/groups/[org]/expense`. Money's + Add a bill opens `AddBillForm`, and kitchen-worker's group page keeps its own form.
+- **No date field.** `AddBillForm` has none, so the date shows on the scan's card ("8 Nov") and travels as the request's `occurredAt`. Adding a date field to the shared form was more than a tiny change.
+- **No sessionStorage hand-off.** Spliteco's `/scan` is its own page and hands the draft to Add expense through sessionStorage. Here the scan and the form are in the same sheet, so the read stays in React state, and closing the sheet forgets it.
+- **No full-screen camera step.** AI-8's `ReceiptCapture` is a fixed full-screen dialog in the old look (extrabold, raw hex). Inside the sheet's modal it would sit over a focus-trapped dialog, so the pick step is a card in the sheet, in the new look. Take a photo and Retake are quiet buttons, so Add bill stays the one main button.
+- **Itemized:** the Money form splits equally only (SE3's departure), so no item assignment is added. Who had which line is Spliteco SE4's (`/scan` → Itemized and Live), which reads the same receipt route.
+- **The card's words are AI-14's** ("₹50 spread over 3 items by price"). For a bill split as one amount, "Items cost ₹600 in total, what you paid" is the total being split.
+
+**Tests.**
+- `tests/web-console-next`: new `kitchen-bill-scan.test.ts`, 23 tests:
+  - the title: store, tidying, "Bill", the clip;
+  - the date: the receipt's, today, an impossible day, after today, not a date, midday `occurredAt` and none for today, the date words;
+  - the amount: the total with the switches on; the lines plus included adjustments for each of the four switch states; switched-off parts out of the total, the round-off with taxes; every line counts; never below 0;
+  - the card's rows and total; no card without adjustments, with round-off alone, or with no lines; the prefill and its sub line; a usable read;
+  - the gate: shows, and hides with no key, budget, no receipt feature, the switch off, loading, or today's frame. The source check: the form reads the gate, fills through `prefill`, adds `occurredAt` and never saves in the scan;
+  - rendered: the quiet camera entry, and nothing when hidden; the pick step; the three refusals' words, with Type it in, and Retake only on failure; the result card with two switches on, and none without adjustments; no hex and no bold in both files.
+  - Whole package: 122 suites, 2,414 passed.
+- `tests/kitchen-worker`: `ai-receipt.test.ts` +2 (the date passed on; left out when null or not a date). Whole package: 58 suites, 1,203 passed.
+- `tests/spliteco-ui`: +1 (`AddBillForm` starts from `prefill` and leaves who paid and the split alone). Whole package: 16 passed.
+- `tests/contracts`: 346 passed, and `packages/sdk`: 266 passed, both unchanged.
+- `typecheck` and `lint` are clean for `@saas/web-console-next`, `-tests`, `@saas/kitchen-worker`, `-tests` (only its existing `no-console` warnings), `@saas/contracts`, `-tests`, `@saas/sdk`, `@saas/spliteco-ui`, `-tests` and `@saas/spliteco-web`.
+- `console-artifact.mjs build`: 45 pages as files, 17 `_redirects` rules; every page static.
+
+**Browser check** (390 × 844, `next dev` behind a local mock of the API on `cookpool-stage.localhost:47633`; every request in the network log went to that host):
+- **Light:** Money → + Add a bill → Flat 4B showed **Scan a bill** above the form. The pick card had Take a photo and From photos. A 3000 × 4000 JPEG through From photos was sent as a 147,340-character base64 JPEG (`/9j/…`).
+- Beach Shack (three lines totalling ₹600, GST ₹30, service ₹20, ₹50 happy-hour discount, ₹600 printed, dated 2026-11-08) filled "Beach Shack" and 600. The card read "8 Nov · 3 lines · bill ₹600", with both switches on and "Items cost ₹600 in total, what you paid".
+- Taxes off changed the amount to 550 and the card to "Items cost ₹550 in total · you paid ₹600". The payer, changed to Meera, stayed. Taxes back on gave 600.
+- No expense was posted until Add bill. Add bill, with Anu unticked, posted one expense: title Beach Shack, 60000, paid by Meera, equal between me and Meera, `bucket: "kitchen"`, `occurredAt: 2026-11-08T06:30:00.000Z` (midday IST).
+- **Dark:**
+  - The daily limit read "You've used today's AI scans · try tomorrow" with Type it in only, and Type it in closed it back to the entry.
+  - A failure read "Couldn't read this receipt · Retake or add by hand" with Retake and Type it in. Retake read the bill again.
+  - The result card and the Gold switches were readable.
+  - A bill with no store or date and no adjustments filled "Bill" and 450, read "today · 3 lines · bill ₹450", and showed no switches.
+  - The budget read "Cookpool AI is resting until the 1st · add by hand", and after Type it in the entry was gone.
+  - With no key (`available: false`), reloaded, the sheet had the form and no Scan a bill.
+
+**For later tasks:**
+- **Deploy:** kitchen-worker's own source changed, so the merge redeploys it. The console changed too. Order doesn't matter: until kitchen-worker is out, `date` is missing and the bill is dated today.
+- **spliteco-web** bundles `spliteco-ui`, but nothing there changed, so it needs no redeploy.
+- AI-8's camera, reading and result screens still use raw hex and extrabold. Restyling them is a revamp follow-up.

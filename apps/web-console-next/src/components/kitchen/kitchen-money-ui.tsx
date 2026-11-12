@@ -23,6 +23,7 @@ import { addKitchenBill, handoffCode, moneyError, useKitchenGroup } from "./kitc
 import { COOKPOOL_SPLITECO_THEME } from "./spliteco-theme";
 import { MORE_IN_SPLITECO, handoffUrl, splitecoOriginFor } from "./spliteco-link";
 import { useKitchenRouter } from "./transition-ui";
+import { BillScanPanel, useBillPrefill, useBillScan, useScanBillShows } from "./bill-scan-ui";
 
 /**
  * Cookpool's kitchen money on Spliteco (cookpool-spliteco SE3, design §0.4,
@@ -242,6 +243,10 @@ function BillForm({ orgId, onDone }: { orgId: string; onDone: () => void }) {
   const profile = useProfile();
   const read = useKitchenGroup(orgId);
   const key = React.useRef<string>(crypto.randomUUID());
+  const scanShows = useScanBillShows();
+  const scan = useBillScan();
+  const prefill = useBillPrefill(scan, read.data?.group.currency ?? "INR");
+  const formStart = React.useMemo(() => (prefill ? { title: prefill.title, amount: prefill.amount } : null), [prefill]);
   const me = profile.data?.id ?? null;
   if (read.loading || !me) return <Skeleton className="h-72 w-full rounded-[22px]" aria-hidden />;
   if (read.error || !read.data) return <p className="text-sm text-muted-foreground">Couldn&apos;t load the kitchen.</p>;
@@ -250,14 +255,20 @@ function BillForm({ orgId, onDone }: { orgId: string; onDone: () => void }) {
   const members = data.members.map((m) => ({ subjectId: m.subjectId, name: names.get(m.subjectId) ?? "Someone" }));
   return (
     <SplitecoUiProvider theme={COOKPOOL_SPLITECO_THEME}>
+      <div className="mb-3.5 empty:hidden">
+        <BillScanPanel scan={scan} prefill={prefill} shows={scanShows} />
+      </div>
       <AddBillForm
         members={members}
         me={me}
         currency={data.group.currency}
         bucket="kitchen"
         idPrefix={`bill-${orgId}`}
+        prefill={formStart}
         onSubmit={async (request) => {
-          await addKitchenBill(client, orgId, request, key.current);
+          // Scan a bill (AI-15): the bill's own date when it wasn't today. Nothing was saved before this Save.
+          const occurredAt = prefill?.occurredAt;
+          await addKitchenBill(client, orgId, occurredAt ? { ...request, occurredAt } : request, key.current);
           key.current = crypto.randomUUID();
           refreshLedger(qc, orgId);
           toast({ kind: "success", title: "Bill added" });
