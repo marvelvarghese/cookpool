@@ -1,0 +1,95 @@
+"use client";
+
+import * as React from "react";
+import { useSearchParams } from "next/navigation";
+import type { OAuthProviderInfo } from "@saas/contracts/auth";
+import { cn } from "@/lib/cn";
+import { wrap } from "@/lib/api";
+import { appConfig } from "@/lib/app-config";
+import { useSession } from "@/lib/session";
+import { loginPathFor } from "@/lib/safe-next";
+import { rememberLoginNext, rememberOAuthProvider } from "@/lib/login-return";
+import { typedEmail } from "@/lib/remembered-account";
+import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
+import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
+import { DEFAULT_HEADLINE, oauthReturnTo, offersGoogle } from "@/components/kitchen/sign-in";
+import { helpItems, writeToUsHref } from "@/components/kitchen/sign-in-screens";
+import { PitchPanel } from "@/components/kitchen/sign-in-ui";
+import { HelpScreen } from "@/components/kitchen/sign-in-help-ui";
+
+/**
+ * Can't sign in? (Cookpool PK-3, cookpool-passkeys design §3): a static page
+ * at `/login/help`, reached from Sign in and the code screen. It carries the
+ * sign-in's safe `next` there and back, and reads only what this tab typed on
+ * the sign-in page: it asks the API nothing about any address, so it never
+ * says whether an email has an account. Google is offered when the API lists
+ * it, as on Sign in.
+ */
+export default function LoginHelpPage() {
+  return (
+    <React.Suspense fallback={<Help rawNext={null} />}>
+      <HelpWithQuery />
+    </React.Suspense>
+  );
+}
+
+function HelpWithQuery() {
+  return <Help rawNext={useSearchParams().get("next")} />;
+}
+
+function Help({ rawNext }: { rawNext: string | null }) {
+  useKitchenBodyTheme();
+  const { client, target } = useSession();
+  const clientRef = React.useRef(client);
+  clientRef.current = client;
+
+  const [providers, setProviders] = React.useState<OAuthProviderInfo[]>([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    void wrap(() => clientRef.current.auth.listOAuthProviders()).then((r) => {
+      if (!cancelled && r.ok) setProviders(r.data.providers);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [target.url]);
+
+  const [typed, setTyped] = React.useState<string | null>(null);
+  const [contact, setContact] = React.useState("");
+  React.useEffect(() => {
+    setTyped(typedEmail());
+    setContact(appConfig().supportEmail);
+  }, []);
+
+  const [leaving, setLeaving] = React.useState(false);
+  const startGoogle = () => {
+    setLeaving(true);
+    rememberLoginNext(rawNext);
+    rememberOAuthProvider("google");
+    window.location.href = client.auth.oauthStartUrl("google", oauthReturnTo(window.location.origin, rawNext));
+  };
+
+  const signInHref = loginPathFor(rawNext);
+  return (
+    <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
+      <PitchPanel title={DEFAULT_HEADLINE} className="hidden min-[900px]:flex" />
+      <main
+        className={cn(
+          "flex justify-center px-5 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-[calc(env(safe-area-inset-top)+1rem)]",
+          "min-[900px]:flex-[1_1_420px] min-[900px]:items-center min-[900px]:px-6 min-[900px]:py-10",
+        )}
+      >
+        <div className="w-full max-w-md min-[900px]:max-w-[26rem]">
+          <HelpScreen
+            items={helpItems({ typedEmail: typed, googleOffered: offersGoogle(providers), supportEmail: contact })}
+            backHref={signInHref}
+            signInHref={signInHref}
+            writeHref={writeToUsHref(contact)}
+            onGoogle={startGoogle}
+            googleBusy={leaving}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}

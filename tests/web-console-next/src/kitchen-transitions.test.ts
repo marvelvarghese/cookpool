@@ -133,7 +133,7 @@ describe("the kind of a step (transitionKind)", () => {
       if (!isAppScreen(path) || path === "/home") continue;
       expect([path, kind("/home", path)]).toEqual([path, expect.stringMatching(/^(tab|forward|up)$/)]);
     }
-    expect(pages.filter((p) => !isAppScreen(p))).toEqual(["/", "/login", "/auth/callback"]);
+    expect(pages.filter((p) => !isAppScreen(p))).toEqual(["/", "/login", "/login/help", "/auth/callback"]);
   });
 
   it("measures depth by the parent map: tabs 0, a recipe 1, its plan 2", () => {

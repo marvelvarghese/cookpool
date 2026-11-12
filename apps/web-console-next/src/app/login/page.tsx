@@ -3,31 +3,32 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft } from "lucide-react";
 import type { AuthUser, OAuthProviderInfo } from "@saas/contracts/auth";
 import type { JoinPreviewPublic } from "@saas/contracts/membership";
 import { cn } from "@/lib/cn";
-import { wrap } from "@/lib/api";
+import { createClient, wrap } from "@/lib/api";
 import { qk } from "@/lib/query-keys";
 import { readStoredToken, useSession } from "@/lib/session";
 import { nameStepFrom, postLoginDestination, signedOutFrom } from "@/lib/safe-next";
 import { rememberJoinAfterSignIn, rememberLoginNext, rememberOAuthProvider } from "@/lib/login-return";
 import { markNameAsked, rememberSignInMethod } from "@/lib/first-run";
+import {
+  forgetRememberedAccount,
+  readRememberedAccount,
+  rememberAccount,
+  rememberAccountName,
+  rememberTypedEmail,
+  typedEmail,
+} from "@/lib/remembered-account";
 import { applyNewName } from "@/components/kitchen/data";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
 import {
-  CODE_LENGTH,
-  CODE_LIFETIME_MINUTES,
   CODE_REPLACED_NOTICE,
-  DESKTOP_SUBTITLE,
   INITIAL_SIGN_IN,
   INVALID_EMAIL_NOTICE,
   SIGNED_OUT_NOTICE,
-  START_SUBTITLE,
-  TERMS_SENTENCE,
   canSaveName,
   canVerify,
   cleanDisplayName,
@@ -43,32 +44,41 @@ import {
   oauthReturnTo,
   offersGoogle,
   replacementRefusedNotice,
-  resendControl,
   sanitizeCode,
   saveNameOutcome,
   showsDeveloperSignIn,
   signInEnvironment,
   signInReducer,
-  startHeadline,
   startRefusal,
-  termsLine,
   testCodeFor,
   type SignInEnvironment,
 } from "@/components/kitchen/sign-in";
 import {
+  RESENT_NOTICE,
+  canStartSignUp,
+  codeBoxes,
+  codeStepLabel,
+  continueMethod,
+  formTitle,
+  gmailInboxUrl,
+  heroTitle,
+  helpPathFor,
+  rememberedCard,
+  resendButton,
+  signUpNameToSave,
+  type RememberedAccount,
+} from "@/components/kitchen/sign-in-screens";
+import {
   DeveloperSignIn,
-  GoogleButton,
   JoinCardSkeleton,
   JoinCardView,
   NameStep,
   NoticeBox,
-  OrDivider,
   PitchPanel,
-  SIGN_IN_INPUT,
-  SIGN_IN_PRIMARY,
-  SIGN_IN_PRIMARY_IDLE,
   SignInMark,
 } from "@/components/kitchen/sign-in-ui";
+import { WelcomeHero } from "@/components/kitchen/sign-in-screens-ui";
+import { CodeStep, StartStep } from "@/components/kitchen/sign-in-steps-ui";
 
 /**
  * Sign-in (Cookpool SI-5, design §5): one page for Cookpool and the admin
@@ -91,6 +101,13 @@ import {
  * once-only ask come back here as `?step=name`: the page reads the profile
  * and asks, or goes straight on when there is a name, when the read fails
  * (never a trap), or to the start when the token is no longer accepted.
+ *
+ * The getting-in screens (PK-3, cookpool-passkeys design §3), in every frame:
+ * Sign in · Create account tabs under the green welcome panel; the account
+ * remembered on this device ("Continue as Rahul", by its last method, and
+ * "Use another account"); Create account takes the name up front and saves
+ * it after the code only when the account has none; the code fills six boxes
+ * from one input; and "Can't sign in?" opens `/login/help`.
  */
 
 type JoinLookup =
@@ -177,6 +194,20 @@ function SignInPage({ params }: { params: LoginParams }) {
   const [state, dispatch] = React.useReducer(signInReducer, INITIAL_SIGN_IN);
   const [now, setNow] = React.useState(() => Date.now());
 
+  // The account remembered on this device (PK-3), read after mount (the page
+  // is a prerendered file). Until it is read the start shows nothing below
+  // the tabs, so a returning person never sees the empty form flash first.
+  const [remembered, setRemembered] = React.useState<RememberedAccount | null>(null);
+  const [rememberedRead, setRememberedRead] = React.useState(false);
+  React.useEffect(() => {
+    setRemembered(readRememberedAccount());
+    setRememberedRead(true);
+    // Back from Can't sign in?: the address this tab typed is still there.
+    const typed = typedEmail();
+    if (typed) dispatch({ type: "email", value: typed });
+  }, []);
+  const [codeFocused, setCodeFocused] = React.useState(false);
+
   // `?step=name` (SI-6): someone already signed in whose profile may have no
   // name. Read it once; until then the form waits. No token here means no
   // session: the page is the plain sign-in page.
@@ -222,6 +253,7 @@ function SignInPage({ params }: { params: LoginParams }) {
   const emailRef = React.useRef<HTMLInputElement>(null);
   const codeRef = React.useRef<HTMLInputElement>(null);
   const nameRef = React.useRef<HTMLInputElement>(null);
+  const signUpNameRef = React.useRef<HTMLInputElement>(null);
   const lastStep = React.useRef(state.step);
   React.useEffect(() => {
     // Focus follows the step (not on first load: no keyboard until asked
@@ -231,9 +263,17 @@ function SignInPage({ params }: { params: LoginParams }) {
     lastStep.current = state.step;
     if (from === state.step) return;
     if (state.step === "code") codeRef.current?.focus();
-    else if (state.step === "start") emailRef.current?.focus();
+    else if (state.step === "start") (state.mode === "new" ? signUpNameRef : emailRef).current?.focus();
     else if (from === "code") nameRef.current?.focus();
   }, [state.step]);
+
+  // Switching tabs puts the cursor in the tab's first field (not on first load).
+  const lastMode = React.useRef(state.mode);
+  React.useEffect(() => {
+    if (lastMode.current === state.mode) return;
+    lastMode.current = state.mode;
+    if (state.step === "start") (state.mode === "new" ? signUpNameRef : emailRef).current?.focus();
+  }, [state.mode, state.step]);
 
   const preview = join.state === "found" ? join.preview : null;
   const withGoogle = offersGoogle(providers);
@@ -244,10 +284,29 @@ function SignInPage({ params }: { params: LoginParams }) {
     if (joinCode && join.state === "found") rememberJoinAfterSignIn(joinCode);
   };
 
-  const signedIn = (token: string, user: AuthUser) => {
+  const signedIn = async (token: string, user: AuthUser) => {
     setToken(token);
     rememberSignInMethod("code");
+    rememberAccount(user, "code");
     rememberJoin();
+    // Create account (PK-3): the name typed up front, saved now, only when
+    // this account has none. If it cannot be saved, the Name step asks again.
+    const toSave = signUpNameToSave(state, user);
+    if (toSave) {
+      // The session's client still has no token on this render: ask with the new one.
+      const r = await wrap(() => createClient(target, token).auth.updateProfile({ displayName: toSave }));
+      if (r.ok) {
+        applyNewName(qc, r.data.user);
+        rememberAccountName(user.email, toSave);
+        router.replace(destination);
+        return;
+      }
+      markNameAsked(user.id);
+      dispatch({ type: "ask_name", email: user.email, name: toSave });
+      const outcome = saveNameOutcome(r.error, r.status);
+      if (outcome.kind === "refused") dispatch({ type: "name_refused", notice: outcome.notice });
+      return;
+    }
     if (needsName(user)) {
       // New here (or never named): the Name step, then `next` (SI-6).
       markNameAsked(user.id);
@@ -265,6 +324,7 @@ function SignInPage({ params }: { params: LoginParams }) {
     if (r.ok) {
       // Home, People and the group's members show it at once.
       applyNewName(qc, r.data.user);
+      rememberAccountName(r.data.user.email, displayName);
       // "Join Flat 4B" is a yes to joining: the join page joins without asking again.
       rememberJoin();
       router.replace(destination);
@@ -280,8 +340,8 @@ function SignInPage({ params }: { params: LoginParams }) {
     dispatch({ type: "name_refused", notice: outcome.notice });
   };
 
-  const sendCode = async (mode: "first" | "again" | "replace") => {
-    const email = state.email.trim();
+  const sendCode = async (mode: "first" | "again" | "replace", to?: string) => {
+    const email = (to ?? state.email).trim();
     if (mode === "first" && !looksLikeEmail(email)) {
       dispatch({
         type: "refused",
@@ -291,6 +351,7 @@ function SignInPage({ params }: { params: LoginParams }) {
       emailRef.current?.focus();
       return;
     }
+    if (mode === "first") rememberTypedEmail(email);
     dispatch({ type: "busy", busy: "send" });
     const r = await wrap(() => client.auth.loginStart({ email }));
     const at = Date.now();
@@ -303,7 +364,12 @@ function SignInPage({ params }: { params: LoginParams }) {
         testCode: testCodeFor(env, r.data.delivery),
         at,
         resent: mode !== "first",
-        notice: mode === "replace" ? { tone: "info", text: CODE_REPLACED_NOTICE } : null,
+        notice:
+          mode === "replace"
+            ? { tone: "info", text: CODE_REPLACED_NOTICE }
+            : mode === "again"
+              ? { tone: "success", text: RESENT_NOTICE }
+              : null,
       });
       return;
     }
@@ -321,7 +387,7 @@ function SignInPage({ params }: { params: LoginParams }) {
     dispatch({ type: "busy", busy: "verify" });
     const r = await wrap(() => client.auth.loginComplete({ challengeId, code }));
     if (r.ok) {
-      signedIn(r.data.token, r.data.user);
+      await signedIn(r.data.token, r.data.user);
       return;
     }
     const outcome = completeOutcome(r.error, r.status);
@@ -362,244 +428,169 @@ function SignInPage({ params }: { params: LoginParams }) {
     window.location.href = client.auth.oauthStartUrl("google", oauthReturnTo(window.location.origin, rawNext));
   };
 
+  /** "Continue as Rahul": the way this device signed in last, Google or a code to the remembered address. */
+  const continueAsRemembered = () => {
+    if (!remembered || state.busy !== null || leaving) return;
+    if (continueMethod(remembered, withGoogle) === "google") {
+      startGoogle();
+      return;
+    }
+    dispatch({ type: "email", value: remembered.email });
+    void sendCode("first", remembered.email);
+  };
+
+  /** "Use another account": forget it here, and start from the empty form. */
+  const forgetRemembered = () => {
+    forgetRememberedAccount();
+    setRemembered(null);
+    dispatch({ type: "email", value: "" });
+    window.requestAnimationFrame(() => emailRef.current?.focus());
+  };
+
+  const submitStart = () => {
+    if (state.busy !== null) return;
+    if (state.mode === "new" && !canStartSignUp(state)) return;
+    void sendCode("first");
+  };
+
   const joinLoading = join.state === "loading";
-  const resend = resendControl(state, now);
   const wrong = state.rejectedCode !== null && state.code === state.rejectedCode;
   const ready = canVerify(state);
-  const noticeId = state.notice ? "sign-in-notice" : undefined;
   const naming = state.step === "name";
+  const starting = state.step === "start" && !naming && !checkingName;
+  const helpHref = helpPathFor(rawNext);
+  const panelTitle = heroTitle(state.mode, remembered !== null, null);
 
   return (
     <div className={cn(...KITCHEN_THEME_CLASSES, "min-h-dvh bg-background text-foreground min-[900px]:flex")}>
-      <PitchPanel className="hidden min-[900px]:flex" />
+      <PitchPanel title={panelTitle} className="hidden min-[900px]:flex" />
 
-      <main
-        className={cn(
-          "flex justify-center px-5 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+1.25rem)]",
-          "min-[900px]:flex-[1_1_420px] min-[900px]:items-center min-[900px]:px-6 min-[900px]:py-10",
-        )}
-      >
-        <div className="flex w-full max-w-md flex-col gap-4 min-[900px]:max-w-[26rem] min-[900px]:gap-[18px]">
-          <SignInMark className="min-[900px]:hidden" />
+      <div className="flex min-h-dvh flex-col min-[900px]:flex-[1_1_420px]">
+        {starting ? (
+          <WelcomeHero title={heroTitle(state.mode, remembered !== null, preview)} className="min-[900px]:hidden" />
+        ) : null}
 
-          {(signedOut || sessionEnded) && !naming && !checkingName ? (
-            <NoticeBox notice={{ tone: "info", text: SIGNED_OUT_NOTICE }} />
-          ) : null}
+        <main
+          className={cn(
+            "flex flex-1 justify-center px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]",
+            starting ? "pt-[18px]" : "pt-[calc(env(safe-area-inset-top)+1rem)]",
+            "min-[900px]:items-center min-[900px]:px-6 min-[900px]:py-10",
+          )}
+        >
+          <div className="flex w-full max-w-md flex-col gap-4 min-[900px]:max-w-[26rem]">
+            {!starting && state.step !== "code" ? <SignInMark className="min-[900px]:hidden" /> : null}
 
-          {joinLoading ? (
-            <JoinCardSkeleton />
-          ) : preview ? (
-            <JoinCardView card={joinCard(preview, { joining: naming || checkingName })} />
-          ) : null}
+            {(signedOut || sessionEnded) && !naming && !checkingName ? (
+              <NoticeBox notice={{ tone: "info", text: SIGNED_OUT_NOTICE }} />
+            ) : null}
 
-          {checkingName ? (
-            <div role="status" className="space-y-3 px-0.5 pt-1.5">
-              <span className="sr-only">Checking your account…</span>
-              <Skeleton aria-hidden className="h-4 w-40" />
-              <Skeleton aria-hidden className="h-8 w-full" />
-              <Skeleton aria-hidden className="h-8 w-2/3" />
-              <Skeleton aria-hidden className="mt-4 h-[52px] w-full rounded-[14px]" />
-            </div>
-          ) : naming ? (
-            <NameStep
-              name={state.name}
-              onName={(value) => dispatch({ type: "name", value })}
-              onSubmit={() => void saveName()}
-              onLater={() => router.replace(destination)}
-              action={nameStepAction(preview)}
-              canSave={canSaveName(state)}
-              saving={state.busy === "save"}
-              saveFailed={state.nameSaveFailed}
-              notice={state.notice}
-              inputRef={nameRef}
-            />
-          ) : state.step === "start" ? (
-            <section aria-labelledby="sign-in-title" className="flex flex-col gap-4 min-[900px]:gap-[18px]">
-              {joinLoading ? (
-                <div aria-hidden className="space-y-2 px-0.5 pt-1.5">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-2/3" />
-                  <Skeleton className="mt-3 h-4 w-4/5" />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2 px-0.5 pt-1.5 min-[900px]:p-0">
-                  <h1
-                    id="sign-in-title"
-                    className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]"
-                  >
-                    <span className="min-[900px]:hidden">{startHeadline(preview)}</span>
-                    <span className="hidden min-[900px]:inline">{desktopTitle(preview)}</span>
-                  </h1>
-                  <p className="text-[15px] leading-normal text-muted-foreground">
-                    <span className="min-[900px]:hidden">{START_SUBTITLE}</span>
-                    <span className="hidden min-[900px]:inline">{DESKTOP_SUBTITLE}</span>
-                  </p>
-                </div>
-              )}
+            {state.step === "code" ? null : joinLoading ? (
+              <JoinCardSkeleton />
+            ) : preview ? (
+              <JoinCardView card={joinCard(preview, { joining: naming || checkingName || state.mode === "new" })} />
+            ) : null}
 
-              {withGoogle ? (
-                <>
-                  <GoogleButton onClick={startGoogle} busy={leaving} />
-                  <OrDivider />
-                </>
-              ) : null}
-
-              <form
-                noValidate
-                className="flex flex-col gap-4 min-[900px]:gap-[18px]"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (state.busy === null) void sendCode("first");
-                }}
-              >
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="sign-in-email" className="text-sm font-bold">
-                    Email
-                  </label>
-                  <input
-                    ref={emailRef}
-                    id="sign-in-email"
-                    name="email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    placeholder="you@example.com"
-                    value={state.email}
-                    onChange={(e) => dispatch({ type: "email", value: e.target.value })}
-                    aria-invalid={state.notice?.tone === "error" || undefined}
-                    aria-describedby={noticeId}
-                    className={SIGN_IN_INPUT}
-                  />
-                </div>
-                {state.notice ? <NoticeBox id={noticeId} notice={state.notice} /> : null}
-                <Button type="submit" loading={state.busy === "send"} className={SIGN_IN_PRIMARY}>
-                  Email me a code
-                </Button>
-              </form>
-
-              <p className="text-[13px] leading-normal text-muted-foreground">
-                <span className="min-[900px]:hidden">{termsLine(withGoogle)}</span>
-                <span className="hidden min-[900px]:inline">{TERMS_SENTENCE}</span>
-              </p>
-            </section>
-          ) : (
-            <section aria-labelledby="code-title" className="flex flex-col gap-4 min-[900px]:gap-[18px]">
-              <button
-                type="button"
-                onClick={() => dispatch({ type: "back" })}
-                className="-ml-1.5 inline-flex min-h-11 items-center gap-1.5 self-start rounded-xl pl-1.5 pr-3 text-sm font-bold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <ChevronLeft className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
-                Use a different email
-              </button>
-              <div className="flex flex-col gap-2">
-                <h1
-                  id="code-title"
-                  className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.025em] min-[900px]:text-[30px]"
-                >
-                  Check your email
-                </h1>
-                <p className="text-[15px] leading-normal text-muted-foreground">
-                  We sent a {CODE_LENGTH}-digit code to{" "}
-                  <strong className="font-bold text-foreground [overflow-wrap:anywhere]">{state.email}</strong>. It works for{" "}
-                  {CODE_LIFETIME_MINUTES} minutes.
-                </p>
+            {checkingName ? (
+              <div role="status" className="space-y-3 px-0.5 pt-1.5">
+                <span className="sr-only">Checking your account…</span>
+                <Skeleton aria-hidden className="h-4 w-40" />
+                <Skeleton aria-hidden className="h-8 w-full" />
+                <Skeleton aria-hidden className="h-8 w-2/3" />
+                <Skeleton aria-hidden className="mt-4 h-[52px] w-full rounded-[14px]" />
               </div>
-
-              <form
-                noValidate
-                className="flex flex-col gap-4 min-[900px]:gap-[18px]"
-                onSubmit={(e) => {
-                  e.preventDefault();
+            ) : naming ? (
+              <NameStep
+                name={state.name}
+                onName={(value) => dispatch({ type: "name", value })}
+                onSubmit={() => void saveName()}
+                onLater={() => router.replace(destination)}
+                action={nameStepAction(preview)}
+                canSave={canSaveName(state)}
+                saving={state.busy === "save"}
+                saveFailed={state.nameSaveFailed}
+                notice={state.notice}
+                inputRef={nameRef}
+              />
+            ) : state.step === "start" ? (
+              rememberedRead ? (
+                <StartStep
+                  mode={state.mode}
+                  onMode={(mode) => dispatch({ type: "tab", mode })}
+                  title={state.mode === "in" ? desktopTitle(preview) : formTitle("new")}
+                  remembered={remembered ? rememberedCard(remembered) : null}
+                  onContinue={continueAsRemembered}
+                  onForget={forgetRemembered}
+                  continuing={state.busy === "send" || leaving}
+                  withGoogle={withGoogle}
+                  googleBusy={leaving}
+                  onGoogle={startGoogle}
+                  email={state.email}
+                  onEmail={(value) => dispatch({ type: "email", value })}
+                  signUpName={state.signUpName}
+                  onSignUpName={(value) => dispatch({ type: "sign_up_name", value })}
+                  notice={state.notice}
+                  sending={state.busy === "send"}
+                  canSignUp={canStartSignUp(state)}
+                  onSubmit={submitStart}
+                  helpHref={helpHref}
+                  emailRef={emailRef}
+                  nameRef={signUpNameRef}
+                />
+              ) : (
+                <div aria-hidden className="h-[52px]" />
+              )
+            ) : (
+              <CodeStep
+                stepLabel={codeStepLabel(state.mode)}
+                email={state.email}
+                onBack={() => dispatch({ type: "back" })}
+                boxes={codeBoxes(state.code, { wrong, focused: codeFocused })}
+                code={state.code}
+                disabled={state.challengeId === null}
+                wrong={wrong}
+                testCode={state.testCode}
+                notice={state.notice}
+                verifying={state.busy === "verify"}
+                onCode={onCodeInput}
+                onPaste={(pasted) => {
+                  // "246 810" or "246-810" is longer than the field allows;
+                  // keep its digits rather than a truncated paste.
+                  if (sanitizeCode(pasted) === pasted) return false;
+                  onCodeInput(pasted);
+                  return true;
+                }}
+                onFocusChange={setCodeFocused}
+                onSubmit={() => {
                   if (ready) void verify(state.code);
                 }}
-              >
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="sign-in-code" className="text-sm font-bold">
-                    {CODE_LENGTH}-digit code
-                  </label>
-                  <input
-                    ref={codeRef}
-                    id="sign-in-code"
-                    name="code"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={CODE_LENGTH}
-                    placeholder="••••••"
-                    value={state.code}
-                    disabled={state.challengeId === null}
-                    onChange={(e) => onCodeInput(e.target.value)}
-                    onPaste={(e) => {
-                      // "246 810" or "246-810" is longer than the field allows;
-                      // keep its digits rather than a truncated paste.
-                      const pasted = e.clipboardData.getData("text");
-                      if (sanitizeCode(pasted) !== pasted) {
-                        e.preventDefault();
-                        onCodeInput(pasted);
-                      }
-                    }}
-                    aria-invalid={wrong || undefined}
-                    aria-describedby={noticeId}
-                    className={cn(
-                      "h-16 w-full rounded-2xl bg-card px-3.5 text-center indent-[0.45em] text-[30px] font-bold tracking-[0.45em] tabular-nums text-foreground",
-                      "placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
-                      wrong ? "border-2 border-destructive" : "border border-input",
-                    )}
-                  />
-                  {state.testCode ? (
-                    <p className="text-sm text-muted-foreground">
-                      Test code: <span className="font-bold tabular-nums text-foreground">{state.testCode}</span>
-                    </p>
-                  ) : null}
-                </div>
-                {state.notice ? <NoticeBox id={noticeId} notice={state.notice} /> : null}
-                <Button
-                  type="submit"
-                  disabled={!ready}
-                  loading={state.busy === "verify"}
-                  className={cn(SIGN_IN_PRIMARY, !ready && state.busy !== "verify" && SIGN_IN_PRIMARY_IDLE)}
-                >
-                  Sign in
-                </Button>
-              </form>
+                gmailUrl={gmailInboxUrl(state.email)}
+                resend={resendButton(state, now)}
+                onResend={() => void sendCode("again")}
+                helpHref={helpHref}
+                codeRef={codeRef}
+              />
+            )}
 
-              <div className="flex flex-col items-start gap-1 text-sm text-muted-foreground">
-                <span>No email? Check your spam folder.</span>
-                <button
-                  type="button"
-                  disabled={resend.disabled}
-                  onClick={() => void sendCode("again")}
-                  className="min-h-11 rounded-lg text-sm font-bold text-primary tabular-nums hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
-                >
-                  {resend.label}
-                </button>
-              </div>
-            </section>
-          )}
-
-          {showsDeveloperSignIn(env) && !naming && !checkingName ? (
-            <DeveloperSignIn
-              targets={availableTargets}
-              target={target.name}
-              locked={isLocked}
-              onTarget={(name) => {
-                const next = availableTargets.find((t) => t.name === name);
-                if (next) setTarget(next);
-              }}
-              onToken={(token) => {
-                setToken(token);
-                // A pasted token says nothing about how its person signs in.
-                rememberSignInMethod(null);
-                router.replace(destination);
-              }}
-            />
-          ) : null}
-        </div>
-      </main>
+            {showsDeveloperSignIn(env) && !naming && !checkingName ? (
+              <DeveloperSignIn
+                targets={availableTargets}
+                target={target.name}
+                locked={isLocked}
+                onTarget={(name) => {
+                  const next = availableTargets.find((t) => t.name === name);
+                  if (next) setTarget(next);
+                }}
+                onToken={(token) => {
+                  setToken(token);
+                  // A pasted token says nothing about how its person signs in.
+                  rememberSignInMethod(null);
+                  router.replace(destination);
+                }}
+              />
+            ) : null}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

@@ -27,14 +27,16 @@
 export const PLACEHOLDER = "_";
 
 /**
- * Cookpool's pages (the `(kitchen)` routes), sign-in, the OAuth return and the
- * entry page, by route: a `:name` segment is a dynamic one. The admin console
+ * Cookpool's pages (the `(kitchen)` routes), sign-in and its Can't sign in?,
+ * the OAuth return and the entry page, by route: a `:name` segment is a dynamic one. The admin console
  * (`/orgs…`, `/account…`), `/onboarding` and `/demo` are not here: the Worker
  * keeps serving them.
  */
 export const STATIC_PAGES = Object.freeze([
   "/",
   "/login",
+  // Can't sign in? (cookpool-passkeys PK-3).
+  "/login/help",
   "/auth/callback",
   "/home",
   "/use",

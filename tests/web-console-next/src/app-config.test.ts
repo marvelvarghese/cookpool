@@ -26,7 +26,7 @@ describe("resolveAppConfig", () => {
   });
 
   it("takes each field from its runtime var", () => {
-    const cfg = resolveAppConfig({ ...acme, CONSOLE_SALES_EMAIL: "sales@acme.dev", CONSOLE_DEPLOY_ENV: "stage" });
+    const cfg = resolveAppConfig({ ...acme, CONSOLE_SALES_EMAIL: "sales@acme.dev", CONSOLE_SUPPORT_EMAIL: "help@acme.dev", CONSOLE_DEPLOY_ENV: "stage" });
     expect(cfg).toEqual({
       productName: "Acme Cloud",
       productDescription: DEFAULT_APP_CONFIG.productDescription,
@@ -34,6 +34,7 @@ describe("resolveAppConfig", () => {
       apiWorkerPrefix: "acme-cloud-api-edge",
       storagePrefix: "acme-cloud.next",
       salesEmail: "sales@acme.dev",
+      supportEmail: "help@acme.dev",
       customDomains: DEFAULT_APP_CONFIG.customDomains,
       mcpPublicUrls: DEFAULT_APP_CONFIG.mcpPublicUrls,
       deployEnv: "stage",

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Check, CircleAlert, CookingPot, Info } from "lucide-react";
+import { PANEL_CHIPS, PANEL_FOOTER, PANEL_LINE } from "./sign-in-screens";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,14 +62,31 @@ export function SignInMark({
   );
 }
 
-const PITCH = [
-  "Shared pantries: whoever has the milk pays for the milk.",
-  "Cook from any pantry; everyone who eats owes the cook by portion.",
-  "Settle up in each group with the fewest payments.",
-] as const;
+/** The panel's chips (`AuthWelcome`, `WebAuth`): white-on-green, the last one solid. */
+export function PanelChips({ large = false }: { large?: boolean }) {
+  return (
+    <div aria-hidden className={cn("flex flex-wrap", large ? "gap-2.5" : "gap-2")}>
+      {PANEL_CHIPS.map((chip, i) => (
+        <span
+          key={chip}
+          className={cn(
+            "rounded-full",
+            large ? "px-3.5 py-[9px] text-[15px]" : "px-3 py-[7px] text-[13px]",
+            i === PANEL_CHIPS.length - 1 ? "bg-white font-extrabold text-primary" : "bg-white/[0.16] font-bold",
+          )}
+        >
+          {chip}
+        </span>
+      ))}
+    </div>
+  );
+}
 
-/** The green panel beside the form from 900px (`WebSignIn`). */
-export function PitchPanel({ className }: { className?: string }) {
+/**
+ * The green panel beside the form from 900px (`WebAuth`, PK-3): the mark,
+ * the headline the tab chooses, the chips and one line about Cookpool.
+ */
+export function PitchPanel({ title, className }: { title: string; className?: string }) {
   return (
     <section
       aria-label="About Cookpool"
@@ -78,39 +96,12 @@ export function PitchPanel({ className }: { className?: string }) {
       )}
     >
       <SignInMark inverse large />
-      <div className="flex max-w-[34rem] flex-col gap-7">
-        <h2 className="text-[clamp(32px,4vw,52px)] font-extrabold leading-[1.05] tracking-[-0.03em]">
-          Cook together.
-          <br />
-          Pay for what you use.
-        </h2>
-        <ul className="flex flex-col gap-3.5 text-[17px] leading-[1.45]">
-          {PITCH.map((line) => (
-            <li key={line} className="flex items-start gap-3">
-              <Check className="mt-px h-[22px] w-[22px] shrink-0" strokeWidth={2.2} aria-hidden />
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
-        <div
-          aria-hidden
-          className="flex max-w-[26rem] flex-col gap-2.5 rounded-[22px] bg-card px-5 py-[18px] text-foreground shadow-[0_18px_40px_rgba(10,40,24,0.25)]"
-        >
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-base font-extrabold">Paneer butter masala</span>
-            <span className="text-sm text-muted-foreground">4 portions</span>
-          </div>
-          <div className="flex justify-between gap-3 text-[15px] tabular-nums">
-            <span className="text-muted-foreground">Each portion</span>
-            <span className="font-extrabold">₹52.75</span>
-          </div>
-          <div className="flex justify-between gap-3 text-[15px] tabular-nums">
-            <span className="text-muted-foreground">Anu owes you</span>
-            <span className="font-extrabold text-cp-owed">₹40.75</span>
-          </div>
-        </div>
+      <div className="flex max-w-[34rem] flex-col gap-6">
+        <p className="text-[clamp(34px,4vw,54px)] font-extrabold leading-[1.05] tracking-[-0.03em]">{title}</p>
+        <PanelChips large />
+        <p className="text-[17px] leading-normal text-[#E4F2EA]">{PANEL_LINE}</p>
       </div>
-      <p className="text-[13px] text-[#CFE7DA]">Flatmates, hostels, lunch clubs, families.</p>
+      <p className="text-[13px] text-[#CFE7DA]">{PANEL_FOOTER}</p>
     </section>
   );
 }
@@ -151,14 +142,15 @@ export function NoticeBox({
   className?: string;
 }) {
   const error = notice.tone === "error";
-  const Icon = error ? CircleAlert : Info;
+  const success = notice.tone === "success";
+  const Icon = error ? CircleAlert : success ? Check : Info;
   return (
     <div
       id={id}
       role={error ? "alert" : "status"}
       className={cn(
         "flex items-start gap-2.5 rounded-[14px] px-3.5 py-3 text-sm font-semibold leading-[1.45]",
-        error ? "bg-cp-expired-tint text-cp-expired" : "bg-cp-soon-tint text-cp-soon",
+        error ? "bg-cp-expired-tint text-cp-expired" : success ? "bg-[#E4F2EA] font-bold text-[#165C3A]" : "bg-cp-soon-tint text-cp-soon",
         className,
       )}
     >
@@ -179,7 +171,15 @@ export function GoogleMark({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-export function GoogleButton({ onClick, busy = false }: { onClick: () => void; busy?: boolean }) {
+export function GoogleButton({
+  onClick,
+  busy = false,
+  label = "Continue with Google",
+}: {
+  onClick: () => void;
+  busy?: boolean;
+  label?: string;
+}) {
   return (
     <Button
       type="button"
@@ -189,16 +189,16 @@ export function GoogleButton({ onClick, busy = false }: { onClick: () => void; b
       className="h-[54px] w-full gap-3 rounded-2xl border-input bg-card px-5 text-base font-bold text-foreground hover:bg-accent"
     >
       {busy ? null : <GoogleMark />}
-      Continue with Google
+      {label}
     </Button>
   );
 }
 
-export function OrDivider() {
+export function OrDivider({ label = "or" }: { label?: string }) {
   return (
     <div className="flex items-center gap-3 text-[13px] font-semibold text-muted-foreground">
       <span aria-hidden className="h-px flex-1 bg-[#D5DAD2]" />
-      or
+      {label}
       <span aria-hidden className="h-px flex-1 bg-[#D5DAD2]" />
     </div>
   );
