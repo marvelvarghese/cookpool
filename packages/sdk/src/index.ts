@@ -14,6 +14,7 @@ import { ApiKeysClient } from "./apiKeys.js";
 import { AuthClient } from "./auth.js";
 import { IntegrationsClient } from "./integrations.js";
 import { KitchenClient } from "./kitchen.js";
+import { SplitecoClient } from "./spliteco.js";
 import { BillingClient } from "./billing.js";
 import { ConfigClient } from "./config.js";
 import { EnvironmentsClient } from "./environments.js";
@@ -43,6 +44,8 @@ export class Cookpool {
   readonly auth: AuthClient;
   readonly integrations: IntegrationsClient;
   readonly kitchen: KitchenClient;
+  /** Spliteco (cookpool-spliteco SE1): groups, expenses and balances under /v1/spliteco. */
+  readonly spliteco: SplitecoClient;
   /** Underlying HTTP transport. Exposed for advanced extension. */
   readonly transport: Transport;
 
@@ -63,6 +66,7 @@ export class Cookpool {
     this.auth = new AuthClient(this.transport);
     this.integrations = new IntegrationsClient(this.transport);
     this.kitchen = new KitchenClient(this.transport);
+    this.spliteco = new SplitecoClient(this.transport);
   }
 }
 
@@ -102,6 +106,7 @@ export { NotificationsClient } from "./notifications.js";
 export { AuthClient } from "./auth.js";
 export { IntegrationsClient } from "./integrations.js";
 export { KitchenClient } from "./kitchen.js";
+export { SplitecoClient } from "./spliteco.js";
 
 // Transport surface.
 export {
@@ -904,3 +909,24 @@ export {
   AI_RECIPE_PHOTO_MAX_STEPS,
   AI_RECIPE_PHOTO_DEFAULT_SERVES_HALF,
 } from "@saas/contracts/kitchen";
+
+// Spliteco (cookpool-spliteco SE1).
+export type * from "@saas/contracts/spliteco";
+export {
+  SPLITECO_ACTIONS,
+  SPLITECO_MADE_IN,
+  SPLITECO_GROUP_KINDS,
+  SPLITECO_CREATE_KINDS,
+  SPLITECO_CATEGORIES,
+  SPLITECO_SPLIT_METHODS,
+  SPLITECO_ITEM_SHARE_MODES,
+  SPLITECO_ADJUSTMENT_KINDS,
+  SPLITECO_RESTORE_DAYS,
+  SPLITECO_BUCKETS,
+  SPLITECO_PORTION_SCALE,
+  SPLITECO_PCT_SCALE,
+  SPLITECO_LIMITS,
+  SPLITECO_ERROR_REASONS,
+  isSplitecoMonth,
+  splitecoRestorableUntil,
+} from "@saas/contracts/spliteco";
