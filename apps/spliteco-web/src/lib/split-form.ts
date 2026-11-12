@@ -184,7 +184,8 @@ export function splitInput(form: ExpenseForm): SplitecoSplitInput {
         method: "adjust",
         participants: m.map((id) => ({
           subjectId: id,
-          adjustMinor: (form.adjust[id] ?? "").trim() === "" ? 0 : (parseMoney(form.adjust[id]!, { signed: true }) ?? Number.NaN),
+          // A lone sign (the keypad's ± before any digit) is nothing yet.
+          adjustMinor: /^[+-]?$/.test((form.adjust[id] ?? "").trim()) ? 0 : (parseMoney(form.adjust[id]!, { signed: true }) ?? Number.NaN),
         })),
       };
     case "items": {
