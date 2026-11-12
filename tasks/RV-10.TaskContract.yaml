@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-10
+  title: "Kitchen: tick to log, with the unit picker"
+spec:
+  goal: "Kitchen rows show the last use, the usual amount in grey with a unit picker, and a tick that logs it, plus a Usual now checklist, as on the canvas board RvKitchen."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-10.TaskContract.yaml
+    - tasks/RV-11.TaskContract.yaml
+  doneWhen:
+    - "each Kitchen row shows name and last use, a grey usual amount you can type over, its unit picker, and a tick that logs with Undo"
+    - "Usual now lists the items you use at this time of day; a ticked row turns green and ticking again undoes it"
+    - "the unit picker offers only the item's own measures and converts the grey amount; the choice becomes the usual"
+    - "the row is a shared component RV-11 can reuse"
+  gates: []

@@ -13,10 +13,12 @@ export interface UndoToastHandle {
   refuse: (toast: UndoToast) => void;
   /** Close it (a write that came to nothing). */
   close: () => void;
+  /** Press its Undo from elsewhere (RV-10: ticking a ticked row again); nothing once pressed, closed or gone. */
+  undo: () => void;
 }
 
 /** A write held back offline (PW-4) offers nothing: its handle does nothing. */
-const HELD_BACK: UndoToastHandle = Object.freeze({ update: () => undefined, refuse: () => undefined, close: () => undefined });
+const HELD_BACK: UndoToastHandle = Object.freeze({ update: () => undefined, refuse: () => undefined, close: () => undefined, undo: () => undefined });
 
 let openOffers = 0;
 
@@ -72,6 +74,22 @@ export function useUndoToast() {
             else update(shown, { ...t, duration: REFUSAL_MS });
           },
         );
+      // `fromElsewhere`: not the toast's own button, so the toast is taken away too.
+      const press = (fromElsewhere: boolean) => {
+        if (pressed || closed) return;
+        // Undoing is a write too: offline it is held back, and nothing changes.
+        if (refuseIfOffline()) return;
+        pressed = true;
+        clearTimeout(timer);
+        uncount();
+        if (fromElsewhere) dismiss(id);
+        if (offer.restore) {
+          offer.restore();
+          void answer(toast({ kind: "success", title: "Undone", duration: 4_500 }));
+        } else {
+          void answer(null);
+        }
+      };
       const extra = offer.extra;
       const id = toast({
         kind: "success",
@@ -90,23 +108,7 @@ export function useUndoToast() {
               },
             }
           : undefined,
-        action: {
-          label: "Undo",
-          onClick: () => {
-            if (pressed || closed) return;
-            // Undoing is a write too: offline it is held back, and nothing changes.
-            if (refuseIfOffline()) return;
-            pressed = true;
-            clearTimeout(timer);
-            uncount();
-            if (offer.restore) {
-              offer.restore();
-              void answer(toast({ kind: "success", title: "Undone", duration: 4_500 }));
-            } else {
-              void answer(null);
-            }
-          },
-        },
+        action: { label: "Undo", onClick: () => press(false) },
       });
       return {
         update: (text) => {
@@ -126,6 +128,7 @@ export function useUndoToast() {
           uncount();
           dismiss(id);
         },
+        undo: () => press(true),
       };
     },
     [toast, update, dismiss],

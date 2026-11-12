@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-11
+  title: "Cooking: tick what went in"
+spec:
+  goal: "The cook session's ingredient list uses RV-10's tick row: the scaled recipe amount in grey, the unit picker, a tick for went in, as on the canvas board RvCookLines."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-11.TaskContract.yaml
+  doneWhen:
+    - "each ingredient row shows name and source, the scaled recipe amount in grey with the unit picker, and a tick for went in"
+    - "progress reads N of M in and Finish shows the running cost, always enabled; unticked rows are not charged"
+  gates: []
