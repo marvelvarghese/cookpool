@@ -175,7 +175,7 @@ export function FinishSheet({
           disabled={waiting || (shared && members.error !== null)}
           onClick={() => void post()}
         >
-          <MainButtonLabel title={postLabel(postTo, group?.name ?? null)} who={postSub(totals)} />
+          <MainButtonLabel title={postLabel(postTo, group?.name ?? null)} who={postSub(totals, dishLines.length)} />
         </Button>
       </SheetContent>
     </Sheet>

@@ -725,15 +725,52 @@ describe("Finish posts (design §4.3)", () => {
     expect(calls[2]!.args).toEqual([{ fromDishId: "dsh_00000000000000000000000000000f01" }]);
   });
 
-  it("won't post without a name, or with nothing in it", () => {
+  it("won't post without a name", () => {
     const blank = blankSession(NOW);
     expect(finishPlan(blank, { unticked: "all", postTo: JUST_ME, halves: {}, roster: null, meId: ME, save: false }, { groups: GROUPS })).toMatchObject({
       ok: false,
       problem: { field: "name" },
     });
-    expect(finishPlan(curry(), { unticked: "out", postTo: JUST_ME, halves: {}, roster: null, meId: ME, save: false }, { groups: GROUPS })).toMatchObject({
+  });
+
+  it("posts a dish with no amounts as one with no ingredients (cookpool-revamp RV-7)", () => {
+    const own = { unticked: "out", postTo: JUST_ME, halves: {}, roster: null, meId: ME, save: false } as const;
+    // Nothing ticked and Leave them out: the recipe's dish, with nothing in it.
+    const left = finishPlan(curry(), own, { groups: GROUPS });
+    expect(left.ok).toBe(true);
+    if (!left.ok) return;
+    expect(left.plan.request).toEqual({
+      name: "Chicken curry",
+      orgId: null,
+      portionsHalf: 2,
+      splitMode: "assign",
+      recipeId: RECIPE_ID,
+      recipeFactorMilli: 450,
+    });
+    expect(left.plan.request).not.toHaveProperty("ingredients");
+    expect(left.plan.request).not.toHaveProperty("newItems");
+    expect(left.plan.dishLines).toEqual([]);
+    expect(left.plan.totals.totalMinor).toBe(0);
+
+    // A named blank session with no lines at all, shared with a group: Who ate still counts.
+    const blank = finishPlan(setName(blankSession(NOW), "Maggi"), { ...own, unticked: "all", postTo: FLAT.orgId, halves: { [ME]: 2, [MEERA]: 2 }, roster: ROSTER }, { groups: GROUPS });
+    expect(blank.ok && blank.plan.request).toEqual({ name: "Maggi", orgId: FLAT.orgId, portionsHalf: 4, splitMode: "claims" });
+    expect(blank.ok && blank.plan.shares).toEqual({ shares: [{ subjectId: ME, portionsHalf: 2 }, { subjectId: MEERA, portionsHalf: 2 }] });
+
+    // Lines without an amount (salt, to taste) are in the dish but never charged.
+    const salt = tickLine(curry(), "r:4");
+    const saltOnly = finishPlan(salt, own, { groups: GROUPS });
+    expect(saltOnly.ok && saltOnly.plan.request).not.toHaveProperty("ingredients");
+  });
+
+  it("still refuses too many items, whatever the amounts", () => {
+    let s = setName(blankSession(NOW), "Feast");
+    for (let i = 0; i < 31; i++) {
+      s = addItemLine(s, makeItem({ name: `Spice ${i}`, pantry: PERSONAL_REF, unit: "g", bought: "100", priceMinor: 1000, paidBy: ME }));
+    }
+    expect(finishPlan(s, { unticked: "all", postTo: JUST_ME, halves: {}, roster: null, meId: ME, save: false }, { groups: GROUPS })).toMatchObject({
       ok: false,
-      problem: { field: "lines", message: "Nothing to post yet: tick what went in, or choose Took them all." },
+      problem: { field: "lines" },
     });
   });
 
