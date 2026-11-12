@@ -3,9 +3,9 @@ import type { IdentityRepository } from "@saas/db/identity";
 import { createSqlExecutor } from "@saas/db/d1";
 import { createIdentityRepository } from "@saas/db/identity";
 import { createAuthService } from "../services/auth.js";
-import { successResponse, errorResponse, validationError } from "../http.js";
+import { errorResponse, validationError } from "../http.js";
 import { extractRequestContext } from "../request-context.js";
-import { ensurePersonalOrg } from "../solo-mode.js";
+import { sessionBodyResponse } from "./session-body.js";
 
 const CODE_RE = /^\d{6}$/;
 
@@ -69,20 +69,7 @@ export async function handleLoginComplete(
       return errorResponse(result.error, result.message, statusMap[result.error] ?? 500, requestId, result.details);
     }
 
-    // M0 / Solo profile: ensure the user's one invisible personal workspace
-    // exists before the console loads. No-op (and zero latency) off the profile.
-    await ensurePersonalOrg(env, requestId, result.user);
-
-    return successResponse(
-      {
-        token: result.token,
-        tokenType: "bearer" as const,
-        expiresAt: result.expiresAt.toISOString(),
-        user: result.user,
-      },
-      requestId,
-      200,
-    );
+    return await sessionBodyResponse(env, requestId, result);
   } catch {
     return errorResponse("internal_error", "An unexpected error occurred", 500, requestId);
   } finally {

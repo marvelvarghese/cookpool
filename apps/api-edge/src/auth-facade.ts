@@ -12,6 +12,14 @@ const AUTH_ROUTES: Record<string, string> = {
   "/v1/auth/resolve": "GET",
   "/v1/auth/logout": "POST",
   "/v1/auth/security-events": "GET",
+  // Passkeys (Cookpool PK-2). register/* and the list take a session;
+  // login/* take nobody and share the auth family's per-IP limit with
+  // login/start. A delegated token is refused on all of them (index.ts).
+  "/v1/auth/passkeys/register/options": "POST",
+  "/v1/auth/passkeys/register/verify": "POST",
+  "/v1/auth/passkeys/login/options": "POST",
+  "/v1/auth/passkeys/login/verify": "POST",
+  "/v1/auth/passkeys": "GET",
 };
 
 const AUTH_MULTI_METHOD_ROUTES: Record<string, Set<string>> = {
@@ -23,6 +31,10 @@ const AUTH_MULTI_METHOD_ROUTES: Record<string, Set<string>> = {
 
 // DELETE /v1/auth/delegations/{dlg} (MC-2): revoke one.
 const DELEGATION_ID_RE = /^\/v1\/auth\/delegations\/[^/]+$/;
+
+// DELETE /v1/auth/passkeys/{pky} (PK-2): remove one. Matched after the exact
+// passkey paths above, so register/… and login/… are never taken for an id.
+const PASSKEY_ID_RE = /^\/v1\/auth\/passkeys\/pky_[^/]+$/;
 
 // OAuth sign-in routes (all GET). `start` and `callback` are browser-redirect
 // navigations; `providers` is a JSON read. The `:provider` segment is dynamic,
@@ -45,6 +57,9 @@ const FORWARDED_HEADERS = [
   "x-request-id",
   "traceparent",
   "idempotency-key",
+  // Names a passkey the person did not name (PK-2) and fills the security
+  // events' user agent.
+  "user-agent",
   // Forwarded so the OAuth callback can read the state cookie set by `start`
   // (double-submit CSRF defense). Cookies are first-party to api-edge.
   "cookie",
@@ -55,7 +70,8 @@ export function isAuthRoute(pathname: string): boolean {
     pathname in AUTH_ROUTES ||
     pathname in AUTH_MULTI_METHOD_ROUTES ||
     isOAuthRoute(pathname) ||
-    DELEGATION_ID_RE.test(pathname)
+    DELEGATION_ID_RE.test(pathname) ||
+    PASSKEY_ID_RE.test(pathname)
   );
 }
 
@@ -68,7 +84,8 @@ export async function handleAuthRoute(
   const expectedMethod = AUTH_ROUTES[pathname];
   const allowedMethods = AUTH_MULTI_METHOD_ROUTES[pathname];
   const oauth = isOAuthRoute(pathname);
-  const delegation = DELEGATION_ID_RE.test(pathname);
+  // Both take one DELETE: revoke a delegation (MC-2), remove a passkey (PK-2).
+  const delegation = DELEGATION_ID_RE.test(pathname) || PASSKEY_ID_RE.test(pathname);
 
   if (!expectedMethod && !allowedMethods && !oauth && !delegation) {
     return errorResponse("not_found", `Route not found: ${pathname}`, 404, requestId);

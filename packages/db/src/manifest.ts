@@ -444,5 +444,14 @@ export const manifest: MigrationManifest = {
       description:
         "Delegated tokens for assistants: identity_delegations (id, user_id, client_name 1–80, client_id 1–128 — the MCP client's id, scopes a JSON array of at least one scope name, token_hash the SHA-256 of the token's secret, created_at, last_used_at moved at most hourly, expires_at 90 days after minting or the last rotation, revoked_at), indexed by user and time. Tokens are sps_dlg_<id>.<secret>; the raw token is never stored (Cookpool MC-2)",
     },
+    {
+      id: "510_identity_passkeys",
+      context: "identity",
+      path: "510_identity_passkeys/up.sql",
+      checksum:
+        "cb6104c7f9f6244dc3cc8171086d717ab4781a3d0da8582ef6c19c6ece56efe1",
+      description:
+        "Passkeys: identity_passkeys (id pky_ plus 16 hex, user_id, credential_id base64url unique, public_key COSE base64url, sign_count ≥ 0, transports a JSON array, aaguid, device_name 1–60, backed_up 0 or 1, created_at, last_used_at), indexed by user, at most 10 per person; and identity_passkey_challenges (id, kind register or login, user_id set for register and null for login, challenge unique, created_at, expires_at 5 minutes later, used_at), used once, indexed by expiry for pruning. Public keys only (Cookpool PK-2)",
+    },
   ],
 };

@@ -139,3 +139,13 @@ export function parseDelegationToken(token: string): { delegationId: string; sec
   if (!uuid) return null;
   return { delegationId: uuid, secret };
 }
+
+// Passkeys (Cookpool PK-2): `pky_` plus 16 hex characters, stored as is.
+
+export function generatePasskeyId(): string {
+  return `pky_${randomHex(8)}`;
+}
+
+export function generatePasskeyChallengeId(): string {
+  return crypto.randomUUID();
+}

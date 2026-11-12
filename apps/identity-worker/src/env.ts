@@ -37,4 +37,15 @@ export interface Env {
   OAUTH_REDIRECT_BASE_URL?: string;
   /** Comma-separated console origins allowed as post-login redirect targets. */
   OAUTH_ALLOWED_CONSOLE_ORIGINS?: string;
+
+  // --- Passkeys (Cookpool PK-2) ---
+  // Plain vars, set per environment in wrangler.jsonc. Empty or absent
+  // PASSKEY_RP_ID turns every passkey route off (404, reason passkeys_off).
+
+  /** The WebAuthn relying-party id: `localhost` (local, dev), `stage.cookpool.store`, `cookpool.store`. */
+  PASSKEY_RP_ID?: string;
+  /** The name a device shows when it makes a passkey: `Cookpool`. */
+  PASSKEY_RP_NAME?: string;
+  /** Comma-separated, exact origins a passkey ceremony may come from. Prod lists only `https://cookpool.store`. */
+  PASSKEY_ORIGINS?: string;
 }

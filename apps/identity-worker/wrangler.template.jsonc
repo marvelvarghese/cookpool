@@ -26,6 +26,12 @@
   //       wrangler secret put OAUTH_STATE_SECRET         --env <env>
   //   - Each OAuth app's authorized redirect/callback URL must be:
   //       {OAUTH_REDIRECT_BASE_URL}/v1/auth/oauth/{github|google}/callback
+  // Passkeys (Cookpool PK-2): PASSKEY_RP_ID is the WebAuthn relying party —
+  // localhost (local, dev), stage.cookpool.store, cookpool.store — and
+  // PASSKEY_ORIGINS the exact origins a ceremony may come from, comma-separated.
+  // Prod lists only https://cookpool.store, so a stage page can never sign in
+  // to prod. An empty PASSKEY_RP_ID turns every passkey route off (404
+  // passkeys_off); the workers.dev console hosts offer no passkeys.
   // DEBUG_DELIVERY_DOMAINS (Cookpool SI-2): the email domains whose sign-in
   // codes login/start returns on screen instead of emailing; `*` is every
   // domain. Local, dev and stage `*` (SI-9: stage sends no email yet, so the
@@ -37,7 +43,10 @@
     "GOOGLE_OAUTH_CLIENT_ID": "",
     "OAUTH_REDIRECT_BASE_URL": "http://localhost:8787",
     "OAUTH_ALLOWED_CONSOLE_ORIGINS": "http://localhost:3000",
-    "SOLO_MODE": "false"
+    "SOLO_MODE": "false",
+    "PASSKEY_RP_ID": "localhost",
+    "PASSKEY_RP_NAME": "Cookpool",
+    "PASSKEY_ORIGINS": "http://localhost:3000"
   },
   "env": {
     "dev": {
@@ -48,7 +57,10 @@
         "GOOGLE_OAUTH_CLIENT_ID": "",
         "OAUTH_REDIRECT_BASE_URL": "",
         "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://cookpool-web-console-next-dev.cookpool.workers.dev",
-        "SOLO_MODE": "false"
+        "SOLO_MODE": "false",
+        "PASSKEY_RP_ID": "localhost",
+        "PASSKEY_RP_NAME": "Cookpool",
+        "PASSKEY_ORIGINS": "http://localhost:3000"
       }
     },
     "stage": {
@@ -63,7 +75,10 @@
         "GOOGLE_OAUTH_CLIENT_ID": "437655333636-omhv3akn7eul8bc1kpbrijrgfr2v245i.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://cookpool-api-edge-stage.cookpool.workers.dev",
         "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://stage.cookpool.store,https://cookpool-web-console-next-stage.cookpool.workers.dev",
-        "SOLO_MODE": "false"
+        "SOLO_MODE": "false",
+        "PASSKEY_RP_ID": "stage.cookpool.store",
+        "PASSKEY_RP_NAME": "Cookpool",
+        "PASSKEY_ORIGINS": "https://stage.cookpool.store"
       },
       "d1_databases": [
         {
@@ -99,7 +114,10 @@
         "GOOGLE_OAUTH_CLIENT_ID": "437655333636-omhv3akn7eul8bc1kpbrijrgfr2v245i.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://cookpool-api-edge-prod.cookpool.workers.dev",
         "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://cookpool.store,https://cookpool-web-console-next-prod.cookpool.workers.dev",
-        "SOLO_MODE": "false"
+        "SOLO_MODE": "false",
+        "PASSKEY_RP_ID": "cookpool.store",
+        "PASSKEY_RP_NAME": "Cookpool",
+        "PASSKEY_ORIGINS": "https://cookpool.store"
       },
       "d1_databases": [
         {

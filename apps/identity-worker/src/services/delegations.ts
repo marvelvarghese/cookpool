@@ -29,9 +29,9 @@ import {
   generateTokenSecret,
   parseDelegationPublicId,
   parseDelegationToken,
-  parseSessionToken,
 } from "../ids.js";
 import type { RequestContext } from "./auth.js";
+import { requireSessionUser, type ServiceFailure } from "./session-user.js";
 
 const TTL_MS = DELEGATION_TTL_DAYS * 24 * 60 * 60 * 1000;
 const LAST_USED_INTERVAL_MS = DELEGATION_LAST_USED_INTERVAL_SECONDS * 1000;
@@ -47,12 +47,7 @@ export interface DelegationServiceDeps {
   ctx?: RequestContext;
 }
 
-export interface DelegationFailure {
-  status: number;
-  code: "unauthenticated" | "forbidden" | "not_found" | "validation_failed" | "precondition_failed" | "internal_error";
-  message: string;
-  details?: Record<string, unknown>;
-}
+export type DelegationFailure = ServiceFailure;
 
 export interface MintedDelegation {
   delegation: Delegation;
@@ -168,24 +163,8 @@ export function createDelegationService(deps: DelegationServiceDeps) {
   }
 
   /** A signed-in session's user; a delegated token or an API key is refused. */
-  async function sessionUser(token: string | null): Promise<{ userId: string; sessionId: string } | DelegationFailure> {
-    if (!token) return { status: 401, code: "unauthenticated", message: "Missing or invalid Authorization header" };
-    const parsed = parseSessionToken(token);
-    if (!parsed) {
-      return {
-        status: 403,
-        code: "forbidden",
-        message: "Assistants are connected from a signed-in session",
-        details: { reason: DELEGATION_ERROR_REASONS.SESSION_REQUIRED },
-      };
-    }
-    const found = await repo.getSessionWithUserByTokenHash(await hashSha256(parsed.secret));
-    if (!found.ok) return { status: 401, code: "unauthenticated", message: "Session not found" };
-    const { session } = found.value;
-    if (session.revokedAt !== null || session.expiresAt.getTime() <= now().getTime()) {
-      return { status: 401, code: "unauthenticated", message: "Session has expired" };
-    }
-    return { userId: session.userId, sessionId: session.id };
+  function sessionUser(token: string | null): Promise<{ userId: string; sessionId: string } | DelegationFailure> {
+    return requireSessionUser(repo, token, now(), "Assistants are connected from a signed-in session");
   }
 
   async function mint(id: string): Promise<{ secret: string; tokenHash: string; token: string }> {

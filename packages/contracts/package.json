@@ -11,6 +11,7 @@
     "./tenancy": "./src/tenancy.ts",
     "./auth": "./src/auth.ts",
     "./delegations": "./src/delegations.ts",
+    "./passkeys": "./src/passkeys.ts",
     "./membership": "./src/membership.ts",
     "./policy": "./src/policy.ts",
     "./projects": "./src/projects.ts",
