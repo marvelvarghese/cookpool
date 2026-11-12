@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SL-3
+  title: "Home, Groups, Activity swipe"
+spec:
+  goal: "Home, Groups and Activity match V2Home with the tab pager, row swipe, hold sheet and pull to refresh."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - specs/epics/spliteco-calm/**
+    - tasks/SL-3.TaskContract.yaml
+  doneWhen:
+    - "Swiping sideways moves between Home, Groups and Activity, and the tab pill follows"
+    - "Swiping a person left settles or reminds with Undo; holding opens Settle, Remind and Open"
+    - "Pulling down re-reads the page; rows are one line with signed amounts"
+  gates: []

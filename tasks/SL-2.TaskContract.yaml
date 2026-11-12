@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SL-2
+  title: "The calm foundation"
+spec:
+  goal: "Every Spliteco page has borderless cards, weights up to 600 and the floating tab bar; the gesture modules and helpers exist with tests; Sign in matches V2SignIn."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - specs/epics/spliteco-calm/**
+    - tasks/SL-2.TaskContract.yaml
+  doneWhen:
+    - "Every Spliteco page on stage has borderless cards, weights up to 600 and the floating tab bar"
+    - "Sign in shows Google and Passkey side by side and Email me a code, as on V2SignIn"
+    - "The gesture modules' tests pass in tests/spliteco-web"
+  gates: []

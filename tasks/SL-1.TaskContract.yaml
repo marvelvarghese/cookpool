@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SL-1
+  title: "The spliteco-calm spec"
+spec:
+  goal: "The spliteco-calm doc set and its seven contracts are on main."
+  affects:
+    - specs/epics/spliteco-calm/**
+    - tasks/SL-*.TaskContract.yaml
+  doneWhen:
+    - "README, design, implementation-plan, risks and IMPLEMENTATION-STATUS are under specs/epics/spliteco-calm"
+    - "tasks/SL-1..SL-7 contracts are on main"
+  gates: []
