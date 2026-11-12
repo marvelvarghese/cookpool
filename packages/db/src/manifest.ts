@@ -489,5 +489,23 @@ export const manifest: MigrationManifest = {
       description:
         "Spliteco live split: ledger_live_sessions (lvs_ ids; org, an 8-character join code unique across sessions, the itemized draft as JSON, open | locked, created_by, created_at, expires_at 24 h on, the posted txn_id), ledger_live_claims (session, item_position, subject_id, mode portion | pct | exact and value as an item share's) and ledger_live_presence (who last read it, when). No money until the lock posts one itemized expense. Additive (cookpool-spliteco SE-5)",
     },
+    {
+      id: "560_spliteco_assistants",
+      context: "kitchen",
+      path: "560_spliteco_assistants/up.sql",
+      checksum:
+        "6591596eaf90094d7aba261891c0c1eff6cbc1770f0e755d895655b84a7ffa0f",
+      description:
+        "Spliteco assistants: kitchen_txns.via_client (the assistant's name as connected, 1–80, beside via_delegation, so Activity says via Claude) and ledger_drafts (drf_ ids; the person and delegation that drafted it, add | edit | move, the group, the expense for an edit or move, the request as JSON, 10 minutes to save it, saved_txn_id once saved), indexed by expiry. Additive (cookpool-spliteco SE-6)",
+    },
+    {
+      id: "570_identity_delegation_access",
+      context: "identity",
+      path: "570_identity_delegation_access/up.sql",
+      checksum:
+        "28002b0c38b2edb5590f47240029e0073b9a9555737a08bbe22cd696f89f9802",
+      description:
+        "Delegations: identity_delegations.granted_scopes (JSON array; the scopes allowed at connect, the ceiling scopes may be changed within; NULL means the same as scopes), so a person can set an assistant to Look only or Add & edit. Additive (cookpool-spliteco SE-6)",
+    },
   ],
 };

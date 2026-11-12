@@ -14,6 +14,8 @@ export interface Delegation {
   clientId: string;
   /** Scope names as stored; the caller checks them against @saas/contracts/delegations. */
   scopes: string[];
+  /** What was allowed at connect (migration 570): the ceiling `scopes` may change within. `scopes` for older rows. */
+  grantedScopes: string[];
   createdAt: Date;
   lastUsedAt: Date | null;
   expiresAt: Date;
@@ -42,21 +44,29 @@ export interface DelegationsRepository {
   revoke(id: string, userId: string, revokedAt: Date): Promise<IdentityResult<Delegation>>;
   /** A new secret and expiry, only while live at `now`; not_found otherwise (the caller reads why). */
   rotate(id: string, tokenHash: string, expiresAt: Date, now: Date): Promise<IdentityResult<Delegation>>;
+  /** Sets what a live delegation of this user may do; not_found when it is not theirs or not live at `now`. */
+  updateScopes(id: string, userId: string, scopes: string[], now: Date): Promise<IdentityResult<Delegation>>;
   /** Moves last_used_at to `now` when it is unset or at or before `staleBefore`. Best-effort. */
   touch(id: string, now: Date, staleBefore: Date): Promise<IdentityResult<boolean>>;
 }
 
 const COLUMNS =
-  "id, user_id, client_name, client_id, scopes, created_at, last_used_at, expires_at, revoked_at";
+  "id, user_id, client_name, client_id, scopes, granted_scopes, created_at, last_used_at, expires_at, revoked_at";
+
+function names(raw: unknown): string[] | null {
+  const list = parseJsonColumn<unknown>(raw, null);
+  return Array.isArray(list) ? list.filter((s): s is string => typeof s === "string") : null;
+}
 
 function mapDelegation(row: Record<string, unknown>): Delegation {
-  const scopes = parseJsonColumn<unknown>(row.scopes, []);
+  const scopes = names(row.scopes) ?? [];
   return {
     id: row.id as string,
     userId: row.user_id as string,
     clientName: row.client_name as string,
     clientId: row.client_id as string,
-    scopes: Array.isArray(scopes) ? scopes.filter((s): s is string => typeof s === "string") : [],
+    scopes,
+    grantedScopes: names(row.granted_scopes) ?? scopes,
     createdAt: new Date(row.created_at as string),
     lastUsedAt: row.last_used_at ? new Date(row.last_used_at as string) : null,
     expiresAt: new Date(row.expires_at as string),
@@ -86,8 +96,8 @@ export function createDelegationsRepository(executor: SqlExecutor): DelegationsR
     async create(input) {
       try {
         const result = await executor.execute<Record<string, unknown>>(
-          `INSERT INTO identity_delegations (id, user_id, client_name, client_id, scopes, token_hash, created_at, expires_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `INSERT INTO identity_delegations (id, user_id, client_name, client_id, scopes, token_hash, created_at, expires_at, granted_scopes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $5)
            ON CONFLICT (id) DO NOTHING
            RETURNING ${COLUMNS}`,
           [
@@ -189,6 +199,21 @@ export function createDelegationsRepository(executor: SqlExecutor): DelegationsR
         return { ok: true, value: mapDelegation(result.rows[0]!) };
       } catch {
         return failed("Failed to rotate delegation");
+      }
+    },
+
+    async updateScopes(id, userId, scopes, now) {
+      try {
+        const result = await executor.execute<Record<string, unknown>>(
+          `UPDATE identity_delegations SET scopes = $3, granted_scopes = COALESCE(granted_scopes, scopes)
+           WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > $4
+           RETURNING ${COLUMNS}`,
+          [id, userId, JSON.stringify(scopes), now.toISOString()],
+        );
+        if (result.rowCount === 0) return { ok: false, error: { kind: "not_found" } };
+        return { ok: true, value: mapDelegation(result.rows[0]!) };
+      } catch {
+        return failed("Failed to update delegation");
       }
     },
 

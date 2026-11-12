@@ -13,13 +13,20 @@
 // "session_required"`):
 //   POST   /v1/auth/delegations        CreateDelegationRequest → CreateDelegationResponse (201)
 //   GET    /v1/auth/delegations        → DelegationsListResponse
+//   PATCH  /v1/auth/delegations/{id}   UpdateDelegationRequest → UpdateDelegationResponse
+//          (cookpool-spliteco SE-6: change what an assistant may do, within what was allowed at connect)
 //   DELETE /v1/auth/delegations/{id}   → RevokeDelegationResponse
 // Internal (service binding only; api-edge routes nothing under /v1/internal/):
 //   POST   /v1/internal/delegations/refresh  RefreshDelegationRequest → RefreshDelegationResponse
 //          the caller names itself in `x-internal-actor` (DELEGATION_INTERNAL_ACTORS).
 
-/** Every scope a delegation can carry, in the order they are stored and shown. */
-export const DELEGATION_SCOPES = ["kitchen.read", "money.read", "timers.write", "suggest.write"] as const;
+/**
+ * Every scope a delegation can carry, in the order they are stored and shown.
+ * `money.write` (cookpool-spliteco SE-6, design §0.10) lets an assistant add,
+ * edit, delete, restore and move Spliteco expenses (always from a draft the
+ * person saw), comment and send reminders — never record a payment.
+ */
+export const DELEGATION_SCOPES = ["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"] as const;
 export type DelegationScope = (typeof DELEGATION_SCOPES)[number];
 
 export function isDelegationScope(value: unknown): value is DelegationScope {
@@ -49,6 +56,13 @@ export type DelegationInternalActor = (typeof DELEGATION_INTERNAL_ACTORS)[number
  */
 export const ACTOR_DELEGATION_ID_HEADER = "x-actor-delegation-id";
 export const ACTOR_SCOPES_HEADER = "x-actor-scopes";
+/**
+ * The delegation's client name ("Claude"), as the person saw it on the
+ * consent page (self-asserted by the client, at most 80 characters, encoded
+ * with encodeURIComponent). Forwarded beside the id so a worker can say
+ * "via Claude" (cookpool-spliteco SE-6).
+ */
+export const ACTOR_DELEGATION_CLIENT_HEADER = "x-actor-delegation-client";
 
 /** `details.reason` values that ride on the pinned error codes. */
 export const DELEGATION_ERROR_REASONS = {
@@ -84,7 +98,14 @@ export interface CreateDelegationRequest {
 export interface Delegation {
   /** `dlg_…` */
   id: string;
+  /** What it may do now. */
   scopes: DelegationScope[];
+  /**
+   * What the person allowed when they connected it: `scopes` can be narrowed
+   * and widened again within these (PATCH), never beyond — the assistant's
+   * own grant only ever carries these.
+   */
+  grantedScopes: DelegationScope[];
   clientName: string;
   clientId: string;
   createdAt: string;
@@ -102,6 +123,16 @@ export interface CreateDelegationResponse {
 export interface DelegationsListResponse {
   /** The person's live delegations (not revoked, not expired), newest first. */
   delegations: Delegation[];
+}
+
+/** PATCH /v1/auth/delegations/{id}: what it may do from now on (within 30 s at the edge). */
+export interface UpdateDelegationRequest {
+  /** At least one, every one among the delegation's `grantedScopes`. */
+  scopes: DelegationScope[];
+}
+
+export interface UpdateDelegationResponse {
+  delegation: Delegation;
 }
 
 export interface RevokeDelegationResponse {

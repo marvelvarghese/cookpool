@@ -45,6 +45,8 @@ export interface SplitecoTxnRecord {
   /** On a reversal: set when it is a delete. */
   deletedAt: string | null;
   viaDelegation: string | null;
+  /** The assistant's name as connected, when one wrote the row (migration 560). */
+  viaClient: string | null;
   splitSpec: string | null;
   /** The reversal of this row, if any, and whether that reversal is a delete. */
   reversedBy: string | null;
@@ -120,6 +122,7 @@ export interface NewSplitecoTxn {
   movedFrom?: string | null;
   deletedAt?: string | null;
   viaDelegation?: string | null;
+  viaClient?: string | null;
   splitSpec?: string | null;
   sourceKind?: string | null;
   sourceId?: string | null;
@@ -226,7 +229,7 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 
 const TXN_COLUMNS = `t.id, t.rowid AS seq, t.org_id, t.kind, t.title, t.total_minor, t.currency, t.occurred_at, t.created_by,
   t.created_at, t.source_kind, t.source_id, t.reverses, t.method, t.note, t.app, t.bucket, t.category, t.revises,
-  t.moved_from, t.deleted_at, t.via_delegation, t.split_spec,
+  t.moved_from, t.deleted_at, t.via_delegation, t.via_client, t.split_spec,
   (SELECT r.id FROM kitchen_txns r WHERE r.reverses = t.id) AS reversed_by,
   (SELECT r.deleted_at FROM kitchen_txns r WHERE r.reverses = t.id) AS reversal_deleted_at,
   (SELECT n.id FROM kitchen_txns n WHERE n.revises = t.id) AS replaced_by,
@@ -262,6 +265,7 @@ function mapTxn(row: Row): SplitecoTxnRecord {
     movedFrom: str(row.moved_from),
     deletedAt: str(row.deleted_at),
     viaDelegation: str(row.via_delegation),
+    viaClient: str(row.via_client),
     splitSpec: str(row.split_spec),
     reversedBy: str(row.reversed_by),
     reversalDeletedAt: str(row.reversal_deleted_at),
@@ -317,10 +321,10 @@ export function splitecoTxnStatements(txn: NewSplitecoTxn): SqlStatement[] {
       text: `INSERT INTO kitchen_txns (
                id, org_id, kind, title, total_minor, currency, occurred_at, created_by,
                source_kind, source_id, reverses, method, note, idem_key, created_at,
-               app, category, revises, moved_from, deleted_at, via_delegation, split_spec, bucket
+               app, category, revises, moved_from, deleted_at, via_delegation, split_spec, bucket, via_client
              )
              SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                    $16, $17, $18, $19, $20, $21, $22, $23
+                    $16, $17, $18, $19, $20, $21, $22, $23, $24
              WHERE EXISTS (SELECT 1 FROM kitchen_group_settings WHERE org_id = $2 AND currency = $6)
              RETURNING id`,
       params: [
@@ -347,6 +351,7 @@ export function splitecoTxnStatements(txn: NewSplitecoTxn): SqlStatement[] {
         txn.viaDelegation ?? null,
         txn.splitSpec ?? null,
         txn.bucket,
+        txn.viaDelegation ? (txn.viaClient ?? null) : null,
       ],
     },
     ...txn.splits.map((split, position) => ({

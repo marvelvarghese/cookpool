@@ -20,10 +20,10 @@
 // errors.ts. A delegated token can never complete a connection or disconnect.
 
 /** What a person can let an assistant do. api-edge enforces each one (MC-2's allowlist). */
-export const ASSISTANT_SCOPES = ["kitchen.read", "money.read", "timers.write", "suggest.write"] as const;
+export const ASSISTANT_SCOPES = ["kitchen.read", "money.read", "timers.write", "suggest.write", "money.write"] as const;
 export type AssistantScope = (typeof ASSISTANT_SCOPES)[number];
 
-/** The consent page's switches start on, except money (design §3). */
+/** The consent page's switches start on, except money: balances and (SE-6) Spliteco expenses (design §3). */
 export const ASSISTANT_DEFAULT_SCOPES: readonly AssistantScope[] = ["kitchen.read", "timers.write", "suggest.write"];
 
 export function isAssistantScope(value: unknown): value is AssistantScope {
