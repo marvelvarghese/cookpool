@@ -732,3 +732,83 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - Real Terms and Privacy pages, then point `termsHref` and You's row at them.
 
 **Deploy.** Only the console changes; nothing to redeploy elsewhere.
+
+### RV1 — Cookpool's recipes are replaced by 13 Kerala recipes (RV-20)
+
+**What changed.** The owner's decision: the 42 recipes Cookpool provided are gone, and 13 Kerala recipes take their place. Cook now offers only what your kitchen can make.
+
+**Migration `590_kitchen_no_starter_recipes`** (kitchen; one file, 65 KB, 56 statements, each under 50 KB; no LIKE or GLOB).
+1. **Delete first, the app's way.** One `UPDATE kitchen_recipes SET deleted_at = now, updated_at = now WHERE (is_system = 1 OR owner_id = 'usr_cookpool') AND deleted_at IS NULL AND substr(id, 1, 8) <> 'c00c0590'`. It is the same soft delete as `deleteRecipe`. No row is hard-deleted, so lines, steps, dishes, posts, activity, step times and copies keep what they point at. Because it skips 590's own ids, running it again deletes nothing new.
+2. **16 new food names** (`INSERT OR IGNORE`, so a name another food already has stays there). They are kaima rice, kaima ari, jeerakasala (rice), jeerakasala rice, vadi matta, vadi matta rice, kerala matta rice, red matta rice and kerala red rice → rice; thenga kothu, coconut slices, coconut slivers and coconut bits → coconut; malabar tamarind, fish tamarind and pot tamarind → kokum. Pantry items named exactly one of these words, still unlinked and never answered for, are linked to the food. **No new food was needed**: 360 already maps kudampuli → kokum, matta rice → rice and keema → mutton, and curry leaves, ghee, coconut and coconut oil are on the list.
+3. **13 recipes.** Each is owned by `usr_cookpool` with `is_system = 1`, visibility groups and no link code. They have fixed ids `c00c0590-0000-4000-8000-0000000000NN` (01–13) and are inserted with `ON CONFLICT (id) DO NOTHING`. Each serves 4, has tools, and has a `created_at` one minute earlier than the one before it from 2026-11-13T00:59, so Explore lists them in the owner's order.
+4. **Lines and steps.** For each recipe the migration deletes its lines and inserts them again with plain `INSERT`, then does the same for its steps. That is 390's pattern: re-runnable, and a row that fails a CHECK fails the migration instead of being skipped. Step keys are fixed, `c00c0590-<recipe>-<step>`.
+
+| # | Name | Kind | Min | Lines | Steps (prep/cook) | Tools |
+|---|---|---|---|---|---|---|
+| 1 | Chicken curry (Kerala style) | dal_curry | 60 | 16 | 9 (2/7) | Kadai with a lid, Mortar and pestle |
+| 2 | Chilli chicken | snack | 45 | 22 | 9 (3/6) | Kadai or wok, Mixing bowl, Slotted spoon |
+| 3 | Chicken kondattam | snack | 60 | 19 | 8 (2/6) | Kadai, Mixing bowl, Slotted spoon |
+| 4 | Chettinad chicken curry | dal_curry | 70 | 21 | 10 (2/8) | Heavy pan with a lid, Mixer jar |
+| 5 | Chicken roast (Kerala) | dal_curry | 60 | 17 | 9 (2/7) | Kadai with a lid, Mortar and pestle |
+| 6 | Beef roast (Kerala ularthiyathu) | dal_curry | 90 | 16 | 9 (2/7), 5 whistles | Pressure cooker, Heavy kadai, Mortar and pestle |
+| 7 | Ghee rice with kaima curry | rice | 75 | 24 | 11 (2/9) | Heavy pan with a tight lid, Kadai, Sieve |
+| 8 | Vadi matta rice | rice | 50 | 3 | 5 (1/4) | Large pot, Colander |
+| 9 | Pork vindaloo | dal_curry | 90 | 16 | 8 (4/4), marinade is long prep | Heavy pan with a lid, Mixer jar, Mixing bowl |
+| 10 | Chilli pork | snack | 75 | 17 | 9 (1/8), 3 whistles | Pressure cooker, Kadai or wok |
+| 11 | Fish curry (Kerala, with kudampuli) | dal_curry | 45 | 15 | 7 (2/5) | Clay pot (manchatti) or heavy pan, Mortar and pestle |
+| 12 | Fish fry (Kerala masala) | snack | 45 | 11 | 6 (3/3) | Flat pan (tawa), Mixing bowl |
+| 13 | Beef fry (Kerala) | snack | 80 | 13 | 8 (2/6), 4 whistles | Pressure cooker, Heavy kadai |
+
+**Recipe content.**
+- **Amounts** are for 4, on each unit's rounding grid: g, tsp, tbsp, cup and pcs. Spoons and cups meet weighed packs through the foods' densities.
+- **Steps** follow 390's rules: prep before cook, a flame on every cook step, a checkpoint or a time, hands-off steps timed or counted in whistles, and ranges of at least 30 s with the longest no more than three times the shortest. The words carry no amounts or times, and every line is used.
+
+**Readers checked.** Each reader leaves deleted recipes out, or stands on its own words.
+- **Explore** (`listRecipes` system / sharedBy / publicListed), **search** (`q`), the **person-page and profile lists** (listedBy), **My recipes** (ownerId) and **Cook now**: all filter `r.deleted_at IS NULL`.
+- **One recipe**: `getRecipe` and `getRecipeByLinkCode` return the opaque 404, so the read, match, copy, cook-from-recipe and stove AI paths are all 404.
+- **Posts**: a post's recipe link is `LEFT JOIN … deleted_at IS NULL`, so it reads as `recipe: null` and keeps its title. `linkOf` ignores a deleted recipe.
+- **Activity**: recipe names use `recipeNames … deleted_at IS NULL`, so they read as none.
+- **Profile counts** count only live, listed recipes. **"Saved by N"** counts live copies.
+- **Dishes** keep their own `name` and `recipe_id`. The console's cooked screen and share sheet already treat a recipe that won't load as none.
+- **Cook history** (`/me/dishes/recipes`) reads dishes, not recipes.
+- **Step times** pool by recipe root through deleted rows too, as 370 designed.
+- **MCP** `what_can_i_cook` and `recipe_search` go through the same routes.
+- **Re-seeding**: nothing seeds the old recipes again. Only 360 and 390 wrote them, and the worker always writes `is_system = 0`.
+
+**Cook now = makeable only.**
+- `GET /v1/kitchen/me/cook-now` keeps its shape `{ recipes: CookNowEntry[] }`. It now returns only entries where `canMake(recipe, summary)` holds: no line missing (to-taste lines and Always have count as had) and enough stock for at least half a portion, `floor(servesHalf × maxFactorMilli / 1000) ≥ 1`.
+- Every entry therefore has `match.missing = 0` and a `forPortionsHalf`. The order is unchanged (largest factor, then most recently cooked, then name), capped at 20, and the list may be empty. Cookpool's 13 are included when the kitchen can make them.
+- This is the existing "Have all" rule (`missing === 0`, scaled to the stock), which Home's cards and the Cook tab's `cookNowHubRows` already apply. The Cook tab therefore gets the same filter without a console change.
+- `canMake` is in `apps/kitchen-worker/src/recipes.ts`. The `CookNowResponse` comment in `contracts/src/kitchen-recipes.ts` is updated (comment only).
+
+**Departures.**
+- **Saved copies of old recipes stay.** A copy someone saved belongs to them (350: a copy is its own recipe, and its source's deletion never touches it). It keeps "from Cookpool" and can still be cooked, so it can appear in that person's Cook now.
+- **Kinds.** The dry fries (chilli chicken, kondattam, chilli pork, fish fry, beef fry) are filed under `snack`, curries and roasts under `dal_curry`, and the rice dishes under `rice`. The breakfast, roti, sweet and drink chips now have no Cookpool recipe.
+- **"Need yogurt" on Saved rows is no longer shown.** The Cook tab's Saved rows got that tag from Cook now entries with one line missing (`savedHubRows`), and Cook now no longer returns those entries, so Saved rows fall back to From, Cooked or Serves. Bringing it back would need an additive field; that is a follow-up.
+- **Short lines still count as makeable.** A short line scales the recipe down to the stock ("for 2"), as "Have all" always has. Only a recipe that can't make half a portion is left out.
+- **In-flight sessions.** A cook session started from an old recipe before 590 gets a 404 when it saves its dish, as for any deleted recipe.
+- **No console change**, so no browser check was needed.
+
+**Tests.**
+- `tests/db`: 46 suites, 984 tests. New `kitchen-no-starter-recipes-migration.test.ts` (7) covers:
+  - registration, and the text: delete first, softly, sparing 590's ids; no DROP, ALTER, LIKE or GLOB; no DELETE of recipes; OR IGNORE only for names; ON CONFLICT on the recipe row.
+  - what is left live: the 13 in order, their shape and keys.
+  - that all 42 old recipes are deleted with their rows kept, and that a person's recipe and a saved copy are untouched.
+  - that a rerun changes nothing, and the new names and item links.
+  - The 360 and 390 suites now read the database through 580, before 590 replaced those recipes.
+- `tests/kitchen-worker`: 1,232 tests.
+  - New `kerala-recipes.test.ts` (16) checks each of the 13 through the recipe read with 390's guided rules and 590's keys, the whistles, and that vindaloo is the only long prep. It also checks that a dish, its post, a saved copy and cook history of an old recipe keep working after 590's delete, while reading or cooking it is the 404.
+  - `cookpool-recipes`: the seed checks (units and scaling at × 0.5 and × 2) now cover 360's and 590's rows. The router tests cover:
+    - Explore lists only the 13; kind=rice and q=matta narrow it; poha, chai and rajma find nothing.
+    - Vadi matta rice reads in full, nobody may edit it, and it can be copied; the old chai is 404.
+    - Cook now offers only Vadi matta rice for a pantry with matta rice plus everything chai needs: `maxFactorMilli` 2,604, "for 8". With the rice density removed, it offers nothing.
+  - `cookpool-guided` restores 360's rows in its world to check 390's content.
+  - `guided-steps` reads a Kerala recipe for the Cookpool cases.
+  - `recipe-match`'s Cook now tests are rewritten for the filter. Missing paneer or tea, and not enough for half a portion, are left out; a makeable Cookpool recipe is included. Twenty Always-have staples are capped at 20, and Explore still names three missing lines. Turmeric lifts dal into Cook now.
+- `tests/contracts` 346 and `tests/mcp-worker` 97 pass. Typecheck and lint pass for kitchen-worker, contracts, db, db-tests and kitchen-worker-tests. kitchen-worker-tests shows only 12 existing warnings.
+
+**Deploy.**
+- kitchen-worker changes in its own path, so it redeploys.
+- The migrations folder changes, so the `db-migrate` component (path `packages/db/src/migrations`) applies 590 to stage and then prod. The contract's `affects` gained `default/cookpool/db-migrate` for this.
+- The console is unchanged.
+- Deploy order: if 590 runs before the new worker, the old worker briefly suggests makeable-or-not recipes from the 13. That is harmless.

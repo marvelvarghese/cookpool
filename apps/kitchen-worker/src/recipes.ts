@@ -1062,6 +1062,17 @@ export function forPortionsHalf(recipe: Pick<KitchenRecipeTemplateRecord, "serve
   return Math.min(recipe.servesHalf * 2, Math.max(1, halves));
 }
 
+/**
+ * Whether Cook now offers `recipe` (RV-20): you can make it from what your
+ * kitchen holds — "Have all": no line missing (to-taste lines and Always have
+ * count as had) — and the stock allows at least half a portion of it, so a
+ * line that is short only scales the recipe down to what there is.
+ */
+export function canMake(recipe: Pick<KitchenRecipeTemplateRecord, "servesHalf">, summary: RecipeMatchSummary): boolean {
+  if (summary.missing > 0 || summary.maxFactorMilli === null) return false;
+  return Math.floor((recipe.servesHalf * summary.maxFactorMilli) / 1000) >= 1;
+}
+
 /** The group refs a recipe read names, by `org_…`: so the API never shows a stored UUID. */
 export function orgIdOf(uuid: string | null): string | null {
   return uuid ? orgPublicId(uuid) : null;

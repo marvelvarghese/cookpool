@@ -978,10 +978,12 @@ export interface CookNowEntry {
 }
 
 /**
- * GET /v1/kitchen/me/cook-now — every recipe the caller can see (theirs and
- * their copies, Cookpool's, their groups'), fewest missing first, then the
- * largest maxFactorMilli, then the most recently cooked; the first
- * COOK_NOW_LIMIT.
+ * GET /v1/kitchen/me/cook-now — the recipes the caller can see (theirs and
+ * their copies, Cookpool's, their groups') that their kitchen can make
+ * (RV-20): no line missing and enough stock for at least half a portion
+ * (so every entry has `match.missing` 0 and a `forPortionsHalf`).
+ * Ordered by the largest maxFactorMilli, then the most recently cooked; the
+ * first COOK_NOW_LIMIT. Empty when nothing can be made.
  */
 export interface CookNowResponse {
   recipes: CookNowEntry[];

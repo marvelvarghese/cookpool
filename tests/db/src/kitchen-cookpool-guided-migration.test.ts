@@ -110,8 +110,10 @@ describe("390_kitchen_cookpool_guided (GC-4)", () => {
 
   describe("against a real SQLite engine", () => {
     let db: DatabaseSync;
+    // Every migration before 590, which deleted these recipes and seeded 13 in
+    // their place (RV-20; kitchen-no-starter-recipes-migration checks what it leaves).
     beforeAll(() => {
-      db = migrated();
+      db = migrated(580);
     });
     afterAll(() => db.close());
 

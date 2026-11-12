@@ -49,6 +49,7 @@ import {
   keptStep,
   learnedSteps,
   foodsOf,
+  canMake,
   forPortionsHalf,
   matchRecipe,
   mintLinkCode,
@@ -88,7 +89,7 @@ import { foodNameKey } from "@saas/contracts/kitchen";
 //   GET    /v1/kitchen/recipes?source=&q=&kind=     Explore: Cookpool's, your groups', or public (CM-2)
 //   GET    /v1/kitchen/recipe-links/{code}?f=       anyone signed in with the code
 //   GET    /v1/kitchen/people/{usr}/recipes         someone you share a group with
-//   GET    /v1/kitchen/me/cook-now                  what you can make, best first
+//   GET    /v1/kitchen/me/cook-now                  only what your kitchen can make, best first (RV-20)
 //   PATCH  /v1/kitchen/me/recipes/{rcp}/step-times  its owner: "Use today's times" (GC-2)
 //
 // Guided steps (GC-2): every write and read carries the step fields, the
@@ -664,15 +665,17 @@ export async function handleCookNow(ctx: RequestContext): Promise<Response> {
   if (!members) return unavailable(ctx.requestId);
   return withKitchenRepo(ctx, async (repo) => {
     const me = ctx.actor.subjectId;
-    // Every recipe the caller can see: theirs and their copies, Cookpool's, their groups'.
+    // Every live recipe the caller can see: theirs and their copies, Cookpool's (590's 13, RV-20), their groups'.
     const found = await ctx.timings.measure("db", () =>
       repo.listRecipes({ viewer: me, ownerId: me, system: true, sharedBy: members, q: null, kind: null, limit: MAX_RECIPES_READ }),
     );
     if (!found.ok) return unavailable(ctx.requestId);
     const stock = await readStock(ctx, repo, groups, foodsOf(found.value));
     if (!stock) return unavailable(ctx.requestId);
+    // Only what the kitchen can make (RV-20): nothing missing, enough for at least half a portion.
     const ranked = found.value
       .map((recipe) => ({ recipe, summary: matchRecipe(recipe, 1000, stock).summary }))
+      .filter(({ recipe, summary }) => canMake(recipe, summary))
       .sort((a, b) => {
         if (a.summary.missing !== b.summary.missing) return a.summary.missing - b.summary.missing;
         const fa = a.summary.maxFactorMilli ?? -1;
