@@ -2,9 +2,9 @@ apiVersion: orun.io/v1
 kind: TaskContract
 metadata:
   name: SE-4
-  title: "Cookpool hands its money to Spliteco"
+  title: "Cookpool's money runs on Spliteco"
 spec:
-  goal: "Cookpool kitchens show in Spliteco as linked groups with locked itemized rows, and Cookpool's own money screens become read-only views that open Spliteco."
+  goal: "Cookpool's Money tab keeps kitchen bills, balances and settle up but runs on spliteco-worker and shared screens, with Kitchen and Other balances and a one-tap way into Spliteco."
   affects:
     - default/cookpool/kitchen-worker
     - default/cookpool/kitchen-worker-tests
@@ -12,6 +12,9 @@ spec:
     - default/cookpool/web-console-next-tests
     - default/cookpool/spliteco-worker
     - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-ui
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
     - default/cookpool/membership-worker
     - default/cookpool/membership-worker-tests
     - default/cookpool/db
@@ -20,12 +23,14 @@ spec:
     - default/cookpool/sdk
     - apps/spliteco-worker/**
     - apps/spliteco-web/**
+    - packages/spliteco-ui/**
     - tests/spliteco-worker/**
     - specs/epics/cookpool-spliteco/**
     - tasks/SE-4.TaskContract.yaml
   doneWhen:
-    - "A new Cookpool kitchen appears in Spliteco's Groups by itself, tagged From Cookpool; groups made in Spliteco never appear in Cookpool"
-    - "Cookpool bills show in Spliteco as locked itemized rows with the why, and can't be edited or moved there"
-    - "Cookpool's Money and People screens show balances read-only with Settle in Spliteco, and no settle button is left"
-    - "Leaving a kitchen while a balance is open is still refused"
+    - "Cookpool's Money tab adds bills and settles up through spliteco-worker, and a payment made in either app shows in both"
+    - "Cookpool shows only the Kitchen balance; Spliteco shows Kitchen and Other, and a Spliteco payment settles Kitchen first"
+    - "A new Cookpool kitchen appears in Spliteco by itself; groups made in Spliteco never appear in Cookpool"
+    - "More in Spliteco opens that group in Spliteco already signed in, and Back returns to Cookpool"
+    - "Leaving a kitchen while either balance is open is still refused"
   gates: []

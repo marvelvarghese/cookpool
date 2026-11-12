@@ -34,19 +34,16 @@ Each milestone is one task and one pull request on `orun/SE-k-<slug>`, with its 
 - simplify debts can be switched per group, and the plan shows the fewest payments
 - Remind sends a push or email at most once per person per 24 hours
 
-## SE3 — Cookpool hands its money over
+## SE3 — Cookpool's money runs on Spliteco
 
-- **SE-4** (design §4):
-  - kitchen-worker posts item rows with its txns;
-  - Cookpool's money screens become read-only, with "Settle in Spliteco";
-  - Cookpool's settlement route is retired;
-  - `made_in` filters Cookpool's group lists.
+- **SE-4** (design §0.4, §0.11, §4): `packages/spliteco-ui`; Cookpool's Money tab rebuilt on spliteco-worker with Kitchen balance, Add a bill and Settle up; the two balances and the kitchen-first payment rule; item rows from kitchen-worker; "More in Spliteco" with a one-time sign-in code; `made_in` filters.
 
 **Done when**
-- a new Cookpool kitchen appears in Spliteco's Groups by itself, tagged "From Cookpool"; groups made in Spliteco never appear in Cookpool
-- Cookpool bills show in Spliteco as locked itemized rows with the "why", and can't be edited or moved there
-- Cookpool's Money and People screens show balances read-only with "Settle in Spliteco", and no settle button is left
-- leaving a kitchen while a balance is open is still refused
+- Cookpool's Money tab adds bills and settles up through spliteco-worker, and a payment made in either app shows in both
+- Cookpool shows only the Kitchen balance; Spliteco shows Kitchen and Other, and a Spliteco payment settles Kitchen first
+- a new Cookpool kitchen appears in Spliteco by itself; groups made in Spliteco never appear in Cookpool
+- More in Spliteco opens that group in Spliteco already signed in, and Back returns to Cookpool
+- leaving a kitchen while either balance is open is still refused
 
 ## SE4 — bills from a photo, split together
 
@@ -76,7 +73,7 @@ Each milestone is one task and one pull request on `orun/SE-k-<slug>`, with its 
 ## Sequencing note
 
 - SE1 first: every later rung reads its model and API.
-- SE2 before SE3, so Cookpool never loses its settle button before Spliteco has one.
+- SE2 before SE3: SE3 rebuilds Cookpool's settle up on SE2's settlement routes.
 - SE4 needs only SE1's itemized model.
 - SE5 needs SE1's API, plus the cookpool-mcp consent page (MC-4). If MC-4 has not landed when SE5 starts, SE5 waits for it rather than building a second consent page.
 - One milestone is in flight at a time.

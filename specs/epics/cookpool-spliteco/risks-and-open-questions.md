@@ -20,7 +20,7 @@ The canvas said leftover paise go to the payer. Cookpool's engine gives them to 
 
 ## SE-D — a second app on its own host needs its own session (RISK, mitigated)
 
-The console's session cookie is scoped to its host. spliteco-web copies the console's sign-in plumbing against the same identity-worker. It is the same account, signed in once per app.
+The console's session cookie is scoped to its host. spliteco-web copies the console's sign-in plumbing against the same identity-worker. Opening Spliteco from Cookpool carries a one-time 60-second code (SE3), so it is one tap, already signed in.
 
 ## SE-E — live split without a socket (SETTLED)
 
@@ -37,3 +37,7 @@ The app runs on its workers.dev host until the owner attaches a domain in the Cl
 ## SE-H — direct groups multiply orgs (ACCEPTED)
 
 Each pair of friends with an expense outside groups gets a hidden organization. That is cheap in D1, and it keeps every expense group-scoped. These organizations are excluded from the open-groups cap (50 per person).
+
+## SE-I — two balances can confuse (RISK, mitigated)
+
+A kitchen group shows ₹860 in Cookpool and ₹4,860 in Spliteco when ₹4,000 of rent was added in Spliteco. Mitigations: Spliteco labels the two balances ("Kitchen ₹860 · Other ₹4,000"), the kitchen number is identical in both apps, and payments allocate kitchen-first, so Cookpool can never show a balance flipped by money it doesn't list.
