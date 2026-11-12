@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-22
+  title: "Shopping list and shopping run"
+spec:
+  goal: "The shared Shopping list and the Shopping run follow the canvas boards RvShopping and RvShoppingRun: quantities, add anything, receipt scan, taxes question, pantry groups, Add to kitchen."
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-22.TaskContract.yaml
+  doneWhen:
+    - "the list shows what the group needs with amounts and who added it; Add what we need suggests foods and past buys; ticks mean got it"
+    - "Done shopping opens the run: rows with amount and price by pantry, Scan the receipt fills prices and adds extra lines, one taxes question"
+    - "Add to kitchen saves every row into its pantry with the payer, staples split equally, and clears them from the list, with Undo"
+    - "no Bought wording remains; the old shopping run still works where it is linked; prod's old frame unchanged"
+  gates: []

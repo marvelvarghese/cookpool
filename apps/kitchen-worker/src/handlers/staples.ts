@@ -297,7 +297,8 @@ export const handleRemoveGroupStaple = (ctx: OrgContext, _request: Request, para
   groupWrite(ctx, () => removeStaple({ ctx, owner: groupOwner(ctx), personal: false }, params[0]));
 
 /**
- * A group's Bought: ONE expense for the price, paid by the caller, split
+ * A group's Bought: ONE expense for the price, paid by the caller (or
+ * `paidBy`, a member: RV-22's Paid by), split
  * equally among the group's current members (the engine's largest
  * remainder: the parts add up to the total), and the staple back to ok with
  * the price recorded — in one batch. The same Idempotency-Key posts once.
@@ -318,7 +319,12 @@ export async function handleGroupStapleBought(ctx: OrgContext, request: Request,
   if (!members) return unavailable(ctx.requestId);
   const actor = ctx.actor.subjectId;
   // The caller holds kitchen.expense.create here, so they are a member; the roster is who shares it.
-  const splits = buildExpense({ totalMinor: priceMinor, payers: [{ subjectId: actor, amountMinor: priceMinor }], mode: "equal", participants: members.map((subjectId) => ({ subjectId })) });
+  // Who paid (RV-22's Paid by) is the caller unless named, and must be on that roster.
+  const payer = parsed.value.paidBy ?? actor;
+  if (!members.includes(payer)) {
+    return unprocessable(ctx.requestId, "Whoever paid must be in the group", KITCHEN_ERROR_REASONS.NOT_IN_GROUP, { subjectIds: [payer] });
+  }
+  const splits = buildExpense({ totalMinor: priceMinor, payers: [{ subjectId: payer, amountMinor: priceMinor }], mode: "equal", participants: members.map((subjectId) => ({ subjectId })) });
 
   return withKitchenRepo(ctx, async (repo) => {
     const staple = await ctx.timings.measure("db", () => repo.getStaple(groupOwner(ctx), id));

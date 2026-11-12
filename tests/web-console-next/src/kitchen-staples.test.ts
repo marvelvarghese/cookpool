@@ -189,8 +189,9 @@ describe("the shopping list (RV-21)", () => {
     expect(tabBarHidden(true, "/pantry/list")).toBe(true);
     expect(tabBarHidden(false, "/pantry/list")).toBe(false);
     const ui = read("shopping-list-ui.tsx");
-    expect(ui).toContain('href="/pantry/run"');
-    expect(ui).toContain('title="Done shopping"');
+    // RV-22: "Done shopping · N items" opens the run with the ticked rows (LIST_RUN_HREF, /pantry/run?from=list).
+    expect(ui).toContain("href={LIST_RUN_HREF}");
+    expect(ui).toContain("{bar.title}");
   });
 });
 

@@ -149,6 +149,12 @@ export interface StapleBoughtRequest {
   /** What was bought (optional): thousandths of the base unit and the unit shown. */
   qtyMilli?: number | null;
   unit?: string | null;
+  /**
+   * A group's only (RV-22, the shopping run's Paid by): who paid, a current
+   * member (422 `not_in_group` otherwise); left out, the caller. Yours
+   * refuses it on `paidBy`.
+   */
+  paidBy?: string;
 }
 
 export interface StapleResponse {

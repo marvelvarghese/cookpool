@@ -17,7 +17,8 @@ import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";
 import { idempotencyKeyReused, ledgerAudit } from "../ledger.js";
 import { isoDay, itemErrorResponse } from "../pantry.js";
-import { inheritedSettings, lineCurrency, parsePurchase, presentItems, type ParsedLine } from "../purchases.js";
+import { inheritedSettings, lineCurrency, parsePurchase, parsePurchasePayer, presentItems, type ParsedLine } from "../purchases.js";
+import { notInGroup } from "../roster-client.js";
 import { withRestockRepos } from "../restock.js";
 
 // Shopping runs (PN-3, cookpool-pantry design §6.3–§6.4):
@@ -25,7 +26,10 @@ import { withRestockRepos } from "../restock.js";
 //   POST   /v1/kitchen/me/purchases         self: 1–30 lines → 201 { purchaseId, items }
 //   DELETE /v1/kitchen/me/purchases/{pur}   self: the Undo → 200 { purchaseId, removed, kept }
 //
-// One run, one payer: the caller, on every line. Each line keeps its own
+// One run, one payer: the caller, or (RV-22's Paid by) `paidBy` on the group
+// lines — someone in every group the run adds to (422 `not_in_group`); a
+// personal line is always the caller's, and a line paid by someone else
+// never copies "Ask me first". Each line keeps its own
 // pantry and price. The caller must be able to add to every pantry — the
 // same `kitchen.item.create` decision Add item asks the policy engine for,
 // once per group — or nothing is written: one refusal refuses the run (422,
@@ -105,6 +109,9 @@ export async function handleCreatePurchase(ctx: RequestContext, request: Request
   if (!parsed.ok) return validationError(ctx.requestId, parsed.fields);
   const lines = parsed.value;
   const me = ctx.actor.subjectId;
+  const payer = parsePurchasePayer(body);
+  if (!payer.ok) return validationError(ctx.requestId, payer.fields);
+  const groupPayer = payer.value ?? me;
 
   // Every pantry in reach, or nothing at all.
   const groups = await myGroups(ctx);
@@ -119,6 +126,15 @@ export async function handleCreatePurchase(ctx: RequestContext, request: Request
     }
   }
   if (Object.keys(outOfReach).length > 0) return validationError(ctx.requestId, outOfReach);
+  if (groupPayer !== me) {
+    const rosters = await ctx.timings.measure("roster", () => Promise.all(orgIds.map((orgId) => ctx.roster.members(orgId))));
+    if (rosters.some((r) => !r.ok)) return unavailable(ctx.requestId);
+    if (rosters.some((r) => r.ok && notInGroup(r.members, [groupPayer]).length > 0)) {
+      return unprocessable(ctx.requestId, "Whoever paid must be in every group the run adds to", KITCHEN_ERROR_REASONS.NOT_IN_GROUP, {
+        subjectIds: [groupPayer],
+      });
+    }
+  }
 
   return withRestockRepos(ctx, async ({ kitchen, purchases }) => {
     const fromIds = [...new Set(lines.flatMap((l) => (l.fromItemId ? [l.fromItemId] : [])))];
@@ -162,6 +178,9 @@ export async function handleCreatePurchase(ctx: RequestContext, request: Request
         line.fromItemId ? fromById.get(line.fromItemId)! : null,
         line.fromItemId ? allowedOf(line.fromItemId) : [],
       );
+      const paidBy = line.pantry.kind === "group" ? groupPayer : me;
+      // "Ask me first" is the buyer's: a pack someone else paid for doesn't copy it.
+      const asks = paidBy === me ? inherited : { ...inherited, askFirst: false, allowed: [] };
       return {
         id: asUuid(crypto.randomUUID()),
         owner: ownerOf(ctx, line),
@@ -172,12 +191,12 @@ export async function handleCreatePurchase(ctx: RequestContext, request: Request
         qtyMilli: line.item.qtyMilli,
         priceMinor: line.item.priceMinor,
         currency: lineCurrency(line, currencies),
-        paidBy: me,
+        paidBy,
         boughtOn: today,
         expiresOn: line.item.expiresOn,
-        wastePolicy: inherited.wastePolicy,
-        askFirst: inherited.askFirst,
-        allowed: inherited.allowed,
+        wastePolicy: asks.wastePolicy,
+        askFirst: asks.askFirst,
+        allowed: asks.allowed,
         createdBy: me,
         idemKey: `${idem.key}${LINE_KEY_SEPARATOR}${line.index}`,
         now,
