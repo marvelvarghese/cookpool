@@ -12,11 +12,11 @@ import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useFoldedSections } from "@/lib/pantry-device";
 import { useProfile } from "./data";
 import { IconBubble, KCard, K_BUTTON, K_BUTTON_QUIET, K_ROWS, K_SECTION, K_TITLE } from "./kit";
-import { RING, SeeAllButton, pillClass } from "./new-home-parts-ui";
-import { sectionRows, useSoonTiles, type UseSoonTile } from "./pantry-look";
+import { RING, SeeAllButton } from "./new-home-parts-ui";
+import { sectionRows, usualNowRows, useSoonTiles, type UseSoonTile } from "./pantry-look";
 import { useMemberNames } from "./people-data";
-import { useLogUse, usePantries, usePantryItems, useUsualBucket, useUsuals } from "./pantry-data";
-import { useLogSeveral } from "./log-several-data";
+import { usePantries, usePantryItems, useUsualBucket, useUsuals } from "./pantry-data";
+import { USUAL_BUCKET_LABELS } from "@saas/contracts/kitchen-usuals";
 import { AlwaysHaveCard } from "./always-have-ui";
 import { usualFor } from "./quick-use";
 import { itemRefOf } from "./pantry";
@@ -34,16 +34,15 @@ import {
   type PantryRow,
   type PantryShow,
 } from "./pantry-list";
-import { inTray, nowStrip, toggleTray, type NowChip, type TrayEntry } from "./now-strip";
-import { PantryRowView } from "./pantry-row-ui";
-import { LogTray, NowStripView } from "./now-strip-ui";
-import { UseSheet, type UseSheetTarget } from "./use-sheet-ui";
+import { TickHeader } from "./tick-row-ui";
+import { tickLoggedText } from "./tick-row";
+import { KitchenTickRow, useKitchenTicks } from "./kitchen-tick-ui";
 import { useAsks, useMinuteNow } from "./ask-data";
 import { askName, askStatus } from "./ask-before-use";
 import { localIsoDay } from "./item-form";
 import { useRestock } from "./restock-data";
 import { useBuyAgain } from "./buy-again-data";
-import { boughtAgainItem, finishedOpen, finishedRows, itemRestockKey, restockKey, toggleFinishedFold, type BoughtAgainSource, type FinishedRow } from "./restock";
+import { boughtAgainItem, finishedOpen, finishedRows, toggleFinishedFold, type BoughtAgainSource, type FinishedRow } from "./restock";
 import { FinishedThisWeek } from "./finished-ui";
 import { useReceiptScanShows } from "./receipt-data";
 import { RECEIPT_SCAN_HREF } from "./receipt-run";
@@ -55,12 +54,17 @@ type Row = PantryRow & { item: ReachableItem };
 /**
  * The Pantry in the new frame (cookpool-pantry PN-5, design §1, §3, the
  * canvas's PantryNew). Top to bottom: "Pantry" with + Bought; the search,
- * on phones too (`?q=` fills it, `?focus=1` focuses it), with Log several;
+ * on phones too (`?q=` fills it, `?focus=1` focuses it);
  * the Now strip; the chips with their counts (`?filter=`, `?pantry=`); the
  * use-soon card; the sections by kind, each folding on a tap (remembered on
  * the device); Finished this week (PN-6: Bought again, like last time); and
- * Always have. A row opens in place (`?open=` opens one), one at a time; its
- * chip logs in one tap. + Bought opens the shopping run (PN-6).
+ * Always have. + Bought opens the shopping run (PN-6).
+ *
+ * Since RV-10 (the canvas's RvKitchen "Tick to log") every row is a tick
+ * row: the name with its last use, the usual amount in grey with its unit,
+ * and a tick that logs it with Undo. "Usual now · Morning" takes the Now
+ * strip's place, and Log several is gone: a tick is one already. `?open=`
+ * still shows (and scrolls to) the row it names.
  */
 export function NewPantry() {
   const pathname = usePathname();
@@ -78,8 +82,7 @@ export function NewPantry() {
   const usuals = useUsuals();
   const bucket = useUsualBucket();
   const recentSlugs = useRecentGroupSlugs();
-  const logUse = useLogUse();
-  const logSeveral = useLogSeveral();
+  const ticks = useKitchenTicks();
   const [folded, setFolded] = useFoldedSections();
   // Ask before use (cookpool-pantry PN-9): your asks, for the rows that must ask.
   const asks = useAsks();
@@ -96,9 +99,6 @@ export function NewPantry() {
   const [query, setQuery] = React.useState(() => params?.get("q") ?? "");
   const openItemId = parseOpenParam(params?.get("open"))?.itemId ?? null;
   const [openId, setOpenId] = React.useState<string | null>(openItemId);
-  const [several, setSeveral] = React.useState(false);
-  const [tray, setTray] = React.useState<TrayEntry[]>([]);
-  const [sheet, setSheet] = React.useState<UseSheetTarget | null>(null);
   const searchRef = React.useRef<HTMLInputElement>(null);
   const focus = params?.get("focus") === "1";
 
@@ -142,7 +142,8 @@ export function NewPantry() {
   // Use soon (RV-3, the board's strip of three): past its date first, then the soonest.
   const soon = useSoonTiles(rows, { show, query });
   const [allIn, setAllIn] = React.useState<ReadonlySet<string>>(() => new Set());
-  const strip = searching ? [] : nowStrip(rows, usualList);
+  // Usual now (RV-10): what you usually use at this part of the day.
+  const usualNow = bucket ? usualNowRows(rows, usualList, { show, query }) : [];
   const byId = React.useMemo(() => new Map(rows.map((r) => [r.id, r] as const)), [rows]);
   const finished = finishedRows(restock.data, { show, query, now });
   const groupPolicy = (orgId: string) => {
@@ -153,14 +154,6 @@ export function NewPantry() {
   const buyLike = (item: KitchenItem) => void buyAgain({ ref: itemRefOf(item), item, meId, today: localIsoDay(new Date()), idempotencyKey: crypto.randomUUID() });
   const lineItem = (line: BoughtAgainSource) =>
     boughtAgainItem(line, { today: localIsoDay(new Date()), groupWastePolicy: line.pantry.kind === "group" ? groupPolicy(line.pantry.orgId) : null });
-  // A running-low row's More… sheet offers Bought again: like the restock read's latest purchase of it, else like the item itself.
-  const buyAgainFor = (r: Row): KitchenItem | null => {
-    if (!r.status.low || r.pending) return null;
-    const key = itemRestockKey(r.item);
-    const line = restock.data?.runningLow.find((l) => l.why.itemId === r.id) ?? restock.data?.runningLow.find((l) => restockKey(l) === key);
-    if (line) return line.canAdd ? lineItem(line) : null;
-    return r.canUse ? r.item : null;
-  };
   const finishedSection = (
     <FinishedThisWeek
       rows={finished}
@@ -179,35 +172,19 @@ export function NewPantry() {
     dropParam("open");
   }, [openItemId, byId, dropParam]);
 
-  const entryOf = (r: Row): TrayEntry | null => (r.ladder.suggestion ? { itemId: r.id, ref: itemRefOf(r.item), item: r.item, name: r.name, step: r.ladder.suggestion.step } : null);
-  const logChip = (r: Row) => {
-    if (r.chip?.kind !== "log" || !r.ladder.suggestion) return;
-    const entry = entryOf(r);
-    if (several) {
-      if (entry) setTray((t) => toggleTray(t, entry));
-      return;
-    }
-    const step = r.ladder.suggestion.step;
-    void logUse({
-      ref: r.ref,
-      item: r.item,
-      qtyMilli: step.qtyMilli,
-      consumers: r.chip.consumers,
-      idempotencyKey: crypto.randomUUID(),
-      what: step.words,
-      measure: step.amount.kind === "measure" ? { measure: step.amount.measure, quantity: step.amount.quantity } : null,
-      meId,
-      names,
-    });
-  };
-  const onStripChip = (c: NowChip) => {
-    const r = byId.get(c.id);
-    if (r) logChip(r);
-  };
-  const toggleSeveral = () => {
-    setSeveral((on) => !on);
-    setTray([]);
-  };
+  const rowFor = (r: Row) => (
+    <KitchenTickRow
+      key={r.id}
+      row={r}
+      usual={usualFor(r.id, usualList)}
+      ticks={ticks}
+      meId={meId}
+      names={names}
+      now={now}
+      askName={askName(r.item, { names })}
+      askStatus={askStatus(r.id, mine, { now: askNow, names })}
+    />
+  );
 
   const loading = pantries.loading || items.loading || (!items.data && !items.error);
   const failed = !loading && (pantries.error || items.error || !list || !loaded);
@@ -269,16 +246,6 @@ export function NewPantry() {
             className="h-11 min-w-0 flex-1 bg-transparent text-base font-normal text-foreground outline-none placeholder:text-muted-foreground"
           />
         </label>
-        {rows.length > 0 ? (
-          <button
-            type="button"
-            aria-pressed={several}
-            onClick={toggleSeveral}
-            className={cn(pillClass(several ? "main" : "quiet"), "min-h-11")}
-          >
-            Log several
-          </button>
-        ) : null}
       </div>
 
       {loading ? (
@@ -304,7 +271,22 @@ export function NewPantry() {
         </>
       ) : (
         <>
-          {bucket ? <NowStripView bucket={bucket} chips={strip} several={several} tray={tray} onChip={onStripChip} /> : null}
+          {bucket && usualNow.length > 0 ? (
+            <section aria-labelledby="pantry-usual-now" className="flex flex-col gap-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 id="pantry-usual-now" className={K_SECTION}>
+                  Usual now <span className="font-normal text-muted-foreground">· {USUAL_BUCKET_LABELS[bucket]}</span>
+                </h2>
+                <span className="text-[13px] font-normal text-muted-foreground">{tickLoggedText(usualNow.filter((r) => ticks.done.has(r.id)).length)}</span>
+              </div>
+              <div className={K_ROWS}>
+                <TickHeader />
+                <ul className="divide-y divide-cp-line">
+                  {usualNow.map((r) => rowFor(r))}
+                </ul>
+              </div>
+            </section>
+          ) : null}
 
           <div role="group" aria-label="Show" className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
             {chips.map((c) => (
@@ -347,30 +329,14 @@ export function NewPantry() {
                     <span id={headingId} className={cn(K_SECTION, "flex-1 text-left")}>
                       {s.label} <span className="font-normal tabular-nums text-muted-foreground">· {s.count}</span>
                     </span>
+                    <span className="text-[13px] font-normal text-muted-foreground">{tickLoggedText(s.rows.filter((r) => ticks.done.has(r.id)).length)}</span>
                     <ChevronDown className={cn("h-[18px] w-[18px] text-muted-foreground transition-transform motion-reduce:transition-none", !open && "-rotate-90")} aria-hidden />
                   </button>
                   {open ? (
                     <div className={K_ROWS}>
+                    <TickHeader />
                     <ul className="divide-y divide-cp-line">
-                      {shownRows.rows.map((r) => (
-                        <PantryRowView
-                          key={r.id}
-                          row={r}
-                          item={r.item}
-                          usual={usualFor(r.id, usualList)}
-                          open={openId === r.id}
-                          onToggle={() => setOpenId((id) => (id === r.id ? null : r.id))}
-                          onChip={() => logChip(r)}
-                          onMore={() => setSheet({ row: r, item: r.item, usual: usualFor(r.id, usualList), buyAgain: buyAgainFor(r) })}
-                          several={several}
-                          inTray={inTray(tray, r.id)}
-                          meId={meId}
-                          names={names}
-                          onLogged={() => setOpenId(null)}
-                          askName={askName(r.item, { names })}
-                          askStatus={askStatus(r.id, mine, { now: askNow, names })}
-                        />
-                      ))}
+                      {shownRows.rows.map((r) => rowFor(r))}
                     </ul>
                     {shownRows.more ? (
                       <SeeAllButton
@@ -402,17 +368,6 @@ export function NewPantry() {
 
       <AlwaysHaveCard />
 
-      {several ? (
-        <LogTray
-          tray={tray}
-          onLog={() => {
-            void logSeveral(tray, { meId, names });
-            setTray([]);
-            setSeveral(false);
-          }}
-        />
-      ) : null}
-      <UseSheet target={sheet} onClose={() => setSheet(null)} meId={meId} onLogged={() => setOpenId(null)} onBoughtAgain={buyLike} />
     </div>
   );
 }

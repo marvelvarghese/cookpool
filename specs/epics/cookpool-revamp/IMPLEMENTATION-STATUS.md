@@ -397,3 +397,49 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - Light/dark and reduced motion were covered by the unit tests, not in the browser.
 
 **Deploy.** Only the console changes.
+
+### RV1 — Kitchen, tick to log, with the unit picker (RV-10)
+
+**Built** (`apps/web-console-next`, new frame only). **Console-only:** no route, no migration, no contracts or SDK change, no worker change. Everything the row needs is already on the list view: the items read carries `measures`; the new frame's usuals read (`limit=100`, `tzOffset`) carries each food's last use (`lastQtyMilli`, `lastLabel`, `lastUsedAt`) and its usual for this part of the day (`now`).
+
+- **The shared row** (for RV-11's cook ingredients too):
+  - `components/kitchen/tick-row.ts`, pure, built on PN-11's `amount-picker.ts` so a tick logs exactly what the picker would:
+    - `tickStart(item, suggestion, usualUnit?)`: the ghost, PN-11's `pickStart` from the row's suggestion (PN-2's bucket usual through PN-5's ladder), converted to the food's usual unit when the item offers it. `tickStartAt(item, qtyMilli, usualUnit?)` does the same from a plain amount (RV-11's scaled recipe amount).
+    - `tickAmount(item, start, { typed, unit })` → `{ units, unit, ghost, ghostPick, pick, typed, invalid, number, word, words, qtyMilli }`. The chips are `amountUnits` (the item's own measures, then its dimension's plain units). A chosen unit converts the ghost (`pickUnit`, rounded to the unit's step). Typing uses `pickTyped` (½, 1½, 1,5, fractions; capped at what is left); junk leaves the ghost in force and marks the box invalid.
+    - `tickUnitChoice` (clears the typed amount, keeps the unit), `cleanTyped`, `tickWrite` (`pickWrite`: a measure's count, else the base unit).
+    - `lastUseText(usual, item, now)`: "1 glass · yesterday, 8:10 pm" (with the time today and yesterday, the date before), counted things in their own word ("2 eggs"). `tickMeta`: "Expired · 200 g left" (red), "50 g · 9 Nov · use by tomorrow" (amber), else the last use or "1.2 kg left" (muted).
+    - `usualUnitKey`, `parseUsualUnits`, `putUsualUnit` (at most 200 foods), `tickLoggedText` ("2 logged").
+  - `components/kitchen/tick-row-ui.tsx`: `TickHeader` (ITEM · LAST TIME | AMOUNT | ✓, decorative) and `TickRow`, a 3-column grid `minmax(0,1fr) 124px 48px`. Props: `id`, `name`, `href?`, `meta`, `amount` (null: no box, no tick), `state`/`onState` (controlled), `onUnit?(unitId)`, `done: { number, word } | null`, `onTick`, `end?` (replaces the tick), `busy?`, `tickLabel?(words, name, done)`, `children` (under the name). The unit button sits in the box and opens a chip row under the row; Enter in the box ticks. Done: the row is on `cp-accent-tint`, the box is locked on what was logged, and the tick is filled and `aria-pressed`.
+- **The Kitchen** (`kitchen-tick-ui.tsx`, `pantry-new-ui.tsx`):
+  - `KitchenTickRow` + `useKitchenTicks`. Each item's box and tick state is held once per screen, so Milk in Usual now and Milk in Dairy tick together.
+  - The tick goes through `useLogUse` (optimistic, the one Undo toast) for **you alone** (personal: nobody). Who else had it stays on the item page, where the name links.
+  - Ticking again presses that toast's Undo. Pressing Undo on the toast unticks the row. A refusal unticks it.
+  - **Usual now · <part of day>** (`usualNowRows` in `pantry-look.ts`): listed, usable rows whose food has a `now` usual, most uses in the bucket first, at most 6. It shows on All with no search, all rows (no See all), with "N logged" beside the heading.
+  - Each kind section has the column header, the tick rows, three then See all, and "N logged" beside its heading.
+  - An ask-first row (PN-9) shows a lock button in the tick's place that asks with the box's amount. A waiting ask shows × (Cancel). Its status line stays under the name.
+  - The usual unit is kept on the device (`lib/pantry-device.ts`: `useUsualUnits`, `saveUsualUnit`, `<prefix>.pantry-units`, cleared with the rest on sign-out).
+- **The toast** (`undo-toast.ts`): `UndoToastHandle.undo()` presses Undo from elsewhere and takes the toast away. `useLogUse` takes `onUndoable(undo)` and `onUndone()` (from `restore`). Existing callers are unchanged.
+
+**Departures.**
+- **Log several and the Now strip are gone from the Kitchen.** Ticks log in one tap each, which is what the tray did. Usual now takes the strip's place. The open-in-place set row, the row swipe and the long-press More… sheet are gone from Kitchen rows too: the name opens the item page, which keeps Use with people, Finish it, Wasted, Bought again and Cook with it. `PantryRowView`, `NowStripView`, `LogTray` and `SetRow` stay in the code (used by nothing on this page now). Say it still uses `useLogSeveral`.
+- **Sections stay by kind**, as RV-3 kept them (the board draws them by pantry). The chips, the Use soon strip, Finished this week and Always have stay.
+- **The time reads CP-23's way:** "yesterday, 8:10 pm" and "3 Nov", not the board's "yesterday 8:10" and "Wed". At 390 px a long line truncates with an ellipsis.
+- **The unit chips are labelled with the plural word** ("glasses", "ml", "eggs"), as PN-11's chips are.
+- **Usual now uses `now`** (PN-2's bucket usual, USUAL_NOW_MIN_USES uses), not the strip's stricter `strip` flag, and has no use-soon filler.
+- **The usual unit is per device**, not on the server. The server's usual follows the next logs in that unit.
+- **The board's footnote** ("Tick logs the grey amount…") is left out.
+
+**Pinned copy changed:** none.
+
+**Tests.**
+- `tests/web-console-next`: 119 suites, 2,361 tests, all passing. New `kitchen-tick-row.test.ts` (23): the ghost (measure, count word, plain unit, usual unit, nothing left, from a plain amount); typing (½, decimals, junk, capped); the chips (only the item's), conversion (1 glass → 250 ml → ¼ L, 2 glasses → ½ L), clearing typed, typing in the chosen unit, an unknown unit; what a tick writes; the line under the name; the kept units; Usual now.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 44 pages served as files, `/pantry` `○`.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 47610 ran behind an uncommitted in-memory mock on `cookpool-stage.localhost:47611` (RV-3's, plus usuals, measures and move undo). Every request was local.
+- Usual now · Evening listed Milk ("1 glass · yesterday, …", amber: use by Sat) and Eggs. Dairy had the header row and See all 5. Greek yogurt read "Expired · 200 g left" in red.
+- Ticking Milk sent `POST …/items/itm_milk…/uses {"quantity":"1","measure":"glass","consumers":[me]}`. Both Milk rows turned green and locked, with "1 logged". Ticking again sent `POST …/moves/mov_11/undo` and both rows unlocked.
+- Typing 3 over Eggs' grey 2 and ticking sent `{"quantity":"3","unit":"pcs"}`, with the toast "Logged 3 eggs · ₹8.50 · Undo". The toast's Undo sent `…/me/moves/mov_13/undo` and unticked the row.
+- Milk's unit opened glasses · ml · L. Picking ml made the grey amount 250 ml and kept `u:ml` for the food. In dark, the tick sent `{"quantity":"250","unit":"ml",…}` and the row turned gold.
+
+**Deploy.** Only the console changes.

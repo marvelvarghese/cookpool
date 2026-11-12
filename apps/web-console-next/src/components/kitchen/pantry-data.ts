@@ -355,6 +355,14 @@ export interface LogUseInput {
   inPantry?: boolean;
   meId: string | null;
   names?: MemberNames | null;
+  /**
+   * RV-10's tick: given the toast's Undo as soon as the toast shows, so
+   * ticking the row again presses it (a held-back write offline gives one
+   * that does nothing).
+   */
+  onUndoable?: (undo: () => void) => void;
+  /** RV-10's tick: the use was undone (Undo pressed, here or on the toast), the moment the screen is put back. */
+  onUndone?: () => void;
 }
 
 export type LogUseResult =
@@ -389,6 +397,8 @@ function useStockWrite() {
       /** The toast's words once the server answers (what it did to money), when they change. */
       answered: (answer: StockMoveResponse) => { title?: string; description?: string } | undefined;
       refusal: (error: ApiErrorBody) => { title: string; message: string };
+      onUndoable?: ((undo: () => void) => void) | undefined;
+      onUndone?: (() => void) | undefined;
     }): Promise<ApiResult<StockMoveResponse>> => {
       const { ref, item, change } = input;
       const orgId = ref.kind === "group" ? ref.orgId : null;
@@ -408,8 +418,10 @@ function useStockWrite() {
         restore: () => {
           undone = true;
           write.restore(stockReturnPatches(change));
+          input.onUndone?.();
         },
       });
+      input.onUndoable?.(toast.undo);
       return request.then((r) => {
         if (!r.ok) {
           write.rollback();
@@ -480,6 +492,8 @@ export function useLogUse() {
               : client.kitchen.usePersonalItem(ref.itemId, body, opts),
           ),
         title: textFor(change.costMinor),
+        onUndoable: input.onUndoable,
+        onUndone: input.onUndone,
         // The server's cost, if someone used some meanwhile and it differs.
         answered: (a) => (a.move.costMinor !== change.costMinor ? { title: textFor(a.move.costMinor) } : undefined),
         refusal: (error) => ({

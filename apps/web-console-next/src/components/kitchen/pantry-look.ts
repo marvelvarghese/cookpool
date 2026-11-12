@@ -7,7 +7,7 @@
  * Dependency-free (contract types only), so it is unit-testable.
  */
 
-import type { KitchenItem } from "@saas/contracts/kitchen";
+import type { KitchenItem, KitchenUsual } from "@saas/contracts/kitchen";
 import { useByDay, type ItemStatus, type PantryShow } from "./pantry-list";
 import { SEE_ALL_AFTER } from "./new-home-look";
 
@@ -61,4 +61,27 @@ export function sectionRows<T extends { id: string }>(rows: readonly T[], ctx: {
     more,
     label: all ? "Show less" : `See all ${rows.length}`,
   };
+}
+
+/** Usual now holds at most this many (RV-10). */
+export const USUAL_NOW_MAX = 6;
+
+/**
+ * "Usual now · Morning" (RV-10, the canvas's RvKitchen): the listed items you
+ * may use whose food has a usual for this part of the day (PN-2's `now`),
+ * most uses in it first, then most uses; at most USUAL_NOW_MAX. Empty while
+ * searching or on a chip other than All, and without usuals.
+ */
+export function usualNowRows<T extends { id: string; canUse: boolean; pending: boolean }>(
+  rows: readonly T[],
+  usuals: readonly Pick<KitchenUsual, "itemId" | "now" | "usedCount">[] | null | undefined,
+  ctx: { show: PantryShow; query?: string },
+): T[] {
+  if (ctx.show.kind !== "all" || (ctx.query ?? "").trim() !== "") return [];
+  const byId = new Map(rows.filter((r) => r.canUse && !r.pending).map((r) => [r.id, r] as const));
+  return (usuals ?? [])
+    .filter((u) => u.now && u.now.count > 0 && byId.has(u.itemId))
+    .sort((a, b) => (b.now?.count ?? 0) - (a.now?.count ?? 0) || b.usedCount - a.usedCount)
+    .slice(0, USUAL_NOW_MAX)
+    .map((u) => byId.get(u.itemId)!);
 }

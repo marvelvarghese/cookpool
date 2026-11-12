@@ -3,9 +3,10 @@
 /**
  * What this device remembers about the new Pantry (cookpool-pantry PN-5,
  * design §1.1, §1.6): which sections are folded, and each item's set row as
- * it was left — its amount and people — until Use. Two JSON values in
- * localStorage under `<storagePrefix>.pantry-folded` and
- * `<storagePrefix>.pantry-drafts`; both are forgotten when the person signs
+ * it was left — its amount and people — until Use; and (RV-10) each food's
+ * usual unit. JSON values in localStorage under
+ * `<storagePrefix>.pantry-folded`, `<storagePrefix>.pantry-drafts` and
+ * `<storagePrefix>.pantry-units`; all are forgotten when the person signs
  * out of this device (`clearPantryDevice`, from `clearDeviceRecords`). Every
  * read and write survives storage being unavailable: the Pantry then just
  * forgets.
@@ -14,9 +15,12 @@
 import * as React from "react";
 import { appConfig } from "./app-config";
 import { parseDrafts, putDraft, type UseDraft } from "@/components/kitchen/pantry-set";
+import { parseUsualUnits, putUsualUnit } from "@/components/kitchen/tick-row";
 
 const foldedKey = (): string => `${appConfig().storagePrefix}.pantry-folded`;
 const draftsKey = (): string => `${appConfig().storagePrefix}.pantry-drafts`;
+// RV-10: each food's usual unit, as the tick row's unit chips last chose it.
+const unitsKey = (): string => `${appConfig().storagePrefix}.pantry-units`;
 const EVENT = "cookpool:pantry-device";
 
 function storage(): Storage | null {
@@ -78,6 +82,24 @@ function readFolded(): ReadonlySet<string> {
   return folded.value;
 }
 
+let units: { raw: string | null; value: Readonly<Record<string, string>> } = { raw: null, value: {} };
+
+function readUnits(): Readonly<Record<string, string>> {
+  const raw = readRaw(unitsKey());
+  if (raw !== units.raw) units = { raw, value: parseUsualUnits(raw) };
+  return units.value;
+}
+
+/** Each food's usual unit on this device (`usualUnitKey` → "m:glass"), RV-10. */
+export function useUsualUnits(): Readonly<Record<string, string>> {
+  return React.useSyncExternalStore(subscribe, readUnits, () => units.value);
+}
+
+/** Keep a food's usual unit (the tick row's unit chip). */
+export function saveUsualUnit(key: string, unitId: string): void {
+  writeRaw(unitsKey(), JSON.stringify(putUsualUnit(readUnits(), key, unitId)));
+}
+
 function readDrafts(): Readonly<Record<string, UseDraft>> {
   const raw = readRaw(draftsKey());
   if (raw !== drafts.raw) drafts = { raw, value: parseDrafts(raw) };
@@ -102,8 +124,9 @@ export function saveDraft(itemId: string, draft: UseDraft | null): void {
   writeRaw(draftsKey(), Object.keys(next).length > 0 ? JSON.stringify(next) : null);
 }
 
-/** Forget both (signing out of this device). */
+/** Forget them all (signing out of this device). */
 export function clearPantryDevice(): void {
   writeRaw(foldedKey(), null);
   writeRaw(draftsKey(), null);
+  writeRaw(unitsKey(), null);
 }
