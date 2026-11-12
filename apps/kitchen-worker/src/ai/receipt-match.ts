@@ -211,6 +211,8 @@ export function matchReceipt(input: MatchInput): AiReceiptResponse {
 
   return {
     ...(read.store ? { store: read.store } : {}),
+    // The purchase date as printed (AI-15: Scan a bill dates the bill by it). Already read; now passed on.
+    ...(read.date ? { date: read.date } : {}),
     ...(read.total !== null ? { total: read.total } : {}),
     currency,
     sumMinor,

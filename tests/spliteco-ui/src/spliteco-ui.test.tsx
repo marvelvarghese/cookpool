@@ -149,6 +149,17 @@ describe("add a bill", () => {
     expect(html.match(/type="submit"/g)).toHaveLength(1);
     expect(html.match(/role="checkbox" aria-checked="true"/g)).toHaveLength(3);
   });
+
+  it("starts with what a scan read, and leaves who paid and the split alone (cookpool-ai AI-15)", () => {
+    const people = members.map((subjectId) => ({ subjectId, name: names.get(subjectId)! }));
+    const html = render(<AddBillForm members={people} me={ME} currency="INR" prefill={{ title: "Beach Shack", amount: "618" }} onSubmit={async () => undefined} />);
+    expect(html).toContain('value="Beach Shack"');
+    expect(html).toContain('value="618"');
+    expect(html.match(/role="checkbox" aria-checked="true"/g)).toHaveLength(3);
+    const blank = render(<AddBillForm members={people} me={ME} currency="INR" prefill={null} onSubmit={async () => undefined} />);
+    expect(blank).not.toContain('value="Beach Shack"');
+    expect(blank.match(/aria-invalid="false" value=""/g)).toHaveLength(2);
+  });
 });
 
 describe("Settle up", () => {

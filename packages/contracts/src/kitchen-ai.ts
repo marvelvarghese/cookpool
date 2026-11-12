@@ -287,6 +287,11 @@ export interface AiReceiptAdjustment {
  */
 export interface AiReceiptResponse {
   store?: string;
+  /**
+   * The purchase date as printed, `YYYY-MM-DD` (AI-15; additive). Left out
+   * when none was read. Scan a bill in Money dates the bill by it.
+   */
+  date?: string;
   total?: number;
   currency: string;
   sumMinor: number;

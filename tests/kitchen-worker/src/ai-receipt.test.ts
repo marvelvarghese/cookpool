@@ -332,3 +332,19 @@ describe("receipts: the photo is never stored or logged (AI-3)", () => {
     w.close();
   });
 });
+
+describe("receipts: the purchase date (AI-15)", () => {
+  it("passes on the date as printed, YYYY-MM-DD", async () => {
+    const w = aiWorld();
+    const data = await scan(w, { store: "Beach Shack", date: "2026-11-08", total: 6800, lines: [line("THALI", "Thali", 1, "pcs", 6800)] });
+    expect(data.date).toBe("2026-11-08");
+    w.close();
+  });
+
+  it("leaves it out when none was printed, or it isn't a date", async () => {
+    const w = aiWorld();
+    expect("date" in (await scan(w, { date: null, lines: [line("THALI", "Thali", 1, "pcs", 6800)] }))).toBe(false);
+    expect("date" in (await scan(w, { date: "8th Nov", lines: [line("THALI", "Thali", 1, "pcs", 6800)] }))).toBe(false);
+    w.close();
+  });
+});
