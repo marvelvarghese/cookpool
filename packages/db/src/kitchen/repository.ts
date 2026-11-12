@@ -22,6 +22,7 @@ import { createAsksRepository } from "./asks.js";
 import { createCommunityRepository } from "./community.js";
 import { createPostsRepository } from "./posts.js";
 import { createSplitLaterRepository } from "./split-later.js";
+import { createStaplesRepository } from "./staples.js";
 
 // ── Row mappers ────────────────────────────────────────────
 
@@ -136,5 +137,7 @@ export function createKitchenRepository(executor: SqlExecutor): KitchenRepositor
     ...createPostsRepository(executor),
     // Cooked, then split later, and Home's split reminder (CM-8).
     ...createSplitLaterRepository(executor),
+    // Always have per pantry and the shopping list (RV-21).
+    ...createStaplesRepository(executor),
   };
 }

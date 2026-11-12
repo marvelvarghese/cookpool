@@ -15,10 +15,14 @@
 //
 // Always have is a short list per person. Until they first save it they read
 // the default (salt and water): kitchen_always_have_lists records that they
-// have, so a list they emptied stays empty.
+// have, so a list they emptied stays empty. Since RV-21 (migration 600) the
+// list is the person's own staples that link to a food (kitchen_staples,
+// owner_kind 'user'; ./staples.ts): the PUT replaces those and leaves their
+// staples without a food alone. It still writes kitchen_always_have too, for
+// the old code during a deploy; staple routes do not.
 
 import { executeBatch, type SqlExecutor, type SqlStatement } from "../d1/executor.js";
-import { isForeignKeyViolation } from "../d1/errors.js";
+import { isForeignKeyViolation, isNoSuchTable } from "../d1/errors.js";
 import { nameMatchSql } from "./food-link.js";
 import { ITEM_COLUMNS, Params, itemColumns, likeEscape, mapItem, scopeClause } from "./pantry.js";
 import type {
@@ -81,10 +85,27 @@ function aliasedScope(params: Params, scope: { ownerSubjectId: string | null; or
 }
 
 export function createFoodsRepository(executor: SqlExecutor): FoodsRepository {
+  /**
+   * The person's food-linked staples (600); before 600 has run on this
+   * database (the worker can serve first: db-migrate deploys beside it), the
+   * old list in kitchen_always_have, which every PUT still writes.
+   */
+  async function listedFoods(userId: string) {
+    try {
+      return await executor.execute(
+        "SELECT DISTINCT food_key FROM kitchen_staples WHERE owner_kind = 'user' AND owner_id = $1 AND food_key IS NOT NULL ORDER BY food_key",
+        [userId],
+      );
+    } catch (err) {
+      if (!isNoSuchTable(err, "kitchen_staples")) throw err;
+      return executor.execute("SELECT food_key FROM kitchen_always_have WHERE user_id = $1 ORDER BY food_key", [userId]);
+    }
+  }
+
   async function alwaysHave(userId: string): Promise<KitchenAlwaysHave> {
     const [set, rows] = await Promise.all([
       executor.execute("SELECT 1 AS one FROM kitchen_always_have_lists WHERE user_id = $1", [userId]),
-      executor.execute("SELECT food_key FROM kitchen_always_have WHERE user_id = $1 ORDER BY food_key", [userId]),
+      listedFoods(userId),
     ]);
     if (set.rows.length === 0) return { foodKeys: [...KITCHEN_DEFAULT_ALWAYS_HAVE], isSet: false };
     return { foodKeys: rows.rows.map((r) => r.food_key as string), isSet: true };
@@ -236,6 +257,16 @@ export function createFoodsRepository(executor: SqlExecutor): FoodsRepository {
 
     async setAlwaysHave(userId, foodKeys, now) {
       const keys = JSON.stringify([...new Set(foodKeys)]);
+      // The old list's statements: the whole write before 600 has run (see `listedFoods`).
+      const old: SqlStatement[] = [
+        {
+          text: `INSERT INTO kitchen_always_have_lists (user_id, updated_at) VALUES ($1, $2)
+                 ON CONFLICT (user_id) DO UPDATE SET updated_at = excluded.updated_at`,
+          params: [userId, now],
+        },
+        { text: `DELETE FROM kitchen_always_have WHERE user_id = $1 AND food_key NOT IN (SELECT value FROM json_each($2))`, params: [userId, keys] },
+        { text: `INSERT OR IGNORE INTO kitchen_always_have (user_id, food_key, created_at) SELECT $1, value, $3 FROM json_each($2)`, params: [userId, keys, now] },
+      ];
       try {
         await executeBatch(executor, [
           {
@@ -243,6 +274,8 @@ export function createFoodsRepository(executor: SqlExecutor): FoodsRepository {
                    ON CONFLICT (user_id) DO UPDATE SET updated_at = excluded.updated_at`,
             params: [userId, now],
           },
+          // The old table is still written (an unknown food fails its foreign key, and the whole batch), so a
+          // worker on the code before 600 reads the same list until it is replaced.
           {
             text: `DELETE FROM kitchen_always_have WHERE user_id = $1 AND food_key NOT IN (SELECT value FROM json_each($2))`,
             params: [userId, keys],
@@ -252,10 +285,40 @@ export function createFoodsRepository(executor: SqlExecutor): FoodsRepository {
                    SELECT $1, value, $3 FROM json_each($2)`,
             params: [userId, keys, now],
           },
+          {
+            text: `DELETE FROM kitchen_staples WHERE owner_kind = 'user' AND owner_id = $1
+                   AND food_key IS NOT NULL AND food_key NOT IN (SELECT value FROM json_each($2))`,
+            params: [userId, keys],
+          },
+          // A staple of the same name without a food takes the food (one name per pantry).
+          {
+            text: `UPDATE kitchen_staples SET food_key = (SELECT f.key FROM kitchen_foods f, json_each($2) j
+                                                         WHERE f.key = j.value AND lower(trim(f.name)) = kitchen_staples.name_key LIMIT 1),
+                     updated_at = $3
+                   WHERE owner_kind = 'user' AND owner_id = $1 AND food_key IS NULL
+                     AND name_key IN (SELECT lower(trim(f.name)) FROM kitchen_foods f, json_each($2) j WHERE f.key = j.value)`,
+            params: [userId, keys, now],
+          },
+          ...[...new Set(foodKeys)].map((key) => ({
+            text: `INSERT OR IGNORE INTO kitchen_staples (id, owner_kind, owner_id, name, name_key, food_key, status, created_by, created_at, updated_by, updated_at)
+                   SELECT $1, 'user', $2, f.name, lower(trim(f.name)), f.key, 'ok', $2, $4, $2, $4 FROM kitchen_foods f
+                   WHERE f.key = $3 AND NOT EXISTS (
+                     SELECT 1 FROM kitchen_staples s WHERE s.owner_kind = 'user' AND s.owner_id = $2 AND s.food_key = $3)`,
+            params: [crypto.randomUUID(), userId, key, now],
+          })),
         ]);
         return { ok: true, value: await alwaysHave(userId) };
       } catch (err) {
         if (isForeignKeyViolation(err)) return { ok: false, error: { kind: "invalid", reason: "unknown_food" } };
+        if (isNoSuchTable(err, "kitchen_staples")) {
+          try {
+            await executeBatch(executor, old);
+            return { ok: true, value: await alwaysHave(userId) };
+          } catch (again) {
+            if (isForeignKeyViolation(again)) return { ok: false, error: { kind: "invalid", reason: "unknown_food" } };
+            return internal(again);
+          }
+        }
         return internal(err);
       }
     },

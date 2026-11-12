@@ -32,3 +32,14 @@ export function isForeignKeyViolation(err: unknown): boolean {
 export function isCheckViolation(err: unknown): boolean {
   return /(CHECK|NOT NULL) constraint failed/i.test(messageOf(err));
 }
+
+/**
+ * True when the error is SQLite naming a table that isn't there (`no such
+ * table: <table>`) — `table` given, only that one. A worker can serve for a
+ * few seconds before the migration that adds its table has run (Cookpool
+ * RV-21: db-migrate and the workers deploy side by side).
+ */
+export function isNoSuchTable(err: unknown, table?: string): boolean {
+  const m = /no such table:\s*([\w.]+)/i.exec(messageOf(err));
+  return !!m && (table === undefined || m[1]!.replace(/^main\./, "") === table);
+}

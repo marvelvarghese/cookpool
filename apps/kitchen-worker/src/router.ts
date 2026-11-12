@@ -99,6 +99,8 @@ import {
 import { COMMUNITY_ROUTES } from "./community-routes.js";
 // Cookpool AI (AI-2).
 import { AI_ROUTES } from "./ai-routes.js";
+// Always have per pantry and the shopping list (RV-21).
+import { STAPLE_ME_ROUTES, STAPLE_ORG_ROUTES } from "./staples-routes.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
 
@@ -110,7 +112,7 @@ type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
  */
 export type OrgHandler = (ctx: OrgContext, request: Request, params: readonly string[]) => Promise<Response>;
 
-interface OrgRoute {
+export interface OrgRoute {
   /** Timing-log name; the method is appended (`kitchen.settings.get`). */
   name: string;
   /** Matches the whole path. Capture 1 is the group's `org_…` id. */
@@ -287,6 +289,8 @@ const ORG_ROUTES: readonly OrgRoute[] = [
     pattern: /^\/v1\/organizations\/([^/]+)\/kitchen\/asks\/([^/]+)\/cancel$/,
     methods: { POST: handleCancelAsk },
   },
+  // Always have per pantry and the shopping list (RV-21, see staples-routes.ts).
+  ...STAPLE_ORG_ROUTES,
 ];
 
 // The caller's own routes, /v1/kitchen/me/…: their personal pantry, and every
@@ -301,6 +305,8 @@ const ME_ROUTES: readonly MeRoute[] = [
   ...COMMUNITY_ROUTES,
   // Cookpool AI (AI-2): the status read and say what you used (see ai-routes.ts).
   ...AI_ROUTES,
+  // Always have per pantry and the shopping list (RV-21, see staples-routes.ts).
+  ...STAPLE_ME_ROUTES,
   {
     name: "kitchen.me.pantries",
     pattern: /^\/v1\/kitchen\/me\/pantries$/,

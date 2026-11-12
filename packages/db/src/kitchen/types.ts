@@ -2,6 +2,8 @@ import type { AsksRepository } from "./asks.js";
 import type { CommunityRepository } from "./community.js";
 import type { PostsRepository } from "./posts.js";
 import type { SplitLaterRepository } from "./split-later.js";
+import type { StaplesRepository } from "./staples.js";
+import type { SqlStatement } from "../d1/executor.js";
 import type { KitchenActivityWrite } from "./activity-write.js";
 import type { AppendEventWithAuditInput } from "../events/types.js";
 import type { Uuid } from "../ids/index.js";
@@ -165,6 +167,12 @@ export interface PostTxnInput {
   splits: readonly KitchenSplit[];
   /** The audit event, written in the same batch as the transaction. */
   audit?: AppendEventWithAuditInput;
+  /**
+   * Statements of the same money event, in the same batch (after the splits,
+   * before the audit event): a staple's Bought (RV-21) sets it back to ok.
+   * A replayed key writes none of them.
+   */
+  extra?: readonly SqlStatement[];
 }
 
 /**
@@ -698,7 +706,7 @@ export interface KitchenUsualsBucketQuery {
  * dish and check of a group item reads its guard — but its storage is its own
  * file: ./asks.ts.
  */
-export interface KitchenRepository extends AsksRepository, CommunityRepository, PostsRepository, SplitLaterRepository {
+export interface KitchenRepository extends AsksRepository, CommunityRepository, PostsRepository, SplitLaterRepository, StaplesRepository {
   /** The group's settings row, or `null` when it has none (it uses the defaults). */
   getGroupSettings(orgId: Uuid): Promise<KitchenResult<KitchenGroupSettings | null>>;
   /**

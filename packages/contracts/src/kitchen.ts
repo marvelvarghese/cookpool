@@ -2197,3 +2197,8 @@ export * from "./kitchen-ai.js";
 // Check it and rescue — ./kitchen-ai-stove.ts (also through
 // `@saas/contracts/kitchen`).
 export * from "./kitchen-ai-stove.js";
+
+// Always have per pantry and the shopping list (cookpool-revamp RV-21):
+// staples, their status and equal-split Bought, and hand-added list lines —
+// ./kitchen-staples.ts (also through `@saas/contracts/kitchen`).
+export * from "./kitchen-staples.js";

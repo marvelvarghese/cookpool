@@ -16,4 +16,4 @@ export { createSqlExecutor, executeBatch } from "./executor.js";
 export type { TranslatedSql } from "./sql.js";
 export { translatePlaceholders, toBindValue } from "./sql.js";
 
-export { isUniqueViolation, isForeignKeyViolation, isCheckViolation } from "./errors.js";
+export { isUniqueViolation, isForeignKeyViolation, isCheckViolation, isNoSuchTable } from "./errors.js";

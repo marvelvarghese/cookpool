@@ -1,0 +1,28 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-21
+  title: "Kitchen: title switcher, shared staples, shopping list"
+spec:
+  goal: "The Kitchen follows the canvas board RvKitchenB: the title switches pantries, Say it lives in search, use-soon and stock bars sit in rows, group Always have items split equally, and running-low ones fill a shopping list."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-migrate
+    - default/cookpool/db-tests
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/api-edge
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-21.TaskContract.yaml
+  doneWhen:
+    - "the Kitchen title opens a sheet of All kitchens and each pantry with counts; picking one shows only its rows and staples"
+    - "Say it is a sparkle inside search; use soon sorts to the top with an amber or red line; each row has a stock bar"
+    - "a group's Always have items show as chips; Running low, Out and Bought work; Bought posts a bill split equally among members"
+    - "Always have items marked low or out, plus hand-added items, form the shopping list, with a header badge and Bought N items"
+    - "migration 600 and the new routes are tested; the cook session and prod's old frame are unchanged"
+  gates: []

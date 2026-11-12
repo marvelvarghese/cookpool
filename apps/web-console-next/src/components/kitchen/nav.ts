@@ -128,7 +128,8 @@ export function isTabActiveIn(newFrame: boolean, id: KitchenTabId, pathname: str
 /**
  * The new frame's pushed screens that the boards draw without the floating
  * tab bar (RvItem, RvRecipe, RvCookStep, RvCooked, RvGroups): an item's page
- * (`/pantry/<ref>`, not Add item or the shopping run), a recipe's page
+ * (`/pantry/<ref>`, not Add item or the shopping run; the shopping list,
+ * `/pantry/list`, RV-21, is hidden too), a recipe's page
  * (`/recipes/<id>`, not New recipe), the cooking session, guided or tick
  * (`/cook/session`), Cooked! (a dish's page with `?cooked=1`, until its Done
  * drops the parameter) and the Groups list (`/groups`). Each has its own Back,

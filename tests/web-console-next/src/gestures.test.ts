@@ -52,6 +52,8 @@ describe("which screens pull to refresh", () => {
     "/pantry/new",
     // The shopping run (cookpool-pantry PN-6): ticks and steppers, which a pull would fight.
     "/pantry/run",
+    // The shopping list (cookpool-revamp RV-21): its add fields; RV-22 redesigns it.
+    "/pantry/list",
     "/pantry/:itemRef",
     // The stock check (cookpool-pantry PN-7): a level you drag, which a pull would fight.
     "/pantry/:itemRef/check",

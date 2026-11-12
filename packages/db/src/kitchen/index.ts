@@ -239,6 +239,18 @@ export { activityStatement } from "./activity-write.js";
 // Cooked, then split later, and Home's split reminder (CM-8): part of KitchenRepository.
 export type { SplitDishLaterInput, UnsplitDishesQuery, SplitLaterRepository } from "./split-later.js";
 export { createSplitLaterRepository } from "./split-later.js";
+export type {
+  KitchenShoppingItemRecord,
+  KitchenStapleRecord,
+  KitchenStapleStatus,
+  StapleBought,
+  StapleOwnerKey,
+  StapleOwnerKind,
+  StaplePatch,
+  StapleResult,
+  StaplesRepository,
+} from "./staples.js";
+export { DEFAULT_STAPLE_FOODS, boughtStatement, createStaplesRepository, defaultStapleId, seedStatements, stapleNameKey } from "./staples.js";
 
 // Cookpool AI (AI-2): what each person's AI actions used, for the daily limits.
 export type {
