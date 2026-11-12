@@ -86,8 +86,8 @@ export interface ApiRefusal {
 }
 
 export interface SignInNotice {
-  /** `error` is an alert (red); `info` is a status line (amber). */
-  tone: "error" | "info";
+  /** `error` is an alert (red); `info` is a status line (amber); `success` (PK-3) is green: "New code sent". */
+  tone: "error" | "info" | "success";
   text: string;
 }
 
@@ -323,6 +323,10 @@ export function saveNameOutcome(refusal: ApiRefusal, status: number): SaveNameOu
 export interface SignInState {
   /** `name` (SI-6): signed in, choosing the name their groups see. */
   step: "start" | "code" | "name";
+  /** The tab (PK-3): Sign in, or Create account (a name, then the same code). */
+  mode: "in" | "new";
+  /** Create account's name, saved after the code when the account has none (PK-3). */
+  signUpName: string;
   /** The address typed; on the code step, where the code went. */
   email: string;
   /** The challenge the code answers. Null once it can never be answered. */
@@ -347,6 +351,8 @@ export interface SignInState {
 
 export const INITIAL_SIGN_IN: SignInState = {
   step: "start",
+  mode: "in",
+  signUpName: "",
   email: "",
   challengeId: null,
   code: "",
@@ -362,6 +368,10 @@ export const INITIAL_SIGN_IN: SignInState = {
 
 export type SignInEvent =
   | { type: "email"; value: string }
+  /** Sign in · Create account (PK-3). */
+  | { type: "tab"; mode: "in" | "new" }
+  /** Create account's name field (PK-3). */
+  | { type: "sign_up_name"; value: string }
   | { type: "code"; value: string }
   | { type: "busy"; busy: "send" | "verify" | "save" }
   /**
@@ -393,6 +403,11 @@ export function signInReducer(state: SignInState, event: SignInEvent): SignInSta
   switch (event.type) {
     case "email":
       return { ...state, email: event.value, notice: null };
+    case "tab":
+      if (state.step !== "start" || state.mode === event.mode) return state;
+      return { ...state, mode: event.mode, notice: null };
+    case "sign_up_name":
+      return { ...state, signUpName: [...event.value].slice(0, NAME_MAX).join(""), notice: null };
     case "code": {
       const code = sanitizeCode(event.value);
       if (code === state.code) return state;
@@ -434,7 +449,8 @@ export function signInReducer(state: SignInState, event: SignInEvent): SignInSta
     case "wrong":
       return { ...state, rejectedCode: event.code, notice: event.notice, busy: null };
     case "back":
-      return { ...INITIAL_SIGN_IN, email: state.email };
+      // Back to the form the code came from, with what was typed there.
+      return { ...INITIAL_SIGN_IN, email: state.email, mode: state.mode, signUpName: state.signUpName };
     case "ask_name":
       return {
         ...INITIAL_SIGN_IN,

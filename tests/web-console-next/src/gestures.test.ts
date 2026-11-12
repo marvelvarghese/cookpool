@@ -35,6 +35,7 @@ describe("which screens pull to refresh", () => {
   const NO_PULL = [
     "/",
     "/login",
+    "/login/help",
     "/auth/callback",
     "/use",
     "/cook",

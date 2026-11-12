@@ -33,6 +33,11 @@ export interface AppConfig {
   /** Sales contact surfaced by the billing upgrade UX. */
   salesEmail: string;
   /**
+   * Where Can't sign in?'s "Write to us" mails (Cookpool PK-3). Empty by
+   * default: with no address the button is not shown.
+   */
+  supportEmail: string;
+  /**
    * Custom domains and the environment each serves (Cookpool SI-12):
    * `stage=stage.cookpool.store,prod=cookpool.store`.
    */
@@ -63,6 +68,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   apiWorkerPrefix: "cookpool-api-edge",
   storagePrefix: "cookpool.next",
   salesEmail: "sales@sourceplane.ai",
+  supportEmail: "",
   customDomains: "stage=stage.cookpool.store,prod=cookpool.store",
   // mcp-worker's workers.dev hosts (MC-3: `workers_dev: true` in stage and prod).
   // TODO(cookpool-mcp, risk MC-D): once the owner attaches mcp.cookpool.store
@@ -81,6 +87,7 @@ export const RUNTIME_KEYS: Record<keyof AppConfig, string> = {
   apiWorkerPrefix: "CONSOLE_API_WORKER_PREFIX",
   storagePrefix: "CONSOLE_STORAGE_PREFIX",
   salesEmail: "CONSOLE_SALES_EMAIL",
+  supportEmail: "CONSOLE_SUPPORT_EMAIL",
   customDomains: "CONSOLE_CUSTOM_DOMAINS",
   mcpPublicUrls: "CONSOLE_MCP_PUBLIC_URLS",
   deployEnv: "CONSOLE_DEPLOY_ENV",
@@ -151,6 +158,7 @@ export function resolveAppConfig(
     apiWorkerPrefix: pick("apiWorkerPrefix") ?? defaults.apiWorkerPrefix,
     storagePrefix: pick("storagePrefix") ?? defaults.storagePrefix,
     salesEmail: pick("salesEmail") ?? defaults.salesEmail,
+    supportEmail: pick("supportEmail") ?? defaults.supportEmail,
     customDomains,
     mcpPublicUrls: pick("mcpPublicUrls") ?? defaults.mcpPublicUrls,
     deployEnv: pick("deployEnv") ?? defaults.deployEnv ?? environmentFromHost(host, customDomains),

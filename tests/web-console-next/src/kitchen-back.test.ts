@@ -21,7 +21,7 @@ import { KITCHEN_NAV_LINKS } from "@web-console-next/components/kitchen/nav";
 describe("the parent map (backParent)", () => {
   it("covers every page: a tab, a screen with a parent, or outside the app's frame", () => {
     // A new page must say where Back takes it, or this fails.
-    expect([...OUTSIDE_THE_APP].sort()).toEqual(["/", "/auth/callback", "/login"]);
+    expect([...OUTSIDE_THE_APP].sort()).toEqual(["/", "/auth/callback", "/login", "/login/help"]);
     for (const page of SCREENS_WITH_PARENT) expect(STATIC_PAGES).toContain(page);
   });
 

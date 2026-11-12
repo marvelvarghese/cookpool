@@ -8,6 +8,7 @@ import { useSession } from "@/lib/session";
 import { loginPathFor, nextParamFrom } from "@/lib/safe-next";
 import { takeLoginNext, takeOAuthProvider } from "@/lib/login-return";
 import { rememberSignInMethod } from "@/lib/first-run";
+import { rememberAccount } from "@/lib/remembered-account";
 import { afterOAuthPath } from "@/components/kitchen/sign-in";
 import { Button } from "@/components/ui/button";
 import { KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
@@ -43,7 +44,8 @@ const ERROR_COPY: Record<string, string> = {
  * Google brings a name for a new account, but signing in with Google to an
  * account first made by code keeps that account's name, which may be none.
  * A read that fails goes straight on. It also records that this device signed
- * in with Google (You's "How you sign in").
+ * in with Google (You's "How you sign in"), and (PK-3) remembers the account
+ * for Sign in's "Welcome back".
  */
 export default function OAuthCallbackPage() {
   useKitchenBodyTheme();
@@ -82,6 +84,8 @@ export default function OAuthCallbackPage() {
       rememberSignInMethod(provider === "google" ? "google" : null);
       // The session's client still has the old token on this render: ask with the new one.
       void wrap(() => createClient(target, token).auth.getProfile()).then((r) => {
+        // Sign in's "Welcome back" (PK-3): who this device just signed in as, with Google.
+        if (r.ok && provider === "google") rememberAccount(r.data.user, "google");
         router.replace(afterOAuthPath(r.ok ? { ok: true, user: r.data.user } : { ok: false, status: r.status }, destination));
       });
       return;

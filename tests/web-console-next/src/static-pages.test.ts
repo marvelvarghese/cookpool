@@ -23,7 +23,7 @@ describe("the pages served as files", () => {
       .filter((f) => f === "page.tsx" || f.endsWith("/page.tsx"))
       .map((f) => `/${f.replace(/\/?page\.tsx$/, "")}`.replace(/\[([^\]]+)\]/g, ":$1"))
       .map((p) => (p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p));
-    expect([...STATIC_PAGES].sort()).toEqual(["/", "/auth/callback", "/login", ...kitchen].sort());
+    expect([...STATIC_PAGES].sort()).toEqual(["/", "/auth/callback", "/login", "/login/help", ...kitchen].sort());
   });
 
   it("name their prerendered route and files", () => {
