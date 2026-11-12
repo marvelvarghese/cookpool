@@ -72,7 +72,7 @@ export default function AddExpensePage() {
   if (!group) {
     return (
       <KCard className="flex flex-col items-center px-6 py-12 text-center">
-        <h1 className="text-lg font-bold tracking-tight">You&apos;re not in this group</h1>
+        <h1 className="text-lg font-medium tracking-tight">You&apos;re not in this group</h1>
         <Button asChild className={cn(K_BUTTON, "mt-4")}>
           <Link href="/groups">Your groups</Link>
         </Button>
@@ -109,7 +109,7 @@ function ExpenseLoader({ group }: { group: PublicOrganization }) {
   if (!canWrite) {
     return (
       <KCard className="flex flex-col items-center px-6 py-12 text-center">
-        <h1 className="text-lg font-bold tracking-tight">You only view {group.name}</h1>
+        <h1 className="text-lg font-medium tracking-tight">You only view {group.name}</h1>
         <Button asChild className={cn(K_BUTTON, "mt-4")}>
           <Link href={`/groups/${group.slug}`}>Back to {group.name}</Link>
         </Button>
@@ -197,8 +197,8 @@ function ExpenseFormView({
     <div className="space-y-4">
       <header className="flex min-h-11 items-center gap-1">
         <BackButton />
-        <h1 className="min-w-0 flex-1 truncate text-[26px] font-extrabold leading-tight tracking-tight">Add a bill</h1>
-        <span className="max-w-[40%] shrink-0 truncate text-sm font-semibold text-muted-foreground">{group.name}</span>
+        <h1 className="min-w-0 flex-1 truncate text-[26px] font-medium leading-tight tracking-tight">Add a bill</h1>
+        <span className="max-w-[40%] shrink-0 truncate text-sm font-medium text-muted-foreground">{group.name}</span>
       </header>
 
       <form
@@ -230,7 +230,7 @@ function ExpenseFormView({
           <div className="space-y-2" data-field="amount">
             <Label htmlFor="expense-amount">Amount</Label>
             <div className="relative">
-              <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-muted-foreground">
+              <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-medium text-muted-foreground">
                 {prefix}
               </span>
               <Input
@@ -242,7 +242,7 @@ function ExpenseFormView({
                 autoComplete="off"
                 aria-invalid={!!err("amount")}
                 aria-describedby={err("amount") ? "expense-amount-error" : undefined}
-                className={cn(K_INPUT, "h-14 text-xl font-bold tabular-nums sm:h-14 sm:text-xl", prefix.length > 1 ? "pl-14" : "pl-9")}
+                className={cn(K_INPUT, "h-14 text-xl font-medium tabular-nums sm:h-14 sm:text-xl", prefix.length > 1 ? "pl-14" : "pl-9")}
               />
             </div>
             {err("amount") ? (
@@ -266,13 +266,13 @@ function ExpenseFormView({
             />
           ) : (
             <fieldset>
-              <legend className="text-[15px] font-extrabold">Paid by</legend>
+              <legend className="text-[15px] font-medium">Paid by</legend>
               <ul className="mt-2 divide-y">
                 {people.map((id) => (
                   <li key={id} className="py-2">
                     <div className="flex items-center gap-3">
                       <Face subjectId={id} meId={myId} names={names} />
-                      <label htmlFor={`payer-${id}`} className="min-w-0 flex-1 truncate text-[15px] font-semibold">
+                      <label htmlFor={`payer-${id}`} className="min-w-0 flex-1 truncate text-[15px] font-medium">
                         {memberLabel(id, myId, names)}
                       </label>
                       <MoneyInput
@@ -310,7 +310,7 @@ function ExpenseFormView({
           <KCard className="p-5" data-field="split">
             {otherWays || form.mode !== "equal" ? (
               <>
-                <h2 id="split-heading" className="text-[15px] font-extrabold">
+                <h2 id="split-heading" className="text-[15px] font-medium">
                   Split
                 </h2>
                 <Segmented
@@ -336,7 +336,7 @@ function ExpenseFormView({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="absolute -top-3 right-0 min-h-11 rounded-xl px-3 text-sm font-semibold text-primary"
+                  className="absolute -top-3 right-0 min-h-11 rounded-xl px-3 text-sm font-medium text-primary"
                   onClick={() => setForm((f) => toggleEveryone(f, people))}
                 >
                   {allIn ? "No one" : "Everyone"}
@@ -346,7 +346,7 @@ function ExpenseFormView({
                     type="button"
                     variant="ghost"
                     aria-expanded={false}
-                    className="-mx-2 mt-2 min-h-11 rounded-xl px-2 text-sm font-semibold text-primary"
+                    className="-mx-2 mt-2 min-h-11 rounded-xl px-2 text-sm font-medium text-primary"
                     onClick={() => setOtherWays(true)}
                   >
                     Split another way
@@ -370,7 +370,7 @@ function ExpenseFormView({
                         <div className="flex min-h-11 items-center gap-3">
                           <Face subjectId={p.subjectId} meId={myId} names={names} />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[15px] font-semibold">{name}</span>
+                            <span className="block truncate text-[15px] font-medium">{name}</span>
                             {form.mode === "percent" || form.mode === "shares" ? (
                               <span className="block text-sm tabular-nums text-muted-foreground">
                                 <span className="sr-only">Owes </span>
@@ -465,7 +465,7 @@ function CheckLine({ check, extra }: { check: ExpenseCheck; extra?: string | nul
       role="status"
       aria-live="polite"
       className={cn(
-        "mt-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold tabular-nums",
+        "mt-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium tabular-nums",
         check.ok ? "bg-cp-herb-tint text-primary" : "bg-cp-expired-tint text-destructive",
       )}
     >
@@ -524,7 +524,7 @@ function SharesStepper({ value, name, onStep }: { value: number; name: string; o
       <RepeatButton className={btn} aria-label={`One share fewer for ${name}`} disabled={value <= 0} onStep={() => onStep(-1)}>
         <Minus className="h-4 w-4" aria-hidden />
       </RepeatButton>
-      <span aria-live="polite" className="w-8 text-center text-[15px] font-bold tabular-nums">
+      <span aria-live="polite" className="w-8 text-center text-[15px] font-medium tabular-nums">
         {value}
         <span className="sr-only"> {value === 1 ? "share" : "shares"}</span>
       </span>

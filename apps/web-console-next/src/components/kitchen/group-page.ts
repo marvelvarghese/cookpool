@@ -112,3 +112,57 @@ export function roleWords(role: GroupRole | null): string | null {
 export function groupSettleHref(slug: string): string {
   return `/people?group=${encodeURIComponent(slug)}`;
 }
+
+// ── The revamp (RV-5, the canvas's RvGroup) ─────────────────────────
+
+/** The group page's three tabs, in order; Activity when the address names none. */
+export const GROUP_TABS = [
+  { id: "activity", label: "Activity" },
+  { id: "pantry", label: "Pantry" },
+  { id: "money", label: "Money" },
+] as const;
+export type GroupTab = (typeof GROUP_TABS)[number]["id"];
+
+export function groupTabFrom(param: string | null | undefined): GroupTab {
+  return param === "pantry" || param === "money" ? param : "activity";
+}
+
+/** A tab's address: Activity is the bare page. */
+export function groupTabHref(slug: string, tab: GroupTab): string {
+  const base = `/groups/${encodeURIComponent(slug)}`;
+  return tab === "activity" ? base : `${base}?tab=${tab}`;
+}
+
+/** Rows each tab shows before "See all". */
+export const GROUP_TAB_ROWS = 3;
+
+/** Faces in the header's stack before "+N". */
+export const GROUP_FACES = 4;
+
+/** The header's faces: you first, then everyone else in the list's order, at most `max`, and how many more. */
+export function groupFaces(subjectIds: readonly string[], meId: string | null, max = GROUP_FACES): { shown: string[]; more: number } {
+  const ordered = meId && subjectIds.includes(meId) ? [meId, ...subjectIds.filter((s) => s !== meId)] : [...subjectIds];
+  return { shown: ordered.slice(0, max), more: Math.max(0, ordered.length - max) };
+}
+
+/** The header's balance pill: "+₹842.00", "−₹24.00", "Settled". */
+export function groupPill(data: Pick<BalancesResponse, "currency" | "balances">, meId: string | null): { tone: "owed" | "owe" | "settled"; text: string } {
+  const minor = meId ? (data.balances.find((b) => b.subjectId === meId)?.balanceMinor ?? 0) : 0;
+  if (minor === 0) return { tone: "settled", text: "Settled" };
+  const amount = formatMinor(Math.abs(minor), data.currency);
+  return minor > 0 ? { tone: "owed", text: `+${amount}` } : { tone: "owe", text: `−${amount}` };
+}
+
+/** A Balances row's amount, signed by which way it goes for them: "+₹610.00" gets back, "−₹24.00" owes. */
+export function balanceFact(row: Pick<GroupBalanceRow, "tone" | "amount">): string {
+  return row.tone === "owed" ? `+${row.amount}` : `−${row.amount}`;
+}
+
+/** Add, the group's one main button: what it offers, each a link for this group. */
+export function groupAddChoices(group: { slug: string; id: string }): { id: string; label: string; href: string }[] {
+  return [
+    { id: "expense", label: "Expense", href: `/groups/${encodeURIComponent(group.slug)}/expense` },
+    { id: "item", label: "Pantry item", href: `/pantry/new?pantry=${encodeURIComponent(group.id)}` },
+    { id: "cook", label: "Dish I cooked", href: "/cook" },
+  ];
+}

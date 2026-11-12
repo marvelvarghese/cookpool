@@ -99,6 +99,8 @@ export interface MoneyGroupRow {
   people: string | null;
   /** "You get back ₹86.50"; null when settled (no zero cells). */
   money: MoneyLine | null;
+  /** The revamp's signed amount: "+₹87.00", "−₹25.00", "Settled"; null before the read has the group. */
+  fact: GroupFact | null;
   /** Today's group page. */
   href: string;
 }
@@ -113,8 +115,9 @@ export function moneyGroups<T extends GroupLike>(
   recentSlugs: readonly string[] = [],
 ): MoneyGroupRow[] {
   return sortGroups(groups, "recent", recentSlugs).map((g) => {
-    const row = groupListRow(g, balances.get(g.id));
-    return { id: g.id, slug: g.slug, name: row.name, people: row.people, money: row.money, href: `/groups/${encodeURIComponent(g.slug)}` };
+    const kitchen = balances.get(g.id);
+    const row = groupListRow(g, kitchen);
+    return { id: g.id, slug: g.slug, name: row.name, people: row.people, money: row.money, fact: groupFact(kitchen), href: `/groups/${encodeURIComponent(g.slug)}` };
   });
 }
 
@@ -130,4 +133,85 @@ export function personBalance(view: { totals: readonly { currency: string; netMi
   const open = view.totals.filter((t) => t.netMinor !== 0);
   const lines = open.length > 0 ? open : [{ currency: view.totals[0]?.currency ?? "INR", netMinor: 0 }];
   return lines.map(moneyLine);
+}
+
+// ── The revamp (RV-5, the canvas's RvMoney / RvGroups / RvGroup) ─────
+
+/** People rows Money shows before "See all". */
+export const MONEY_PEOPLE_ROWS = 3;
+
+/** An amount with its direction as a sign: "+₹87.00", "−₹25.00", "₹0.00". */
+export function signedMoney(netMinor: number, currency: string): string {
+  const amount = formatMinor(Math.abs(netMinor), currency);
+  return netMinor > 0 ? `+${amount}` : netMinor < 0 ? `−${amount}` : amount;
+}
+
+/** Money's big figure: "You get back" / "You owe" / "All settled", and the signed amount. */
+export interface MoneyNet {
+  currency: string;
+  tone: NetTone;
+  label: string;
+  /** "+₹27.50", "−₹12.50", "₹0.00". */
+  figure: string;
+}
+
+/** The big figure, one per currency as `moneyTotals` gives them — the same numbers, said shorter. */
+export function moneyNets(data: Pick<MyBalancesResponse, "groups" | "totals">): MoneyNet[] {
+  return moneyTotals(data).map((l) => {
+    const total = data.totals.find((t) => t.currency === l.currency);
+    const minor = total?.netMinor ?? 0;
+    return { currency: l.currency, tone: l.tone, label: l.tone === "settled" ? "All settled" : l.label, figure: signedMoney(l.tone === "settled" ? 0 : minor, l.currency) };
+  });
+}
+
+/**
+ * A person row's one line: "Owes you ₹54.00", "You owe ₹25.00", "Settled";
+ * one part per currency with money open, joined by " · ".
+ */
+export function personLine(row: Pick<MoneyPersonRow, "amounts">): string {
+  const open = row.amounts.filter((a) => a.amount);
+  if (open.length === 0) return "Settled";
+  return open.map((a) => (a.tone === "owed" ? `Owes you ${a.amount}` : `You owe ${a.amount}`)).join(" · ");
+}
+
+/** The line's colour: the direction when every open currency goes one way, muted otherwise. */
+export function personTone(row: Pick<MoneyPersonRow, "amounts">): NetTone {
+  const tones = new Set(row.amounts.filter((a) => a.amount).map((a) => a.tone));
+  return tones.size === 1 ? [...tones][0]! : "settled";
+}
+
+/** A person row's one button: Pay when you owe them anything, Remind when they owe you, none when settled. */
+export function personAction(row: Pick<MoneyPersonRow, "amounts">): "pay" | "remind" | null {
+  if (row.amounts.some((a) => a.amount && a.tone === "owe")) return "pay";
+  if (row.amounts.some((a) => a.amount && a.tone === "owed")) return "remind";
+  return null;
+}
+
+/** What Remind shares: a short note in your words, the amounts they owe you. */
+export function remindText(name: string, row: Pick<MoneyPersonRow, "amounts">): string {
+  const owed = row.amounts.filter((a) => a.amount && a.tone === "owed").map((a) => a.amount);
+  const first = name.split(" ")[0] || name;
+  return `Hi ${first}, a reminder from Cookpool: you owe me ${owed.join(" and ")}.`;
+}
+
+/** A group's balance as Money and Groups show it: "+₹87.00", "−₹25.00", "Settled". */
+export interface GroupFact {
+  tone: NetTone;
+  text: string;
+}
+
+export function groupFact(kitchen: Pick<MyGroupBalance, "balanceMinor" | "currency"> | null | undefined): GroupFact | null {
+  if (!kitchen) return null;
+  if (kitchen.balanceMinor === 0) return { tone: "settled", text: "Settled" };
+  return { tone: kitchen.balanceMinor > 0 ? "owed" : "owe", text: signedMoney(kitchen.balanceMinor, kitchen.currency) };
+}
+
+/** Groups' one meta line: "4 people · +₹87.00", "3 people · settled"; null before the cross-group read has it. */
+export function groupMeta(kitchen: Pick<MyGroupBalance, "balanceMinor" | "currency" | "memberCount"> | null | undefined): { people: string; fact: GroupFact } | null {
+  if (!kitchen) return null;
+  const fact = groupFact(kitchen)!;
+  return {
+    people: `${kitchen.memberCount} ${kitchen.memberCount === 1 ? "person" : "people"}`,
+    fact: fact.tone === "settled" ? { tone: "settled", text: "settled" } : fact,
+  };
 }

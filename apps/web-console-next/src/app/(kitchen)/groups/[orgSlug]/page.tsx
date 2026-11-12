@@ -21,6 +21,8 @@ import { useMemberNames } from "@/components/kitchen/people-data";
 import { usePantries } from "@/components/kitchen/pantry-data";
 import { countWords } from "@/components/kitchen/pantry";
 import { GroupDishesPanel } from "@/components/kitchen/dish-ui";
+import { GroupDetail } from "@/components/kitchen/group-detail-ui";
+import { newFrame } from "@/lib/features";
 import {
   GROUP_ACTIVITY_ROWS,
   GROUP_DISH_ROWS,
@@ -71,7 +73,8 @@ export default function GroupPage() {
     );
   }
   if (!group) return <NotInGroup />;
-  return <GroupView group={group} />;
+  // The revamp (RV-5, the canvas's `RvGroup`) in the new frame; today's page in today's.
+  return newFrame() ? <GroupDetail group={group} /> : <GroupView group={group} />;
 }
 
 /**
@@ -93,7 +96,7 @@ function GroupView({ group }: { group: PublicOrganization }) {
     <div className="space-y-4">
       <header className="flex min-h-11 items-center gap-1">
         <BackButton />
-        <h1 className="min-w-0 flex-1 truncate text-[26px] font-extrabold leading-tight tracking-tight">{group.name}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-[26px] font-medium leading-tight tracking-tight">{group.name}</h1>
         <Link href={`/groups/${group.slug}/settings`} aria-label="Settings" className={cn(ICON_LINK, "-mr-2")}>
           <Settings className="h-5 w-5" aria-hidden />
         </Link>
@@ -141,7 +144,7 @@ function GroupView({ group }: { group: PublicOrganization }) {
 
 const ICON_LINK =
   "-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const SECTION_TITLE = "text-lg font-extrabold tracking-tight";
+const SECTION_TITLE = "text-lg font-medium tracking-tight";
 const MONEY_TONE = { owed: "text-cp-owed", owe: "text-cp-owe", settled: "text-foreground" } as const;
 
 type BalancesState = ReturnType<typeof useBalances>;
@@ -163,8 +166,8 @@ function GroupMoneyCard({ group, myId, balances }: { group: PublicOrganization; 
   return (
     <div className="flex items-center gap-3 rounded-[22px] border bg-card px-[18px] py-3">
       <p className="min-w-0 flex-1">
-        {money.line.amount ? <span className="block text-[13px] font-bold text-muted-foreground">{money.line.label}</span> : null}
-        <span className={cn("block truncate text-[30px] font-extrabold leading-tight tracking-tight tabular-nums", MONEY_TONE[money.line.tone])}>
+        {money.line.amount ? <span className="block text-[13px] font-medium text-muted-foreground">{money.line.label}</span> : null}
+        <span className={cn("block truncate text-[30px] font-medium leading-tight tracking-tight tabular-nums", MONEY_TONE[money.line.tone])}>
           {money.line.amount ?? money.line.label}
         </span>
       </p>
@@ -197,9 +200,9 @@ function BalancesSection({ balances, myId, names }: { balances: BalancesState; m
                 className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <Face subjectId={r.subjectId} meId={myId} names={names} className="h-9 w-9 text-xs" />
-                <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{r.label}</span>
+                <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{r.label}</span>
                 <span className={cn("shrink-0 text-sm", MONEY_TONE[r.tone])}>
-                  {r.words} <span className="font-extrabold tabular-nums">{r.amount}</span>
+                  {r.words} <span className="font-medium tabular-nums">{r.amount}</span>
                 </span>
               </Link>
             </li>
@@ -220,7 +223,7 @@ function PantryRow({ orgId }: { orgId: string }) {
       href={`/pantry?pantry=${encodeURIComponent(orgId)}`}
       className="flex min-h-14 items-center gap-3 rounded-[22px] border bg-card px-4 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="min-w-0 flex-1 text-lg font-extrabold tracking-tight">Pantry</span>
+      <span className="min-w-0 flex-1 text-lg font-medium tracking-tight">Pantry</span>
       {pantry ? <span className="shrink-0 text-sm text-muted-foreground">{countWords(pantry.itemCount, "item")}</span> : null}
       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
     </Link>
@@ -232,7 +235,7 @@ function PantryRow({ orgId }: { orgId: string }) {
 function NotInGroup() {
   return (
     <KCard className="flex flex-col items-center px-6 py-10 text-center">
-      <h1 className="text-lg font-bold tracking-tight">You&apos;re not in this group</h1>
+      <h1 className="text-lg font-medium tracking-tight">You&apos;re not in this group</h1>
       <Button asChild className={cn(K_BUTTON, "mt-4")}>
         <Link href="/groups">Your groups</Link>
       </Button>
