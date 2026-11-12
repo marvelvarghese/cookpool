@@ -134,7 +134,7 @@ function AppMark({ className }: { className?: string }) {
  * device's second day, never in the installed app. A dismissed prompt and
  * "Got it" hide it too.
  */
-export function InstallCard({ className }: { className?: string }) {
+export function InstallCard({ className, fresh = false }: { className?: string; fresh?: boolean }) {
   const { way, userAgent, prompt } = useInstall();
   const { toast } = useToast();
   const [state, setState] = React.useState<{ today: string; memory: InstallMemory } | null>(null);
@@ -164,7 +164,33 @@ export function InstallCard({ className }: { className?: string }) {
 
   return (
     <>
-      {show ? (
+      {show && fresh ? (
+        // The revamped Home (RV-15, the canvas's HomeRevamp): a borderless card on the token shadow, Install on the tint.
+        <section aria-labelledby="install-card-title" className={cn("flex min-h-16 items-center gap-3 rounded-cp-card bg-card py-2.5 pl-3.5 pr-1.5 shadow-cp-card", className)}>
+          <AppMark className="h-[42px] w-[42px] rounded-[13px]" />
+          <div className="flex min-w-0 flex-1 flex-col gap-px">
+            <h2 id="install-card-title" className="truncate text-base font-medium leading-tight">
+              {CARD_TITLE}
+            </h2>
+            <p className="truncate text-[13px] font-normal text-muted-foreground">{CARD_LINE}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void install()}
+            className="inline-flex min-h-11 shrink-0 items-center rounded-[14px] bg-cp-accent-tint px-3.5 text-sm font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {installLabel(way)}
+          </button>
+          <button
+            type="button"
+            aria-label="Not now"
+            onClick={() => hide(true)}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden />
+          </button>
+        </section>
+      ) : show ? (
         <section
           aria-labelledby="install-card-title"
           className={cn("flex items-center gap-3 rounded-[20px] border bg-card py-3 pl-3.5 pr-1.5 shadow-[0_1px_2px_rgba(23,32,27,0.06)]", className)}

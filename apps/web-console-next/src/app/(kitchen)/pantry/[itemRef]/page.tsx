@@ -58,7 +58,9 @@ import {
   expiryText,
   type ItemRef,
 } from "@/components/kitchen/pantry";
-import { canSwipeUndoMove, canUndoMove, historyRows, isUnused, itemFacts, keepAmountsTogether, transferNote, transferTargets } from "@/components/kitchen/item-use";
+import { canSwipeUndoMove, canUndoMove, costPerText, historyRows, isUnused, itemFacts, keepAmountsTogether, transferNote, transferTargets } from "@/components/kitchen/item-use";
+import { historyFace, itemSubtitle } from "@/components/kitchen/item-page";
+import { Face } from "@/components/kitchen/faces-ui";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookHref } from "@/components/kitchen/dish-maker";
 import { undoneToast } from "@/components/kitchen/undo";
@@ -186,7 +188,7 @@ function TodayItemView(ctx: ItemCtx) {
 
       {/* One way to use an item (the audit's "two UIs for the same job"): Use some opens /use on it. */}
       {canUseHere ? (
-        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:max-w-sm">
+        <div data-toast-above="" className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 min-[900px]:static min-[900px]:max-w-sm">
           <Button asChild className={cn(MAIN_BUTTON, "text-[17px] font-extrabold shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none")}>
             <Link href={quickUseHref(item)}>Use some</Link>
           </Button>
@@ -197,12 +199,16 @@ function TodayItemView(ctx: ItemCtx) {
 }
 
 /**
- * The new frame's item page (cookpool-pantry PN-7, design §5, the canvas's
- * ItemPage), top to bottom on a phone: the level ring, the quick-use chips,
- * "At this rate", Who had it, the history (stock checks read as such, a
- * check's raise undoable), the note and measures, then Bought again, Finish
- * it, Wasted, Fix how much is left and Cook with it. The chips and More…
- * are how you use it: there is no Use some button here.
+ * The new frame's item page (cookpool-pantry PN-7, design §5; cookpool-revamp
+ * RV-15, the canvas's RvItem), top to bottom on a phone: the name over
+ * "Flat 4B · Meera paid ₹68"; the ring card ("1 L of 2 L", "₹34 left"); the
+ * use row (½ glass · 1 glass · 2 glasses · More); "Runs out Sun"; Who had
+ * it (a face and an amount each); the history (a face first, three then See
+ * all; stock checks read as such, a check's raise undoable); Got more ·
+ * Finish it · Wasted (at once, with Undo), then Fix how much is left and
+ * Cook with it; Measures and note, folded; Who can use it and Move to a
+ * group. The use row and More are how you use it: there is no Use some
+ * button here.
  */
 function NewItemView(ctx: ItemCtx) {
   const { itemRef, item, meId, names, roster, roleKnown, canWrite } = ctx;
@@ -225,7 +231,7 @@ function NewItemView(ctx: ItemCtx) {
         <BackButton />
         <h1 className="min-w-0 break-words text-[28px] font-medium leading-tight tracking-[-0.02em]">{item.name}</h1>
         <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-normal text-muted-foreground">
-          <span className="min-w-0 truncate">{[pantryChipLabel(item.pantry), stateLabel].filter(Boolean).join(" · ")}</span>
+          <span className="min-w-0 truncate tabular-nums">{itemSubtitle(item, { meId, names, state: stateLabel })}</span>
           {ask ? <RowTagPill tag={{ label: `Ask ${ask}`, tone: "ask" }} /> : null}
         </p>
       </header>
@@ -243,6 +249,7 @@ function NewItemView(ctx: ItemCtx) {
           {live && roleKnown && !canWrite ? <p className="px-1 text-sm font-normal text-muted-foreground">You only view {pantryLabel(item.pantry)}.</p> : null}
           {roleKnown ? <ItemActionsRow {...parts} canWrite={canWrite} /> : null}
           <MeasuresAndNote>
+            {item.priceMinor > 0 ? <p className="px-1 text-sm font-normal tabular-nums text-muted-foreground">{costPerText(item)}</p> : null}
             <NoteCard {...ctx} />
             {item.state === "active" ? <CountedAs item={item} canWrite={roleKnown && canWrite} /> : null}
           </MeasuresAndNote>
@@ -429,7 +436,7 @@ function MoveCard({ itemRef, item }: ItemCtx) {
             setTarget(null);
             setError(null);
           }}
-          className="-mr-2 grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="-mr-2 grid h-11 w-11 place-items-center rounded-[14px] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="h-5 w-5" aria-hidden />
         </button>
@@ -443,12 +450,12 @@ function MoveCard({ itemRef, item }: ItemCtx) {
             </p>
           ) : null}
           <div className="grid grid-cols-2 gap-2.5">
-            <Button type="button" variant="outline" className={K_BUTTON} onClick={() => setTarget(null)}>
+            <button type="button" className={cn(pillClass("done"), "min-h-12")} onClick={() => setTarget(null)}>
               Back
-            </Button>
-            <Button type="button" variant="outline" className={cn(K_BUTTON, "border-primary text-primary")} loading={busy} onClick={() => void move()}>
+            </button>
+            <button type="button" className={cn(pillClass("main"), "min-h-12")} disabled={busy} aria-busy={busy || undefined} onClick={() => void move()}>
               Move
-            </Button>
+            </button>
           </div>
         </>
       ) : (
@@ -519,12 +526,15 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite, fresh = false
               <SwipeRow
                 key={row.id}
                 action={swipe && move ? { label: "Undo", tone: "undo", run: () => void undo(move) } : null}
-                frontClassName={fresh ? "flex min-h-16 items-center gap-3 py-2.5 pl-4 pr-3" : "flex items-center gap-3 px-4 py-3"}
+                frontClassName={fresh ? "flex min-h-16 items-center gap-3 py-2.5 pl-3.5 pr-3" : "flex items-center gap-3 px-4 py-3"}
               >
+                {/* The board (RV-15): who it was, as a face, first; the money goes on the line under, not in a column. */}
+                {fresh ? <Face subjectId={historyFace(move, item)} meId={meId} names={names} className={cn("h-[42px] w-[42px] text-sm font-medium", row.undone && "opacity-50")} /> : null}
                 <div className="min-w-0 flex-1">
                   <p className={cn(fresh ? "truncate text-base font-medium" : "text-sm font-semibold", row.undone && "text-muted-foreground line-through")}>{keepAmountsTogether(row.what)}</p>
                   <p className={cn("text-[13px] text-muted-foreground", fresh && "truncate font-normal")}>
                     {keepAmountsTogether(row.when)}
+                    {fresh && row.amount ? <span className="tabular-nums">{` · ${row.amount}`}</span> : null}
                     {row.undone ? (
                       <>
                         {" · "}
@@ -533,8 +543,8 @@ function HistoryCard({ itemRef, item, meId, names, role, canWrite, fresh = false
                     ) : null}
                   </p>
                 </div>
-                {row.amount ? (
-                  <span className={cn("shrink-0 text-sm tabular-nums", fresh ? "font-medium" : "font-bold", row.undone && "text-muted-foreground line-through")}>
+                {row.amount && !fresh ? (
+                  <span className={cn("shrink-0 text-sm font-bold tabular-nums", row.undone && "text-muted-foreground line-through")}>
                     {row.amount}
                   </span>
                 ) : null}

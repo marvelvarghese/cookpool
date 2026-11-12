@@ -49,14 +49,14 @@ export function WasteConfirm({
   const preview = wastePreview({ item, members: roster ?? [], meId, names });
   const waiting = item.pantry.kind === "group" && roster === null;
   return (
-    <section id={id} aria-label="Waste preview" className={cn("space-y-3 rounded-[22px] border bg-card p-5", className)}>
-      <p className="text-[15px] font-bold">{preview.question}</p>
+    <section id={id} aria-label="Waste preview" className={cn("space-y-3 rounded-cp-card bg-card p-5 shadow-cp-card", className)}>
+      <p className="text-[15px] font-medium">{preview.question}</p>
       {waiting ? (
         <Skeleton className="h-10 w-full" />
       ) : preview.lines.length > 0 && preview.lines.length <= 8 ? (
         <ShareList lines={preview.lines} currency={item.currency} />
       ) : (
-        <p className="text-sm font-semibold text-muted-foreground">{preview.short ?? preview.explain}</p>
+        <p className="text-sm font-normal text-muted-foreground">{preview.short ?? preview.explain}</p>
       )}
       <div className="grid grid-cols-2 gap-2.5">
         <Button type="button" variant="outline" className={K_BUTTON} onClick={onKeep}>
@@ -86,7 +86,7 @@ const SHEET_CLASS = cn(
   "min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
 );
 const ROW =
-  "flex min-h-[52px] w-full items-center gap-2 rounded-[14px] bg-background px-3.5 text-left text-base font-bold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex min-h-[52px] w-full items-center gap-2 rounded-[14px] bg-background px-3.5 text-left text-base font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
  * Press and hold an item (a Pantry row, one of Home's use-soon rows) and
@@ -111,7 +111,7 @@ export function ItemActionsSheet({ target, onClose, meId }: { target: ItemMenuTa
     <Sheet open={target !== null} onOpenChange={(open) => (open ? null : onClose())}>
       <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, CLOSE_44)}>
         <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
-        <SheetTitle className="flex min-h-11 shrink-0 items-center truncate pr-12 text-[22px] font-extrabold tracking-[-0.01em]">
+        <SheetTitle className="flex min-h-11 shrink-0 items-center truncate pr-12 text-[22px] font-medium tracking-[-0.01em]">
           {shown?.name ?? ""}
         </SheetTitle>
         {shown && wasting && shown.item ? (
@@ -140,7 +140,7 @@ function MenuEntry({ action, onClose, onUse, onWaste }: { action: ItemAction; on
           onClose();
           onUse();
         }}
-        className="flex min-h-[52px] w-full items-center justify-center rounded-[14px] bg-primary px-4 text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="flex min-h-[52px] w-full items-center justify-center rounded-[14px] bg-primary px-4 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         {action.label}
       </button>
@@ -197,7 +197,7 @@ function WasteStep({
   const wasteItem = useWasteItem();
   return (
     <WasteConfirm
-      className="mt-2 border-0 bg-background p-4"
+      className="mt-2 bg-background p-4 shadow-none"
       item={target.item}
       roster={roster}
       meId={meId}

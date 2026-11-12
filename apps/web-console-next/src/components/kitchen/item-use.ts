@@ -710,6 +710,8 @@ export interface RunOutEstimate {
   when: string;
   /** "At this rate it runs out Tue". */
   line: string;
+  /** The revamped page's words (RV-15, the board): "Runs out Tue". */
+  short: string;
   /** "About 250 ml a day" ("About 5 g a week" when a day's is too small to say). */
   rate: string;
 }
@@ -779,7 +781,7 @@ export function runOutEstimate(
     daily >= smallestDaily(item.dimension)
       ? `About ${formatQuantity(daily, item.dimension, item.displayUnit)} a day`
       : `About ${formatQuantity(roundAmount(perDay * 7), item.dimension, item.displayUnit)} a week`;
-  return { at, days, when, line: `At this rate it runs out ${when}`, rate };
+  return { at, days, when, line: `At this rate it runs out ${when}`, short: `Runs out ${when}`, rate };
 }
 
 // ── Who had it (cookpool-pantry PN-7, design §5) ──────────────────

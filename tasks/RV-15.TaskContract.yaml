@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-15
+  title: "Home and the item page match the boards"
+spec:
+  goal: "Home and the item page match HomeRevamp and RvItem: Needs you holds every kind of row and hides when empty, no usual chips or Say-it, the Install card kept, Cook now only makeable recipes."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-15.TaskContract.yaml
+  doneWhen:
+    - "Home shows Needs you only when it has rows; asks, split reminders and flags are rows in it; no usual chips or Say-it; the Install card is restyled"
+    - "Cook now on Home shows only recipes the kitchen can make and hides when there are none"
+    - "the item page's use row, ring card, history and actions follow RvItem, with Wasted acting at once with Undo"
+    - "every Home and item gap in the revamp audit is fixed or recorded as a departure; prod's old frame unchanged"
+  gates: []

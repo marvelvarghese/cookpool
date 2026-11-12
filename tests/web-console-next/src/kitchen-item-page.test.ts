@@ -268,8 +268,8 @@ describe("the actions", () => {
     const own = boughtAgainLine(milk({ pantry: PERSONAL_REF, unit: "g", bought: "500", left: "0", priceMinor: 4500 }), "2026-11-08");
     expect(own).toMatchObject({ pantry: "personal", quantity: "500", unit: "g", priceMinor: 4500 });
     expect(own).not.toHaveProperty("expiresOn");
-    expect(boughtAgainTitle(item)).toBe("Bought Milk · ₹68");
-    expect(boughtAgainTitle(milk({ priceMinor: 4550 }))).toBe("Bought Milk · ₹45.50");
+    expect(boughtAgainTitle(item)).toBe("Got more Milk · ₹68");
+    expect(boughtAgainTitle(milk({ priceMinor: 4550 }))).toBe("Got more Milk · ₹45.50");
   });
 
   it("goes where it should", () => {
