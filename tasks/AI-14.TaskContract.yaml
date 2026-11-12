@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-14
+  title: "Receipts: discounts, taxes and charges"
+spec:
+  goal: "The receipt read returns discounts, taxes, charges and round-off as their own lines, and after scanning the app asks whether item prices should include them before adding to the kitchen."
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-14.TaskContract.yaml
+  doneWhen:
+    - "the read returns adjustments with kind discount, tax, charge or round-off, a label and an amount, and lines plus adjustments match the printed total"
+    - "after a scan with adjustments the app asks to include taxes and charges and to apply discounts, each on by default, with the effect shown"
+    - "included adjustments are spread across the food lines by price so item costs add up exactly to what was paid"
+    - "a receipt with no adjustments skips the question; the same AI budget and daily limits apply"
+  gates: []

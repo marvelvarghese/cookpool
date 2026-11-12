@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: AI-16
+  title: "AI6 plan: receipts and bills, round two"
+spec:
+  goal: "Land the AI6 plan and the AI-14 and AI-15 contracts."
+  affects:
+    - specs/epics/cookpool-ai/**
+    - tasks/AI-14.TaskContract.yaml
+    - tasks/AI-15.TaskContract.yaml
+    - tasks/AI-16.TaskContract.yaml
+  doneWhen:
+    - "implementation-plan.md has AI6 and AI-14 and AI-15 have contracts"
+  gates: []
