@@ -123,6 +123,36 @@ export function isTabActiveIn(newFrame: boolean, id: KitchenTabId, pathname: str
   return newFrame ? activeNewFrameTab(pathname) === id : isKitchenTabActive(id, pathname);
 }
 
+// ── Pushed screens without the tab bar (cookpool-revamp RV-19) ───
+
+/**
+ * The new frame's pushed screens that the boards draw without the floating
+ * tab bar (RvItem, RvRecipe, RvCookStep, RvCooked, RvGroups): an item's page
+ * (`/pantry/<ref>`, not Add item or the shopping run), a recipe's page
+ * (`/recipes/<id>`, not New recipe), the cooking session, guided or tick
+ * (`/cook/session`), Cooked! (a dish's page with `?cooked=1`, until its Done
+ * drops the parameter) and the Groups list (`/groups`). Each has its own Back,
+ * and its bottom bar sits at the screen's bottom instead
+ * (`--cp-bottom-bar`, globals.css). Today's frame always shows its bar.
+ */
+const TAB_BAR_HIDDEN: readonly RegExp[] = [
+  /^\/pantry\/(?!(?:new|run)$)[^/]+$/,
+  /^\/recipes\/(?!new$)[^/]+$/,
+  /^\/cook\/session$/,
+  /^\/groups$/,
+];
+
+/** The query that turns a dish's page into Cooked! (cooked.ts's `COOKED_PARAM`). */
+const COOKED_DISH = /^\/dishes\/[^/]+$/;
+
+/** Whether the new frame hides its tab bar on this screen (`search` is the query, with or without "?"). */
+export function tabBarHidden(newFrame: boolean, pathname: string | null | undefined, search?: string | null): boolean {
+  if (!newFrame || !pathname) return false;
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  if (TAB_BAR_HIDDEN.some((re) => re.test(path))) return true;
+  return COOKED_DISH.test(path) && new URLSearchParams(search ?? "").get("cooked") === "1";
+}
+
 // ── The sidebar's "Me" (SI-6) ─────────────────────────────────────
 
 /** A sidebar link: the tabs' links, and "Me". */

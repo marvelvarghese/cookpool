@@ -139,7 +139,7 @@ export default function GroupsPage() {
                   href={`/groups/${g.slug}`}
                   className="flex min-h-16 items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
-                  <GroupAvatar name={g.name} className="h-[42px] w-[42px] rounded-[14px]" />
+                  <GroupAvatar name={g.name} id={g.id} className="h-[42px] w-[42px] rounded-[14px]" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-base font-medium">{g.name}</span>
                     {meta ? (

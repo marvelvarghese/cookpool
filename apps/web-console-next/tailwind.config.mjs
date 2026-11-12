@@ -81,6 +81,13 @@ export default {
           "soon-tint": "hsl(var(--cp-soon-tint))",
           expired: "hsl(var(--cp-expired))",
           "expired-tint": "hsl(var(--cp-expired-tint))",
+          // A group's tile tints beside green, blue and amber (RV-19, GroupAvatar).
+          purple: "hsl(var(--cp-purple))",
+          "purple-tint": "hsl(var(--cp-purple-tint))",
+          teal: "hsl(var(--cp-teal))",
+          "teal-tint": "hsl(var(--cp-teal-tint))",
+          slate: "hsl(var(--cp-slate))",
+          "slate-tint": "hsl(var(--cp-slate-tint))",
         },
       },
       // The kitchen card's soft shadow (none in dark) and the floating tab bar's (RV-2).

@@ -132,8 +132,9 @@ export function FaceRow({
 export function MainButtonLabel({ title, who }: { title: string; who?: string | null }) {
   return (
     <span className="flex min-w-0 max-w-full flex-col items-center leading-tight">
-      <span className="max-w-full truncate text-base font-extrabold">{title}</span>
-      {who ? <span className="max-w-full truncate text-[13px] font-semibold opacity-90">{who}</span> : null}
+      {/* The new frame (RV-19): 17px Medium over a 12px Regular line; today's frame keeps 16px over 13px. */}
+      <span className="max-w-full truncate text-base font-extrabold [.cookpool-new_&]:text-[17px] [.cookpool-new_&]:font-medium">{title}</span>
+      {who ? <span className="max-w-full truncate text-[13px] font-semibold opacity-90 [.cookpool-new_&]:text-xs [.cookpool-new_&]:font-normal">{who}</span> : null}
     </span>
   );
 }

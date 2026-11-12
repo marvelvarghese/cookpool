@@ -60,7 +60,7 @@ export function GroupPickerList<T extends GroupLike>({
         {shown.map((g) => (
           <li key={g.id}>
             <PickRow selected={value === g.slug} onClick={() => onPick(g.slug)}>
-              <GroupAvatar name={g.name} size="sm" />
+              <GroupAvatar name={g.name} id={g.id} size="sm" />
               <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{g.name}</span>
             </PickRow>
           </li>

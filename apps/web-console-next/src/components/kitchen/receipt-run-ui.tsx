@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import type { Pantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
+import { K_ROWS, K_TITLE } from "./kit";
 import { RunLineEditor } from "./run-line-editor-ui";
 import { pantryPick, pricePick, stepPick, toggleTick, type RunLine, type RunPicks, type TickedLine } from "./shopping-run";
 import {
@@ -96,17 +97,17 @@ export function ReceiptResult({
 
       {run.matched.length > 0 ? (
         <section aria-labelledby="receipt-matched" className="flex flex-col gap-1.5">
-          <h2 id="receipt-matched" className="px-0.5 text-xs font-extrabold tracking-[0.06em] text-[#165C3A]">
-            MATCHED · {run.matched.length}
+          <h2 id="receipt-matched" className="px-1 text-[13px] font-medium text-cp-accent-text">
+            Matched · {run.matched.length}
           </h2>
-          <ul className={cn("divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] bg-card", AI_EDGE)}>{run.matched.map((l) => row(l))}</ul>
+          <ul className={cn("divide-y divide-cp-line overflow-hidden rounded-[20px] bg-card", AI_EDGE)}>{run.matched.map((l) => row(l))}</ul>
         </section>
       ) : null}
 
       {run.check.length > 0 ? (
         <section aria-labelledby="receipt-check" className="flex flex-col gap-1.5">
-          <h2 id="receipt-check" className="px-0.5 text-xs font-extrabold tracking-[0.06em] text-[#8A5A00]">
-            CHECK {run.check.length}
+          <h2 id="receipt-check" className="px-1 text-[13px] font-medium text-cp-soon">
+            Check · {run.check.length}
           </h2>
           <ul className="flex flex-col gap-2">
             {run.check.map((l) => {
@@ -136,19 +137,19 @@ export function ReceiptResult({
 
       {nonFood ? (
         <section aria-label="Left out" className="flex flex-col gap-1.5">
-          <p className="flex flex-wrap items-center gap-x-1 text-[13px] font-bold text-muted-foreground">
+          <p className="flex flex-wrap items-center gap-x-1 text-[13px] font-normal text-muted-foreground">
             <span>{nonFood}</span>
             <button
               type="button"
               aria-expanded={showNonFood}
               onClick={() => setShowNonFood((v) => !v)}
-              className="inline-flex min-h-11 items-center gap-0.5 rounded-lg px-1.5 font-extrabold text-foreground underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex min-h-11 items-center gap-0.5 rounded-lg px-1.5 font-medium text-cp-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {showNonFood ? "Hide" : "Show"}
               <ChevronDown className={cn("h-4 w-4 transition-transform", showNonFood && "rotate-180")} aria-hidden />
             </button>
           </p>
-          {showNonFood ? <ul className="divide-y divide-[#ECEEE9] overflow-hidden rounded-[20px] border border-[#E3E6E0] bg-card">{run.nonFood.map((l) => row(l))}</ul> : null}
+          {showNonFood ? <ul className={K_ROWS}>{run.nonFood.map((l) => row(l))}</ul> : null}
         </section>
       ) : null}
     </>
@@ -159,15 +160,15 @@ export function ReceiptResult({
 function CheckCard({ line, onYes, onChange }: { line: RunLine; onYes: () => void; onChange: () => void }) {
   const q = checkQuestion(line);
   return (
-    <li className="flex list-none flex-col gap-2 rounded-[18px] bg-[#FDF1D6] p-3">
-      <span className="truncate font-mono text-xs text-[#8A5A00]">{line.receipt?.text}</span>
-      <span className="text-[15px] font-extrabold text-[#5C3D00]">{q.question}</span>
+    <li className="flex list-none flex-col gap-2 rounded-[18px] bg-cp-soon-tint p-3">
+      <span className="truncate font-mono text-xs text-cp-soon">{line.receipt?.text}</span>
+      <span className="text-[15px] font-medium text-foreground">{q.question}</span>
       <span className={cn("grid gap-2", q.yes ? "grid-cols-[2fr_1fr]" : "grid-cols-1")}>
         {q.yes ? (
           <button
             type="button"
             onClick={onYes}
-            className="min-h-11 truncate rounded-xl bg-[#5C3D00] px-3 text-sm font-extrabold text-white transition-colors hover:bg-[#4A3100] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-11 truncate rounded-xl bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {q.yes}
           </button>
@@ -175,7 +176,7 @@ function CheckCard({ line, onYes, onChange }: { line: RunLine; onYes: () => void
         <button
           type="button"
           onClick={onChange}
-          className="min-h-11 rounded-xl border border-[#E8C77A] bg-white px-3 text-sm font-extrabold text-[#5C3D00] transition-colors hover:bg-[#FFF8E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-11 rounded-xl bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {q.change}
         </button>
@@ -227,7 +228,7 @@ function ReceiptRow({
   const chip = on ? ticked.pantryLabel : receiptPantryLabel(line);
   const editing = on && (open || naming);
   return (
-    <li className={cn("list-none", on && "bg-muted/40")}>
+    <li className={cn("list-none", on && "bg-cp-accent-tint/50")}>
       <div className="flex min-h-16 items-center gap-2.5 py-2 pl-2 pr-3">
         <TickButton on={on} label={`${on ? "Untick" : "Tick"} ${shown}`} onClick={onTick} />
         <button
@@ -238,19 +239,19 @@ function ReceiptRow({
           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate font-mono text-[11px] text-[#7A837D]">{line.receipt?.text}</span>
-            <span className="truncate text-[15px] font-extrabold">
-              {shown} <span className="font-bold text-muted-foreground">· {qty}</span>
+            <span className="truncate font-mono text-[11px] text-muted-foreground">{line.receipt?.text}</span>
+            <span className="truncate text-[15px] font-medium">
+              {shown} <span className="font-normal text-muted-foreground">· {qty}</span>
             </span>
           </span>
-          <span className="max-w-[88px] shrink-0 truncate rounded-full bg-[#E6EEF8] px-2 py-0.5 text-[11px] font-extrabold text-[#1D4F91]">{chip}</span>
-          <span className="min-w-12 shrink-0 text-right text-[15px] font-extrabold tabular-nums">{price}</span>
+          <span className="max-w-[88px] shrink-0 truncate rounded-full bg-cp-owed-tint px-2 py-0.5 text-[11px] font-medium text-cp-owed">{chip}</span>
+          <span className="min-w-12 shrink-0 text-right text-[15px] font-medium tabular-nums">{price}</span>
         </button>
       </div>
       {editing && naming ? (
         <div className="pb-2 pl-[62px] pr-3">
-          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[#C9CFC6] px-2.5 focus-within:ring-2 focus-within:ring-ring">
-            <span className="text-xs font-extrabold text-muted-foreground">Name</span>
+          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-input bg-card px-2.5 focus-within:ring-2 focus-within:ring-ring">
+            <span className="text-xs font-normal text-muted-foreground">Name</span>
             <input
               type="text"
               value={name ?? ""}
@@ -260,7 +261,7 @@ function ReceiptRow({
               placeholder="What is it?"
               autoComplete="off"
               maxLength={120}
-              className="min-w-0 flex-1 bg-transparent text-[15px] font-extrabold text-foreground outline-none placeholder:font-semibold"
+              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-foreground outline-none placeholder:font-normal"
             />
           </label>
         </div>
@@ -286,7 +287,7 @@ export function ReceiptHeading() {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
       <AiChip />
-      <h1 className="min-w-0 truncate text-xl font-extrabold tracking-[-0.01em]">Shopping run</h1>
+      <h1 className={cn(K_TITLE, "min-w-0 truncate")}>Shopping run</h1>
     </span>
   );
 }

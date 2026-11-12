@@ -9,6 +9,7 @@ import type { MemberNames } from "./members";
 import { pantryLabel, type ItemRef } from "./pantry";
 import { BackButton, useBack } from "./back-ui";
 import { MAIN_BUTTON } from "./faces-ui";
+import { K_CARD, K_SECTION, K_TITLE } from "./kit";
 import { useCheckItem } from "./stock-check-data";
 import {
   MORE_TEXT,
@@ -94,12 +95,12 @@ export function StockCheckScreen({
       <div className="flex min-w-0 items-center gap-1">
         <BackButton />
         <div className="min-w-0">
-          <h1 className="break-words text-[22px] font-extrabold leading-tight tracking-tight">{heading.title}</h1>
-          <p className="truncate text-sm font-bold text-muted-foreground">{heading.what}</p>
+          <h1 className={cn(K_TITLE, "break-words")}>{heading.title}</h1>
+          <p className="truncate text-[13px] font-normal text-muted-foreground">{heading.what}</p>
         </div>
       </div>
 
-      <div className="flex items-stretch gap-4 rounded-[22px] border bg-card p-4">
+      <div className={cn(K_CARD, "flex items-stretch gap-4 p-4")}>
         <LevelControl item={item} says={says} onChange={setSays} />
         <div className="flex flex-1 flex-col justify-between py-0.5">
           {checkMarks(item).map((m) => (
@@ -109,8 +110,8 @@ export function StockCheckScreen({
               aria-pressed={says === m.qtyMilli}
               onClick={() => setSays(m.qtyMilli)}
               className={cn(
-                "min-h-11 rounded-xl border px-3 text-left text-[15px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                says === m.qtyMilli ? "border-foreground bg-foreground text-background" : "border-[#D5DAD2] bg-card hover:bg-accent",
+                "min-h-11 rounded-xl px-3 text-left text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                says === m.qtyMilli ? "bg-cp-accent-tint text-cp-accent-text" : "bg-muted text-foreground hover:bg-cp-line",
               )}
             >
               {m.label}
@@ -120,19 +121,19 @@ export function StockCheckScreen({
       </div>
 
       <div className="grid grid-cols-2 gap-2" aria-live="polite">
-        <span className="flex flex-col rounded-2xl border bg-card px-3 py-2.5">
-          <span className="text-xs font-bold text-muted-foreground">Cookpool thinks</span>
-          <span className="text-xl font-extrabold tabular-nums">{tiles.thinks}</span>
+        <span className={cn(K_CARD, "flex flex-col rounded-2xl px-3 py-2.5")}>
+          <span className="text-[13px] font-normal text-muted-foreground">Cookpool thinks</span>
+          <span className="text-xl font-medium tabular-nums">{tiles.thinks}</span>
         </span>
-        <span className="flex flex-col rounded-2xl border border-[#B9DCC8] bg-[#E4F2EA] px-3 py-2.5">
-          <span className="text-xs font-bold text-[#165C3A]">You say</span>
-          <span className="text-xl font-extrabold tabular-nums text-[#0F3F27]">{tiles.says}</span>
+        <span className="flex flex-col rounded-2xl bg-cp-accent-tint px-3 py-2.5">
+          <span className="text-[13px] font-normal text-cp-accent-text">You say</span>
+          <span className="text-xl font-medium tabular-nums text-cp-accent-text">{tiles.says}</span>
         </span>
       </div>
 
       {diff.kind === "less" ? (
         <section aria-labelledby="where-heading" className="space-y-2">
-          <h2 id="where-heading" className="text-lg font-extrabold">
+          <h2 id="where-heading" className={K_SECTION}>
             {whereTitle(diff)}
           </h2>
           <div role="radiogroup" aria-labelledby="where-heading" className="flex flex-col gap-2">
@@ -147,40 +148,40 @@ export function StockCheckScreen({
                   onClick={() => setGone(o.gone)}
                   className={cn(
                     "flex min-h-16 items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    on ? "border-[1.5px] border-primary bg-[#E4F2EA]" : "border border-[#D5DAD2] bg-card hover:bg-accent",
+                    on ? "bg-cp-accent-tint text-cp-accent-text" : "bg-card shadow-cp-card hover:bg-accent",
                   )}
                 >
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-base font-extrabold">{o.title}</span>
+                    <span className="text-base font-medium">{o.title}</span>
                     {o.sub ? (
-                      <span className="text-[13px] font-semibold tabular-nums text-muted-foreground">{o.sub}</span>
+                      <span className={cn("text-[13px] font-normal tabular-nums", on ? "text-cp-accent-text" : "text-muted-foreground")}>{o.sub}</span>
                     ) : (
                       <Skeleton className="mt-1 h-3.5 w-24" />
                     )}
                   </span>
-                  <span aria-hidden className={cn("grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2", on ? "border-primary" : "border-[#9AA39D]")}>
+                  <span aria-hidden className={cn("grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2", on ? "border-primary" : "border-input")}>
                     <span className={cn("h-2.5 w-2.5 rounded-full", on ? "bg-primary" : "bg-transparent")} />
                   </span>
                 </button>
               );
             })}
           </div>
-          {askNote ? <p className="px-1 text-[13px] font-bold text-[#8A5A00]">{askNote}</p> : null}
+          {askNote ? <p className="px-1 text-[13px] font-normal text-cp-soon">{askNote}</p> : null}
         </section>
       ) : null}
 
-      {diff.kind === "more" ? <p className="rounded-2xl border bg-card px-3.5 py-3 text-[15px] font-bold text-foreground/80">{MORE_TEXT}</p> : null}
+      {diff.kind === "more" ? <p className={cn(K_CARD, "rounded-2xl px-3.5 py-3 text-[15px] font-normal text-muted-foreground")}>{MORE_TEXT}</p> : null}
 
       {canWrite ? (
-        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 min-[900px]:static min-[900px]:max-w-sm">
+        <div data-toast-above="" className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 min-[900px]:static min-[900px]:max-w-sm">
           <Button
             type="button"
             disabled={waiting}
             onClick={submit}
             className={cn(
               MAIN_BUTTON,
-              "text-[17px] font-extrabold",
-              fix.same ? "bg-[#ECEEE9] text-[#3F4842] shadow-none hover:bg-[#E3E6E0]" : "shadow-[0_8px_24px_rgba(23,32,27,0.18)] min-[900px]:shadow-none",
+              "text-[17px] font-medium",
+              fix.same ? "bg-muted text-foreground shadow-none hover:bg-cp-line" : "shadow-cp-nav min-[900px]:shadow-none",
             )}
           >
             {fix.label}
@@ -239,11 +240,11 @@ function LevelControl({ item, says, onChange }: { item: KitchenItem; says: numbe
       }}
       className="relative h-[260px] w-[120px] shrink-0 cursor-ns-resize touch-none select-none overflow-hidden rounded-b-[26px] rounded-t-[18px] border-[3px] border-foreground bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
-      <span aria-hidden className="absolute inset-x-0 bottom-0 border-t-2 border-primary bg-[#E4F2EA] transition-[height] duration-100" style={{ height: `${fill}%` }} />
-      <span aria-hidden className="absolute inset-x-0 border-t-2 border-dashed border-[#9AA39D]" style={{ bottom: `${thinks}%` }} />
+      <span aria-hidden className="absolute inset-x-0 bottom-0 border-t-2 border-primary bg-cp-accent-tint transition-[height] duration-100" style={{ height: `${fill}%` }} />
+      <span aria-hidden className="absolute inset-x-0 border-t-2 border-dashed border-input" style={{ bottom: `${thinks}%` }} />
       <span
         aria-hidden
-        className="absolute left-1/2 -ml-7 h-7 w-14 rounded-full bg-foreground shadow-[0_2px_6px_rgba(0,0,0,0.25)]"
+        className="absolute left-1/2 -ml-7 h-7 w-14 rounded-full bg-foreground shadow-cp-nav"
         style={{ bottom: `calc(${fill}% - 14px)` }}
       />
     </div>

@@ -110,7 +110,16 @@ export function Segmented<T extends string>({
     refs.current[next]?.focus();
   };
   return (
-    <div role="radiogroup" aria-label={label} className={cn("grid auto-cols-fr grid-flow-col rounded-xl border border-input bg-card p-0.5", className)}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={cn(
+        "grid auto-cols-fr grid-flow-col rounded-xl border border-input bg-card p-0.5",
+        // The new frame (RV-19): no border, a muted track, the choice on the accent.
+        "[.cookpool-new_&]:rounded-[14px] [.cookpool-new_&]:border-0 [.cookpool-new_&]:bg-muted [.cookpool-new_&]:p-1",
+        className,
+      )}
+    >
       {options.map((o, i) => {
         const selected = o.id === value;
         return (
@@ -135,7 +144,7 @@ export function Segmented<T extends string>({
               }
             }}
             className={cn(
-              "min-h-11 rounded-[10px] px-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "min-h-11 rounded-[10px] px-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [.cookpool-new_&]:font-medium",
               selected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -161,6 +170,9 @@ export function Chip({
         "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         selected ? "border-primary bg-accent text-primary" : "border-input bg-card text-foreground hover:bg-accent/60",
+        // The new frame (RV-19): no border, Medium; picked on the accent's tint, else on the muted fill.
+        "[.cookpool-new_&]:border-0 [.cookpool-new_&]:font-medium",
+        selected ? "[.cookpool-new_&]:bg-cp-accent-tint [.cookpool-new_&]:text-cp-accent-text" : "[.cookpool-new_&]:bg-muted [.cookpool-new_&]:text-foreground",
         className,
       )}
       {...props}
