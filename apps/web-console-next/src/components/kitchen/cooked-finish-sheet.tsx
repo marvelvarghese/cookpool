@@ -11,14 +11,15 @@ import { RepeatButton } from "./row-gestures-ui";
 import { JUST_ME, dishTotals } from "./dish-maker";
 import { useFinishSession } from "./cook-session-data";
 import { SESSION_SHEET } from "./cook-finish-sheet";
-import { STEP_BUTTON, SaveSwitch, UntickedChoiceBox } from "./cook-session-ui";
-import { finishPlan, includedLines, saveSwitch, sessionCurrency, sessionDishLines, untickedText, type CookSession, type FinishOutcome, type UntickedChoice } from "./cook-session";
+import { STEP_BUTTON, SaveSwitch } from "./cook-session-ui";
+import { finishPlan, includedLines, saveSwitch, sessionCurrency, sessionDishLines, type CookSession, type FinishOutcome, type UntickedChoice } from "./cook-session";
 import { FINISH_TITLE, finishSub, servingsText, startingServingsHalf, stepServings } from "./cooked";
 
 /**
  * Finish in the new frame (cookpool-community CM-9, design §2a): the dish is
- * the cook's own — no group, no Who ate. The unticked lines (Took them all /
- * Leave them out), how many servings it made (the recipe's at this size to
+ * the cook's own — no group, no Who ate. Only the ticked lines go in
+ * (cookpool-revamp RV-11: tick what went in; unticked rows aren't charged),
+ * how many servings it made (the recipe's at this size to
  * start; Split shares them out later), the save switch, and Finish with the
  * cost. RC-6's screen and guided mode's Done both open it; it lands on Cooked!.
  * Today's frame keeps `FinishSheet` (Who ate?, Post to).
@@ -37,7 +38,8 @@ export function CookFinishSheet({
   onDone: (out: FinishOutcome) => void;
 }) {
   const finish = useFinishSession();
-  const [unticked, setUnticked] = React.useState<UntickedChoice>("all");
+  // RV-11: the rows say what went in; an unticked row is never charged.
+  const unticked: UntickedChoice = "out";
   const [servings, setServings] = React.useState(() => startingServingsHalf(session));
   const [saveOn, setSaveOn] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -47,7 +49,6 @@ export function CookFinishSheet({
   const currency = sessionCurrency(session);
   const dishLines = sessionDishLines(lines);
   const totals = dishTotals({ lines: dishLines, extrasMinor: 0, portionsHalf: servings, meId, currency });
-  const notTicked = untickedText(session);
   const sw = saveSwitch(session);
 
   const post = async () => {
@@ -82,8 +83,6 @@ export function CookFinishSheet({
         <div aria-hidden className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-border" />
         <SheetTitle className="pr-12 text-[22px] font-medium">{FINISH_TITLE}</SheetTitle>
         <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
-          {notTicked ? <UntickedChoiceBox text={notTicked} value={unticked} onChange={setUnticked} /> : null}
-
           <div className="flex min-h-14 items-center gap-3">
             <span className="flex min-w-0 flex-1 flex-col">
               <span id="finish-servings" className="text-base font-medium">

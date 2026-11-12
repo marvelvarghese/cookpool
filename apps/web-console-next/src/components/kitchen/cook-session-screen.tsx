@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import type { MyGroupBalance } from "@saas/contracts/kitchen";
+import { scalePortions, type MyGroupBalance } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { isOffline } from "@/lib/connection";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
@@ -33,6 +33,8 @@ import { cookedSeedOf } from "./cooked";
 import { guidedScreen, guidedSessionFromRecipe, withLongPrepMemory } from "./cook-guided";
 import { useCancelServerTimers, useGuideTimers } from "./cook-guided-data";
 import { GuidedCook } from "./cook-guided-screen";
+import { AddIngredientButton, CookTickBar, CookTickList, CookTickNote } from "./cook-tick-ui";
+import { cookFinishText } from "./cook-tick";
 import { AddItemButton, DiscardPromptBody, SessionMeta, SessionRow, SessionTopBar, StepsCard, useNow } from "./cook-session-ui";
 import {
   FINISH_OFFLINE_TEXT,
@@ -362,36 +364,61 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
         <SessionMeta chip={chip} progress={session.lines.length > 0 ? progressText(session) : null} />
       </div>
 
-      {views.length > 0 ? (
-        <section aria-label="Ingredients" className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
-          <ul>
-            {views.map((v, i) => (
-              <SessionRow
-                key={v.key}
-                view={v}
-                open={openKey === v.key}
-                flagged={flagged === v.key}
-                last={i === views.length - 1}
-                onTick={() => {
-                  setFlagged(null);
-                  save((s) => tickLine(s, v.key));
-                }}
-                onToggle={() => setOpenKey((k) => (k === v.key ? null : v.key))}
-                onStep={(d) => {
-                  setFlagged(null);
-                  save((s) => stepLine(s, v.key, d));
-                }}
-                onAsk={() => cookAsk(session, v.key, v.ask?.who ?? "the buyer")}
-                onCancelAsk={() => cancelLineAsk(v.key)}
-              />
-            ))}
-          </ul>
-        </section>
-      ) : blank ? (
-        <p className="px-1 text-sm text-muted-foreground">Name it, pick something you cooked before, or add what goes in.</p>
-      ) : null}
+      {ownDish ? (
+        // The new frame (cookpool-revamp RV-11, the canvas's RvCookLines): RV-10's tick rows.
+        <>
+          {session.lines.length > 0 ? <CookTickBar session={session} /> : null}
+          {blank && session.lines.length === 0 ? (
+            <p className="px-1 text-sm text-muted-foreground">Name it, pick something you cooked before, or add what goes in.</p>
+          ) : null}
+          <CookTickList
+            session={session}
+            meId={meId}
+            names={names}
+            now={now}
+            flagged={flagged}
+            save={save}
+            onTouch={() => setFlagged(null)}
+            onAsk={(key, who) => cookAsk(session, key, who)}
+            onCancelAsk={cancelLineAsk}
+            add={<AddIngredientButton ref={addRef} expanded={addOpen} first={session.lines.length === 0} onClick={() => setAddOpen(true)} />}
+          />
+          {session.lines.length > 0 ? <CookTickNote forWhom={forWhom(session)} /> : null}
+        </>
+      ) : (
+        <>
+        {views.length > 0 ? (
+          <section aria-label="Ingredients" className="overflow-hidden rounded-[22px] bg-card shadow-cp-card">
+            <ul>
+              {views.map((v, i) => (
+                <SessionRow
+                  key={v.key}
+                  view={v}
+                  open={openKey === v.key}
+                  flagged={flagged === v.key}
+                  last={i === views.length - 1}
+                  onTick={() => {
+                    setFlagged(null);
+                    save((s) => tickLine(s, v.key));
+                  }}
+                  onToggle={() => setOpenKey((k) => (k === v.key ? null : v.key))}
+                  onStep={(d) => {
+                    setFlagged(null);
+                    save((s) => stepLine(s, v.key, d));
+                  }}
+                  onAsk={() => cookAsk(session, v.key, v.ask?.who ?? "the buyer")}
+                  onCancelAsk={() => cancelLineAsk(v.key)}
+                />
+              ))}
+            </ul>
+          </section>
+        ) : blank ? (
+          <p className="px-1 text-sm text-muted-foreground">Name it, pick something you cooked before, or add what goes in.</p>
+        ) : null}
 
-      <AddItemButton ref={addRef} expanded={addOpen} onClick={() => setAddOpen(true)} />
+        <AddItemButton ref={addRef} expanded={addOpen} onClick={() => setAddOpen(true)} />
+        </>
+      )}
 
       {session.steps.length > 0 ? (
         <StepsCard
@@ -438,7 +465,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
           </p>
         ) : null}
         <Button type="button" className={cn(MAIN_BUTTON, "shadow-[0_8px_24px_rgba(23,32,27,0.18)]")} onClick={openFinish}>
-          <MainButtonLabel title="Finish" who={finishButtonText(session, group?.name ?? null, group?.currency ?? null)} />
+          <MainButtonLabel title="Finish" who={ownDish ? cookFinishText(session) : finishButtonText(session, group?.name ?? null, group?.currency ?? null)} />
         </Button>
       </div>
 
@@ -448,7 +475,7 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
       }}>
         <SheetContent side="bottom" aria-describedby={undefined} className={cn(PICKER_SHEET, CLOSE_44)}>
           <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border" />
-          <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-medium">Add an item</SheetTitle>
+          <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-medium">{ownDish ? "Add an ingredient" : "Add an item"}</SheetTitle>
           <PantryPanel
             variant="sheet"
             idPrefix="session-pantry"
@@ -485,6 +512,11 @@ function LiveCook({ meId, session, onLeave }: { meId: string; session: CookSessi
       ) : null}
     </div>
   );
+}
+
+/** "4", "about 2": who the recipe's amounts are for at this size; null blank. */
+function forWhom(s: CookSession): string | null {
+  return s.servesHalf !== null && s.factorMilli !== null ? scalePortions(s.servesHalf, s.factorMilli).label : null;
 }
 
 const PICKER_SHEET = cn(

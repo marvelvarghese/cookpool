@@ -22,6 +22,7 @@ import { CookFinishSheet } from "./cooked-finish-sheet";
 import { rememberCookedSeed } from "./cooked-data";
 import { FINISH_TITLE, cookedSeedOf } from "./cooked";
 import { useNow } from "./cook-session-ui";
+import { CookTickList } from "./cook-tick-ui";
 import {
   FINISH_OFFLINE_TEXT,
   SESSION_PARENT,
@@ -270,6 +271,27 @@ export function GuidedCook({ meId, session, onLeave }: { meId: string; session: 
         <GuidePrepView
           view={view}
           gather={session.lines.map((l) => sessionLineView(l, { meId, names, now }))}
+          {...(newFrame()
+            ? {
+                // The new frame (cookpool-revamp RV-11): RV-10's tick rows, as the session's own list.
+                gatherList: (
+                  <CookTickList
+                    session={session}
+                    meId={meId}
+                    names={names}
+                    now={now}
+                    save={save}
+                    onAsk={(key, who) => cookAsk(session, key, who)}
+                    onCancelAsk={(key) => {
+                      const a = session.lines.find((l) => l.key === key)?.ask;
+                      if (!a) return;
+                      save((s) => withLineAsk(s, key, null));
+                      void cancelAsk({ id: a.id, orgId: a.orgId });
+                    }}
+                  />
+                ),
+              }
+            : {})}
           openKey={openKey}
           strip={strip}
           banner={bannerCard}

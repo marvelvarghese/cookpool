@@ -509,3 +509,49 @@ Each task adds a section at the end, headed `### <milestone> — <title> (<KEY>)
 - **Frame rate** (`requestAnimationFrame` intervals, read with `performance.now()`, 4× throttle): during the slow drag, 60 fps (avg 16.67 ms, worst 16.8 ms, 0 frames over 20 ms, 148 frames). During the throttled flick and its settle, 60.6 fps (one 24.8 ms frame, at the commit). This is headless desktop Chromium with a CPU throttle, not a real phone.
 
 **Deploy.** Only the console changes.
+
+### RV1 — Cooking, tick what went in (RV-11)
+
+**Built** (`apps/web-console-next`, new frame only; with `newFrame()` false the session keeps RC-6's `SessionRow`s). **Console-only:** no route, no migration, no contracts, SDK or worker change.
+
+- **The cook session's ingredients are RV-10's tick rows** (`cook-tick.ts`, pure; `cook-tick-ui.tsx`; board `RvCookLines`). One card: `TickHeader` "INGREDIENT · FROM | AMOUNT | ✓", a `TickRow` per line, then **Add an ingredient** at the card's foot (it opens today's item picker, now titled "Add an ingredient"), and the board's note under the card ("Tick what went in. Grey is the recipe's amount for about 2; …").
+  - **The name and its source** (`cookLineMeta`): "Flat 4B · Meera paid", "Mine", "Flat 4B + Mine", "Just bought", "Always have", "None left now", "· short" when the items have less; "Not in your kitchen" in the money-you-owe tone (`cp-owe`) for a missing line.
+  - **The grey amount** is the recipe's amount scaled to the session: what the line's items were matched for (`cookTickItem` → `tickStartAt(item, matchMilli)`), on the line's first read item (its measures; what is left summed over the line's items). Something just bought reads its own amount; a line with no item (Always have, missing, not read yet) a stand-in of the line's dimension.
+  - **The line's own unit as a chip:** a line counted in tsp, tbsp, cup or a count word ("2 onions" of a kilo of onions, "1 tbsp" of a litre of oil) gets that word as a measure of its own, first among the item's chips (`LINE_MEASURE_ID`), when it is a whole number of halves; so the grey amount reads as the recipe says, and the picker offers "onions · g · kg", "tbsp · ml · L".
+  - **The unit picker** is the item's chips (RV-10's `amountUnits`). In a plain unit the grey amount is the recipe's exactly (1 tbsp → 15 ml, not the 50 ml step `pickUnit` would round to), and a typed amount is carried over exactly (`cookUnitChoice`: 3 onions → "450" g). A picked unit becomes the food's usual unit on the device, as in the Kitchen.
+  - **A typed amount, or a unit,** sets the line's amount at once (`setLineFromTick` → `setLineAmount`; the takes follow in proportion). Clearing the box puts the recipe's amount back. Coming back to the session, a changed amount shows in the box over the grey (`cookTickState`).
+  - **The tick is went in:** the line's ticked state (`tickLine`) in the session on the device; Enter in the box ticks too. No use is written until Finish.
+  - **Ask-first lines** (PN-9): a lock in the tick's place that asks, × to cancel while it waits, the approved ✓ / waiting ⌛ / declined icon, and the ask's status under the name. An ask on its way or approved holds its amount (words, no box).
+  - To taste reads "To taste" in the box's place with a tick; a missing line shows its amount in grey and a dashed, empty tick cell.
+- **Header:** the session's top bar, the name, the scale chip and "N of M in" stay; under them a **thin progress bar** (`CookTickBar`, `cookTickPercent`).
+- **Finish** (`cookFinishText`): "₹147.70 so far · 3 in", or "₹0 · nothing taken from the kitchen" while nothing is ticked; always enabled (RV-7).
+- **Unticked rows aren't charged:** the new frame's Finish sheet (`CookFinishSheet`, which guided mode's Done also opens) posts only ticked lines (`unticked: "out"`); its "N not ticked · Took them all / Leave them out" box is gone. Lines with no amount are still never charged (RV-7).
+- **Guided mode's ingredient list** (Before you start's Gather) uses the same `CookTickList` (new `GuidePrepView` prop `gatherList`).
+- **RV-10's row, additive only** (`tick-row-ui.tsx`, `tick-row.ts`): `TickRow` takes `fixed?: string | null` — words in the box's place with the tick still drawn when there is no `amount`; without it the Kitchen's rows draw exactly as before. `TickTone` gains `"owe"`.
+- **Kept:** add an ingredient (in the card), the item picker and bought-new lines, ask-first lines, the session clock and guided timers, the steps card, discard, the one-at-a-time prompt, the session bar, offline Finish, a refusal pointing at its line (the row is outlined and scrolled to).
+
+**Departures.**
+- **The header keeps the session's top bar** (minimize, COOKING, the clock) and the scale chip ("For about 2 · ×0.45"), with "N of M in" beside the chip, instead of the board's back arrow, "For 4 · 3 of 7 in" and Steps button. Steps stay the session's Steps card.
+- **The amount column is RV-10's 124 px**, not the board's 112 px (the row is shared, not forked).
+- **A missing line can't be ticked** (it isn't in your kitchen, so it can't go in the dish) and isn't counted in M; the board draws a tick on Yogurt and counts it in "of 7".
+- **The source line drops "last time 2 onions"**: one line under the name, as the board draws it.
+- **Money keeps its paise:** "₹147.70 so far", where the board rounds to "₹223".
+- **Unticked rows are left out in guided mode's Finish too,** since it opens the same sheet; the Took them all / Leave them out choice is gone from the new frame. Today's frame's `FinishSheet` keeps it.
+- The Finish sheet's own line for no amounts is still RV-7's "₹0 · nothing taken from the pantry" (pinned); the button on the screen says "kitchen".
+- A spoon or count unit that isn't a whole number of halves (¼ tsp) reads in the item's plain units.
+
+**Pinned copy changed:** none.
+
+**Tests.**
+- `tests/web-console-next`: 121 suites, 2,383 tests, all passing. New `kitchen-cook-tick.test.ts` (9): the grey amount in grams, in the line's own word ("2 onions" with chips onions · g · kg), in a spoon ("1 tbsp", "½ tsp" with no item), to taste; typing 3 onions → 450 g and clearing back to 2, the box seeded from the line on return; kg; 1 tbsp → 15 ml exactly and typed onions carried to "450" g; junk; the source line (Flat 4B · … paid, Mine, Always have, Not in your kitchen in owe); "0 of 5 in" → "2 of 5 in", 40 %, "₹0 · nothing taken from the kitchen" → "₹138 so far · 2 in", the tick's names; Finish with nothing ticked posts no ingredients, and only the ticked line at its typed amount.
+- Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`.
+- `console-artifact.mjs build` passes: 45 pages served as files, `/cook/session` static.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 47711 behind RV-4's uncommitted in-memory mock on `cookpool-stage.localhost:47712`; every request was to that host.
+- The curry at ×0.45, Just tick what I use: Chicken 450 g · Mine, Onions 2 onions · Flat 4B, Yogurt 90 g · Not in your kitchen (owe), Garam masala ½ tsp · Always have, Salt To taste, Cooking oil 1 tbsp · Flat 4B · you paid; "0 of 5 in"; Finish "₹0 · nothing taken from the kitchen".
+- Ticking Chicken: the row green and locked, the bar at 20 %, "₹126 so far · 1 in". Typing 3 over Onions' grey 2 and Enter: "₹144 so far · 2 in". Oil's unit opened tbsp · ml · L; ml read 15; typing 20 and ticking: "₹147.70 so far · 3 in".
+- Dark: gold ticks and Finish, the pink "Not in your kitchen".
+- Finish → the sheet (no unticked box) → Finish posted `{"ingredients":[{chicken "450" g, line 0},{onions "450" g, line 1},{oil "20" ml, line 5}], "recipeId", "recipeFactorMilli":450, …}` and landed on Cooked! with "₹147.70 · 2 portions".
+- Start step by step → Before you start: Gather showed the same tick rows.
+
+**Deploy.** Only the console changes.

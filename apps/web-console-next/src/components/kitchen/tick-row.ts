@@ -127,12 +127,13 @@ export function tickWrite(item: PickItem, amount: Pick<TickAmount, "pick">): { q
 
 // ── The line under the name ───────────────────────────────────────
 
-export type TickTone = "muted" | "soon" | "expired";
+/** Muted, amber for use soon, red once expired; the money-you-owe tone for what isn't there (RV-11's "Not in your kitchen"). */
+export type TickTone = "muted" | "soon" | "expired" | "owe";
 
 export interface TickMeta {
   /** "1 glass · yesterday, 8:10 pm", "Expired · 100 g left", "50 g · 3 Nov · use by tomorrow". */
   text: string;
-  /** Amber for use soon, red once expired. */
+  /** Amber for use soon, red once expired, the owe tone for a line that isn't in your kitchen. */
   tone: TickTone;
 }
 
