@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-24
+  title: "Kitchen, shopping, item and Home polish"
+spec:
+  goal: "The Kitchen, shopping list and run, item page, add item and Home close the 13 Nov re-audit's remaining gaps; + Groceries opens the new run."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-24.TaskContract.yaml
+  doneWhen:
+    - "+ Groceries opens the new shopping run and the plain run matches it; no Tick what you bought"
+    - "the item page's More sheet, measures and note use the tokens; Kitchen, list, run, add item and Home details follow the boards"
+    - "every gap in this task's section of the 13 Nov re-audit is fixed or recorded as a departure; no Bought wording remains in its screens"
+    - "prod's old frame unchanged; tests, typecheck, lint and the static build pass"
+  gates: []

@@ -18,7 +18,7 @@ import { useSaveCopy } from "./recipe-travel-data";
 import { recipeHref } from "./recipes";
 import { pressIn } from "./prefetch";
 import { K_SECTION } from "./kit";
-import { balancePill, cookNowTag, resumeMeta } from "./new-home-look";
+import { balancePill, cookNowTag, resumeMeta, resumeStep } from "./new-home-look";
 
 /**
  * The revamped Home's parts (cookpool-revamp RV-3, the canvas's
@@ -78,7 +78,7 @@ export function ResumeStrip({ meId }: { meId: string | null }) {
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-base font-medium">{view.name}</span>
-        <span className="truncate text-[13px] font-normal opacity-75">{resumeMeta(view.meta)}</span>
+        <span className="truncate text-[13px] font-normal opacity-85 [@media(prefers-color-scheme:dark)]:opacity-75">{resumeMeta(view.meta, session ? resumeStep(session) : null)}</span>
       </span>
       <span aria-hidden className="inline-flex min-h-11 shrink-0 items-center rounded-[14px] bg-cp-cook px-4 text-[15px] font-medium text-cp-on-cook">
         Resume

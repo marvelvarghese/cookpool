@@ -1,7 +1,7 @@
 /**
  * The shopping run (cookpool-pantry PN-6, design §6.3, the canvas's
  * BuyAgain) as pure view-models: the restock read's lines in three groups —
- * FINISHED, RUNNING LOW, YOU USUALLY BUY — each "Like last time: 2 L · ₹136 ·
+ * Finished, Running low, You usually buy (no caps, RV-24) — each "Like last time: 2 L · ₹136 ·
  * Flat 4B" until ticked (then its why: "Finished Tue", "600 g of 5 kg left",
  * "Every 4 days · last Wed"); what ticking opens — the quantity's − / +
  * (the last amount, then its ladder: half of it when that is a whole
@@ -27,9 +27,9 @@ export type RunGroupId = "finished" | "running_low" | "usual";
 
 /** The groups, in the canvas's order and words. */
 export const RUN_GROUPS: readonly { id: RunGroupId; title: string }[] = [
-  { id: "finished", title: "FINISHED" },
-  { id: "running_low", title: "RUNNING LOW" },
-  { id: "usual", title: "YOU USUALLY BUY" },
+  { id: "finished", title: "Finished" },
+  { id: "running_low", title: "Running low" },
+  { id: "usual", title: "You usually buy" },
 ];
 
 /**
@@ -313,7 +313,7 @@ export interface RunSummary {
   count: number;
   /** "₹449", "₹449 + $12" — what the ticked lines cost, per currency. */
   totalText: string;
-  /** "Add 3 · ₹449"; "Tick what you bought" with none. */
+  /** "Add 3 · ₹449"; "Add to kitchen" with none (RV-24: the list run's words). */
   label: string;
   /** Every ticked line reads and there are 1–PURCHASE_MAX_LINES of them. */
   ready: boolean;
@@ -351,7 +351,7 @@ export function runSummary(lines: readonly RunLine[], picks: RunPicks, ctx: { pa
   return {
     count,
     totalText: total,
-    label: count === 0 ? "Tick what you bought" : `Add ${count} · ${total}`,
+    label: count === 0 ? "Add to kitchen" : `Add ${count} · ${total}`,
     ready,
     problem: count > 0 ? problem : null,
     request: ready ? { lines: ticked.map((t) => t.request!) } : null,

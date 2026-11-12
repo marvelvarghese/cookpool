@@ -151,7 +151,7 @@ export function SuggestionList({
   if (views.length === 0) return null;
   return (
     <div ref={ref} className={cn("space-y-1.5", className)}>
-      <p id={`${id}-label`} className="px-1 text-[13px] font-bold text-muted-foreground">
+      <p id={`${id}-label`} className="px-1 text-[13px] font-normal text-muted-foreground">
         {label}
       </p>
       <ul
@@ -178,10 +178,10 @@ export function SuggestionList({
             )}
           >
             <span className="min-w-0 flex-1 truncate">
-              <span className="font-bold">{v.name}</span>
+              <span className="font-medium">{v.name}</span>
               {v.meta ? <span className="text-muted-foreground"> · {v.meta}</span> : null}
             </span>
-            <span className="shrink-0 font-bold tabular-nums">{v.price}</span>
+            <span className="shrink-0 font-medium tabular-nums">{v.price}</span>
           </li>
         ))}
       </ul>

@@ -394,7 +394,7 @@ describe("taking from any pantry", () => {
 
   it("checks what was just bought, and makes it a line with all of it in the dish", () => {
     const empty = previewNewItem({ name: " ", quantity: "", unit: "g", price: "" }, "new:1", "INR");
-    expect(empty.errors).toEqual({ name: "Say what you bought", quantity: "Enter how much you bought", price: "Enter what you paid" });
+    expect(empty.errors).toEqual({ name: "Say what you bought", quantity: "Enter how much you got", price: "Enter what you paid" });
     expect(empty.line).toBeNull();
     const ok = previewNewItem({ name: " Paneer ", quantity: ".5", unit: "kg", price: "190" }, "new:3", "INR");
     expect(ok.perUnit).toBe("₹380.00 per kg · ₹38.00 per 100 g");

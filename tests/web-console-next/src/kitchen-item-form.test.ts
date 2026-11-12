@@ -102,7 +102,7 @@ describe("the request for your own pantry", () => {
     expect(normalizeQuantity("2.")).toBe("2");
     expect(normalizeQuantity(" 3 ")).toBe("3");
     expect(normalizeQuantity("1,5")).toBeNull();
-    expect(parseQuantity("", "kg")).toEqual({ ok: false, message: "Enter how much you bought" });
+    expect(parseQuantity("", "kg")).toEqual({ ok: false, message: "Enter how much you got" });
     expect(parseQuantity("0", "kg")).toEqual({ ok: false, message: "Enter more than zero" });
     expect(parseQuantity("1,5", "kg")).toEqual({ ok: false, message: "Enter a number like 1 or 1.5" });
     expect(parseQuantity("-1", "kg")).toEqual({ ok: false, message: "Enter a number like 1 or 1.5" });
@@ -130,7 +130,7 @@ describe("the request for your own pantry", () => {
 describe("validation, inline", () => {
   it("asks for a name and a category", () => {
     const p = previewItemForm(form({ name: "  ", category: "" }), { today: TODAY, meId: ME });
-    expect(p.errors).toMatchObject({ name: "Say what you bought", category: "Pick a category" });
+    expect(p.errors).toMatchObject({ name: "Say what you got", category: "Pick a category" });
     expect(p.request).toBeNull();
     expect(firstItemError(p.errors)).toBe("name");
   });
@@ -141,9 +141,9 @@ describe("validation, inline", () => {
 
   it("refuses a purchase in the future, and a use-by before the purchase", () => {
     expect(previewItemForm(form({ boughtOn: "2026-11-03" }), { today: TODAY, meId: ME }).errors.boughtOn).toBe("That's in the future");
-    expect(previewItemForm(form({ boughtOn: "2026-02-30" }), { today: TODAY, meId: ME }).errors.boughtOn).toBe("Pick the day you bought it");
+    expect(previewItemForm(form({ boughtOn: "2026-02-30" }), { today: TODAY, meId: ME }).errors.boughtOn).toBe("Pick the day you got it");
     expect(previewItemForm(form({ expiresOn: "2026-11-01" }), { today: TODAY, meId: ME }).errors.expiresOn).toBe(
-      "Use-by can't be before the day you bought it",
+      "Use-by can't be before the day you got it",
     );
     expect(previewItemForm(form({ expiresOn: "2026-11-02" }), { today: TODAY, meId: ME }).errors.expiresOn).toBeUndefined();
   });

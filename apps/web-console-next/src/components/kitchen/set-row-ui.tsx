@@ -6,8 +6,9 @@ import type { KitchenItem, KitchenUsual, ReachableItem } from "@saas/contracts/k
 import { cn } from "@/lib/cn";
 import { useItemMoves, useLogUse, useMembersOf } from "./pantry-data";
 import { useMemberNames } from "./people-data";
-import { faceColor, faceOrder, toggleFace } from "./faces";
-import { memberInitials, memberLabel, type MemberNames } from "./members";
+import { faceOrder, toggleFace } from "./faces";
+import { memberLabel, type MemberNames } from "./members";
+import { Face } from "./faces-ui";
 import { orderConsumers } from "./item-use";
 import { usePantryDrafts, saveDraft } from "@/lib/pantry-device";
 import type { PantryRow } from "./pantry-list";
@@ -150,7 +151,7 @@ export function SetRow({
   return (
     <div className="flex flex-col gap-2.5 px-3 pb-3.5">
       {last ? (
-        <p className="flex min-w-0 items-center gap-2 text-[13px] font-bold text-muted-foreground">
+        <p className="flex min-w-0 items-center gap-2 text-[13px] font-normal text-muted-foreground">
           <History className="h-4 w-4 shrink-0" aria-hidden />
           <span className="min-w-0 truncate">{last}</span>
         </p>
@@ -172,13 +173,7 @@ export function SetRow({
                   onClick={() => set.people([...toggleFace(new Set(consumers), id)])}
                   className="grid h-11 w-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <span
-                    aria-hidden
-                    style={{ backgroundColor: faceColor(id, me), ...(on ? { boxShadow: "0 0 0 2px hsl(var(--background)), 0 0 0 4px #17201B" } : {}) }}
-                    className={cn("grid h-10 w-10 place-items-center rounded-full text-[13px] font-extrabold text-white", !on && "opacity-40")}
-                  >
-                    {memberInitials(id, me, names)}
-                  </span>
+                  <Face subjectId={id} meId={me} names={names} className={cn("h-10 w-10 text-[13px] font-medium", on ? "ring-2 ring-foreground ring-offset-2 ring-offset-background" : "opacity-40")} />
                 </button>
               );
             })}
@@ -187,14 +182,14 @@ export function SetRow({
                 type="button"
                 onClick={onMore}
                 aria-label={`${more} more people`}
-                className="grid h-11 w-11 place-items-center rounded-full border-2 border-dashed border-input text-[13px] font-extrabold text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="grid h-11 w-11 place-items-center rounded-full bg-cp-line text-[13px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 +{more}
               </button>
             ) : null}
           </div>
         )}
-        <span className="min-w-0 flex-1 text-right text-[13px] font-bold leading-tight tabular-nums text-foreground/80">
+        <span className="min-w-0 flex-1 text-right text-[13px] font-normal leading-tight tabular-nums text-muted-foreground">
           {ready ? setCostLine(item, write.qtyMilli, consumers) : "Pick who had it"}
         </span>
       </div>
@@ -210,7 +205,7 @@ export function SetRow({
             type="button"
             disabled={!ready}
             onClick={use}
-            className="flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-primary text-base font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+            className="flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-primary text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
           >
             <Check className="h-5 w-5" strokeWidth={2.8} aria-hidden />
             Use
@@ -219,7 +214,7 @@ export function SetRow({
         <button
           type="button"
           onClick={onMore}
-          className="min-h-[52px] rounded-[14px] border border-[#C9CFC6] bg-card text-[15px] font-extrabold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-[52px] rounded-[14px] bg-cp-accent-tint text-[15px] font-medium text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           More…
         </button>

@@ -82,7 +82,7 @@ export interface FinishedRow {
   key: string;
   line: Extract<RestockLine, { reason: "finished" }>;
   name: string;
-  /** "Finished Tue · Flat 4B" — under the name. */
+  /** "Finished Tue" — under the name (RV-24: the board's line; the pantry stays in the label). */
   sub: string;
   /** "Bread · finished Tue · Flat 4B" — the row in one line (its name for a screen reader). */
   label: string;
@@ -99,7 +99,7 @@ export function finishedRow(line: Extract<RestockLine, { reason: "finished" }>, 
     key: restockKey(line),
     line,
     name: line.name,
-    sub: `${when} · ${where}`,
+    sub: when,
     label: `${line.name} · ${when.charAt(0).toLowerCase()}${when.slice(1)} · ${where}`,
     price: shortMoney(line.last.priceMinor, line.last.currency),
     canAdd: line.canAdd,

@@ -50,7 +50,7 @@ export interface SwitchOption {
 /** [onions | g]: which a stepper counts in. */
 export function UnitSwitch({ options, onPick, label = "Count in", className }: { options: readonly SwitchOption[]; onPick: (key: string) => void; label?: string; className?: string }) {
   return (
-    <div role="group" aria-label={label} className={cn("flex shrink-0 rounded-xl bg-muted p-[3px]", className)}>
+    <div role="group" aria-label={label} className={cn("flex shrink-0 rounded-xl bg-cp-line p-[3px]", className)}>
       {options.map((o) => (
         <button
           key={o.key}
@@ -58,8 +58,8 @@ export function UnitSwitch({ options, onPick, label = "Count in", className }: {
           aria-pressed={o.on}
           onClick={() => onPick(o.key)}
           className={cn(
-            "min-h-[38px] min-w-[52px] rounded-[9px] px-3 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            o.on ? "bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]" : "text-muted-foreground hover:text-foreground",
+            "min-h-[38px] min-w-[52px] rounded-[9px] px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            o.on ? "bg-card text-foreground shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-muted-foreground hover:text-foreground",
           )}
         >
           {o.label}
@@ -79,8 +79,8 @@ const SHEET_CLASS = cn(
   "min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
 );
 
-const CHIP = "min-h-[52px] rounded-[14px] border text-base font-extrabold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const PILL = "min-h-11 shrink-0 rounded-full border px-4 text-[15px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const CHIP = "min-h-[52px] rounded-[14px] text-base font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const PILL = "min-h-11 shrink-0 rounded-full px-4 text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const TYPE = "Type one";
 
 interface Start {
@@ -226,19 +226,19 @@ function SheetBody({ item, mode, onDone }: { item: KitchenItem; mode: MeasureShe
           {start.picks.map((p) => {
             const on = !typing && picked.one === p.one;
             return (
-              <button key={p.one} type="button" aria-pressed={on} onClick={() => pickWord(p)} className={cn(PILL, on ? "border-foreground bg-foreground text-background" : "border-input bg-card hover:bg-accent")}>
+              <button key={p.one} type="button" aria-pressed={on} onClick={() => pickWord(p)} className={cn(PILL, on ? "bg-foreground text-background" : "bg-cp-line text-foreground hover:bg-muted")}>
                 {p.label}
               </button>
             );
           })}
-          <button type="button" aria-pressed={typing} onClick={() => pickWord(null)} className={cn(PILL, typing ? "border-foreground bg-foreground text-background" : "border-input bg-card hover:bg-accent")}>
+          <button type="button" aria-pressed={typing} onClick={() => pickWord(null)} className={cn(PILL, typing ? "bg-foreground text-background" : "bg-cp-line text-foreground hover:bg-muted")}>
             {mode.kind === "add" ? "Type a word" : TYPE}
           </button>
         </div>
       ) : null}
       {typing ? (
         <div className="space-y-1">
-          <label htmlFor="measure-word" className="text-[13px] font-semibold text-muted-foreground">
+          <label htmlFor="measure-word" className="text-[13px] font-normal text-muted-foreground">
             {dimension === "pack" ? "Counted in" : "1 …"}
           </label>
           <input
@@ -251,12 +251,12 @@ function SheetBody({ item, mode, onDone }: { item: KitchenItem; mode: MeasureShe
             autoCapitalize="none"
             placeholder={dimension === "pack" ? "slices" : "onion"}
             aria-invalid={typed.trim() !== "" && problem !== null}
-            className="h-12 w-full rounded-[14px] border border-input bg-background px-3.5 text-lg font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-destructive"
+            className="h-12 w-full rounded-[14px] border border-border bg-card px-3.5 text-lg font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-destructive"
           />
-          {typed.trim() !== "" && problem ? <p className="text-[13px] font-semibold text-destructive">{problem}</p> : null}
+          {typed.trim() !== "" && problem ? <p className="text-[13px] font-normal text-cp-expired">{problem}</p> : null}
         </div>
       ) : null}
-      <SheetTitle className="pr-12 text-[22px] font-extrabold leading-tight tracking-tight">{sizeQuestion(dimension, words.one ? words : { one: "…", many: "…" })}</SheetTitle>
+      <SheetTitle className="pr-12 text-[22px] font-medium leading-tight tracking-tight">{sizeQuestion(dimension, words.one ? words : { one: "…", many: "…" })}</SheetTitle>
       <div role="group" aria-label="Choices" className="grid grid-cols-4 gap-2">
         {choices.map((c) => {
           const on = choice === c;
@@ -266,19 +266,19 @@ function SheetBody({ item, mode, onDone }: { item: KitchenItem; mode: MeasureShe
               type="button"
               aria-pressed={on}
               onClick={() => setChoice(c)}
-              className={cn(CHIP, on ? "border-2 border-primary bg-accent text-primary" : "border-input bg-card hover:bg-accent/60")}
+              className={cn(CHIP, on ? "bg-primary text-primary-foreground" : "bg-cp-accent-tint text-cp-accent-text hover:bg-cp-accent-tint/80")}
             >
               {choiceLabel(dimension, c)}
             </button>
           );
         })}
       </div>
-      <SheetDescription className="text-[13px] font-semibold text-muted-foreground">{hint}</SheetDescription>
-      <Button type="button" className={cn(MAIN_BUTTON, "min-h-14 text-base font-extrabold")} disabled={!ready} onClick={save}>
+      <SheetDescription className="text-[13px] font-normal text-muted-foreground">{hint}</SheetDescription>
+      <Button type="button" className={cn(MAIN_BUTTON, "min-h-14 text-base font-medium")} disabled={!ready} onClick={save}>
         {saveLabel(dimension, words, choice)}
       </Button>
       {mode.kind === "change" ? (
-        <Button type="button" variant="ghost" className="min-h-11 rounded-xl text-[15px] font-bold text-cp-expired" onClick={remove}>
+        <Button type="button" variant="ghost" className="min-h-11 rounded-xl text-[15px] font-medium text-cp-expired" onClick={remove}>
           Remove
         </Button>
       ) : null}
@@ -293,28 +293,28 @@ function SheetBody({ item, mode, onDone }: { item: KitchenItem; mode: MeasureShe
  * "Add a measure" (at most three). Viewers see the list without the buttons;
  * with nothing to list, a viewer sees nothing.
  */
-export function CountedAs({ item, canWrite }: { item: KitchenItem; canWrite: boolean }) {
+export function CountedAs({ item, canWrite, bare = false }: { item: KitchenItem; canWrite: boolean; /** Inside the item page's Measures and note (RV-24): no card of its own, plain 14/400 rows. */ bare?: boolean }) {
   const [mode, setMode] = React.useState<MeasureSheetMode | null>(null);
   const measures: readonly KitchenMeasure[] = measuresOf(item);
   if (measures.length === 0 && !canWrite) return null;
   return (
-    <section aria-labelledby="counted-heading" className="rounded-[20px] border bg-card px-4 py-1.5">
-      <h2 id="counted-heading" className="mb-0.5 mt-2.5 text-base font-extrabold">
+    <section aria-labelledby="counted-heading" className={bare ? undefined : "rounded-[20px] border bg-card px-4 py-1.5"}>
+      <h2 id="counted-heading" className={bare ? "mb-0.5 text-[15px] font-medium" : "mb-0.5 mt-2.5 text-base font-medium"}>
         Counted as
       </h2>
       <ul>
         {measures.map((m, i) => {
           const row = measureRow(m, item.dimension);
           return (
-            <li key={m.id} className="flex min-h-14 items-center gap-2.5 border-b border-border/70">
-              <span className="min-w-0 flex-1 truncate text-base font-bold">{row.name}</span>
-              <span className="shrink-0 text-[15px] font-bold tabular-nums text-muted-foreground">{row.size}</span>
+            <li key={m.id} className={cn("flex items-center gap-2.5", bare ? "min-h-12" : "min-h-14 border-b border-border/70")}>
+              <span className={cn("min-w-0 flex-1 truncate", bare ? "text-sm font-normal text-muted-foreground" : "text-base font-medium")}>{row.name}</span>
+              <span className={cn("shrink-0 tabular-nums text-muted-foreground", bare ? "text-sm font-normal" : "text-[15px] font-normal")}>{row.size}</span>
               {canWrite ? (
                 <button
                   type="button"
                   onClick={() => setMode({ kind: "change", index: i })}
                   aria-label={`Change ${row.name}`}
-                  className="min-h-11 shrink-0 rounded-xl px-3 text-[15px] font-extrabold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-medium text-cp-accent-text hover:bg-cp-accent-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Change
                 </button>
@@ -327,9 +327,9 @@ export function CountedAs({ item, canWrite }: { item: KitchenItem; canWrite: boo
         <button
           type="button"
           onClick={() => setMode({ kind: "add" })}
-          className="flex min-h-[52px] w-full items-center gap-2 text-[15px] font-extrabold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-11 w-full items-center gap-2 rounded-lg text-sm font-medium text-cp-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Plus className="h-5 w-5" aria-hidden />
+          <Plus className="h-4 w-4" aria-hidden />
           Add a measure
         </button>
       ) : null}

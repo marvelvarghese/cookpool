@@ -32,13 +32,16 @@ import { cleanTyped, tickUnitChoice, unitPickerOn, type TickAmount, type TickMet
 
 /** The three columns, the header's and every row's. */
 const GRID = "grid grid-cols-[minmax(0,1fr)_124px_48px] items-center gap-2 pl-3.5 pr-3";
+/** The shopping list's columns (RV-24, RvShopping): a 112 px amount box. */
+const GRID_LIST = "grid grid-cols-[minmax(0,1fr)_112px_48px] items-center gap-2 pl-3.5 pr-3";
 
 const META_TONE: Record<TickMeta["tone"], string> = {
-  muted: "text-muted-foreground",
-  soon: "text-cp-soon",
-  expired: "text-cp-expired",
-  owe: "text-cp-owe",
-  logged: "text-cp-accent-text",
+  muted: "font-normal text-muted-foreground",
+  // The board's line is 500 once the row is Use soon or Expired (RV-24).
+  soon: "font-medium text-cp-soon",
+  expired: "font-medium text-cp-expired",
+  owe: "font-normal text-cp-owe",
+  logged: "font-normal text-cp-accent-text",
 };
 
 /** The small column header: ITEM · LAST TIME | AMOUNT | ✓ (decorative; each control has its own name). */
@@ -93,11 +96,13 @@ export interface TickRowProps {
   onAmountBlur?: () => void;
   /** One more chip after the unit chips (RV-22: the list's "Take off the list"). */
   chipsEnd?: React.ReactNode;
+  /** The list's narrower amount column, 112 px (RV-24); the Kitchen and the cook session keep 124. */
+  listColumns?: boolean;
 }
 
 const defaultTickLabel = (words: string, name: string, done: boolean) => (done ? `Logged ${words} of ${name}, undo` : `Log ${words} of ${name}`);
 
-export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, picked, onTick, end, busy = false, tickLabel = defaultTickLabel, children, onAmountBlur, chipsEnd }: TickRowProps) {
+export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, picked, onTick, end, busy = false, tickLabel = defaultTickLabel, children, onAmountBlur, chipsEnd, listColumns = false }: TickRowProps) {
   const [unitsOpen, setUnitsOpen] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const chipsId = React.useId();
@@ -110,13 +115,13 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
   const nameBody = (
     <>
       <span className="truncate text-base font-medium leading-snug">{name}</span>
-      {meta ? <span className={cn("truncate text-[13px] font-normal", META_TONE[meta.tone])}>{meta.text}</span> : null}
+      {meta ? <span className={cn("truncate text-[13px]", META_TONE[meta.tone])}>{meta.text}</span> : null}
       {children}
     </>
   );
   return (
     <div data-row-id={id} data-picked={picked || undefined} className={cn(on && "bg-cp-accent-tint")}>
-      <div className={cn(GRID, "min-h-16 py-2")}>
+      <div className={cn(listColumns ? GRID_LIST : GRID, "min-h-[66px] py-2")}>
         {href ? (
           <Link href={href} className={cn("flex min-h-11 min-w-0 flex-col justify-center gap-0.5 rounded-lg text-foreground", RING)}>
             {nameBody}

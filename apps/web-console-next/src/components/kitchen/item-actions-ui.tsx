@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { CLOSE_44, K_BUTTON } from "./kit";
+import { CLOSE_44, K_BUTTON, K_BUTTON_QUIET } from "./kit";
 import type { MemberNames } from "./members";
 import { useGroupRole } from "./ledger-data";
 import { useMemberNames } from "./people-data";
@@ -59,7 +59,7 @@ export function WasteConfirm({
         <p className="text-sm font-normal text-muted-foreground">{preview.short ?? preview.explain}</p>
       )}
       <div className="grid grid-cols-2 gap-2.5">
-        <Button type="button" variant="outline" className={K_BUTTON} onClick={onKeep}>
+        <Button type="button" variant="ghost" className={K_BUTTON_QUIET} onClick={onKeep}>
           Keep it
         </Button>
         <Button type="button" variant="destructive" className={K_BUTTON} disabled={waiting} onClick={onWaste}>

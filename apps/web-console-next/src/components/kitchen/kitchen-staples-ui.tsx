@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, List as ListIcon, Plus } from "lucide-react";
+import { Check, ChevronDown, List as ListIcon, Plus, X } from "lucide-react";
 import Link from "./link";
 import type { KitchenStaple, StaplePantry } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CLOSE_44, K_TITLE } from "./kit";
 import { RING } from "./new-home-parts-ui";
 import { parseMinor } from "./money";
@@ -26,6 +26,17 @@ const SHEET_CLASS = cn(
   "min-[900px]:bottom-6 min-[900px]:rounded-[24px] min-[900px]:border",
   CLOSE_44,
 );
+
+/** The sheet's own close beside its title (the board's 44 px quiet ×); the sheet's corner × is hidden. */
+const NO_CORNER_CLOSE = "[&>button:last-child]:hidden";
+
+function InlineClose() {
+  return (
+    <SheetClose aria-label="Close" className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-cp-line text-muted-foreground", RING)}>
+      <X className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
+    </SheetClose>
+  );
+}
 
 function Grabber() {
   return <div aria-hidden className="mx-auto mb-2 h-1 w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />;
@@ -91,7 +102,8 @@ export function PantrySwitcher({ title, options, onPick }: { title: string; opti
 
 // ── The stock bar ─────────────────────────────────────────────────
 
-const BAR_TONE: Record<StockTone, string> = { ok: "bg-primary", low: "bg-cp-soon", expired: "bg-cp-expired opacity-40" };
+// The expired bar is RV-23's `cp-expired-bar` token, with the expired colour as its fallback until that lands.
+const BAR_TONE: Record<StockTone, string> = { ok: "bg-primary", low: "bg-cp-soon", expired: "bg-[hsl(var(--cp-expired-bar,var(--cp-expired)))]" };
 
 export function StockBar({ pct, tone, text }: { pct: number; tone: StockTone; text: string }) {
   return (
@@ -214,13 +226,16 @@ function StapleSheetView({
   const chip = (on: boolean, tone: string) => cn("min-h-[52px] rounded-2xl text-[15px] font-medium", on ? "bg-foreground text-background" : cn("bg-cp-line", tone), RING);
   return (
     <Sheet open={!!staple} onOpenChange={(o) => (o ? undefined : onClose())}>
-      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, "pb-8")}>
+      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, NO_CORNER_CLOSE, "pb-8")}>
         <Grabber />
         {staple && view ? (
           <div className="flex flex-col gap-3.5">
-            <div className="flex min-h-11 flex-col justify-center gap-0.5 pr-12">
-              <SheetTitle className="text-[17px] font-medium">{view.name}</SheetTitle>
-              <span className={cn("text-[13px] font-normal", view.subTone === "expired" ? "text-cp-expired" : view.subTone === "soon" ? "text-cp-soon" : "text-muted-foreground")}>{view.sub}</span>
+            <div className="flex items-center gap-2.5">
+              <div className="flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-0.5">
+                <SheetTitle className="text-[17px] font-medium">{view.name}</SheetTitle>
+                <span className={cn("text-[13px] font-normal", view.subTone === "expired" ? "text-cp-expired" : view.subTone === "soon" ? "text-cp-soon" : "text-muted-foreground")}>{view.sub}</span>
+              </div>
+              <InlineClose />
             </div>
             {step === "menu" ? (
               <>
@@ -276,7 +291,10 @@ function StapleSheetView({
             )}
           </div>
         ) : (
-          <SheetTitle className="sr-only">Always have</SheetTitle>
+          <>
+            <SheetTitle className="sr-only">Always have</SheetTitle>
+            <InlineClose />
+          </>
         )}
       </SheetContent>
     </Sheet>
@@ -294,9 +312,12 @@ function AddStapleSheet({ open, pantryName, onClose, onAdd }: { open: boolean; p
   };
   return (
     <Sheet open={open} onOpenChange={(o) => (o ? undefined : onClose())}>
-      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, "pb-8")}>
+      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, NO_CORNER_CLOSE, "pb-8")}>
         <Grabber />
-        <SheetTitle className="flex min-h-11 items-center pr-12 text-[17px] font-medium">Add to Always have · {pantryName}</SheetTitle>
+        <div className="flex items-center gap-2.5">
+          <SheetTitle className="flex min-h-11 min-w-0 flex-1 items-center text-[17px] font-medium">Add to Always have · {pantryName}</SheetTitle>
+          <InlineClose />
+        </div>
         <div className="mt-2 flex items-center gap-2.5">
           <label htmlFor="staple-name" className="sr-only">
             What do you always have?
@@ -326,8 +347,22 @@ function AddStapleSheet({ open, pantryName, onClose, onAdd }: { open: boolean; p
 
 // ── Finished this week, onto the list ─────────────────────────────
 
-/** Finished this week (RV-21, the board's): three rows, then See all; each "Add to list", then "On the list" (the toast's Undo takes it off). */
-export function FinishedToList({ rows, listed, onAdd }: { rows: readonly FinishedRow[]; listed: (row: FinishedRow) => boolean; onAdd: (row: FinishedRow) => void }) {
+/**
+ * Finished this week (RV-21, the board's): three rows, then See all; each "Add to list", then "On the list"
+ * with a quiet Undo pill (RV-24) that takes it off again — shown where `onUndo` can (the line is on the list).
+ */
+export function FinishedToList({
+  rows,
+  listed,
+  onAdd,
+  onUndo,
+}: {
+  rows: readonly FinishedRow[];
+  listed: (row: FinishedRow) => boolean;
+  onAdd: (row: FinishedRow) => void;
+  /** Takes the row's line off the list; null where it can't (it is listed by an Always have chip). */
+  onUndo?: (row: FinishedRow) => (() => void) | null;
+}) {
   const [all, setAll] = React.useState(false);
   if (rows.length === 0) return null;
   const shown = all ? rows : rows.slice(0, 3);
@@ -340,13 +375,25 @@ export function FinishedToList({ rows, listed, onAdd }: { rows: readonly Finishe
         <ul className="divide-y divide-cp-line">
           {shown.map((r) => {
             const on = listed(r);
+            const undo = on && onUndo ? onUndo(r) : null;
             return (
               <li key={r.key} className="flex min-h-16 items-center gap-2.5 py-2 pl-3.5 pr-2.5">
                 <span className="flex min-w-0 flex-1 flex-col gap-px">
                   <span className={cn("truncate text-base font-medium", on ? "text-foreground" : "text-muted-foreground")}>{r.name}</span>
                   <span className={cn("truncate text-[13px] font-normal", on ? "text-cp-accent-text" : "text-muted-foreground")}>{on ? "On the list" : r.sub}</span>
                 </span>
-                {on ? null : r.canAdd ? (
+                {on ? (
+                  undo ? (
+                    <button
+                      type="button"
+                      onClick={undo}
+                      aria-label={`Take ${r.name} off the list`}
+                      className={cn("min-h-11 shrink-0 rounded-[14px] px-3.5 text-sm font-medium text-muted-foreground hover:bg-muted/50", RING)}
+                    >
+                      Undo
+                    </button>
+                  ) : null
+                ) : r.canAdd ? (
                   <button
                     type="button"
                     onClick={() => onAdd(r)}

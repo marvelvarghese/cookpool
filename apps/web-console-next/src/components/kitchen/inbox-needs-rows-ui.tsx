@@ -414,7 +414,7 @@ export function ReminderNeedsRow({ item, meId, names }: { item: SplitReminderInb
             type="button"
             onClick={() => dismiss(item)}
             aria-label={`Dismiss: ${title}`}
-            className={cn("grid h-11 w-9 shrink-0 place-items-center rounded-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+            className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
           >
             <X className="h-[18px] w-[18px]" aria-hidden />
           </button>

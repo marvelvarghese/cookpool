@@ -33,19 +33,19 @@ const ALL = { kind: "all" } as const;
 describe("Finished this week's rows", () => {
   it("say how and when it finished, and where: used up or went bad, the weekday", () => {
     const bread = finishedRow(finished(), NOW);
-    expect(bread.sub).toBe("Finished Tue · Flat 4B");
+    expect(bread.sub).toBe("Finished Tue");
     expect(bread.label).toBe("Bread · finished Tue · Flat 4B");
     expect(bread.price).toBe("₹45");
     expect(bread.canAdd).toBe(true);
     expect(bread.key).toBe(`${FLAT.orgId}:bread`);
     const curd = finishedRow(finished({ name: "Curd", how: "wasted", at: at(2), pantry: PERSONAL_REF }), NOW);
-    expect(curd.sub).toBe("Went bad Mon · Me");
+    expect(curd.sub).toBe("Went bad Mon");
     expect(curd.label).toBe("Curd · went bad Mon · Me");
   });
 
   it("read today and yesterday in words, and an older day as its date", () => {
-    expect(finishedRow(finished({ at: at(5, 8) }), NOW).sub).toBe("Finished today · Flat 4B");
-    expect(finishedRow(finished({ how: "wasted", at: at(4, 20) }), NOW).sub).toBe("Went bad yesterday · Flat 4B");
+    expect(finishedRow(finished({ at: at(5, 8) }), NOW).sub).toBe("Finished today");
+    expect(finishedRow(finished({ how: "wasted", at: at(4, 20) }), NOW).sub).toBe("Went bad yesterday");
     expect(weekdayText(new Date(2026, 9, 31, 9).toISOString(), NOW)).toBe("Sat"); // five days back
     expect(weekdayText(new Date(2026, 9, 28, 9).toISOString(), NOW)).toBe("28 Oct");
     expect(weekdayText("not a date", NOW)).toBe("");

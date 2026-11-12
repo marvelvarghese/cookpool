@@ -26,6 +26,8 @@ import { nameKeyOf } from "./restock";
  * The shopping run from the list (cookpool-revamp RV-22, the board
  * RvShoppingRun), `/pantry/run?from=list`: "Shopping run · 6", **Scan the
  * receipt** (AI-8's read; hidden when AI isn't there), then the rows ticked
+ * (none when it is opened from + Groceries, RV-24: Scan and + Add something
+ * else are the way in)
  * on the list by where they go — "Flat 4B · split equally" for a group's
  * Always have, "· by use" for its pantry, Mine — each with its amount and ₹
  * price (last time's in grey), the name opening where it goes; once read,
@@ -99,11 +101,11 @@ export function ListRun() {
   return (
     <div className="space-y-5 pb-4 min-[900px]:max-w-[640px]">
       <header className="-ml-2 flex items-center gap-1.5">
-        <button type="button" onClick={close} aria-label="Back to Shopping list" className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-foreground", RING)}>
+        <button type="button" onClick={close} aria-label="Back" className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-foreground", RING)}>
           <ChevronLeft className="h-[22px] w-[22px]" strokeWidth={2.2} aria-hidden />
         </button>
         <h1 className={cn(K_TITLE, "min-w-0 flex-1")}>
-          Shopping run <span className="font-normal text-muted-foreground">· {view.count}</span>
+          Shopping run {view.count > 0 ? <span className="font-normal text-muted-foreground">· {view.count}</span> : null}
         </h1>
       </header>
 
@@ -137,7 +139,7 @@ export function ListRun() {
                       onClick={() => setAdjustIn(yes)}
                       className={cn(
                         "min-h-10 min-w-[52px] rounded-[11px] px-3.5 text-sm font-medium",
-                        adjustIn === yes ? "bg-card text-foreground shadow-cp-card" : "bg-transparent text-muted-foreground",
+                        adjustIn === yes ? "bg-card text-foreground shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "bg-transparent text-muted-foreground",
                         RING,
                       )}
                     >
@@ -171,11 +173,7 @@ export function ListRun() {
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-[136px] w-full rounded-cp-card" />
         </div>
-      ) : view.count === 0 ? (
-        <KCard className="p-4">
-          <p className="text-[15px] font-normal text-muted-foreground">Nothing ticked on the list</p>
-        </KCard>
-      ) : (
+      ) : view.count === 0 ? null : (
         view.sections.map((s) => (
           <RunSectionView
             key={s.key}
@@ -290,7 +288,7 @@ function RunSectionView({
 }) {
   return (
     <section aria-label={`${section.title} ${section.sub}`.trim()} className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-2 px-1">
+      <div className="flex items-baseline justify-between gap-2">
         <h2 className={K_SECTION}>
           {section.title} {section.sub ? <span className="font-normal text-muted-foreground">{section.sub}</span> : null}
         </h2>
@@ -355,7 +353,7 @@ function RunRowLine({
             value={row.qty}
             placeholder={row.qtyGhost}
             onChange={(e) => onEdit({ qty: cleanTyped(e.target.value) })}
-            className="w-full min-w-0 bg-transparent text-right text-base font-medium tabular-nums text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
+            className="w-full min-w-0 bg-transparent text-right text-base font-medium tabular-nums text-foreground outline-none placeholder:font-medium placeholder:text-muted-foreground"
           />
           <button
             type="button"
@@ -381,7 +379,7 @@ function RunRowLine({
             value={row.price}
             placeholder={row.priceGhost}
             onChange={(e) => onEdit({ price: e.target.value.replace(/[^0-9.]/g, "").slice(0, 10) })}
-            className="w-full min-w-0 bg-transparent text-right text-base font-medium tabular-nums text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
+            className="w-full min-w-0 bg-transparent text-right text-base font-medium tabular-nums text-foreground outline-none placeholder:font-medium placeholder:text-muted-foreground"
           />
         </div>
         {row.removable ? (

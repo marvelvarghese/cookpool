@@ -336,7 +336,7 @@ describe("the item page's note", () => {
   });
 
   it("says why a change was refused, in one line", () => {
-    expect(noteRefusal({ code: "forbidden", message: "Only…", reason: "not_buyer" })).toBe("Only whoever bought it, or an owner or admin, can change it.");
+    expect(noteRefusal({ code: "forbidden", message: "Only…", reason: "not_buyer" })).toBe("Only whoever added it, or an owner or admin, can change it.");
     expect(noteRefusal({ code: "not_found", message: "Not found" })).toBe("You can't change this item any more.");
     expect(
       noteRefusal({ code: "validation_failed", message: "Invalid", details: { fields: { note: ["Must be at most 80 characters"] } } }),

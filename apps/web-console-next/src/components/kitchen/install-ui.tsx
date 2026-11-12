@@ -193,16 +193,16 @@ export function InstallCard({ className, fresh = false }: { className?: string; 
       ) : show ? (
         <section
           aria-labelledby="install-card-title"
-          className={cn("flex items-center gap-3 rounded-[20px] border bg-card py-3 pl-3.5 pr-1.5 shadow-[0_1px_2px_rgba(23,32,27,0.06)]", className)}
+          className={cn("flex items-center gap-3 rounded-cp-card bg-card py-3 pl-3.5 pr-1.5 shadow-cp-card", className)}
         >
           <AppMark className="h-11 w-11 rounded-[13px]" />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <h2 id="install-card-title" className="text-base font-extrabold leading-tight">
+            <h2 id="install-card-title" className="text-base font-medium leading-tight">
               {CARD_TITLE}
             </h2>
-            <p className="text-[13px] font-semibold text-muted-foreground">{CARD_LINE}</p>
+            <p className="text-[13px] font-normal text-muted-foreground">{CARD_LINE}</p>
           </div>
-          <Button type="button" onClick={() => void install()} className={cn(K_BUTTON, "shrink-0 px-4 font-extrabold")}>
+          <Button type="button" onClick={() => void install()} className={cn(K_BUTTON, "shrink-0 px-4 font-medium")}>
             {installLabel(way)}
           </Button>
           <button
@@ -240,7 +240,7 @@ export function InstallRow() {
         <div className="flex min-h-[60px] items-center gap-3 px-5 py-2.5">
           {mark}
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[15px] font-semibold">{ROW_TITLE}</span>
+            <span className="text-[15px] font-medium">{ROW_TITLE}</span>
             <span className="text-[13px] text-muted-foreground">{line}</span>
           </span>
         </div>
@@ -251,7 +251,7 @@ export function InstallRow() {
           className="flex min-h-[60px] w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           {mark}
-          <span className="min-w-0 flex-1 text-[15px] font-semibold">{ROW_TITLE}</span>
+          <span className="min-w-0 flex-1 text-[15px] font-medium">{ROW_TITLE}</span>
           <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
         </button>
       )}
@@ -286,12 +286,12 @@ export function IosInstallSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, CLOSE_44)}>
         <div aria-hidden className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
-        <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-extrabold tracking-[-0.01em]">
+        <SheetTitle className="flex min-h-11 shrink-0 items-center pr-12 text-[22px] font-medium tracking-[-0.01em]">
           {SHEET_TITLE}
         </SheetTitle>
         <ol className="mt-3 flex flex-col gap-2.5">
           <Step n={1} text={iosShareStep(userAgent)}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="the Share icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="shrink-0 text-cp-owed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="the Share icon">
               <path d="M12 3v12" />
               <path d="M8 7l4-4 4 4" />
               <path d="M6 11v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8" />
@@ -310,7 +310,7 @@ export function IosInstallSheet({
             onOpenChange(false);
             onDone?.();
           }}
-          className="mt-4 h-14 shrink-0 rounded-2xl text-base font-extrabold"
+          className="mt-4 h-14 shrink-0 rounded-2xl text-base font-medium"
         >
           Got it
         </Button>
@@ -328,10 +328,10 @@ export function IosInstallSheet({
 function Step({ n, text, children }: { n: number; text: string; children: React.ReactNode }) {
   return (
     <li className="flex min-h-14 items-center gap-3.5 rounded-2xl bg-background px-3.5">
-      <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-foreground text-sm font-extrabold text-background">
+      <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-foreground text-sm font-medium text-background">
         {n}
       </span>
-      <span className="min-w-0 flex-1 text-base font-bold">{text}</span>
+      <span className="min-w-0 flex-1 text-base font-normal">{text}</span>
       <span className="shrink-0 text-foreground">{children}</span>
     </li>
   );

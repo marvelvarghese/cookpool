@@ -126,7 +126,7 @@ export function notePatches(itemId: string, fields: NoteFields): CachePatch[] {
 
 /** Why a note was refused, in one line. */
 export function noteRefusal(error: { code: string; message: string; reason?: string | undefined; details?: Record<string, unknown> | undefined }): string {
-  if (error.reason === "not_buyer") return "Only whoever bought it, or an owner or admin, can change it.";
+  if (error.reason === "not_buyer") return "Only whoever added it, or an owner or admin, can change it.";
   if (error.code === "not_found") return "You can't change this item any more.";
   const fields = error.details?.["fields"];
   const messages = fields && typeof fields === "object" ? (fields as Record<string, unknown>)["note"] : undefined;
