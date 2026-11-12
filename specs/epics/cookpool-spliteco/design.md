@@ -24,7 +24,7 @@ The screens are on the Claude Design canvas (README). This file is the model beh
 
 Splitly (`~/apps/sourceplane/splitly`) is an empty scaffold with nothing to reuse.
 
-## 1. The model (migration 520)
+## 1. The model (migration 530)
 
 Existing tables are reused as they are: `kitchen_txns` (kinds expense, use, dish, waste, settlement, reversal), `kitchen_txn_splits` (`paid_minor`, `owed_minor` per person), `kitchen_group_settings` (currency locked on first money write) and `kitchen_flags`. Amounts are integer paise and money is never summed across currencies.
 

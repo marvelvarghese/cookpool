@@ -12,7 +12,7 @@ Each milestone is one task and one pull request on `orun/SE-k-<slug>`, with its 
 ## SE1 — groups, expenses, balances
 
 - **SE-2** (design §1–3):
-  - migration 520;
+  - migration 530;
   - the itemized maths in `kitchen-engine`;
   - `apps/spliteco-worker` behind api-edge, with contracts and SDK;
   - `apps/spliteco-web`, with Home, Groups & friends, Group, Friend, Activity, Add expense, Who paid, Split, Itemized, Expense breakdown, Move, Insights, Share & export, and You.

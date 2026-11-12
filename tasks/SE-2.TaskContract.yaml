@@ -4,10 +4,13 @@ metadata:
   name: SE-2
   title: "Spliteco: groups, expenses, balances"
 spec:
-  goal: "Migration 520, the itemized maths, spliteco-worker behind api-edge and the Spliteco app let people add expenses six ways and see balances across every group they share."
+  goal: "Migration 530, the itemized maths, spliteco-worker behind api-edge and the Spliteco app let people add expenses six ways and see balances across every group they share."
   affects:
     - default/cookpool/spliteco-worker
     - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-worker-tests
+    - default/cookpool/spliteco-web-tests
+    - default/cookpool/db-migrate
     - default/cookpool/api-edge
     - default/cookpool/api-edge-tests
     - default/cookpool/membership-worker
