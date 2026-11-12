@@ -15,6 +15,16 @@ import type {
   DelegationsListResponse,
   RevokeDelegationResponse,
 } from "@saas/contracts/delegations";
+import type {
+  PasskeyLoginOptionsResponse,
+  PasskeyLoginVerifyRequest,
+  PasskeyLoginVerifyResponse,
+  PasskeyRegisterOptionsResponse,
+  PasskeyRegisterVerifyRequest,
+  PasskeyRegisterVerifyResponse,
+  PasskeysListResponse,
+  RemovePasskeyResponse,
+} from "@saas/contracts/passkeys";
 
 import type { RequestOptions, Transport } from "./transport.js";
 
@@ -29,6 +39,7 @@ import type { RequestOptions, Transport } from "./transport.js";
  *   - POST   /v1/auth/logout
  *   - GET    /v1/auth/profile
  *   - PATCH  /v1/auth/profile
+ *   - /v1/auth/delegations (MC-2) and /v1/auth/passkeys (PK-2), below
  *
  * Stripe parity: `loginStart`, `loginComplete`, and `logout` are POSTs that
  * accept a caller-owned `idempotencyKey` via `RequestOptions`. The SDK MUST
@@ -181,6 +192,67 @@ export class AuthClient {
   revokeDelegation(id: string, opts: RequestOptions = {}): Promise<RevokeDelegationResponse> {
     return this.transport.request<RevokeDelegationResponse>(
       { method: "DELETE", path: `/v1/auth/delegations/${encodeURIComponent(id)}` },
+      opts,
+    );
+  }
+
+  // ── Passkeys (cookpool-passkeys PK-2) ────────────────────────────────
+  // Register, list and remove take a signed-in session; login options and
+  // verify take nobody. Every passkey route answers 404 (reason
+  // "passkeys_off") where the environment has no RP ID, and a delegated token
+  // is refused on all of them. A failed passkey sign-in is a bare 401
+  // (reason "passkey_failed"): fall back to the email code or Google.
+
+  /** POST /v1/auth/passkeys/register/options — creation options for `navigator.credentials.create`. 409 at 10 passkeys. */
+  passkeyRegisterOptions(opts: RequestOptions = {}): Promise<PasskeyRegisterOptionsResponse> {
+    return this.transport.request<PasskeyRegisterOptionsResponse>(
+      { method: "POST", path: "/v1/auth/passkeys/register/options", body: {} },
+      opts,
+    );
+  }
+
+  /** POST /v1/auth/passkeys/register/verify — stores the new passkey (201). */
+  passkeyRegisterVerify(
+    input: PasskeyRegisterVerifyRequest,
+    opts: RequestOptions = {},
+  ): Promise<PasskeyRegisterVerifyResponse> {
+    return this.transport.request<PasskeyRegisterVerifyResponse>(
+      { method: "POST", path: "/v1/auth/passkeys/register/verify", body: input },
+      opts,
+    );
+  }
+
+  /** GET /v1/auth/passkeys — your passkeys, newest first. */
+  passkeys(opts: RequestOptions = {}): Promise<PasskeysListResponse> {
+    return this.transport.request<PasskeysListResponse>(
+      { method: "GET", path: "/v1/auth/passkeys" },
+      opts,
+    );
+  }
+
+  /** DELETE /v1/auth/passkeys/:id — it stops signing you in at once. */
+  removePasskey(id: string, opts: RequestOptions = {}): Promise<RemovePasskeyResponse> {
+    return this.transport.request<RemovePasskeyResponse>(
+      { method: "DELETE", path: `/v1/auth/passkeys/${encodeURIComponent(id)}` },
+      opts,
+    );
+  }
+
+  /** POST /v1/auth/passkeys/login/options — request options with an empty allowCredentials. */
+  passkeyLoginOptions(opts: RequestOptions = {}): Promise<PasskeyLoginOptionsResponse> {
+    return this.transport.request<PasskeyLoginOptionsResponse>(
+      { method: "POST", path: "/v1/auth/passkeys/login/options", body: {} },
+      opts,
+    );
+  }
+
+  /** POST /v1/auth/passkeys/login/verify — the same session body as `loginComplete`. */
+  passkeyLoginVerify(
+    input: PasskeyLoginVerifyRequest,
+    opts: RequestOptions = {},
+  ): Promise<PasskeyLoginVerifyResponse> {
+    return this.transport.request<PasskeyLoginVerifyResponse>(
+      { method: "POST", path: "/v1/auth/passkeys/login/verify", body: input },
       opts,
     );
   }

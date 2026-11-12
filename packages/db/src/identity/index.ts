@@ -30,3 +30,14 @@ export { createIdentityRepository, LOGIN_CHALLENGE_MAX_ATTEMPTS } from "./reposi
 // Delegated tokens for assistants (cookpool-mcp MC-2).
 export type { Delegation, CreateDelegationInput, DelegationsRepository } from "./delegations.js";
 export { createDelegationsRepository } from "./delegations.js";
+
+// Passkeys (cookpool-passkeys PK-2).
+export type {
+  Passkey,
+  CreatePasskeyInput,
+  PasskeyChallenge,
+  PasskeyChallengeKind,
+  CreatePasskeyChallengeInput,
+  PasskeysRepository,
+} from "./passkeys.js";
+export { createPasskeysRepository } from "./passkeys.js";

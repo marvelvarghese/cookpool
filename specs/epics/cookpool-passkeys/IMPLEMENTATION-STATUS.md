@@ -42,3 +42,47 @@ Console only; no server, contract or SDK change. Shown in every frame (sign-in i
 - **PK-4:** add "Sign in with a passkey" above Google in `StartStep` (`components/kitchen/sign-in-steps-ui.tsx`) and "Sign in with Face ID" as the remembered card's button when `RememberedAccount.method` gains `"passkey"`; record it with `rememberAccount(user, "passkey")` after `passkeyLoginVerify`.
 - **Owner:** pick Cookpool's support address and set `CONSOLE_SUPPORT_EMAIL` on the console Worker (stage and prod vars); until then Can't sign in? shows no Write to us.
 - **Deploy:** console only.
+
+### PK1 — Passkeys in the server (PK-2)
+
+**Library (risk PK-A, settled).** `@simplewebauthn/server` **14.0.3**, pinned exactly in `apps/identity-worker`. Before the routes were built, a probe that generated registration and authentication options bundled with `wrangler deploy --dry-run --env prod` (~138 KiB gzip of library) and answered under local `wrangler dev` (workerd). The finished worker bundles at 999 KiB / 173 KiB gzip. The library logs nothing by default.
+
+**Migration 510, `510_identity_passkeys`** (identity context, after 490):
+- `identity_passkeys`: `id` (`pky_` + 16 hex, checked), `user_id` → `identity_users`, `credential_id` (base64url, UNIQUE), `public_key` (COSE, base64url), `sign_count` ≥ 0, `transports` (JSON array), `aaguid`, `device_name` 1–60, `backed_up` 0/1, `created_at`, `last_used_at`; index `identity_passkeys_user_idx (user_id)`.
+- `identity_passkey_challenges`: `id`, `kind` (`register`|`login`), `user_id` (set for register, null for login — a CHECK), `challenge` (UNIQUE), `created_at`, `expires_at`, `used_at`; index on `expires_at`.
+- Storage: `packages/db/src/identity/passkeys.ts` (`createPasskeysRepository`). The 10-passkey limit is counted inside the INSERT; a challenge is spent by one UPDATE that checks kind, person, unused and unexpired; the sign count moves only from the value it was read at (compare-and-set); challenges that expired more than a day ago are pruned when a new one is made.
+
+**Routes** (identity-worker, forwarded by api-edge's auth facade):
+
+| Route | Who | Answer |
+|---|---|---|
+| `POST /v1/auth/passkeys/register/options` | session | `{ options }`: `rp {name, id}`, `user.id` = the account UUID's 16 bytes, `residentKey: required`, `userVerification: required`, `attestation: none`, `excludeCredentials` = your passkeys, `timeout` 300000. 409 `conflict` / `too_many_passkeys` at 10. |
+| `POST /v1/auth/passkeys/register/verify` `{ response, deviceName? }` | session | 201 `{ passkey: { id, deviceName, createdAt, lastUsedAt, backedUp } }`. 422 `validation_failed` (fields `response`, `deviceName`); 422 `precondition_failed` / `passkey_failed` when it does not verify; 409 `too_many_passkeys`. |
+| `GET /v1/auth/passkeys` | session | `{ passkeys: [...] }`, newest first. |
+| `DELETE /v1/auth/passkeys/{pky}` | session | `{ id, removedAt }`; 404 `not_found` when not yours. |
+| `POST /v1/auth/passkeys/login/options` | anyone | `{ options }`: `rpId`, `allowCredentials: []`, `userVerification: required`, `timeout` 300000. |
+| `POST /v1/auth/passkeys/login/verify` `{ response }` | anyone | Exactly login/complete's body `{ token, tokenType, expiresAt, user }`, from the same code. Any failure: 401 `unauthenticated`, message "Passkey sign-in failed", `details: { reason: "passkey_failed" }`, nothing else. |
+
+- Every assertion is checked for: a challenge issued here, of its kind, unused and under 5 minutes old (spent before anything else is checked); the origin against `PASSKEY_ORIGINS` exactly; the RP ID hash; user presence and verification; the signature; a sign count that went up (or stayed 0 on both sides); and, when present, a user handle that is the passkey's person.
+- **Delegated tokens:** 403 `forbidden` / `session_required` on all six at identity (API keys too; on the two public routes only when a non-session bearer is sent). api-edge refuses a delegated token on all six before forwarding (403 / `scope`): the delegation allowlist has no `/v1/auth/` entry, and `tests/api-edge` now lists the six paths among the refused.
+- **Off switch:** an empty `PASSKEY_RP_ID` makes all six answer 404 `not_found` / `passkeys_off`, before the session or delegated-token checks.
+- **Security events:** `passkey.added` (`passkeyId`, `deviceName`, `backedUp`, `aaguid`), `passkey.removed`, `passkey.used` (with the new session's id), `session.created` with `method: "passkey"`, and `login.complete.failed` with `method: "passkey"` and an outcome on each failed sign-in. Never a credential id or public key.
+- **Config** (`wrangler.template.jsonc`, plain vars): local and dev `localhost` / `http://localhost:3000`; stage `stage.cookpool.store` / `https://stage.cookpool.store`; prod `cookpool.store` / `https://cookpool.store`; `PASSKEY_RP_NAME` `Cookpool` everywhere.
+- **Contracts** `packages/contracts/src/passkeys.ts` (`@saas/contracts/passkeys`, re-exported from the index): the request and response types, the WebAuthn JSON shapes, `PASSKEY_MAX_PER_USER` 10, `PASSKEY_CHALLENGE_TTL_SECONDS` 300, `PASSKEY_DEVICE_NAME_MAX` 60, `PASSKEY_ID_RE`, `PASSKEY_ERROR_REASONS`. **SDK** `auth.passkeyRegisterOptions`, `passkeyRegisterVerify`, `passkeys`, `removePasskey`, `passkeyLoginOptions`, `passkeyLoginVerify`.
+
+**Departures from the design**
+- The pinned error codes stay as they are: `too_many_passkeys` is 409 `conflict` with `details.reason`, `passkeys_off` is 404 `not_found` with a reason, and `passkey_failed` is 401 `unauthenticated` with a reason.
+- A registration that does not verify answers 422 `precondition_failed` / `passkey_failed`; the design names no status for it. A browser that reports `credProps.rk: false` is refused the same way.
+- An empty `PASSKEY_ORIGINS` also turns passkeys off, since nothing could verify without it.
+- Session minting was refactored, not copied: `issueSession` in `services/auth.ts` now serves the email code, OAuth and passkeys, and `handlers/session-body.ts` builds login/complete's 200 for both login/complete and passkey login. The session check that refuses delegated tokens moved from the delegation service to `services/session-user.ts`, shared by delegations and passkeys. Responses for both are unchanged.
+- api-edge's auth facade now forwards `user-agent` on every auth route. It used to forward none, which left `security_events.user_agent` empty through the edge. It is what names a passkey nobody named (iPhone, Android phone, Mac, Windows PC, Security key, Phone; otherwise Passkey).
+
+**Tests**
+- `tests/identity-worker`: 18 suites, 280 tests, 53 of them new (`passkeys.test.ts` 17, `passkeys-refusals.test.ts` 36). A software authenticator (`helpers/soft-authenticator.ts`, an ES256 key made in the test that signs `authenticatorData` and `clientDataJSON`) drives register-then-login end to end and a body identical to login/complete's. The refusals cover a replayed challenge (login and register), an expired challenge (the 5-minute edge), an unissued challenge, a register challenge used to sign in, a wrong origin (lookalikes included), a wrong RP ID, a counter that went backwards or stood still, an unknown credential, a forged signature, no user verification, a wrong user handle, removal stopping login, the 10-passkey limit at options and at verify, delegated tokens and API keys refused on all six, and RP ID off.
+- `tests/db`: 39 suites, 927 tests. New: `identity-passkeys-migration.test.ts` checks the checksum and order, the SQL text, the constraints on real SQLite, and the repository (limit, duplicates, compare-and-set count, one-time and expiring challenges, pruning). `identity-migration.test.ts` now lists 510 after 490.
+- `tests/contracts`: 34 suites, 328 tests (new: `passkeys.test.ts`, 5).
+- `tests/api-edge`: 28 suites, 635 tests (new: `passkeys-facade.test.ts`, 5; the six paths added to the delegated-token refusals and the facade route samples).
+- `packages/sdk`: 16 files, 239 tests (new: `auth-passkeys.test.ts`, 7).
+- `tests/config-worker`: 354 tests pass, unchanged.
+
+**Deploy order.** db-migrate applies 510 before identity-worker deploys (an enforced edge on main). api-edge forwards to routes that 404 until identity-worker is out, which is harmless. PK-4's screens need this on main.

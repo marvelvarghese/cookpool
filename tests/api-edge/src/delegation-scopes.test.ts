@@ -124,6 +124,13 @@ describe("the auth routes and everything that is not the kitchen", () => {
     ["POST", "/v1/auth/logout"],
     ["GET", "/v1/auth/security-events"],
     ["POST", "/v1/auth/login/start"],
+    // Passkeys (PK-2): every one, the public sign-in two included.
+    ["POST", "/v1/auth/passkeys/register/options"],
+    ["POST", "/v1/auth/passkeys/register/verify"],
+    ["GET", "/v1/auth/passkeys"],
+    ["DELETE", "/v1/auth/passkeys/pky_0123456789abcdef"],
+    ["POST", "/v1/auth/passkeys/login/options"],
+    ["POST", "/v1/auth/passkeys/login/verify"],
     ["GET", "/v1/auth/oauth/github/start"],
     ["GET", "/v1/organizations"],
     ["POST", "/v1/organizations"],

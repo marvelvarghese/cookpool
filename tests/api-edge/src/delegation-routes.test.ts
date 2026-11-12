@@ -145,6 +145,8 @@ const FACADE_SAMPLES = [
   "/v1/auth/oauth/github/start",
   "/v1/auth/oauth/github/callback",
   `/v1/auth/delegations/dlg_${HEX}`,
+  // Passkeys (PK-2): removing one.
+  "/v1/auth/passkeys/pky_0123456789abcdef",
   // Beyond the tables: the kitchen roots, internal routes no facade should
   // forward, an admin path, and MC-5's suggestion routes before they exist.
   "/v1/kitchen",

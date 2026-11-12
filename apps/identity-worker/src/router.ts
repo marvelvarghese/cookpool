@@ -18,6 +18,14 @@ import {
   handleListDelegations,
   handleRevokeDelegation,
 } from "./handlers/delegations.js";
+import {
+  handleListPasskeys,
+  handlePasskeyLoginOptions,
+  handlePasskeyLoginVerify,
+  handlePasskeyRegisterOptions,
+  handlePasskeyRegisterVerify,
+  handleRemovePasskey,
+} from "./handlers/passkeys.js";
 import { errorResponse, notFound, methodNotAllowed } from "./http.js";
 
 const ORG_API_KEYS_RE = /^\/v1\/organizations\/[^/]+\/api-keys$/;
@@ -25,6 +33,15 @@ const ORG_API_KEY_ID_RE = /^\/v1\/organizations\/[^/]+\/api-keys\/[^/]+$/;
 const OAUTH_START_RE = /^\/v1\/auth\/oauth\/[^/]+\/start$/;
 const OAUTH_CALLBACK_RE = /^\/v1\/auth\/oauth\/[^/]+\/callback$/;
 const DELEGATION_ID_RE = /^\/v1\/auth\/delegations\/[^/]+$/;
+const PASSKEY_ID_RE = /^\/v1\/auth\/passkeys\/[^/]+$/;
+
+// Passkeys (Cookpool PK-2): the POST routes by exact path.
+const PASSKEY_POST_ROUTES = {
+  "/v1/auth/passkeys/register/options": handlePasskeyRegisterOptions,
+  "/v1/auth/passkeys/register/verify": handlePasskeyRegisterVerify,
+  "/v1/auth/passkeys/login/options": handlePasskeyLoginOptions,
+  "/v1/auth/passkeys/login/verify": handlePasskeyLoginVerify,
+} as const;
 import { generateRequestId } from "./ids.js";
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;
@@ -93,6 +110,23 @@ export async function route(request: Request, env: Env): Promise<Response> {
     if (OAUTH_CALLBACK_RE.test(url.pathname)) {
       if (request.method !== "GET") return methodNotAllowed(requestId);
       return handleOAuthCallback(request, env, requestId);
+    }
+
+    // Passkeys (Cookpool PK-2): register, list and remove with a session;
+    // login options and verify with nothing. Off (404) without PASSKEY_RP_ID.
+    if (Object.prototype.hasOwnProperty.call(PASSKEY_POST_ROUTES, url.pathname)) {
+      if (request.method !== "POST") return methodNotAllowed(requestId);
+      return PASSKEY_POST_ROUTES[url.pathname as keyof typeof PASSKEY_POST_ROUTES](request, env, requestId);
+    }
+
+    if (url.pathname === "/v1/auth/passkeys") {
+      if (request.method !== "GET") return methodNotAllowed(requestId);
+      return handleListPasskeys(request, env, requestId);
+    }
+
+    if (PASSKEY_ID_RE.test(url.pathname)) {
+      if (request.method !== "DELETE") return methodNotAllowed(requestId);
+      return handleRemovePasskey(request, env, requestId);
     }
 
     // Delegated tokens for assistants (cookpool-mcp MC-2): a session only.

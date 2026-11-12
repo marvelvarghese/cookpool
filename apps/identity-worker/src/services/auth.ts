@@ -160,6 +160,53 @@ export function createAuthService(deps: AuthServiceDeps) {
     };
   }
 
+  /**
+   * Mint a session for a user who has just proved who they are, and record
+   * `session.created`: the one place every sign-in (email code, OAuth,
+   * passkey) gets its token from.
+   */
+  async function issueSession(
+    user: User,
+    metadata: Record<string, unknown>,
+    extra: { challengeId?: string } = {},
+  ): Promise<CompleteLoginResult | { error: "internal_error"; message: string }> {
+    const sessionUuid = generateSessionId();
+    const secret = generateTokenSecret();
+    const tokenHash = await hashSha256(secret);
+    const currentTime = now();
+    const expiresAt = new Date(currentTime.getTime() + SESSION_TTL_MS);
+
+    const sessionResult = await repo.createSession({
+      id: sessionUuid,
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+      createdAt: currentTime,
+    });
+    if (!sessionResult.ok) {
+      return { error: "internal_error", message: "Failed to create session" };
+    }
+
+    const eventResult = await repo.recordSecurityEvent({
+      ...eventBase(),
+      eventType: "session.created",
+      outcome: "success",
+      userId: user.id,
+      sessionId: sessionUuid,
+      ...(extra.challengeId ? { challengeId: extra.challengeId } : {}),
+      metadata,
+    });
+    if (!eventResult.ok) {
+      return { error: "internal_error", message: "Failed to record security event" };
+    }
+
+    return {
+      token: buildSessionToken(sessionUuid, secret),
+      expiresAt,
+      user: { id: userPublicId(user.id), email: user.email, displayName: user.displayName },
+    };
+  }
+
   async function resolveOrCreateUser(email: string, emailLower: string): Promise<IdentityResult<User>> {
     const existing = await repo.getUserByEmail(emailLower);
     if (existing.ok) return existing;
@@ -223,6 +270,8 @@ export function createAuthService(deps: AuthServiceDeps) {
   }
 
   return {
+    issueSession,
+
     async startLogin(email: string): Promise<StartLoginResult | StartLoginError> {
       const emailLower = email.trim().toLowerCase();
       const userResult = await resolveOrCreateUser(email.trim(), emailLower);
@@ -368,44 +417,7 @@ export function createAuthService(deps: AuthServiceDeps) {
         return { error: "internal_error", message: "Failed to resolve user" };
       }
 
-      const sessionUuid = generateSessionId();
-      const secret = generateTokenSecret();
-      const tokenHash = await hashSha256(secret);
-      const currentTime = now();
-      const expiresAt = new Date(currentTime.getTime() + SESSION_TTL_MS);
-
-      const sessionResult = await repo.createSession({
-        id: sessionUuid,
-        userId: challenge.userId,
-        tokenHash,
-        expiresAt,
-        createdAt: currentTime,
-      });
-
-      if (!sessionResult.ok) {
-        return { error: "internal_error", message: "Failed to create session" };
-      }
-
-      const eventResult = await repo.recordSecurityEvent({
-        ...eventBase(),
-        eventType: "session.created",
-        outcome: "success",
-        userId: challenge.userId,
-        sessionId: sessionUuid,
-        challengeId: challengeUuid,
-        metadata: { method: "email_code" },
-      });
-
-      if (!eventResult.ok) {
-        return { error: "internal_error", message: "Failed to record security event" };
-      }
-
-      const user = userResult.value;
-      return {
-        token: buildSessionToken(sessionUuid, secret),
-        expiresAt,
-        user: { id: userPublicId(user.id), email: user.email, displayName: user.displayName },
-      };
+      return issueSession(userResult.value, { method: "email_code" }, { challengeId: challengeUuid });
     },
 
     async loginWithOAuth(
@@ -496,41 +508,7 @@ export function createAuthService(deps: AuthServiceDeps) {
       }
 
       // 3. Issue a session (same opaque-token model as email login).
-      const sessionUuid = generateSessionId();
-      const secret = generateTokenSecret();
-      const tokenHash = await hashSha256(secret);
-      const currentTime = now();
-      const expiresAt = new Date(currentTime.getTime() + SESSION_TTL_MS);
-
-      const sessionResult = await repo.createSession({
-        id: sessionUuid,
-        userId,
-        tokenHash,
-        expiresAt,
-        createdAt: currentTime,
-      });
-      if (!sessionResult.ok) {
-        return { error: "internal_error", message: "Failed to create session" };
-      }
-
-      const eventResult = await repo.recordSecurityEvent({
-        ...eventBase(),
-        eventType: "session.created",
-        outcome: "success",
-        userId,
-        sessionId: sessionUuid,
-        metadata: { method: "oauth", provider },
-      });
-      if (!eventResult.ok) {
-        return { error: "internal_error", message: "Failed to record security event" };
-      }
-
-      const user = userResult.value;
-      return {
-        token: buildSessionToken(sessionUuid, secret),
-        expiresAt,
-        user: { id: userPublicId(user.id), email: user.email, displayName: user.displayName },
-      };
+      return issueSession(userResult.value, { method: "oauth", provider });
     },
 
     async getSession(token: string): Promise<GetSessionResult | GetSessionError> {
