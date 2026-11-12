@@ -1,7 +1,7 @@
 // Cookpool's own recipes and the food list's densities (Cookpool RC-7,
 // cookpool-recipes design §2, §3.2, §3.3, §5.3–§5.5).
 //
-//   - Every recipe migration 360 seeds, checked against the contracts: one
+//   - Every recipe migrations 360 and 590 seed, checked against the contracts: one
 //     main line that is not to taste; every line a food on the list (or to
 //     taste); units the app knows; amounts above zero that scaleLine keeps as
 //     written at × 1 and rounds onto the unit's grid at × 0.5 and × 2; 3 to
@@ -12,10 +12,11 @@
 //     100 g pack, a cup of rice a 1 kg bag, 50 g of ghee a 500 ml jar, a cup
 //     of chopped onion a dozen counted ones; a food without a density still
 //     reads missing.
-//   - Through the router: Cookpool's recipes in Explore (source=cookpool),
-//     read in full by anyone, edited by no one, and in Cook now — where
-//     Masala chai comes first once the pantry has its milk, tea, sugar and
-//     ginger, the tea and sugar meeting their spoons by weight.
+//   - Through the router (RV-20): only 590's 13 in Explore (source=cookpool)
+//     and search, read in full by anyone, edited by no one; 360's read as
+//     gone; and Cook now offers Vadi matta rice once the pantry has its rice,
+//     the cups meeting the bag by weight — never Masala chai, deleted, though
+//     the pantry holds all it needs.
 
 import {
   MAX_RECIPE_STEP,
@@ -43,6 +44,7 @@ interface SeedRecipe {
   owner_id: string;
   is_system: number;
   visibility: string;
+  deleted_at: string | null;
 }
 interface SeedLine {
   position: number;
@@ -56,6 +58,8 @@ interface SeedLine {
 
 const seed = migratedDatabase();
 const RECIPES = seed.prepare("SELECT * FROM kitchen_recipes WHERE is_system = 1 ORDER BY created_at DESC, id DESC").all() as unknown as SeedRecipe[];
+/** What is live after 590 (RV-20): its 13 Kerala recipes. */
+const LIVE = RECIPES.filter((r) => r.deleted_at === null);
 const linesOf = (id: string) =>
   seed.prepare("SELECT position, food_key, name, qty_milli, unit, to_taste, is_main FROM kitchen_recipe_lines WHERE recipe_id = ? ORDER BY position").all(id) as unknown as SeedLine[];
 const stepsOf = (id: string) =>
@@ -72,9 +76,10 @@ function gridOf(unit: string, exactMilli: number): number {
   return recipeUnitOf(unit).factor * 500; // pcs, tsp, tbsp, cup: half of one
 }
 
-describe("Cookpool's recipes, as migration 360 seeds them (RC-7, design §5.5)", () => {
-  it("are about 40, all Cookpool's own", () => {
-    expect(RECIPES.length).toBeGreaterThanOrEqual(38);
+describe("Cookpool's recipes, as migrations 360 and 590 seed them (RC-7, design §5.5; RV-20)", () => {
+  it("are 360's 42, deleted by 590, and 590's 13, all Cookpool's own", () => {
+    expect(RECIPES).toHaveLength(55);
+    expect(LIVE.map((r) => r.id.slice(0, 8))).toEqual(Array(13).fill("c00c0590"));
     for (const r of RECIPES) expect(r).toMatchObject({ owner_id: "usr_cookpool", is_system: 1, visibility: "groups" });
   });
 
@@ -211,13 +216,14 @@ describe("the match through a food's density (RC-7, design §3.3)", () => {
   });
 });
 
-describe("Cookpool's recipes through the router (RC-7, design §5.3–§5.5)", () => {
-  it("lists every one in Explore under source=cookpool, newest first, by Cookpool, each with its match", async () => {
+describe("Cookpool's recipes through the router (RC-7, design §5.3–§5.5; RV-20)", () => {
+  it("lists only 590's 13 in Explore under source=cookpool, newest first, by Cookpool, each with its match — never one of 360's", async () => {
     const res = await w.call<ExploreRecipesResponse>("GET", "/v1/kitchen/recipes?source=cookpool", OLU);
     expect(res.status).toBe(200);
     const listed = res.body.data.recipes;
-    expect(listed.map((r) => r.name)).toEqual(RECIPES.map((r) => r.name));
-    expect(listed.map((r) => r.id)).toEqual(RECIPES.map((r) => publicId(r.id)));
+    expect(listed.map((r) => r.name)).toEqual(LIVE.map((r) => r.name));
+    expect(listed.map((r) => r.id)).toEqual(LIVE.map((r) => publicId(r.id)));
+    expect(listed).toHaveLength(13);
     for (const r of listed) {
       expect(r).toMatchObject({ ownerId: "usr_cookpool", ownerName: "Cookpool", isSystem: true, mine: false, visibility: "groups", source: null });
       expect(r.match.lines).toBe(r.lineCount);
@@ -225,29 +231,27 @@ describe("Cookpool's recipes through the router (RC-7, design §5.3–§5.5)", (
     }
     // Olu's pantry is empty: nothing can be made, and what is missing is named.
     expect(listed.every((r) => r.match.missing > 0 && r.match.maxFactorMilli === null)).toBe(true);
-    // The default source is Cookpool; kind and q narrow it.
+    // The default source is Cookpool; kind and q narrow it; the old recipes are gone from search.
     expect((await w.call<ExploreRecipesResponse>("GET", "/v1/kitchen/recipes", OLU)).body.data.recipes).toHaveLength(listed.length);
-    const breakfast = (await w.call<ExploreRecipesResponse>("GET", "/v1/kitchen/recipes?source=cookpool&kind=breakfast", OLU)).body.data.recipes;
-    expect(breakfast.length).toBeGreaterThanOrEqual(3);
-    expect(breakfast.every((r) => r.kind === "breakfast")).toBe(true);
-    expect(breakfast.map((r) => r.name)).toContain("Kanda poha");
-    const poha = (await w.call<ExploreRecipesResponse>("GET", "/v1/kitchen/recipes?source=cookpool&q=POHA", OLU)).body.data.recipes;
-    expect(poha.map((r) => r.name)).toEqual(["Kanda poha"]);
+    const rice = (await w.call<ExploreRecipesResponse>("GET", "/v1/kitchen/recipes?source=cookpool&kind=rice", OLU)).body.data.recipes;
+    expect(rice.map((r) => r.name)).toEqual(["Ghee rice with kaima curry", "Vadi matta rice"]);
+    const matta = (await w.call<ExploreRecipesResponse>("GET", "/v1/kitchen/recipes?source=cookpool&q=MATTA", OLU)).body.data.recipes;
+    expect(matta.map((r) => r.name)).toEqual(["Vadi matta rice"]);
+    for (const q of ["poha", "chai", "rajma"]) {
+      expect((await w.call<ExploreRecipesResponse>("GET", `/v1/kitchen/recipes?source=cookpool&q=${q}`, OLU)).body.data.recipes).toEqual([]);
+    }
   });
 
-  it("reads one in full for anyone signed in, its lines in the app's units — and nobody may change it", async () => {
-    const chai = RECIPES.find((r) => r.name === "Masala chai")!;
-    const id = publicId(chai.id);
+  it("reads a new one in full for anyone signed in, its lines in the app's units — nobody may change it — and an old one reads as gone", async () => {
+    const matta = LIVE.find((r) => r.name === "Vadi matta rice")!;
+    const id = publicId(matta.id);
     const res = await w.call<RecipeResponse>("GET", `/v1/kitchen/recipes/${id}`, OLU);
     expect(res.status).toBe(200);
-    expect(res.body.data.recipe).toMatchObject({ name: "Masala chai", kind: "drink", servesHalf: 4, isSystem: true, linkCode: null });
+    expect(res.body.data.recipe).toMatchObject({ name: "Vadi matta rice", kind: "rice", servesHalf: 8, isSystem: true, linkCode: null });
     expect(res.body.data.recipe.lines.map((l) => [l.foodKey, l.quantity, l.unit, l.isMain, l.toTaste])).toEqual([
-      ["milk", 1, "cup", true, false],
-      ["water", 1, "cup", false, false],
-      ["tea", 2, "tsp", false, false],
-      ["sugar", 2, "tsp", false, false],
-      ["ginger", 5, "g", false, false],
-      ["cardamom", null, null, false, true],
+      ["rice", 2, "cup", true, false],
+      ["water", 8, "cup", false, false],
+      ["salt", null, null, false, true],
     ]);
     expect(res.body.data.recipe.steps.length).toBeGreaterThanOrEqual(3);
     expect((await w.call("PATCH", me(`recipes/${id}`), OLU, { name: "Mine" })).status).toBe(404);
@@ -257,9 +261,16 @@ describe("Cookpool's recipes through the router (RC-7, design §5.3–§5.5)", (
     const copy = await w.call<RecipeResponse>("POST", me("recipes/copies"), OLU, { recipeId: id });
     expect(copy.status).toBe(201);
     expect(copy.body.data.recipe).toMatchObject({ mine: true, visibility: "only_me", source: { recipeId: id, ownerName: "Cookpool" } });
+    // 360's Masala chai is deleted: it reads, copies and matches as the opaque 404.
+    const chai = publicId(RECIPES.find((r) => r.name === "Masala chai")!.id);
+    expect((await w.call("GET", `/v1/kitchen/recipes/${chai}`, OLU)).status).toBe(404);
+    expect((await w.call("POST", me("recipes/copies"), OLU, { recipeId: chai })).status).toBe(404);
+    expect((await match(chai, OLU)).status).toBe(404);
   });
 
-  it("puts Masala chai first in Cook now once the pantry has its milk, tea, sugar and ginger — the spoons meeting packs by weight", async () => {
+  it("offers Vadi matta rice in Cook now once the pantry has its rice — the cups meeting the bag by weight — and never an old recipe", async () => {
+    await addItem(w, RAHUL, null, { name: "Matta rice", category: "grains", quantity: "1", unit: "kg", priceMinor: 9000 });
+    // Everything 360's Masala chai needs: it stays deleted, and is not offered.
     await addItem(w, RAHUL, null, { name: "Milk", category: "dairy", quantity: "1", unit: "L", priceMinor: 6800 });
     await addItem(w, RAHUL, null, { name: "Chai patti", category: "other", quantity: "250", unit: "g", priceMinor: 14000 });
     await addItem(w, RAHUL, null, { name: "Sugar", category: "other", quantity: "1", unit: "kg", priceMinor: 4500 });
@@ -267,26 +278,16 @@ describe("Cookpool's recipes through the router (RC-7, design §5.3–§5.5)", (
 
     const res = await w.call<CookNowResponse>("GET", me("cook-now"), RAHUL);
     expect(res.status).toBe(200);
-    const first = res.body.data.recipes[0]!;
-    expect(first.recipe).toMatchObject({ name: "Masala chai", isSystem: true, ownerName: "Cookpool" });
-    // Water is on everyone's Always have to start with, and cardamom is to taste.
-    expect(first.match).toEqual({ lines: 6, have: 4, short: 0, missing: 0, always: 2, missingNames: [], maxFactorMilli: 4_166 });
-    // A litre of milk makes a little over four times the recipe; serves 2, so "for 4" (twice its serves at most).
-    expect(first.forPortionsHalf).toBe(8);
-    // What it would take: 2 tsp of tea is 5 g, 2 tsp of sugar 8.5 g.
-    const chai = await match(first.recipe.id, RAHUL);
-    expect(chai.body.data.lines.map((l) => [l.status, l.items.map((i) => [i.name, i.takeMilli])])).toEqual([
-      ["have", [["Milk", 240_000]]],
-      ["always", []],
-      ["have", [["Chai patti", 5_000]]],
-      ["have", [["Sugar", 8_500]]],
-      ["have", [["Adrak", 5_000]]],
-      ["always", []],
-    ]);
+    expect(res.body.data.recipes.map((e) => e.recipe.name)).toEqual(["Vadi matta rice"]);
+    const [first] = res.body.data.recipes;
+    expect(first!.recipe).toMatchObject({ isSystem: true, ownerName: "Cookpool" });
+    // Water is on everyone's Always have to start with, and salt is to taste. Two cups of rice are 384 g: the kilo makes × 2.604.
+    expect(first!.match).toEqual({ lines: 3, have: 1, short: 0, missing: 0, always: 2, missingNames: [], maxFactorMilli: 2_604 });
+    // Serves 4, so "for 8" (twice its serves at most).
+    expect(first!.forPortionsHalf).toBe(16);
 
-    // Without a density, the spoons of tea and sugar would not have met their packs.
-    w.h.db.prepare("UPDATE kitchen_foods SET g_per_ml = NULL WHERE key IN ('tea', 'sugar')").run();
-    const without = (await w.call<CookNowResponse>("GET", me("cook-now"), RAHUL)).body.data.recipes;
-    expect(without.find((e) => e.recipe.name === "Masala chai")!.match).toMatchObject({ missing: 2, missingNames: ["Tea leaves", "Sugar"] });
+    // Without a density, the cups of rice would not have met the bag: nothing to offer.
+    w.h.db.prepare("UPDATE kitchen_foods SET g_per_ml = NULL WHERE key = 'rice'").run();
+    expect((await w.call<CookNowResponse>("GET", me("cook-now"), RAHUL)).body.data.recipes).toEqual([]);
   });
 });

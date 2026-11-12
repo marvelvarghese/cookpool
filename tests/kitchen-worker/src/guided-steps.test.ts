@@ -118,11 +118,11 @@ describe("guided steps on a recipe (GC-2, design §1)", () => {
     const curry = await writeRecipe(w, ANU, chickenCurry);
     expect(withoutKeys(curry)).toEqual(chickenCurry.steps.map((text, i) => textOnly(i, text)));
     expect([curry.tools, curry.longPrep]).toEqual([[], []]);
-    // Cookpool's own were 360's plain steps until GC-4's 390 rewrote them as guided steps under fixed keys (cookpool-guided).
-    const chai = (await w.call<{ recipes: Array<{ id: string; name: string }> }>("GET", "/v1/kitchen/recipes?q=chai", RAHUL)).body.data.recipes[0]!;
-    const seeded = await read(chai.id, RAHUL);
+    // Cookpool's own are guided under fixed keys: 590's Kerala recipes (RV-20; kerala-recipes), as 390's were (cookpool-guided).
+    const kondattam = (await w.call<{ recipes: Array<{ id: string; name: string }> }>("GET", "/v1/kitchen/recipes?q=kondattam", RAHUL)).body.data.recipes[0]!;
+    const seeded = await read(kondattam.id, RAHUL);
     expect(seeded.guidedSteps!.length).toBeGreaterThanOrEqual(3);
-    for (const s of seeded.guidedSteps!) expect(s.key).toMatch(/^c00c0390-\d{2}-\d{2}$/);
+    for (const s of seeded.guidedSteps!) expect(s.key).toMatch(/^c00c0590-\d{2}-\d{2}$/);
     expect(seeded.tools!.length).toBeGreaterThan(0);
   });
 
@@ -461,9 +461,9 @@ describe("PATCH /v1/kitchen/me/recipes/{rcp}/step-times — Use today's times (G
     const body = { steps: [{ key: r.guidedSteps![2]!.key, minSeconds: 60, maxSeconds: 120 }] };
     for (const who of [RAHUL, DEV, VIK, OLU]) expect([who, (await stepTimes(r.id, who, body)).status]).toEqual([who, 404]);
     expect((await read(r.id, ANU)).guidedSteps![2]).toMatchObject({ minSeconds: 480, maxSeconds: 600 });
-    const chai = (await w.call<{ recipes: Array<{ id: string }> }>("GET", "/v1/kitchen/recipes?q=chai", RAHUL)).body.data.recipes[0]!;
-    const seeded = await read(chai.id, RAHUL);
-    expect((await stepTimes(chai.id, RAHUL, { steps: [{ key: seeded.guidedSteps![0]!.key, minSeconds: 60, maxSeconds: 60 }] })).status).toBe(404);
+    const kondattam = (await w.call<{ recipes: Array<{ id: string }> }>("GET", "/v1/kitchen/recipes?q=kondattam", RAHUL)).body.data.recipes[0]!;
+    const seeded = await read(kondattam.id, RAHUL);
+    expect((await stepTimes(kondattam.id, RAHUL, { steps: [{ key: seeded.guidedSteps![0]!.key, minSeconds: 60, maxSeconds: 60 }] })).status).toBe(404);
     expect((await stepTimes(`rcp_${"0".repeat(32)}`, ANU, body)).status).toBe(404);
     expect((await stepTimes("nonsense", ANU, body)).status).toBe(404);
     await w.call("DELETE", me(`recipes/${r.id}`), ANU);

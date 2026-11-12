@@ -516,5 +516,14 @@ export const manifest: MigrationManifest = {
       description:
         "Handoff codes: identity_handoff_codes (hof_ ids; the person, the SHA-256 of a one-time code, the exact target origin it may be exchanged from, 60 seconds to use it, used_at once taken and the session it minted), so More in Spliteco opens Spliteco already signed in. Additive (cookpool-spliteco SE-4)",
     },
+    {
+      id: "590_kitchen_no_starter_recipes",
+      context: "kitchen",
+      path: "590_kitchen_no_starter_recipes/up.sql",
+      checksum:
+        "bffe554e114d2035fcfc7053e608c05b0990d50b7edf44ebfcf476e7fcb98eb8",
+      description:
+        "Cookpool's recipes are replaced by 13 Kerala recipes: every live kitchen_recipes row with is_system = 1 (or owner usr_cookpool) other than 590's own gets deleted_at and updated_at set to now, the app's soft delete (no row hard-deleted, so dishes, posts, activity, step times and saved copies keep working); then 13 recipes under usr_cookpool (fixed ids c00c0590-…, serves 4, tools) with their lines on the food list and guided steps keyed c00c0590-<recipe>-<step>, inserted re-runnably (ON CONFLICT DO NOTHING for the recipe, DELETE then plain INSERT for lines and steps); 16 new names for rice, coconut and kokum, and items named exactly one of them linked (Cookpool RV-20)",
+    },
   ],
 };

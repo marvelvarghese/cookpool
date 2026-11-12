@@ -1,0 +1,27 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-20
+  title: "Cookpool's recipes are replaced by 13 Kerala recipes"
+spec:
+  goal: "Migration 590 deletes the recipes Cookpool provided (is_system, soft) on every environment and adds 13 Kerala recipes in their place; nothing lists or suggests an old one, and Cook now offers only recipes your kitchen can make."
+  affects:
+    - default/cookpool/db
+    - default/cookpool/db-migrate
+    - default/cookpool/db-tests
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-20.TaskContract.yaml
+  doneWhen:
+    - "migration 590 deletes every old is_system recipe (deleted_at) and adds the 13 new ones with ingredients and guided steps"
+    - "lists, search and explore show only the 13 new Cookpool recipes plus people's own"
+    - "dishes, cooks, posts and saves that reference an old recipe keep working"
+    - "cook-now suggestions return only recipes whose every ingredient your kitchen has in stock"
+    - "tests cover the migration, the 13 recipes' shape and the cook-now filter"
+  gates: []

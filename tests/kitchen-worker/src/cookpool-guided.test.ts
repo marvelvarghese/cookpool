@@ -17,6 +17,10 @@
 // on every cook step, and its plan reads differently at 450 g and 1 kg; a copy
 // keeps every key; and a cook's times pool under Cookpool's recipe by those
 // keys, through a copy too.
+//
+// Migration 590 (RV-20) deleted these 42 and seeded 13 Kerala recipes in
+// their place (kerala-recipes checks those): this suite reads 390's content
+// in a world where the 42 are live again, as they were before 590.
 
 import {
   LONG_PREP_SECONDS,
@@ -38,7 +42,9 @@ interface SeedRecipe {
 }
 
 const seed = migratedDatabase();
-const RECIPES = seed.prepare("SELECT id, name FROM kitchen_recipes WHERE is_system = 1 ORDER BY created_at DESC, id DESC").all() as unknown as SeedRecipe[];
+const RECIPES = seed
+  .prepare("SELECT id, name FROM kitchen_recipes WHERE is_system = 1 AND substr(id, 1, 8) = 'c00c0360' ORDER BY created_at DESC, id DESC")
+  .all() as unknown as SeedRecipe[];
 seed.close();
 const publicId = (uuid: string) => `rcp_${uuid.replace(/-/g, "")}`;
 /** Cookpool recipe `n` (1–42) of 360's fixed ids. */
@@ -53,6 +59,8 @@ const read = new Map<string, KitchenRecipe>();
 
 beforeAll(async () => {
   w = world();
+  // 390's recipes as they were before 590 deleted them.
+  w.h.db.exec("UPDATE kitchen_recipes SET deleted_at = NULL WHERE substr(id, 1, 8) = 'c00c0360'");
   for (const r of RECIPES) {
     const res = await w.call<RecipeResponse>("GET", `/v1/kitchen/recipes/${publicId(r.id)}`, OLU);
     if (res.status !== 200) throw new Error(`read ${r.name}: ${res.status}`);

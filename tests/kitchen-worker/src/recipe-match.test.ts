@@ -4,10 +4,10 @@
 // kitchen.item.use — as have, short, missing or always; the items it would
 // take, soonest use-by first, then the caller's own, then the most left;
 // counts meeting weights through the food's piece weight or the item's own
-// measure; Always have; the largest factor the stock allows; and Cook now's
-// order.
+// measure; Always have; the largest factor the stock allows; and Cook now —
+// only what the kitchen can make (RV-20) — and its order.
 
-import type { CookDishResponse, CookNowResponse, RecipeMatchResponse } from "@saas/contracts/kitchen";
+import type { CookDishResponse, CookNowResponse, ExploreRecipesResponse, RecipeMatchResponse } from "@saas/contracts/kitchen";
 import {
   ANU, OLU, RAHUL, VIK, addItem, chickenCurry, groupPath, me, systemRecipe, withoutCookpoolSeed, world, writeRecipe, type World,
 } from "./recipes-helpers.js";
@@ -142,7 +142,7 @@ describe("GET /v1/kitchen/me/recipes/{rcp}/match (RC-4, design §3.3)", () => {
 });
 
 describe("GET /v1/kitchen/me/cook-now (RC-4, design §5.4)", () => {
-  it("ranks every recipe the caller can see by fewest missing, then the largest factor, then the most recently cooked", async () => {
+  it("offers only what the kitchen can make (RV-20), by the largest factor, then the most recently cooked", async () => {
     withoutCookpoolSeed(w);
     await addItem(w, RAHUL, null, { name: "Rice", category: "grains", quantity: "1", unit: "kg", priceMinor: 9000 });
     const salt = await addItem(w, RAHUL, null, { name: "Salt", category: "spices", quantity: "1", unit: "kg", priceMinor: 2500 });
@@ -163,6 +163,10 @@ describe("GET /v1/kitchen/me/cook-now (RC-4, design §5.4)", () => {
       lines: [{ foodKey: "paneer", name: "Paneer", quantity: "200", unit: "g" }, { foodKey: "rice", name: "Rice", quantity: "100", unit: "g" }],
     });
     systemRecipe(w, "Masala chai", 4, [["tea", "Tea", 10_000, "g", true], ["milk", "Milk", 250_000, "ml", false]]);
+    // Cookpool's own count when the kitchen can make them (× 4 of the kilo).
+    systemRecipe(w, "Cookpool rice", 4, [["rice", "Rice", 250_000, "g", true]]);
+    // Nothing missing, but the kilo is not half a portion of it (× 0.05 of serves 4): not offered.
+    const feast = await writeRecipe(w, RAHUL, rice("Feast rice", "20000", 8));
 
     // "Rice again" was cooked (from something else entirely): that only breaks its tie with "Big rice".
     w.tick();
@@ -177,32 +181,39 @@ describe("GET /v1/kitchen/me/cook-now (RC-4, design §5.4)", () => {
 
     const res = await w.call<CookNowResponse>("GET", me("cook-now"), RAHUL);
     expect(res.status).toBe(200);
+    // Paneer tikka (no paneer), Masala chai (no tea or milk) and Feast rice (too little) are left out.
     expect(res.body.data.recipes.map((e) => [e.recipe.name, e.match.missing, e.match.maxFactorMilli, e.forPortionsHalf])).toEqual([
+      ["Cookpool rice", 0, 4000, 8],
       ["Rice bowl", 0, 2000, 8], // serves 2 × 2, at most twice its serves
       ["Anu's rice", 0, 1000, 8],
       ["Rice again", 0, 500, 4],
       ["Big rice", 0, 500, 4],
-      ["Paneer tikka", 1, null, null],
-      ["Masala chai", 2, null, null],
     ]);
-    expect(res.body.data.recipes[0]!.recipe.id).toBe(bowl.id);
+    expect(res.body.data.recipes.map((e) => e.recipe.id)).not.toContain(tikka.id);
+    expect(res.body.data.recipes.map((e) => e.recipe.id)).not.toContain(feast.id);
+    expect(res.body.data.recipes[0]!.recipe).toMatchObject({ isSystem: true, ownerName: "Cookpool" });
+    expect(res.body.data.recipes[1]!.recipe.id).toBe(bowl.id);
     expect(res.body.data.recipes.find((e) => e.recipe.id === big.id)!.recipe.lastCookedAt).toBeNull();
     expect(res.body.data.recipes.find((e) => e.recipe.id === again.id)!.recipe.lastCookedAt).not.toBeNull();
     expect(res.body.data.recipes.find((e) => e.recipe.id === anus.id)!.recipe.ownerName).toBe("Anu");
-    expect(res.body.data.recipes.find((e) => e.recipe.id === tikka.id)!.match.missingNames).toEqual(["Paneer"]);
-    expect(res.body.data.recipes.find((e) => e.recipe.name === "Masala chai")!.match.missingNames).toEqual(["Tea", "Milk"]);
+    for (const e of res.body.data.recipes) expect(e.match).toMatchObject({ missing: 0, missingNames: [] });
   });
 
-  it("returns at most 20, each naming at most three missing lines", async () => {
+  it("returns at most 20 — and Explore's match names at most three missing lines", async () => {
     withoutCookpoolSeed(w);
     for (let i = 0; i < 24; i += 1) {
       systemRecipe(w, `Staple ${String(i).padStart(2, "0")}`, 4, [
         ["tea", "Tea", 10_000, "g", true], ["milk", "Milk", 1_000, "ml", false], ["sugar", "Sugar", 1_000, "g", false], ["ginger", "Ginger", 1_000, "g", false],
       ]);
     }
+    const explore = await w.call<ExploreRecipesResponse>("GET", "/v1/kitchen/recipes?source=cookpool", OLU);
+    expect(explore.body.data.recipes[0]!.match).toMatchObject({ missing: 4, missingNames: ["Tea", "Milk", "Sugar"] });
+    // Missing everything, Cook now offers none of them (RV-20); with all four on Always have, it offers twenty.
+    expect((await w.call<CookNowResponse>("GET", me("cook-now"), OLU)).body.data.recipes).toEqual([]);
+    await w.call("PUT", me("always-have"), OLU, { foodKeys: ["tea", "milk", "sugar", "ginger"] });
     const res = await w.call<CookNowResponse>("GET", me("cook-now"), OLU);
     expect(res.body.data.recipes).toHaveLength(20);
-    expect(res.body.data.recipes[0]!.match).toMatchObject({ missing: 4, missingNames: ["Tea", "Milk", "Sugar"] });
+    expect(res.body.data.recipes[0]!.match).toMatchObject({ missing: 0, always: 4, missingNames: [] });
     // Same everything: by name.
     expect(res.body.data.recipes[0]!.recipe.name).toBe("Staple 00");
   });
@@ -216,7 +227,8 @@ describe("GET /v1/kitchen/me/cook-now (RC-4, design §5.4)", () => {
     });
     await writeRecipe(w, RAHUL, { name: "Plain rice", servesHalf: 4, lines: [{ foodKey: "rice", name: "Rice", quantity: "200", unit: "g" }] });
     const before = (await w.call<CookNowResponse>("GET", me("cook-now"), RAHUL)).body.data.recipes;
-    expect(before.find((e) => e.recipe.id === dal.id)!.match.missing).toBe(1);
+    // Missing its turmeric, Cook now leaves it out (RV-20).
+    expect(before.map((e) => e.recipe.id)).not.toContain(dal.id);
     await w.call("PUT", me("always-have"), RAHUL, { foodKeys: ["turmeric"] });
     const after = (await w.call<CookNowResponse>("GET", me("cook-now"), RAHUL)).body.data.recipes;
     expect(after[0]).toMatchObject({ recipe: { id: dal.id }, match: { missing: 0, always: 1, maxFactorMilli: 5000 }, forPortionsHalf: 8 });
