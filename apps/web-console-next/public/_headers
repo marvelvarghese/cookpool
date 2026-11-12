@@ -21,3 +21,12 @@
 # be served from an HTTP cache, or an update would wait for the cache to age.
 /sw.js
   Cache-Control: no-cache
+
+# cookpool-spliteco SE3: WebAuthn related origins. Cookpool's passkeys (RP ID
+# stage.cookpool.store / cookpool.store) also sign in on the Spliteco app's
+# host; the browser reads this list from the RP ID's own origin, as JSON.
+# identity-worker's PASSKEY_ORIGINS decides which of them it accepts per
+# environment.
+/.well-known/webauthn
+  Content-Type: application/json
+  Cache-Control: public, max-age=3600

@@ -110,7 +110,7 @@ describe("the six splits", () => {
 });
 
 describe("balances match Cookpool's to the paisa", () => {
-  it("the Kitchen balance is kitchen-worker's; Other is what Spliteco added; the total is the whole ledger", async () => {
+  it("the Kitchen balance is kitchen-worker's; Other is what Spliteco added and only Spliteco shows", async () => {
     const { h, flat, goa: trip } = world();
     const kitchenBody = { title: "Groceries", totalMinor: 1001, mode: "equal", payers: [{ subjectId: ANU, amountMinor: 1001 }], participants: [{ subjectId: ME }, { subjectId: ANU }, { subjectId: DEV }] };
     const posted = await h.kitchen("POST", `/v1/organizations/${flat.publicId}/kitchen/expenses`, { as: ANU, body: kitchenBody, headers: { "idempotency-key": key() } });
@@ -131,8 +131,9 @@ describe("balances match Cookpool's to the paisa", () => {
     expect(kitchenBucket().balances).toEqual(before);
     expect(g.group.myBuckets).toEqual({ kitchen: -334, other: 20000 });
     expect(g.group.myBalanceMinor).toBe(-334 + 20000);
-    // kitchen-worker (unchanged in SE1) still sums the whole ledger: the total matches it.
-    expect(g.balances).toEqual(await kitchen());
+    // SE3: kitchen-worker counts the Kitchen balance only — Cookpool never shows Other.
+    expect(kitchenBucket().balances).toEqual(await kitchen());
+    expect(g.balances).not.toEqual(await kitchen());
     // A Spliteco-made group has one balance.
     expect((await group(h, trip)).buckets).toBeNull();
   });

@@ -5,7 +5,7 @@ import { requireGroupAction } from "../authz.js";
 import type { OrgContext } from "../context.js";
 import { withKitchenRepo } from "../db.js";
 import { successResponse, unavailable, validationError } from "../http.js";
-import { toKitchenTxn } from "../ledger.js";
+import { KITCHEN_ONLY, toKitchenTxn } from "../ledger.js";
 
 // GET /v1/organizations/{org}/kitchen/activity?cursor=&limit=   kitchen.ledger.read
 //
@@ -66,7 +66,7 @@ export async function handleActivity(ctx: OrgContext, request: Request): Promise
   if (Object.keys(fields).length > 0) return validationError(ctx.requestId, fields);
 
   return withKitchenRepo(ctx, async (repo) => {
-    const page = await ctx.timings.measure("db", () => repo.listActivity(ctx.orgId, { cursor, limit }));
+    const page = await ctx.timings.measure("db", () => repo.listActivity(ctx.orgId, { cursor, limit }, KITCHEN_ONLY));
     if (!page.ok) return unavailable(ctx.requestId);
     const nextCursor = page.value.nextCursor ? encodeActivityCursor(page.value.nextCursor) : null;
     const data: ActivityPage = { items: page.value.items.map(toKitchenTxn), nextCursor };

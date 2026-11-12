@@ -44,6 +44,7 @@ import {
   isCurrent,
   myPlan,
   peopleOn,
+  kitchenView,
   toSummary,
   withRepo,
 } from "../ledger.js";
@@ -254,7 +255,13 @@ export async function handleCreateGroup(ctx: RequestContext, request: Request): 
   );
 }
 
-export async function handleGroup(ctx: RequestContext, orgParam: string): Promise<Response> {
+/**
+ * GET /v1/spliteco/groups/{org}. With `?bucket=kitchen` (Cookpool's Money
+ * tab, SE3) it is the group as Cookpool shows it: the Kitchen balance's rows
+ * only — balances, plan, expenses and totals — and one bucket; a group made
+ * in Spliteco is not found.
+ */
+export async function handleGroup(ctx: RequestContext, orgParam: string, url?: URL): Promise<Response> {
   const orgId = parseOrgPublicId(orgParam);
   if (!orgId) return notFound(ctx.requestId);
   const denied = await requireOrgAction(ctx, orgId, "spliteco.ledger.read");
@@ -264,9 +271,11 @@ export async function handleGroup(ctx: RequestContext, orgParam: string): Promis
     if (!mine.ok) return unavailable(ctx.requestId);
     const group = mine.groups.find((g) => g.orgId === orgId);
     if (!group) return notFound(ctx.requestId);
+    const kitchen = kitchenView(url);
+    if (kitchen && group.madeIn !== "cookpool") return notFound(ctx.requestId);
     const memberIdList = group.members.map((m) => m.subjectId);
     const me = ctx.actor.subjectId;
-    const [rows, currencies, settings, profiles, reminders] = await ctx.timings.measure("db", () =>
+    const [all, currencies, settings, profiles, reminders] = await ctx.timings.measure("db", () =>
       Promise.all([
         repo.listTxns([orgId]),
         repo.currencies([orgId]),
@@ -275,6 +284,7 @@ export async function handleGroup(ctx: RequestContext, orgParam: string): Promis
         repo.lastReminders(me, memberIdList.filter((id) => id !== me)),
       ]),
     );
+    const rows = kitchen ? bucketRows(all, "kitchen") : all;
     const simplify = settings.get(orgId)?.simplifyDebts ?? true;
     const currency = currencyOf(currencies, orgId);
     const label = groupLabel(group);
@@ -299,7 +309,7 @@ export async function handleGroup(ctx: RequestContext, orgParam: string): Promis
         plan: bucketedPlan(rows, simplify).map((p) => ({ fromSubjectId: p.fromId, toSubjectId: p.toId, amountMinor: p.amountMinor })),
         buckets:
           group.madeIn === "cookpool"
-            ? BUCKETS.map((bucket) => {
+            ? (kitchen ? (["kitchen"] as const) : BUCKETS).map((bucket) => {
                 const own = bucketRows(rows, bucket);
                 const bal = groupBalances(own);
                 return {

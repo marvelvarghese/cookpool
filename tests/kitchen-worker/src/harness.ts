@@ -389,3 +389,28 @@ export interface Envelope<T> {
 export async function envelope<T>(response: Response): Promise<Envelope<T>> {
   return (await response.json()) as Envelope<T>;
 }
+
+/**
+ * A Kitchen debt to pay off (cookpool-spliteco SE3: a payment recorded in
+ * Cookpool may not be more than the Kitchen balance between the two): an
+ * expense `creditor` paid in full that `debtor` owes all of.
+ */
+export async function seedDebt(
+  h: Pick<Harness, "call">,
+  group: Pick<Group, "publicId">,
+  debtor: string,
+  creditor: string,
+  amountMinor: number,
+): Promise<void> {
+  const res = await h.call("POST", `/v1/organizations/${group.publicId}/kitchen/expenses`, {
+    as: creditor,
+    body: {
+      title: "Groceries",
+      totalMinor: amountMinor,
+      payers: [{ subjectId: creditor, amountMinor }],
+      mode: "exact",
+      participants: [{ subjectId: debtor, value: amountMinor }],
+    },
+  });
+  if (res.status !== 201) throw new Error(`seedDebt: ${res.status} ${await res.text()}`);
+}

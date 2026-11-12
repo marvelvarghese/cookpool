@@ -258,6 +258,12 @@ export interface SplitecoExpenseRequest {
   note?: string | null;
   payers: SplitecoPayerInput[];
   split: SplitecoSplitInput;
+  /**
+   * POST only (SE3): `kitchen` for a bill added in Cookpool's Money tab — it
+   * is Cookpool's row and counts toward the group's Kitchen balance. Only in
+   * a group made in Cookpool, never from an assistant. Left out: Other.
+   */
+  bucket?: SplitecoBucket | null;
 }
 
 // ── Reading expenses ────────────────────────────────────────
@@ -592,6 +598,12 @@ export interface SplitecoSettlementRequest {
    * owed there, and the parts add up to `amountMinor`.
    */
   split?: { kitchen?: number; other?: number } | null;
+  /**
+   * `kitchen` (SE3): a payment made in Cookpool's Money tab. It pays the
+   * Kitchen balance only and never more than it (422 `over_settled`), is
+   * Cookpool's row, and takes no `split`. Only in a group made in Cookpool.
+   */
+  bucket?: "kitchen" | null;
 }
 
 export interface SplitecoPayment {

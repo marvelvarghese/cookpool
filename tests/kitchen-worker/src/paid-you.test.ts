@@ -5,7 +5,7 @@
 // harness's recorder.
 
 import type { KitchenTxn } from "@saas/contracts/kitchen";
-import { createHarness, envelope, newGroup, type Envelope, type Group, type Harness, type RecordedNotification } from "./harness.js";
+import { createHarness, envelope, newGroup, seedDebt, type Envelope, type Group, type Harness, type RecordedNotification } from "./harness.js";
 
 const NOW = new Date("2026-11-07T12:00:00.000Z");
 
@@ -17,7 +17,7 @@ const DEV = "usr_dev";
 let h: Harness;
 let flat: Group;
 
-beforeEach(() => {
+beforeEach(async () => {
   h = createHarness({ deps: { now: () => NOW } });
   flat = newGroup("Flat 4B");
   h.grant(OWNER, flat, "owner");
@@ -27,6 +27,8 @@ beforeEach(() => {
   for (const [who, name] of [[OWNER, "Rahul"], [ADMIN, "Meera"], [ANU, "Anu"], [DEV, "Dev"]] as const) {
     h.profile(who, { displayName: name, email: `${name.toLowerCase()}@example.com` });
   }
+  // SE3: a payment recorded in Cookpool pays a Kitchen debt, never more than it.
+  await seedDebt(h, flat, DEV, ANU, 50000);
 });
 
 afterEach(() => h.close());
@@ -93,6 +95,8 @@ describe("the payment notification", () => {
   });
 
   it("is sent when an owner or admin records it for the two, and says who paid", async () => {
+    await seedDebt(h, flat, ANU, DEV, 60000);
+    await seedDebt(h, flat, ANU, OWNER, 2500);
     expect((await pay(ADMIN, { fromSubjectId: ANU, toSubjectId: DEV, amountMinor: 2500 })).status).toBe(201);
     expect(firstSends().map((n) => [n.request.recipient.subjectId, n.request.templateData])).toEqual([
       [DEV, { payerName: "Anu", amount: "₹25.00", method: null, groupName: "Flat 4B", personUrl: `https://cookpool.test/people/${ANU}` }],
@@ -129,6 +133,8 @@ describe("the payment notification", () => {
     h.grant(DEV, flat, "builder");
     h.profile(ANU, { displayName: "Anu", email: "anu@example.com" });
     h.profile(DEV, { displayName: "Dev", email: "dev@example.com" });
+    await seedDebt(h, flat, DEV, ANU, 100);
+    deferred.length = 0;
     const res = await pay(DEV, { fromSubjectId: DEV, toSubjectId: ANU, amountMinor: 100 });
     expect(res.status).toBe(201);
     expect(deferred).toHaveLength(1);

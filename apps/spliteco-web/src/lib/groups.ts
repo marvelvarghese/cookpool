@@ -1,6 +1,7 @@
 // How a group reads on its card and its page.
 
 import type { SplitecoGroupSummary } from "@saas/contracts/spliteco";
+import { bucketParts as sharedBucketParts } from "@saas/spliteco-ui/balance";
 import { formatMoney } from "./money";
 
 const KIND_TINTS: Record<string, { bg: string; fg: string }> = {
@@ -33,16 +34,10 @@ export function missingMembers(onExpense: readonly string[], memberIds: readonly
   return [...new Set(onExpense)].filter((id) => !inGroup.has(id));
 }
 
-/** A Cookpool-made group's two balances, for the small line under its total; null for Spliteco's groups. */
+/** A Cookpool-made group's two balances, for the small line under its total; null for Spliteco's groups (packages/spliteco-ui). */
 export function bucketParts(
   myBuckets: { kitchen: number; other: number } | null,
   currency: string,
 ): { label: string; amount: string; tone: "get" | "owe" | "even" }[] | null {
-  if (!myBuckets) return null;
-  const part = (label: string, v: number) => ({
-    label,
-    amount: v === 0 ? formatMoney(0, currency) : formatMoney(v, currency, { sign: true }),
-    tone: v > 0 ? ("get" as const) : v < 0 ? ("owe" as const) : ("even" as const),
-  });
-  return [part("Kitchen", myBuckets.kitchen), part("Other", myBuckets.other)];
+  return sharedBucketParts(myBuckets, currency, (minor, c, opts) => formatMoney(minor, c, opts ?? {}));
 }

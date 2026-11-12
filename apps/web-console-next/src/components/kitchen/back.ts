@@ -95,6 +95,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   // A person: People. (`/settle` only opens People.)
   "/people/:subjectId": () => "/people",
   "/settle": () => "/people",
+  // Settle up in a kitchen (cookpool-spliteco SE3): Money, where it is opened.
+  "/money/settle": () => "/money",
 };
 
 /**

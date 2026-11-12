@@ -28,6 +28,8 @@
       "^@saas/contracts$": "<rootDir>/../../packages/contracts/src/index.ts",
       "^@saas/contracts/(.*)$": "<rootDir>/../../packages/contracts/src/$1.ts",
       "^@saas/kitchen-engine$": "<rootDir>/../../packages/kitchen-engine/src/index.ts",
+      "^@saas/spliteco-ui$": "<rootDir>/../../packages/spliteco-ui/src/index.ts",
+      "^@saas/spliteco-ui/(.*)$": "<rootDir>/../../packages/spliteco-ui/src/$1",
       "^@saas/kitchen-engine/(.*)$": "<rootDir>/../../packages/kitchen-engine/src/$1.ts",
       "^@spliteco-web/(.*)$": "<rootDir>/../../apps/spliteco-web/src/$1",
       "^@/(.*)$": "<rootDir>/../../apps/spliteco-web/src/$1"

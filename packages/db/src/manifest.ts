@@ -507,5 +507,14 @@ export const manifest: MigrationManifest = {
       description:
         "Delegations: identity_delegations.granted_scopes (JSON array; the scopes allowed at connect, the ceiling scopes may be changed within; NULL means the same as scopes), so a person can set an assistant to Look only or Add & edit. Additive (cookpool-spliteco SE-6)",
     },
+    {
+      id: "580_identity_handoff_codes",
+      context: "identity",
+      path: "580_identity_handoff_codes/up.sql",
+      checksum:
+        "5e5e7213a25bf5595c597f173730f58e31658d08acb3f32f3708be86e0d76a07",
+      description:
+        "Handoff codes: identity_handoff_codes (hof_ ids; the person, the SHA-256 of a one-time code, the exact target origin it may be exchanged from, 60 seconds to use it, used_at once taken and the session it minted), so More in Spliteco opens Spliteco already signed in. Additive (cookpool-spliteco SE-4)",
+    },
   ],
 };

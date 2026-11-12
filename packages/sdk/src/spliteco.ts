@@ -212,6 +212,26 @@ export class SplitecoClient {
     );
   }
 
+  /**
+   * GET /v1/spliteco/groups/{org}?bucket=kitchen — a kitchen group as
+   * Cookpool's Money tab shows it (SE3): the Kitchen balance only, its rows,
+   * plan and balances; a group made in Spliteco is not found.
+   */
+  kitchenGroup(groupId: string, opts: RequestOptions = {}): Promise<SplitecoGroupResponse> {
+    return this.transport.request<SplitecoGroupResponse>(
+      { method: "GET", path: `${BASE}/groups/${seg(groupId)}`, query: { bucket: "kitchen" } },
+      opts,
+    );
+  }
+
+  /** GET /v1/spliteco/groups/{org}/settle-plan?bucket=kitchen — the Kitchen balance's plan only (SE3, Cookpool). */
+  kitchenSettlePlan(groupId: string, opts: RequestOptions = {}): Promise<SplitecoSettlePlanResponse> {
+    return this.transport.request<SplitecoSettlePlanResponse>(
+      { method: "GET", path: `${BASE}/groups/${seg(groupId)}/settle-plan`, query: { bucket: "kitchen" } },
+      opts,
+    );
+  }
+
   /** GET /v1/spliteco/groups/{org}/settle-plan — the plan balance by balance, and what you owe each person. */
   settlePlan(groupId: string, opts: RequestOptions = {}): Promise<SplitecoSettlePlanResponse> {
     return this.transport.request<SplitecoSettlePlanResponse>(

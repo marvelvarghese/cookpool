@@ -117,15 +117,24 @@ export async function handleLeaveOrganization(
         requestId,
       );
     }
-    if (balance.balanceMinor !== 0) {
+    // Either balance (cookpool-spliteco SE3): Kitchen, or Other — what was
+    // added to the group in Spliteco, which Cookpool doesn't show.
+    if (balance.balanceMinor !== 0 || balance.otherMinor !== 0) {
+      const open = balance.balanceMinor !== 0 ? balance.balanceMinor : balance.otherMinor;
+      const where = balance.balanceMinor !== 0 ? "in this group" : "in this group in Spliteco";
       return errorResponse(
         "conflict",
-        balance.balanceMinor < 0
-          ? "You still owe money in this group. Settle up before you leave."
-          : "You are still owed money in this group. Settle up before you leave.",
+        open < 0
+          ? `You still owe money ${where}. Settle up before you leave.`
+          : `You are still owed money ${where}. Settle up before you leave.`,
         409,
         requestId,
-        { reason: KITCHEN_ERROR_REASONS.BALANCE_NOT_SETTLED, balanceMinor: balance.balanceMinor, currency: balance.currency },
+        {
+          reason: KITCHEN_ERROR_REASONS.BALANCE_NOT_SETTLED,
+          balanceMinor: balance.balanceMinor,
+          otherMinor: balance.otherMinor,
+          currency: balance.currency,
+        },
       );
     }
 

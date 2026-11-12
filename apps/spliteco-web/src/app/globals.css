@@ -286,3 +286,19 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 .error { color: var(--owe); font-size: 14px; line-height: 1.5; }
 .empty { padding: 24px 16px; text-align: center; color: var(--dim); font-size: 14px; line-height: 1.5; border: 1px dashed var(--line-strong); border-radius: 18px; }
 .soon { opacity: 0.55; }
+
+/* The shared money screens' parts (packages/spliteco-ui, SE3), drawn exactly
+   as the Settle up screen drew them inline before. */
+.lrow.pay-method { text-align: left; width: 100%; border-radius: 16px; padding: 14px; background: var(--surface); border: 1px solid var(--line); color: inherit; }
+.lrow.pay-method[aria-checked="true"] { background: rgba(37, 99, 235, 0.14); border-color: #3b82f6; }
+.lrow.pay-method[aria-disabled="true"] { opacity: 0.55; }
+.cat.pay-badge { background: #16243a; color: #93c5fd; font-size: 12px; font-weight: 800; }
+.lrow .sub.pay-note { white-space: normal; }
+.panel.upi-confirm { gap: 10px; padding: 16px; }
+.upi-confirm-title { font-size: 16px; }
+.inline.nowrap { flex-wrap: nowrap; }
+.small.center { text-align: center; }
+.stack.pay-header { align-items: center; gap: 10px; }
+.stack.done { align-items: center; text-align: center; gap: 12px; }
+/* "← Back to Cookpool" (SE3), on every screen of a tab opened from Cookpool. */
+.cookpool-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--link); font-size: 13px; font-weight: 700; }

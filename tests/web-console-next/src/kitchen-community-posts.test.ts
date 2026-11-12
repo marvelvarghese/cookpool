@@ -494,7 +494,7 @@ describe("Activity", () => {
 describe("with newFrame false nothing changes", () => {
   it("lists today's three push kinds, and Community's five only in the new frame", () => {
     expect(pushRows(false).map((r) => r.kind)).toEqual(["kitchen.portion_set", "kitchen.dish_posted", "kitchen.paid_you"]);
-    expect(pushRows(true).slice(3).map((r) => r.title)).toEqual(["New followers", "Follow requests", "Comments", "Yums", "Cooked your recipe"]);
+    expect(pushRows(true).slice(3, 8).map((r) => r.title)).toEqual(["New followers", "Follow requests", "Comments", "Yums", "Cooked your recipe"]);
   });
 
   it("finishes to the dish as before, and offers no Share", () => {

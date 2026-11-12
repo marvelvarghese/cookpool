@@ -13,6 +13,18 @@ spec:
     - default/cookpool/spliteco-worker
     - default/cookpool/spliteco-web
     - default/cookpool/spliteco-ui
+    - default/cookpool/notifications-worker
+    - default/cookpool/notifications-worker-tests
+    - default/cookpool/spliteco-ui-tests
+    - default/cookpool/spliteco-worker-tests
+    - default/cookpool/spliteco-web-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - default/cookpool/kitchen-engine
+    - default/cookpool/policy-engine
+    - default/cookpool/policy-engine-tests
+    - default/cookpool/contracts-tests
     - default/cookpool/identity-worker
     - default/cookpool/identity-worker-tests
     - default/cookpool/membership-worker
@@ -24,6 +36,11 @@ spec:
     - apps/spliteco-worker/**
     - apps/spliteco-web/**
     - packages/spliteco-ui/**
+    - tests/spliteco-web/**
+    - tests/spliteco-ui/**
+    - tests/kitchen-worker/**
+    - tests/web-console-next/**
+    - tests/identity-worker/**
     - tests/spliteco-worker/**
     - specs/epics/cookpool-spliteco/**
     - tasks/SE-4.TaskContract.yaml

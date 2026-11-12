@@ -646,11 +646,11 @@ describe("GET /v1/internal/kitchen/organizations/{org}/subjects/{usr}/balance", 
 
   it("answers a person's balance in the group and its currency", async () => {
     await paidFor(flat, ANU, 3000, [RAHUL, ANU, DEV]);
-    expect((await internal(balancePath(flat, RAHUL))).body.data).toEqual({ balanceMinor: -1000, currency: "INR" });
-    expect((await internal(balancePath(flat, ANU))).body.data).toEqual({ balanceMinor: 2000, currency: "INR" });
+    expect((await internal(balancePath(flat, RAHUL))).body.data).toEqual({ balanceMinor: -1000, otherMinor: 0, currency: "INR" });
+    expect((await internal(balancePath(flat, ANU))).body.data).toEqual({ balanceMinor: 2000, otherMinor: 0, currency: "INR" });
     // Nobody with no money in it, a group with no ledger: zero.
-    expect((await internal(balancePath(flat, VIEWER))).body.data).toEqual({ balanceMinor: 0, currency: "INR" });
-    expect((await internal(balancePath(lunch, RAHUL))).body.data).toEqual({ balanceMinor: 0, currency: "INR" });
+    expect((await internal(balancePath(flat, VIEWER))).body.data).toEqual({ balanceMinor: 0, otherMinor: 0, currency: "INR" });
+    expect((await internal(balancePath(lunch, RAHUL))).body.data).toEqual({ balanceMinor: 0, otherMinor: 0, currency: "INR" });
     // The group's UUID works as well as its org_ id.
     expect((await internal(balancePath(flat.id, ANU))).body.data.balanceMinor).toBe(2000);
   });
@@ -704,9 +704,9 @@ describe("membership-worker's balance client, against kitchen-worker's own route
 
   it("reads what leaving checks: the balance, signed, in the group's currency", async () => {
     await paidFor(flat, ANU, 3000, [RAHUL, ANU, DEV]);
-    expect(await fetchKitchenBalance(binding(), flat.id, RAHUL, "req_leave")).toEqual({ ok: true, balanceMinor: -1000, currency: "INR" });
-    expect(await fetchKitchenBalance(binding(), flat.id, ANU, "req_leave")).toEqual({ ok: true, balanceMinor: 2000, currency: "INR" });
-    expect(await fetchKitchenBalance(binding(), flat.id, VIEWER, "req_leave")).toEqual({ ok: true, balanceMinor: 0, currency: "INR" });
+    expect(await fetchKitchenBalance(binding(), flat.id, RAHUL, "req_leave")).toEqual({ ok: true, balanceMinor: -1000, otherMinor: 0, currency: "INR" });
+    expect(await fetchKitchenBalance(binding(), flat.id, ANU, "req_leave")).toEqual({ ok: true, balanceMinor: 2000, otherMinor: 0, currency: "INR" });
+    expect(await fetchKitchenBalance(binding(), flat.id, VIEWER, "req_leave")).toEqual({ ok: true, balanceMinor: 0, otherMinor: 0, currency: "INR" });
   });
 
   it("cannot tell when kitchen-worker cannot answer", async () => {

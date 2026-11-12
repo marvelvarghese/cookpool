@@ -483,6 +483,14 @@ export function planDish(ctx: RequestContext, dish: ParsedDish, input: DishPlanI
       // One per group per dish; the dish's own key (unique per cook) is what makes cooking idempotent.
       idemKey: `dish_${dishHex}`,
       now,
+      // Its "why" in Spliteco (SE3): each ingredient taken, the cook bearing it.
+      items: owed.map((i) => ({
+        name: `${i.name} (${i.what})`,
+        qty: 1,
+        unitMinor: null,
+        totalMinor: i.costMinor,
+        shares: [{ subjectId: cook, amountMinor: i.costMinor }],
+      })),
     };
     const splits: KitchenSplit[] = take.splits.map((s) => ({ subjectId: s.subjectId, paidMinor: s.paidMinor, owedMinor: s.owedMinor }));
     txns.push({ txn, splits });

@@ -32,7 +32,7 @@ import {
   paymentsDue,
   useSoonItem,
 } from "../inbox.js";
-import { toEngineTxns } from "../ledger.js";
+import { KITCHEN_ONLY, toEngineTxns } from "../ledger.js";
 import { addDays, isoDay } from "../pantry.js";
 import { readMyAsks } from "./asks.js";
 import { splitReminders } from "../split-later.js";
@@ -121,7 +121,7 @@ export async function handleInbox(ctx: RequestContext): Promise<Response> {
       ctx.timings.measure("ledger", () =>
         Promise.all([
           repo.listGroupSettings(groups.map((g) => g.orgId)),
-          Promise.all(groups.map((g) => repo.listSplitsForGroup(g.orgId))),
+          Promise.all(groups.map((g) => repo.listSplitsForGroup(g.orgId, KITCHEN_ONLY))),
         ]),
       ),
       ctx.timings.measure("flags", () =>

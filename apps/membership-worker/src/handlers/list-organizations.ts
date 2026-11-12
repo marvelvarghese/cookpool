@@ -35,8 +35,10 @@ export async function handleListOrganizations(
     }
 
     const { items, nextCursor } = result.value;
-    // The hidden two-person groups (cookpool-spliteco) are never listed.
-    const organizations = items.filter((org) => org.kind !== "direct").map((org) => ({
+    // The hidden two-person groups (cookpool-spliteco) are never listed, and
+    // this is Cookpool's list: groups made in Spliteco are Spliteco's alone
+    // (SE3, design §0.5) — Spliteco reads its groups through its own worker.
+    const organizations = items.filter((org) => org.kind !== "direct" && org.madeIn !== "spliteco").map((org) => ({
       id: orgPublicId(org.id),
       name: org.name,
       slug: org.slug,

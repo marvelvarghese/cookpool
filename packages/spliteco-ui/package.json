@@ -1,0 +1,33 @@
+{
+  "name": "@saas/spliteco-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./money": "./src/money.ts",
+    "./settle": "./src/settle.ts",
+    "./balance": "./src/balance.ts",
+    "./why": "./src/why.ts",
+    "./bill": "./src/bill.ts",
+    "./theme": "./src/theme.tsx",
+    "./components": "./src/components.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@saas/contracts": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "*"
+  },
+  "devDependencies": {
+    "@saas/eslint-config": "workspace:*",
+    "@saas/tsconfig": "workspace:*",
+    "@types/react": "npm:types-react@19.0.0-rc.1",
+    "react": "19.0.0-rc-66855b96-20241106",
+    "typescript": "^5.8.3"
+  }
+}

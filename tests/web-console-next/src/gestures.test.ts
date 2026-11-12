@@ -42,6 +42,8 @@ describe("which screens pull to refresh", () => {
     // The cooking session (cookpool-recipes RC-6): a screen you work in, not a list.
     "/cook/session",
     "/settle",
+    // Settle up in a kitchen (cookpool-spliteco SE3): a form, like Add a bill.
+    "/money/settle",
     "/you",
     "/you/settings",
     "/you/notifications",

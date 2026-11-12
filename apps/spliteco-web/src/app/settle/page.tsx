@@ -7,6 +7,8 @@
 //   /settle?group=org_…         everyone you owe in that group
 //   /settle?group=org_…&to=usr_ paying one person
 //
+// The ways to pay and the "did it go through?" panel are the shared parts
+// (packages/spliteco-ui, SE3) Cookpool's Settle up draws too, in Deep ocean.
 // UPI opens the person's UPI app with a `upi://pay` link and records nothing;
 // back in the app, "I paid ₹X" records it and "It didn't" doesn't. Cash and
 // bank record in one tap. The person paid can mark it "Not received" later.
@@ -17,6 +19,7 @@ import { useRouter } from "next/navigation";
 import type { SplitecoGroupResponse, SplitecoGroupsResponse, SplitecoSettlePlanResponse } from "@saas/contracts/spliteco";
 import { Avatar, BackButton, Loading, Screen, useLoad, useQueryParam } from "@/components/ui";
 import { Icon } from "@/components/icons";
+import { PayMethods, UpiConfirm, methodNote } from "@saas/spliteco-ui/components";
 import { formatMoney, formatShort, moneyInput, parseMoney, splitMoney } from "@/lib/money";
 import { nameOf, namesFrom } from "@/lib/people";
 import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
@@ -175,12 +178,6 @@ function PickPayee({ group, plan, me }: { group: SplitecoGroupResponse; plan: Sp
   );
 }
 
-const METHODS: { id: PayMethod; badge: string; name: string }[] = [
-  { id: "upi", badge: "UPI", name: "Pay with a UPI app" },
-  { id: "cash", badge: "₹", name: "I paid in cash" },
-  { id: "bank", badge: "IMPS", name: "Bank transfer" },
-];
-
 function Pay({ group, plan, to, me }: { group: SplitecoGroupResponse; plan: SplitecoSettlePlanResponse; to: string; me: string | null }) {
   const { client } = useSession();
   const router = useRouter();
@@ -324,48 +321,13 @@ function Pay({ group, plan, to, me }: { group: SplitecoGroupResponse; plan: Spli
         </section>
       ) : null}
 
-      <section aria-label="How you paid" role="radiogroup" className="stack s8">
-        {METHODS.map((m) => {
-          const on = flow.method === m.id;
-          const off = m.id === "upi" && upiOff !== null;
-          const noteText =
-            m.id === "upi"
-              ? off
-                ? upiOff
-                : `Opens your app with ${formatShort(amountMinor, currency)} to ${vpa} and "${note.trim() || groupName}" as the note`
-              : m.id === "cash"
-                ? `Records it now. ${payee} gets a heads-up.`
-                : "Records it now, with an optional reference number";
-          return (
-            <button
-              key={m.id}
-              role="radio"
-              aria-checked={on}
-              aria-disabled={off}
-              disabled={off || flow.step !== "pick"}
-              onClick={() => dispatch({ type: "pick", method: m.id })}
-              className="lrow"
-              style={{
-                textAlign: "left",
-                width: "100%",
-                borderRadius: 16,
-                padding: 14,
-                background: on ? "rgba(37,99,235,0.14)" : "var(--surface)",
-                border: `1px solid ${on ? "#3B82F6" : "var(--line)"}`,
-                opacity: off ? 0.55 : 1,
-                color: "inherit",
-              }}
-            >
-              <span className="cat" style={{ background: "#16243A", color: "#93C5FD", fontSize: 12, fontWeight: 800 }}>{m.badge}</span>
-              <span className="main">
-                <span className="title">{m.name}</span>
-                <span className="sub" style={{ whiteSpace: "normal" }}>{noteText}</span>
-              </span>
-              <span className={`radio ${on ? "on" : ""}`} aria-hidden="true" />
-            </button>
-          );
-        })}
-      </section>
+      <PayMethods
+        value={flow.method}
+        upiOff={upiOff}
+        locked={flow.step !== "pick"}
+        onPick={(method) => dispatch({ type: "pick", method })}
+        note={(m) => methodNote(m, { upiOff, amount: formatShort(amountMinor, currency), vpa, note: note.trim() || groupName, payee })}
+      />
 
       <label className="stack s8">
         <span className="small muted bold">{flow.method === "bank" ? "Reference (optional)" : "Note (optional)"}</span>
@@ -376,16 +338,14 @@ function Pay({ group, plan, to, me }: { group: SplitecoGroupResponse; plan: Spli
       <div className="footer-fixed">
         <div>
           {flow.step === "confirm" ? (
-            <section aria-label="Did it go through?" className="panel" style={{ gap: 10, padding: 16 }} role="alertdialog">
-              <b style={{ fontSize: 16 }}>Back from your UPI app — did it go through?</b>
-              <span className="small muted">We only record it when you say so. {payee} can mark it &ldquo;not received&rdquo;.</span>
-              {flow.error ? <p className="error" role="alert">{flow.error}</p> : null}
-              <div className="inline" style={{ flexWrap: "nowrap" }}>
-                <button className="btn flex1" onClick={() => dispatch({ type: "paid" })}>I paid {formatShort(amountMinor, currency)}</button>
-                <button className="btn ghost flex1" onClick={() => dispatch({ type: "didnt" })}>It didn&apos;t</button>
-              </div>
-              {link ? <a href={link} className="small" style={{ textAlign: "center" }}>Open the UPI app again</a> : null}
-            </section>
+            <UpiConfirm
+              payee={payee}
+              amountText={formatShort(amountMinor, currency)}
+              link={link}
+              error={flow.error}
+              onPaid={() => dispatch({ type: "paid" })}
+              onDidnt={() => dispatch({ type: "didnt" })}
+            />
           ) : (
             <>
               {flow.error ? <p className="error" role="alert">{flow.error}</p> : null}

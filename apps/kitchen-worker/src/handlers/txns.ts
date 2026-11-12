@@ -7,7 +7,7 @@ import { reverseSplits } from "@saas/kitchen-engine/ledger";
 import { conflict, forbidden, notFound, readJsonObject, successResponse, unavailable, validationError } from "../http.js";
 import { requestIdempotencyKey } from "../idempotency.js";
 import { parsePublicId, toPublicId } from "../ids.js";
-import { idempotencyKeyReused, ledgerAudit, postedTxnResponse, toKitchenFlag } from "../ledger.js";
+import { KITCHEN_ONLY, idempotencyKeyReused, ledgerAudit, postedTxnResponse, toKitchenFlag } from "../ledger.js";
 import { Fields, text } from "../validate.js";
 import { approvedBy } from "./uses.js";
 
@@ -47,9 +47,18 @@ export async function handleReverseTxn(ctx: OrgContext, request: Request, params
   if (note === undefined) return validationError(ctx.requestId, fields.errors);
 
   return withKitchenRepo(ctx, async (repo) => {
-    const found = await ctx.timings.measure("db", () => repo.getTxn(ctx.orgId, txnId));
+    const found = await ctx.timings.measure("db", () => repo.getTxn(ctx.orgId, txnId, KITCHEN_ONLY));
     if (!found.ok) return found.error.kind === "not_found" ? notFound(ctx.requestId) : unavailable(ctx.requestId);
     const original = found.value;
+    // A payment made in Spliteco (SE3) may pay both balances in two rows; it
+    // is undone there ("not received"), never one row from here.
+    if (original.app === "spliteco") {
+      return conflict(
+        ctx.requestId,
+        "This was recorded in Spliteco; correct it there",
+        KITCHEN_ERROR_REASONS.OWNED_BY_SPLITECO,
+      );
+    }
 
     const actor = ctx.actor.subjectId;
     // A use an approved ask posted (PN-8) is the asker's: whoever approved it may reverse it too.
@@ -117,7 +126,7 @@ export async function handleFlagTxn(ctx: OrgContext, request: Request, params: r
   if (reason === undefined) return validationError(ctx.requestId, fields.errors);
 
   return withKitchenRepo(ctx, async (repo) => {
-    const found = await ctx.timings.measure("db", () => repo.getTxn(ctx.orgId, txnId));
+    const found = await ctx.timings.measure("db", () => repo.getTxn(ctx.orgId, txnId, KITCHEN_ONLY));
     if (!found.ok) return found.error.kind === "not_found" ? notFound(ctx.requestId) : unavailable(ctx.requestId);
     const txn = found.value;
 

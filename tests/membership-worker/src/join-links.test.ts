@@ -242,7 +242,7 @@ interface KitchenCall {
  * 0 for anyone else) in INR — or answers `status`, or throws.
  */
 function kitchenWorker(
-  opts: { balances?: Record<string, number>; status?: number; body?: unknown; throws?: boolean; calls?: KitchenCall[] } = {},
+  opts: { balances?: Record<string, number>; other?: Record<string, number>; status?: number; body?: unknown; throws?: boolean; calls?: KitchenCall[] } = {},
 ): Fetcher {
   return {
     fetch: async (url: string, init: RequestInit = {}) => {
@@ -252,7 +252,7 @@ function kitchenWorker(
       if (opts.body !== undefined) return Response.json(opts.body);
       const subject = decodeURIComponent(new URL(url).pathname.split("/")[7] ?? "");
       return Response.json({
-        data: { balanceMinor: opts.balances?.[subject] ?? 0, currency: "INR" },
+        data: { balanceMinor: opts.balances?.[subject] ?? 0, otherMinor: opts.other?.[subject] ?? 0, currency: "INR" },
         meta: { requestId: "req_kitchen", cursor: null },
       });
     },
@@ -738,9 +738,49 @@ describe("handleLeaveOrganization: money in the group", () => {
     const body = (await res.json()) as { error: { code: string; message: string; details: Record<string, unknown> } };
     expect(body.error.code).toBe("conflict");
     expect(body.error.message).toBe(message);
-    expect(body.error.details).toEqual({ reason: "balance_not_settled", balanceMinor: balance, currency: "INR" });
+    expect(body.error.details).toEqual({ reason: "balance_not_settled", balanceMinor: balance, otherMinor: 0, currency: "INR" });
     expect((await repo.getActiveMemberBySubject(ORG, "usr_anu")).ok).toBe(true);
     expect(appended).toHaveLength(0);
+  });
+
+  // cookpool-spliteco SE3: a kitchen group keeps two balances; Other (added in
+  // Spliteco) is not shown in Cookpool, and leaving is still refused while it is open.
+  it.each([
+    ["owes", -400000, "You still owe money in this group in Spliteco. Settle up before you leave."],
+    ["is owed", 50, "You are still owed money in this group in Spliteco. Settle up before you leave."],
+  ])("refuses someone who %s money in the Other balance, with Kitchen settled", async (_how, other, message) => {
+    const repo = group();
+    const res = await handleLeaveOrganization(
+      env({ KITCHEN_WORKER: kitchenWorker({ other: { usr_anu: other } }) }),
+      "req",
+      actor("usr_anu"),
+      ORG_PUB,
+      { repo, now: () => NOW },
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string; details: Record<string, unknown> } };
+    expect(body.error.message).toBe(message);
+    expect(body.error.details).toEqual({ reason: "balance_not_settled", balanceMinor: 0, otherMinor: other, currency: "INR" });
+    expect((await repo.getActiveMemberBySubject(ORG, "usr_anu")).ok).toBe(true);
+  });
+
+  it("refuses when the Other balance is malformed (cannot tell), and reads a kitchen-worker without it as Kitchen alone", async () => {
+    const bad = await handleLeaveOrganization(
+      env({ KITCHEN_WORKER: kitchenWorker({ body: { data: { balanceMinor: 0, otherMinor: "12", currency: "INR" } } }) }),
+      "req",
+      actor("usr_anu"),
+      ORG_PUB,
+      { repo: group(), now: () => NOW },
+    );
+    expect(bad.status).toBe(503);
+    const old = await handleLeaveOrganization(
+      env({ KITCHEN_WORKER: kitchenWorker({ body: { data: { balanceMinor: 0, currency: "INR" } } }) }),
+      "req",
+      actor("usr_anu"),
+      ORG_PUB,
+      { repo: group(), now: () => NOW },
+    );
+    expect(old.status).toBe(200);
   });
 
   it("lets someone at zero leave", async () => {

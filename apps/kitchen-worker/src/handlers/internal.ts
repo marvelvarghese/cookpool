@@ -41,11 +41,13 @@ function orgOf(raw: string): Uuid | null {
 }
 
 /**
- * GET …/organizations/{org}/subjects/{usr}/balance → `{ balanceMinor, currency }`:
- * Σ paid − Σ owed over the group's whole ledger, as the engine computes
- * every balance (…/balances reads the same). Someone with no money in the
- * group, or a group with no ledger, is 0. A failed read is a 503, which
- * membership-worker treats as "cannot tell" and refuses the leave.
+ * GET …/organizations/{org}/subjects/{usr}/balance → `{ balanceMinor, otherMinor, currency }`:
+ * Σ paid − Σ owed in each of the group's two balances (cookpool-spliteco
+ * SE3, design §0.11) — Kitchen, which …/balances shows, and Other, what was
+ * added to the group in Spliteco — each worked out by the engine over its
+ * own rows. Someone with no money in the group, or a group with no ledger,
+ * is 0 in both. membership-worker refuses a leave while either is open; a
+ * failed read is a 503, which it treats as "cannot tell" and refuses too.
  */
 export async function handleSubjectBalance(
   ctx: InternalContext,
@@ -66,9 +68,12 @@ export async function handleSubjectBalance(
       Promise.all([repo.getGroupSettings(orgId), repo.listSplitsForGroup(orgId)]),
     );
     if (!settings.ok || !ledger.ok) return unavailable(ctx.requestId);
+    const inBucket = (bucket: "kitchen" | "other") =>
+      balances(toEngineTxns(ledger.value.filter((t) => t.bucket === bucket))).get(subject) ?? 0;
     return successResponse<SubjectBalanceResponse>(
       {
-        balanceMinor: balances(toEngineTxns(ledger.value)).get(subject) ?? 0,
+        balanceMinor: inBucket("kitchen"),
+        otherMinor: inBucket("other"),
         currency: settings.value?.currency ?? DEFAULT_KITCHEN_CURRENCY,
       },
       ctx.requestId,

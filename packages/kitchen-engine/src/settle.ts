@@ -92,3 +92,15 @@ export function allocatePayment(input: { owed: Allocation; amountMinor: number; 
   }
   return { ok: true, allocation };
 }
+
+/**
+ * The most a payment from `fromId` to `toId` may be in one balance (SE3):
+ * what `fromId` owes there, and never more than `toId` is owed there, so a
+ * payment can never flip either person's balance. Cookpool's own payments
+ * count against the Kitchen balance only (design §0.11). 0 when nothing.
+ */
+export function paymentCap(balances: ReadonlyMap<string, number>, fromId: string, toId: string): number {
+  const owes = -(balances.get(fromId) ?? 0);
+  const owed = balances.get(toId) ?? 0;
+  return Math.max(0, Math.min(owes, owed));
+}

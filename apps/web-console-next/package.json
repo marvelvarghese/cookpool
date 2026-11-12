@@ -27,6 +27,7 @@
     "@saas/contracts": "workspace:*",
     "@saas/kitchen-engine": "workspace:*",
     "@saas/sdk": "workspace:*",
+    "@saas/spliteco-ui": "workspace:*",
     "@simplewebauthn/browser": "14.0.0",
     "@tanstack/react-query": "^5.62.7",
     "class-variance-authority": "^0.7.1",

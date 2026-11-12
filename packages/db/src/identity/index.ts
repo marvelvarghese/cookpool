@@ -41,3 +41,7 @@ export type {
   PasskeysRepository,
 } from "./passkeys.js";
 export { createPasskeysRepository } from "./passkeys.js";
+
+// One-time handoff codes into another app (cookpool-spliteco SE-4).
+export type { HandoffCode, CreateHandoffCodeInput, HandoffRefusal, ConsumeHandoffResult, HandoffRepository } from "./handoff.js";
+export { createHandoffRepository } from "./handoff.js";

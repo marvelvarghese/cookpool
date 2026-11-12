@@ -1,0 +1,33 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: spliteco-ui
+  description: Spliteco's money screens as shared, themeable React parts and their logic — the balance card, the "why" list, add a bill and Settle up — drawn in Cookpool's look by the console and in Deep ocean by the Spliteco app
+spec:
+  type: turbo-package
+  lifecycle: production
+  owner: platform
+  # Its pages, attached to it in the workspace's catalog: what the Docs
+  # library shows for it, and what the catalog's docs and runbook checks read.
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  domain: starter-shared
+  subscribe:
+    environments:
+      - name: dev
+        profile: quick-check
+      - name: stage
+        profile: quick-check
+      - name: prod
+        profile: quick-check
+  parameters:
+    nodeVersion: "20"
+    pnpmVersion: "10.12.1"
+    typecheckCommand: pnpm exec turbo run typecheck --filter=./
+  labels:
+    team: cookpool
+    layer: shared
+    surface: money

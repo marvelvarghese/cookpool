@@ -135,7 +135,8 @@ export async function handleExpense(ctx: RequestContext, txnParam: string): Prom
             subjectId: s.subjectId,
             mode: s.mode,
             value: s.value,
-            amountMinor: amounts.find((a) => a.subjectId === s.subjectId)?.amountMinor ?? 0,
+            // Cookpool's item rows (SE3) carry exact amounts and no request to re-derive them from.
+            amountMinor: amounts.find((a) => a.subjectId === s.subjectId)?.amountMinor ?? (s.mode === "exact" ? s.value : 0),
           })),
       };
     });

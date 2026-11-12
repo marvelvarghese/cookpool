@@ -36,6 +36,8 @@ export function newFrame(config: Pick<AppConfig, "deployEnv"> = appConfig()): bo
  */
 export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/money": "/home",
+  // Settle up in a kitchen, on spliteco-worker (cookpool-spliteco SE3): Money's.
+  "/money/settle": "/home",
   "/you/settings": "/you",
   // The shopping run (cookpool-pantry PN-6): today's frame has none, so its visitor goes to the Pantry.
   "/pantry/run": "/pantry",

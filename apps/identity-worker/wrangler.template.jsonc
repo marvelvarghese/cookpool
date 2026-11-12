@@ -29,9 +29,16 @@
   // Passkeys (Cookpool PK-2): PASSKEY_RP_ID is the WebAuthn relying party —
   // localhost (local, dev), stage.cookpool.store, cookpool.store — and
   // PASSKEY_ORIGINS the exact origins a ceremony may come from, comma-separated.
-  // Prod lists only https://cookpool.store, so a stage page can never sign in
+  // Prod lists only https://cookpool.store (and its Spliteco host, SE-4), so a stage page can never sign in
   // to prod. An empty PASSKEY_RP_ID turns every passkey route off (404
   // passkeys_off); the workers.dev console hosts offer no passkeys.
+  // The Spliteco app (cookpool-spliteco SE-4) signs in against this worker on
+  // its own host, cookpool-spliteco-web-<env>.cookpool.workers.dev: that
+  // origin is in OAUTH_ALLOWED_CONSOLE_ORIGINS (Google and GitHub return
+  // there) and PASSKEY_ORIGINS (the same passkeys, under the same RP ID —
+  // the console lists the app at /.well-known/webauthn, WebAuthn's related
+  // origins), and HANDOFF_ORIGINS is where a one-time handoff code from
+  // Cookpool's "More in Spliteco" may be made for and exchanged from.
   // DEBUG_DELIVERY_DOMAINS (Cookpool SI-2): the email domains whose sign-in
   // codes login/start returns on screen instead of emailing; `*` is every
   // domain. Local, dev and stage `*` (SI-9: stage sends no email yet, so the
@@ -42,11 +49,12 @@
     "GITHUB_OAUTH_CLIENT_ID": "",
     "GOOGLE_OAUTH_CLIENT_ID": "",
     "OAUTH_REDIRECT_BASE_URL": "http://localhost:8787",
-    "OAUTH_ALLOWED_CONSOLE_ORIGINS": "http://localhost:3000",
+    "OAUTH_ALLOWED_CONSOLE_ORIGINS": "http://localhost:3000,http://localhost:3002",
     "SOLO_MODE": "false",
     "PASSKEY_RP_ID": "localhost",
     "PASSKEY_RP_NAME": "Cookpool",
-    "PASSKEY_ORIGINS": "http://localhost:3000"
+    "PASSKEY_ORIGINS": "http://localhost:3000,http://localhost:3002",
+    "HANDOFF_ORIGINS": "http://localhost:3002"
   },
   "env": {
     "dev": {
@@ -56,11 +64,12 @@
         "GITHUB_OAUTH_CLIENT_ID": "",
         "GOOGLE_OAUTH_CLIENT_ID": "",
         "OAUTH_REDIRECT_BASE_URL": "",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://cookpool-web-console-next-dev.cookpool.workers.dev",
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://cookpool-web-console-next-dev.cookpool.workers.dev,https://cookpool-spliteco-web-dev.cookpool.workers.dev",
         "SOLO_MODE": "false",
         "PASSKEY_RP_ID": "localhost",
         "PASSKEY_RP_NAME": "Cookpool",
-        "PASSKEY_ORIGINS": "http://localhost:3000"
+        "PASSKEY_ORIGINS": "http://localhost:3000,http://localhost:3002",
+        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-dev.cookpool.workers.dev"
       }
     },
     "stage": {
@@ -74,11 +83,12 @@
         "GITHUB_OAUTH_CLIENT_ID": "Ov23liKBsjAqJJsmBavV",
         "GOOGLE_OAUTH_CLIENT_ID": "437655333636-omhv3akn7eul8bc1kpbrijrgfr2v245i.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://cookpool-api-edge-stage.cookpool.workers.dev",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://stage.cookpool.store,https://cookpool-web-console-next-stage.cookpool.workers.dev",
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://stage.cookpool.store,https://cookpool-web-console-next-stage.cookpool.workers.dev,https://cookpool-spliteco-web-stage.cookpool.workers.dev",
         "SOLO_MODE": "false",
         "PASSKEY_RP_ID": "stage.cookpool.store",
         "PASSKEY_RP_NAME": "Cookpool",
-        "PASSKEY_ORIGINS": "https://stage.cookpool.store"
+        "PASSKEY_ORIGINS": "https://stage.cookpool.store,https://cookpool-spliteco-web-stage.cookpool.workers.dev",
+        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-stage.cookpool.workers.dev"
       },
       "d1_databases": [
         {
@@ -113,11 +123,12 @@
         "GITHUB_OAUTH_CLIENT_ID": "Ov23lilp2aoyeBDVU8Vc",
         "GOOGLE_OAUTH_CLIENT_ID": "437655333636-omhv3akn7eul8bc1kpbrijrgfr2v245i.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://cookpool-api-edge-prod.cookpool.workers.dev",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://cookpool.store,https://cookpool-web-console-next-prod.cookpool.workers.dev",
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://cookpool.store,https://cookpool-web-console-next-prod.cookpool.workers.dev,https://cookpool-spliteco-web-prod.cookpool.workers.dev",
         "SOLO_MODE": "false",
         "PASSKEY_RP_ID": "cookpool.store",
         "PASSKEY_RP_NAME": "Cookpool",
-        "PASSKEY_ORIGINS": "https://cookpool.store"
+        "PASSKEY_ORIGINS": "https://cookpool.store,https://cookpool-spliteco-web-prod.cookpool.workers.dev",
+        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-prod.cookpool.workers.dev"
       },
       "d1_databases": [
         {

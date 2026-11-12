@@ -217,3 +217,13 @@ export function peopleOn(rows: readonly SplitecoTxnRecord[]): string[] {
   }
   return [...out];
 }
+
+/**
+ * Cookpool's view of a kitchen group (SE3, design §0.11): `?bucket=kitchen`
+ * on a read, as Cookpool's Money tab sends it. The read then counts only the
+ * Kitchen balance's rows; Other is never sent to Cookpool, and a group made
+ * in Spliteco reads as not found there.
+ */
+export function kitchenView(url: URL | undefined): boolean {
+  return url?.searchParams.get("bucket") === "kitchen";
+}

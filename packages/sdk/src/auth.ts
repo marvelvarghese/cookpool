@@ -1,4 +1,8 @@
 import type {
+  HandoffCreateRequest,
+  HandoffCreateResponse,
+  HandoffExchangeRequest,
+  HandoffExchangeResponse,
   LoginCompleteRequest,
   LoginCompleteResponse,
   LoginStartRequest,
@@ -269,5 +273,19 @@ export class AuthClient {
       { method: "POST", path: "/v1/auth/passkeys/login/verify", body: input },
       opts,
     );
+  }
+
+  /**
+   * POST /v1/auth/handoff — a one-time, 60-second code that signs this person
+   * into another of the product's apps (cookpool-spliteco SE-4), bound to
+   * that app's origin. A session only.
+   */
+  createHandoff(input: HandoffCreateRequest, opts: RequestOptions = {}): Promise<HandoffCreateResponse> {
+    return this.transport.request<HandoffCreateResponse>({ method: "POST", path: "/v1/auth/handoff", body: input }, opts);
+  }
+
+  /** POST /v1/auth/handoff/exchange — the code for a session of this app's own (the same body as `loginComplete`). */
+  exchangeHandoff(input: HandoffExchangeRequest, opts: RequestOptions = {}): Promise<HandoffExchangeResponse> {
+    return this.transport.request<HandoffExchangeResponse>({ method: "POST", path: "/v1/auth/handoff/exchange", body: input }, opts);
   }
 }

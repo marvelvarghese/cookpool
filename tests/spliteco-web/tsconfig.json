@@ -15,7 +15,9 @@
       "@saas/contracts": ["../../packages/contracts/src/index.ts"],
       "@saas/contracts/*": ["../../packages/contracts/src/*.ts"],
       "@saas/kitchen-engine": ["../../packages/kitchen-engine/src/index.ts"],
-      "@saas/kitchen-engine/*": ["../../packages/kitchen-engine/src/*.ts"]
+      "@saas/kitchen-engine/*": ["../../packages/kitchen-engine/src/*.ts"],
+      "@saas/spliteco-ui": ["../../packages/spliteco-ui/src/index.ts"],
+      "@saas/spliteco-ui/*": ["../../packages/spliteco-ui/src/*"]
     }
   },
   "include": ["src/**/*.ts"],

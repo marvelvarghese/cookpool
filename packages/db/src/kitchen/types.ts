@@ -101,6 +101,32 @@ export interface KitchenTxnRecord {
   idemKey: string;
   createdAt: Date;
   splits: KitchenSplit[];
+  /**
+   * Which balance it counts toward (cookpool-spliteco §0.11): `kitchen`
+   * (everything Cookpool posts, the default) or `other` (added in Spliteco).
+   * Read from the row; a reversal is written with its original's.
+   */
+  bucket?: KitchenBucket;
+  /** Which app wrote it (migration 530): `cookpool` unless spliteco-worker did. Read from the row. */
+  app?: "cookpool" | "spliteco";
+  /** Item rows to write beside it (SE3): the "why" Spliteco shows for a use, dish or waste. */
+  items?: readonly KitchenTxnItem[];
+}
+
+/** The two balances of a kitchen group (cookpool-spliteco design §0.11). */
+export type KitchenBucket = "kitchen" | "other";
+
+/**
+ * One item row of a Cookpool posting (SE3, `ledger_txn_items` and
+ * `ledger_txn_item_shares`): what it was and who bears how much of it, as
+ * exact amounts that add up to the item's total.
+ */
+export interface KitchenTxnItem {
+  name: string;
+  qty: number;
+  unitMinor: number | null;
+  totalMinor: number;
+  shares: readonly { subjectId: string; amountMinor: number }[];
 }
 
 /** A transaction to post. A reversal goes through `reverseTxn` instead. */
@@ -125,6 +151,12 @@ export interface NewKitchenTxn {
   idemKey: string;
   /** Written as created_at. */
   now: Date;
+  /**
+   * The item rows that explain it (SE3). Left out, a use, dish or waste
+   * gets one item — its title, with each person's exact share — so Spliteco
+   * can show every Cookpool posting as an itemized row.
+   */
+  items?: readonly KitchenTxnItem[];
 }
 
 export interface PostTxnInput {
@@ -186,6 +218,15 @@ export interface KitchenLedgerTxn {
   occurredAt: Date;
   reverses: string | null;
   splits: KitchenSplit[];
+  /** Which balance it counts toward (SE3). */
+  bucket: KitchenBucket;
+  /** Its Idempotency-Key (SE3: a retried payment is found before its cap is checked again). */
+  idemKey?: string;
+}
+
+/** Which rows a ledger read takes (SE3): one balance, or both (`all`, the default). */
+export interface KitchenLedgerFilter {
+  bucket?: KitchenBucket | "all";
 }
 
 export type KitchenFlagState = "open" | "resolved";
@@ -689,19 +730,20 @@ export interface KitchenRepository extends AsksRepository, CommunityRepository, 
    * the stock again at a price fixed before other uses changed what is left.
    */
   reverseTxn(input: ReverseTxnInput): Promise<KitchenResult<PostedTxn>>;
-  /** One transaction of the group, with its splits; `not_found` outside it. */
-  getTxn(orgId: Uuid, txnId: Uuid): Promise<KitchenResult<KitchenTxnRecord>>;
-  /** The group's transactions with their splits, newest first (occurred_at, then id). */
+  /** One transaction of the group, with its splits; `not_found` outside it (or outside `filter`'s balance). */
+  getTxn(orgId: Uuid, txnId: Uuid, filter?: KitchenLedgerFilter): Promise<KitchenResult<KitchenTxnRecord>>;
+  /** The group's transactions with their splits, newest first (occurred_at, then id); one balance's with `filter`. */
   listActivity(
     orgId: Uuid,
     page: { cursor: KitchenActivityCursor | null; limit: number },
+    filter?: KitchenLedgerFilter,
   ): Promise<KitchenResult<KitchenActivityPage>>;
   /**
    * Every transaction of the group that moved money, with its splits, oldest
    * first: what balances and the settle plan are computed from. Loads the
    * whole ledger (see risks CP-O).
    */
-  listSplitsForGroup(orgId: Uuid): Promise<KitchenResult<KitchenLedgerTxn[]>>;
+  listSplitsForGroup(orgId: Uuid, filter?: KitchenLedgerFilter): Promise<KitchenResult<KitchenLedgerTxn[]>>;
   /** Flag a transaction, with its audit event in the same batch; idempotent per key like `postTxn`. */
   createFlag(input: CreateFlagInput): Promise<KitchenResult<CreatedFlag>>;
   /** The flags on one of the group's transactions, oldest first. */

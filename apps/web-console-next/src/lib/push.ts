@@ -55,9 +55,14 @@ export const PUSH_ROWS: readonly { kind: NotificationKind; title: string; exampl
   { kind: "kitchen.commented", title: "Comments", example: "Kabir commented: Roast the spices first…", newFrameOnly: true },
   { kind: "kitchen.yum", title: "Yums", example: "Meera said Yum to your Chicken curry", newFrameOnly: true },
   { kind: "kitchen.cooked_yours", title: "Cooked your recipe", example: "Dev cooked your Chicken curry · 1 kg", newFrameOnly: true },
+  // Spliteco's (cookpool-spliteco SE2, SE5), listed here since SE3: the one
+  // account's push switches, for money in any group.
+  { kind: "spliteco.reminder", title: "Payment reminders", example: "Anu sent a friendly nudge: ₹620.00", newFrameOnly: true },
+  { kind: "spliteco.paid_you", title: "Paid in Spliteco", example: "Dev paid you ₹400.00 · UPI", newFrameOnly: true },
+  { kind: "spliteco.expense_for_you", title: "Expenses you're on", example: "Anu added “Sunset cruise” ₹3,200.00 · Goa Trip", newFrameOnly: true },
 ]);
 
-/** The switches a frame lists: today's three, or all eight in the new frame. */
+/** The switches a frame lists: today's three, or all eleven in the new frame (Spliteco's three since SE3). */
 export function pushRows(isNewFrame: boolean): typeof PUSH_ROWS {
   return isNewFrame ? PUSH_ROWS : PUSH_ROWS.filter((r) => !r.newFrameOnly);
 }
