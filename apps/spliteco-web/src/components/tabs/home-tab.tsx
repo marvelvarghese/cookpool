@@ -8,7 +8,7 @@ import { Icon, Mark } from "../icons";
 import { Avatar, Loading, Sheet, type Load } from "../ui";
 import { SwipeRow } from "../gestures/swipe-row";
 import { formatShort } from "@/lib/money";
-import { HOME_PEOPLE, fromKitchen, mainBalance, netLabel, rowAction, settleHref, signedShort } from "@/lib/home";
+import { HOME_PEOPLE, fromKitchen, mainBalance, netLabel, planNote, rowAction, settleHref, signedShort } from "@/lib/home";
 
 type Groups = SplitecoGroupsResponse["groups"] | null;
 
@@ -152,7 +152,7 @@ function PersonRow({
 }) {
   const router = useRouter();
   const name = p.name ?? "Someone";
-  const action = rowAction(p);
+  const action = rowAction(p, groups);
   const href = settleHref(p.subjectId, groups);
   const amount = amountOf(p);
   return (
@@ -194,7 +194,7 @@ function HoldSheet({
   onRemind: (p: SplitecoFriendBalance) => void;
 }) {
   const name = p.name ?? "Someone";
-  const action = rowAction(p);
+  const action = rowAction(p, groups);
   const amount = amountOf(p);
   return (
     <Sheet label={name} onClose={onClose}>
@@ -203,6 +203,7 @@ function HoldSheet({
         <span className="name">{name}</span>
         <span className={`amt ${amount.tone}`}>{amount.text}</span>
       </div>
+      {planNote(p, groups) ? <p className="sheet-note">{planNote(p, groups)}</p> : null}
       <div className="atiles">
         {action === "settle" ? (
           <Link href={settleHref(p.subjectId, groups)} className="atile">
@@ -210,12 +211,12 @@ function HoldSheet({
             Settle
           </Link>
         ) : (
-          <button type="button" className="atile" disabled title={`You don't owe ${name}`}>
+          <button type="button" className="atile" disabled title={`You don't pay ${name} in any group's plan`}>
             <Icon name="swap" size={22} />
             Settle
           </button>
         )}
-        <button type="button" className="atile" disabled={action !== "remind"} onClick={() => onRemind(p)} title={action === "remind" ? undefined : `${name} doesn't owe you`}>
+        <button type="button" className="atile" disabled={action !== "remind"} onClick={() => onRemind(p)} title={action === "remind" ? undefined : `${name} doesn't pay you in any group's plan`}>
           <Icon name="bell" size={22} />
           Remind
         </button>

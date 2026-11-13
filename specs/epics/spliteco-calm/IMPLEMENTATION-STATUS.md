@@ -10,13 +10,14 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | SL3 — Group and expense | ✅ shipped | #153 (0eaa466) |
 | SL4 — Add and Itemized | ✅ shipped | #155 (012c7df) |
 | SL5 — Settle | ✅ shipped | #156 (77d24eb) |
-| SL6 — close-out | ✅ shipped | this PR (SL-7) |
+| SL6 — close-out | ✅ shipped | #157 (8a72f86) |
+| fix: Remind by plan | ✅ shipped | this PR (SL-8) |
 
 **Order shipped:** SL0–SL5 in order, one milestone in flight, each built on the last one's branch while it was in review. No worker, route or migration changed. **Live:** https://cookpool-spliteco-web-prod.cookpool.workers.dev (stage: `-stage`).
 
 **Not yet verified on a real phone:** the gestures were checked with simulated touch at phone width against the local dev API; the edge swipe in the installed iOS app, the UPI hand-off with a real UPI app, and haptics have not been tried on a device.
 
-**Follow-ups:** Home's Remind should follow the simplified plan (the server can answer "nothing owed" to a positive net); the gesture modules exist twice, in Cookpool and Spliteco (risk SL-A).
+**Follow-ups:** the gesture modules exist twice, in Cookpool and Spliteco (risk SL-A).
 
 ## SL1 as built (SL-2)
 
@@ -49,7 +50,7 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **Settled groups** read "settled" rather than ₹0, behind "Show N settled".
 
 
-- **Remind can still be refused** with "nothing owed" for someone whose net balance says they owe you: the server reminds by the simplified plan (SE2), where they may pay someone else. The app shows the server's reason; aligning Home's Remind with the plan is a follow-up.
+- **Remind follows the plans (SL-8):** the server reminds and settles by each group's plan, where someone who owes you overall may pay someone else. Home's swipe and hold sheet now take their direction from the groups' `myPlan` (the same `bucketedPlan`), and a person the plan routes through others gets no action and the note "Simplified: settled through others".
 
 ## SL3 as built (SL-4)
 

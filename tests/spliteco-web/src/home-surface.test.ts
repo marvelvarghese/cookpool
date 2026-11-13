@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { cwd } from "node:process";
 import type { SplitecoActivityEntry, SplitecoFriendBalance, SplitecoGroupSummary } from "@saas/contracts/spliteco";
-import { HOME_PEOPLE, fromKitchen, mainBalance, netLabel, pagerIndexOf, pagerPath, remindErrorText, rowAction, settleHref, signedShort } from "@/lib/home";
+import { HOME_PEOPLE, fromKitchen, mainBalance, netLabel, pagerIndexOf, pagerPath, remindErrorText, planNote, rowAction, settleHref, signedShort } from "@/lib/home";
 import { DelayedSends, UNDO_MS, type Timers } from "@/lib/delayed";
 import { activityAmount, activityWhat, byDay, dayLabel, viaName } from "@/lib/activity-text";
 
@@ -59,6 +59,25 @@ describe("a person's row on Home", () => {
     expect(rowAction(person({ balances: [{ currency: "INR", amountMinor: 241_000 }] }))).toBe("remind");
     expect(rowAction(person({ balances: [{ currency: "INR", amountMinor: 0 }] }))).toBeNull();
     expect(HOME_PEOPLE).toBe(3);
+  });
+
+  it("follows the groups' plans, as the server does (SL-8)", () => {
+    const owesMe = person({ balances: [{ currency: "INR", amountMinor: 11_000 }] });
+    const id = owesMe.subjectId;
+    // Debts simplified away: they owe you overall but pay someone else, so no Remind (the server would say nothing_owed).
+    expect(rowAction(owesMe, [group({ myPlan: [] })])).toBeNull();
+    expect(planNote(owesMe, [group({ myPlan: [] })])).toBe("Simplified: settled through others");
+    // The plan has them paying you: Remind.
+    expect(rowAction(owesMe, [group({ myPlan: [{ subjectId: id, amountMinor: 11_000 }] })])).toBe("remind");
+    expect(planNote(owesMe, [group({ myPlan: [{ subjectId: id, amountMinor: 11_000 }] })])).toBeNull();
+    // Net says they owe you, but the only plan entry is you paying them: Settle.
+    expect(rowAction(owesMe, [group({ myPlan: [{ subjectId: id, amountMinor: -5_000 }] })])).toBe("settle");
+    const iOwe = person({ balances: [{ currency: "INR", amountMinor: -86_000 }] });
+    expect(rowAction(iOwe, [group({ myPlan: [{ subjectId: iOwe.subjectId, amountMinor: -86_000 }] })])).toBe("settle");
+    expect(rowAction(iOwe, [group({ myPlan: [{ subjectId: "usr_someone_else", amountMinor: -86_000 }] })])).toBeNull();
+    // Before the groups load, the net balance decides.
+    expect(rowAction(owesMe, null)).toBe("remind");
+    expect(planNote(owesMe, null)).toBeNull();
   });
 
   it("settles straight in the one group you pay them in, else the Settle list", () => {

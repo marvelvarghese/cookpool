@@ -48,13 +48,39 @@ export function netLabel(netMinor: number): string {
 
 // ── A person's row ────────────────────────────────────────────────
 
-/** What swiping a person left does: Settle when you owe them, Remind when they owe you, nothing when square. */
+/**
+ * What swiping a person left does: Settle when you pay them, Remind when they
+ * pay you, nothing when square (SL-8).
+ *
+ * The groups' plans decide, not the net balance: the server settles and
+ * reminds by each group's plan (`bucketedPlan`, simplified or not), where a
+ * person who owes you overall may pay someone else instead. So the action
+ * follows the plan's direction, the net balance's first; with no plan entry
+ * either way there is nothing to do with them here. Until the groups have
+ * loaded, the net balance decides, as before.
+ */
 export type RowAction = "settle" | "remind" | null;
 
-export function rowAction(p: Pick<SplitecoFriendBalance, "balances">): RowAction {
+export function rowAction(
+  p: Pick<SplitecoFriendBalance, "balances" | "subjectId">,
+  groups: readonly Pick<SplitecoGroupSummary, "myPlan">[] | null = null,
+): RowAction {
   const b = mainBalance(p.balances);
-  if (!b) return null;
-  return b.amountMinor < 0 ? "settle" : "remind";
+  if (!b || b.amountMinor === 0) return null;
+  const byNet: RowAction = b.amountMinor < 0 ? "settle" : "remind";
+  if (!groups) return byNet;
+  const entries = groups.flatMap((g) => g.myPlan.filter((e) => e.subjectId === p.subjectId));
+  const pays = entries.some((e) => e.amountMinor < 0);
+  const paid = entries.some((e) => e.amountMinor > 0);
+  if (byNet === "settle") return pays ? "settle" : paid ? "remind" : null;
+  return paid ? "remind" : pays ? "settle" : null;
+}
+
+/** Why a person has no swipe action although the balance isn't square: the plan routes it through others. */
+export function planNote(p: Pick<SplitecoFriendBalance, "balances" | "subjectId" | "name">, groups: readonly Pick<SplitecoGroupSummary, "myPlan">[] | null): string | null {
+  const b = mainBalance(p.balances);
+  if (!groups || !b || b.amountMinor === 0 || rowAction(p, groups) !== null) return null;
+  return "Simplified: settled through others";
 }
 
 /**
