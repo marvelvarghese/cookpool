@@ -191,5 +191,9 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // KC-9: the new look's dark — the phone's, unless You's Appearance pins Light; or pinned Dark.
+    ({ addVariant }) =>
+      addVariant("cp-dark", ['@media (prefers-color-scheme: dark) { html:not([data-look="light"]) .cookpool-new & }', 'html[data-look="dark"] .cookpool-new &']),
+  ],
 };

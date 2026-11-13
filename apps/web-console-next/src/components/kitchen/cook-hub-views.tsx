@@ -231,7 +231,7 @@ export function RecipeTileView({
       style={{ "--cp-tile-bg": tile.bg, "--cp-tile-fg": tile.fg } as React.CSSProperties}
       className={cn(
         "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--cp-tile-bg)] text-[17px] font-medium text-[var(--cp-tile-fg)]",
-        "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:text-foreground",
+        "cp-dark:bg-cp-line cp-dark:text-foreground",
         className,
       )}
     >

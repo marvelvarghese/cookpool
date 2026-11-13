@@ -134,7 +134,8 @@ describe("a group's tint (RV-19)", () => {
     for (const t of ["purple", "teal", "slate"]) {
       expect(css).toMatch(new RegExp(`--cp-${t}: [\\d.]+ [\\d.]+% [\\d.]+%;`));
       expect(css).toMatch(new RegExp(`--cp-${t}-tint: [\\d.]+ [\\d.]+% [\\d.]+%;`));
-      expect(css.match(new RegExp(`--cp-${t}-tint:`, "g"))).toHaveLength(2);
+      // Light, the phone's dark, and Dark pinned in Appearance (KC-9).
+      expect(css.match(new RegExp(`--cp-${t}-tint:`, "g"))).toHaveLength(3);
     }
   });
 });
@@ -144,7 +145,7 @@ describe("the shared parts follow the tokens (RV-19)", () => {
     expect(ME_FACE).toBe("hsl(var(--cp-face-me))");
     expect(FACE_COLORS).toEqual([1, 2, 3, 4, 5, 6].map((n) => `hsl(var(--cp-face-${n}))`));
     for (let n = 1; n <= 6; n++) expect(css).toContain(`--cp-face-${n}:`);
-    expect(css.match(/--cp-face-me:/g)).toHaveLength(2);
+    expect(css.match(/--cp-face-me:/g)).toHaveLength(3);
   });
 
   it("sets the main button's words 17px Medium over 12px Regular in the new frame", () => {

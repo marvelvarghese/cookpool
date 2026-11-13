@@ -83,7 +83,7 @@ export function CookFinishSheet({
   const stepper = "grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-cp-accent-tint text-cp-accent-text transition-colors hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50";
   return (
     <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, "gap-[18px] rounded-t-[26px] bg-background [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-[color-mix(in_srgb,hsl(var(--cp-card))_50%,hsl(var(--background)))]", CLOSE_44)}>
+      <SheetContent side="bottom" aria-describedby={undefined} className={cn(SESSION_SHEET, "gap-[18px] rounded-t-[26px] bg-background cp-dark:bg-[color-mix(in_srgb,hsl(var(--cp-card))_50%,hsl(var(--background)))]", CLOSE_44)}>
         <div aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-cp-line" />
         <SheetTitle className="flex min-h-11 items-center pr-12 text-[22px] font-medium tracking-[-0.01em]">{FINISH_TITLE}</SheetTitle>
         <div className="-mx-5 min-h-0 flex-1 space-y-[18px] overflow-y-auto px-5 pb-1">

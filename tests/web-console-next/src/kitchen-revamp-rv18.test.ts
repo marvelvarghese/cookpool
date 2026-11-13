@@ -58,7 +58,8 @@ describe("You (RvYou)", () => {
   it("keeps Sign out clear of the floating tab bar, and This phone before Help", () => {
     const you = read("components/kitchen/you-home-ui.tsx");
     expect(you).toContain("flex-col gap-[22px] pb-10");
-    expect(you).toContain('g.id === "help" ? <InstallGroup /> : null');
+    // KC-9: Appearance, then This phone, before Help.
+    expect(you).toMatch(/g\.id === "help" \? \(\s*<>\s*<AppearanceGroup \/>\s*<InstallGroup \/>/);
   });
 });
 
@@ -122,7 +123,7 @@ describe("Sign in (RvSignIn)", () => {
 
   it("draws Google and Passkey with the shadow only in light, and the chosen tab with no ring", () => {
     expect(plain(SIGN_IN_SECONDARY)).not.toContain("ring-1");
-    expect(SIGN_IN_SECONDARY).toContain("[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:ring-1");
+    expect(SIGN_IN_SECONDARY).toContain("cp-dark:ring-1");
     expect(SIGN_IN_SECONDARY).toContain("shadow-cp-card");
     const tabs = html(React.createElement(AuthTabs, { mode: "in", onMode: () => undefined }));
     expect(plain(tabs.replace(/"/g, " "))).not.toContain("ring-1");

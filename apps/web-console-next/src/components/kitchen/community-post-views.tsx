@@ -71,7 +71,7 @@ export function PostHero({ card, tall = false }: { card: Pick<PostCard, "title" 
       className={cn(
         "flex flex-col justify-end rounded-2xl bg-[linear-gradient(160deg,var(--tile-bg),hsl(var(--card)))] p-3.5",
         // Dark (the new frame): the tile is the line colour, as the boards draw it.
-        "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line",
+        "cp-dark:bg-cp-line",
         tall ? "h-[200px]" : "h-[168px]",
       )}
     >
@@ -156,7 +156,7 @@ function PostTile({ tile }: { tile: PostCard["tile"] }) {
       style={{ "--tile-bg": tile.bg, "--tile-fg": tile.fg } as React.CSSProperties}
       className={cn(
         "grid h-[76px] w-[76px] shrink-0 place-items-center rounded-2xl bg-[var(--tile-bg)] text-[var(--tile-fg)]",
-        "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:text-muted-foreground",
+        "cp-dark:bg-cp-line cp-dark:text-muted-foreground",
       )}
     >
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">

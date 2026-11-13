@@ -1,3 +1,4 @@
+import { lookScript } from "@/lib/look";
 import type { Metadata, Viewport } from "next";
 import "../styles/globals.css";
 import { Providers } from "./providers";
@@ -49,6 +50,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh bg-background text-foreground antialiased">
         {/* Before anything else (PW-2): keep the install prompt, and keep a focused field above the keyboard. */}
         <script dangerouslySetInnerHTML={{ __html: appShellScript() }} />
+        {/* KC-9: a look pinned in You's Appearance, on <html> before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: lookScript() }} />
         {/*
           esbuild's `keepNames` helper (`__name`) is referenced by the
           next-themes inline theme script in the @opennextjs/cloudflare build,

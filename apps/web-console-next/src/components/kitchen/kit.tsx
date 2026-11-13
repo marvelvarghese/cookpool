@@ -115,7 +115,7 @@ export function GroupAvatar({ name, id, size = "md", className }: { name: string
 
 /** In the new look's dark every group badge is the neutral line grey with ink words (the boards, RV-23). */
 const NEW_LOOK_DARK_BADGE =
-  "[@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:text-foreground";
+  "cp-dark:bg-cp-line cp-dark:text-foreground";
 
 /** Each group tint under `.cookpool-new` only (whole class names, so Tailwind keeps them). */
 const NEW_LOOK_TINTS: Record<GroupTint, string> = {
