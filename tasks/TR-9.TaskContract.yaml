@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-9
+  title: "Tripeco: signed-in stage checks and their fixes"
+spec:
+  goal: "The signed-in checks on stage are recorded in the status file, and the two faults they found are fixed: Posted's group read and Add vehicle's unnamed fuel buttons."
+  affects:
+    - default/cookpool/tripeco-web
+    - default/cookpool/tripeco-web-tests
+    - apps/tripeco-web/**
+    - tests/tripeco-web/**
+    - specs/epics/tripeco/**
+    - tasks/TR-9.TaskContract.yaml
+  doneWhen:
+    - "IMPLEMENTATION-STATUS records the signed-in stage round trip, the posted ride in Spliteco and the real odometer read"
+    - "Posted shows the group's name right after posting, and Add vehicle's fuel choices have accessible names"
+  gates: []

@@ -19,26 +19,29 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **Also in tests:** the odometer read on kitchen-worker's AI runner, with a stubbed model (`tests/kitchen-worker`), and the app's pure rules (`tests/tripeco-web`, `tests/spliteco-web`).
 - **Locally at phone width,** against `tests/tripeco-web/dev/dev-server.ts` (the real workers, seeded): Sign in with the email code, Home (vehicle card, Start trip · Log fuel, Needs you with Post, Recent rides) and Scan (Trip reset, the camera screen).
 
+### Signed in on stage (TR-9, 2026-11-13)
+
+Two test accounts were made on stage (`tripeco-qa-driver@` and `tripeco-qa-rider@example.com`, signed in with stage's on-screen code), with a Spliteco group "Tripeco QA" holding both. The owner's own account and groups were not touched.
+
+- **Sign in:** Tripeco's Continue with Spliteco → Spliteco Sign in (email code) → `/handoff/out` → Tripeco `/handoff` → Home, signed in, in the browser.
+- **Add vehicle:** QA Swift, 18.6 km/l, ₹2/km wear. The Vehicle page shows Estimate 18.6 km/l and ₹7.6/km.
+- **A ride by manual entry:** Start trip → Type km 48212 → Enter start and end → New ride, end 48336, named, group Tripeco QA.
+  - The numbers came out ₹693 fuel + ₹248 wear = ₹941, split ₹471 / ₹470.
+  - Posted with "Post ₹470 to Tripeco QA".
+- **In Spliteco stage, the group:** the ride row shows the lime car mark, the lock and "Tripeco · You paid ₹941". The row reads +₹470, and the group's balance moved by +₹470.
+- **The expense page:** "From Tripeco · change it there", the line "124 km · QA Swift · 18.6 km/l · ₹104/L · wear ₹248", Edit in Tripeco → this ride on stage Tripeco, and the exact split ₹471 / ₹470.
+- **Through the API on stage:**
+  - Spliteco's `DELETE` of the ride answers 409 `owned_by_tripeco`.
+  - `POST /v1/kitchen/me/ai/odometer` with a synthetic dashboard photo read 48336 km, Trip A 124 and average 20.4 km/l, in both modes, on the real model.
+- **Found and fixed here:**
+  - Posted's first load straight after posting missed the group (it showed "the group" and "Someone", with no Open in Spliteco), and a reload showed it right. The group is now read on its own, with one retry.
+  - Add vehicle's fuel choices had no accessible names.
+
 ### Not verified yet
 
-- **Signed-in checks on stage.** The browser used here had no Spliteco stage session, and no credential was entered for you. Still to do:
-  - the full Continue with Spliteco round trip: `/handoff/out` → code → Tripeco `/handoff` → signed in
-  - adding a vehicle, logging fuel, scanning a ride and posting it to a real stage group
-  - seeing the ride row (car mark, lock, photos, Edit in Tripeco) in Spliteco stage
-- **A real odometer photo through the model on stage.** Only the stubbed model has been run.
-- **On a phone:** the camera input, the vehicle-card scroll snap, the km slider, swipe-to-delete on a fill-up, and the edge swipe.
-- **Prod** has not been opened.
-
-| Milestone | State | PR |
-|---|---|---|
-| TR0 — the spec | ✅ shipped | #169 |
-| TR1 — vehicles, fuel, rides | ✅ shipped | #170 |
-| TR2 — a ride posts to Spliteco | ✅ shipped | #172 |
-| TR3 — odometer from a photo | ✅ shipped | #175 |
-| TR4 — the Tripeco app | ✅ shipped | #178 |
-| TR5 — drive and split | ✅ shipped | #179 |
-| TR6 — rides in Spliteco | ✅ shipped | #180 |
-| TR7 — close-out | ✅ shipped | this PR (TR-8) |
+- A real dashboard photographed on a phone; only a synthetic one has been read.
+- On a phone: the camera input, the vehicle-card scroll snap, the km slider, swipe-to-delete on a fill-up, and the edge swipe.
+- Prod has not been opened.
 
 ## TR1 as built (TR-2)
 
@@ -173,7 +176,6 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 ### Follow-ups
 
-- Run the signed-in stage checks listed above, then note them here.
 - A custom domain for Tripeco (risk TR-G); when it lands, add it to identity-worker's `HANDOFF_ORIGINS` and to `lib/links.ts` / `lib/tripeco-link.ts`.
 - Move ride photos to R2 if the D1 table grows past comfort (risk TR-C).
 - tripeco-web's `.gitignore` still carries the unanchored `out/` copied from spliteco-web. No `out` directory exists there today; anchor it before one does.

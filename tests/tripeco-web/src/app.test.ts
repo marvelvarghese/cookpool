@@ -115,3 +115,14 @@ describe("the look and the Worker", () => {
     expect(surface).toContain('from "@saas/gestures/react/pager"');
   });
 });
+
+describe("the stage checks' fixes (TR-9)", () => {
+  it("Posted reads its group on its own and tries again", () => {
+    const posted = readFileSync(`${APP}/src/app/posted/page.tsx`, "utf8");
+    expect(posted).toContain("read(2)");
+    expect(posted).toContain("setTimeout(() => read(left - 1), 800)");
+  });
+  it("Add vehicle's fuel choices have names", () => {
+    expect(readFileSync(`${APP}/src/app/vehicle/new/page.tsx`, "utf8")).toContain("aria-label={FUEL_LABEL[f]}");
+  });
+});

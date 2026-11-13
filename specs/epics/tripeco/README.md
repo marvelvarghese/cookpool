@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | ✅ Shipped (2026-11-13) — signed-in stage checks still to run (IMPLEMENTATION-STATUS) |
+| Status | ✅ Shipped (2026-11-13) — verified signed in on stage (IMPLEMENTATION-STATUS) |
 | Cluster | **TR** (TR0–TR7) |
 | Owner(s) | **The drive API:** a new `apps/tripeco-worker` behind `apps/api-edge` at `/v1/tripeco`. **The money:** `apps/spliteco-worker` (a ride posts through it as a locked expense). **The reading:** `apps/kitchen-worker`'s AI runner (the receipt reader's path) reads odometers. **The app:** a new `apps/tripeco-web`. **The gestures:** a new `packages/gestures`, moved out of `apps/spliteco-web`. **The wire:** `packages/contracts`, `packages/sdk`. **Sign-in:** `apps/identity-worker` (origins only). |
 | Builds on | `cookpool-spliteco` (EP-13: the ledger, groups, the handoff code, receipt scan); `spliteco-calm` (EP-15: the gestures, the calm look); `cookpool-ai` (the AI runner and its daily caps). |
