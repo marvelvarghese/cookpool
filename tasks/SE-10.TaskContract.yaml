@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-10
+  title: "Policy-worker redeploys when the policy rules change"
+spec:
+  goal: "A change to packages/policy-engine or packages/contracts/src/policy.ts alone plans and deploys policy-worker, so its grants never go stale again as they did before SE-9."
+  affects:
+    - default/cookpool/policy-worker
+    - apps/policy-worker/component.yaml
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-10.TaskContract.yaml
+  doneWhen:
+    - "orun plan --changed with only packages/policy-engine/src/index.ts changed selects policy-worker"
+    - "The same with only packages/contracts/src/policy.ts changed selects policy-worker; other contracts files do not"
+    - "IMPLEMENTATION-STATUS records the fix and its PR"
+  gates: []
