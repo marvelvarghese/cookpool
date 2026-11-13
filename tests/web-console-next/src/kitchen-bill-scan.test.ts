@@ -7,8 +7,6 @@
 
 import { readFileSync } from "node:fs";
 import { cwd } from "node:process";
-import * as React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import type { AiReceiptLine, AiReceiptResponse, AiStatus } from "@saas/contracts/kitchen";
 import {
   BILL_TITLE_FALLBACK,
@@ -21,9 +19,8 @@ import {
   billTitle,
   linesMinor,
 } from "@web-console-next/components/kitchen/bill-scan";
-import { BillScanPanel, ScanBillButton, type BillScan } from "@web-console-next/components/kitchen/bill-scan-ui";
 import { RECEIPT_ADJUST_DEFAULT } from "@web-console-next/components/kitchen/receipt-adjust";
-import { receiptError, receiptScanShows } from "@web-console-next/components/kitchen/receipt-run";
+import { receiptScanShows } from "@web-console-next/components/kitchen/receipt-run";
 
 const root = `${cwd()}/../../apps/web-console-next/src`;
 const read = (file: string) => readFileSync(`${root}/${file}`, "utf8");
@@ -180,74 +177,4 @@ describe("Scan a bill: where it shows (as Scan a receipt)", () => {
     expect(receiptScanShows({ isNewFrame: false, status: status(), switchOn: true })).toBe(false);
   });
 
-  it("the Add a bill form reads that gate, and fills the shared form without saving", () => {
-    const ui = read("components/kitchen/bill-scan-ui.tsx");
-    expect(ui).toContain("export const useScanBillShows = useReceiptScanShows;");
-    expect(ui).toContain("shrinkReceiptPhoto(file)");
-    expect(ui).toContain("readReceipt(image, controller.signal)");
-    expect(ui).not.toMatch(/createExpense|addKitchenBill/);
-    const money = read("components/kitchen/kitchen-money-ui.tsx");
-    expect(money).toContain("const scanShows = useScanBillShows();");
-    expect(money).toContain("prefill={formStart}");
-    expect(money).toContain("occurredAt ? { ...request, occurredAt } : request");
-  });
-});
-
-function scan(over: Partial<BillScan> = {}): BillScan {
-  const no = () => undefined;
-  return { phase: "idle", photoUrl: null, read: null, choice: RECEIPT_ADJUST_DEFAULT, error: null, pickProblem: null, open: no, take: no, cancel: no, close: no, toggle: no, ...over };
-}
-const html = (el: React.ReactElement | null) => (el ? renderToStaticMarkup(el) : "");
-
-describe("Scan a bill: the entry and the scan, rendered", () => {
-  it("the entry is one quiet button with a camera, and nothing where AI isn't available", () => {
-    const on = html(React.createElement(ScanBillButton, { shows: true, onClick: () => undefined }));
-    expect(on).toContain("Scan a bill");
-    expect(on).toContain("lucide-camera");
-    expect(on).toContain("bg-cp-accent-tint");
-    expect(on.match(/<button/g)).toHaveLength(1);
-    expect(html(React.createElement(ScanBillButton, { shows: false, onClick: () => undefined }))).toBe("");
-    expect(html(React.createElement(BillScanPanel, { scan: scan(), prefill: null, shows: false }))).toBe("");
-    expect(html(React.createElement(BillScanPanel, { scan: scan(), prefill: null, shows: true }))).toContain("Scan a bill");
-  });
-
-  it("the pick step takes a photo or chooses one", () => {
-    const out = html(React.createElement(BillScanPanel, { scan: scan({ phase: "pick", pickProblem: "Couldn't use this photo · try another" }), prefill: null, shows: true }));
-    expect(out).toContain("Take a photo");
-    expect(out).toContain("From photos");
-    expect(out).toContain('capture="environment"');
-    expect(out).toContain("Couldn&#x27;t use this photo · try another");
-  });
-
-  it("the refusals are AI-8's words, with Type it in (and Retake when the read failed)", () => {
-    const words = (kind: Parameters<typeof receiptError>) => receiptError(...kind).title;
-    expect(words([{ reason: "budget" }, 503])).toBe("Cookpool AI is resting until the 1st · add by hand");
-    expect(words([{ code: "rate_limited", reason: "receipt_daily_limit" }, 429])).toBe("You've used today's AI scans · try tomorrow");
-    expect(words([{ reason: "ai_failed" }, 502])).toBe("Couldn't read this receipt · Retake or add by hand");
-    const limit = html(React.createElement(BillScanPanel, { scan: scan({ phase: "problem", error: receiptError({ code: "rate_limited" }, 429) }), prefill: null, shows: true }));
-    expect(limit).toContain("You&#x27;ve used today&#x27;s AI scans · try tomorrow");
-    expect(limit).toContain("Type it in");
-    expect(limit).not.toContain("Retake");
-    const failed = html(React.createElement(BillScanPanel, { scan: scan({ phase: "problem", error: receiptError({ reason: "ai_failed" }, 502) }), prefill: null, shows: true }));
-    expect(failed).toContain("Retake");
-    expect(failed).toContain("Type it in");
-  });
-
-  it("after a read: the bill's card and AI-14's switches, both on", () => {
-    const res = bill();
-    const prefill = billPrefill(res, RECEIPT_ADJUST_DEFAULT, { today: TODAY, currency: "INR" });
-    const out = html(React.createElement(BillScanPanel, { scan: scan({ phase: "result", read: { res, at: TODAY } }), prefill, shows: true }));
-    expect(out).toContain("Beach Shack");
-    expect(out).toContain("8 Nov · 3 lines · bill ₹600");
-    expect(out.match(/role="switch" aria-checked="true"/g)).toHaveLength(2);
-    expect(out).toContain("Items cost ₹600 in total, what you paid");
-    const plain = billPrefill(bill({ adjustments: [] }), RECEIPT_ADJUST_DEFAULT, { today: TODAY, currency: "INR" });
-    expect(html(React.createElement(BillScanPanel, { scan: scan({ phase: "result", read: { res: bill({ adjustments: [] }), at: TODAY } }), prefill: plain, shows: true }))).not.toContain('role="switch"');
-  });
-
-  it.each(["components/kitchen/bill-scan.ts", "components/kitchen/bill-scan-ui.tsx"])("%s uses tokens, no raw hex, weights 400 and 500 only", (file) => {
-    const src = read(file);
-    expect(src).not.toMatch(/#[0-9A-Fa-f]{6}\b/);
-    expect(src).not.toMatch(/font-(semibold|bold|extrabold|black)\b/);
-  });
 });

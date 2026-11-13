@@ -229,7 +229,6 @@ describe("the screens' source", () => {
   const read = (file: string) => readFileSync(`${root}/${file}`, "utf8");
 
   it.each([
-    "components/kitchen/money-ui.tsx",
     "components/kitchen/money-group-ui.tsx",
     "components/kitchen/kitchen-money-ui.tsx",
     "components/kitchen/kitchen-settle-ui.tsx",
@@ -249,7 +248,7 @@ describe("the screens' source", () => {
     expect(src).not.toMatch(/font-(semibold|bold|extrabold|black)\b/);
   });
 
-  it.each(["components/kitchen/money-ui.tsx", "components/kitchen/money-group-ui.tsx", "components/kitchen/profile-ui.tsx", "components/kitchen/group-detail-ui.tsx"])(
+  it.each(["components/kitchen/money-group-ui.tsx", "components/kitchen/profile-ui.tsx", "components/kitchen/group-detail-ui.tsx"])(
     "%s settles only through spliteco-worker's Settle up",
     (file) => {
       const src = read(file);
@@ -258,13 +257,8 @@ describe("the screens' source", () => {
     },
   );
 
-  it("Money has one Settle up (on the net card), Add a bill with scan, and no kitchen chips", () => {
-    const money = read("components/kitchen/money-ui.tsx");
-    // One Settle up button (the net card's); the other "Settle up" is its sheet's title.
-    expect(money.match(/>\s*Settle up\s*<\/Button>/g)?.length).toBe(1);
-    expect(money).toContain(">Settle up</SheetTitle>");
-    expect(money).toContain('aria-label="Scan a bill"');
-    expect(money).toContain("startScan={bill.scan}");
+  // money-inside MN-6: Money is Spliteco inside; the kitchen screens left keep these.
+  it("the kitchen money screens left have no kitchen chips, and Pay goes to the settle path", () => {
     expect(read("components/kitchen/kitchen-money-ui.tsx")).not.toContain("KitchenChips");
     expect(read("components/kitchen/money-group-ui.tsx")).toContain("settleHref(row.orgId, row.subjectId, back)");
   });

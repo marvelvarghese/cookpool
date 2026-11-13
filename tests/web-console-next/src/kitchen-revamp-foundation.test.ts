@@ -48,7 +48,8 @@ function expectColours(tokens: Record<string, string>, table: Record<string, str
 
 describe("the tokens (design §1)", () => {
   const light = vars(".cookpool");
-  const dark = vars(".cookpool.cookpool-new, .cookpool-new .cookpool");
+  // KC-9: the dark palette is written once more for a pinned Dark; that copy is a plain rule this reads.
+  const dark = vars('html[data-look="dark"] .cookpool.cookpool-new, html[data-look="dark"] .cookpool-new .cookpool');
 
   it("carry the design table's light values, the old cp-* names included", () => {
     expectColours(light, {
