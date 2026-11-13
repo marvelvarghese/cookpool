@@ -37,7 +37,7 @@ export function NowStripView({
         </h2>
         {several ? <span className="text-[13px] font-normal text-muted-foreground">Tap each one you had</span> : null}
       </div>
-      <ul className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
+      <ul className="scrollbar-none -mx-[var(--cp-gutter,1rem)] flex gap-2 overflow-x-auto px-[var(--cp-gutter,1rem)] pb-0.5 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
         {chips.map((c) => {
           const on = several && tray.some((e) => e.itemId === c.id);
           return (
@@ -85,7 +85,7 @@ export function LogTray({ tray, onLog }: { tray: readonly TrayEntry[]; onLog: ()
   return (
     <div
       data-toast-above=""
-      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 -mx-4 flex flex-col gap-2 bg-background px-4 pb-1 pt-2.5 shadow-[0_-14px_14px_-6px_hsl(var(--background))] min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-t-2xl min-[900px]:px-0"
+      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.75rem)] z-30 -mx-[var(--cp-gutter,1rem)] flex flex-col gap-2 bg-background px-[var(--cp-gutter,1rem)] pb-1 pt-2.5 shadow-[0_-14px_14px_-6px_hsl(var(--background))] min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-t-2xl min-[900px]:px-0"
     >
       <p className="truncate text-[13px] font-normal text-foreground/80">{trayLine(tray)}</p>
       <button

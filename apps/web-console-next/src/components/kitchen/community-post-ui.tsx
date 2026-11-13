@@ -152,7 +152,7 @@ function PostBody({ post }: { post: CommunityPost }) {
       {myProfile ? (
         <CommentBox post={post} author={myProfile} />
       ) : (
-        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 bg-card px-4 py-3 shadow-cp-nav min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px]">
+        <div data-toast-above="" className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-[var(--cp-gutter,1rem)] bg-card px-[var(--cp-gutter,1rem)] py-3 shadow-cp-nav min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px]">
           <Link href={HANDLE_SETUP_HREF} className="flex min-h-11 items-center justify-center rounded-[14px] text-[15px] font-medium text-cp-accent-text hover:underline">
             Pick a handle to comment
           </Link>
@@ -307,7 +307,7 @@ function CommentBox({ post, author }: { post: CommunityPost; author: PostComment
         e.preventDefault();
         send();
       }}
-      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 flex gap-2 bg-card px-4 py-2.5 shadow-cp-nav min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px]"
+      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-[var(--cp-gutter,1rem)] flex gap-2 bg-card px-[var(--cp-gutter,1rem)] py-2.5 shadow-cp-nav min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:rounded-[22px]"
     >
       <input
         aria-label={COMMENT_PLACEHOLDER}

@@ -4,7 +4,7 @@
  *
  * - **Activity**: WANTS TO FOLLOW YOU (the requests, with Accept · No), then
  *   what happened, grouped by day (Today, This week, Earlier), each line
- *   "**Meera and 11 others** said Yum to your Chicken curry" opening its
+ *   "**Meera and 11 others** liked your Chicken curry" opening its
  *   post, a profile or a recipe; the bell's unread count.
  * - **Reports**: the reasons (spam, abuse, unsafe, other) and what is sent,
  *   for a post, a comment or a profile.
@@ -44,7 +44,7 @@ export function bellLabel(count: number | null | undefined): string {
 
 const first = (a: ActivityActor): string => firstNameOf(a.name) ?? `@${a.handle}`;
 
-/** Who did it: "Sam"; a Yum item "Meera and Dev", "Meera, Dev and 10 others". */
+/** Who did it: "Sam"; a like item "Meera and Dev", "Meera, Dev and 10 others". */
 export function activityWho(item: Pick<ActivityItem, "actor" | "actors" | "others">): string {
   const names = (item.actors.length > 0 ? item.actors : [item.actor]).map(first);
   if (item.others > 0) return `${names.join(", ")} and ${item.others} ${item.others === 1 ? "other" : "others"}`;
@@ -75,7 +75,7 @@ export interface ActivityLine {
 }
 
 /**
- * One item as a line: who, what ("cooked your Chicken curry", "said Yum to
+ * One item as a line: who, what ("cooked your Chicken curry", "liked
  * your Chicken curry", "commented: "Roast the spices first…"", "started
  * following you", "accepted your follow request", "saved your Masala
  * chai"), and where it goes — the post when there is one, else the
@@ -87,7 +87,7 @@ export function activityLine(item: ActivityItem, now: Date): ActivityLine {
   const base = { id: item.id, who: activityWho(item), when: shortAgo(item.at, now), faceId: item.actor.userId, faceName: item.actor.name, unread: item.unread };
   switch (item.kind) {
     case "yum":
-      return { ...base, what: `said Yum to your ${title}`, href: item.post ? postHref(item.post.id) : person, icon: "yum" };
+      return { ...base, what: `liked your ${title}`, href: item.post ? postHref(item.post.id) : person, icon: "yum" };
     case "comment":
       return { ...base, what: item.comment ? `commented: “${quote(item.comment.body)}”` : `commented on your ${title}`, href: item.post ? postHref(item.post.id) : person, icon: "comment" };
     case "cooked_yours":
@@ -134,7 +134,7 @@ export function markReadBefore(items: readonly Pick<ActivityItem, "at">[], now: 
 
 /** The line under the list (the canvas's). */
 export const ACTIVITY_PUSH_NOTE = "Pushes for each of these can be turned off in You → Notifications.";
-export const ACTIVITY_EMPTY = "Follows, Yums and comments show here";
+export const ACTIVITY_EMPTY = "Follows, likes and comments show here";
 export const REQUESTS_TITLE = "Wants to follow you";
 
 /** "and 4 more" under the requests, when the server names only the newest few. */

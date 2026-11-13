@@ -206,7 +206,7 @@ export function useYum() {
       void write.track(wrap(() => (on ? client.kitchen.yum(post.id) : client.kitchen.unyum(post.id)))).then((r) => {
         if (!r.ok) {
           write.rollback();
-          toast(refusedToast(on ? "Couldn't say Yum" : "Couldn't take it back", noProfileWhy(r.error, "say Yum")));
+          toast(refusedToast(on ? "Couldn't like it" : "Couldn't take it back", noProfileWhy(r.error, "like posts")));
           return;
         }
         applyPatches(queryCacheOf(qc), yumAnsweredPatches(post.id, r.data.yums));

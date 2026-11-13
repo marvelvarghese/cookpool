@@ -343,6 +343,15 @@ export interface HistoryRow {
 }
 
 /**
+ * An amount in the history, scaled (RV-26): "1 L", not "1000 ml"; "1.5 kg",
+ * not "1500 g". A unit of its own (pcs, pack, kg, L) is kept; g and ml
+ * give way to kg and L from a thousand.
+ */
+export function historyQty(milli: number, dimension: Dimension, unit: string): string {
+  return formatQuantity(milli, dimension, unit === "g" || unit === "ml" ? undefined : unit);
+}
+
+/**
  * The item's history, newest first, from its stock moves — with, last, the
  * purchase itself ("Anu added 1 kg · ₹40.00").
  */
@@ -365,7 +374,7 @@ export function historyRows(
   const who = (id: string) => memberLabel(id, meId, names);
   const byId = new Map(moves.map((m) => [m.id, m] as const));
   const rows: HistoryRow[] = moves.map((m) => {
-    const qty = formatQuantity(m.qtyMilli, item.dimension, m.unit);
+    const qty = historyQty(m.qtyMilli, item.dimension, m.unit);
     // Given in a measure (SM-14): its words lead ("2 onions"), and the amount it took goes under them.
     const said = m.label ?? null;
     const words = said ?? qty;
@@ -410,7 +419,7 @@ export function historyRows(
   rows.push({
     id: `added_${item.createdAt}`,
     kind: "added",
-    what: `${who(item.createdBy)} added ${boughtText(item)}${paid}`,
+    what: `${who(item.createdBy)} added ${historyQty(item.qtyBoughtMilli, item.dimension, item.displayUnit)}${paid}`,
     when: addedWhen,
     amount: formatMinor(item.priceMinor, item.currency),
     undone: false,
@@ -441,7 +450,7 @@ export function checkMoveText(
   // An approved ask's use (cookpool-pantry PN-9) reads as one too.
   if (m.via === "ask") return askMoveText(m, ctx);
   // In the item's own unit ("1.75 L"): a check sends its level in the base unit.
-  const qty = formatQuantity(m.qtyMilli, item.dimension, item.displayUnit);
+  const qty = historyQty(m.qtyMilli, item.dimension, item.displayUnit);
   const by = memberLabel(m.actor, meId, names);
   if (m.kind === "reversal") {
     const original = m.reverses ? ctx.byId?.get(m.reverses) : undefined;
@@ -480,7 +489,7 @@ export function askMoveText(
   const { item, meId, names } = ctx;
   const people = m.consumers && m.consumers.length > 0 ? m.consumers : [m.actor];
   const had = capitalize(joinNames(people.map((c) => memberLabelInline(c, meId, names))));
-  const words = m.label ?? formatQuantity(m.qtyMilli, item.dimension, m.unit);
+  const words = m.label ?? historyQty(m.qtyMilli, item.dimension, m.unit);
   const by = item.paidBy ? `Asked · approved by ${memberLabelInline(item.paidBy, meId, names)}` : "Asked · approved";
   return { what: `${had} · ${words}`, by };
 }

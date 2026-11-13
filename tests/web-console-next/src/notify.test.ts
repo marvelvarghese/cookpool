@@ -151,7 +151,7 @@ describe("the switches", () => {
       ["kitchen.followed", "New followers"],
       ["kitchen.follow_request", "Follow requests"],
       ["kitchen.commented", "Comments"],
-      ["kitchen.yum", "Yums"],
+      ["kitchen.yum", "Likes"],
       ["kitchen.cooked_yours", "Cooked your recipe"],
       // Spliteco's three (cookpool-spliteco SE3): the one account's push switches.
       ["spliteco.reminder", "Payment reminders"],

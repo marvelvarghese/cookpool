@@ -107,7 +107,9 @@ describe("the one settle path", () => {
     expect(safeSettleBack("/money?group=org_flat")).toBe("/money?group=org_flat");
     expect(safeSettleBack(`/people/${DEV}`)).toBe(`/people/${DEV}`);
     expect(safeSettleBack("/groups/flat-4b?tab=money")).toBe("/groups/flat-4b?tab=money");
-    for (const bad of ["//evil.example", "/home", "https://x.y/money", "/money/../x\\y", "", null]) expect(safeSettleBack(bad)).toBeNull();
+    expect(safeSettleBack("/home")).toBe("/home");
+    expect(settleHref("org_flat", DEV, "/home")).toBe(`/money/settle?group=org_flat&to=${DEV}&back=%2Fhome`);
+    for (const bad of ["//evil.example", "/home/x", "/homes", "https://x.y/money", "/money/../x\\y", "", null]) expect(safeSettleBack(bad)).toBeNull();
   });
 
   it("lists what you pay first, then what you get, leaving out groups you only view", () => {
@@ -249,7 +251,7 @@ describe("the screens' source", () => {
     expect(src).not.toMatch(/font-(semibold|bold|extrabold|black)\b/);
   });
 
-  it.each(["components/kitchen/money-ui.tsx", "components/kitchen/money-group-ui.tsx", "components/kitchen/profile-ui.tsx", "components/kitchen/group-detail-ui.tsx"])(
+  it.each(["components/kitchen/money-ui.tsx", "components/kitchen/money-group-ui.tsx", "components/kitchen/profile-ui.tsx", "components/kitchen/group-detail-ui.tsx", "components/kitchen/inbox-needs-rows-ui.tsx"])(
     "%s settles only through spliteco-worker's Settle up",
     (file) => {
       const src = read(file);
@@ -267,6 +269,8 @@ describe("the screens' source", () => {
     expect(money).toContain("startScan={bill.scan}");
     expect(read("components/kitchen/kitchen-money-ui.tsx")).not.toContain("KitchenChips");
     expect(read("components/kitchen/money-group-ui.tsx")).toContain("settleHref(row.orgId, row.subjectId, back)");
+    // RV-26: Home's Needs you Paid opens the same Settle up and comes back to Home.
+    expect(read("components/kitchen/inbox-needs-rows-ui.tsx")).toContain('settleHref(action.orgId, action.toSubjectId, "/home")');
   });
 
   it("the settle screen goes back where it came from, with a quiet Back to Money", () => {

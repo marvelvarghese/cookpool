@@ -238,7 +238,7 @@ function QuickUse({ linked }: { linked: ItemRef | null }) {
               </Button>
             </KCard>
           ) : (
-            <ul aria-label={heading} className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
+            <ul aria-label={heading} className="scrollbar-none -mx-[var(--cp-gutter,1rem)] flex gap-2 overflow-x-auto px-[var(--cp-gutter,1rem)] min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
               {cards.map((card) => {
                 const on = card.key === selected?.itemId;
                 return (

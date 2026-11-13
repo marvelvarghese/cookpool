@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: RV-26
+  title: "Revamp leftovers"
+spec:
+  goal: "The last small gaps after RV-23..RV-25: the amount box edge, the page gutter on full-bleed strips, Home's Paid through the one settle path, the item page's last old bits, and likes everywhere."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - specs/epics/cookpool-revamp/**
+    - tasks/RV-26.TaskContract.yaml
+  doneWhen:
+    - "amount boxes use the cp-box edge; full-bleed strips use the page gutter variable"
+    - "Home's Paid goes through the single settle path, and settle back links allow Home"
+    - "the amount picker's The rest chip has no dashed border, and the item history scales units"
+    - "post, activity and notification copy say likes, not yums; tests, typecheck, lint and the build pass"
+  gates: []

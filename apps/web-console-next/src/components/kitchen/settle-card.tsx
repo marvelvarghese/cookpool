@@ -61,8 +61,6 @@ export function useRecordPayment() {
       leftText?: string;
       /** Undo was pressed: the screen's own "recorded" marks go too. */
       onRestore?: () => void;
-      /** RV-15 (Home's Needs you): given the toast's Undo as soon as it shows, so the row's own Undo presses it. */
-      onUndoable?: (undo: () => void) => void;
     }): Promise<boolean> => {
       const { orgId, payment, currency, method } = input;
       const change = { orgId, ...payment };
@@ -93,7 +91,6 @@ export function useRecordPayment() {
           write.restore(posted ? txnReversedPatches(orgId, posted) : []);
         },
       });
-      input.onUndoable?.(toast.undo);
       return request.then((r) => {
         if (!r.ok) {
           write.rollback();

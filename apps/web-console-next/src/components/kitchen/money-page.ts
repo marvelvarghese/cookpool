@@ -278,10 +278,10 @@ export function settleHref(orgId: string, to: string, back?: string | null): str
   return `/money/settle?${q.toString()}`;
 }
 
-/** Where Settle up may go back to: Money (any view), a person's page or a group's page; null for anything else. */
+/** Where Settle up may go back to: Money (any view), Home (its Needs you, RV-26), a person's page or a group's page; null for anything else. */
 export function safeSettleBack(back: string | null | undefined): string | null {
   if (!back || back.startsWith("//") || back.includes("\\")) return null;
-  return /^\/(money(\?[^#]*)?|people\/[^/?#]+(\?[^#]*)?|groups\/[^/?#]+(\?[^#]*)?)$/.test(back) ? back : null;
+  return /^\/(home|money(\?[^#]*)?|people\/[^/?#]+(\?[^#]*)?|groups\/[^/?#]+(\?[^#]*)?)$/.test(back) ? back : null;
 }
 
 /** One group's balance and its why, on Money: `/money?group=org_…`. */

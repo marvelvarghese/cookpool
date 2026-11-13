@@ -187,7 +187,7 @@ export function PostCardSkeleton() {
 
 const ACTIVITY_ICONS = { cooked: ChefHat, yum: Smile, comment: MessageCircle, follow: UserPlus, saved: Bookmark } as const;
 
-/** One Activity line: the face, "**Meera and 11 others** said Yum to your Chicken curry", when, and its icon; a dot when new. */
+/** One Activity line: the face, "**Meera and 11 others** liked your Chicken curry", when, and its icon; a dot when new. */
 export function ActivityLineView({ line, meId }: { line: ActivityLine; meId: string | null }) {
   const Icon = ACTIVITY_ICONS[line.icon];
   return (

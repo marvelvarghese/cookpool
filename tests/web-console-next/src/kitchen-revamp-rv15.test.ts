@@ -13,7 +13,6 @@ import {
   needsTodo,
   needsTodos,
   orderNeeds,
-  paidMeta,
   usedMeta,
   waitingMine,
 } from "@web-console-next/components/kitchen/inbox-needs";
@@ -158,7 +157,6 @@ describe("Needs you's rows (every kind, the board's words)", () => {
   it("says what was done, dimmed with Undo", () => {
     expect(claimedMeta(3120, "INR", 2)).toBe("You had 1 · ₹31.20");
     expect(claimedMeta(3100, "INR", 3)).toBe("You had 1½ · ₹46.50");
-    expect(paidMeta(2500, "INR", "UPI")).toBe("Paid ₹25 · UPI");
     expect(usedMeta("100 g")).toBe("Used · 100 g");
   });
 });

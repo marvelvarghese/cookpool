@@ -111,7 +111,7 @@ export function QuickUse({ meId }: { meId: string | null }) {
           <Skeleton className="h-11 w-28 rounded-full" />
         </div>
       ) : rows.length > 0 ? (
-        <ul aria-label="Your usuals" className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
+        <ul aria-label="Your usuals" className="scrollbar-none -mx-[var(--cp-gutter,1rem)] flex gap-2 overflow-x-auto px-[var(--cp-gutter,1rem)] min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0">
           {rows.map((row) => {
             const others = row.consumers.length > 1 || (row.consumers.length === 1 && row.consumers[0] !== meId);
             return (
