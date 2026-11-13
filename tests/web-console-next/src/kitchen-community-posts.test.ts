@@ -184,7 +184,7 @@ describe("the post card", () => {
     expect(c.tile.initial).toBe("C");
     expect(c.tile.bg).toMatch(/^hsl\(var\(--cp-/);
     expect(postCard(post({ caption: "  " }), NOW, new Set()).caption).toBeNull();
-    expect(c.yum).toEqual({ on: false, label: "Yum · 12", count: 12 });
+    expect(c.yum).toEqual({ on: false, label: "12 likes", count: 12 });
   });
 
   it("Cook this: none without a recipe, opens your own, reads Saved ✓ for your copy, else copies", () => {
@@ -217,8 +217,8 @@ describe("the post card", () => {
     const c = postCard(post({ yums: { count: 1, mine: true, names: [] } }), NOW, new Set());
     expect(c.byline).toBe("Anu Mathew · 2 h");
     expect(postNumbers(c)).toBe(`450 g · ${c.tiles.find((t) => t.id === "time")!.value} · 1 like · ${c.comments === 1 ? "1 comment" : `${c.comments} comments`}`);
-    expect(postNumbers({ tiles: [{ id: "size", value: "4", label: "portions" }], yum: { on: false, label: "Yum", count: 0 }, comments: 0 })).toBe("4 portions · 0 likes");
-    expect(postNumbers({ tiles: [{ id: "ate", value: "3", label: "ate" }], yum: { on: false, label: "Yum · 12", count: 12 }, comments: 1 })).toBe("12 likes · 1 comment");
+    expect(postNumbers({ tiles: [{ id: "size", value: "4", label: "portions" }], yum: { on: false, label: "Like", count: 0 }, comments: 0 })).toBe("4 portions · 0 likes");
+    expect(postNumbers({ tiles: [{ id: "ate", value: "3", label: "ate" }], yum: { on: false, label: "12 likes", count: 12 }, comments: 1 })).toBe("12 likes · 1 comment");
     expect(FEED_TAB_LABELS).toEqual({ following: "Following", discover: "Everyone" });
     expect(FEED_HEADINGS).toEqual({ following: "From people you follow", discover: "Popular today" });
   });
@@ -232,8 +232,9 @@ describe("Yum", () => {
     expect(yumToggled({ count: 1, mine: true, names: [] }, false)).toEqual({ count: 0, mine: false, names: [] });
     const same = { count: 3, mine: true, names: [] };
     expect(yumToggled(same, true)).toBe(same);
-    expect(yumLabel({ count: 0 })).toBe("Yum");
-    expect(yumLabel({ count: 12 })).toBe("Yum · 12");
+    expect(yumLabel({ count: 0 })).toBe("Like");
+    expect(yumLabel({ count: 1 })).toBe("1 like");
+    expect(yumLabel({ count: 12 })).toBe("12 likes");
   });
 
   it("patches every read that shows the post: the feed's pages, the post, a profile's posts", () => {
@@ -448,7 +449,7 @@ describe("Activity", () => {
   it("says each kind in words and opens its post, person or recipe", () => {
     const meera = { userId: "usr_m", handle: "meera", name: "Meera Iyer" };
     const yum = item({ id: "yum_1", kind: "yum", actor: meera, actors: [meera], others: 11, post: { id: "pst_1", title: "Chicken curry" } });
-    expect(activityLine(yum, NOW)).toMatchObject({ who: "Meera and 11 others", what: "said Yum to your Chicken curry", href: "/p/pst_1", icon: "yum" });
+    expect(activityLine(yum, NOW)).toMatchObject({ who: "Meera and 11 others", what: "liked your Chicken curry", href: "/p/pst_1", icon: "yum" });
     expect(activityLine(item({ kind: "cooked_yours", post: { id: "pst_2", title: "Curry" }, recipe: { id: "rcp_1", name: "Chicken curry" } }), NOW)).toMatchObject({ who: "Dev", what: "cooked your Chicken curry", href: "/p/pst_2" });
     expect(activityLine(item({ kind: "comment", post: { id: "pst_1", title: "C" }, comment: { id: "cmt_1", body: "Roast the spices first next time, it really makes the difference" } }), NOW).what).toBe(
       "commented: “Roast the spices first next time, it re…”",
@@ -496,7 +497,7 @@ describe("Activity", () => {
 describe("with newFrame false nothing changes", () => {
   it("lists today's three push kinds, and Community's five only in the new frame", () => {
     expect(pushRows(false).map((r) => r.kind)).toEqual(["kitchen.portion_set", "kitchen.dish_posted", "kitchen.paid_you"]);
-    expect(pushRows(true).slice(3, 8).map((r) => r.title)).toEqual(["New followers", "Follow requests", "Comments", "Yums", "Cooked your recipe"]);
+    expect(pushRows(true).slice(3, 8).map((r) => r.title)).toEqual(["New followers", "Follow requests", "Comments", "Likes", "Cooked your recipe"]);
   });
 
   it("finishes to the dish as before, and offers no Share", () => {

@@ -4,8 +4,8 @@
  * asks you answer, open dishes, people to pay, food to use, splits (your
  * dishes to split or finalize, and the split reminders), your own asks that
  * wait, then flags — each a title, one line under it and one button; the
- * line a row says once it is done here ("You had 1 · ₹31.20", "Paid ₹25 ·
- * UPI", "Used · 1 cup", "Allowed · Anu owes you ₹12"), dimmed with Undo; and
+ * line a row says once it is done here ("You had 1 · ₹31.20",
+ * "Used · 1 cup", "Allowed · Anu owes you ₹12"), dimmed with Undo; and
  * the count beside the heading ("· 3", "· all done"). Whole amounts drop
  * their ".00" (₹25, ₹31.20).
  *
@@ -143,11 +143,6 @@ export function foodButton(tone: NeedsTone, words: string): string {
 /** "You had 1 · ₹31.20": a portion picked, and what it costs you. */
 export function claimedMeta(perPortionMinor: number, currency: string, half: number): string {
   return `You had ${halfText(half)} · ${shortMoney(Math.round((perPortionMinor * half) / 2), currency)}`;
-}
-
-/** "Paid ₹25 · UPI". */
-export function paidMeta(amountMinor: number, currency: string, method: string): string {
-  return `Paid ${shortMoney(amountMinor, currency)} · ${method}`;
 }
 
 /** "Used · 1 cup". */

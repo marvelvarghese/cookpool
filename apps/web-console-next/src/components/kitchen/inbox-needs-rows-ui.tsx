@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "./link";
 import { X } from "lucide-react";
-import type { KitchenAsk, SettlementMethod, SplitReminderInboxItem } from "@saas/contracts/kitchen";
+import type { KitchenAsk, SplitReminderInboxItem } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { MemberNames } from "./members";
@@ -16,24 +16,23 @@ import type { ItemMenuTarget } from "./item-actions-ui";
 import { SwipeRow, type SwipeAction } from "./row-gestures-ui";
 import { useClaimer, useDish, useDishActions } from "./dish-data";
 import { CLAIM_CHOICES, claimableHalf, dishHref, halfText, perPortion, portionsText } from "./dish";
-import { useRecordPayment } from "./settle-card";
-import { SETTLE_METHODS } from "./settle";
+import { settleHref } from "./money-page";
 import { pressIn, usePrefetchKitchen } from "./prefetch";
 import { useKitchenRouter } from "./transition-ui";
 import { pillClass } from "./new-home-parts-ui";
 import { reminderSplitHref, reminderSub, reminderTitle } from "./cooked";
 import { useDismissSplitReminder } from "./cooked-data";
 import { useCancelAsk } from "./ask-data";
-import { cancelledMeta, claimedMeta, foodButton, mineRowText, paidMeta, usedMeta, type NeedsTodo } from "./inbox-needs";
+import { cancelledMeta, claimedMeta, foodButton, mineRowText, usedMeta, type NeedsTodo } from "./inbox-needs";
 import { NEEDS_CHIP, NeedsBadge, NeedsChips, NeedsRow } from "./inbox-row-ui";
 
 /**
  * The rows of Home's Needs you (cookpool-revamp RV-15, the canvas's
  * `HomeRevamp`) other than the asks (`AskRow`): an open dish ("I had some"
- * opens ½ 1 1½ 2), Pay X (Paid opens UPI · Cash · Bank), food to use (its
+ * opens ½ 1 1½ 2), Pay X (Paid opens the one Settle up), food to use (its
  * amount, or Used once past its date), your dish to split or finalize, a
  * split reminder, your own ask that waits (Cancel), and a flag (Open). A
- * pick, a payment or a use is written at once with the Undo toast, and the
+ * pick or a use is written at once with the Undo toast, and the
  * row stays, dimmed, saying what was done, with its own Undo.
  */
 
@@ -226,61 +225,24 @@ function ClaimReady(props: TodoRowProps & { dish: NonNullable<ReturnType<typeof 
   );
 }
 
-// ── Pay X: Paid → UPI · Cash · Bank ────────────────────────────────
+// ── Pay X: Paid → the one Settle up (RV-17's `/money/settle`), back to Home ──
 
 function PayRow(props: TodoRowProps) {
-  const { todo, meId, onDone, onUndone } = props;
-  const record = useRecordPayment();
-  const [open, setOpen] = React.useState(false);
+  const { todo } = props;
   if (todo.action.kind !== "pay") return null;
   const action = todo.action;
-  const pick = (method: Extract<SettlementMethod, "upi" | "cash" | "bank">, label: string) => {
-    if (!meId) return;
-    setOpen(false);
-    // Recorded at once (SM-5): the row dims with Undo before the server answers; a refusal puts it back and says why.
-    let undo: (() => void) | null = null;
-    const sent = record({
-      orgId: action.orgId,
-      payment: { fromSubjectId: meId, toSubjectId: action.toSubjectId, amountMinor: action.amountMinor },
-      currency: action.currency,
-      method,
-      onUndoable: (u) => {
-        undo = u;
-      },
-      onRestore: onUndone,
-    });
-    const pressUndo = undo as (() => void) | null;
-    onDone({ meta: paidMeta(action.amountMinor, action.currency, label), undo: pressUndo });
-    void sent.then((ok) => {
-      if (!ok) onUndone();
-    });
-  };
   return (
     <Row
       {...props}
       end={
         action.canRecord ? (
-          <button
-            type="button"
-            aria-expanded={open}
-            disabled={!meId}
-            aria-label={open ? "Close" : `Paid: ${formatMinor(action.amountMinor, action.currency)} to ${action.toLabel} in ${action.groupName}`}
-            onClick={() => setOpen((o) => !o)}
+          <Link
+            href={settleHref(action.orgId, action.toSubjectId, "/home")}
+            aria-label={`Paid: ${formatMinor(action.amountMinor, action.currency)} to ${action.toLabel} in ${action.groupName}`}
             className={pillClass("main")}
           >
-            {open ? "Close" : "Paid"}
-          </button>
-        ) : null
-      }
-      below={
-        open ? (
-          <NeedsChips label="How you paid" cols={3}>
-            {SETTLE_METHODS.map((m) => (
-              <button key={m.id} type="button" onClick={() => pick(m.id, m.label)} className={NEEDS_CHIP}>
-                {m.label}
-              </button>
-            ))}
-          </NeedsChips>
+            Paid
+          </Link>
         ) : null
       }
     />

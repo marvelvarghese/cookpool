@@ -1381,3 +1381,40 @@ The 13 Nov re-audit's "TASK RV-24" section, console only: no routes, no migratio
 - `kitchen-dish-maker.test.ts` and `kitchen-community-posts.test.ts` are touched by this task and may be by RV-24/RV-23: merge by hand if they clash.
 
 **Deploy.** Only the console changes; there is no package or worker to redeploy.
+
+### RV1 — Revamp leftovers (RV-26)
+
+The last small gaps after RV-23..RV-25. Console only; no routes, no migrations.
+
+**Built**
+- **Amount box edge:** the open amount box in `tick-row-ui.tsx` and the run's amount and price boxes in `list-run-ui.tsx` use `border-[hsl(var(--cp-box))]` (RV-23's token: #E4DED4 light, #262626 dark). The invalid edge (`border-cp-expired`) and the matched price box (no edge, on the tint) are unchanged.
+- **Page gutter on full-bleed strips:** `-mx-4 … px-4` becomes `-mx-[var(--cp-gutter,1rem)] … px-[var(--cp-gutter,1rem)]` on the sticky bars of `list-run-ui.tsx`, `shopping-run-ui.tsx`, `plan-views.tsx`, `recipe-link-views.tsx`, `now-strip-ui.tsx` and both of `community-post-ui.tsx`; and on the scrollers of `new-home-parts-ui.tsx` (Cook now), `cook-hub-views.tsx`, `explore-views.tsx`, `quick-use-ui.tsx`, `now-strip-ui.tsx`, `use/page.tsx` and `pantry/page.tsx`. The fallback is 1rem, which is today's frame's `px-4`, so today's frame is unchanged. The `-mx-4` inside sheets (`add-sheet.tsx`, `always-have-ui.tsx`, `dish-maker-ui.tsx`, `kitchen-money-ui.tsx`) matches the sheet's own `px-4` and stays.
+- **Home's Paid goes through the one settle path:** the Needs you Pay row's **Paid** is a link to `settleHref(orgId, toSubjectId, "/home")` (RV-17's `/money/settle`), with the same pill and aria label. The in-row UPI · Cash · Bank chips and the in-row recording are gone. `safeSettleBack` now also allows exactly `/home`, so Back and Done return to Home. `onUndoable` is removed from `useRecordPayment` (`settle-card.tsx`); nothing else used it. `paidMeta` (`inbox-needs.ts`) had no caller left and is removed.
+- **The rest** in the amount picker (`amount-picker-ui.tsx`) is a plain chip with no dashed border: `bg-muted`, and on the accent tint when chosen.
+- **The item history scales units** (`item-use.ts`, new `historyQty`): g and ml give way to kg and L from a thousand ("Meera added 1 L", "You · 1.5 L"); a unit of its own (pcs, pack, kg, L) is kept. This covers the purchase row, every move, and the stock check and approved-ask lines.
+- **Likes, not yums (copy only; `yum` data names, routes and the `kitchen.yum` kind stay):** the post page's button says "Like", "1 like", "12 likes" (`yumLabel`); Activity says "Meera and 11 others liked your Chicken curry" and, when empty, "Follows, likes and comments show here"; the refusal toast says "Couldn't like it" / "Pick a handle to like posts"; the notification setting is "Likes", "Meera liked your Chicken curry".
+- **Expired bar:** `bg-[hsl(var(--cp-expired-bar))]` with no fallback (`kitchen-staples-ui.tsx`).
+
+**Departures**
+- Home's Paid no longer records a payment in the row with its own Undo. It opens Settle up, which records it and returns to Home. This follows the one-settle-path decision.
+- The `-mx-4` gutter fix goes further than the three files named: every main-column strip in the kitchen components and pages. The sheets keep theirs (see above).
+
+**Pins changed** (`tests/web-console-next`)
+- `kitchen-revamp-rv17.test.ts`: `/home` moved from the bad backs to the good ones (`safeSettleBack("/home")` → `"/home"`, plus `settleHref(…, "/home")`); `/home/x` and `/homes` are new bad backs. `inbox-needs-rows-ui.tsx` joins the files that settle only through Settle up, and must contain `settleHref(action.orgId, action.toSubjectId, "/home")`.
+- `kitchen-revamp-rv15.test.ts`: the `paidMeta` pin is removed along with the function.
+- `kitchen-community-posts.test.ts`: `yumLabel` "Yum" → "Like" and "Yum · 12" → "12 likes" (new: "1 like"); Activity "said Yum to your Chicken curry" → "liked your Chicken curry"; push titles "Yums" → "Likes". In the `postNumbers` fixtures, the `yum.label` inputs follow.
+- `notify.test.ts`: `["kitchen.yum", "Yums"]` → `"Likes"`.
+- New: `kitchen-item-use.test.ts` "scales its amounts (RV-26)" (1 L, 1.5 L, 250 ml, 1 kg, 500 g, 2 pcs); `kitchen-revamp-rv26.test.ts` (15): the cp-box edges, 12 files on the gutter with no `-mx-4`, The rest without a dash, the expired bar, and no `onUndoable` in `settle-card.tsx`.
+
+**Tests.** `tests/web-console-next`: 132 suites, 2,608 tests, all passing. Typecheck and lint pass for `@saas/web-console-next` and `@saas/web-console-next-tests`. `console-artifact.mjs build` passes: 46 pages served as files.
+
+**Browser check** (390 × 844, light and dark). `next dev` on 46830 ran behind a copy of the re-audit mock, never committed, on `cookpool-stage.localhost:46831`. The copy added one Milk move. The resource log listed only that host. Both servers are stopped.
+- Home (light and dark): Needs you's Pay Dev Patel shows the same green Paid pill. It links to `/money/settle?group=…&to=…&back=%2Fhome`, and Settle up's Back returned to `/home`. The mock has no Settle up data, so that screen showed its error card.
+- Kitchen: the Milk amount box's edge computed to rgb(228, 222, 212) in light and rgb(38, 38, 38) in dark.
+- Milk's item page: the history reads "Meera added 1 L". More opens the picker, where The rest has a 0 px border on `bg-muted`.
+- The shopping run's sticky bar spans 0–390 px with 18 px padding.
+
+**Follow-ups**
+- The push text itself still says "Meera said Yum to your Chicken curry" (`apps/notifications-worker/src/templates/push.ts`, and the comment in `apps/kitchen-worker/src/social-push.ts`). This task is console-only. A notifications-worker change (and its redeploy) would finish the likes wording.
+
+**Deploy.** Only the console changes; there is no package or worker to redeploy.

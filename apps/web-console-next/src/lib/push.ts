@@ -53,7 +53,7 @@ export const PUSH_ROWS: readonly { kind: NotificationKind; title: string; exampl
   { kind: "kitchen.followed", title: "New followers", example: "Sam started following you", newFrameOnly: true },
   { kind: "kitchen.follow_request", title: "Follow requests", example: "Priya wants to follow you", newFrameOnly: true },
   { kind: "kitchen.commented", title: "Comments", example: "Kabir commented: Roast the spices first…", newFrameOnly: true },
-  { kind: "kitchen.yum", title: "Yums", example: "Meera said Yum to your Chicken curry", newFrameOnly: true },
+  { kind: "kitchen.yum", title: "Likes", example: "Meera liked your Chicken curry", newFrameOnly: true },
   { kind: "kitchen.cooked_yours", title: "Cooked your recipe", example: "Dev cooked your Chicken curry · 1 kg", newFrameOnly: true },
   // Spliteco's (cookpool-spliteco SE2, SE5), listed here since SE3: the one
   // account's push switches, for money in any group.

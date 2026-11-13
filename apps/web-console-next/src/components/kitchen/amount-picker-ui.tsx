@@ -14,7 +14,7 @@ const CHIP =
 /**
  * The amount with unit chips (cookpool-pantry PN-11, the canvas's
  * AmountPicker): `− [ amount unit ] +` with its reason under it, then the
- * item's own measures and its plain units as chips, and a dashed The rest.
+ * item's own measures and its plain units as chips, and The rest (RV-26: no dashed edge).
  * Tapping the number lets you type it. Shared by the open row, the More…
  * sheet and the item page; the pick is the caller's (the device's draft).
  */
@@ -111,7 +111,7 @@ export function AmountPicker({
           type="button"
           aria-pressed={view.rest}
           onClick={() => onPick(pickRest(pick))}
-          className={cn(CHIP, "border-[1.5px] border-dashed", view.rest ? "border-primary bg-cp-accent-tint text-cp-accent-text" : "border-muted-foreground/60 bg-transparent text-muted-foreground hover:bg-muted")}
+          className={cn(CHIP, view.rest ? "bg-cp-accent-tint text-cp-accent-text" : "bg-muted text-foreground hover:bg-muted/70")}
         >
           The rest
         </button>

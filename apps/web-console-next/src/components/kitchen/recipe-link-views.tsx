@@ -102,7 +102,7 @@ function LinkSaveBar({
   return (
     <div
       data-toast-above=""
-      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-4 flex flex-col gap-2 bg-background px-4 pb-2 pt-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:bg-transparent min-[900px]:px-0"
+      className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 -mx-[var(--cp-gutter,1rem)] flex flex-col gap-2 bg-background px-[var(--cp-gutter,1rem)] pb-2 pt-3 min-[900px]:bottom-6 min-[900px]:mx-0 min-[900px]:bg-transparent min-[900px]:px-0"
     >
       {save.kind === "save" ? (
         <button type="button" onClick={onSave} className={cn(MAIN, "bg-primary text-primary-foreground hover:bg-primary/90")}>

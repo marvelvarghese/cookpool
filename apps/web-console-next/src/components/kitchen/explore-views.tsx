@@ -137,7 +137,7 @@ export function ExploreView({
         </span>
       </button>
 
-      <div role="group" aria-label="Kind" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0 [&::-webkit-scrollbar]:hidden">
+      <div role="group" aria-label="Kind" className="-mx-[var(--cp-gutter,1rem)] flex gap-2 overflow-x-auto px-[var(--cp-gutter,1rem)] pb-0.5 [scrollbar-width:none] min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:px-0 [&::-webkit-scrollbar]:hidden">
         {EXPLORE_KINDS.map((k) => (
           <button
             key={k.id}

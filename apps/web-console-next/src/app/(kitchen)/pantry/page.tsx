@@ -353,7 +353,7 @@ function PhoneChips({
       on ? "border-foreground bg-foreground font-bold text-background" : "border-input bg-card font-semibold hover:bg-accent",
     );
   return (
-    <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:overflow-visible min-[900px]:px-0">
+    <div className="scrollbar-none -mx-[var(--cp-gutter,1rem)] flex gap-2 overflow-x-auto px-[var(--cp-gutter,1rem)] min-[900px]:mx-0 min-[900px]:flex-wrap min-[900px]:overflow-visible min-[900px]:px-0">
       <div role="group" aria-label="Show" className="flex shrink-0 gap-2">
         {filterChips(summary).map((c) => (
           <button key={c.id} type="button" aria-pressed={c.id === filter} onClick={() => onFilter(c.id)} className={chip(c.id === filter)}>

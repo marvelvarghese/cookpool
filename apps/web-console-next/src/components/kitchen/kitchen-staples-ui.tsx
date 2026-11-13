@@ -102,8 +102,8 @@ export function PantrySwitcher({ title, options, onPick }: { title: string; opti
 
 // ── The stock bar ─────────────────────────────────────────────────
 
-// The expired bar is RV-23's `cp-expired-bar` token, with the expired colour as its fallback until that lands.
-const BAR_TONE: Record<StockTone, string> = { ok: "bg-primary", low: "bg-cp-soon", expired: "bg-[hsl(var(--cp-expired-bar,var(--cp-expired)))]" };
+// The expired bar is RV-23's `cp-expired-bar` token.
+const BAR_TONE: Record<StockTone, string> = { ok: "bg-primary", low: "bg-cp-soon", expired: "bg-[hsl(var(--cp-expired-bar))]" };
 
 export function StockBar({ pct, tone, text }: { pct: number; tone: StockTone; text: string }) {
   return (

@@ -223,13 +223,14 @@ export function yumToggled(yums: PostYums, on: boolean): PostYums {
   return { ...yums, mine: on, count: Math.max(0, yums.count + (on ? 1 : -1)) };
 }
 
-/** The Yum button's words: "Yum · 12". */
+/** The like button's words (a Yum is a like in the words, RV-26): "12 likes", "1 like", "Like". */
 export function yumLabel(yums: Pick<PostYums, "count">): string {
-  return yums.count > 0 ? `Yum · ${yums.count}` : "Yum";
+  if (yums.count <= 0) return "Like";
+  return yums.count === 1 ? "1 like" : `${yums.count} likes`;
 }
 
 /**
- * Who said Yum, on a post's page: "Dev, Meera and 10 others", "You and Dev",
+ * Who liked it, on a post's page: "Dev, Meera and 10 others", "You and Dev",
  * "You". Your own name (when the server names you) isn't repeated. Null for
  * nobody.
  */

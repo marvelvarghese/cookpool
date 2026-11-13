@@ -264,7 +264,7 @@ export function ShoppingRun() {
       {/* The one main button, in thumb reach (SM-15), above the tab bar. */}
       <div
         data-toast-above=""
-        className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 -mx-4 flex flex-col gap-2 bg-gradient-to-t from-background from-[78%] to-transparent px-4 pb-1 pt-3 min-[900px]:static min-[900px]:mx-0 min-[900px]:max-w-sm min-[900px]:bg-none min-[900px]:px-0"
+        className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 -mx-[var(--cp-gutter,1rem)] flex flex-col gap-2 bg-gradient-to-t from-background from-[78%] to-transparent px-[var(--cp-gutter,1rem)] pb-1 pt-3 min-[900px]:static min-[900px]:mx-0 min-[900px]:max-w-sm min-[900px]:bg-none min-[900px]:px-0"
       >
         <p className="text-center text-[13px] font-normal text-muted-foreground">{footer.problem ?? "Paid by you · each goes to its own pantry"}</p>
         <Button

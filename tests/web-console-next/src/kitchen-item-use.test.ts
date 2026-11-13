@@ -7,6 +7,7 @@ import {
   amountStep,
   canUndoMove,
   costPerText,
+  historyQty,
   historyRows,
   initialAmount,
   isUnused,
@@ -292,6 +293,18 @@ describe("history", () => {
     ]);
     expect(rows[0]!.when).toBe("2 h ago");
     expect(rows[3]!.when).toBe("28 Oct");
+  });
+
+  it("scales its amounts (RV-26): 1 L, not 1000 ml", () => {
+    const milk = makeItem({ unit: "ml", bought: "1000", paidBy: MEERA, createdBy: MEERA });
+    const moves = [
+      makeMove({ kind: "use", consumers: [ME], actor: ME, qtyMilli: 1_500_000, quantity: 1500, unit: "ml", costMinor: 0 }),
+      makeMove({ kind: "use", consumers: [ME], actor: ME, qtyMilli: 250_000, quantity: 250, unit: "ml", costMinor: 0 }),
+    ];
+    expect(historyRows(moves, { item: milk, meId: ME, names: NAMES, now }).map((r) => r.what)).toEqual(["You · 1.5 L", "You · 250 ml", "Meera added 1 L"]);
+    expect(historyQty(1_000_000, "mass", "g")).toBe("1 kg");
+    expect(historyQty(500_000, "mass", "kg")).toBe("500 g");
+    expect(historyQty(2_000, "count", "pcs")).toBe("2 pcs");
   });
 
   it("marks what was undone, says what an undo put back, and names a different payer", () => {

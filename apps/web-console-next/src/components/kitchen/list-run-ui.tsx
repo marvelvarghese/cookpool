@@ -231,7 +231,7 @@ export function ListRun() {
       {/* Paid by and the one main button, in thumb reach, at the screen's bottom (no tab bar here). */}
       <div
         data-toast-above=""
-        className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 -mx-4 flex flex-col gap-2.5 bg-gradient-to-t from-background from-[78%] to-transparent px-4 pb-1 pt-7 min-[900px]:static min-[900px]:mx-0 min-[900px]:max-w-sm min-[900px]:bg-none min-[900px]:px-0 min-[900px]:pt-0"
+        className="sticky bottom-[var(--cp-bottom-bar,calc(env(safe-area-inset-bottom)+5.75rem))] z-30 -mx-[var(--cp-gutter,1rem)] flex flex-col gap-2.5 bg-gradient-to-t from-background from-[78%] to-transparent px-[var(--cp-gutter,1rem)] pb-1 pt-7 min-[900px]:static min-[900px]:mx-0 min-[900px]:max-w-sm min-[900px]:bg-none min-[900px]:px-0 min-[900px]:pt-0"
       >
         {view.payers.length > 1 ? (
           <div role="group" aria-labelledby="paid-h" className="flex items-center gap-2">
@@ -343,7 +343,7 @@ function RunRowLine({
             {row.note ? <span className="truncate text-xs font-normal text-muted-foreground">{row.note}</span> : null}
           </span>
         </button>
-        <div className={cn(BOX, "gap-0.5 pl-2 pr-0.5", row.qtyInvalid ? "border-cp-expired" : "border-border")}>
+        <div className={cn(BOX, "gap-0.5 pl-2 pr-0.5", row.qtyInvalid ? "border-cp-expired" : "border-[hsl(var(--cp-box))]")}>
           <input
             type="text"
             inputMode="decimal"
@@ -367,7 +367,7 @@ function RunRowLine({
             {row.units.length > 1 ? <ChevronDown className="h-[11px] w-[11px]" strokeWidth={2.4} aria-hidden /> : null}
           </button>
         </div>
-        <div className={cn(BOX, "gap-0.5 px-2", row.matched ? "border-transparent bg-cp-accent-tint" : "border-border")}>
+        <div className={cn(BOX, "gap-0.5 px-2", row.matched ? "border-transparent bg-cp-accent-tint" : "border-[hsl(var(--cp-box))]")}>
           <span aria-hidden className="text-[15px] font-normal text-muted-foreground">
             ₹
           </span>

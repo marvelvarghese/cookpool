@@ -143,7 +143,7 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
                   ? "border-cp-expired bg-card"
                   : picked
                     ? "border-transparent bg-transparent focus-within:ring-2 focus-within:ring-ring"
-                    : "border-border bg-card focus-within:ring-2 focus-within:ring-ring",
+                    : "border-[hsl(var(--cp-box))] bg-card focus-within:ring-2 focus-within:ring-ring",
             )}
           >
             <input

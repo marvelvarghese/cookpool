@@ -107,7 +107,7 @@ export function HomeCookNow() {
           All
         </Link>
       </div>
-      <ul className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 pt-0.5 [scrollbar-width:none] min-[900px]:mx-0 min-[900px]:px-0 [&::-webkit-scrollbar]:hidden">
+      <ul className="-mx-[var(--cp-gutter,1rem)] flex gap-2.5 overflow-x-auto px-[var(--cp-gutter,1rem)] pb-2 pt-0.5 [scrollbar-width:none] min-[900px]:mx-0 min-[900px]:px-0 [&::-webkit-scrollbar]:hidden">
         {entries.map((e) => {
           const tile = recipeTile(e.recipe);
           const tag = cookNowTag(e);
