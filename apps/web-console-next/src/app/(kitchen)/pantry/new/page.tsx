@@ -7,6 +7,7 @@ import { ChevronDown, History, Plus } from "lucide-react";
 import type { KitchenItem, KitchenMeasureInput, Pantry } from "@saas/contracts/kitchen";
 import { UNITS } from "@saas/kitchen-engine/units";
 import { MeasureDrawer } from "@/components/kitchen/measure-drawer-ui";
+import { PayerPicker } from "@/components/kitchen/payer-picker-ui";
 import { measureInputs, measureRow, measuresOf } from "@/components/kitchen/measures";
 import { useSetMeasures } from "@/components/kitchen/measures-data";
 import { cn } from "@/lib/cn";
@@ -18,7 +19,6 @@ import { useProfile } from "@/components/kitchen/data";
 import { KCard, K_BUTTON_QUIET, K_INPUT, K_TITLE } from "@/components/kitchen/kit";
 import { BackButton } from "@/components/kitchen/back-ui";
 import { Chip } from "@/components/kitchen/ledger-ui";
-import { memberLabel } from "@/components/kitchen/members";
 import { currencyPrefix } from "@/components/kitchen/money";
 import { canManageGroup, roleFromKitchen } from "@/components/kitchen/groups";
 import { useMemberNames, useMyRoles } from "@/components/kitchen/people-data";
@@ -40,7 +40,6 @@ import {
   USE_BY_CHOICES,
   addMainLabel,
   boughtSections,
-  chipWindow,
   firstItemError,
   initialItemForm,
   localIsoDay,
@@ -155,7 +154,6 @@ function AddItemForm({
   // Measures added here (KC-3), saved for the item once it is added.
   const [newMeasures, setNewMeasures] = React.useState<KitchenMeasureInput[]>([]);
   const unitDimension = UNITS[form.unit].dimension;
-  const [morePayers, setMorePayers] = React.useState(false);
   const [showErrors, setShowErrors] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
@@ -184,7 +182,6 @@ function AddItemForm({
     const fill = historyFill(entry, form, { today, pantries, fallbackPantry: start, meId });
     setServerFields({});
     setServerError(null);
-    setMorePayers(false);
     setForm(fill.form);
     setFilled(true);
     setDateOpen(false);
@@ -219,7 +216,6 @@ function AddItemForm({
   }, [members.data, form.paidBy, meId]);
 
   const roster = React.useMemo(() => (members.data ?? []).map((m) => m.subjectId), [members.data]);
-  const payerChips = chipWindow(roster, { meId, names, chosen: form.paidBy ? [form.paidBy] : [], expanded: morePayers, max: 5 });
   const myRole = roleFromKitchen(members.data?.find((m) => m.subjectId === meId)?.role);
   // Who can use it (cookpool-pantry PN-9, design §8.1): a group item you pay for, in the new frame.
   const [askDraft, setAskDraft] = React.useState<AskDraft>(() => (from?.askFirst ? askDraftOf(from) : NEW_ASK_DRAFT));
@@ -286,7 +282,6 @@ function AddItemForm({
                 aria-pressed={on}
                 selected={on}
                 onClick={() => {
-                  setMorePayers(false);
                   update({ pantry: key });
                 }}
               >
@@ -458,18 +453,7 @@ function AddItemForm({
             <Skeleton className="h-11 w-24 rounded-full" />
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {(payerChips.shown.length > 0 ? payerChips.shown : meId ? [meId] : []).map((id) => (
-              <Chip key={id} aria-pressed={form.paidBy === id} selected={form.paidBy === id} onClick={() => update({ paidBy: id })}>
-                {memberLabel(id, meId, names)}
-              </Chip>
-            ))}
-            {payerChips.more > 0 ? (
-              <Chip onClick={() => setMorePayers(true)} className="text-muted-foreground">
-                {payerChips.more} more
-              </Chip>
-            ) : null}
-          </div>
+          <PayerPicker roster={roster.length > 0 ? roster : meId ? [meId] : []} paidBy={form.paidBy} onPick={(id) => update({ paidBy: id })} meId={meId} names={names} groupName={group?.name ?? "the group"} />
         )}
         <FieldError id="item-payer-error" message={err("paidBy")} />
       </fieldset>
