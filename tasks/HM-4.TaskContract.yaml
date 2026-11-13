@@ -1,0 +1,13 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: HM-4
+  title: "Close the cookpool-home epic"
+spec:
+  goal: "The doc set records every milestone as shipped with its PR."
+  affects:
+    - specs/epics/cookpool-home/**
+    - tasks/HM-4.TaskContract.yaml
+  doneWhen:
+    - "IMPLEMENTATION-STATUS lists HM0-HM2 with their PRs and the README reads Shipped"
+  gates: []
