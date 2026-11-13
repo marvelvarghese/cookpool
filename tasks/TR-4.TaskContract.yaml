@@ -1,0 +1,27 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-4
+  title: "Tripeco: odometer from a photo"
+spec:
+  goal: "POST /v1/kitchen/me/ai/odometer reads the odometer, Trip A and the car's average from one photo on kitchen-worker's AI runner, counted as a receipt, writing nothing."
+  affects:
+    - default/cookpool/kitchen-worker
+    - default/cookpool/kitchen-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - apps/kitchen-worker/**
+    - tests/kitchen-worker/**
+    - packages/contracts/**
+    - tests/contracts/**
+    - packages/sdk/**
+    - apps/tripeco-worker/component.yaml
+    - apps/spliteco-worker/component.yaml
+    - apps/api-edge/component.yaml
+    - specs/epics/tripeco/**
+    - tasks/TR-4.TaskContract.yaml
+  doneWhen:
+    - "A dashboard photo returns the odometer, and Trip A and the average when shown, writing nothing"
+    - "A photo with no odometer returns nulls, and the daily receipt cap applies to odometer reads"
+  gates: []

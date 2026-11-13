@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-7
+  title: "Tripeco: rides in Spliteco"
+spec:
+  goal: "A Tripeco ride in Spliteco shows the car mark and the lock, opens a sheet with its line and photos, and Edit in Tripeco opens the ride."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - default/cookpool/spliteco-ui
+    - default/cookpool/sdk
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - packages/spliteco-ui/**
+    - packages/sdk/**
+    - apps/web-console-next/component.yaml
+    - specs/epics/tripeco/**
+    - tasks/TR-7.TaskContract.yaml
+  doneWhen:
+    - "A ride row in a Spliteco group shows the car mark and lock and opens its photos"
+    - "Edit in Tripeco opens that ride in Tripeco on the same environment"
+  gates: []

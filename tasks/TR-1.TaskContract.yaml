@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-1
+  title: "The tripeco spec"
+spec:
+  goal: "The tripeco doc set and its eight contracts are on main."
+  affects:
+    - specs/epics/tripeco/**
+    - tasks/TR-*.TaskContract.yaml
+  doneWhen:
+    - "README, design, implementation-plan, risks and IMPLEMENTATION-STATUS are under specs/epics/tripeco"
+    - "tasks/TR-1..TR-8 contracts are on main"
+  gates: []

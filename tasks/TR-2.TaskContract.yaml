@@ -1,0 +1,42 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-2
+  title: "Tripeco: vehicles, fuel, rides"
+spec:
+  goal: "Migration 610, the drive maths, tripeco-worker behind api-edge at /v1/tripeco, the contracts and the SDK let an owner keep vehicles, a fuel log and rides, with mileage learned from full tanks."
+  affects:
+    - default/cookpool/tripeco-worker
+    - default/cookpool/tripeco-worker-tests
+    - default/cookpool/db
+    - default/cookpool/db-tests
+    - default/cookpool/db-migrate
+    - default/cookpool/kitchen-engine
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - apps/tripeco-worker/**
+    - tests/tripeco-worker/**
+    - packages/db/**
+    - tests/db/**
+    - infra/db-migrate/**
+    - packages/kitchen-engine/**
+    - packages/contracts/**
+    - tests/contracts/**
+    - packages/sdk/**
+    - apps/api-edge/**
+    - tests/api-edge/**
+    - apps/kitchen-worker/component.yaml
+    - apps/spliteco-worker/component.yaml
+    - apps/web-console-next/component.yaml
+    - apps/spliteco-web/component.yaml
+    - pnpm-lock.yaml
+    - specs/epics/tripeco/**
+    - tasks/TR-2.TaskContract.yaml
+  doneWhen:
+    - "A vehicle, a fill-up and a ride round-trip through api-edge on stage"
+    - "Two full tanks make the learned mileage, and a part fill counts toward the next full one"
+    - "Every Tripeco row is its owner's only: another account gets 404"
+  gates: []

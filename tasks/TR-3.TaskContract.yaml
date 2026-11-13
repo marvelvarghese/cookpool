@@ -1,0 +1,33 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-3
+  title: "Tripeco: a ride posts to Spliteco"
+spec:
+  goal: "A done ride posts into a Spliteco group through spliteco-worker as one locked exact-split expense, can be undone and reposted, and its proof is readable by the group."
+  affects:
+    - default/cookpool/tripeco-worker
+    - default/cookpool/tripeco-worker-tests
+    - default/cookpool/spliteco-worker
+    - default/cookpool/spliteco-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/api-edge
+    - apps/tripeco-worker/**
+    - tests/tripeco-worker/**
+    - apps/spliteco-worker/**
+    - tests/spliteco-worker/**
+    - packages/contracts/**
+    - tests/contracts/**
+    - packages/sdk/**
+    - apps/api-edge/component.yaml
+    - apps/spliteco-web/component.yaml
+    - apps/web-console-next/component.yaml
+    - specs/epics/tripeco/**
+    - tasks/TR-3.TaskContract.yaml
+  doneWhen:
+    - "A posted ride is one exact-split expense in the group and moves its balances"
+    - "Spliteco refuses to edit, delete or move it (409 owned_by_tripeco); Tripeco's unpost removes it and a repost edits it"
+    - "A member of the group reads the ride's proof; anyone else gets 404"
+  gates: []
