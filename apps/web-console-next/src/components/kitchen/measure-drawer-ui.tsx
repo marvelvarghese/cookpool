@@ -47,6 +47,7 @@ export function MeasureDrawer({
   add = null,
   title = "Measure",
   saveLabel = "Save and use",
+  footer = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -61,6 +62,8 @@ export function MeasureDrawer({
   title?: string;
   /** New measure's button: "Save and use" where it is picked, "Add measure" where it is only kept. */
   saveLabel?: string;
+  /** One more control under everything (the shopping list's Take off the list). */
+  footer?: React.ReactNode;
 }) {
   const [adding, setAdding] = React.useState(false);
   const [word, setWord] = React.useState("");
@@ -162,6 +165,7 @@ export function MeasureDrawer({
             </div>
           </div>
         ) : null}
+        {footer ? <div className="mt-4 flex justify-center">{footer}</div> : null}
       </SheetContent>
     </Sheet>
   );
