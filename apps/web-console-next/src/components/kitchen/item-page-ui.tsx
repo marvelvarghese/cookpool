@@ -16,7 +16,9 @@ import { defaultConsumers } from "./quick-use";
 import { cookHref } from "./dish-maker";
 import { localIsoDay } from "./item-form";
 import { shortMoney } from "./from-before";
-import { leftText } from "./pantry";
+import { barTone, boughtText, leftPercent, leftText } from "./pantry";
+import { StockBar } from "./pantry-ui";
+import { memberLabel } from "./members";
 import { runOutEstimate, whoHadIt } from "./item-use";
 import { useAskToUse, useAsks, useCancelAsk, useMinuteNow } from "./ask-data";
 import { askButtonText, askName, askStatus } from "./ask-before-use";
@@ -45,9 +47,6 @@ export interface ItemPartsCtx {
   usual: KitchenUsual | null;
 }
 
-/** A quiet button beside the chips: the actions row. */
-const ACTION =
-  "flex min-h-12 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-card px-2.5 text-sm font-medium text-foreground shadow-cp-card transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** The ring's colour (RV-3, the board): ink while there is plenty, amber when low or use soon, red once expired. */
 const RING_STROKE: Record<RingTone, string> = { ok: "stroke-foreground", low: "stroke-cp-soon", expired: "stroke-cp-expired" };
@@ -95,6 +94,49 @@ export function LevelRingCard({ item, usual, meId, names }: Pick<ItemPartsCtx, "
         </span>
         {lines.worth ? <span className="text-sm font-normal tabular-nums text-muted-foreground">{lines.worth}</span> : null}
       </span>
+    </section>
+  );
+}
+
+// ── The calm top (cookpool-kitchen-calm KC-4) ───────────────────────────
+
+/**
+ * Whose it is and where (KC-4, the canvas's `Item`): your face or the
+ * payer's, then "Asha's · Flat 4B" (or "Yours"), opening the group.
+ */
+export function ItemOwnerChip({ item, meId, names }: Pick<ItemPartsCtx, "item" | "meId" | "names">) {
+  const group = item.pantry.kind === "group" ? item.pantry : null;
+  const mine = !group || item.paidBy === meId;
+  const owner = mine ? "Yours" : `${memberLabel(item.paidBy, meId, names)}'s`;
+  const label = group ? `${owner} · ${group.name}` : "Yours · your kitchen";
+  const body = (
+    <>
+      <Face subjectId={item.paidBy} meId={meId} names={names} className="h-6 w-6 text-[11px] font-medium" />
+      <span className="truncate">{label}</span>
+    </>
+  );
+  const cls = "flex min-h-8 max-w-full items-center gap-2 self-start rounded-full bg-card py-1 pl-1 pr-3 text-[13px] font-medium text-foreground shadow-cp-card";
+  return group ? (
+    <Link href={`/groups/${group.slug}`} className={cn(cls, "hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}>
+      {body}
+    </Link>
+  ) : (
+    <span className={cls}>{body}</span>
+  );
+}
+
+/** How much is left (KC-4): "1.2 kg", "of 2 kg · lasts till Tue", one bar — in place of the ring, Runs out and its own card. */
+export function ItemLevel({ item, moves }: { item: KitchenItem; moves: readonly KitchenStockMove[] | null }) {
+  const now = React.useMemo(() => new Date(), []);
+  const estimate = moves ? runOutEstimate(moves, item, now) : null;
+  const rest = [`of ${boughtText(item)}`, estimate?.short ?? null].filter(Boolean).join(" · ");
+  return (
+    <section aria-label="How much is left" className="flex flex-col gap-3 px-1">
+      <p className="flex flex-wrap items-baseline gap-x-2 tabular-nums">
+        <span className="text-[22px] font-medium">{item.qtyLeftMilli > 0 ? leftText(item) : "None left"}</span>
+        {item.qtyLeftMilli > 0 ? <span className="text-[15px] text-muted-foreground">{rest}</span> : null}
+      </p>
+      <StockBar percent={leftPercent(item)} tone={barTone(item)} thick />
     </section>
   );
 }
@@ -165,10 +207,11 @@ export function QuickUse({ itemRef, item, usual, roster, meId, names }: ItemPart
         <button
           type="button"
           aria-haspopup="dialog"
+          aria-label="Other amount"
           onClick={() => setSheet({ row, item: { ...item, canUse: true }, usual })}
-          className={cn(QUICK, "col-start-4 bg-cp-accent-tint text-cp-accent-text hover:bg-cp-accent-tint/80")}
+          className={cn(QUICK, "col-start-4 bg-card text-foreground shadow-cp-card hover:bg-muted/40")}
         >
-          More
+          Other
         </button>
       </div>
       {/* The Pantry's More… sheet (PN-5): the full amount picker, who had it, Log, Finish it, Wasted, Cook with it. */}
@@ -279,47 +322,53 @@ export function ItemActionsRow({ itemRef, item, usual, roster, meId, names, canW
         });
   // At once (SM-5, the board): none left on screen and the Undo toast up before the server answers; it says who was charged.
   const waste = () => void wasteItem({ ref: itemRef, item, meId, idempotencyKey: crypto.randomUUID() });
-  const cook = live && !who;
 
+  type Act = { key: string; label: string; run: () => void; tone: string };
+  const buttons = ([
+    buy ? { key: "buy", label: "Got more", run: () => void buyAgain({ ref: itemRef, item, meId, today: localIsoDay(new Date()), idempotencyKey: crypto.randomUUID() }), tone: "" } : null,
+    live ? { key: "finish", label: who ? "Ask for the rest" : "Finished", run: finish, tone: "" } : null,
+    live && !who ? { key: "waste", label: "Wasted", run: waste, tone: "text-cp-expired" } : null,
+  ] as (Act | null)[]).filter((b): b is Act => b !== null);
+
+  // KC-4 (the canvas's `Item`): one card, the three side by side; Cook with it is the header's pill,
+  // Fix how much is left a quiet link under it.
   return (
     <section aria-label="Actions" className="space-y-1.5">
-      <div className="grid grid-cols-3 gap-2">
-        {buy ? (
-          <button
-            type="button"
-            onClick={() => void buyAgain({ ref: itemRef, item, meId, today: localIsoDay(new Date()), idempotencyKey: crypto.randomUUID() })}
-            className={ACTION}
-          >
-            <span className="truncate">Got more</span>
-          </button>
-        ) : null}
-        {live ? (
-          <button type="button" onClick={finish} className={ACTION}>
-            <span className="truncate">{who ? "Ask for the rest" : "Finish it"}</span>
-          </button>
-        ) : null}
-        {live && !who ? (
-          <button type="button" onClick={waste} className={ACTION}>
-            Wasted
-          </button>
-        ) : null}
-      </div>
-      {check || cook ? (
-        <div className="flex flex-wrap items-center justify-center gap-1">
-          {check ? (
-            <Link href={checkHref(itemRef)} className={SECONDARY_ACTION}>
-              <SlidersVertical className="h-[18px] w-[18px] shrink-0" aria-hidden />
-              <span className="truncate">Fix how much is left</span>
-            </Link>
-          ) : null}
-          {cook ? (
-            <Link href={cookHref(itemRef)} className={SECONDARY_ACTION}>
-              <CookingPot className="h-[18px] w-[18px] shrink-0" aria-hidden />
-              Cook with it
-            </Link>
-          ) : null}
+      {buttons.length > 0 ? (
+        <div className={cn(K_CARD, "flex divide-x divide-border overflow-hidden")}>
+          {buttons.map((b) => (
+            <button
+              key={b.key}
+              type="button"
+              onClick={b.run}
+              className={cn("min-h-[52px] min-w-0 flex-1 truncate px-2 text-[15px] font-medium hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", b.tone || "text-foreground")}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {check ? (
+        <div className="flex justify-center">
+          <Link href={checkHref(itemRef)} className={SECONDARY_ACTION}>
+            <SlidersVertical className="h-[18px] w-[18px] shrink-0" aria-hidden />
+            <span className="truncate">Fix how much is left</span>
+          </Link>
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** Cook with it (KC-4): the header's small pill, where you may cook with it. */
+export function CookWithItPill({ itemRef, item, canWrite, names }: Pick<ItemPartsCtx, "itemRef" | "item" | "names"> & { canWrite: boolean }) {
+  const live = canWrite && item.state === "active" && item.qtyLeftMilli > 0;
+  const who = itemRef.kind === "group" ? askName(item, { names }) : null;
+  if (!live || who) return null;
+  return (
+    <Link href={cookHref(itemRef)} className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-full bg-card px-3.5 text-sm font-medium text-foreground shadow-cp-card hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <CookingPot className="h-4 w-4" aria-hidden />
+      Cook with it
+    </Link>
   );
 }
