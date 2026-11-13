@@ -18,10 +18,12 @@ export function billWritable(e: Bill, canWrite: boolean): boolean {
   return canWrite && !e.locked && e.app !== "cookpool" && e.kind !== "settlement";
 }
 
-export type HoldTile = "edit" | "move" | "comment" | "open";
+export type HoldTile = "edit" | "move" | "comment" | "open" | "ride";
 
 /** The hold sheet's tiles: Edit · Move · Comment for a bill you can change; Open · Comment otherwise (Cookpool's, payments, viewers). */
 export function holdTiles(e: Bill, canWrite: boolean): HoldTile[] {
+  // A Tripeco ride: its proof and Edit in Tripeco, then Comment (tripeco TR-7).
+  if ((e as Partial<Pick<SplitecoExpenseSummary, "source">>).source?.kind === "tripeco") return ["ride", "comment"];
   return billWritable(e, canWrite) ? ["edit", "move", "comment"] : ["open", "comment"];
 }
 
@@ -36,6 +38,7 @@ export function holdHref(tile: HoldTile, expenseId: string): string {
     case "comment":
       return `/expense?id=${id}&comment=1`;
     case "open":
+    case "ride":
       return `/expense?id=${id}`;
   }
 }
@@ -54,7 +57,12 @@ export function billMonths<T extends { occurredAt: string }>(rows: readonly T[],
 }
 
 /** The bill's one meta line: "Dev paid · ₹4,960", "You and Anu paid · ₹2,960", a payment "Meera paid Dev". */
-export function billMeta(e: Pick<SplitecoExpenseSummary, "kind" | "payers" | "splits" | "totalMinor" | "currency">, names: Names, me: string | null): string {
+export function billMeta(e: Pick<SplitecoExpenseSummary, "kind" | "payers" | "splits" | "totalMinor" | "currency"> & Partial<Pick<SplitecoExpenseSummary, "source">>, names: Names, me: string | null): string {
+  // A Tripeco ride (tripeco TR-7): "Tripeco · You paid ₹939".
+  if (e.source?.kind === "tripeco") {
+    const driver = e.payers[0];
+    return `Tripeco · ${driver ? nameOf(names, driver.subjectId, me) : "Someone"} paid ${formatShort(e.totalMinor, e.currency)}`;
+  }
   if (e.kind === "settlement") {
     const to = e.splits.find((s) => s.owedMinor > 0);
     const from = e.payers[0];

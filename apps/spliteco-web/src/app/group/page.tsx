@@ -17,6 +17,8 @@ import { namesFrom, nameOf, type Names } from "@/lib/people";
 import { groupTint } from "@/lib/groups";
 import { signedShort } from "@/lib/home";
 import { UNDO_MS } from "@/lib/delayed";
+import { RideProof } from "@/components/ride-proof";
+import { rideOf } from "@/lib/ride-view";
 import { BillDeletes, billMeta, billMonths, billShare, billWritable, holdHref, holdTiles, planRows, planTitle, type HoldTile } from "@/lib/group-view";
 import { useMe } from "@/lib/me";
 
@@ -293,7 +295,14 @@ function BillRow({
         <CategoryIcon expense={e} size={38} />
         <span className="main">
           <span className="title">{e.title}</span>
-          <span className="sub">{meta}</span>
+          <span className="sub">
+            {rideOf(e) ? (
+              <span style={{ display: "inline-flex", verticalAlign: "-2px", marginRight: 4 }} aria-label="Locked: change it in Tripeco">
+                <Icon name="lock" size={12} />
+              </span>
+            ) : null}
+            {meta}
+          </span>
         </span>
         <span className={`amt ${share.label === "not involved" ? "none" : share.tone}`}>{share.text}</span>
       </Link>
@@ -306,10 +315,26 @@ const TILE: Record<HoldTile, { label: string; icon: string; cls: string }> = {
   move: { label: "Move", icon: "move", cls: "i-move" },
   comment: { label: "Comment", icon: "comment", cls: "i-comment" },
   open: { label: "Open", icon: "chevron", cls: "i-edit" },
+  ride: { label: "Open", icon: "chevron", cls: "i-edit" },
 };
 
 function HoldSheet({ e, canWrite, onClose }: { e: SplitecoExpenseSummary; canWrite: boolean; onClose: () => void }) {
   const tiles = holdTiles(e, canWrite);
+  const router = useRouter();
+  const { me } = useMe();
+  const ride = rideOf(e);
+  if (ride) {
+    return (
+      <Sheet label={e.title} onClose={onClose}>
+        <div className="sheet-bill">
+          <CategoryIcon expense={e} size={40} />
+          <span className="name">{e.title}</span>
+          <span className="amt">{formatShort(e.totalMinor, e.currency)}</span>
+        </div>
+        <RideProof rideId={ride} me={me?.id ?? null} onComment={() => router.push(holdHref("comment", e.id))} />
+      </Sheet>
+    );
+  }
   return (
     <Sheet label={e.title} onClose={onClose}>
       <div className="sheet-bill">

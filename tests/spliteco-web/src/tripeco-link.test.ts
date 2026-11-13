@@ -42,3 +42,15 @@ describe("Tripeco's address", () => {
     expect(tripecoRideHref(STAGE, "trp_bad")).toBeNull();
   });
 });
+
+describe("Spliteco's /handoff/out ships", () => {
+  it("is not ignored by the app's .gitignore (an unanchored out/ once hid it, TR-7)", async () => {
+    const { readFileSync, existsSync } = await import("node:fs");
+    const { cwd } = await import("node:process");
+    const app = `${cwd()}/../../apps/spliteco-web`;
+    const ignore = readFileSync(`${app}/.gitignore`, "utf8").split("\n").map((l) => l.trim());
+    expect(ignore).not.toContain("out/");
+    expect(ignore).toContain("/out/");
+    expect(existsSync(`${app}/src/app/handoff/out/page.tsx`)).toBe(true);
+  });
+});
