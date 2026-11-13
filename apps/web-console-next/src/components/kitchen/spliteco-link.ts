@@ -30,6 +30,12 @@ export function handoffUrl(origin: string, code: string, orgId: string | null, b
   return `${origin}/handoff?${q.toString()}`;
 }
 
+/** The handoff to any Spliteco path (money-inside MN-3: the Money tab's Settle up, + Expense, a group). */
+export function handoffUrlTo(origin: string, code: string, next: string, back: string): string {
+  const q = new URLSearchParams({ code, next, back });
+  return `${origin}/handoff?${q.toString()}`;
+}
+
 /** What Spliteco adds that a kitchen doesn't need (the card's four tiles). */
 export const MORE_IN_SPLITECO = Object.freeze([
   "Trips & friends outside the kitchen",
