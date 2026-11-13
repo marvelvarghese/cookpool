@@ -4,6 +4,7 @@
 // rows, so a group's balances match Cookpool's to the paisa), and the audit
 // event a money write carries in its own batch.
 
+import { TRIPECO_SOURCE_KIND } from "@saas/contracts/tripeco";
 import { DEFAULT_KITCHEN_CURRENCY } from "@saas/contracts/kitchen";
 import type {
   SplitecoCategory,
@@ -59,7 +60,12 @@ export function methodOf(t: SplitecoTxnRecord): SplitecoSplitMethod | null {
 
 /** Spliteco edits only its own expenses. */
 export function isLocked(t: SplitecoTxnRecord): boolean {
-  return t.app !== "spliteco" || t.kind !== "expense";
+  return t.app !== "spliteco" || t.kind !== "expense" || t.sourceKind === TRIPECO_SOURCE_KIND;
+}
+
+/** Another app's source: a Tripeco ride (tripeco TR-3). */
+export function sourceOf(t: SplitecoTxnRecord): { kind: "tripeco"; id: string } | null {
+  return t.sourceKind === TRIPECO_SOURCE_KIND && t.sourceId ? { kind: "tripeco", id: t.sourceId } : null;
 }
 
 /** The name a group reads as. The hidden two-person group is "Outside groups". */
@@ -98,6 +104,7 @@ export function toSummary(t: SplitecoTxnRecord, groupName: string, me: string): 
     viaDelegation: t.viaDelegation,
     viaAssistant: assistantOf(t),
     paymentMethod: t.kind === "settlement" ? ((t.method as SplitecoPaymentMethod | null) ?? null) : null,
+    source: sourceOf(t),
   };
 }
 

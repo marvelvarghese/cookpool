@@ -13,6 +13,12 @@ export interface ActorContext {
   scopes: string[];
   /** The assistant's name as the person connected it ("Claude"); null without a delegation. */
   clientName: string | null;
+  /**
+   * The Tripeco ride (`trp_…`) this write is for, when tripeco-worker sent it
+   * (`x-tripeco-ride`, tripeco TR-3). api-edge never forwards the header, so
+   * only tripeco-worker's binding can set it. Optional: absent is none.
+   */
+  tripecoRide?: string | null;
 }
 
 /** Test seams the router threads into every request. */

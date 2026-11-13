@@ -255,3 +255,55 @@ export interface TripecoPhotoResponse {
 export function tripecoDefaultTitle(vehicleName: string, km: number | null): string {
   return km === null ? vehicleName : `${vehicleName} · ${Number.isInteger(km) ? km : km.toFixed(1)} km`;
 }
+
+// ── Posting to Spliteco and the group's view (tripeco TR-3) ──────────
+
+export interface TripecoPostRequest {
+  /** The Spliteco group (org_…); the ride's chosen group when left out. */
+  groupId?: string;
+}
+
+/** A posted ride as the group sees it: its numbers and photos, the proof behind the row. */
+export interface TripecoProof {
+  id: string;
+  /** Who drove (usr_…). */
+  ownerSubject: string;
+  title: string;
+  vehicleName: string;
+  fuel: TripecoFuel;
+  unit: TripecoUnit;
+  mode: TripecoRideMode;
+  startKm: number | null;
+  endKm: number | null;
+  tripKm: number | null;
+  km: number | null;
+  mileage: number;
+  mileageSource: TripecoMileageSource;
+  priceMinor: number;
+  wearMinorPerKm: number;
+  fuelMinor: number;
+  wearMinor: number;
+  extras: TripecoExtra[];
+  totalMinor: number;
+  riders: TripecoRider[];
+  photos: TripecoPhoto[];
+  groupId: string | null;
+  /** The Spliteco expense (txn_…), when posted. */
+  txnId: string | null;
+  postedAt: string | null;
+  startedAt: string;
+}
+
+export interface TripecoProofResponse {
+  proof: TripecoProof;
+}
+
+export interface TripecoGroupRidesResponse {
+  groupId: string;
+  /** Newest first. */
+  rides: TripecoProof[];
+  kmTotal: number;
+  totalMinor: number;
+  /** What each person's rides came to here: their shares, summed. */
+  owed: Array<{ subjectId: string; shareMinor: number }>;
+}

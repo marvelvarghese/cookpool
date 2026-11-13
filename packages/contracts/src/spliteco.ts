@@ -92,6 +92,8 @@ export const SPLITECO_LIMITS = {
 export const SPLITECO_ERROR_REASONS = {
   /** 409 `conflict`: Cookpool posted this; it is edited, deleted and moved in Cookpool only. */
   OWNED_BY_COOKPOOL: "owned_by_cookpool",
+  /** 409 `conflict`: a Tripeco ride (tripeco TR-3); it is changed and removed in Tripeco only. */
+  OWNED_BY_TRIPECO: "owned_by_tripeco",
   /** 409 `conflict`: not everyone on the expense is a member of the group it would move to (`details.subjectIds`). */
   NOT_MEMBERS: "not_members",
   /** 422 `validation_failed`: someone named is not a member of the group (`details.subjectIds`). */
@@ -304,6 +306,8 @@ export interface SplitecoExpenseSummary {
   viaAssistant: string | null;
   /** For a payment: how it was paid (null for anything else, or when not said). */
   paymentMethod: SplitecoPaymentMethod | null;
+  /** Where it came from when another app posted it: a Tripeco ride (`trp_…`, tripeco TR-3). Locked here. */
+  source?: { kind: "tripeco"; id: string } | null;
 }
 
 export interface SplitecoItemShare {

@@ -104,6 +104,8 @@ export type NewTripecoRide = Omit<TripecoRideRecord, "photos">;
 export interface TripecoRepository {
   listVehicles(owner: string, options?: { archived?: boolean }): Promise<TripecoVehicleRecord[]>;
   vehicleById(owner: string, id: string): Promise<TripecoVehicleRecord | null>;
+  /** Vehicles by id whoever owns them: only for rides a group member was checked for. */
+  vehiclesByIds(ids: readonly string[]): Promise<TripecoVehicleRecord[]>;
   insertVehicle(v: TripecoVehicleRecord): Promise<void>;
   /** Replace the changeable fields; false when it is not the owner's. */
   updateVehicle(v: TripecoVehicleRecord): Promise<boolean>;
@@ -268,6 +270,12 @@ export function createTripecoRepository(executor: SqlExecutor): TripecoRepositor
       const result = await executor.execute<Row>(`SELECT ${VEHICLE_COLUMNS} FROM tripeco_vehicles WHERE id = $1 AND owner_subject = $2`, [id, owner]);
       const row = result.rows[0];
       return row ? mapVehicle(row) : null;
+    },
+
+    async vehiclesByIds(ids) {
+      if (ids.length === 0) return [];
+      const result = await executor.execute<Row>(`SELECT ${VEHICLE_COLUMNS} FROM tripeco_vehicles WHERE id IN (${placeholders(ids.length)})`, [...ids]);
+      return result.rows.map(mapVehicle);
     },
 
     async insertVehicle(v) {

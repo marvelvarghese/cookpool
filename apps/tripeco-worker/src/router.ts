@@ -20,6 +20,7 @@ import {
   handleStartRide,
   handleVehicle,
 } from "./handlers/drive.js";
+import { handleGroupRides, handlePost, handleProof, handleUnpost, ownerOrGroup } from "./handlers/post.js";
 import { errorResponse, methodNotAllowed, routeNotFound, successResponse, unauthenticated, unavailable } from "./http.js";
 import { generateRequestId } from "./ids.js";
 
@@ -70,6 +71,11 @@ export const ROUTES: Route[] = [
     pattern: new RegExp(`${P}/rides/${ID}/photos$`),
     methods: { POST: (ctx, r, [trp]) => handlePutPhoto(ctx, r, trp!) },
   },
+  // TR-3: into Spliteco, and the group's view.
+  { name: "tripeco.ride.post", pattern: new RegExp(`${P}/rides/${ID}/post$`), methods: { POST: (ctx, r, [trp]) => handlePost(ctx, r, trp!) } },
+  { name: "tripeco.ride.unpost", pattern: new RegExp(`${P}/rides/${ID}/unpost$`), methods: { POST: (ctx, _r, [trp]) => handleUnpost(ctx, trp!) } },
+  { name: "tripeco.ride.proof", pattern: new RegExp(`${P}/rides/${ID}/proof$`), methods: { GET: (ctx, _r, [trp]) => handleProof(ctx, trp!) } },
+  { name: "tripeco.group.rides", pattern: new RegExp(`${P}/groups/${ID}/rides$`), methods: { GET: (ctx, _r, [org]) => handleGroupRides(ctx, org!) } },
   {
     name: "tripeco.ride",
     pattern: new RegExp(`${P}/rides/${ID}$`),
@@ -79,7 +85,7 @@ export const ROUTES: Route[] = [
       DELETE: (ctx, _r, [trp]) => handleDeleteRide(ctx, trp!),
     },
   },
-  { name: "tripeco.photo", pattern: new RegExp(`${P}/photos/${ID}$`), methods: { GET: (ctx, _r, [pho]) => handlePhoto(ctx, pho!) } },
+  { name: "tripeco.photo", pattern: new RegExp(`${P}/photos/${ID}$`), methods: { GET: (ctx, _r, [pho]) => handlePhoto(ctx, pho!, ownerOrGroup) } },
 ];
 
 const REQUEST_ID_RE = /^[\w-]{1,128}$/;

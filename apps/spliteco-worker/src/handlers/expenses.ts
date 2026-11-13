@@ -8,7 +8,9 @@
 //   POST   /v1/spliteco/expenses/{txn}/move     move         reversal in A + new version in B (moved_from)  spliteco.expense.moved
 //
 // Cookpool's rows (app = 'cookpool') and anything that is not an expense
-// answer 409 `owned_by_cookpool` / `not_an_expense`. Only the version in
+// answer 409 `owned_by_cookpool` / `not_an_expense`; a Tripeco ride (source_kind
+// 'tripeco') answers 409 `owned_by_tripeco` unless tripeco-worker sent it with
+// that ride's `x-tripeco-ride` (tripeco TR-3). Only the version in
 // effect can be changed (409 `not_current`, with the current one's id). A
 // retry with the same Idempotency-Key answers what the first one wrote.
 
@@ -18,6 +20,7 @@ import {
   type SplitecoExpenseRequest,
   type SplitecoWriteResponse,
 } from "@saas/contracts/spliteco";
+import { TRIPECO_SOURCE_KIND } from "@saas/contracts/tripeco";
 import { asUuid, type Uuid } from "@saas/db/ids";
 import type { NewSplitecoTxn, SplitecoRepository, SplitecoTxnRecord, SplitecoWriteResult } from "@saas/db/spliteco";
 import { reverseSplits } from "@saas/kitchen-engine/ledger";
@@ -154,6 +157,8 @@ export function versionOf(
     viaDelegation: ctx.actor.delegationId,
     viaClient: ctx.actor.clientName,
     splitSpec: JSON.stringify(input.request),
+    // A Tripeco ride (tripeco TR-3): the row is the ride's, locked here.
+    ...(ctx.actor.tripecoRide ? { sourceKind: TRIPECO_SOURCE_KIND, sourceId: ctx.actor.tripecoRide } : {}),
     splits: input.splits,
     ...itemRows(input.request),
   };
@@ -322,6 +327,11 @@ export async function loadWritable(ctx: RequestContext, repo: SplitecoRepository
   }
   if (txn.kind !== "expense") {
     return { ok: false, response: conflict(ctx.requestId, "Only expenses can be changed here", SPLITECO_ERROR_REASONS.NOT_AN_EXPENSE) };
+  }
+  // A Tripeco ride is changed only by Tripeco, for that ride; and Tripeco changes nothing else (tripeco TR-3).
+  const ride = txn.sourceKind === TRIPECO_SOURCE_KIND ? txn.sourceId : null;
+  if ((ride ?? null) !== (ctx.actor.tripecoRide ?? null)) {
+    return { ok: false, response: conflict(ctx.requestId, "Tripeco posted this; change it in Tripeco", SPLITECO_ERROR_REASONS.OWNED_BY_TRIPECO) };
   }
   if (needCurrent && !isCurrent(txn)) {
     const current = await currentOf(repo, txn);
