@@ -13,7 +13,7 @@
 | Decisions locked | (1) **Tick to pick and one Log stay.** (2) **One Measure drawer** for every unit pick in the Kitchen, with New measure in it. (3) **Other replaces More** on the item page; it opens the same use sheet. (4) **The owner chip** ("Asha's · Flat 4B") opens the group. (5) **Ring, Runs out card and Who had it card leave the item page**; the run-out goes on the level line, who had it is in History. (6) **Tokens only**, so dark is RV-14's black. |
 | Design | Claude Design canvas: https://claude.ai/artifact/UKg7TpgfoHa4w9fssj7Fda ("Kitchen, calmer": `Kitchen`, `KitchenUnit`, `AddItem`, `UnitDrawer`, `NewMeasure`, `Item`, `ItemOther` and their `Dark` twins) |
 | Gate | KC1–KC3 are the day stage shows each board in light and dark. |
-| Shipped as | #171, #173, #176, #174 and the close-out |
+| Shipped as | #171, #173, #176, #174, #177; round two (kitchen picker, shopping list, Paid by) #181, #182 and KC-8 |
 
 ## Read order
 

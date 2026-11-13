@@ -52,3 +52,11 @@ describe("the Measure drawer is where units are picked", () => {
   });
 });
 
+
+describe("the shopping list (KC-8)", () => {
+  it("opens the Measure drawer from a line's measure, with Take off the list at its foot", () => {
+    const list = kitchen("shopping-list-ui.tsx");
+    expect(list).toContain("drawer={{ add: null }}");
+    expect(kitchen("tick-row-ui.tsx")).toContain("footer={chipsEnd}");
+  });
+});

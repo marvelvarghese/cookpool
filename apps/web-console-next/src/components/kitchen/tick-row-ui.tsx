@@ -106,7 +106,7 @@ export interface TickRowProps {
    * KC-2, the Kitchen): the item's dimension, and New measure's save when the
    * row may add one.
    */
-  drawer?: { dimension: KitchenDimension; add: MeasureDrawerAdd | null } | null;
+  drawer?: { dimension?: KitchenDimension; add: MeasureDrawerAdd | null } | null;
 }
 
 const defaultTickLabel = (words: string, name: string, done: boolean) => (done ? `Logged ${words} of ${name}, undo` : `Log ${words} of ${name}`);
@@ -241,10 +241,11 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
           onOpenChange={setUnitsOpen}
           title={`Measure for ${name}`}
           units={amount.units.filter((u) => u.kind === "unit").map((u) => ({ id: u.id, label: u.many }))}
-          measures={amount.units.flatMap((u) => (u.kind === "measure" && u.measure ? [{ id: u.id, label: u.one, size: measureRow(u.measure, drawer.dimension).size }] : []))}
+          measures={amount.units.flatMap((u) => (u.kind === "measure" && u.measure ? [{ id: u.id, label: u.one, size: drawer.dimension ? measureRow(u.measure, drawer.dimension).size : null }] : []))}
           chosen={amount.unit.id}
           onPick={pickUnit}
           add={drawer.add}
+          footer={chipsEnd}
         />
       ) : null}
       {showUnits && amount ? (

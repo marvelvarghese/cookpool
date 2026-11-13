@@ -256,6 +256,8 @@ function NeedSection({
               onTick={() => onTick(r)}
               tickLabel={gotLabel}
               listColumns
+              // KC-8 (the canvas's Shopping): the measure opens the Measure drawer, Take off the list at its foot.
+              drawer={{ add: null }}
               chipsEnd={
                 r.source === "hand" ? (
                   <button
