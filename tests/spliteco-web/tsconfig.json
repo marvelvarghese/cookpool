@@ -17,7 +17,8 @@
       "@saas/kitchen-engine": ["../../packages/kitchen-engine/src/index.ts"],
       "@saas/kitchen-engine/*": ["../../packages/kitchen-engine/src/*.ts"],
       "@saas/spliteco-ui": ["../../packages/spliteco-ui/src/index.ts"],
-      "@saas/spliteco-ui/*": ["../../packages/spliteco-ui/src/*"]
+      "@saas/spliteco-ui/*": ["../../packages/spliteco-ui/src/*"],
+      "@saas/gestures/*": ["../../packages/gestures/src/*"]
     }
   },
   "include": ["src/**/*.ts"],

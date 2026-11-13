@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ROW_SWIPE, SwipeRowTracker, type RowRelease } from "@/lib/gestures/rules";
+import { ROW_SWIPE, SwipeRowTracker, type RowRelease } from "../rules";
 import { buzz, place, settleMs, useLatest } from "./motion";
 
 /** A press that starts on one of the row's own controls is that control's (a link is not: the row is the link). */

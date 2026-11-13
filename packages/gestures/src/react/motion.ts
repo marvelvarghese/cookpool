@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { prefersReducedMotion } from "@/lib/gestures/gestures";
-import { SETTLE_TRANSITION } from "@/lib/gestures/rules";
+import { prefersReducedMotion } from "../gestures";
+import { SETTLE_TRANSITION } from "../rules";
 
 /**
  * What every gesture helper shares (spliteco-calm SL1): the latest value for

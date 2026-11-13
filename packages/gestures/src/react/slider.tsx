@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { DECIDE_PX } from "@/lib/gestures/gestures";
-import { sliderFires, sliderKeyFires, sliderPosition } from "@/lib/gestures/rules";
+import { DECIDE_PX } from "../gestures";
+import { sliderFires, sliderKeyFires, sliderPosition } from "../rules";
 import { buzz, place, useLatest } from "./motion";
 
 /** The knob's size and the gap around it inside the track (px), as on V2Settle. */

@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cookpool-tripeco-web",
+  // As the console (apps/web-console-next/wrangler.jsonc): a small entry of
+  // our own answers `/api/*` (to api-edge, over API_EDGE below) and imports
+  // OpenNext's `.open-next/worker.js` lazily for everything else.
+  "main": "src/worker/index.mjs",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  // One section per Orun environment, for the one thing that differs: which
+  // api-edge `/api` reaches. The deploy picks the section from
+  // CLOUDFLARE_ENV (component.yaml `env`). Without it (local `wrangler dev`)
+  // there is no binding and `/api` answers 503.
+  "env": {
+    "dev": {},
+    "stage": {
+      // `props` tells api-edge the request came over this binding, so it may
+      // believe the client address in x-console-client-ip
+      // (apps/api-edge/src/client-ip.ts trusts caller "tripeco-web").
+      "services": [
+        {
+          "binding": "API_EDGE",
+          "service": "cookpool-api-edge-stage",
+          "props": { "caller": "tripeco-web" }
+        }
+      ]
+    },
+    "prod": {
+      "services": [
+        {
+          "binding": "API_EDGE",
+          "service": "cookpool-api-edge-prod",
+          "props": { "caller": "tripeco-web" }
+        }
+      ]
+    }
+  }
+}

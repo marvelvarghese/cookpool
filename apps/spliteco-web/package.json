@@ -15,6 +15,7 @@
     "@opennextjs/aws": "3.6.2",
     "@opennextjs/cloudflare": "1.0.4",
     "@saas/contracts": "workspace:*",
+    "@saas/gestures": "workspace:*",
     "@saas/kitchen-engine": "workspace:*",
     "@saas/sdk": "workspace:*",
     "@saas/spliteco-ui": "workspace:*",

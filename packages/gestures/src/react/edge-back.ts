@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { edgeSwipeGoesBack, edgeSwipeRule, listenForDrags, prefersReducedMotion } from "@/lib/gestures/gestures";
-import { SETTLE_MS, edgeBackDevice, type EdgeBackEnv } from "@/lib/gestures/rules";
+import { edgeSwipeGoesBack, edgeSwipeRule, listenForDrags, prefersReducedMotion } from "../gestures";
+import { SETTLE_MS, edgeBackDevice, type EdgeBackEnv } from "../rules";
 import { place, useLatest } from "./motion";
 
 /** The device, as the edge swipe sees it (read in an effect: the pages are prerendered). */

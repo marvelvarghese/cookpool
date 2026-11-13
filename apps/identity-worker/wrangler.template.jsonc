@@ -38,7 +38,9 @@
   // there) and PASSKEY_ORIGINS (the same passkeys, under the same RP ID —
   // the console lists the app at /.well-known/webauthn, WebAuthn's related
   // origins), and HANDOFF_ORIGINS is where a one-time handoff code from
-  // Cookpool's "More in Spliteco" may be made for and exchanged from.
+  // Cookpool's "More in Spliteco" may be made for and exchanged from. Tripeco
+  // (tripeco TR-5) is a HANDOFF_ORIGINS target too: it signs in through
+  // Spliteco's /handoff/out, on cookpool-tripeco-web-<env>.cookpool.workers.dev.
   // DEBUG_DELIVERY_DOMAINS (Cookpool SI-2): the email domains whose sign-in
   // codes login/start returns on screen instead of emailing; `*` is every
   // domain. Local, dev and stage `*` (SI-9: stage sends no email yet, so the
@@ -69,7 +71,7 @@
         "PASSKEY_RP_ID": "localhost",
         "PASSKEY_RP_NAME": "Cookpool",
         "PASSKEY_ORIGINS": "http://localhost:3000,http://localhost:3002",
-        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-dev.cookpool.workers.dev"
+        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-dev.cookpool.workers.dev,https://cookpool-tripeco-web-dev.cookpool.workers.dev"
       }
     },
     "stage": {
@@ -88,7 +90,7 @@
         "PASSKEY_RP_ID": "stage.cookpool.store",
         "PASSKEY_RP_NAME": "Cookpool",
         "PASSKEY_ORIGINS": "https://stage.cookpool.store,https://cookpool-spliteco-web-stage.cookpool.workers.dev",
-        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-stage.cookpool.workers.dev"
+        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-stage.cookpool.workers.dev,https://cookpool-tripeco-web-stage.cookpool.workers.dev"
       },
       "d1_databases": [
         {
@@ -128,7 +130,7 @@
         "PASSKEY_RP_ID": "cookpool.store",
         "PASSKEY_RP_NAME": "Cookpool",
         "PASSKEY_ORIGINS": "https://cookpool.store,https://cookpool-spliteco-web-prod.cookpool.workers.dev",
-        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-prod.cookpool.workers.dev"
+        "HANDOFF_ORIGINS": "https://cookpool-spliteco-web-prod.cookpool.workers.dev,https://cookpool-tripeco-web-prod.cookpool.workers.dev"
       },
       "d1_databases": [
         {

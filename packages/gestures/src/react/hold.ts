@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { HoldTracker } from "@/lib/gestures/rules";
+import { HoldTracker } from "../rules";
 import { buzz, useLatest } from "./motion";
 
 /**

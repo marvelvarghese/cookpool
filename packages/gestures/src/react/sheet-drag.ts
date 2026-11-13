@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { listenForDrags, sheetDragCloses, sheetDragRule } from "@/lib/gestures/gestures";
-import { SETTLE_MS } from "@/lib/gestures/rules";
+import { listenForDrags, sheetDragCloses, sheetDragRule } from "../gestures";
+import { SETTLE_MS } from "../rules";
 import { place, settleMs, settleTransition, useLatest } from "./motion";
 
 /**

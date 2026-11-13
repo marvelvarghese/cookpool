@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { SplitecoFriendBalance, SplitecoGroupsResponse, SplitecoHomeResponse } from "@saas/contracts/spliteco";
 import { Icon, Mark } from "../icons";
 import { Avatar, Loading, Sheet, type Load } from "../ui";
-import { SwipeRow } from "../gestures/swipe-row";
+import { SwipeRow } from "@saas/gestures/react/swipe-row";
 import { formatShort } from "@/lib/money";
 import { HOME_PEOPLE, fromKitchen, mainBalance, netLabel, planNote, rowAction, settleHref, signedShort } from "@/lib/home";
 

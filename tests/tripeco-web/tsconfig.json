@@ -1,0 +1,24 @@
+{
+  "extends": "../../tooling/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "types": ["jest", "node"],
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "paths": {
+      "@/*": ["../../apps/tripeco-web/src/*"],
+      "@saas/contracts": ["../../packages/contracts/src/index.ts"],
+      "@saas/contracts/*": ["../../packages/contracts/src/*.ts"],
+      "@saas/kitchen-engine": ["../../packages/kitchen-engine/src/index.ts"],
+      "@saas/kitchen-engine/*": ["../../packages/kitchen-engine/src/*.ts"],
+      "@saas/gestures/*": ["../../packages/gestures/src/*"],
+      "@saas/sdk": ["../../packages/sdk/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
