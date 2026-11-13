@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SE-9
+  title: "Policy-worker grants the Spliteco actions on stage and prod"
+spec:
+  goal: "policy-worker is redeployed with the policy-engine that grants spliteco.ledger.read and spliteco.expense.write, so a kitchen's Money page, Add a bill and Scan a bill load instead of 404."
+  affects:
+    - default/cookpool/policy-worker
+    - apps/policy-worker/component.yaml
+    - specs/epics/cookpool-spliteco/**
+    - tasks/SE-9.TaskContract.yaml
+  doneWhen:
+    - "The main push deploys policy-worker to stage and prod (its Verify deploy jobs are green)"
+    - "On stage, GET /v1/spliteco/groups/{org}?bucket=kitchen answers 200 for a kitchen's owner, not 404"
+    - "IMPLEMENTATION-STATUS records the fix and its PR"
+  gates: []

@@ -11,7 +11,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | SE4 — bills from a photo, split together | ✅ shipped | #125 (fb7b304) |
 | SE5 — your AI assistant logs splits | ✅ shipped | #131 (0dca61f) |
 | close-out | ✅ shipped | #135 (SE-7) |
-| fix: Google sign-in | ✅ shipped | this PR (SE-8) |
+| fix: Google sign-in | ✅ shipped | #145 (SE-8) |
+| fix: policy-worker redeploy | ✅ shipped | this PR (SE-9) |
 
 **Order shipped:** SE0, SE1, SE2, SE4, SE5, SE3. SE3 was built last because the cookpool-revamp epic was restyling Cookpool's Money screens (RV-5); it then used the revamp look. Migrations: 530, 540, 550, 560, 570 (identity delegation access), 580 (identity handoff codes).
 
@@ -20,6 +21,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 **Not yet verified with real accounts:** signed-in flows on the deployed hosts (all were covered by tests and local browser checks), a real UPI app, a real model reading a receipt, a real assistant connecting, and Google/passkey sign-in on the workers.dev hosts.
 
 **SE-8 (after close-out):** Google sign-in failed on the Spliteco hosts with "OAuth state verification failed". The start ran on Spliteco's `/api`, so its state cookie was set on the Spliteco host, while Google returns to api-edge's callback. The start now runs on api-edge's own host (`apps/spliteco-web/src/lib/oauth.ts`, as the console's `oauthBaseUrl`). Nothing changed in Google's settings or identity-worker.
+
+**SE-9 (after close-out):** on stage and prod every per-group Spliteco read and write answered 404, so Cookpool's Money group page showed "Couldn't load this kitchen's money" and Add a bill / Scan a bill showed "Couldn't load the kitchen". SE1 (#120) added the `spliteco.*` grants to `packages/policy-engine`, but `orun plan` picks components by their own path, so policy-worker was never redeployed (last on 2026-11-03) and kept denying them; spliteco-worker turns a denial into 404. `/me/groups` worked because it checks membership only. SE-9 changes `apps/policy-worker/component.yaml` so the main push redeploys it. A change to `packages/policy-engine` still needs the same touch until components can watch the packages they bundle.
 
 ## SE1 as built (SE-2)
 
