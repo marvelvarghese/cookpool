@@ -34,7 +34,7 @@ import {
   useWasteItem,
 } from "@/components/kitchen/pantry-data";
 import { usualFor } from "@/components/kitchen/quick-use";
-import { ItemActionsRow, LevelRingCard, QuickUse, RunOutCard, WhoHadItCard } from "@/components/kitchen/item-page-ui";
+import { CookWithItPill, ItemActionsRow, ItemLevel, ItemOwnerChip, QuickUse } from "@/components/kitchen/item-page-ui";
 import { StockBar, UseByPill } from "@/components/kitchen/pantry-ui";
 import { WasteConfirm } from "@/components/kitchen/item-actions-ui";
 import { SwipeRow } from "@/components/kitchen/row-gestures-ui";
@@ -60,7 +60,7 @@ import {
   type ItemRef,
 } from "@/components/kitchen/pantry";
 import { canSwipeUndoMove, canUndoMove, costPerText, historyRows, isUnused, itemFacts, keepAmountsTogether, transferNote, transferTargets } from "@/components/kitchen/item-use";
-import { historyFace, itemSubtitle } from "@/components/kitchen/item-page";
+import { historyFace } from "@/components/kitchen/item-page";
 import { Face } from "@/components/kitchen/faces-ui";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { cookHref } from "@/components/kitchen/dish-maker";
@@ -228,27 +228,29 @@ function NewItemView(ctx: ItemCtx) {
   // the run-out line, Who had it, History (three, then See all), the actions, and Measures and note folded.
   return (
     <div className="space-y-[22px]">
-      <header className="flex min-w-0 flex-col gap-1.5">
-        <BackButton />
+      <header className="flex min-w-0 flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <BackButton />
+          {roleKnown ? <CookWithItPill itemRef={itemRef} item={item} canWrite={canWrite} names={names} /> : null}
+        </div>
         <h1 className="min-w-0 break-words text-[28px] font-medium leading-tight tracking-[-0.02em]">{item.name}</h1>
-        <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-normal text-muted-foreground">
-          <span className="min-w-0 truncate tabular-nums">{itemSubtitle(item, { meId, names, state: stateLabel })}</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <ItemOwnerChip item={item} meId={meId} names={names} />
           {ask ? <RowTagPill tag={{ label: `Ask ${ask}`, tone: "ask" }} /> : null}
-        </p>
+          {stateLabel ? <span className="text-sm text-muted-foreground">{stateLabel}</span> : null}
+        </div>
       </header>
 
       <div className="grid gap-[22px] min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,380px)] min-[900px]:items-start">
         <div className="min-w-0 space-y-[22px]">
-          <LevelRingCard item={item} usual={usual} meId={meId} names={names} />
+          <ItemLevel item={item} moves={moves.data ?? null} />
           {canUseHere ? <QuickUse {...parts} /> : null}
-          <RunOutCard item={item} moves={moves.data ?? null} />
-          <WhoHadItCard item={item} moves={moves.data ?? null} meId={meId} names={names} />
+          {roleKnown ? <ItemActionsRow {...parts} canWrite={canWrite} /> : null}
           <HistoryCard {...ctx} fresh />
         </div>
 
         <div className="min-w-0 space-y-[22px]">
           {live && roleKnown && !canWrite ? <p className="px-1 text-sm font-normal text-muted-foreground">You only view {pantryLabel(item.pantry)}.</p> : null}
-          {roleKnown ? <ItemActionsRow {...parts} canWrite={canWrite} /> : null}
           <MeasuresAndNote ctx={ctx}>
             <NoteCard {...ctx} />
             {item.state === "active" ? <CountedAs item={item} canWrite={roleKnown && canWrite} bare /> : null}
