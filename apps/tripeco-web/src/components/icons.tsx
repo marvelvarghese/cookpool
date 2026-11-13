@@ -6,6 +6,7 @@ const PATHS = {
   camera: <><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></>,
   fuel: <path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10M14 8l3 2v7a1.5 1.5 0 0 0 3 0V8l-3-3" />,
   home: <path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
+  money: <><rect x="3" y="7" width="18" height="11" rx="2" /><path d="M3 11h18" /></>,
   people: <><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M16 4.8a3 3 0 0 1 0 6M18 14.8c1.8.7 3 2.5 3 5.2" /></>,
   chevron: <path d="M9 6l6 6-6 6" />,
   back: <path d="M15 18l-6-6 6-6" />,

@@ -198,12 +198,16 @@ export const TABS = [
   { href: "/", label: "Home", icon: "home" },
   { href: "/vehicles", label: "Vehicles", icon: "car" },
   { href: "/groups", label: "Groups", icon: "people" },
+  { href: "/money", label: "Money", icon: "money" },
 ] as const;
 
-/** Home · Vehicles · Groups. `onTab` turns the pager when there is one (the tap twin of the swipe). */
+/** The Money tab's index: there the bar is Spliteco's navy (money-inside MN-4). */
+export const MONEY_TAB = 3;
+
+/** Home · Vehicles · Groups · Money. `onTab` turns the pager when there is one (the tap twin of the swipe). */
 export function TabBar({ active, onTab }: { active: number; onTab?: (i: number) => void }) {
   return (
-    <nav className="tabbar" aria-label="Tripeco">
+    <nav className={active === MONEY_TAB ? "tabbar tabbar-spliteco" : "tabbar"} aria-label="Tripeco">
       <div className="tabbar-inner">
         {TABS.map((t, i) =>
           onTab ? (

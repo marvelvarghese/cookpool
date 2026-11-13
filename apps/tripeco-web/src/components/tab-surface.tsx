@@ -1,6 +1,6 @@
 "use client";
 
-// Home ↔ Vehicles ↔ Groups as one surface (tripeco TR-5, design §5): the
+// Home ↔ Vehicles ↔ Groups ↔ Money (money-inside MN-4) as one surface (tripeco TR-5, design §5): the
 // three pages sit side by side in a pager; the tab bar is the tap twin. Each
 // of `/`, `/vehicles` and `/groups` renders this surface, opens on its tab and
 // writes the settled tab back to the address. Pull down re-reads; so does
@@ -14,6 +14,7 @@ import { SignedIn, TabBar, useLoad, useToast } from "./ui";
 import { HomeTab } from "./tabs/home-tab";
 import { VehiclesTab } from "./tabs/vehicles-tab";
 import { GroupsTab } from "./tabs/groups-tab";
+import { MoneyTab } from "./tabs/money-tab";
 import { TAB_PATHS, tabIndexOf, tabPath } from "@/lib/home";
 
 export function TabSurface({ tab }: { tab: number }) {
@@ -77,6 +78,7 @@ function Surface({ initial }: { initial: number }) {
     <HomeTab key="home" load={me} show={show} />,
     <VehiclesTab key="vehicles" load={me} />,
     <GroupsTab key="groups" groups={groups} />,
+    <MoneyTab key="money" onBack={() => setIndex(0)} />,
   ];
 
   return (

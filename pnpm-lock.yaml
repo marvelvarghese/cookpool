@@ -533,6 +533,9 @@ importers:
       '@saas/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@saas/spliteco-ui':
+        specifier: workspace:*
+        version: link:../../packages/spliteco-ui
       next:
         specifier: 15.0.3
         version: 15.0.3(@opentelemetry/api@1.10.0)(react-dom@19.0.0-rc-66855b96-20241106(react@19.0.0-rc-66855b96-20241106))(react@19.0.0-rc-66855b96-20241106)
