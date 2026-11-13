@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: KC-7
+  title: "The Kitchen header, calm"
+spec:
+  goal: "Kitchen's header has the kitchen picker and the shopping list as a round button with its count."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/cookpool-kitchen-calm/**
+    - tasks/KC-7.TaskContract.yaml
+  doneWhen:
+    - "Stage's Kitchen header shows the picker title, a round list button with its count, and + Groceries"
+    - "The picker opens a sheet titled Show"
+    - "The web-console-next tests pass"
+  gates: []
