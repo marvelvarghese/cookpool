@@ -8,8 +8,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | TR1 — vehicles, fuel, rides | ✅ shipped | #170 |
 | TR2 — a ride posts to Spliteco | ✅ shipped | #172 |
 | TR3 — odometer from a photo | ✅ shipped | #175 |
-| TR4 — the Tripeco app | 🟡 in review | this PR (TR-5) |
-| TR5 — drive and split | ⏳ planned | — |
+| TR4 — the Tripeco app | ✅ shipped | #178 |
+| TR5 — drive and split | 🟡 in review | this PR (TR-6) |
 | TR6 — rides in Spliteco | ⏳ planned | — |
 | TR7 — close-out | ⏳ planned | — |
 
@@ -88,3 +88,39 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - **The Account face opens a sheet** (name, email, Sign out) rather than the canvas's link to Sign in.
 - **Continue as Rahul needs one sign-in on the device first.** Before that it reads Continue with Spliteco: Tripeco can't know your name before you sign in.
 - **The drive pages** (Scan, New ride, Split, Posted, Log fuel, Vehicle, Add vehicle, Group rides) arrive in TR5; until then those links 404.
+
+## TR5 as built (TR-6)
+
+- **Scan** (`/scan`, canvas ScanOdo):
+  - **Start:** pick Odometer or Trip reset, then the shutter, which opens the camera input. Trip reset starts with "Reset done · start trip", with no photo.
+  - **Each photo:** shrunk to 1280 px JPEG (≤ 390 KB, `lib/photo.ts`) and read by `aiOdometer`. The reading sheet shows the photo beside an editable number, plus "Car says 20.4 km/l" on a Trip A end. Retake · Use.
+  - **Riding:** Trip on, the vehicle, and the start time and reading. Then "End trip · photo".
+  - **Done:** the cost, km and litres, and the two readings. When the car showed its average, a Learned · Car display choice. Then Fix numbers or Split.
+  - **Saving:** the ride is started on the server at the start photo, and the photos are attached as `start` and `end`.
+- **Manual entry** (owner's ask): "Type km" beside the shutter opens the sheet without a photo. At the start, "Enter start and end" creates the ride and opens New ride with both readings to type.
+- **New ride** (`/ride`, canvas NewRide):
+  - a one-line name, the total and km, and Scan odometer
+  - Start/End (or Trip A), ₹ per unit and mileage
+  - Who rode: the group chip opens the group picker, and tapping a person's chip leaves them out (the owner too)
+  - the split card (→ Split), and Post ₹X to the group, or Save as a solo drive
+  - Numbers are worked out as you type (`lib/ride-draft.ts`, the same `@saas/kitchen-engine/drive`) and saved 500 ms after the last change (`lib/use-ride.ts`).
+- **Split** (`/split`, canvas SplitHow): tap a name to leave them out, tap the km for a slider, + Toll · + Parking · + Wear (+ Wear only when the vehicle has a rate and it is off), and "Tap a name to leave them out" until the first tap.
+- **Posted** (`/posted`, canvas Posted): the tick, "₹519 to Goa Trip", the row as it shows in Spliteco with who owes what, Open in Spliteco, Undo (a real unpost) or Post again, and Done.
+- **Log fuel / Log charge** (`/fuel`, canvas LogFuel):
+  - paid, quantity, the computed rate, the odometer, Full tank or Part fill
+  - the mileage this fill-up makes, worked out live with `learnedMileage`
+  - I paid · A rider paid
+- **Vehicle** (`/vehicle`, canvas Vehicle):
+  - the odometer, Real mileage or Estimate with segment bars, and ₹/km
+  - the month split You · Riders, and the wear stepper in ₹0.5 steps
+  - the fuel log, where a swipe left deletes a fill-up with an Undo held 4 s (`DelayedSends`), and ⋯ → Remove vehicle
+- **Add vehicle** (`/vehicle/new`, canvas AddVehicle): Petrol · Diesel · CNG · Electric with the canvas's hints.
+- **Group rides** (`/group`, canvas GroupRides): km and total, the Rides · Owed pager, Settle in Spliteco, and Ride for the group.
+- **Also:** `/rides` lists every ride.
+- **A local dev API** (`tests/tripeco-web/dev/dev-server.ts`): the real tripeco-worker and spliteco-worker over SQLite, seeded, with a stand-in odometer reader. Home, Sign in and Scan were clicked through in it at phone width.
+- **Tests:** `tests/tripeco-web` 17, with the new `ride-draft`.
+
+### Departures
+
+- **The camera is the phone's own camera** (`<input capture>`), not a live viewfinder with a guide that reads as you aim. The frame shows the photo taken, and the reading follows the shot.
+- **InSpliteco (the Spliteco ride row and sheet) is TR6.**
