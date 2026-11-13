@@ -9,8 +9,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | TR2 — a ride posts to Spliteco | ✅ shipped | #172 |
 | TR3 — odometer from a photo | ✅ shipped | #175 |
 | TR4 — the Tripeco app | ✅ shipped | #178 |
-| TR5 — drive and split | 🟡 in review | this PR (TR-6) |
-| TR6 — rides in Spliteco | ⏳ planned | — |
+| TR5 — drive and split | ✅ shipped | #179 |
+| TR6 — rides in Spliteco | 🟡 in review | this PR (TR-7) |
 | TR7 — close-out | ⏳ planned | — |
 
 ## TR1 as built (TR-2)
@@ -124,3 +124,18 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 - **The camera is the phone's own camera** (`<input capture>`), not a live viewfinder with a guide that reads as you aim. The frame shows the photo taken, and the reading follows the shot.
 - **InSpliteco (the Spliteco ride row and sheet) is TR6.**
+
+## TR6 as built (TR-7)
+
+- **The row:** a lime car mark (`CategoryIcon` when `source.kind` is `tripeco`) and a lock before "Tripeco · You paid ₹939" (`billMeta`). There is no swipe to delete (`locked`).
+- **Holding a ride** opens its sheet: the title and total, the line "124 km · Swift · 18.6 km/l · ₹104/L" (`lib/ride-view.ts`, plus wear, toll and parking when there were any), and the start and end photos from `GET /v1/tripeco/photos/{pho}`.
+  - **Edit in Tripeco** is shown to the driver only and opens `/ride?id=` on this environment's Tripeco (`tripecoRideHref`).
+  - **Comment** is shown to everyone.
+- **The expense page** shows "From Tripeco · change it there" with the same proof, instead of Cookpool's line.
+- **Fix:** Spliteco's `/handoff/out` (TR-5) 404'd on stage. spliteco-web's `.gitignore` ignored `out/` at any depth, so `src/app/handoff/out/page.tsx` was never committed. The pattern is now anchored (`/out/`), the page is committed, and a test pins both.
+- **Tests:** `tests/spliteco-web` 317 (new `ride-row`, and the `.gitignore` guard in `tripeco-link`).
+
+### Departures
+
+- **Edit in Tripeco is the driver's only.** A rider sees the proof and Comment, since only the owner can change a ride.
+- **The proof photos load as data URLs** through the SDK (the bearer token lives in `localStorage`, so an `<img src>` can't carry it).

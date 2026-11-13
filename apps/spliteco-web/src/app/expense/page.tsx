@@ -15,6 +15,8 @@ import { METHOD_LABELS } from "@/lib/split-form";
 import { historyText, myItems } from "@/lib/expense-view";
 import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
 import { useMe } from "@/lib/me";
+import { RideProof } from "@/components/ride-proof";
+import { rideOf } from "@/lib/ride-view";
 
 export default function ExpensePage() {
   const id = useQueryParam("id");
@@ -150,7 +152,14 @@ function Expense({ data, me, reload, focusComment }: { data: SplitecoExpenseResp
           <button className="btn ghost" style={{ height: 44 }} onClick={() => setNotReceived(true)} disabled={busy}>Not received</button>
         </div>
       ) : null}
-      {e.locked && e.kind !== "settlement" ? (
+      {rideOf(e) ? (
+        <section className="card" style={{ padding: 16 }} aria-label="Tripeco ride">
+          <p className="infobox" style={{ margin: "0 0 12px" }}>
+            <Icon name="lock" size={14} /> From Tripeco · change it there
+          </p>
+          <RideProof rideId={rideOf(e)!} me={me} />
+        </section>
+      ) : e.locked && e.kind !== "settlement" ? (
         <p className="infobox" style={{ margin: 0 }}>
           <Icon name="lock" size={14} /> From Cookpool · change it there
         </p>

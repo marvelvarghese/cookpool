@@ -126,7 +126,15 @@ export function moneyList(list: readonly SplitecoMoney[]): string {
   return list.map((m) => formatMoney(Math.abs(m.amountMinor), m.currency)).join(" · ");
 }
 
-export function CategoryIcon({ expense, size = 42 }: { expense: Pick<SplitecoExpenseSummary, "kind" | "category" | "app">; size?: number }) {
+export function CategoryIcon({ expense, size = 42 }: { expense: Pick<SplitecoExpenseSummary, "kind" | "category" | "app"> & Partial<Pick<SplitecoExpenseSummary, "source">>; size?: number }) {
+  // A Tripeco ride (tripeco TR-7): the car mark in Tripeco's lime.
+  if (expense.source?.kind === "tripeco") {
+    return (
+      <span className="cat" style={{ width: size, height: size, background: "rgba(198,244,50,0.14)", color: "#C6F432" }}>
+        <Icon name="transport" size={20} />
+      </span>
+    );
+  }
   const key = expense.kind === "settlement" ? "payment" : expense.app === "cookpool" && expense.kind !== "expense" ? "cookpool" : (expense.category ?? "other");
   const t = CATEGORY_TINTS[key as keyof typeof CATEGORY_TINTS] ?? CATEGORY_TINTS.other;
   return (
