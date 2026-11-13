@@ -15,6 +15,8 @@ export interface Env {
   KITCHEN_WORKER?: Fetcher;
   // Spliteco (cookpool-spliteco SE1): /v1/spliteco/… (./spliteco-facade.ts).
   SPLITECO_WORKER?: Fetcher;
+  // Tripeco (tripeco TR-2): /v1/tripeco/… (./tripeco-facade.ts).
+  TRIPECO_WORKER?: Fetcher;
   // Optional KV binding backing the Stripe-style idempotency replay store
   // (Task 0095). Absent on `dev` (no live worker) and absent on the older
   // verify-only stages. When unbound, `replayOrExecute` degrades to a

@@ -1,0 +1,70 @@
+// Rendered to wrangler.jsonc by tooling/wire/render.mjs (BF6 deploy-time wiring).
+// Resource IDs are NEVER committed: @@wiring(<component>/<env>:<key>)@@ tokens are
+// resolved from the workspace's orun secrets at deploy time (wire-live) or from the
+// committed wiring.fixture.json for offline dry-runs (wire-fixture).
+//
+// Tripeco (tripeco TR-2): vehicles, the fuel log and rides under /v1/tripeco/…,
+// reached only through api-edge's TRIPECO_WORKER binding (workers_dev off on
+// stage and prod). Its own tripeco_* tables live in the shared D1 database; a
+// ride posts into Spliteco through SPLITECO_WORKER (design §0.3).
+{
+  "name": "cookpool-tripeco-worker",
+  "compatibility_date": "2025-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/index.ts",
+  "minify": false,
+  // Smart Placement, as spliteco-worker: run next to the Asia–Pacific database.
+  "placement": { "mode": "smart" },
+  "vars": {
+    "ENVIRONMENT": "local",
+    "APP_URL": "http://localhost:3003"
+  },
+  "env": {
+    "dev": {
+      "vars": {
+        "ENVIRONMENT": "dev",
+        "APP_URL": "http://localhost:3003"
+      }
+    },
+    "stage": {
+      "workers_dev": false,
+      "vars": {
+        "ENVIRONMENT": "stage",
+        "APP_URL": "https://cookpool-tripeco-web-stage.cookpool.workers.dev"
+      },
+      "d1_databases": [
+        {
+          "binding": "PLATFORM_DB",
+          "database_name": "cookpool-stage-apac",
+          "database_id": "@@wiring(cloudflare-d1/stage:d1_database_id)@@"
+        }
+      ],
+      "services": [
+        {
+          "binding": "SPLITECO_WORKER",
+          "service": "cookpool-spliteco-worker-stage"
+        }
+      ]
+    },
+    "prod": {
+      "workers_dev": false,
+      "vars": {
+        "ENVIRONMENT": "prod",
+        "APP_URL": "https://cookpool-tripeco-web-prod.cookpool.workers.dev"
+      },
+      "d1_databases": [
+        {
+          "binding": "PLATFORM_DB",
+          "database_name": "cookpool-prod-apac",
+          "database_id": "@@wiring(cloudflare-d1/prod:d1_database_id)@@"
+        }
+      ],
+      "services": [
+        {
+          "binding": "SPLITECO_WORKER",
+          "service": "cookpool-spliteco-worker-prod"
+        }
+      ]
+    }
+  }
+}

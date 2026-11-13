@@ -115,6 +115,10 @@
         {
           "binding": "SPLITECO_WORKER",
           "service": "cookpool-spliteco-worker-stage"
+        },
+        {
+          "binding": "TRIPECO_WORKER",
+          "service": "cookpool-tripeco-worker-stage"
         }
       ],
       "durable_objects": {
@@ -193,6 +197,10 @@
         {
           "binding": "SPLITECO_WORKER",
           "service": "cookpool-spliteco-worker-prod"
+        },
+        {
+          "binding": "TRIPECO_WORKER",
+          "service": "cookpool-tripeco-worker-prod"
         }
       ],
       "durable_objects": {

@@ -1,0 +1,3 @@
+# Rendered at deploy time from wrangler.template.jsonc (BF6); never committed.
+wrangler.jsonc
+dist/

@@ -1,0 +1,116 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: tripeco-worker
+  description: Cloudflare Worker for Tripeco (tripeco) — vehicles, a private fuel log, mileage learned from full tanks, and rides whose shares post into a Spliteco group through spliteco-worker, under /v1/tripeco
+spec:
+  type: cloudflare-worker-turbo
+  lifecycle: production
+  owner: platform
+  # Its pages, attached to it in the workspace's catalog: what the Docs
+  # library shows for it, and what the catalog's docs and runbook checks read.
+  # Generated from what this manifest declares
+  # (tooling/catalog/gen-component-docs.mjs).
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  domain: starter-runtime
+  path: apps/tripeco-worker
+  dependsOn:
+    # ENFORCED ON MAIN (one-landing bootstrap): the data plane before anything
+    # that reads its wiring, and policy-worker before anything that holds a
+    # service binding — its pre-deploy creates a placeholder for every binding
+    # target that does not exist yet (tooling/deploy/fleet-stubs.mjs), so each
+    # worker's first deploy can carry its full bindings. Peer edges stay
+    # advisory: they are runtime calls, not deploy order. A pull request deploys
+    # nothing, so nothing on one waits.
+    # Posting a ride, and checking a group member's right to its proof (TR-3).
+    - component: spliteco-worker
+    - component: policy-worker
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+    - component: cloudflare-d1
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+    # The tripeco_* tables (migration 610) this worker reads exist before it serves: on main the
+    # migrations apply first (a peer edge would not order under the advisory
+    # dependency mode below).
+    - component: db-migrate
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+  # BF6 wiring documents from orun secrets (SEC-JOB): lease-published by
+  # the infra components; wire-live renders the wrangler template from
+  # these instead of Secrets Manager documents.
+  secretEnv:
+    WIRING_CLOUDFLARE_D1_STAGE: "secret://ws_QX130J0D/cookpool/stage/WIRING_CLOUDFLARE_D1"
+    WIRING_CLOUDFLARE_D1_PROD: "secret://ws_QX130J0D/cookpool/prod/WIRING_CLOUDFLARE_D1"
+
+
+  subscribe:
+    environments:
+      - name: dev
+        profile: verify
+      - name: stage
+        # Peer edges are runtime calls, not deploy order: every binding target
+        # exists before this deploys (policy-worker's pre-deploy places one,
+        # tooling/deploy/fleet-stubs.mjs), so nothing in this lane waits on a
+        # peer. The edges marked `mode: enforced` above still order.
+        dependencyMode: advisory
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+      - name: prod
+        # Peer edges are runtime calls, not deploy order: every binding target
+        # exists before this deploys (policy-worker's pre-deploy places one,
+        # tooling/deploy/fleet-stubs.mjs), so nothing in this lane waits on a
+        # peer. The edges marked `mode: enforced` above still order.
+        dependencyMode: advisory
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+  parameters:
+    nodeVersion: "22"
+    pnpmVersion: "10.12.1"
+    workspaceDir: ../..
+    appDir: .
+    # BF6b: deploy-time wiring — wrangler.jsonc is rendered, never committed.
+    # Verify lanes render from wiring.fixture.json (offline); deploy lanes
+    # resolve real IDs from the Secrets Manager wiring manifest (BF5).
+    orgName: sourceplane
+    owner: sourceplane
+    repo: cookpool
+
+    turboFilter: "@saas/tripeco-worker"
+    wranglerConfig: wrangler.jsonc
+    wranglerTemplate: wrangler.template.jsonc
+    wiringComponents: "cloudflare-d1"
+    wiringEnvs: "stage,prod"
+    wiringFixture: wiring.fixture.json
+    installCommand: pnpm install --frozen-lockfile
+    buildCommand: pnpm exec turbo run build --filter=@saas/tripeco-worker
+    typecheckCommand: pnpm exec turbo run typecheck --filter=@saas/tripeco-worker
+    dryRunCommand: pnpm exec wrangler deploy --dry-run --config wrangler.jsonc --env prod
+    deployCommand: pnpm exec wrangler deploy --config wrangler.jsonc --env prod
+    preDeployCommand: "echo 'No pre-deploy step configured.'"
+    migrationCommand: "echo 'No migrations configured.'"
+    smokeCommand: "echo 'No smoke test configured.'"
+  labels:
+    team: platform
+    layer: runtime
+    surface: tripeco
+    runtime: cloudflare
