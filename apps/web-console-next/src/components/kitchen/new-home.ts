@@ -4,9 +4,10 @@
  * order. `/home` picks its component when it renders (`newFrame()`); both
  * read their sections from here, so what each frame shows is unit-tested.
  *
- * The new Home (`NewHome`, the canvas): "Hi, Rahul"; What did you use?; To
- * do; Cook now (hidden until RC-5 and RC-8 fill it); From your groups. It has
- * no money card: money lives in Money, and a debt that needs you is a To do.
+ * The new Home (`NewHome`; since cookpool-home HM-2 the calm boards): "Hi,
+ * Rahul" and the pill; the quick actions; Needs you; one Cook tonight card.
+ * It has no money card (money lives in Money, and a debt that needs you is a
+ * To do) and no groups feed (HM-3 puts it on Kitchen).
  *
  * Dependency-free (contract types only), so it is unit-testable.
  */
@@ -22,6 +23,10 @@ export type HomeSection =
   | "money"
   /** "What did you use?" and the row of your usuals. */
   | "quick-use"
+  /** The calm Home's tiles (HM-2): Scan bill, Log use, Cook, Groceries. */
+  | "quick-actions"
+  /** One card: the first thing you can cook now (HM-2). */
+  | "cook-tonight"
   /** What needs you: a dish to say how much you had, someone to pay, food to use soon. */
   | "todo"
   /** What you can cook now (RC-5/RC-8 fill it; nothing until then). */
@@ -35,11 +40,11 @@ export type HomeSection =
 export const TODAY_HOME_SECTIONS: readonly HomeSection[] = ["greeting", "install", "money", "quick-use", "todo", "recent"];
 
 /**
- * The new frame's Home, in the board's order (RV-15): greeting, What did you
- * use?, install (under the cooking session's strip), Needs you, Cook now,
- * Your groups cooked — no money.
+ * The new frame's Home, in the calm boards' order (cookpool-home HM-2):
+ * greeting, the quick actions (under the cooking session's strip), install,
+ * Needs you, Cook tonight — no money, no groups feed.
  */
-export const NEW_HOME_SECTIONS: readonly HomeSection[] = ["greeting", "quick-use", "install", "todo", "cook-now", "from-groups"];
+export const NEW_HOME_SECTIONS: readonly HomeSection[] = ["greeting", "quick-actions", "install", "todo", "cook-tonight"];
 
 /** The sections Home shows in a frame, in order. */
 export function homeSections(newFrame: boolean): readonly HomeSection[] {

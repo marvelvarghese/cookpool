@@ -4,7 +4,8 @@ import * as React from "react";
 import type { InboxResponse, KitchenAsk, SplitReminderInboxItem } from "@saas/contracts/kitchen";
 import type { AsyncState } from "@/lib/query";
 import { cn } from "@/lib/cn";
-import { KCard, K_ROWS, SectionHeading } from "./kit";
+import { Check } from "lucide-react";
+import { KCard, K_ROWS, K_SECTION, SectionHeading } from "./kit";
 import type { MemberNames } from "./members";
 import { ItemActionsSheet, type ItemMenuTarget } from "./item-actions-ui";
 import { RowsSkeleton, SeeAllButton, pillClass } from "./new-home-parts-ui";
@@ -49,12 +50,15 @@ export function NeedsYou({
   meId,
   names,
   asks,
+  caughtUp = false,
   className,
 }: {
   inbox: AsyncState<InboxResponse>;
   meId: string | null;
   names: MemberNames;
   asks: HomeAsksState;
+  /** The calm Home (cookpool-home HM-2): with no rows, say "All caught up" instead of hiding. */
+  caughtUp?: boolean;
   className?: string;
 }) {
   const [now] = React.useState(() => new Date());
@@ -133,14 +137,38 @@ export function NeedsYou({
       </section>
     );
   }
-  // Nothing needs you: the section is gone (the board).
-  if (entries.length === 0) return null;
+  // Nothing needs you: the section is gone (RV-15's board), or one quiet line on the calm Home (HM-2).
+  if (entries.length === 0) {
+    if (!caughtUp) return null;
+    return (
+      <section aria-label="Needs you" className={className}>
+        <KCard className="flex min-h-16 items-center justify-center gap-2.5 px-4 text-[15px] font-medium">
+          <Check className="h-5 w-5 text-cp-accent-text" strokeWidth={2} aria-hidden />
+          All caught up
+        </KCard>
+      </section>
+    );
+  }
+  const left = entries.filter((e) => !isDone(e)).length;
 
   return (
     <section aria-labelledby="home-todo" className={cn("space-y-2.5", className)}>
-      <SectionHeading id="home-todo" count={count}>
-        Needs you
-      </SectionHeading>
+      {caughtUp ? (
+        <h2 id="home-todo" className={cn(K_SECTION, "flex items-center gap-2")}>
+          Needs you
+          {left > 0 ? (
+            <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium tabular-nums text-primary-foreground">
+              {left}
+            </span>
+          ) : (
+            <span className="text-[15px] font-normal text-muted-foreground">· all done</span>
+          )}
+        </h2>
+      ) : (
+        <SectionHeading id="home-todo" count={count}>
+          Needs you
+        </SectionHeading>
+      )}
       <div className={K_ROWS}>
         <ul className="divide-y divide-cp-line">
           {shown.rows.map((e) => (

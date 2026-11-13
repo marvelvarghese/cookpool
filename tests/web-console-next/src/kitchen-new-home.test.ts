@@ -21,9 +21,10 @@ describe("Home's sections in each frame", () => {
     expect([...homeSections(false)]).toEqual(["greeting", "install", "money", "quick-use", "todo", "recent"]);
   });
 
-  it("are Hi, What did you use?, To do, Cook now, From your groups in the new frame", () => {
+  it("are Hi, the quick actions, To do and Cook tonight in the new frame (cookpool-home HM-2), with no groups feed", () => {
     expect(homeSections(true)).toBe(NEW_HOME_SECTIONS);
-    expect(homeSections(true).filter((s) => s !== "install")).toEqual(["greeting", "quick-use", "todo", "cook-now", "from-groups"]);
+    expect(homeSections(true).filter((s) => s !== "install")).toEqual(["greeting", "quick-actions", "todo", "cook-tonight"]);
+    expect(homeSections(true)).not.toContain("from-groups");
   });
 
   it("has no money card in the new frame (money lives in Money), and no Recent", () => {
