@@ -30,6 +30,7 @@
       "^@saas/kitchen-engine$": "<rootDir>/../../packages/kitchen-engine/src/index.ts",
       "^@saas/spliteco-ui$": "<rootDir>/../../packages/spliteco-ui/src/index.ts",
       "^@saas/spliteco-ui/(.*)$": "<rootDir>/../../packages/spliteco-ui/src/$1",
+      "^@saas/gestures/(.*)$": "<rootDir>/../../packages/gestures/src/$1",
       "^@saas/kitchen-engine/(.*)$": "<rootDir>/../../packages/kitchen-engine/src/$1.ts",
       "^@spliteco-web/(.*)$": "<rootDir>/../../apps/spliteco-web/src/$1",
       "^@/(.*)$": "<rootDir>/../../apps/spliteco-web/src/$1"

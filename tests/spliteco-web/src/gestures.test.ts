@@ -24,7 +24,7 @@ import {
   type DragEnd,
   type ElementLike,
   type StyleOf,
-} from "@/lib/gestures/gestures";
+} from "@saas/gestures/gestures";
 
 describe("the pull's numbers", () => {
   it("follows the finger at half speed, never above the top, at most PULL_MAX_PX", () => {

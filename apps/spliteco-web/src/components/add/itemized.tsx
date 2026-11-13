@@ -5,9 +5,9 @@ import type { SplitecoAdjustmentKind, SplitecoItemShareMode } from "@saas/contra
 import { owedBySplit } from "@saas/kitchen-engine/splits";
 import { Icon } from "@/components/icons";
 import { Avatar, BackButton, Sheet } from "@/components/ui";
-import { usePager } from "@/components/gestures/pager";
-import { useHold } from "@/components/gestures/hold";
-import { useRepeat } from "@/components/gestures/repeat";
+import { usePager } from "@saas/gestures/react/pager";
+import { useHold } from "@saas/gestures/react/hold";
+import { useRepeat } from "@saas/gestures/react/repeat";
 import { formatMoney, formatShort } from "@/lib/money";
 import { nameOf, tintOf } from "@/lib/people";
 import {

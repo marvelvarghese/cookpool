@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { PULL_HOLD_PX, PULL_THRESHOLD_PX, listenForDrags, pullDistance, pullRefreshes, pullRule } from "@/lib/gestures/gestures";
+import { PULL_HOLD_PX, PULL_THRESHOLD_PX, listenForDrags, pullDistance, pullRefreshes, pullRule } from "../gestures";
 import { place, useLatest } from "./motion";
 
 /**

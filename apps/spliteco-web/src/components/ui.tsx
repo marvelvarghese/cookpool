@@ -13,8 +13,8 @@ import { errorText, useSession } from "@/lib/session";
 import { rememberReturn, sessionStore } from "@/lib/return-to";
 import { readBack } from "@/lib/handoff";
 import { PAGER_TABS, TABS, nearestTab, pillPosition, showsAdd, tabIndexOf } from "@/lib/tabs";
-import { useSheetDrag } from "./gestures/sheet-drag";
-import { useEdgeBack } from "./gestures/edge-back";
+import { useSheetDrag } from "@saas/gestures/react/sheet-drag";
+import { useEdgeBack } from "@saas/gestures/react/edge-back";
 
 // ── Data ───────────────────────────────────────────────
 

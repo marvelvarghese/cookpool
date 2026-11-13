@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { listenForDrags } from "@/lib/gestures/gestures";
-import { CLICK_GUARD_MS } from "@/lib/gestures/row-gestures";
-import { pagerHearsStart, pagerOffset, pagerPosition, pagerRelease, pagerRule } from "@/lib/gestures/rules";
+import { listenForDrags } from "../gestures";
+import { CLICK_GUARD_MS } from "../row-gestures";
+import { pagerHearsStart, pagerOffset, pagerPosition, pagerRelease, pagerRule } from "../rules";
 import { settleTransition, useLatest } from "./motion";
 
 /**

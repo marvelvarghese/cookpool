@@ -10,6 +10,8 @@ import { activityAmount, activityWhat, byDay, dayLabel, viaName } from "@/lib/ac
 
 const APP = `${cwd()}/../../apps/spliteco-web/src`;
 const read = (path: string) => readFileSync(`${APP}/${path}`, "utf8");
+/** The shared gesture modules (packages/gestures, tripeco TR-5). */
+const readGesture = (path: string) => readFileSync(`${APP}/../../../packages/gestures/src/${path}`, "utf8");
 
 function person(over: Partial<SplitecoFriendBalance> = {}): SplitecoFriendBalance {
   return { subjectId: "usr_meera", name: "Meera", balances: [], groupNames: [], outsideGroups: false, ...over };
@@ -249,7 +251,7 @@ describe("the surface, from the source", () => {
     expect(surface).toContain('show({ text: "Up to date" })');
     expect(surface).toContain("sends.schedule(id");
     expect(surface).toContain("sends.undo(id)");
-    expect(read("components/gestures/pull.ts")).toContain("pullRule(target, surface");
+    expect(readGesture("react/pull.ts")).toContain("pullRule(target, surface");
   });
 
   it("Home: no sentences, three people with Settle / Remind swipe and the hold sheet, three tiles", () => {

@@ -3,8 +3,8 @@ import { cwd } from "node:process";
 import type { SplitecoExpenseSummary } from "@saas/contracts/spliteco";
 import { BillDeletes, billMeta, billMonths, billShare, billWritable, holdHref, holdTiles, planRows, planTitle } from "@/lib/group-view";
 import { DelayedSends, UNDO_MS, type Timers } from "@/lib/delayed";
-import { EDGE_PX, pagerHearsStart, pagerRule } from "@/lib/gestures/rules";
-import { edgeSwipeRule, type ElementLike } from "@/lib/gestures/gestures";
+import { EDGE_PX, pagerHearsStart, pagerRule } from "@saas/gestures/rules";
+import { edgeSwipeRule, type ElementLike } from "@saas/gestures/gestures";
 
 // spliteco-calm SL3 (design §2–§3, V2Group): the Group page's bills — which
 // swipe to Delete, the delayed delete with Undo, the hold sheet per bill,
@@ -12,6 +12,8 @@ import { edgeSwipeRule, type ElementLike } from "@/lib/gestures/gestures";
 
 const APP = `${cwd()}/../../apps/spliteco-web/src`;
 const read = (path: string) => readFileSync(`${APP}/${path}`, "utf8");
+/** The shared gesture modules (packages/gestures, tripeco TR-5). */
+const readGesture = (path: string) => readFileSync(`${APP}/../../../packages/gestures/src/${path}`, "utf8");
 const ME = "usr_me";
 
 function bill(over: Partial<SplitecoExpenseSummary> = {}): SplitecoExpenseSummary {
@@ -268,7 +270,7 @@ describe("from the left edge is back, not Bills ↔ Balances", () => {
 
   it("Group's pager leaves the edge, and every pushed screen has edge back", () => {
     expect(read("app/group/page.tsx")).toMatch(/usePager\(\{[^}]*leaveEdge: true/);
-    expect(read("components/gestures/pager.ts")).toContain("pagerHearsStart(start.x, live.current.leaveEdge)");
+    expect(readGesture("react/pager.ts")).toContain("pagerHearsStart(start.x, live.current.leaveEdge)");
     for (const page of ["group", "expense", "move", "add", "settle", "insights", "share", "scan", "live", "live/[code]"]) {
       expect([page, read(`app/${page}/page.tsx`).includes("<Screen nav={false}>")]).toEqual([page, true]);
     }

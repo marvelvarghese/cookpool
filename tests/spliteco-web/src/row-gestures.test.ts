@@ -16,7 +16,7 @@ import {
   swipeSpeed,
   type GestureClock,
   type PointerLike,
-} from "@/lib/gestures/row-gestures";
+} from "@saas/gestures/row-gestures";
 
 /** A clock the test moves by hand: timers run in order as time passes. */
 function fakeClock() {

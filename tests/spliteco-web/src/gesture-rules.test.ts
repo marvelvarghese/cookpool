@@ -25,8 +25,8 @@ import {
   sliderKeyFires,
   sliderPosition,
   type RowRelease,
-} from "@/lib/gestures/rules";
-import type { GestureClock, PointerLike } from "@/lib/gestures/row-gestures";
+} from "@saas/gestures/rules";
+import type { GestureClock, PointerLike } from "@saas/gestures/row-gestures";
 
 // spliteco-calm SL1 (design §2): the pure rules SL2–SL5 build the pager, the
 // row swipe, the hold sheet, the sheets, the edge back and Settle's slider on.

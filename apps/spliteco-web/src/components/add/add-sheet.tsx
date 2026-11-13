@@ -4,12 +4,12 @@ import * as React from "react";
 import type { SplitecoSplitMethod } from "@saas/contracts/spliteco";
 import { Icon } from "@/components/icons";
 import { Avatar } from "@/components/ui";
-import { useSheetDrag } from "@/components/gestures/sheet-drag";
-import { useRepeat } from "@/components/gestures/repeat";
-import { settleTransition, useLatest } from "@/components/gestures/motion";
-import { listenForDrags } from "@/lib/gestures/gestures";
-import { CLICK_GUARD_MS } from "@/lib/gestures/row-gestures";
-import { isSideways } from "@/lib/gestures/rules";
+import { useSheetDrag } from "@saas/gestures/react/sheet-drag";
+import { useRepeat } from "@saas/gestures/react/repeat";
+import { settleTransition, useLatest } from "@saas/gestures/react/motion";
+import { listenForDrags } from "@saas/gestures/gestures";
+import { CLICK_GUARD_MS } from "@saas/gestures/row-gestures";
+import { isSideways } from "@saas/gestures/rules";
 import { currencySymbol, moneyInput } from "@/lib/money";
 import {
   AMOUNT,

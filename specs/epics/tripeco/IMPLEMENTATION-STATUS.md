@@ -7,8 +7,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | TR0 — the spec | ✅ shipped | #169 |
 | TR1 — vehicles, fuel, rides | ✅ shipped | #170 |
 | TR2 — a ride posts to Spliteco | ✅ shipped | #172 |
-| TR3 — odometer from a photo | 🟡 in review | this PR (TR-4) |
-| TR4 — the Tripeco app | ⏳ planned | — |
+| TR3 — odometer from a photo | ✅ shipped | #175 |
+| TR4 — the Tripeco app | 🟡 in review | this PR (TR-5) |
 | TR5 — drive and split | ⏳ planned | — |
 | TR6 — rides in Spliteco | ⏳ planned | — |
 | TR7 — close-out | ⏳ planned | — |
@@ -64,3 +64,27 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 ### Departures
 
 - **No `odometer` usage feature of its own:** `kitchen_ai_usage.feature` is CHECK-constrained, and the design counts a read as a receipt anyway.
+
+## TR4 as built (TR-5)
+
+- **`apps/tripeco-web`** follows spliteco-web's build: Next.js 15 on Workers through OpenNext, and the `/api/*` forwarder with caller `tripeco-web`. It deploys as `cookpool-tripeco-web-<env>.cookpool.workers.dev`, and the smoke check wants "Tripeco" and `/api/health` over the binding.
+  - **Look:** Asphalt & lime tokens on `:root` (`globals.css`), Plus Jakarta Sans, and Share Tech Mono via `@fontsource/share-tech-mono`.
+  - **Tabs:** Home · Vehicles · Groups are one pager surface (`components/tab-surface.tsx`), with the tab bar as the tap twin, pull to refresh, and a re-read on return.
+- **Home** (canvas Main):
+  - the vehicle cards: mark, name, ₹/km and the month's fuel
+  - the dots, Start trip and Log fuel
+  - Needs you: Add the end km, or Post with Undo, which is a real unpost. When nothing waits it reads All caught up.
+  - Recent rides, and an Account sheet with Sign out
+- **Vehicles:** one row per vehicle, showing its mileage, Learned or Estimate, and ₹/km.
+- **Groups** (canvas Groups): your Spliteco groups. Those with rides come first, with a count and your side of them. The others have a Ride button, and New opens Spliteco.
+- **Sign in** (canvas SignIn): Continue with Spliteco, or Continue as Rahul once remembered on this device. It opens Spliteco's new `/handoff/out?to=<origin>&next=`, which mints a handoff code for exactly that origin (`lib/tripeco-link.ts`) and returns to `/handoff` here. If you're signed out there, Spliteco signs you in first and then continues. "Use another account" is the email code.
+- **identity-worker:** `HANDOFF_ORIGINS` lists `cookpool-tripeco-web-<env>` beside Spliteco's host, in each environment only.
+- **`packages/gestures` (`@saas/gestures`):** Spliteco's rules (`gestures`, `row-gestures`, `rules`) and React helpers (`react/*`) moved here, with git history kept. spliteco-web and its tests import them from the package (risk SL-A closed for Spliteco; Cookpool's console keeps its own copy).
+- **Tests:** `tests/tripeco-web` (12), `tests/spliteco-web` 312 (with the new `tripeco-link`), `tests/identity-worker` handoff. `next build` prerenders all 9 pages.
+
+### Departures
+
+- **Home's vehicle cards scroll natively with snap points** under `data-no-pager`, not on a second `usePager`. Two pagers over one swipe fight, since both use the same rule. The dots are the tap twin; a swipe that starts on a card never turns the tab.
+- **The Account face opens a sheet** (name, email, Sign out) rather than the canvas's link to Sign in.
+- **Continue as Rahul needs one sign-in on the device first.** Before that it reads Continue with Spliteco: Tripeco can't know your name before you sign in.
+- **The drive pages** (Scan, New ride, Split, Posted, Log fuel, Vehicle, Add vehicle, Group rides) arrive in TR5; until then those links 404.

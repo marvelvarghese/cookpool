@@ -175,11 +175,13 @@ describe("the Spliteco host signs in like the console (wrangler.template.jsonc)"
     const vars = config.env[envName]!.vars;
     const spliteco = `https://cookpool-spliteco-web-${envName}.cookpool.workers.dev`;
     expect(vars.OAUTH_ALLOWED_CONSOLE_ORIGINS!.split(",")).toContain(spliteco);
-    expect(vars.HANDOFF_ORIGINS).toBe(spliteco);
+    // Spliteco, and Tripeco, which signs in through Spliteco's /handoff/out (tripeco TR-5).
+    expect(vars.HANDOFF_ORIGINS!.split(",")).toEqual([spliteco, `https://cookpool-tripeco-web-${envName}.cookpool.workers.dev`]);
     if (envName !== "dev") expect(vars.PASSKEY_ORIGINS!.split(",")).toContain(spliteco);
     // Never another environment's app.
     for (const other of ["dev", "stage", "prod"].filter((e) => e !== envName)) {
       expect(JSON.stringify(vars)).not.toContain(`cookpool-spliteco-web-${other}`);
+      expect(JSON.stringify(vars)).not.toContain(`cookpool-tripeco-web-${other}`);
     }
   });
 
