@@ -6,8 +6,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 |---|---|---|
 | TR0 — the spec | ✅ shipped | #169 |
 | TR1 — vehicles, fuel, rides | ✅ shipped | #170 |
-| TR2 — a ride posts to Spliteco | 🟡 in review | this PR (TR-3) |
-| TR3 — odometer from a photo | ⏳ planned | — |
+| TR2 — a ride posts to Spliteco | ✅ shipped | #172 |
+| TR3 — odometer from a photo | 🟡 in review | this PR (TR-4) |
 | TR4 — the Tripeco app | ⏳ planned | — |
 | TR5 — drive and split | ⏳ planned | — |
 | TR6 — rides in Spliteco | ⏳ planned | — |
@@ -52,3 +52,15 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 - **`source` is optional on `SplitecoExpenseSummary`**, so existing fixtures stay valid; spliteco-worker always sends it.
 - **Moving a posted ride to another group is unpost-then-post**, not Spliteco's move, because the lock refuses Spliteco's move for every caller.
+
+## TR3 as built (TR-4)
+
+- **`POST /v1/kitchen/me/ai/odometer { image, mode? }`** returns `{ odometerKm, tripKm, averageKmPer }`, each null when it isn't shown. It runs on kitchen-worker's AI runner (`ai/odometer-task.ts`, `handlers/ai-odometer.ts`) with the receipt reader's photo check, switches, daily caps and budget. Usage is recorded under feature `receipt`, so a read counts as a receipt (AI_DAILY_RECEIPTS = 10 a day).
+- **The model** is sent only the photo and one line: "Read the odometer.", or the trip line in Trip reset. The prompt tells it never to guess a digit and not to mistake range, speed or the clock for the odometer.
+- **Checks:** the odometer at most 2,000,000 km, the trip at most 10,000 km and the average 0–100. They round to whole km, 0.1 km and 0.1 km per unit. With escalation off, the numbers that pass on their own are kept.
+- **Wire:** `AiOdometerRequest` and `AiOdometerResponse` in `@saas/contracts/kitchen`, and `client.kitchen.aiOdometer(image, mode)`.
+- **Tests:** `tests/kitchen-worker` `ai-odometer` (4); kitchen-worker 1,248 passing.
+
+### Departures
+
+- **No `odometer` usage feature of its own:** `kitchen_ai_usage.feature` is CHECK-constrained, and the design counts a read as a receipt anyway.
