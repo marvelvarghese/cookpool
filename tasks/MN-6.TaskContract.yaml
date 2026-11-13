@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MN-6
+  title: "Cookpool's old Money screens out"
+spec:
+  goal: "Cookpool's old Money screens, unused since Money became Spliteco inside, are gone, and every console test file loads again."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-inside/**
+    - tasks/MN-6.TaskContract.yaml
+  doneWhen:
+    - "money-ui.tsx and bill-scan-ui.tsx are gone, and money-group-ui and kitchen-money-ui hold only what profile and settle use"
+    - "Every web-console-next test file loads and passes"
+  gates: []

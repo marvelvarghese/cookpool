@@ -3,25 +3,15 @@
 import * as React from "react";
 import Link from "./link";
 import { Check, CookingPot, Package, Receipt, Trash2, Undo2 } from "lucide-react";
-import type { PublicOrganization } from "@saas/contracts/membership";
-import { balanceView } from "@saas/spliteco-ui/balance";
-import { whyRows } from "@saas/spliteco-ui/why";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { useProfile } from "./data";
-import { GroupAvatar, KCard, K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "./kit";
+import { K_BUTTON_QUIET, K_CARD, K_ROWS, K_SECTION, K_TITLE } from "./kit";
 import { BackControl } from "./back-ui";
-import { useKitchenGroup } from "./kitchen-money-data";
-import { namesOf } from "./kitchen-money-ui";
 import { copyLink } from "./recipe-share";
-import { useKitchenRouter } from "./transition-ui";
 import {
   WHY_ROWS,
   balanceLabel,
-  groupWhyRows,
-  moneyGroupHref,
   remindFor,
   settleHref,
   settleLine,
@@ -224,68 +214,6 @@ function WhyRowView({ row }: { row: MoneyWhyRow }) {
       <span className={cn("shrink-0 text-[15px] font-medium tabular-nums", row.reversed ? "text-muted-foreground line-through" : toneOf(row.minor))}>
         {signedWhole(row.minor, row.currency)}
       </span>
-    </div>
-  );
-}
-
-/** A group's balance and its why, on Money (`/money?group=org_…`). */
-export function MoneyGroupScreen({ group }: { group: PublicOrganization }) {
-  const router = useKitchenRouter();
-  const profile = useProfile();
-  const me = profile.data?.id ?? null;
-  const read = useKitchenGroup(group.id);
-  const data = read.data;
-  const [now] = React.useState(() => new Date());
-  const names = React.useMemo(() => namesOf(data ?? null), [data]);
-  const view = React.useMemo(() => (data ? balanceView(data, me, names) : null), [data, me, names]);
-  const why = React.useMemo(() => {
-    if (!data) return [];
-    const kinds = new Map(data.expenses.map((e) => [e.id, e.kind] as const));
-    return groupWhyRows(whyRows(data.expenses, me, names), kinds, now);
-  }, [data, me, names, now]);
-  const pays: SettleSheetRow[] = React.useMemo(
-    () =>
-      view && view.canWrite
-        ? view.rows
-            .filter((r) => r.amountMinor !== 0)
-            .map((r) => ({ key: r.subjectId, orgId: group.id, groupName: group.name, subjectId: r.subjectId, label: r.name, minor: r.amountMinor, currency: view.currency }))
-        : [],
-    [view, group.id, group.name],
-  );
-  const back = React.useCallback(() => router.replace("/money", { scroll: false }), [router]);
-  const count = data?.group.memberCount ?? null;
-
-  return (
-    <div className="space-y-[22px] min-[900px]:max-w-2xl">
-      <BalanceHeader
-        onBack={back}
-        badge={<GroupAvatar name={group.name} id={group.id} className="h-[42px] w-[42px] rounded-[14px]" />}
-        name={group.name}
-        sub={count === null ? null : `${count} ${count === 1 ? "person" : "people"}`}
-      />
-      {read.loading && !data ? (
-        <div className="space-y-[22px]" aria-hidden>
-          <Skeleton className="h-[180px] w-full rounded-[22px]" />
-          <Skeleton className="h-48 w-full rounded-[22px]" />
-        </div>
-      ) : read.error || !data || !view ? (
-        <KCard className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-sm text-muted-foreground">Couldn&apos;t load this kitchen&apos;s money.</p>
-          <Button variant="ghost" className={MONEY_PILL} onClick={read.reload}>
-            Try again
-          </Button>
-        </KCard>
-      ) : (
-        <>
-          <BalanceSection
-            nets={[{ currency: view.currency, minor: view.myBalanceMinor }]}
-            pays={pays}
-            back={moneyGroupHref(group.id)}
-            viewOnly={!view.canWrite && view.rows.some((r) => r.amountMinor !== 0)}
-          />
-          <WhyCard rows={why} empty="Nothing in this kitchen's money yet" />
-        </>
-      )}
     </div>
   );
 }

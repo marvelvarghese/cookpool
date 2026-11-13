@@ -6,12 +6,17 @@
 | MN1 — the shared tab | MN-2 | shipped | #188 |
 | MN2 — Cookpool's Money | MN-3 | shipped | #189 |
 | MN3 — Tripeco's Money | MN-4 | shipped | #190 |
-| MN4 — close-out | MN-5 | shipped | this PR |
+| MN4 — close-out | MN-5 | shipped | #191 |
+| (follow-up) old Money out | MN-6 | shipped | this PR |
 
 ## Departures from the boards
 
 - Tripeco's real tabs are Home · Vehicles · Groups, so Money is a fourth tab there, not the boards' Drive · Rides · Fuel · Money · You.
 - Group rows show the group's initial, not the members' faces (the groups read carries no members).
+
+## Found on the way
+
+- KC-9 (#185) left `kitchen-revamp-foundation.test.ts` unable to load (it read the dark palette's old selector); MN-6 points it at the pinned-Dark rule.
 
 ## Not yet verified
 
@@ -19,5 +24,5 @@
 
 ## Follow-ups
 
-- Remove Cookpool's old Money screens (`MoneyScreen`, its Bill and kitchen-only Settle up), now unused on `/money`.
+- ~~Remove Cookpool's old Money screens~~ (MN-6). The kitchen-only Settle page (`/money/settle`) stays: dishes and group settings link to it.
 - Settle inside the tab instead of opening Spliteco.

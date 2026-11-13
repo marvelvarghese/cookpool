@@ -159,7 +159,6 @@ describe("a group's page", () => {
 describe("the revamped screens' source", () => {
   const root = `${cwd()}/../../apps/web-console-next/src`;
   const files = [
-    "components/kitchen/money-ui.tsx",
     "components/kitchen/group-detail-ui.tsx",
     "app/(kitchen)/groups/page.tsx",
     "app/(kitchen)/groups/[orgSlug]/page.tsx",
@@ -171,13 +170,6 @@ describe("the revamped screens' source", () => {
     expect(src).not.toMatch(/font-(semibold|bold|extrabold|black)\b/);
   });
 
-  // cookpool-spliteco SE3: the one main button says "Add a bill" (CookpoolMoney), as the owner's brief asks.
-  it("Money has one main button, Add a bill, and no People | Groups switch", () => {
-    const src = readFileSync(`${root}/components/kitchen/money-ui.tsx`, "utf8");
-    expect(src).toContain("Add a bill");
-    expect(src).not.toContain("ListSwitch");
-    expect(src).not.toContain("MAIN_BUTTON");
-  });
 
   it("Groups has New group and Join with link at the top, and no round +", () => {
     const src = readFileSync(`${root}/app/(kitchen)/groups/page.tsx`, "utf8");
