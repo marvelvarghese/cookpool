@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | 🟡 Planning |
+| Status | ✅ Shipped (2026-11-13) |
 | Cluster | **HM** (HM0–HM3) |
 | Owner(s) | `apps/web-console-next` (Home and Kitchen), its tests in `tests/web-console-next`. No worker, route or migration changes. |
 | Builds on | `cookpool-revamp` (RV-3, RV-14 black dark mode, RV-15 Needs you), `cookpool-recipes` (RC-2 the new frame, Cook now), `cookpool-ai` (receipt scan). |
@@ -14,6 +14,7 @@
 | Decisions locked | (1) **No date or summary line** in the header. (2) **Quick actions replace "What did you use?"**; Scan bill shows only when receipt scan is available. (3) **Needs you keeps its rows and Undo**; it gains an "All caught up" line instead of disappearing. (4) **One Cook tonight card**, not a carousel. (5) **"Your groups cooked" moves to Kitchen.** (6) **Tokens only**, so dark is the RV-14 black theme. |
 | Design | Claude Design canvas: https://claude.ai/artifact/UKg7TpgfoHa4w9fssj7Fda (`Main`, `AllClear`, `Cooking` and their `Dark` twins) |
 | Gate | HM1 is the day stage shows the calm Home in light and dark. |
+| Shipped as | #165, #166, #167 and the close-out |
 
 ## Read order
 
