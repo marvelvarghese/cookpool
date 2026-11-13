@@ -1,0 +1,18 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MN-2
+  title: "The shared Spliteco Money tab"
+spec:
+  goal: "SplitecoMoneyTab and its pure parts are in @saas/spliteco-ui, drawn in Spliteco's Deep ocean."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - specs/epics/money-inside/**
+    - tasks/MN-2.TaskContract.yaml
+  doneWhen:
+    - "packages/spliteco-ui exports SplitecoMoneyTab, its pure parts and the Deep ocean look"
+    - "The spliteco-ui tests pass"
+  gates: []

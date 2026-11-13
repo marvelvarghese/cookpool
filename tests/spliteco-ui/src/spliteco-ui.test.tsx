@@ -205,6 +205,7 @@ describe("theming", () => {
     expect(render(<BalanceCard view={balanceView(group(), ME, names)} />, { money: plainMoney, slots: BARE_SLOTS })).not.toContain("class=");
   });
 
+  // The one fixed look, Spliteco inside's Deep ocean (money-inside MN-2), lives in inside-look.ts, not in any part.
   it("the package's parts hold no colours, sizes or fonts of their own", () => {
     const dir = `${cwd()}/../../packages/spliteco-ui/src`;
     for (const file of readdirSync(dir).filter((f) => f.endsWith(".tsx"))) {

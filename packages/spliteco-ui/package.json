@@ -11,7 +11,10 @@
     "./why": "./src/why.ts",
     "./bill": "./src/bill.ts",
     "./theme": "./src/theme.tsx",
-    "./components": "./src/components.tsx"
+    "./components": "./src/components.tsx",
+    "./money-tab": "./src/money-tab.ts",
+    "./money-tab-ui": "./src/money-tab-ui.tsx",
+    "./inside-look": "./src/inside-look.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
