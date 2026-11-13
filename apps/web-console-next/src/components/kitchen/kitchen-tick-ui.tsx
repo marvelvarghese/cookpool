@@ -1,5 +1,8 @@
 "use client";
 
+import { measureInputs, measuresOf } from "./measures";
+import { useSetMeasures } from "./measures-data";
+
 import * as React from "react";
 import { Check, Lock } from "lucide-react";
 import type { KitchenUsual, ReachableItem } from "@saas/contracts/kitchen";
@@ -88,6 +91,7 @@ export function KitchenTickRow({
 }) {
   const askToUse = useAskToUse();
   const cancelAsk = useCancelAsk();
+  const setMeasures = useSetMeasures();
   const { item } = row;
   const state = ticks.boxes.get(row.id) ?? TICK_EMPTY;
   const picked = ticks.picked.has(row.id);
@@ -166,6 +170,11 @@ export function KitchenTickRow({
         onTick={tick}
         end={end}
         tickLabel={(words, name, on) => (on ? `Ticked ${words} of ${name}, untick` : `Tick ${words} of ${name}`)}
+        drawer={{
+          dimension: item.dimension,
+          // New measure (KC-2): saved for the item's name in its pantry, then picked.
+          add: row.pending ? null : { dimension: item.dimension, measures: measuresOf(item), onAdd: (input) => void setMeasures({ item, measures: [...measureInputs(measuresOf(item)), input] }) },
+        }}
       >
         <StockBar {...bar} />
         {row.note ? <NoteLine note={row.note} /> : null}

@@ -5,6 +5,9 @@ import Link from "./link";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RING } from "./new-home-parts-ui";
+import type { KitchenDimension } from "@saas/contracts/kitchen";
+import { measureRow } from "./measures";
+import { MeasureDrawer, type MeasureDrawerAdd } from "./measure-drawer-ui";
 import { cleanTyped, tickUnitChoice, unitPickerOn, type TickAmount, type TickMeta, type TickState } from "./tick-row";
 
 /**
@@ -98,18 +101,29 @@ export interface TickRowProps {
   chipsEnd?: React.ReactNode;
   /** The list's narrower amount column, 112 px (RV-24); the Kitchen and the cook session keep 124. */
   listColumns?: boolean;
+  /**
+   * The unit opens the Measure drawer instead of the chip row (cookpool-kitchen-calm
+   * KC-2, the Kitchen): the item's dimension, and New measure's save when the
+   * row may add one.
+   */
+  drawer?: { dimension: KitchenDimension; add: MeasureDrawerAdd | null } | null;
 }
 
 const defaultTickLabel = (words: string, name: string, done: boolean) => (done ? `Logged ${words} of ${name}, undo` : `Log ${words} of ${name}`);
 
-export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, picked, onTick, end, busy = false, tickLabel = defaultTickLabel, children, onAmountBlur, chipsEnd, listColumns = false }: TickRowProps) {
+export function TickRow({ id, name, href, meta, amount, fixed = null, state, onState, onUnit, done, picked, onTick, end, busy = false, tickLabel = defaultTickLabel, children, onAmountBlur, chipsEnd, listColumns = false, drawer = null }: TickRowProps) {
   const [unitsOpen, setUnitsOpen] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const chipsId = React.useId();
   // Green: logged (the cook session) or picked (the Kitchen); only `done` locks the box.
   const on = !!done || !!picked;
   const canUnit = unitPickerOn(amount, !!done);
-  const showUnits = unitsOpen && canUnit;
+  const showUnits = unitsOpen && canUnit && !drawer;
+  const pickUnit = (id: string) => {
+    if (!amount || id === amount.unit.id) return;
+    onState(tickUnitChoice(state, id));
+    onUnit?.(id);
+  };
   const words = done ? `${done.number} ${done.word}` : (amount?.words ?? fixed ?? "");
   const fixedOnly = !amount && fixed !== null;
   const nameBody = (
@@ -175,7 +189,8 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
             />
             <button
               type="button"
-              aria-expanded={showUnits}
+              aria-expanded={drawer ? undefined : showUnits}
+              aria-haspopup={drawer ? "dialog" : undefined}
               aria-controls={showUnits ? chipsId : undefined}
               aria-label={`Unit: ${done?.word ?? amount?.word ?? ""}, change`}
               disabled={!canUnit}
@@ -220,6 +235,18 @@ export function TickRow({ id, name, href, meta, amount, fixed = null, state, onS
         )}
       </div>
 
+      {drawer && amount ? (
+        <MeasureDrawer
+          open={unitsOpen && canUnit}
+          onOpenChange={setUnitsOpen}
+          title={`Measure for ${name}`}
+          units={amount.units.filter((u) => u.kind === "unit").map((u) => ({ id: u.id, label: u.many }))}
+          measures={amount.units.flatMap((u) => (u.kind === "measure" && u.measure ? [{ id: u.id, label: u.one, size: measureRow(u.measure, drawer.dimension).size }] : []))}
+          chosen={amount.unit.id}
+          onPick={pickUnit}
+          add={drawer.add}
+        />
+      ) : null}
       {showUnits && amount ? (
         <div id={chipsId} role="group" aria-label={`Measure for ${name}`} className="flex flex-wrap gap-1.5 px-3.5 pb-3">
           {amount.units.map((u) => {
