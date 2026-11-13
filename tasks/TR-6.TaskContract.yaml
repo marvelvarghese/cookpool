@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-6
+  title: "Tripeco: drive and split"
+spec:
+  goal: "Every drive board on the canvas has its page: Scan, New ride, Split, Posted, Log fuel, Vehicle, Add vehicle, Groups and Group rides, wired to tripeco-worker."
+  affects:
+    - default/cookpool/tripeco-web
+    - default/cookpool/tripeco-web-tests
+    - default/cookpool/gestures
+    - apps/tripeco-web/**
+    - tests/tripeco-web/**
+    - packages/gestures/**
+    - specs/epics/tripeco/**
+    - tasks/TR-6.TaskContract.yaml
+  doneWhen:
+    - "A ride scanned at start and end, or with one Trip reset photo, posts its shares to a group, and Undo takes it back"
+    - "A full fill-up teaches the mileage the next ride uses"
+    - "Every canvas board has its page at phone width"
+  gates: []

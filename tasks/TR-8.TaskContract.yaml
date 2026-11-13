@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-8
+  title: "Tripeco: close-out"
+spec:
+  goal: "The tripeco status file records every milestone's PR, the departures from design.md and what was and was not verified on stage."
+  affects:
+    - specs/epics/tripeco/**
+    - tasks/TR-8.TaskContract.yaml
+  doneWhen:
+    - "IMPLEMENTATION-STATUS names each milestone's PR and what is still unverified on stage"
+    - "The README's Status says shipped, with the live URLs"
+  gates: []

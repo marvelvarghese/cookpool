@@ -1,0 +1,31 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: TR-5
+  title: "Tripeco: the app"
+spec:
+  goal: "apps/tripeco-web opens on its own address in Asphalt & lime, signs in through Spliteco, and swipes between Home, Vehicles and Groups on gestures shared with Spliteco from packages/gestures."
+  affects:
+    - default/cookpool/tripeco-web
+    - default/cookpool/tripeco-web-tests
+    - default/cookpool/gestures
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - default/cookpool/identity-worker
+    - default/cookpool/identity-worker-tests
+    - default/cookpool/sdk
+    - apps/tripeco-web/**
+    - tests/tripeco-web/**
+    - packages/gestures/**
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - apps/identity-worker/**
+    - tests/identity-worker/**
+    - packages/sdk/**
+    - pnpm-lock.yaml
+    - specs/epics/tripeco/**
+    - tasks/TR-5.TaskContract.yaml
+  doneWhen:
+    - "Tripeco opens on its stage URL and signs in with your Spliteco account in one tap from Spliteco"
+    - "Home, Vehicles and Groups swipe and vehicle cards swipe; Spliteco's gesture tests pass from packages/gestures"
+  gates: []
