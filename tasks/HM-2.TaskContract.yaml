@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: HM-2
+  title: "The calm Home"
+spec:
+  goal: "The new frame's Home has one header line, quick actions, Needs you with an All caught up line, one Cook tonight card and no groups feed, in light and dark."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/cookpool-home/**
+    - tasks/HM-2.TaskContract.yaml
+  doneWhen:
+    - "Stage's Home shows Scan bill, Log use, Cook and Groceries tiles under Hi and the balance pill"
+    - "An empty Needs you reads All caught up; a full one shows three rows and See all"
+    - "Home shows one Cook tonight card and no Your groups cooked, in light and dark at 390 px"
+    - "The web-console-next tests pass"
+  gates: []

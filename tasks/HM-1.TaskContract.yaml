@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: HM-1
+  title: "The cookpool-home spec"
+spec:
+  goal: "The cookpool-home doc set and its four contracts are on main."
+  affects:
+    - specs/epics/cookpool-home/**
+    - tasks/HM-*.TaskContract.yaml
+  doneWhen:
+    - "README, design, implementation-plan, risks and IMPLEMENTATION-STATUS are under specs/epics/cookpool-home"
+    - "tasks/HM-1..HM-4 contracts are on main"
+  gates: []
