@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | 🚧 In progress (2026-11-13) |
+| Status | ✅ Shipped (2026-11-13) — #187, #188, #189, #190 and the close-out |
 | Cluster | **MN** (MN0–MN4) |
 | Owner(s) | `packages/spliteco-ui` (the shared tab), `apps/web-console-next` (Cookpool's Money), `apps/tripeco-web` (Tripeco's new Money tab), and their tests. No worker, route or migration changes. |
 | Builds on | `cookpool-spliteco` (SE3 the shared package, the handoff), `spliteco-calm`, `tripeco` (TR-5 sign-in through Spliteco), `cookpool-kitchen-calm` (the calm look). |
