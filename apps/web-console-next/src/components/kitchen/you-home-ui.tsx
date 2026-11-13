@@ -5,6 +5,8 @@ import Link from "./link";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ROW_TITLE, cannotInstallLine } from "@/lib/install";
+import { LOOKS, LOOK_KEY, applyLook, parseLook, type Look } from "@/lib/look";
+import { SEG_OFF, SEG_ON, SEG_TRACK } from "./rv-look";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProfile } from "./data";
@@ -70,7 +72,12 @@ export function YouHome() {
       {groups.map((g) => (
         <React.Fragment key={g.id}>
           {/* This phone sits before Help, the board's last group. */}
-          {g.id === "help" ? <InstallGroup /> : null}
+          {g.id === "help" ? (
+            <>
+              <AppearanceGroup />
+              <InstallGroup />
+            </>
+          ) : null}
           <YouRowGroup group={g} />
         </React.Fragment>
       ))}
@@ -98,6 +105,52 @@ function YouRowGroup({ group, children }: { group: Pick<YouGroup, "id" | "title"
         ))}
         {children}
       </ul>
+    </section>
+  );
+}
+
+/**
+ * Appearance (cookpool-kitchen-calm KC-9): System · Light · Dark, on this
+ * device. System follows the phone; Light or Dark pins it.
+ */
+function AppearanceGroup() {
+  const [look, setLook] = React.useState<Look>("system");
+  React.useEffect(() => {
+    try {
+      setLook(parseLook(window.localStorage.getItem(LOOK_KEY)));
+    } catch {
+      // Storage blocked: System.
+    }
+  }, []);
+  const choose = (next: Look) => {
+    setLook(next);
+    applyLook(next, document.documentElement);
+    try {
+      if (next === "system") window.localStorage.removeItem(LOOK_KEY);
+      else window.localStorage.setItem(LOOK_KEY, next);
+    } catch {
+      // Storage blocked: the look holds until the page is closed.
+    }
+  };
+  return (
+    <section aria-labelledby="you-look" className="flex flex-col gap-2.5">
+      <h2 id="you-look" className={K_SECTION}>
+        Appearance
+      </h2>
+      <div role="radiogroup" aria-labelledby="you-look" className={cn(SEG_TRACK, "grid grid-cols-3 gap-1")}>
+        {LOOKS.map((l) => (
+          <button
+            key={l.id}
+            type="button"
+            role="radio"
+            aria-checked={look === l.id}
+            onClick={() => choose(l.id)}
+            className={cn("min-h-11 rounded-xl text-[15px] font-medium transition-colors", look === l.id ? SEG_ON : SEG_OFF, FOCUS)}
+          >
+            {l.label}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

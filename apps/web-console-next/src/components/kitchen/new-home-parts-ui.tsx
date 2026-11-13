@@ -80,7 +80,7 @@ export function ResumeStrip({ meId }: { meId: string | null }) {
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-base font-medium">{view.name}</span>
-        <span className="truncate text-[13px] font-normal opacity-85 [@media(prefers-color-scheme:dark)]:opacity-75">{resumeMeta(view.meta, session ? resumeStep(session) : null)}</span>
+        <span className="truncate text-[13px] font-normal opacity-85 cp-dark:opacity-75">{resumeMeta(view.meta, session ? resumeStep(session) : null)}</span>
       </span>
       <span aria-hidden className="inline-flex min-h-11 shrink-0 items-center rounded-[14px] bg-cp-cook px-4 text-[15px] font-medium text-cp-on-cook">
         Resume
@@ -126,7 +126,7 @@ export function HomeCookNow() {
                   {...sharePart("tile")}
                   aria-hidden
                   style={{ "--tile-bg": tile.bg, "--tile-fg": tile.fg } as React.CSSProperties}
-                  className="flex h-[76px] items-center justify-center bg-[var(--tile-bg)] text-[28px] font-medium text-[var(--tile-fg)] [@media(prefers-color-scheme:dark)]:bg-cp-line [@media(prefers-color-scheme:dark)]:text-foreground"
+                  className="flex h-[76px] items-center justify-center bg-[var(--tile-bg)] text-[28px] font-medium text-[var(--tile-fg)] cp-dark:bg-cp-line cp-dark:text-foreground"
                 >
                   {tile.initial}
                 </span>

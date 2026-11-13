@@ -9,7 +9,8 @@
 | KC4 — close-out | KC-5 | shipped | #177 |
 | KC5 — Paid by selector | KC-6 | shipped | #181 |
 | KC6 — the Kitchen header | KC-7 | shipped | #182 |
-| KC7 — the shopping list's drawer | KC-8 | shipped | this PR |
+| KC7 — the shopping list's drawer | KC-8 | shipped | #183 |
+| KC8 — Appearance in You | KC-9 | shipped | this PR |
 
 ## Departures from design.md
 
@@ -20,6 +21,8 @@
 
 - Who paid?'s search shows only past six people; a small group gets the list alone.
 - The kitchen picker and the shopping list already existed; KC-6 and KC-7 restyle them. The list keeps + Groceries beside it.
+
+- Appearance (KC-9): dark was the phone's only; `data-look` on <html> now pins Light or Dark on this device, and every `[@media(prefers-color-scheme:dark)]` class became the `cp-dark:` variant.
 
 ## Not yet verified
 

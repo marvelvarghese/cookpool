@@ -13,16 +13,16 @@
  * A secondary button on the ground: the soft shadow in light, and in dark
  * (where the card has no shadow) a 1 px line instead. No ring in light.
  */
-export const CARD_EDGE = "shadow-cp-card ring-inset ring-cp-line [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:ring-1";
+export const CARD_EDGE = "shadow-cp-card ring-inset ring-cp-line cp-dark:ring-1";
 
 /** A two- or three-way tab track (Sign in · Create account, Following · Everyone); the card's grey in dark (RV-23). */
-export const SEG_TRACK = "rounded-2xl bg-secondary p-1 [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-card";
+export const SEG_TRACK = "rounded-2xl bg-secondary p-1 cp-dark:bg-cp-card";
 
 /**
  * The chosen tab: the card with its shadow in light, a raised grey in dark
  * (the boards' `segOn`); no ring in either.
  */
-export const SEG_ON = "bg-card text-foreground shadow-cp-card [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-border";
+export const SEG_ON = "bg-card text-foreground shadow-cp-card cp-dark:bg-border";
 
 /** A tab that isn't chosen. */
 export const SEG_OFF = "text-muted-foreground hover:text-foreground";

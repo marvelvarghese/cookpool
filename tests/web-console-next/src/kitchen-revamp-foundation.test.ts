@@ -105,7 +105,9 @@ describe("the tokens (design §1)", () => {
   });
 
   it("puts dark under prefers-color-scheme, for the new frame only", () => {
-    expect(css).toMatch(/@media \(prefers-color-scheme: dark\) \{\s*\.cookpool\.cookpool-new,\s*\.cookpool-new \.cookpool \{/);
+    expect(css).toMatch(/@media \(prefers-color-scheme: dark\) \{\s*html:not\(\[data-look="light"\]\) \.cookpool\.cookpool-new,\s*html:not\(\[data-look="light"\]\) \.cookpool-new \.cookpool \{/);
+    // KC-9: Dark pinned in You's Appearance.
+    expect(css).toMatch(/html\[data-look="dark"\] \.cookpool\.cookpool-new,\s*html\[data-look="dark"\] \.cookpool-new \.cookpool \{/);
   });
 
   it("caps every heavier weight at 500 in kitchen screens", () => {

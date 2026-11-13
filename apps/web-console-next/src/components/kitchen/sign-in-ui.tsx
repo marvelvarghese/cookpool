@@ -204,7 +204,7 @@ export function GoogleButton({
 }
 
 /** The "or" rule: the border, and the `cp-line` grey in the new look's dark (RV-23). */
-const OR_RULE = "h-px flex-1 bg-border [@media(prefers-color-scheme:dark)]:[.cookpool-new_&]:bg-cp-line";
+const OR_RULE = "h-px flex-1 bg-border cp-dark:bg-cp-line";
 
 export function OrDivider({ label = "or" }: { label?: string }) {
   return (
