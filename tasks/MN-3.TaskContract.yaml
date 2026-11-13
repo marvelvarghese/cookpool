@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MN-3
+  title: "Cookpool's Money is Spliteco inside"
+spec:
+  goal: "Cookpool's Money tab renders the shared Spliteco tab, opens Spliteco signed in, and turns the tab bar navy."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-inside/**
+    - tasks/MN-3.TaskContract.yaml
+  doneWhen:
+    - "Stage's Cookpool Money shows the Spliteco tab with ‹ Cookpool, and the tab bar is navy there"
+    - "Settle up opens Spliteco signed in, at that group's settle page"
+    - "The web-console-next tests pass"
+  gates: []

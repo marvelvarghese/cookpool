@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MN-5
+  title: "Close out money-inside"
+spec:
+  goal: "Every money-inside milestone is listed with its PR and the README reads Shipped."
+  affects:
+    - specs/epics/money-inside/**
+    - tasks/MN-5.TaskContract.yaml
+  doneWhen:
+    - "IMPLEMENTATION-STATUS lists MN0 to MN4 with their PRs"
+    - "The README status reads Shipped"
+  gates: []
