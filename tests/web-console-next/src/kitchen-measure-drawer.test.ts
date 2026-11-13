@@ -44,4 +44,11 @@ describe("the Measure drawer is where units are picked", () => {
     expect(kitchen("kitchen-tick-ui.tsx")).toMatch(/drawer=\{\{/);
   });
 
+  it("replaces Add item's unit chips, and the title is Add item", () => {
+    const page = src("app/(kitchen)/pantry/new/page.tsx");
+    expect(page).toContain("<MeasureDrawer");
+    expect(page).not.toContain("Chip key={u}");
+    expect(page).toContain("Add item</h1>");
+  });
 });
+

@@ -3,8 +3,12 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { addFormName } from "@/components/kitchen/say-it";
-import { History } from "lucide-react";
-import type { KitchenItem, Pantry } from "@saas/contracts/kitchen";
+import { ChevronDown, History, Plus } from "lucide-react";
+import type { KitchenItem, KitchenMeasureInput, Pantry } from "@saas/contracts/kitchen";
+import { UNITS } from "@saas/kitchen-engine/units";
+import { MeasureDrawer } from "@/components/kitchen/measure-drawer-ui";
+import { measureInputs, measureRow, measuresOf } from "@/components/kitchen/measures";
+import { useSetMeasures } from "@/components/kitchen/measures-data";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,7 +151,10 @@ function AddItemForm({
     from ? historyFill(historyEntryOfItem(from, meId), initialItemForm({ today, pantry: start, meId }), { today, pantries, fallbackPantry: start, meId }) : null,
   );
   const [form, setForm] = React.useState<ItemForm>(() => startFill?.form ?? { ...initialItemForm({ today, pantry: start, meId }), ...(name ? { name } : {}) });
-  const [moreUnits, setMoreUnits] = React.useState(() => startFill?.moreUnits ?? MORE_UNITS.includes(form.unit));
+  const [unitsOpen, setUnitsOpen] = React.useState(false);
+  // Measures added here (KC-3), saved for the item once it is added.
+  const [newMeasures, setNewMeasures] = React.useState<KitchenMeasureInput[]>([]);
+  const unitDimension = UNITS[form.unit].dimension;
   const [morePayers, setMorePayers] = React.useState(false);
   const [showErrors, setShowErrors] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -178,7 +185,6 @@ function AddItemForm({
     setServerFields({});
     setServerError(null);
     setMorePayers(false);
-    if (fill.moreUnits) setMoreUnits(true);
     setForm(fill.form);
     setFilled(true);
     setDateOpen(false);
@@ -192,6 +198,7 @@ function AddItemForm({
   const group = chosen?.kind === "group" ? chosen : null;
   // Reads the chosen pantry's list ahead, so the item is listed there the moment it is added.
   const addItem = useAddItem(chosen ? pantryKey(chosen) : null);
+  const setMeasures = useSetMeasures();
   const members = useMembersOf(group?.orgId ?? null);
   const names = useMemberNames(members.data);
   const currency = chosen?.currency ?? "INR";
@@ -238,6 +245,7 @@ function AddItemForm({
     }
     setBusy(true);
     const paidBy = request.kind === "group" ? (request.body.paidBy ?? meId) : meId;
+    const measures = newMeasures;
     void addItem({
       request:
         showAsk && request.kind === "group"
@@ -252,6 +260,8 @@ function AddItemForm({
       where: group ? group.name : "your kitchen",
       canRemove: !group || paidBy === meId || canManageGroup(myRole),
       idempotencyKey: idemKey.current,
+    }).then((r) => {
+      if (r.ok && measures.length > 0) void setMeasures({ item: r.data.item, measures: [...measureInputs(measuresOf(r.data.item)), ...measures] });
     });
     idemKey.current = crypto.randomUUID();
     router.push(`/pantry?pantry=${encodeURIComponent(group ? group.orgId : PERSONAL_PANTRY)}`);
@@ -375,18 +385,49 @@ function AddItemForm({
         </div>
         <FieldError id="item-qty-error" message={err("quantity")} />
         <FieldError id="item-price-error" message={err("price")} />
-        <div role="group" aria-label="Unit" className="flex flex-wrap gap-2">
-          {[...MAIN_UNITS, ...(moreUnits ? MORE_UNITS : [])].map((u) => (
-            <Chip key={u} aria-pressed={form.unit === u} selected={form.unit === u} onClick={() => update({ unit: u })} className="min-w-12 justify-center px-3">
-              {u}
-            </Chip>
+        {/* The unit is one button; the Measure drawer (KC-3) has the units, the measures and New measure. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label={`Unit: ${form.unit}, change`}
+            onClick={() => setUnitsOpen(true)}
+            className="flex min-h-11 items-center gap-1.5 rounded-[14px] bg-cp-accent-tint px-4 text-[15px] font-medium text-cp-accent-text hover:bg-cp-accent-tint/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {form.unit}
+            <ChevronDown className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+          </button>
+          {newMeasures.map((m) => (
+            <span key={m.one} className="rounded-full bg-card px-3 py-2 text-[13px] text-muted-foreground shadow-cp-card">
+              1 {m.one} = {measureRow({ ...m, id: m.one }, unitDimension).size}
+            </span>
           ))}
-          {moreUnits ? null : (
-            <Chip onClick={() => setMoreUnits(true)} className="px-3 text-muted-foreground">
-              more
-            </Chip>
-          )}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            onClick={() => setUnitsOpen(true)}
+            className="flex min-h-11 items-center gap-1.5 rounded-[14px] px-2 text-[15px] font-medium text-cp-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+            Measure
+          </button>
         </div>
+        <MeasureDrawer
+          open={unitsOpen}
+          onOpenChange={setUnitsOpen}
+          units={[...MAIN_UNITS, ...MORE_UNITS].map((u) => ({ id: u, label: u }))}
+          measures={newMeasures.map((m) => ({ id: `m:${m.one}`, label: m.one, size: measureRow({ ...m, id: m.one }, unitDimension).size }))}
+          chosen={form.unit}
+          onPick={(id) => {
+            const unit = [...MAIN_UNITS, ...MORE_UNITS].find((u) => u === id);
+            if (!unit) return;
+            // A measure counts against one dimension: a switch to another drops the ones added here.
+            if (UNITS[unit].dimension !== unitDimension) setNewMeasures([]);
+            update({ unit });
+          }}
+          add={{ dimension: unitDimension, measures: newMeasures, onAdd: (input) => setNewMeasures((ms) => [...ms, input]) }}
+          saveLabel="Add measure"
+        />
         {/* Numbers only, once they read (no "Enter a quantity and price…" before). */}
         {preview.perUnit ? (
           <p id="item-unit-line" role="status" aria-live="polite" className="text-sm font-medium tabular-nums text-cp-accent-text">
@@ -540,7 +581,7 @@ function AddItemForm({
     <div className="space-y-4">
       <header className="flex items-center gap-1">
         <BackButton />
-        <h1 className={K_TITLE}>Add groceries</h1>
+        <h1 className={K_TITLE}>Add item</h1>
       </header>
 
       <form onSubmit={submit} noValidate className="max-w-xl space-y-6">
