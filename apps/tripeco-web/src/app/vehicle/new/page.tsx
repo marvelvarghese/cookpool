@@ -70,7 +70,7 @@ function AddVehicle() {
     <Screen close="/vehicles" title="Add a vehicle">
       <div role="radiogroup" aria-label="Runs on" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
         {(Object.keys(FUEL_LABEL) as TripecoFuel[]).map((f) => (
-          <button key={f} className="choice" role="radio" aria-checked={fuel === f} onClick={() => setFuel(f)} style={{ alignItems: "center", gap: 6, padding: "12px 4px", color: fuel === f ? "var(--lime)" : "var(--soft)" }}>
+          <button key={f} className="choice" role="radio" aria-checked={fuel === f} aria-label={FUEL_LABEL[f]} onClick={() => setFuel(f)} style={{ alignItems: "center", gap: 6, padding: "12px 4px", color: fuel === f ? "var(--lime)" : "var(--soft)" }}>
             <Icon name={f === "electric" ? "bolt" : "car"} size={20} />
             <span style={{ fontSize: 13, color: "inherit", fontWeight: 600 }}>{FUEL_LABEL[f]}</span>
           </button>

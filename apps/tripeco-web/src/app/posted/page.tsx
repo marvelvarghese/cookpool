@@ -35,17 +35,31 @@ function Posted() {
   React.useEffect(() => {
     if (!id) return;
     void client.tripeco.ride(id).then(
-      async ({ ride: r }) => {
-        setRide(r);
-        const g = r.posted?.groupId ?? r.groupId;
-        if (g) {
-          setGroup(await client.spliteco.group(g).catch(() => null));
-          setHref(splitecoGroupUrl(window.location.host, g));
-        }
-      },
+      ({ ride: r }) => setRide(r),
       (err: unknown) => setError(errorText(err)),
     );
   }, [client, id]);
+
+  // The group's name and people, read on their own; right after posting the
+  // first read can miss (seen on stage, TR-9), so it is tried once more.
+  const groupId = ride?.posted?.groupId ?? ride?.groupId ?? null;
+  React.useEffect(() => {
+    if (!groupId) return;
+    setHref(splitecoGroupUrl(window.location.host, groupId));
+    let live = true;
+    const read = (left: number): void => {
+      client.spliteco.group(groupId).then(
+        (g) => live && setGroup(g),
+        () => {
+          if (live && left > 0) setTimeout(() => read(left - 1), 800);
+        },
+      );
+    };
+    read(2);
+    return () => {
+      live = false;
+    };
+  }, [client, groupId]);
 
   if (!ride) return <div className="app"><main className="page">{error ? <p className="error">{error}</p> : <p className="spinner">Loading…</p>}</main></div>;
   const posted = ride.state === "posted";
