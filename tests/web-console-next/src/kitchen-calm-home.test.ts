@@ -38,7 +38,13 @@ describe("the calm Home's page", () => {
     expect(kitchen("inbox-needs-ui.tsx")).toContain("All caught up");
   });
 
-  it.each(["new-home-ui.tsx", "new-home-parts-ui.tsx", "inbox-needs-ui.tsx"])("%s uses tokens only, so dark is RV-14's black theme", (f) => {
+  it("puts Your groups cooked on Kitchen's All view instead (HM-3)", () => {
+    const kitchenPage = kitchen("pantry-new-ui.tsx");
+    expect(kitchenPage).toMatch(/view === ALL_VIEW && !searching \? <FromYourGroups meId=\{meId\} names=\{names\} \/>/);
+    expect(kitchen("groups-cooked-ui.tsx")).toContain("export function FromYourGroups");
+  });
+
+  it.each(["new-home-ui.tsx", "new-home-parts-ui.tsx", "inbox-needs-ui.tsx", "groups-cooked-ui.tsx"])("%s uses tokens only, so dark is RV-14's black theme", (f) => {
     const src = kitchen(f);
     expect(src).not.toMatch(/#[0-9A-Fa-f]{6}\b/);
     expect(src).not.toMatch(/font-(semibold|bold|extrabold)/);

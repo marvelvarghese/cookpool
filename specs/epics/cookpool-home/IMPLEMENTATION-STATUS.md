@@ -5,8 +5,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | Milestone | State | PR |
 |---|---|---|
 | HM0 — the spec | shipped | #165 |
-| HM1 — the calm Home | in review | HM-2 |
-| HM2 — the feed on Kitchen | planned | |
+| HM1 — the calm Home | shipped | #166 |
+| HM2 — the feed on Kitchen | in review | HM-3 |
 | HM3 — close-out | planned | |
 
 ## HM1 — as built
@@ -16,3 +16,9 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 - The avatar moved from the accent fill to the accent tint, as the boards draw it.
 - `FromYourGroups` is exported but unused until HM-3 mounts it on Kitchen.
 - Not yet checked signed in on stage, in light or dark.
+
+## HM2 — as built
+
+- `FromYourGroups` and its row moved from `new-home-ui.tsx` to `groups-cooked-ui.tsx`, unchanged.
+- Kitchen (`NewPantry`) shows it on the All view, under Finished this week, and hides it while searching, as Finished does.
+- Not yet checked signed in on stage.
