@@ -67,3 +67,4 @@ spec:
     runtime: cloudflare
 # ci: trigger full-component verification (orun v2.12.0 upgrade — PR #183)
 # orun: redeploy SI-10 move to the new Cloudflare account 2026-11-03T15:35:52Z
+# orun: redeploy SE-9 so policy-worker bundles the policy-engine that grants spliteco.* (added in SE1, #120) 2026-11-13
