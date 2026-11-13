@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MN-1
+  title: "The money-inside spec"
+spec:
+  goal: "The money-inside doc set and its five contracts are on main."
+  affects:
+    - specs/epics/money-inside/**
+    - tasks/MN-*.TaskContract.yaml
+  doneWhen:
+    - "README, design, implementation-plan, risks and IMPLEMENTATION-STATUS are under specs/epics/money-inside"
+    - "tasks/MN-1..MN-5 contracts are on main"
+  gates: []

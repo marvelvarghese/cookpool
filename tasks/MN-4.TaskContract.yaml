@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MN-4
+  title: "Tripeco's Money tab"
+spec:
+  goal: "Tripeco has a fourth tab, Money, rendering the shared Spliteco tab with a navy tab bar."
+  affects:
+    - default/cookpool/tripeco-web
+    - default/cookpool/tripeco-web-tests
+    - apps/tripeco-web/**
+    - tests/tripeco-web/**
+    - pnpm-lock.yaml
+    - specs/epics/money-inside/**
+    - tasks/MN-4.TaskContract.yaml
+  doneWhen:
+    - "Stage's Tripeco shows Home, Vehicles, Groups and Money, and Money is the Spliteco tab with ‹ Tripeco"
+    - "The tab bar turns navy with a gold Money tab while Money is open"
+    - "The tripeco-web tests pass"
+  gates: []
