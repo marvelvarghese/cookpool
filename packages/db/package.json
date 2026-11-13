@@ -21,6 +21,7 @@
     "./integrations": "./src/integrations/index.ts",
     "./kitchen": "./src/kitchen/index.ts",
     "./spliteco": "./src/spliteco/index.ts",
+    "./tripeco": "./src/tripeco/index.ts",
     "./runner": "./src/runner/index.ts",
     "./d1": "./src/d1/index.ts",
     "./json": "./src/json.ts"

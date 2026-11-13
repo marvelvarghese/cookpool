@@ -60,6 +60,7 @@ export type RouteFamily =
   | "integrations"
   | "kitchen"
   | "spliteco"
+  | "tripeco"
   | "join_preview";
 
 interface BucketLimits {
@@ -131,6 +132,11 @@ const LIMITS: Record<RouteFamily, FamilyConfig> = {
   },
   // Spliteco (cookpool-spliteco SE1): the same budget as the kitchen.
   spliteco: {
+    identity: { limit: 60, windowSec: 60 },
+    org: { limit: 300, windowSec: 60 },
+  },
+  // Tripeco (tripeco TR-2): the same budget as Spliteco.
+  tripeco: {
     identity: { limit: 60, windowSec: 60 },
     org: { limit: 300, windowSec: 60 },
   },

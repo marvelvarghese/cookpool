@@ -15,6 +15,7 @@ import { AuthClient } from "./auth.js";
 import { IntegrationsClient } from "./integrations.js";
 import { KitchenClient } from "./kitchen.js";
 import { SplitecoClient } from "./spliteco.js";
+import { TripecoClient } from "./tripeco.js";
 import { BillingClient } from "./billing.js";
 import { ConfigClient } from "./config.js";
 import { EnvironmentsClient } from "./environments.js";
@@ -46,6 +47,8 @@ export class Cookpool {
   readonly kitchen: KitchenClient;
   /** Spliteco (cookpool-spliteco SE1): groups, expenses and balances under /v1/spliteco. */
   readonly spliteco: SplitecoClient;
+  /** Tripeco (tripeco TR-2): vehicles, the fuel log and rides under /v1/tripeco. */
+  readonly tripeco: TripecoClient;
   /** Underlying HTTP transport. Exposed for advanced extension. */
   readonly transport: Transport;
 
@@ -67,6 +70,7 @@ export class Cookpool {
     this.integrations = new IntegrationsClient(this.transport);
     this.kitchen = new KitchenClient(this.transport);
     this.spliteco = new SplitecoClient(this.transport);
+    this.tripeco = new TripecoClient(this.transport);
   }
 }
 
@@ -107,6 +111,7 @@ export { AuthClient } from "./auth.js";
 export { IntegrationsClient } from "./integrations.js";
 export { KitchenClient } from "./kitchen.js";
 export { SplitecoClient } from "./spliteco.js";
+export { TripecoClient } from "./tripeco.js";
 
 // Transport surface.
 export {
@@ -930,3 +935,16 @@ export {
   isSplitecoMonth,
   splitecoRestorableUntil,
 } from "@saas/contracts/spliteco";
+
+// Tripeco (tripeco TR-2).
+export type * from "@saas/contracts/tripeco";
+export {
+  TRIPECO_FUELS,
+  TRIPECO_RIDE_STATES,
+  TRIPECO_SOURCE_KIND,
+  TRIPECO_PHOTO_MAX_BYTES,
+  TRIPECO_MAX_RIDERS,
+  TRIPECO_MAX_EXTRAS,
+  TRIPECO_ERROR_REASONS,
+  tripecoDefaultTitle,
+} from "@saas/contracts/tripeco";

@@ -90,6 +90,8 @@ const D1_WORKER_TEMPLATES = [
   "apps/metering-worker/wrangler.template.jsonc",
   "apps/notifications-worker/wrangler.template.jsonc",
   "apps/projects-worker/wrangler.template.jsonc",
+  "apps/spliteco-worker/wrangler.template.jsonc",
+  "apps/tripeco-worker/wrangler.template.jsonc",
   "apps/webhooks-worker/wrangler.template.jsonc",
 ];
 

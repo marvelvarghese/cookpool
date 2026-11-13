@@ -190,6 +190,9 @@ const FACADE_SAMPLES = [
   `/v1/spliteco/groups/xid_${HEX}`,
   `/v1/spliteco/expenses/xid_${HEX}`,
   "/v1/spliteco/drafts/drf_nothex/save",
+  // Tripeco (tripeco TR-2): no scope lists any of it.
+  "/v1/tripeco/me",
+  `/v1/tripeco/rides/trp_${HEX}`,
   // Words kitchen-worker routes where an id could sit.
   "/v1/kitchen/me/items/history",
   "/v1/kitchen/me/recipes/copies",

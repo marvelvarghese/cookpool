@@ -17,6 +17,7 @@ spec:
     - default/cookpool/sdk
     - default/cookpool/api-edge
     - default/cookpool/api-edge-tests
+    - default/cookpool/config-worker-tests
     - apps/tripeco-worker/**
     - tests/tripeco-worker/**
     - packages/db/**
@@ -28,6 +29,7 @@ spec:
     - packages/sdk/**
     - apps/api-edge/**
     - tests/api-edge/**
+    - tests/config-worker/**
     - apps/kitchen-worker/component.yaml
     - apps/spliteco-worker/component.yaml
     - apps/web-console-next/component.yaml
