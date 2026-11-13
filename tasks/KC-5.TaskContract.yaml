@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: KC-5
+  title: "Close out cookpool-kitchen-calm"
+spec:
+  goal: "Every cookpool-kitchen-calm milestone is listed with its PR and the README reads Shipped."
+  affects:
+    - specs/epics/cookpool-kitchen-calm/**
+    - tasks/KC-5.TaskContract.yaml
+  doneWhen:
+    - "IMPLEMENTATION-STATUS lists KC0 to KC4 with their PRs"
+    - "The README status reads Shipped"
+  gates: []

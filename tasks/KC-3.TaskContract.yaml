@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: KC-3
+  title: "Add item picks its unit from the drawer"
+spec:
+  goal: "Add item has one unit button opening the Measure drawer, and measures added there are saved with the item."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/cookpool-kitchen-calm/**
+    - tasks/KC-3.TaskContract.yaml
+  doneWhen:
+    - "Stage's Add item shows one unit button and no unit chips"
+    - "A measure added on Add item is on the item once it is added"
+    - "The web-console-next tests pass"
+  gates: []

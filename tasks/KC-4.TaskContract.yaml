@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: KC-4
+  title: "The calm item page"
+spec:
+  goal: "The item page shows the owner chip, one level line, three amounts and Other, and one actions card, with no ring or extra cards."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/cookpool-kitchen-calm/**
+    - tasks/KC-4.TaskContract.yaml
+  doneWhen:
+    - "Stage's item page shows whose it is and which group under the name"
+    - "Use some ends in Other, and Got more, Finished and Wasted sit in one card"
+    - "No ring, Runs out card or Who had it card, in light and dark at 390 px"
+    - "The web-console-next tests pass"
+  gates: []
