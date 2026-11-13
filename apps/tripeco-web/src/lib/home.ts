@@ -1,6 +1,6 @@
 // Home · Vehicles · Groups (tripeco TR-5): which tab an address is, and back. Pure.
 
-export const TAB_PATHS = ["/", "/vehicles", "/groups"] as const;
+export const TAB_PATHS = ["/", "/vehicles", "/groups", "/money"] as const;
 
 export function tabIndexOf(path: string): number {
   const p = path.replace(/\/+$/, "") || "/";

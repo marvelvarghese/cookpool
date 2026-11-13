@@ -10,7 +10,7 @@ const nextConfig = {
   // their exports point at TypeScript with NodeNext-style `./*.js`
   // specifiers, so they go through SWC with a .js → .ts alias (as in
   // apps/web-console-next).
-  transpilePackages: ["@saas/sdk", "@saas/kitchen-engine", "@saas/gestures"],
+  transpilePackages: ["@saas/sdk", "@saas/kitchen-engine", "@saas/gestures", "@saas/spliteco-ui"],
   webpack(config) {
     config.resolve = config.resolve || {};
     config.resolve.extensionAlias = {

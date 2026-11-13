@@ -122,9 +122,13 @@ input[type="number"] { -moz-appearance: textfield; }
 
 /* ── Tab bar ───────────────────────────────────────── */
 .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--ground-2); border-top: 1px solid var(--hair); padding-bottom: env(safe-area-inset-bottom); }
-.tabbar-inner { max-width: 480px; margin: 0 auto; height: 76px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tabbar-inner { max-width: 480px; margin: 0 auto; height: 76px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .tabbar a, .tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 500; background: none; border: 0; }
 .tabbar [aria-current="page"] { color: var(--lime); font-weight: 600; }
+/* Money is Spliteco inside (money-inside MN-4): the bar turns Spliteco's navy, its tab gold. */
+.tabbar-spliteco { background: #13203A; border-top-color: #1E2C4A; }
+.tabbar-spliteco a, .tabbar-spliteco button { color: #94A3B8; }
+.tabbar-spliteco [aria-current="page"] { color: #F5B53D; }
 
 /* ── Fields ────────────────────────────────────────── */
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
