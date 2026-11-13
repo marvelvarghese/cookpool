@@ -2,6 +2,33 @@
 
 As-built ≠ intent. This file records what actually shipped, and every place the code departed from `design.md`.
 
+**Shipped 2026-11-13.** Seven milestones, one PR each, one in flight at a time: #169, #170, #172, #175, #178, #179, #180, and this close-out. **Live on stage:** https://cookpool-tripeco-web-stage.cookpool.workers.dev (API `https://cookpool-api-edge-stage.cookpool.workers.dev/v1/tripeco`). Prod deploys with the same merges, at `-prod`.
+
+### What was verified, and how
+
+- **On stage, signed out:**
+  - Every Tripeco page answers 200: `/`, `/vehicles`, `/groups`, `/scan`, `/ride`, `/split`, `/posted`, `/fuel`, `/vehicle`, `/vehicle/new`, `/group` and `/rides`.
+  - `/api/health` reaches api-edge over the binding.
+  - `GET /v1/tripeco/me` answers 401 without a session, so the facade and binding are live.
+  - Continue with Spliteco goes to Spliteco's `/handoff/out` (200 since #180), which sends a signed-out visitor to Spliteco's Sign in.
+- **In tests, against the real workers over SQLite** (`tests/tripeco-worker`, 32):
+  - vehicles, fuel and learned mileage
+  - rides, shares and photos
+  - posting as a locked exact-split expense, Spliteco refusing edit, delete and move (`owned_by_tripeco`), unpost and repost-as-edit
+  - group-only proof and photos
+- **Also in tests:** the odometer read on kitchen-worker's AI runner, with a stubbed model (`tests/kitchen-worker`), and the app's pure rules (`tests/tripeco-web`, `tests/spliteco-web`).
+- **Locally at phone width,** against `tests/tripeco-web/dev/dev-server.ts` (the real workers, seeded): Sign in with the email code, Home (vehicle card, Start trip · Log fuel, Needs you with Post, Recent rides) and Scan (Trip reset, the camera screen).
+
+### Not verified yet
+
+- **Signed-in checks on stage.** The browser used here had no Spliteco stage session, and no credential was entered for you. Still to do:
+  - the full Continue with Spliteco round trip: `/handoff/out` → code → Tripeco `/handoff` → signed in
+  - adding a vehicle, logging fuel, scanning a ride and posting it to a real stage group
+  - seeing the ride row (car mark, lock, photos, Edit in Tripeco) in Spliteco stage
+- **A real odometer photo through the model on stage.** Only the stubbed model has been run.
+- **On a phone:** the camera input, the vehicle-card scroll snap, the km slider, swipe-to-delete on a fill-up, and the edge swipe.
+- **Prod** has not been opened.
+
 | Milestone | State | PR |
 |---|---|---|
 | TR0 — the spec | ✅ shipped | #169 |
@@ -10,8 +37,8 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 | TR3 — odometer from a photo | ✅ shipped | #175 |
 | TR4 — the Tripeco app | ✅ shipped | #178 |
 | TR5 — drive and split | ✅ shipped | #179 |
-| TR6 — rides in Spliteco | 🟡 in review | this PR (TR-7) |
-| TR7 — close-out | ⏳ planned | — |
+| TR6 — rides in Spliteco | ✅ shipped | #180 |
+| TR7 — close-out | ✅ shipped | this PR (TR-8) |
 
 ## TR1 as built (TR-2)
 
@@ -139,3 +166,14 @@ As-built ≠ intent. This file records what actually shipped, and every place th
 
 - **Edit in Tripeco is the driver's only.** A rider sees the proof and Comment, since only the owner can change a ride.
 - **The proof photos load as data URLs** through the SDK (the bearer token lives in `localStorage`, so an `<img src>` can't carry it).
+
+## TR7 as built (TR-8)
+
+- This file and the README's Status. No code.
+
+### Follow-ups
+
+- Run the signed-in stage checks listed above, then note them here.
+- A custom domain for Tripeco (risk TR-G); when it lands, add it to identity-worker's `HANDOFF_ORIGINS` and to `lib/links.ts` / `lib/tripeco-link.ts`.
+- Move ride photos to R2 if the D1 table grows past comfort (risk TR-C).
+- tripeco-web's `.gitignore` still carries the unanchored `out/` copied from spliteco-web. No `out` directory exists there today; anchor it before one does.
