@@ -65,7 +65,7 @@ export function PantrySwitcher({ title, options, onPick }: { title: string; opti
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="bottom" aria-describedby={undefined} className={cn(SHEET_CLASS, "px-2.5 pb-8")}>
           <Grabber />
-          <SheetTitle className="mx-2 mb-1 mt-1.5 text-[17px] font-medium">Pantries</SheetTitle>
+          <SheetTitle className="mx-2 mb-1 mt-1.5 text-[17px] font-medium">Show</SheetTitle>
           <div className="flex flex-col gap-1.5">
             {options.map((o) => (
               <button
@@ -424,13 +424,15 @@ export function ShoppingListLink({ count }: { count: number }) {
     <Link
       href={SHOPPING_LIST_HREF}
       aria-label={shoppingLabel(count)}
-      className={cn("flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[14px] bg-card pl-3 pr-2 text-[15px] font-medium text-foreground shadow-cp-card", RING)}
+      className={cn("relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-card text-foreground shadow-cp-card", RING)}
     >
-      <ListIcon className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
-      <span>List</span>
-      <span aria-hidden className="flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-        {count}
-      </span>
+      <ListIcon className="h-5 w-5" strokeWidth={2} aria-hidden />
+      {/* KC-7 (the canvas's Kitchen): the list as a round button, its count a badge on it. */}
+      {count > 0 ? (
+        <span aria-hidden className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-medium text-primary-foreground">
+          {count}
+        </span>
+      ) : null}
     </Link>
   );
 }
