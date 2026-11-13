@@ -94,14 +94,15 @@ const flag = {
 } as unknown as InboxItem;
 
 describe("Home's order (the board)", () => {
-  it("puts the install card under What did you use?, before Needs you; prod's Home is as it was", () => {
-    expect([...NEW_HOME_SECTIONS]).toEqual(["greeting", "quick-use", "install", "todo", "cook-now", "from-groups"]);
+  it("puts the install card under the quick actions, before Needs you; prod's Home is as it was", () => {
+    expect([...NEW_HOME_SECTIONS]).toEqual(["greeting", "quick-actions", "install", "todo", "cook-tonight"]);
     expect([...TODAY_HOME_SECTIONS]).toEqual(["greeting", "install", "money", "quick-use", "todo", "recent"]);
   });
 
-  it("has no usual chips or Say it under the field, and keeps Install restyled", () => {
+  it("has the quick actions in place of the field (HM-2), no usual chips, and keeps Install restyled", () => {
     const home = kitchen("new-home-ui.tsx");
-    expect(home).toContain("<HomeUseField />");
+    expect(home).toContain("<HomeQuickActions />");
+    expect(home).not.toContain("<HomeUseField />");
     expect(home).not.toContain("<QuickUse");
     expect(home).toContain("<InstallCard fresh />");
     const field = kitchen("quick-use-ui.tsx");

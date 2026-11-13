@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "./link";
-import { Bookmark, CookingPot } from "lucide-react";
+import { Bookmark, CookingPot, PackageMinus, Receipt, ShoppingBag, type LucideIcon } from "lucide-react";
 import type { KitchenRecipe } from "@saas/contracts/kitchen";
 import { cn } from "@/lib/cn";
 import { shareKey, sharePart } from "@/lib/transitions";
@@ -19,6 +19,8 @@ import { recipeHref } from "./recipes";
 import { pressIn } from "./prefetch";
 import { K_SECTION } from "./kit";
 import { balancePill, cookNowTag, resumeMeta, resumeStep } from "./new-home-look";
+import { homeQuickActions, type HomeActionKey } from "./home-actions";
+import { useReceiptScanShows } from "./receipt-data";
 
 /**
  * The revamped Home's parts (cookpool-revamp RV-3, the canvas's
@@ -147,6 +149,72 @@ export function HomeCookNow() {
         })}
       </ul>
     </section>
+  );
+}
+
+const ACTION_ICON: Record<HomeActionKey, LucideIcon> = { scan: Receipt, use: PackageMinus, cook: CookingPot, groceries: ShoppingBag };
+
+/**
+ * The calm Home's quick actions (cookpool-home HM-2): one row of tiles, icon
+ * over label — Scan bill (only while receipt scan shows), Log use, Cook,
+ * Groceries.
+ */
+export function HomeQuickActions() {
+  const actions = homeQuickActions(useReceiptScanShows());
+  return (
+    <nav aria-label="Quick actions" className={cn("grid gap-2.5", actions.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
+      {actions.map((a) => {
+        const Icon = ACTION_ICON[a.key];
+        return (
+          <Link
+            key={a.key}
+            href={a.href}
+            className={cn(
+              "flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[20px] bg-card px-1 text-[13px] font-medium shadow-cp-card transition-colors hover:bg-muted/40",
+              RING,
+            )}
+          >
+            <Icon className="h-[22px] w-[22px] text-cp-accent-text" strokeWidth={1.8} aria-hidden />
+            <span className="truncate">{a.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
+ * Cook tonight (cookpool-home HM-2): the first thing Cook now says you can
+ * make, as one tinted card — its name, its tag, and Cook, opening the
+ * recipe. Nothing while Cook now has nothing.
+ */
+export function HomeCookTonight({ className }: { className?: string }) {
+  const cookNow = useCookNow();
+  const prefetch = usePrefetchRecipe();
+  const first = cookNow.data?.[0];
+  if (!first) return null;
+  const tag = cookNowTag(first);
+  return (
+    <Link
+      {...pressIn(() => prefetch(first.recipe.id))}
+      href={recipeHref(first.recipe.id)}
+      share={shareKey("recipe", first.recipe.id)}
+      aria-label={`Cook ${first.recipe.name} · ${tag.text}`}
+      className={cn("flex min-h-[72px] items-center gap-3.5 rounded-[22px] bg-cp-accent-tint py-3 pl-4 pr-3 text-foreground", RING, className)}
+    >
+      <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-card text-cp-accent-text">
+        <CookingPot className="h-[22px] w-[22px]" strokeWidth={1.8} />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span {...sharePart("title")} className="truncate text-base font-medium">
+          {first.recipe.name}
+        </span>
+        <span className="truncate text-[13px] font-normal text-cp-accent-text">{tag.text}</span>
+      </span>
+      <span aria-hidden className={pillClass("main")}>
+        Cook
+      </span>
+    </Link>
   );
 }
 
