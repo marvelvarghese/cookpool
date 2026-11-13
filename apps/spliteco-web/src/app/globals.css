@@ -418,6 +418,7 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 .hdr-actions .iconbtn { width: 40px; height: 40px; border-radius: 50%; }
 .sheet-person { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
 .sheet-person .name { flex: 1; min-width: 0; font-size: 18px; font-weight: 500; }
+.sheet-note { margin: 10px 4px 0; font-size: 13px; color: var(--dim); }
 .sheet-person .amt { font-size: 18px; font-weight: 500; }
 .atiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .atile { height: 72px; border-radius: 18px; background: var(--raised); border: 0; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 500; }

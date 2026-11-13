@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: SL-8
+  title: "Home's Remind follows the group plans"
+spec:
+  goal: "Home offers Remind only for someone who pays you in a group's plan and Settle only for someone you pay, as the server decides, so a swipe never meets nothing_owed."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - specs/epics/spliteco-calm/**
+    - tasks/SL-8.TaskContract.yaml
+  doneWhen:
+    - "A person who owes you overall but pays someone else in every plan gets no Remind, and the hold sheet says it is settled through others"
+    - "Remind and Settle follow the plan's direction; before groups load the net balance decides"
+    - "IMPLEMENTATION-STATUS records the fix and its PR"
+  gates: []
