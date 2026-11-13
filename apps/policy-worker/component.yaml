@@ -18,6 +18,16 @@ spec:
       - { path: docs/runbook.md, role: runbook, title: Runbook }
   domain: starter-runtime
   path: apps/policy-worker
+  # What this worker bundles from outside its own folder (SE-10). `orun plan`
+  # picks a component by its own path, so without these a change to the
+  # rules alone never redeployed policy-worker: SE1 put the spliteco.* grants
+  # in policy-engine and stage and prod kept denying them until SE-9. The
+  # engine is all runtime; from contracts only policy.ts is (POLICY_VERSION),
+  # the rest is types, so the rest of contracts is left out.
+  change:
+    inputs:
+      - packages/policy-engine/**
+      - packages/contracts/src/policy.ts
   subscribe:
     environments:
       - name: dev
