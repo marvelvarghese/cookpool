@@ -1,3 +1,4 @@
+import { TRIPECO_RIDE_HEADER } from "@saas/contracts/tripeco";
 import type { SplitecoAction } from "@saas/contracts/spliteco";
 import {
   ACTOR_DELEGATION_CLIENT_HEADER,
@@ -11,13 +12,17 @@ import { notFound, unavailable } from "./http.js";
 import { fetchAuthorizationContext } from "./membership-client.js";
 import { authorizeViaPolicy } from "./policy-client.js";
 
+const TRIPECO_RIDE_RE = /^trp_[0-9a-f]{32}$/;
+
 /** The caller, from the headers api-edge sets. Null when either is missing: the route answers 401. */
 export function resolveActor(request: Request): ActorContext | null {
   const subjectId = request.headers.get("x-actor-subject-id");
   const subjectType = request.headers.get("x-actor-subject-type");
   if (!subjectId || !subjectType) return null;
   const delegationId = request.headers.get(ACTOR_DELEGATION_ID_HEADER) || null;
-  if (!delegationId) return { subjectId, subjectType, delegationId: null, scopes: [], clientName: null };
+  const ride = request.headers.get(TRIPECO_RIDE_HEADER);
+  const tripecoRide = ride && TRIPECO_RIDE_RE.test(ride) && !delegationId ? ride : null;
+  if (!delegationId) return { subjectId, subjectType, delegationId: null, scopes: [], clientName: null, tripecoRide };
   const scopes = (request.headers.get(ACTOR_SCOPES_HEADER) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   return { subjectId, subjectType, delegationId, scopes, clientName: clientNameOf(request.headers.get(ACTOR_DELEGATION_CLIENT_HEADER)) };
 }

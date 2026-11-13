@@ -13,6 +13,8 @@ spec:
     - default/cookpool/contracts
     - default/cookpool/contracts-tests
     - default/cookpool/sdk
+    - default/cookpool/db
+    - default/cookpool/db-tests
     - default/cookpool/api-edge
     - apps/tripeco-worker/**
     - tests/tripeco-worker/**
@@ -21,6 +23,8 @@ spec:
     - packages/contracts/**
     - tests/contracts/**
     - packages/sdk/**
+    - packages/db/**
+    - tests/db/**
     - apps/api-edge/component.yaml
     - apps/spliteco-web/component.yaml
     - apps/web-console-next/component.yaml

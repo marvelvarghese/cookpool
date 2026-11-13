@@ -14,6 +14,9 @@ import type {
   TripecoRide,
   TripecoVehicle,
   TripecoPhoto,
+  TripecoPostRequest,
+  TripecoProofResponse,
+  TripecoGroupRidesResponse,
 } from "@saas/contracts/tripeco";
 
 import type { RequestOptions, Transport } from "./transport.js";
@@ -98,5 +101,25 @@ export class TripecoClient {
   /** GET /v1/tripeco/photos/{pho} — the photo as base64. */
   photo(photoId: string, opts: RequestOptions = {}): Promise<TripecoPhotoResponse> {
     return this.transport.request<TripecoPhotoResponse>({ method: "GET", path: `${BASE}/photos/${seg(photoId)}` }, opts);
+  }
+
+  /** POST /v1/tripeco/rides/{trp}/post — into its Spliteco group as one locked expense (a repost edits it). */
+  postRide(rideId: string, body: TripecoPostRequest = {}, opts: RequestOptions = {}): Promise<TripecoRideResponse> {
+    return this.transport.request<TripecoRideResponse>({ method: "POST", path: `${BASE}/rides/${seg(rideId)}/post`, body }, opts);
+  }
+
+  /** POST /v1/tripeco/rides/{trp}/unpost — Posted's Undo: out of Spliteco again. */
+  unpostRide(rideId: string, opts: RequestOptions = {}): Promise<TripecoRideResponse> {
+    return this.transport.request<TripecoRideResponse>({ method: "POST", path: `${BASE}/rides/${seg(rideId)}/unpost`, body: {} }, opts);
+  }
+
+  /** GET /v1/tripeco/rides/{trp}/proof — a posted ride's numbers and photos, for anyone in its group. */
+  proof(rideId: string, opts: RequestOptions = {}): Promise<TripecoProofResponse> {
+    return this.transport.request<TripecoProofResponse>({ method: "GET", path: `${BASE}/rides/${seg(rideId)}/proof` }, opts);
+  }
+
+  /** GET /v1/tripeco/groups/{org}/rides — every ride posted to a group you are in, and what each person's came to. */
+  groupRides(groupId: string, opts: RequestOptions = {}): Promise<TripecoGroupRidesResponse> {
+    return this.transport.request<TripecoGroupRidesResponse>({ method: "GET", path: `${BASE}/groups/${seg(groupId)}/rides` }, opts);
   }
 }
