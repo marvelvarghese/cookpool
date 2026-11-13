@@ -89,7 +89,7 @@ import type { UpdateStepTimesRequest } from "@saas/contracts/kitchen";
 // Timers that find you (GC-3).
 import type { CreateKitchenTimerRequest, KitchenTimerResponse, KitchenTimersResponse } from "@saas/contracts/kitchen";
 // Cookpool AI (AI-2).
-import type { AiReceiptResponse, AiRecipePhotoResponse, AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
+import type { AiOdometerMode, AiOdometerResponse, AiReceiptResponse, AiRecipePhotoResponse, AiStatus, AiUsesResponse } from "@saas/contracts/kitchen";
 // Voice and help at the stove (AI-5).
 import type {
   AiAskStepRequest,
@@ -1200,6 +1200,15 @@ export class KitchenClient {
   aiReceipt(image: string, opts: RequestOptions = {}): Promise<AiReceiptResponse> {
     return this.transport.request<AiReceiptResponse>({ method: "POST", path: this.mePath("ai/receipt"), body: { image } }, opts);
   }
+  /**
+   * POST /v1/kitchen/me/ai/odometer — read a dashboard photo (tripeco TR-4):
+   * the odometer, Trip A and the car's average, each null when not shown.
+   * Writes nothing; counts as a receipt.
+   */
+  aiOdometer(image: string, mode: AiOdometerMode = "odo", opts: RequestOptions = {}): Promise<AiOdometerResponse> {
+    return this.transport.request<AiOdometerResponse>({ method: "POST", path: this.mePath("ai/odometer"), body: { image, mode } }, opts);
+  }
+
 
   /**
    * POST /v1/kitchen/me/ai/recipe-photo (AI-4) — read one recipe photo

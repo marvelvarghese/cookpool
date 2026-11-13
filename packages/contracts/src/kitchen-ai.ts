@@ -398,3 +398,32 @@ export interface AiRecipePhotoResponse {
   draft: AiRecipeDraft;
   checks: AiRecipeCheck[];
 }
+
+// ── Odometer reading (tripeco TR-4, design §4) ──────────────────────────
+//
+// One photo of a car's dashboard read into what Tripeco needs: the odometer,
+// Trip A and the car's own average, each null when it is not on the photo.
+// The same runner, provider, switches and daily caps as the receipt reader —
+// a read counts as a receipt — and, like it, nothing is written and the image
+// is never stored or logged here (Tripeco keeps its own copy as proof).
+
+/** What the photo is meant to show: the odometer (a start or end reading), or Trip A after a reset. */
+export type AiOdometerMode = "odo" | "trip";
+
+/** POST /v1/kitchen/me/ai/odometer. `image` as a receipt's (base64 JPEG or WebP ≤ AI_RECEIPT_MAX_BYTES). */
+export interface AiOdometerRequest {
+  image: string;
+  mode?: AiOdometerMode;
+}
+
+export interface AiOdometerResponse {
+  /** The odometer (total km), a whole number; null when it can't be read. */
+  odometerKm: number | null;
+  /** Trip A (or the trip meter shown), one decimal; null when not shown. */
+  tripKm: number | null;
+  /** The car's average shown beside the trip (km/l, km/kg or km/kWh); null when not shown or shown as l/100 km it can't convert. */
+  averageKmPer: number | null;
+}
+
+/** The largest odometer the reader returns; anything above is a misread. */
+export const AI_ODOMETER_MAX_KM = 2_000_000;

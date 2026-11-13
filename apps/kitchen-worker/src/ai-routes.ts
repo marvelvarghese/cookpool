@@ -1,5 +1,6 @@
 import { handleAiStatus, handleAiUses } from "./handlers/ai.js";
 import { handleAiReceipt } from "./handlers/ai-receipt.js";
+import { handleAiOdometer } from "./handlers/ai-odometer.js";
 import { handleAiAskStep, handleAiCheckStep, handleAiRescue, handleAiTranscribe } from "./handlers/ai-stove.js";
 import { handleAiRecipePhoto } from "./handlers/ai-recipe-photo.js";
 import type { MeRoute } from "./router.js";
@@ -22,6 +23,12 @@ export const AI_ROUTES: readonly MeRoute[] = [
     name: "kitchen.me.ai.receipt",
     pattern: /^\/v1\/kitchen\/me\/ai\/receipt$/,
     methods: { POST: handleAiReceipt },
+  },
+  // Tripeco's odometer reads (tripeco TR-4): the receipt reader's path, counted as a receipt.
+  {
+    name: "kitchen.me.ai.odometer",
+    pattern: /^\/v1\/kitchen\/me\/ai\/odometer$/,
+    methods: { POST: handleAiOdometer },
   },
   // Voice and help at the stove (AI-5).
   {
