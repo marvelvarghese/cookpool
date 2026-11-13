@@ -12,6 +12,7 @@ import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useProfile } from "./data";
 import { IconBubble, KCard, K_BUTTON, K_BUTTON_QUIET, K_ROWS, K_SECTION } from "./kit";
 import { RING, SeeAllButton } from "./new-home-parts-ui";
+import { FromYourGroups } from "./groups-cooked-ui";
 import { sectionRows, usualNowRows } from "./pantry-look";
 import { useMemberNames, useMyRoles } from "./people-data";
 import { usePantries, usePantryItems, useUsualBucket, useUsuals } from "./pantry-data";
@@ -365,6 +366,9 @@ export function NewPantry() {
 
           {/* Finished this week (PN-6), on All. */}
           {finishedSection}
+
+          {/* Your groups cooked (cookpool-home HM-3; it left Home in HM-2), on All. */}
+          {view === ALL_VIEW && !searching ? <FromYourGroups meId={meId} names={names} /> : null}
 
           {items.data?.truncated ? <p className="text-[13px] font-normal text-muted-foreground">Showing the first 1,000 items.</p> : null}
         </>
