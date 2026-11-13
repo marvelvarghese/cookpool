@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: KC-6
+  title: "Paid by is one selector"
+spec:
+  goal: "Add item's Paid by is one row opening Who paid?, with search for a big group."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/cookpool-kitchen-calm/**
+    - tasks/KC-6.TaskContract.yaml
+  doneWhen:
+    - "Stage's Add item for a group shows Paid by as one row with a face and a name"
+    - "Tapping it opens Who paid?, which searches the group and picks the payer"
+    - "The web-console-next tests pass"
+  gates: []
