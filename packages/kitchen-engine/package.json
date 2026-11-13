@@ -9,7 +9,8 @@
     "./units": "./src/units.ts",
     "./ledger": "./src/ledger.ts",
     "./splits": "./src/splits.ts",
-    "./settle": "./src/settle.ts"
+    "./settle": "./src/settle.ts",
+    "./drive": "./src/drive.ts"
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",

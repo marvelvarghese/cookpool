@@ -20,3 +20,4 @@ export * from "./notifications.js";
 export * from "./integrations.js";
 export * from "./kitchen.js";
 export * from "./spliteco.js";
+export * from "./tripeco.js";

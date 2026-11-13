@@ -32,7 +32,7 @@ Tripeco works out what a shared drive cost and hands the shares to Spliteco. The
 | `tripeco_rides` | `trp_…`, the vehicle, the owner, state (`open` → `done` → `posted`, or `solo`), mode (`odo` / `trip`), start and end odometer, Trip A, the car's average, the mileage and its source, the price, wear per km, the title, the group, fuel/wear/extras/total in paise, the Spliteco expense it posted as, started and ended times |
 | `tripeco_ride_riders` | per ride: subject, on/off, kilometres ridden, share in paise |
 | `tripeco_ride_extras` | per ride: toll or parking, paise |
-| `tripeco_photos` | `pho_…`, the ride, role (`start` `end` `trip_end`), a JPEG as base64 (≤ 400 KB), its size |
+| `tripeco_photos` | `pho_…`, the ride, role (`start` or `end`), a JPEG as base64 (≤ 400 KB), its size |
 
 Everything is the owner's: every query is scoped by the owner's subject id, and nothing in these tables is readable by anyone else except a posted ride's proof (§3).
 

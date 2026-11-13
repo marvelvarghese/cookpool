@@ -44,8 +44,11 @@ export type ClientIpSource = "cloudflare" | "console" | "none";
  */
 export const SPLITECO_CALLER = "spliteco-web";
 
+/** The Tripeco app's Worker (tripeco TR-2) forwards `/api/*` the same way. */
+export const TRIPECO_CALLER = "tripeco-web";
+
 /** The callers whose binding props make the forwarded address trustworthy. */
-export const TRUSTED_CALLERS: readonly string[] = [CONSOLE_CALLER, SPLITECO_CALLER];
+export const TRUSTED_CALLERS: readonly string[] = [CONSOLE_CALLER, SPLITECO_CALLER, TRIPECO_CALLER];
 
 /** True when the request came over the console's (or the Spliteco app's) service binding. */
 export function fromConsoleBinding(props: unknown): boolean {

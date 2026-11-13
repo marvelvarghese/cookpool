@@ -78,10 +78,10 @@ const FLAT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 describe("600_kitchen_staples (RV-21)", () => {
-  it("is registered under kitchen with its checksum, last", () => {
+  it("is registered under kitchen with its checksum, after 590", () => {
     const ids = manifest.migrations.map((m) => m.id);
     expect(manifest.migrations.find((m) => m.id === ID)).toMatchObject({ context: "kitchen", path: `${ID}/up.sql` });
-    expect(ids[ids.length - 1]).toBe(ID);
+    expect(ids.indexOf(ID)).toBe(ids.indexOf("590_kitchen_no_starter_recipes") + 1);
   });
 
   it("is additive: two tables, two unique indexes and one copy, nothing altered or dropped, no LIKE or GLOB", () => {

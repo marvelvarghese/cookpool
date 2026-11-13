@@ -534,5 +534,14 @@ export const manifest: MigrationManifest = {
       description:
         "Always have per pantry and the shopping list: kitchen_staples (a person's, owner_kind user and their usr_ id, or a group's, owner_kind group and its UUID; one name_key per pantry; food_key on the food list or NULL; status ok | low | out; the last price, currency, amount and unit; the list's own amount; the last expense a group Bought posted) and kitchen_shopping_items (lines added by hand, one name per pantry, an optional amount, who added them). Every saved personal Always have list (kitchen_always_have) is copied in as personal staples (INSERT OR IGNORE, so a rerun adds nothing twice); kitchen_always_have stays, unread, for a worker still on the old code. Additive (Cookpool RV-21)",
     },
+    {
+      id: "610_tripeco_drive",
+      context: "kitchen",
+      path: "610_tripeco_drive/up.sql",
+      checksum:
+        "2f6ae2e7973344ef456248a89ee65962d0ab89832f2e707cd580b41afc9f8677",
+      description:
+        "Tripeco: tripeco_vehicles (veh_ ids; the owner, name, plate, fuel petrol | diesel | cng | electric, odometer, the typed mileage and price, wear in paise per km, archived_at), tripeco_fuel_logs (ful_; paid, quantity ×1000, odometer, full or part, me | rider), tripeco_rides (trp_; open | done | posted, odo | trip, the readings, the car's average, km, the mileage and its source, price, wear, title, group, fuel/wear/extras/total in paise, version, the Spliteco expense it posted as), tripeco_ride_riders, tripeco_ride_extras (toll | parking) and tripeco_photos (pho_; start | end, base64 JPEG or WebP up to 400 KB), with owner and group indexes. Additive (tripeco TR-2)",
+    },
   ],
 };

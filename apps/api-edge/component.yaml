@@ -60,6 +60,15 @@ spec:
     - component: notifications-worker
     - component: kitchen-worker
     - component: spliteco-worker
+    # Enforced on main: TRIPECO_WORKER must exist before api-edge binds it
+    # (Cloudflare refuses a binding to a Worker that is not there, 10143), and
+    # policy-worker's placeholder step only runs when policy-worker deploys.
+    - component: tripeco-worker
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
     - component: policy-worker
       mode: enforced
       modeRules:
