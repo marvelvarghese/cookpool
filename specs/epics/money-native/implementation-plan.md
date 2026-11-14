@@ -18,6 +18,7 @@ One task per PR; one milestone in flight. A merge is a squash. Each rung leaves 
 - *The floating buttons appear from MY-6 and MY-7; here the slots are empty.*
 
 ## MY3 — settle and expense
+- **MY-16** — backend: one new `spliteco-worker` write, `POST /v1/spliteco/me/payments-received`, records a payment from a named person to you, one record per group touched, Kitchen first (the settle rules of MY-6, run from the other side). **Done when:** the balance read shows it cleared; a retry writes nothing twice. *First in MY3: MY-6's **Got it** and MY-8 call it.*
 - **MY-6** — the settle box: All / Kitchen only / Custom keypad, `kitchenFirst`, UPI then **Paid** records one payment per group touched. **Done when:** a recorded payment moves the balances.
 - **MY-7** — the expense box: Equal and Exact, Exact must sum, saved through Spliteco's own call. **Done when:** an Equal and an Exact expense are saved and show in the group.
 

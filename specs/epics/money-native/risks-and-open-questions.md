@@ -20,5 +20,6 @@
 - **Motion.** The expanding box is the one animated surface; it has a reduce-motion fallback (MY-3) and is checked with the media query forced.
 - **Dark.** The boards draw Cookpool light only; Cookpool's dark theme is the host's, and MY-2 maps `cookpool` tokens through it. Check Money in dark before MY-8.
 - **The People read is a backend change** (MY-15): contract, route, SDK method and tests; the first worker change in this epic, kept in its own PR so it deploys on its own.
+- **Got it needs a write** (MY-16): `POST /v1/spliteco/me/payments-received`, its own backend PR. It is a payment they made to you, recorded by you as cash received; it is not confirmed by them, and the payee can still mark any payment not received. One record per group, written group by group (not one transaction): a retry with the same key resumes where it stopped.
 - **Spliteco inside stays reachable for splits we do not support** (percent, shares, itemized): one quiet link, using the existing hand-off, until we decide otherwise.
 - **Not seen signed in on stage** until MY-8; the whole epic's native look is verified on stage only after the mount.
