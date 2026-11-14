@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-8
+  title: "Cookpool's Money is native"
+spec:
+  goal: "/money in Cookpool renders the new pages in Cookpool's cream and herb green with Cookpool's own tab bar, reads and writes through the console's client, and has no hand-off to Spliteco."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-8.TaskContract.yaml
+  doneWhen:
+    - "Stage's /money shows the cream page with one Powered by Spliteco line, and the tab bar is Cookpool's, not navy"
+    - "A person's page, the settle box and the expense box work on stage against real groups"
+    - "Settle, expense and group no longer open the Spliteco app"
+    - "The web-console-next tests pass"
+  gates: []

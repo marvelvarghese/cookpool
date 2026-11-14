@@ -36,4 +36,4 @@ copied:
 | Task | What | State | PR |
 |---|---|---|---|
 | MN-7 | Spliteco's screens mountable: relative imports, links through `to()`, the session as context | shipped | this PR |
-| MN-8 | Cookpool mounts group, Add expense, expense, Settle up and Scan under /money; the tab stops handing off | planned | |
+| MN-8 | Cookpool mounts group, Add expense, expense, Settle up and Scan under /money; the tab stops handing off | superseded by `money-native` (never built) | |

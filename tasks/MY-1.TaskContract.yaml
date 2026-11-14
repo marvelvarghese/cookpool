@@ -1,0 +1,17 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-1
+  title: "Money, native: the spec"
+spec:
+  goal: "This epic's doc set, its epic.yaml and its task contracts are on main, and the old money-inside round two (MN-8) is marked superseded."
+  affects:
+    - specs/epics/money-native/**
+    - specs/epics/money-inside/**
+    - tasks/MY-1.TaskContract.yaml
+    - tasks/MY-*.TaskContract.yaml
+  doneWhen:
+    - "specs/epics/money-native holds epic.yaml, README, design, plan, risks and status"
+    - "tasks/MY-1 to MY-14 each have a contract with doneWhen lines of 200 characters or less"
+    - "money-inside's status marks MN-8 superseded by this epic"
+  gates: []

@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-11
+  title: "Manage group"
+spec:
+  goal: "A group's page lists its people, the simplify debts switch, the split default, the food rule, currency (read only), the join link, and Leave group."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-11.TaskContract.yaml
+  doneWhen:
+    - "Manage group shows people, Simplify debts, Split default, Food that goes off, Currency fixed, Join link with Copy, and Leave group"
+    - "The food rule opens its own page with the two rules and Save, as the Group_Waste board"
+    - "Only people allowed to change settings can change them; others see them read only"
+    - "The web-console-next tests pass"
+  gates: []

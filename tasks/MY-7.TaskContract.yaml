@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-7
+  title: "Expense box"
+spec:
+  goal: "The Groups page's floating Expense opens a box to add an expense split Equal or Exact; percent, shares and itemized are left to Spliteco."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-7.TaskContract.yaml
+  doneWhen:
+    - "The box has group, amount, what for, who paid and the people, with Equal and Exact only"
+    - "Exact must add up to the amount before Add is enabled; the expense is saved through the same call Spliteco uses"
+    - "A group with someone Spliteco can split another way shows All splits are in Spliteco, as one quiet line"
+    - "The spliteco-ui and web-console-next tests pass"
+  gates: []
