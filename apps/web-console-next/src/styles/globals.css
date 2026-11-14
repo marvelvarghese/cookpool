@@ -221,6 +221,39 @@
     }
   }
 
+  /*
+   * Money, native (money-native MY-8): the shared Money pages draw with the
+   * `cookpool` tokens (`--look-*`, set inline by their LookScope from fixed
+   * light values). Inside Cookpool the tokens are Cookpool's own palette, so
+   * dark follows the device (and You's Appearance) with everything else. The
+   * `!important` is what lets this stylesheet win over the inline values.
+   */
+  .cookpool [data-look="cookpool"] {
+    --look-bg: hsl(var(--background)) !important;
+    --look-surface: hsl(var(--cp-card)) !important;
+    --look-ink: hsl(var(--foreground)) !important;
+    --look-muted: hsl(var(--muted-foreground)) !important;
+    --look-line: hsl(var(--cp-line)) !important;
+    --look-primary: hsl(var(--primary)) !important;
+    --look-onPrimary: hsl(var(--primary-foreground)) !important;
+    --look-soft: hsl(var(--cp-accent-tint)) !important;
+    --look-softInk: hsl(var(--cp-accent-text)) !important;
+    --look-get: hsl(var(--cp-accent-text)) !important;
+    --look-owe: hsl(var(--cp-owe)) !important;
+    --look-money: hsl(var(--cp-accent-text)) !important;
+    --look-navInk: hsl(var(--primary)) !important;
+    --look-grab: hsl(var(--border)) !important;
+  }
+
+  /*
+   * An open box (settle, expense) grows over the whole screen, tab bar
+   * included: its slot is under the tab bar (z-40) until it opens, and then
+   * the bar would cover the box's foot, Save and Paid with it.
+   */
+  .cookpool [data-slot="floating-button"]:has([data-expand-button][data-open="true"]) {
+    z-index: 60 !important;
+  }
+
   /* KC-9: You's Appearance pins Dark on this device, whatever the phone says. */
   html[data-look="dark"] .cookpool.cookpool-new,
   html[data-look="dark"] .cookpool-new .cookpool {
