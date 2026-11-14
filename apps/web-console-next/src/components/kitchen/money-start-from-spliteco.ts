@@ -19,6 +19,7 @@ import type {
 } from "@saas/contracts/spliteco";
 import type { WastePolicy } from "@saas/contracts/kitchen";
 import { DEFAULT_KITCHEN_CURRENCY } from "@saas/contracts/kitchen";
+import { formatShort } from "@saas/spliteco-ui/money";
 import { GROUP_NAME_MAX } from "./groups";
 
 /** The groups Start from Spliteco offers: Spliteco's own, never the hidden direct ones. */
@@ -153,6 +154,14 @@ export function createGroupPlan(input: {
     fromSplitecoGroupId: input.from?.fromGroupId ?? null,
     bringSubjectIds: input.from ? input.from.people.map((p) => p.subjectId) : [],
   };
+}
+
+/** A picker row's second line (board Money_PickSpliteco): "4 people · you get ₹260", "6 people · settled", "8 people · you owe ₹140". */
+export function pickerSubtitle(g: Pick<SplitecoGroupSummary, "memberCount" | "myBalanceMinor" | "currency">): string {
+  const n = peopleCount(g.memberCount);
+  const bal = g.myBalanceMinor;
+  if (bal === 0) return `${n} · settled`;
+  return `${n} · ${bal > 0 ? "you get" : "you owe"} ${formatShort(Math.abs(bal), g.currency)}`;
 }
 
 /** "3 people" / "1 person". */

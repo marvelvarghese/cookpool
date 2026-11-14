@@ -52,8 +52,8 @@ const sideAnim: Record<Side, string> = {
 
 export const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { side?: Side }
->(({ className, children, side = "left", ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { side?: Side; /** Replaces the scrim colour class (the default is black/50). */ scrimClassName?: string; /** Drops the built-in ✕ for a sheet that draws its own in its title row. */ bareClose?: boolean }
+>(({ className, children, side = "left", scrimClassName, bareClose, ...props }, ref) => {
   const drag = useSheetDrag(side === "bottom");
   const { content } = drag;
   const contentRef = React.useCallback(
@@ -66,7 +66,7 @@ export const SheetContent = React.forwardRef<
   );
   return (
     <SheetPortal>
-      <SheetOverlay ref={drag.overlay} />
+      <SheetOverlay ref={drag.overlay} className={scrimClassName} />
       <DialogPrimitive.Content
         ref={contentRef}
         className={cn(
@@ -80,7 +80,9 @@ export const SheetContent = React.forwardRef<
         {children}
         <DialogPrimitive.Close
           ref={drag.close}
-          className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-md opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+          aria-hidden={bareClose ? true : undefined}
+          tabIndex={bareClose ? -1 : undefined}
+          className={cn("absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-md opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring", bareClose && "hidden")}
         >
           <X className="h-5 w-5" />
           <span className="sr-only">Close</span>

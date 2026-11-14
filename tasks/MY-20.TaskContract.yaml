@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-20
+  title: "Sheets match the boards"
+spec:
+  goal: "The Add group sheet, the Start from Spliteco picker, Manage group and Food that goes off match the approved boards pixel for pixel in light and dark, and sit consistently in the console."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-20.TaskContract.yaml
+  doneWhen:
+    - "Each screen is audited against its board at 390x844, light and dark, and the diff table is in the PR body"
+    - "Every measured difference is fixed: sheet, fields, radio rows, search, group rows, toggles, buttons, tab bar, page background, Powered by Spliteco"
+    - "Tests pin the key measurements and flows; web-console-next tests, typecheck and lint pass"
+  gates: []
