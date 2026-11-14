@@ -143,6 +143,22 @@ const TAB_BAR_HIDDEN: readonly RegExp[] = [
   /^\/groups$/,
 ];
 
+/**
+ * Money's own pages (money-native, MY-21): Groups, People and a person's page
+ * are `@saas/spliteco-ui`'s, which carry the boards' page padding themselves
+ * (20px sides, 20px top, 120px at the bottom for the floating buttons). The
+ * frame's `<main>` leaves these pages its edges (`moneyFlush`), so the padding
+ * is counted once: 20px from the screen's edge, as the boards have it.
+ */
+const MONEY_FLUSH = /^\/money(?:\/people(?:\/[^/]+)?)?$/;
+
+/** Whether this page brings its own page padding (Money's shared pages), in the new frame. */
+export function moneyFlush(newFrame: boolean, pathname: string | null | undefined): boolean {
+  if (!newFrame || !pathname) return false;
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return MONEY_FLUSH.test(path);
+}
+
 /** The query that turns a dish's page into Cooked! (cooked.ts's `COOKED_PARAM`). */
 const COOKED_DISH = /^\/dishes\/[^/]+$/;
 

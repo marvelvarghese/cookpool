@@ -49,6 +49,9 @@ export const STATIC_PAGES = Object.freeze([
   // You → Sign-in and security (cookpool-passkeys PK-4), in every frame.
   "/you/security",
   "/money",
+  // Money's People side and a person's page (MY-21): routes of their own, so Back works.
+  "/money/people",
+  "/money/people/:subjectId",
   // Add group from Money (money-native MY-8; MY-9 replaces the page).
   "/money/add-group",
   // Manage group from a group on Money (money-native MY-11).

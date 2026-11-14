@@ -18,7 +18,7 @@ import { PageTransitions } from "@/components/kitchen/transition-ui";
 import { EdgeSwipeBack, PullToRefresh, TabSwipe } from "@/components/kitchen/gestures-ui";
 import { KITCHEN_NEW_LOOK_CLASS, KITCHEN_THEME_CLASSES } from "@/components/kitchen/theme";
 import { useKitchenBodyTheme } from "@/components/kitchen/theme-scope";
-import { isWideKitchenPage, tabBarHidden } from "@/components/kitchen/nav";
+import { isWideKitchenPage, moneyFlush, tabBarHidden } from "@/components/kitchen/nav";
 import { useProfile } from "@/components/kitchen/data";
 import { firstRunRedirect } from "@/components/kitchen/sign-in";
 
@@ -80,6 +80,7 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
   const frameNew = ready && newFrame();
   const pathname = usePathname();
   const wide = isWideKitchenPage(pathname);
+  const flush = moneyFlush(frameNew, pathname);
   // The query (Cooked! is `?cooked=1`) is read in a Suspense'd probe, so the page stays static.
   const [search, setSearch] = React.useState("");
   const barHidden = tabBarHidden(frameNew, pathname, search);
@@ -123,11 +124,18 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
           "mx-auto w-full min-w-0 max-w-2xl",
           // The boards' page edge (RV-23): an 18 px gutter and 18 px on top in the new frame,
           // kept in `--cp-gutter` so a full-bleed strip can match it; today's 16/20 otherwise.
-          frameNew
-            ? "px-[var(--cp-gutter)] pt-[calc(env(safe-area-inset-top)+18px)] [--cp-gutter:18px]"
-            : "px-4 pt-[calc(env(safe-area-inset-top)+1.25rem)]",
-          "pb-[var(--cp-main-bottom,calc(env(safe-area-inset-bottom)+6.5rem))]",
-          "min-[900px]:max-w-5xl min-[900px]:flex-1 min-[900px]:px-10 min-[900px]:pb-14 min-[900px]:pt-10",
+          // Money's shared pages carry the board's padding themselves (MY-21): no second one here,
+          // only the safe area (the page's own 120px bottom clears the tab bar).
+          flush
+            ? "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] [--cp-gutter:0px]"
+            : cn(
+                frameNew
+                  ? "px-[var(--cp-gutter)] pt-[calc(env(safe-area-inset-top)+18px)] [--cp-gutter:18px]"
+                  : "px-4 pt-[calc(env(safe-area-inset-top)+1.25rem)]",
+                "pb-[var(--cp-main-bottom,calc(env(safe-area-inset-bottom)+6.5rem))]",
+              ),
+          "min-[900px]:max-w-5xl min-[900px]:flex-1",
+          flush ? "min-[900px]:px-0 min-[900px]:pb-0 min-[900px]:pt-0" : "min-[900px]:px-10 min-[900px]:pb-14 min-[900px]:pt-10",
           wide && "min-[1280px]:max-w-[90rem]",
         )}
       >

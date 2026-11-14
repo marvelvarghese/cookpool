@@ -25,16 +25,43 @@ export type MoneyView = { kind: "groups" } | { kind: "people" } | { kind: "perso
 
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 
-/** What `/money`'s query names: `?person=<subject>` opens their page, `?side=people` the People side; Groups otherwise. */
+/**
+ * What `/money`'s query names, as the first build of the native pages spelled
+ * it: `?person=<subject>` a person's page, `?side=people` the People side;
+ * Groups otherwise. Since MY-21 these are routes of their own
+ * (`/money/people`, `/money/people/<subject>`), so Back works; the query is
+ * read only to send an old link, an open tab or the installed app's saved
+ * address to its route (`legacyMoneyHref`).
+ */
 export function moneyViewFrom(params: { get(name: string): string | null } | null | undefined): MoneyView {
   const person = params?.get("person") ?? null;
   if (person && ID.test(person)) return { kind: "person", subjectId: person };
   return params?.get("side") === "people" ? { kind: "people" } : { kind: "groups" };
 }
 
+/** The route of a view: `/money` (Groups), `/money/people`, `/money/people/<subject id>`. */
 export function moneyHref(view: MoneyView): string {
-  if (view.kind === "person") return `/money?person=${encodeURIComponent(view.subjectId)}`;
-  return view.kind === "people" ? "/money?side=people" : "/money";
+  if (view.kind === "person") return `/money/people/${encodeURIComponent(view.subjectId)}`;
+  return view.kind === "people" ? "/money/people" : "/money";
+}
+
+/** Where an old `/money?side=people` or `/money?person=…` address goes; null for `/money` as it is. */
+export function legacyMoneyHref(params: { get(name: string): string | null } | null | undefined): string | null {
+  const view = moneyViewFrom(params);
+  return view.kind === "groups" ? null : moneyHref(view);
+}
+
+/**
+ * Where the floating buttons (Expense, Settle up, Pay) sit: over the tab bar,
+ * which is 68px tall and `max(14px, safe inset)` from the bottom, with a 22px
+ * margin above it (`BAR_CLEARANCE` over the bar's 14px). The bar rides the
+ * home indicator's safe area on an installed phone, so the inset is measured
+ * by the page (`useSafeBottom`) and passed here: 104 on a phone with none.
+ */
+export const BAR_CLEARANCE = 90;
+
+export function barOffset(safeBottomPx: number): number {
+  return Math.max(14, safeBottomPx) + BAR_CLEARANCE;
 }
 
 /** A group's Manage page (MY-11): any group on Money's list opens it, by id. */

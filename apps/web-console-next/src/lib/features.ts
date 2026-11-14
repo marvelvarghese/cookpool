@@ -36,6 +36,9 @@ export function newFrame(config: Pick<AppConfig, "deployEnv"> = appConfig()): bo
  */
 export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/money": "/home",
+  // Money's People side and a person's page (MY-21): the new frame only.
+  "/money/people": "/home",
+  "/money/people/:subjectId": "/home",
   // Settle up in a kitchen, on spliteco-worker (cookpool-spliteco SE3): Money's.
   "/money/settle": "/home",
   // Add group from Money (money-native MY-8).

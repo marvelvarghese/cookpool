@@ -100,6 +100,8 @@ describe("which screens pull to refresh", () => {
       "/people/:subjectId",
       "/dishes/:dishRef",
       "/money",
+      "/money/people",
+      "/money/people/:subjectId",
       "/community",
       "/community/activity",
     ]);

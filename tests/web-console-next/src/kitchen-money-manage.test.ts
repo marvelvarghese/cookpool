@@ -75,7 +75,7 @@ describe("opening Manage group", () => {
     expect(manageGroupIdFrom(new URLSearchParams(""))).toBeNull();
     expect(existsSync(`${root}/app/(kitchen)/money/group/page.tsx`)).toBe(true);
     expect(read("lib/static-pages.mjs")).toContain('"/money/group"');
-    expect(read("components/kitchen/money-native-ui.tsx")).toContain("go(moneyGroupHref(id))");
+    expect(read("components/kitchen/money-native-ui.tsx")).toContain("router.push(moneyGroupHref(id))");
   });
 });
 
