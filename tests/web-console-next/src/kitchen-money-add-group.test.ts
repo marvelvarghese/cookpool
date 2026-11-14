@@ -40,7 +40,8 @@ describe("Add group: entry points", () => {
     expect(ui.indexOf("startFromSlot ?")).toBeLessThan(ui.indexOf('id="add-group-name"'));
     for (const t of ["Add group", "Currency", "When food goes to waste", "People", "Share join link", "Create group"]) expect(ui).toContain(t);
     expect(ui).toContain("WASTE_RULES.map");
-    expect(ui).toContain("GROUP_CURRENCIES.map");
+    expect(ui).toContain("currencyChoices(GROUP_CURRENCIES");
+    expect(ui).toContain("currencies.map");
   });
 });
 

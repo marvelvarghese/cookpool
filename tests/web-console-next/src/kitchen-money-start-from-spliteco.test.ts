@@ -136,3 +136,65 @@ describe("name stays editable and Create group brings the people", () => {
     expect(createGroupPlan({ name: "Flat", currency: "INR", wastePolicy: "split_equally" as never, from: null })).toMatchObject({ fromSplitecoGroupId: null, bringSubjectIds: [] });
   });
 });
+
+// ── integration with the Add group sheet (MY-9's createGroup) ──
+import { readFileSync } from "node:fs";
+import { cwd } from "node:process";
+import { createGroup, peopleNote, type AddGroupApi } from "@web-console-next/components/kitchen/money-add-group";
+
+const ok = <T,>(data: T) => ({ ok: true as const, data });
+function fakeApi(over: Partial<AddGroupApi> = {}) {
+  const calls: { fn: string; args: unknown[] }[] = [];
+  const api = {
+    createOrganization: async (b: unknown) => (calls.push({ fn: "create", args: [b] }), ok({ organization: { id: "org_new", slug: "s", name: "Goa 2026" } })),
+    saveSettings: async (id: string, b: unknown) => (calls.push({ fn: "settings", args: [id, b] }), ok({ currency: "USD" })),
+    addMembers: async (id: string, b: unknown) => (calls.push({ fn: "add", args: [id, b] }), ok({ orgId: id, added: [{ subjectId: "usr_a", memberId: "m" }], skipped: [{ subjectId: "usr_b", reason: "groups_per_person" }] })),
+    ...over,
+  } as unknown as AddGroupApi;
+  return { api, calls };
+}
+
+describe("Create group brings the people", () => {
+  const form = { name: "Goa 2026", currency: "JPY", waste: "split_equally" as const };
+
+  it("saves the Spliteco group's own currency, then adds the people from that group", async () => {
+    const { api, calls } = fakeApi();
+    const out = await createGroup(api, form, "abc123", { extraCurrencies: ["JPY"], bring: { sourceGroupId: "org_goa", subjectIds: ["usr_a", "usr_b"] } });
+    expect(calls.map((c) => c.fn)).toEqual(["create", "settings", "add"]);
+    expect(calls[1]!.args[1]).toEqual({ currency: "JPY", wastePolicy: "split_equally" });
+    expect(calls[2]!.args).toEqual(["org_new", { sourceGroupId: "org_goa", subjectIds: ["usr_a", "usr_b"] }]);
+    expect(out.ok && out.people).toEqual({ added: 1, skipped: [{ subjectId: "usr_b", reason: "groups_per_person" }], failed: false });
+  });
+
+  it("a currency off the list is refused unless the Spliteco group holds it", async () => {
+    const { api, calls } = fakeApi();
+    await createGroup(api, form, "abc123");
+    expect(calls[1]!.args[1]).toEqual({ currency: "INR", wastePolicy: "split_equally" });
+  });
+
+  it("by hand adds nobody; a failed add still leaves the group", async () => {
+    const a = fakeApi();
+    await createGroup(a.api, form, "x", { extraCurrencies: ["JPY"] });
+    expect(a.calls.some((c) => c.fn === "add")).toBe(false);
+    const b = fakeApi({ addMembers: async () => ({ ok: false, error: { message: "no", reason: "x" } }) as never });
+    const out = await createGroup(b.api, form, "x", { bring: { sourceGroupId: "org_goa", subjectIds: ["usr_a"] } });
+    expect(out.ok && out.people).toEqual({ added: 0, skipped: [], failed: true });
+  });
+
+  it("says plainly who was skipped", () => {
+    const names = new Map([["usr_b", "Ben"]]);
+    expect(peopleNote({ added: 1, skipped: [{ subjectId: "usr_b", reason: "groups_per_person" }], failed: false }, names)).toBe("Ben is in as many groups as they can be.");
+    expect(peopleNote({ added: 3, skipped: [], failed: false }, names)).toBeNull();
+    expect(peopleNote({ added: 0, skipped: [], failed: true }, names)).toMatch(/join link/);
+    expect(peopleNote({ added: 0, skipped: ["a", "b", "c"].map((subjectId) => ({ subjectId, reason: "group_full" as const })), failed: false }, names)).toMatch(/and 1 more/);
+  });
+
+  it("the sheet shows the row above Name, name stays an input, and the route turns it on", () => {
+    const root = `${cwd()}/../../apps/web-console-next/src/components/kitchen`;
+    const ui = readFileSync(`${root}/money-add-group-ui.tsx`, "utf8");
+    expect(ui.indexOf("<StartFromSplitecoRow")).toBeLessThan(ui.indexOf('id="add-group-name"'));
+    expect(ui).toContain("onChange={(e) => setForm({ ...form, name: e.target.value })}");
+    expect(ui).toContain("<AddGroupSheet open startFromSpliteco");
+    expect(ui).toContain("recordAddedFromSpliteco(from.fromGroupId)");
+  });
+});

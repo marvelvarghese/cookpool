@@ -16,7 +16,17 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { GROUP_CURRENCIES, GROUP_NAME_MAX, WASTE_RULES, validateGroupName } from "./groups";
 import { CLOSE_44, K_INPUT } from "./kit";
-import { EMPTY_ADD_GROUP, createGroup, currencyChoice, currencyLabel, wasteChoice, type AddGroupForm } from "./money-add-group";
+import { LookScope } from "@saas/spliteco-ui/look";
+import { useProfile } from "./data";
+import { EMPTY_ADD_GROUP, createGroup, currencyChoice, currencyLabel, peopleNote, wasteChoice, type AddGroupForm } from "./money-add-group";
+import { createGroupPlan, currencyChoices, type StartFromSpliteco } from "./money-start-from-spliteco";
+import {
+  SplitecoGroupPicker,
+  StartFromSplitecoRow,
+  recordAddedFromSpliteco,
+  usePickSplitecoGroup,
+  useSplitecoGroupsForPicker,
+} from "./money-start-from-spliteco-ui";
 
 function slugSuffix(): string {
   const bytes = new Uint8Array(6);
@@ -38,6 +48,7 @@ export function AddGroupSheet({
   onClose,
   startFromSlot,
   initial,
+  startFromSpliteco = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -45,6 +56,8 @@ export function AddGroupSheet({
   startFromSlot?: React.ReactNode;
   /** Pre-filled choices (MY-10 fills the name and currency from a Spliteco group). */
   initial?: Partial<AddGroupForm>;
+  /** MY-10: show the Start from Spliteco row above Name (in the slot). */
+  startFromSpliteco?: boolean;
 }) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -55,6 +68,31 @@ export function AddGroupSheet({
   const [busy, setBusy] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
   const nameError = validateGroupName(form.name);
+  const profile = useProfile();
+  const [from, setFrom] = React.useState<StartFromSpliteco | null>(null);
+  const [picking, setPicking] = React.useState(false);
+  const [pickError, setPickError] = React.useState<string | null>(null);
+  const [pickBusy, setPickBusy] = React.useState(false);
+  const picker = useSplitecoGroupsForPicker(startFromSpliteco && picking);
+  const pickGroup = usePickSplitecoGroup(profile.data?.id ?? null);
+  const currencies = currencyChoices(GROUP_CURRENCIES, from?.currencies ?? []);
+  const extraCurrencies = from?.currencies ?? [];
+
+  const onPick = async (group: Parameters<typeof pickGroup>[0]) => {
+    setPickError(null);
+    setPickBusy(true);
+    try {
+      const picked = await pickGroup(group);
+      setFrom(picked);
+      // The name fills but stays editable; changing it never touches the Spliteco group.
+      setForm((f) => ({ ...f, name: picked.name, currency: picked.currency }));
+      setPicking(false);
+    } catch {
+      setPickError("Couldn't open that group. Try again.");
+    } finally {
+      setPickBusy(false);
+    }
+  };
 
   const close = () => {
     if (!busy) onClose();
@@ -69,10 +107,17 @@ export function AddGroupSheet({
     const out = await createGroup(
       {
         createOrganization: (body) => wrap(() => client.organizations.create(body, { idempotencyKey: crypto.randomUUID() })),
+        addMembers: (orgId, body) => wrap(() => client.memberships.addMembers(orgId, body, { idempotencyKey: crypto.randomUUID() })),
         saveSettings: (orgId, body) => wrap(() => client.kitchen.updateSettings(orgId, body, { idempotencyKey: crypto.randomUUID() })),
       },
       form,
       slugSuffix(),
+      {
+        extraCurrencies,
+        bring: from
+          ? { sourceGroupId: from.fromGroupId, subjectIds: createGroupPlan({ name: form.name, currency: form.currency, wastePolicy: form.waste, from }).bringSubjectIds }
+          : null,
+      },
     );
     if (!out.ok) {
       setBusy(false);
@@ -89,6 +134,9 @@ export function AddGroupSheet({
     } else {
       toast({ kind: "warning", title: `${org.name} created, but its rules weren't saved`, description: out.settingsError ?? undefined });
     }
+    if (from) recordAddedFromSpliteco(from.fromGroupId);
+    const note = peopleNote(out.people, new Map(from?.people.map((p) => [p.subjectId, p.name]) ?? []));
+    if (note) toast({ kind: "warning", title: note });
     recordRecentGroup(org.slug);
     setBusy(false);
     router.replace(`/groups/${org.slug}`);
@@ -104,9 +152,31 @@ export function AddGroupSheet({
       >
         <div aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
         <SheetTitle className="pr-12 text-[22px] font-medium tracking-[-0.02em]">Add group</SheetTitle>
-        <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
+        {picking ? (
+          <LookScope theme="cookpool" style={{ background: "transparent" }}>
+            {pickError ? <p role="alert" className="mb-2 text-sm font-medium text-destructive">{pickError}</p> : null}
+            <SplitecoGroupPicker
+              groups={picker.groups}
+              recent={picker.recent}
+              addedIds={picker.addedIds}
+              loading={picker.loading || pickBusy}
+              error={picker.error}
+              onRetry={() => void picker.refetch()}
+              onPick={(g) => void onPick(g)}
+              onClose={() => setPicking(false)}
+            />
+          </LookScope>
+        ) : null}
+        <form hidden={picking} onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
-            {startFromSlot ? <div data-slot="start-from">{startFromSlot}</div> : null}
+            {startFromSlot || startFromSpliteco ? (
+              <div data-slot="start-from">
+                {startFromSlot}
+                {startFromSpliteco ? (
+                  <StartFromSplitecoRow picked={from ? { name: from.name, people: from.people.length } : null} onOpen={() => setPicking(true)} />
+                ) : null}
+              </div>
+            ) : null}
 
             <div>
               <label htmlFor="add-group-name" className={LABEL}>Name</label>
@@ -130,15 +200,15 @@ export function AddGroupSheet({
               <span className={LABEL}>Currency</span>
               <div className={CARD}>
                 <label className={cn(ROW, "relative cursor-pointer")}>
-                  <span className="flex-1 text-[15px] font-medium">{currencyLabel(form.currency)}</span>
+                  <span className="flex-1 text-[15px] font-medium">{currencies.find((c) => c.code === form.currency)?.label ?? currencyLabel(form.currency)}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden />
                   <select
                     aria-label="Currency"
                     value={form.currency}
-                    onChange={(e) => setForm({ ...form, currency: currencyChoice(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, currency: currencyChoice(e.target.value, extraCurrencies) })}
                     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                   >
-                    {GROUP_CURRENCIES.map((c) => (
+                    {currencies.map((c) => (
                       <option key={c.code} value={c.code}>{c.label}</option>
                     ))}
                   </select>
@@ -198,5 +268,5 @@ export function AddGroupSheet({
 /** The Add group route: the sheet over Money; closing goes back to Money. */
 export function MoneyAddGroup() {
   const router = useRouter();
-  return <AddGroupSheet open onClose={() => router.replace("/money")} />;
+  return <AddGroupSheet open startFromSpliteco onClose={() => router.replace("/money")} />;
 }
