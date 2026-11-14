@@ -83,10 +83,8 @@ describe("what /money's address names", () => {
     expect(moneyHref({ kind: "person", subjectId: "usr_zoya" })).toBe("/money?person=usr_zoya");
   });
 
-  it("opens a group on its Cookpool page, and falls back to the list", () => {
-    expect(moneyGroupHref("org_flat", [{ id: "org_flat", slug: "flat-4b-x1" }])).toBe("/groups/flat-4b-x1");
-    expect(moneyGroupHref("org_other", [{ id: "org_flat", slug: "flat-4b-x1" }])).toBe("/groups");
-    expect(moneyGroupHref("org_flat", undefined)).toBe("/groups");
+  it("opens a group on its Manage page", () => {
+    expect(moneyGroupHref("org_flat")).toBe("/money/group?id=org_flat");
   });
 
   it("sends + Group and Add group to the stub route MY-9 replaces", () => {
