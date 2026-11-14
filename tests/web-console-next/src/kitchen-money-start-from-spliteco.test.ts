@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SplitecoGroupResponse, SplitecoGroupSummary } from "@saas/contracts/spliteco";
 import { LookScope } from "@saas/spliteco-ui/look";
+import { Sheet } from "@web-console-next/components/ui/sheet";
 import {
   createGroupPlan,
   currencyChoices,
@@ -71,9 +72,9 @@ describe("the list", () => {
 
   it("renders people count and balance, and Added rows are shown but not selectable", () => {
     const html = renderToStaticMarkup(
-      createElement(LookScope, { theme: "cookpool" }, createElement(SplitecoGroupPicker, {
+      createElement(Sheet, {}, createElement(LookScope, { theme: "cookpool" }, createElement(SplitecoGroupPicker, {
         groups: [goa, flat], recent: [], addedIds: [], onPick: () => {}, onClose: () => {},
-      })),
+      }))),
     );
     expect(html).toContain("4 people");
     expect(html).toContain("₹1,200");
@@ -86,7 +87,8 @@ describe("the list", () => {
 
   it("the row reads Start from Spliteco, then names the pick", () => {
     expect(renderToStaticMarkup(createElement(StartFromSplitecoRow, { picked: null, onOpen: () => {} }))).toContain("Start from Spliteco");
-    expect(renderToStaticMarkup(createElement(StartFromSplitecoRow, { picked: { name: "Goa trip", people: 1 }, onOpen: () => {} }))).toContain("1 person");
+    expect(renderToStaticMarkup(createElement(StartFromSplitecoRow, { picked: { name: "Goa trip", people: 1 }, onOpen: () => {} }))).toContain("Goa trip");
+    expect(renderToStaticMarkup(createElement(StartFromSplitecoRow, { picked: { name: "Goa trip", people: 1 }, onOpen: () => {} }))).toContain("Change");
     expect(peopleCount(2)).toBe("2 people");
   });
 });

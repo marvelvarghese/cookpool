@@ -6,6 +6,7 @@ import type { SplitecoGroupResponse } from "@saas/contracts/spliteco";
 import { LookScope, look } from "@saas/spliteco-ui/look";
 import { signedShort } from "@saas/spliteco-ui/money-tab";
 import { GROUP_CURRENCIES, WASTE_RULES } from "./groups";
+import { FOCUS, HIT_44, SHEET, BoardSheet, Card as BoardCard, PrimaryAction, RadioRow, SheetTitleRow, chevronDown, chevronRight, divider, smallButtonStyle } from "./money-sheet-kit";
 import {
   WASTE_ROW_WORDS,
   isKitchenGroup,
@@ -15,20 +16,17 @@ import {
   type ManageRights,
 } from "./money-manage";
 
-const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
-/** Flat corners: 12px for cards and sheets, 10px for small buttons. */
-const CARD = { background: look.surface, borderRadius: 12, overflow: "hidden" } as const;
-const ROW = { display: "flex", alignItems: "center", gap: 12, minHeight: 50, padding: "0 16px", width: "100%", border: 0, background: "transparent", color: look.ink, font: "inherit", fontSize: 15, fontWeight: 500, textAlign: "left" } as const;
+/** Cards are 20px (board Group_Manage); small buttons 10px. */
+const CARD = { background: look.surface, borderRadius: SHEET.cardRadius, overflow: "hidden" } as const;
+const ROW = { display: "flex", alignItems: "center", gap: 12, padding: "0 16px", width: "100%", border: 0, background: "transparent", color: look.ink, font: "inherit", fontSize: 15, fontWeight: 500, textAlign: "left" } as const;
+/** A card row: the board gives each a height with its 1px divider on top of it, so a divided row is one pixel taller. */
+const row = (height: number, i: number): React.CSSProperties => ({ ...ROW, minHeight: height + (i === 0 ? 0 : 1), ...divider(i) });
+const INSET = `${FOCUS} focus-visible:ring-inset`;
 const LABEL = { flex: 1, minWidth: 0 } as const;
 const VALUE = { fontSize: 14, fontWeight: 400, color: look.muted } as const;
 const SECTION = { margin: 0, padding: "0 2px", fontSize: 13, fontWeight: 500, color: look.muted } as const;
-const divider = (i: number) => (i === 0 ? {} : { borderTop: `1px solid ${look.line}` });
 
-const Chevron = ({ down = false }: { down?: boolean }) => (
-  <svg aria-hidden width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={look.muted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-    <path d={down ? "M6 9l6 6 6-6" : "M9 5l7 7-7 7"} />
-  </svg>
-);
+const Chevron = ({ down = false }: { down?: boolean }) => (down ? chevronDown : chevronRight);
 
 const BackIcon = () => (
   <svg aria-hidden width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={look.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -67,10 +65,10 @@ export function ManageGroupView(props: ManageGroupViewProps) {
   const simplify = detail.settings.simplifyDebts;
 
   return (
-    <LookScope theme="cookpool" style={{ position: "relative", minHeight: "100%", fontFamily: FONT, fontVariantNumeric: "tabular-nums" }}>
+    <LookScope theme="cookpool" style={{ position: "relative", minHeight: "100%", fontFamily: "inherit", lineHeight: "normal", fontVariantNumeric: "tabular-nums" }}>
       <div data-page="manage" style={{ padding: "20px 20px 120px", display: "flex", flexDirection: "column", gap: 14 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 56 }}>
-          <button type="button" aria-label="Back" onClick={onBack} style={{ width: 44, height: 44, marginLeft: -10, border: 0, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", cursor: "pointer" }}>
+          <button type="button" aria-label="Back" onClick={onBack} className={FOCUS} style={{ width: 44, height: 44, marginLeft: -10, border: 0, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", cursor: "pointer" }}>
             <BackIcon />
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -86,8 +84,10 @@ export function ManageGroupView(props: ManageGroupViewProps) {
               <PersonRow key={p.subjectId} person={p} currency={detail.group.currency} first={i === 0} />
             ))}
             {rights.rules && joinLink ? (
-              <button type="button" data-action="add-person" onClick={onCopyLink} style={{ ...ROW, ...divider(1), minHeight: 52, color: look.softInk }}>
-                <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>+</span>
+              <button type="button" data-action="add-person" onClick={onCopyLink} className={`${FOCUS} focus-visible:ring-inset`} style={{ ...row(52, 1), color: look.primary, cursor: "pointer" }}>
+                <svg aria-hidden width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={look.primary} strokeWidth={2} strokeLinecap="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
                 <span style={LABEL}>Add person</span>
               </button>
             ) : null}
@@ -97,29 +97,29 @@ export function ManageGroupView(props: ManageGroupViewProps) {
         <section aria-label="Group" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h2 style={SECTION}>Group</h2>
           <div data-group-card="" style={CARD}>
-            <div style={{ ...ROW, cursor: "default" }}>
+            <div style={{ ...row(50, 0), cursor: "default" }}>
               <span id="simplify-label" style={LABEL}>Simplify debts</span>
               <Switch labelledBy="simplify-label" on={simplify} disabled={!rights.simplify} onChange={onSimplify} />
             </div>
-            <div data-row="split" style={{ ...ROW, ...divider(1), cursor: "default" }}>
+            <div data-row="split" style={{ ...row(50, 1), cursor: "default" }}>
               <span style={LABEL}>Split by default</span>
               <span style={VALUE}>Equal</span>
             </div>
             {kitchen && settings ? (
               rights.rules ? (
-                <button type="button" data-row="waste" onClick={() => props.onWasteOpen?.(true)} style={{ ...ROW, ...divider(1), cursor: "pointer" }}>
+                <button type="button" data-row="waste" onClick={() => props.onWasteOpen?.(true)} className={INSET} style={{ ...row(50, 1), cursor: "pointer" }}>
                   <span style={LABEL}>Food that goes off</span>
                   <span style={VALUE}>{WASTE_ROW_WORDS[settings.wastePolicy]}</span>
                   <Chevron />
                 </button>
               ) : (
-                <div data-row="waste" style={{ ...ROW, ...divider(1), cursor: "default" }}>
+                <div data-row="waste" style={{ ...row(50, 1), cursor: "default" }}>
                   <span style={LABEL}>Food that goes off</span>
                   <span style={VALUE}>{WASTE_ROW_WORDS[settings.wastePolicy]}</span>
                 </div>
               )
             ) : null}
-            <label data-row="currency" style={{ ...ROW, ...divider(1), position: "relative", cursor: rights.rules ? "pointer" : "default" }}>
+            <label data-row="currency" className="has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset has-[:focus-visible]:ring-ring" style={{ ...row(50, 1), position: "relative", cursor: rights.rules ? "pointer" : "default" }}>
               <span style={LABEL}>Currency</span>
               {rights.rules && settings ? (
                 <>
@@ -147,9 +147,9 @@ export function ManageGroupView(props: ManageGroupViewProps) {
               </p>
             ) : null}
             {rights.rules && joinLink ? (
-              <div data-row="join-link" style={{ ...ROW, ...divider(1), cursor: "default" }}>
+              <div data-row="join-link" style={{ ...row(50, 1), cursor: "default" }}>
                 <span style={LABEL}>Join link</span>
-                <button type="button" onClick={onCopyLink} style={{ height: 36, padding: "0 14px", borderRadius: 10, border: 0, background: look.soft, color: look.softInk, font: "inherit", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>
+                <button type="button" onClick={onCopyLink} className={`${FOCUS} ${HIT_44}`} style={{ ...smallButtonStyle, cursor: "pointer" }}>
                   Copy
                 </button>
               </div>
@@ -158,7 +158,7 @@ export function ManageGroupView(props: ManageGroupViewProps) {
         </section>
 
         <div style={CARD}>
-          <button type="button" data-action="leave" onClick={onLeave} style={{ ...ROW, minHeight: 52, color: look.owe, cursor: "pointer" }}>
+          <button type="button" data-action="leave" onClick={onLeave} className={INSET} style={{ ...row(52, 0), color: look.owe, cursor: "pointer" }}>
             Leave group
           </button>
         </div>
@@ -177,7 +177,7 @@ function withCurrency(code: string) {
 function PersonRow({ person, currency, first }: { person: ManagePerson; currency: string; first: boolean }) {
   const tone = person.balanceMinor > 0 ? look.get : person.balanceMinor < 0 ? look.owe : look.muted;
   return (
-    <div data-person={person.subjectId} style={{ ...ROW, ...divider(first ? 0 : 1), minHeight: 56, cursor: "default" }}>
+    <div data-person={person.subjectId} style={{ ...row(56, first ? 0 : 1), cursor: "default" }}>
       <span aria-hidden style={{ width: 34, height: 34, borderRadius: "50%", background: look.soft, color: look.softInk, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 500, flex: "none" }}>
         {person.name.slice(0, 1).toUpperCase()}
       </span>
@@ -200,6 +200,7 @@ function Switch({ on, disabled, onChange, labelledBy }: { on: boolean; disabled:
       aria-labelledby={labelledBy}
       disabled={disabled}
       onClick={() => onChange(!on)}
+      className={`${FOCUS} relative after:absolute after:inset-x-0 after:-inset-y-2 after:content-['']`}
       style={{ width: 46, height: 28, borderRadius: 14, border: 0, padding: 0, position: "relative", flex: "none", background: on ? look.primary : look.grab, opacity: disabled ? 0.6 : 1, cursor: disabled ? "default" : "pointer" }}
     >
       <span aria-hidden style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: look.surface, boxShadow: "0 1px 3px rgba(0,0,0,.25)" }} />
@@ -211,32 +212,18 @@ function Switch({ on, disabled, onChange, labelledBy }: { on: boolean; disabled:
 export function WasteSheet({ current, onClose, onSave }: { current: WastePolicy; onClose: () => void; onSave: (rule: WastePolicy) => void }) {
   const [rule, setRule] = React.useState<WastePolicy>(current);
   return (
-    <div data-sheet="waste" style={{ position: "fixed", inset: 0, zIndex: 40 }}>
-      <div aria-hidden onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(27,36,32,.42)" }} />
-      <section role="dialog" aria-modal="true" aria-label="Food that goes off" style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: look.bg, color: look.ink, borderRadius: "12px 12px 0 0", padding: "10px 20px 32px", display: "flex", flexDirection: "column", gap: 16, fontFamily: FONT, maxWidth: 560, margin: "0 auto" }}>
-        <span aria-hidden style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, background: look.grab }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, height: 36 }}>
-          <button type="button" aria-label="Back" onClick={onClose} style={{ width: 44, height: 44, marginLeft: -10, border: 0, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", cursor: "pointer" }}>
-            <BackIcon />
-          </button>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 500, letterSpacing: "-0.01em", flex: 1 }}>Food that goes off</h2>
-        </div>
-        <div role="radiogroup" aria-label="Food that goes off" style={CARD}>
-          {WASTE_RULES.map((r, i) => {
-            const on = r.id === rule;
-            return (
-              <button key={r.id} type="button" role="radio" aria-checked={on} onClick={() => setRule(r.id)} style={{ ...ROW, ...divider(i), minHeight: 56, background: on ? look.soft : "transparent", cursor: "pointer" }}>
-                <span aria-hidden style={{ width: 22, height: 22, borderRadius: "50%", boxSizing: "border-box", flex: "none", background: look.surface, border: on ? `6px solid ${look.primary}` : `2px solid ${look.grab}` }} />
-                <span style={LABEL}>{r.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <button type="button" data-action="save-waste" onClick={() => onSave(rule)} style={{ height: 52, borderRadius: 12, border: 0, background: look.primary, color: look.onPrimary, font: "inherit", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
+    <BoardSheet open onOpenChange={(o) => (o ? undefined : onClose())} label="Food that goes off">
+      <div data-sheet="waste" style={{ display: "contents" }}>
+        <SheetTitleRow title="Food that goes off" onBack={onClose} />
+        <BoardCard role="radiogroup" aria-label="Food that goes off">
+          {WASTE_RULES.map((r, i) => (
+            <RadioRow key={r.id} name="waste-rule" value={r.id} label={r.label} hint={r.hint} first={i === 0} checked={r.id === rule} onSelect={() => setRule(r.id)} />
+          ))}
+        </BoardCard>
+        <PrimaryAction type="button" data-action="save-waste" onClick={() => onSave(rule)}>
           Save
-        </button>
-      </section>
-    </div>
+        </PrimaryAction>
+      </div>
+    </BoardSheet>
   );
 }
-

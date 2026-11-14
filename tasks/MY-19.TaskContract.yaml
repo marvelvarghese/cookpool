@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-19
+  title: "Parity: the expanding button and its boxes"
+spec:
+  goal: "The built expanding button and its settle, expense and Settle up boxes match the ExpandButton, Settle_Custom and Person_Dev boards pixel for pixel in both themes, motion included."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - specs/epics/money-native/**
+    - tasks/MY-19.TaskContract.yaml
+  doneWhen:
+    - "Closed and open geometry, dim, type, radii, colours from tokens and the 0.45s/0.3s motion equal the boards' numbers, with the diff table in the PR"
+    - "Settle (All, Kitchen, Custom keypad, paid), Expense (Equal, Exact) and Settle up (Got it) boxes are rebuilt to the boards' markup"
+    - "Focus, Escape, accessible names and the reduced-motion fallback still work; tests pin the key measurements"
+  gates: []

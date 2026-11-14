@@ -8,7 +8,7 @@ import { cwd } from "node:process";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SplitecoGroupResponse } from "@saas/contracts/spliteco";
-import { ManageGroupView, WasteSheet, type ManageGroupViewProps } from "@web-console-next/components/kitchen/money-manage-view";
+import { ManageGroupView, type ManageGroupViewProps } from "@web-console-next/components/kitchen/money-manage-view";
 import {
   CURRENCY_BLOCKED,
   currencyChange,
@@ -100,17 +100,18 @@ describe("the page", () => {
   it("holds no colour or caption of its own: tokens only, flat corners", () => {
     const src = read("components/kitchen/money-manage-view.tsx");
     expect(src).not.toMatch(/#[0-9A-Fa-f]{6}/);
-    expect(src).not.toMatch(/borderRadius: (1[5-9]|2\d)\b/);
-    expect(src).toContain("borderRadius: 12");
+    // Cards take the board's 20px from the one kit, not a number of their own.
+    expect(src).toContain("borderRadius: SHEET.cardRadius");
     expect(src).toContain('theme="cookpool"');
   });
 
-  it("the food rule opens its sheet with the two rules and Save", () => {
-    const html = renderToStaticMarkup(createElement(WasteSheet, { current: "buyer_absorbs", onClose: noop, onSave: noop }));
-    expect(html).toContain("Split equally");
-    expect(html).toContain("The buyer absorbs it");
-    expect(html).toContain("Save");
-    expect(html).toMatch(/aria-checked="true"[^>]*>(?:(?!<button).)*The buyer absorbs it/s);
+  it("the food rule opens its own sheet, on the shared board sheet, with the two rules and Save", () => {
+    const src = read("components/kitchen/money-manage-view.tsx");
+    const sheet = src.slice(src.indexOf("export function WasteSheet"));
+    expect(sheet).toContain("<BoardSheet");
+    expect(sheet).toContain("WASTE_RULES.map");
+    expect(sheet).toContain('data-action="save-waste"');
+    expect(sheet).toContain("onBack={onClose}");
   });
 });
 

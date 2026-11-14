@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Link2 } from "lucide-react";
 import type { PublicOrganization } from "@saas/contracts/membership";
 import { cn } from "@/lib/cn";
 import { wrap } from "@/lib/api";
@@ -11,12 +10,9 @@ import { qk } from "@/lib/query";
 import { useSession } from "@/lib/session";
 import { recordRecentGroup } from "@/lib/recent-groups";
 import { useToast } from "@/components/ui/toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { GROUP_CURRENCIES, GROUP_NAME_MAX, WASTE_RULES, validateGroupName } from "./groups";
-import { CLOSE_44, K_INPUT } from "./kit";
-import { LookScope } from "@saas/spliteco-ui/look";
+import { look } from "@saas/spliteco-ui/look";
+import { FOCUS, HIT_44, SHEET, BoardSheet, Card, PrimaryAction, RadioRow, Section, SheetTitleRow, chevronDown, fieldStyle, smallButtonStyle } from "./money-sheet-kit";
 import { useProfile } from "./data";
 import { EMPTY_ADD_GROUP, createGroup, currencyChoice, currencyLabel, peopleNote, wasteChoice, type AddGroupForm } from "./money-add-group";
 import { createGroupPlan, currencyChoices, type StartFromSpliteco } from "./money-start-from-spliteco";
@@ -33,10 +29,6 @@ function slugSuffix(): string {
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => (b % 36).toString(36)).join("");
 }
-
-const ROW = "flex min-h-[52px] items-center gap-3 px-3.5 py-2";
-const CARD = "divide-y divide-cp-line overflow-hidden rounded-xl bg-card shadow-cp-card";
-const LABEL = "mb-1.5 block text-[13px] font-medium text-muted-foreground";
 
 /**
  * Add group from Money (MY-9): a sheet with Name, Currency, When food goes
@@ -143,125 +135,120 @@ export function AddGroupSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={(o) => (o ? undefined : close())}>
-      <SheetContent
-        side="bottom"
-        aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className={cn("mx-auto flex max-h-[94dvh] max-w-xl flex-col gap-3 rounded-t-[22px] border-x-0 bg-background px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 min-[900px]:bottom-6 min-[900px]:rounded-[22px] min-[900px]:border", CLOSE_44)}
-      >
-        <div aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-border min-[900px]:hidden" />
-        <SheetTitle className="pr-12 text-[22px] font-medium tracking-[-0.02em]">Add group</SheetTitle>
-        {picking ? (
-          <LookScope theme="cookpool" style={{ background: "transparent" }}>
-            {pickError ? <p role="alert" className="mb-2 text-sm font-medium text-destructive">{pickError}</p> : null}
-            <SplitecoGroupPicker
-              groups={picker.groups}
-              recent={picker.recent}
-              addedIds={picker.addedIds}
-              loading={picker.loading || pickBusy}
-              error={picker.error}
-              onRetry={() => void picker.refetch()}
-              onPick={(g) => void onPick(g)}
-              onClose={() => setPicking(false)}
-            />
-          </LookScope>
-        ) : null}
-        <form hidden={picking} onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="-mx-5 min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-1">
-            {startFromSlot || startFromSpliteco ? (
-              <div data-slot="start-from">
-                {startFromSlot}
-                {startFromSpliteco ? (
-                  <StartFromSplitecoRow picked={from ? { name: from.name, people: from.people.length } : null} onOpen={() => setPicking(true)} />
-                ) : null}
-              </div>
-            ) : null}
-
-            <div>
-              <label htmlFor="add-group-name" className={LABEL}>Name</label>
-              <Input
-                id="add-group-name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Flat 4B"
-                maxLength={GROUP_NAME_MAX}
-                autoComplete="off"
-                aria-invalid={showErrors && !!nameError}
-                aria-describedby={showErrors && nameError ? "add-group-name-error" : undefined}
-                className={cn(K_INPUT, "rounded-[10px]")}
-              />
-              {showErrors && nameError ? (
-                <p id="add-group-name-error" className="mt-1.5 text-sm font-medium text-destructive">{nameError}</p>
+    <BoardSheet open={open} onOpenChange={(o) => (o ? undefined : close())} label={picking ? "Spliteco groups" : "Add group"}>
+      {picking ? (
+        <>
+          {pickError ? <p role="alert" style={{ margin: 0, fontSize: 14, fontWeight: 500, color: look.owe }}>{pickError}</p> : null}
+          <SplitecoGroupPicker
+            groups={picker.groups}
+            recent={picker.recent}
+            addedIds={picker.addedIds}
+            loading={picker.loading || pickBusy}
+            error={picker.error}
+            onRetry={() => void picker.refetch()}
+            onPick={(g) => void onPick(g)}
+            onClose={() => setPicking(false)}
+          />
+        </>
+      ) : (
+        <>
+          <SheetTitleRow title="Add group" />
+          <form onSubmit={submit} noValidate style={{ display: "flex", flexDirection: "column", gap: SHEET.gap, minHeight: 0, flex: 1 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: SHEET.gap, overflowY: "auto", minHeight: 0, flex: 1, margin: "0 -20px", padding: "0 20px" }}>
+              {startFromSlot || startFromSpliteco ? (
+                <div data-slot="start-from">
+                  {startFromSlot}
+                  {startFromSpliteco ? (
+                    <StartFromSplitecoRow picked={from ? { name: from.name, people: from.people.length } : null} onOpen={() => setPicking(true)} />
+                  ) : null}
+                </div>
               ) : null}
-            </div>
 
-            <div>
-              <span className={LABEL}>Currency</span>
-              <div className={CARD}>
-                <label className={cn(ROW, "relative cursor-pointer")}>
-                  <span className="flex-1 text-[15px] font-medium">{currencies.find((c) => c.code === form.currency)?.label ?? currencyLabel(form.currency)}</span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <Section label="Name" labelId="add-group-name-label">
+                <input
+                  id="add-group-name"
+                  aria-labelledby="add-group-name-label"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Flat 4B"
+                  maxLength={GROUP_NAME_MAX}
+                  autoComplete="off"
+                  aria-invalid={showErrors && !!nameError}
+                  aria-describedby={showErrors && nameError ? "add-group-name-error" : undefined}
+                  className={cn(FOCUS, "placeholder:text-[color:var(--look-muted)]")}
+                  style={{ ...fieldStyle, outline: "none" }}
+                />
+                {showErrors && nameError ? (
+                  <p id="add-group-name-error" style={{ margin: 0, padding: "0 2px", fontSize: 13, fontWeight: 500, color: look.owe }}>{nameError}</p>
+                ) : null}
+              </Section>
+
+              <Section label="Currency">
+                <label className="has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring" style={{ position: "relative", display: "flex", alignItems: "center", height: SHEET.field, padding: "0 16px", borderRadius: SHEET.fieldRadius, background: look.surface, fontSize: 15, fontWeight: 500, cursor: "pointer", boxSizing: "border-box" }}>
+                  <span style={{ flex: 1 }}>{currencies.find((c) => c.code === form.currency)?.label ?? currencyLabel(form.currency)}</span>
+                  {chevronDown}
                   <select
                     aria-label="Currency"
                     value={form.currency}
                     onChange={(e) => setForm({ ...form, currency: currencyChoice(e.target.value, extraCurrencies) })}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", fontSize: 16 }}
                   >
                     {currencies.map((c) => (
                       <option key={c.code} value={c.code}>{c.label}</option>
                     ))}
                   </select>
                 </label>
-              </div>
+              </Section>
+
+              <fieldset style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }}>
+                <Section label="When food goes to waste">
+                  <Card role="radiogroup" aria-label="When food goes to waste">
+                    {WASTE_RULES.map((rule, i) => (
+                      <RadioRow
+                        key={rule.id}
+                        name="add-group-waste"
+                        value={rule.id}
+                        label={rule.label}
+                        hint={rule.hint}
+                        first={i === 0}
+                        checked={form.waste === rule.id}
+                        onSelect={() => setForm({ ...form, waste: wasteChoice(rule.id) })}
+                      />
+                    ))}
+                  </Card>
+                </Section>
+              </fieldset>
+
+              <Section label="People">
+                <Card>
+                  {from ? (
+                    <div data-people-note="" style={{ display: "flex", alignItems: "center", height: SHEET.actionRow, padding: "0 16px", fontSize: 15, fontWeight: 500 }}>
+                      {from.people.length === 1 ? "1 person comes along" : `${from.people.length} people come along`}
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, height: SHEET.actionRow, padding: "0 12px 0 16px" }}>
+                      <span style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>Share join link</span>
+                      {/* The link exists once the group does: it is Copy on Manage group. */}
+                      <button type="button" disabled data-action="copy-join-link" className={HIT_44} style={{ ...smallButtonStyle, opacity: 0.5, cursor: "default" }}>
+                        Copy
+                      </button>
+                    </div>
+                  )}
+                </Card>
+              </Section>
+
+              {serverError ? (
+                <p role="alert" style={{ margin: 0, fontSize: 14, fontWeight: 500, color: look.owe }}>{serverError}</p>
+              ) : null}
             </div>
 
-            <fieldset>
-              <legend className={LABEL}>When food goes to waste</legend>
-              <div className={CARD}>
-                {WASTE_RULES.map((rule) => (
-                  <label key={rule.id} className={cn(ROW, "cursor-pointer", form.waste === rule.id ? "bg-cp-accent-tint" : "hover:bg-accent/60")}>
-                    <input
-                      type="radio"
-                      name="add-group-waste"
-                      value={rule.id}
-                      checked={form.waste === rule.id}
-                      onChange={() => setForm({ ...form, waste: wasteChoice(rule.id) })}
-                      className="h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
-                    />
-                    <span>
-                      <span className="block text-[15px] font-medium">{rule.label}</span>
-                      <span className="block text-[13px] font-normal text-muted-foreground">{rule.hint}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <div>
-              <span className={LABEL}>People</span>
-              <div className={CARD}>
-                <div className={ROW}>
-                  <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="flex-1 text-[15px] font-medium">Share join link</span>
-                  <Button type="button" variant="ghost" size="sm" disabled data-action="copy-join-link" className="rounded-[10px] bg-cp-accent-tint text-cp-accent-text">
-                    Copy
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {serverError ? (
-              <p role="alert" className="rounded-xl bg-cp-expired-tint p-3 text-sm font-medium text-cp-expired">{serverError}</p>
-            ) : null}
-          </div>
-
-          <Button type="submit" loading={busy} className="h-12 w-full rounded-xl text-[15px] font-medium">
-            Create group
-          </Button>
-        </form>
-      </SheetContent>
-    </Sheet>
+            <PrimaryAction type="submit" busy={busy}>
+              {from ? "Add to Cookpool" : "Create group"}
+            </PrimaryAction>
+          </form>
+        </>
+      )}
+    </BoardSheet>
   );
 }
 

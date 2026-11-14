@@ -15,7 +15,45 @@ export type ExpandButtonKind = "settle" | "expense" | "people";
 export interface ExpandButtonApi {
   /** Close the box (for a Done or Paid button in the content). */
   close: () => void;
+  /** Hide the title row (the boards' Done screen has none); the title stays as the dialog's name. */
+  setHeaderHidden: (hidden: boolean) => void;
+  /** Ask for a taller (or, with `null`, the default) open box, in px: the Custom keypad needs room. */
+  setBoxHeight: (height: number | null) => void;
 }
+
+const NOOP_API: ExpandButtonApi = { close: () => undefined, setHeaderHidden: () => undefined, setBoxHeight: () => undefined };
+const BoxContext = React.createContext<ExpandButtonApi>(NOOP_API);
+
+/** The box a component is inside, for content that mounts below the ExpandButton's children. */
+export function useExpandBox(): ExpandButtonApi {
+  return React.useContext(BoxContext);
+}
+
+/** Hide the title row while the calling component is mounted (a Done screen). */
+export function useHideBoxHeader(hidden = true): void {
+  const { setHeaderHidden } = useExpandBox();
+  React.useEffect(() => {
+    setHeaderHidden(hidden);
+    return () => setHeaderHidden(false);
+  }, [hidden, setHeaderHidden]);
+}
+
+/** Ask for an open box of this height while the calling component is mounted (`null`: the default). */
+export function useBoxHeight(height: number | null): void {
+  const { setBoxHeight } = useExpandBox();
+  React.useEffect(() => {
+    setBoxHeight(height);
+    return () => setBoxHeight(null);
+  }, [height, setBoxHeight]);
+}
+
+/** The boards' open heights (390x844): top 170, 120 and 300; every open box ends 114px above the bottom. */
+export const BOX_HEIGHTS: Record<ExpandButtonKind, number> = { settle: 560, expense: 610, people: 430 };
+/** How far the open box's bottom sits above the closed button's bottom: 114 - 96. */
+export const OPEN_LIFT = 18;
+/** The dim over the page: the boards' literal rgba(27,36,32,.42), the same in both themes. */
+export const DIM = "rgba(27,36,32,.42)";
+export const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
 
 export interface ExpandButtonProps {
   /** Which screen the button is on; it sets the icon (a plus for `expense`, a chevron otherwise). */
@@ -27,7 +65,7 @@ export interface ExpandButtonProps {
   title?: string;
   /** What is inside the box: nodes, or a function that is given `close`. The package holds none of its own. */
   children?: React.ReactNode | ((api: ExpandButtonApi) => React.ReactNode);
-  /** Height of the open box in px (it never grows past the screen). Default 560. */
+  /** Height of the open box in px (it never grows past the screen). Default: the board's, by kind (settle 560, expense 610, people 430). */
   boxHeight?: number;
   /** Gap from the screen's bottom to the closed button, in px: the tab bar's height plus a margin. Default 96. */
   bottomOffset?: number;
@@ -46,6 +84,9 @@ export interface ExpandButtonProps {
 /** How long the grow and shrink take (ms), and the longest the reduce-motion fade may take. */
 export const EXPAND_MS = 450;
 export const EXPAND_FADE_MS = 120;
+
+/** Out of sight but still the dialog's name and in the reading order. */
+const HIDDEN: React.CSSProperties = { position: "absolute", width: 1, height: 1, margin: -1, padding: 0, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 };
 
 const EASE = "cubic-bezier(.2,.8,.2,1)";
 const FOCUSABLE =
@@ -67,11 +108,14 @@ function usePrefersReducedMotion(): boolean {
 }
 
 export function ExpandButton({
-  kind, label, theme, title, children, boxHeight = 560, bottomOffset = 96, closeLabel = "Close",
+  kind, label, theme, title, children, boxHeight, bottomOffset = 96, closeLabel = "Close",
   open: controlled, defaultOpen = false, onOpenChange, contained = false, reduceMotion,
 }: ExpandButtonProps) {
   const [inner, setInner] = React.useState(defaultOpen);
   const open = controlled ?? inner;
+  const [headerHidden, setHeaderHidden] = React.useState(false);
+  const [taller, setTaller] = React.useState<number | null>(null);
+  const openHeight = taller ?? boxHeight ?? BOX_HEIGHTS[kind];
   const prefers = usePrefersReducedMotion();
   const reduced = reduceMotion ?? prefers;
   const ms = reduced ? EXPAND_FADE_MS : EXPAND_MS;
@@ -84,6 +128,7 @@ export function ExpandButton({
     [controlled, onOpenChange],
   );
   const close = React.useCallback(() => setOpen(false), [setOpen]);
+  const api = React.useMemo<ExpandButtonApi>(() => ({ close, setHeaderHidden, setBoxHeight: setTaller }), [close]);
 
   // The content stays mounted while the box shrinks back, then goes.
   const [shown, setShown] = React.useState(open);
@@ -93,8 +138,17 @@ export function ExpandButton({
     return () => clearTimeout(t);
   }, [open, ms]);
 
-  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  // The content mounts at opacity 0 and is switched on once that has been laid out, so the fade
+  // (.25s, after .3s) runs on open as it does on the board; a box that starts open shows at once.
   const dialogRef = React.useRef<HTMLDivElement>(null);
+  const [contentOn, setContentOn] = React.useState(open);
+  React.useEffect(() => {
+    if (!open) { setContentOn(false); return; }
+    void dialogRef.current?.getBoundingClientRect();
+    setContentOn(true);
+  }, [open, shown]);
+
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
   const wasOpen = React.useRef(open);
   const titleId = React.useId();
 
@@ -130,9 +184,11 @@ export function ExpandButton({
     else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
   };
 
-  const geometry = (reduced ? "none" : ["left", "right", "bottom", "height", "border-radius"].map((p) => `${p} ${ms}ms ${EASE}`).join(", "));
+  const geometry = reduced
+    ? "none"
+    : [...["left", "right", "bottom", "height"].map((p) => `${p} ${ms}ms ${EASE}`), `border-radius ${ms}ms ease`, `background-color ${ms}ms ease`].join(", ");
   const boxStyle: React.CSSProperties = open
-    ? { left: 12, right: 12, bottom: 24, height: boxHeight, maxHeight: "calc(100% - 48px)", borderRadius: 20, background: look.surface }
+    ? { left: 12, right: 12, bottom: bottomOffset + OPEN_LIFT, height: openHeight, maxHeight: `calc(100% - ${bottomOffset + OPEN_LIFT + 24}px)`, borderRadius: 20, background: look.surface }
     : { left: 20, right: 20, bottom: bottomOffset, height: 52, borderRadius: 12, background: look.primary };
   const fade = `opacity ${EXPAND_FADE_MS}ms ease`;
   const icon = kind === "expense"
@@ -144,7 +200,7 @@ export function ExpandButton({
       data-expand-button={kind}
       data-look={theme}
       data-open={open ? "true" : "false"}
-      style={{ ...(lookVars(theme) as React.CSSProperties), position: contained ? "absolute" : "fixed", inset: 0, pointerEvents: "none", zIndex: 40, color: look.ink }}
+      style={{ ...(lookVars(theme) as React.CSSProperties), position: contained ? "absolute" : "fixed", inset: 0, pointerEvents: "none", zIndex: 40, color: look.ink, fontFamily: FONT, fontVariantNumeric: "tabular-nums" }}
     >
       <div
         data-expand-dim=""
@@ -152,7 +208,7 @@ export function ExpandButton({
         onClick={close}
         style={{
           position: "absolute", inset: 0, opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none",
-          background: `color-mix(in srgb, ${look.ink} 42%, transparent)`, transition: reduced ? fade : `opacity 300ms ease`,
+          background: DIM, transition: reduced ? fade : `opacity 300ms ease`,
         }}
       />
       <div
@@ -195,16 +251,18 @@ export function ExpandButton({
             onKeyDown={trapTab}
             style={{
               position: "absolute", inset: 0, display: "flex", flexDirection: "column", gap: 12, padding: "16px 20px 20px", boxSizing: "border-box",
-              outline: "none", background: look.surface, color: look.ink,
-              opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none",
+              outline: "none", color: look.ink,
+              opacity: open && contentOn ? 1 : 0, pointerEvents: open ? "auto" : "none",
               transition: open && !reduced ? `opacity 250ms ease 300ms` : fade,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", height: 36 }}>
+            <div style={headerHidden ? HIDDEN : { display: "flex", alignItems: "center", height: 36 }}>
               <h2 id={titleId} style={{ margin: 0, flex: 1, fontSize: 18, fontWeight: 500 }}>{title ?? label}</h2>
               <button
                 type="button"
                 aria-label={closeLabel}
+                tabIndex={headerHidden ? -1 : 0}
+                aria-hidden={headerHidden ? true : undefined}
                 onClick={close}
                 style={{ width: 44, height: 44, marginRight: -12, border: 0, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
               >
@@ -212,7 +270,7 @@ export function ExpandButton({
               </button>
             </div>
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 12, overflow: "auto" }}>
-              {typeof children === "function" ? children({ close }) : children}
+              <BoxContext.Provider value={api}>{typeof children === "function" ? children(api) : children}</BoxContext.Provider>
             </div>
           </div>
         ) : null}
