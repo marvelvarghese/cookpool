@@ -31,4 +31,4 @@ spec:
       tasks: [MY-12, MY-13, MY-14]
     - name: "MY7 — pixel parity"
       exitCriteria: ["the built pages, boxes and sheets match the design boards pixel for pixel in both themes"]
-      tasks: [MY-18, MY-19, MY-20]
+      tasks: [MY-18, MY-19, MY-20, MY-22]

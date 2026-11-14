@@ -7,6 +7,7 @@
 
 import * as React from "react";
 import { look, lookVars } from "@saas/spliteco-ui/look";
+import { MOTION } from "@saas/spliteco-ui/motion";
 import { cn } from "@/lib/cn";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
@@ -99,6 +100,7 @@ export function BoardSheet({ open, onOpenChange, label, children }: { open: bool
         data-look="cookpool"
         data-board-sheet=""
         scrimClassName="bg-[rgba(27,36,32,.42)]"
+        scrimStyle={{ animationDuration: `${MOTION.dimMs}ms`, animationTimingFunction: "ease" }}
         onOpenAutoFocus={(e) => e.preventDefault()}
         className={cn("mx-auto max-h-[94dvh] max-w-xl gap-4 overflow-hidden rounded-t-[28px] border-0 shadow-none min-[900px]:bottom-6 min-[900px]:rounded-[28px]")}
         style={{
@@ -111,6 +113,9 @@ export function BoardSheet({ open, onOpenChange, label, children }: { open: bool
           // The boards set no line-height (normal); the console's body sets 1.5.
           lineHeight: "normal",
           fontVariantNumeric: "tabular-nums",
+          // The sheet rises over the product's one geometry time and curve (MY-22); the dim fades in over its own.
+          animationDuration: `${MOTION.geometryMs}ms`,
+          animationTimingFunction: MOTION.ease,
         }}
       >
         <span aria-hidden data-handle="" className="min-[900px]:hidden" style={{ alignSelf: "center", flex: "none", width: SHEET.handle.width, height: SHEET.handle.height, borderRadius: 2, background: look.grab }} />

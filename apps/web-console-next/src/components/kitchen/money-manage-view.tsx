@@ -5,6 +5,8 @@ import type { KitchenSettings, WastePolicy } from "@saas/contracts/kitchen";
 import type { SplitecoGroupResponse } from "@saas/contracts/spliteco";
 import { LookScope, look } from "@saas/spliteco-ui/look";
 import { signedShort } from "@saas/spliteco-ui/money-tab";
+import { transitionOf } from "@saas/spliteco-ui/motion";
+import { usePrefersReducedMotion } from "@saas/spliteco-ui/motion-ui";
 import { GROUP_CURRENCIES, WASTE_RULES } from "./groups";
 import { FOCUS, HIT_44, SHEET, BoardSheet, Card as BoardCard, PrimaryAction, RadioRow, SheetTitleRow, chevronDown, chevronRight, divider, smallButtonStyle } from "./money-sheet-kit";
 import {
@@ -192,6 +194,7 @@ function PersonRow({ person, currency, first }: { person: ManagePerson; currency
 }
 
 function Switch({ on, disabled, onChange, labelledBy }: { on: boolean; disabled: boolean; onChange: (on: boolean) => void; labelledBy: string }) {
+  const reduced = usePrefersReducedMotion();
   return (
     <button
       type="button"
@@ -201,9 +204,9 @@ function Switch({ on, disabled, onChange, labelledBy }: { on: boolean; disabled:
       disabled={disabled}
       onClick={() => onChange(!on)}
       className={`${FOCUS} relative after:absolute after:inset-x-0 after:-inset-y-2 after:content-['']`}
-      style={{ width: 46, height: 28, borderRadius: 14, border: 0, padding: 0, position: "relative", flex: "none", background: on ? look.primary : look.grab, opacity: disabled ? 0.6 : 1, cursor: disabled ? "default" : "pointer" }}
+      style={{ width: 46, height: 28, borderRadius: 14, border: 0, padding: 0, position: "relative", flex: "none", background: on ? look.primary : look.grab, opacity: disabled ? 0.6 : 1, cursor: disabled ? "default" : "pointer", transition: transitionOf("small", ["background-color"], reduced) }}
     >
-      <span aria-hidden style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: look.surface, boxShadow: "0 1px 3px rgba(0,0,0,.25)" }} />
+      <span aria-hidden style={{ position: "absolute", top: 3, left: 3, width: 22, height: 22, borderRadius: "50%", background: look.surface, boxShadow: "0 1px 3px rgba(0,0,0,.25)", transform: `translate3d(${on ? 18 : 0}px,0,0)`, transition: transitionOf("small", ["transform"], reduced) }} />
     </button>
   );
 }

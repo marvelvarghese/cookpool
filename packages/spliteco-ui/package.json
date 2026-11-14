@@ -20,6 +20,8 @@
     "./people": "./src/people.ts",
     "./people-ui": "./src/people-ui.tsx",
     "./expand-button": "./src/expand-button.tsx",
+    "./motion": "./src/motion.ts",
+    "./motion-ui": "./src/motion-ui.tsx",
     "./groups-ui": "./src/groups-ui.tsx",
     "./settle-box": "./src/settle-box.ts",
     "./settle-box-ui": "./src/settle-box-ui.tsx",
