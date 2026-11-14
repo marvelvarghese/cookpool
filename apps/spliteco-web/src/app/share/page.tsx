@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Mark } from "@/components/icons";
-import { BackButton, Loading, Screen, useLoad, useQueryParams, useToast } from "@/components/ui";
-import { formatMoney } from "@/lib/money";
-import { nameOf, namesFrom } from "@/lib/people";
-import { cardPng, cardText, download, expenseCard, exportFileName, groupCard, type ShareCardData } from "@/lib/share";
-import { errorText, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
+import { Mark } from "../../components/icons";
+import { BackButton, Loading, Screen, useLoad, useQueryParams, useToast } from "../../components/ui";
+import { formatMoney } from "../../lib/money";
+import { nameOf, namesFrom } from "../../lib/people";
+import { cardPng, cardText, download, expenseCard, exportFileName, groupCard, type ShareCardData } from "../../lib/share";
+import { errorText, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
 
 export default function SharePage() {
   const params = useQueryParams();

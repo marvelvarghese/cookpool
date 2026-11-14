@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { qrPath } from "@/lib/qr";
+import { qrPath } from "../lib/qr";
 
 /** A real, scannable QR code: dark modules on white, with the quiet zone the standard asks for. */
 export function QrCode({ text, size = 104, label }: { text: string; size?: number; label: string }) {

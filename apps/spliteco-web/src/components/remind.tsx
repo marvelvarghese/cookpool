@@ -6,8 +6,8 @@
 import * as React from "react";
 import { Sheet } from "./ui";
 import { Icon } from "./icons";
-import { canRemind, lastRemindedText, reminderPreview } from "@/lib/settle";
-import { errorReason, errorText, newIdempotencyKey, useSession } from "@/lib/session";
+import { canRemind, lastRemindedText, reminderPreview } from "../lib/settle";
+import { errorReason, errorText, newIdempotencyKey, useSession } from "../lib/session";
 
 export interface RemindTarget {
   to: string;

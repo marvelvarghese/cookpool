@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { SessionProvider } from "@/lib/session";
-import { MeProvider } from "@/lib/me";
+import { SessionProvider } from "../lib/session";
+import { MeProvider } from "../lib/me";
 import { SplitecoUiProvider } from "@saas/spliteco-ui/theme";
-import { DEEP_OCEAN } from "@/lib/ui-theme";
+import { DEEP_OCEAN } from "../lib/ui-theme";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (

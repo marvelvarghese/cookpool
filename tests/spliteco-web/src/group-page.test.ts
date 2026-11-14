@@ -280,7 +280,7 @@ describe("from the left edge is back, not Bills ↔ Balances", () => {
 describe("one main action", () => {
   it("the Add pill is the Group page's only add", () => {
     const src = read("app/group/page.tsx");
-    expect(src.match(/href=\{`\/add\?group=/g)?.length).toBe(1);
+    expect(src.match(/href=\{to\(`\/add\?group=/g)?.length).toBe(1);
     expect(src).toContain('className="add-pill"');
     expect(src).not.toContain("Add expense");
     expect(src).not.toContain('className="fab"');

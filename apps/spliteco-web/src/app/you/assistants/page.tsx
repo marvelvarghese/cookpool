@@ -7,8 +7,8 @@
 
 import * as React from "react";
 import type { Delegation } from "@saas/contracts/delegations";
-import { Icon } from "@/components/icons";
-import { BackButton, Loading, Screen, useLoad, useToast } from "@/components/ui";
+import { Icon } from "../../../components/icons";
+import { BackButton, Loading, Screen, useLoad, useToast } from "../../../components/ui";
 import {
   ADD_HOW,
   ADD_THIS,
@@ -30,8 +30,9 @@ import {
   withUpdated,
   withoutAssistant,
   type AssistantRow,
-} from "@/lib/assistants";
-import { errorText, useSession } from "@/lib/session";
+} from "../../../lib/assistants";
+import { errorText, useSession } from "../../../lib/session";
+import { to } from "../../../lib/paths";
 
 export default function AssistantsPage() {
   const load = useLoad((c) => c.auth.delegations(), []);
@@ -43,7 +44,7 @@ export default function AssistantsPage() {
   return (
     <Screen>
       <header className="hdr" style={{ gap: 10 }}>
-        <BackButton href="/you" label="Back to You" />
+        <BackButton href={to("/you")} label="Back to You" />
         <h1 className="h1" style={{ flex: 1 }}>{ASSISTANTS_TITLE}</h1>
       </header>
 

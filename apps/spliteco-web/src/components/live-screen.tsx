@@ -5,15 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SPLITECO_LIVE_POLL_MS, formatLiveCode, normalizeLiveCode, type SplitecoLiveSession } from "@saas/contracts/spliteco";
 import { CookpoolError } from "@saas/sdk";
-import { Icon } from "@/components/icons";
-import { BackButton, Sheet, useToast } from "@/components/ui";
-import { QrCode } from "@/components/qr";
-import { formatShort } from "@/lib/money";
-import { initialOf, nameOf, namesFrom, tintOf } from "@/lib/people";
-import { claimersOf, hereLine, inviteText, keepPolling, liveUrl, lockState, myClaim, progress, tickerLine, toggleMine } from "@/lib/live";
-import { browserClock, browserPage, createPoller, type Poller } from "@/lib/poll";
-import { errorReason, errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
+import { Icon } from "./icons";
+import { BackButton, Sheet, useToast } from "./ui";
+import { QrCode } from "./qr";
+import { formatShort } from "../lib/money";
+import { initialOf, nameOf, namesFrom, tintOf } from "../lib/people";
+import { claimersOf, hereLine, inviteText, keepPolling, liveUrl, lockState, myClaim, progress, tickerLine, toggleMine } from "../lib/live";
+import { browserClock, browserPage, createPoller, type Poller } from "../lib/poll";
+import { errorReason, errorText, newIdempotencyKey, useSession } from "../lib/session";
+import { useMe } from "../lib/me";
+import { to } from "../lib/paths";
 
 // Live split (SE4): the code and its QR, who is here, the claimed bar, each
 // item with its claimers and "I had this", and — for the person who opened
@@ -125,7 +126,7 @@ export function LiveScreen({ code: raw }: { code: string }) {
     return (
       <div className="stack s14">
         <header className="hdr">
-          <BackButton label="Back" href="/" />
+          <BackButton label="Back" href={to("/")} />
           <div className="hdr-title"><h1>Live split</h1></div>
           <span style={{ width: 44 }} />
         </header>
@@ -292,7 +293,7 @@ export function LiveScreen({ code: raw }: { code: string }) {
       {session.state === "locked" && session.expenseId ? (
         <section className="card r22" aria-label="Posted">
           <span className="inline" style={{ fontWeight: 500 }}><Icon name="check" size={18} /> Locked and posted to {session.groupName}</span>
-          <Link className="btn big" href={`/expense?id=${encodeURIComponent(session.expenseId)}`}>Open the expense</Link>
+          <Link className="btn big" href={to(`/expense?id=${encodeURIComponent(session.expenseId)}`)}>Open the expense</Link>
         </section>
       ) : null}
       {session.state === "expired" ? (
@@ -341,7 +342,7 @@ export function JoinByCode() {
       style={{ flexWrap: "nowrap" }}
       onSubmit={(e) => {
         e.preventDefault();
-        if (code) router.push(`/live/${code}`);
+        if (code) router.push(to(`/live/${code}`));
       }}
     >
       <input className="input" aria-label="Live split code" placeholder="ABCD-2345" value={text} maxLength={12} autoCapitalize="characters" onChange={(e) => setText(e.target.value)} style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.08em" }} />

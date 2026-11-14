@@ -60,6 +60,14 @@ interface SessionValue {
 
 const Ctx = React.createContext<SessionValue | null>(null);
 
+/**
+ * The session as context (money-inside MN-7): Cookpool and Tripeco show these
+ * screens inside their Money tab and provide their own signed-in client here,
+ * instead of this app's `SessionProvider`.
+ */
+export const SessionContext = Ctx;
+export type { SessionValue };
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = React.useState(false);
   const [token, setToken] = React.useState<string | null>(null);

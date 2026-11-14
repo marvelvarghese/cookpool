@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Mark } from "@/components/icons";
-import { errorText, makeClient, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
-import { sessionStore, takeReturn } from "@/lib/return-to";
-import { passkeySignIn, passkeysRunHere } from "@/lib/passkey";
+import { Mark } from "../../components/icons";
+import { errorText, makeClient, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
+import { sessionStore, takeReturn } from "../../lib/return-to";
+import { passkeySignIn, passkeysRunHere } from "../../lib/passkey";
 
 // Sign in with your Cookpool account: an email, then the 6-digit code sent to
 // it; Google; or a passkey made in Cookpool (SE3: identity-worker lists this

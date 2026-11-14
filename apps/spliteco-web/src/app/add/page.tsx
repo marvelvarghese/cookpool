@@ -9,21 +9,22 @@ import {
   type SplitecoGroupSummary,
   type SplitecoSplitMethod,
 } from "@saas/contracts/spliteco";
-import { Icon } from "@/components/icons";
-import { Avatar, Screen, Sheet, useQueryParams } from "@/components/ui";
-import { PaidByView } from "@/components/add/paid-by";
-import { AddSheet } from "@/components/add/add-sheet";
-import { ItemizedView } from "@/components/add/itemized";
-import { namesFrom, nameOf } from "@/lib/people";
-import type { FormCtx } from "@/components/add/types";
-import { CATEGORY_LABELS, CATEGORY_TINTS, guessCategory } from "@/lib/activity-text";
-import { buildRequest, formFromInput, newForm, payersOf, todayIso, totalOf, type ExpenseForm } from "@/lib/split-form";
-import { AMOUNT, payerChip, saveLabel, type Selected } from "@/lib/add-split";
-import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
-import { applyScan, takeScan, type ScanHandoff } from "@/lib/scan";
-import { liveDraftFrom } from "@/lib/live";
-import { sessionStore } from "@/lib/return-to";
+import { Icon } from "../../components/icons";
+import { Avatar, Screen, Sheet, useQueryParams } from "../../components/ui";
+import { PaidByView } from "../../components/add/paid-by";
+import { AddSheet } from "../../components/add/add-sheet";
+import { ItemizedView } from "../../components/add/itemized";
+import { namesFrom, nameOf } from "../../lib/people";
+import type { FormCtx } from "../../components/add/types";
+import { CATEGORY_LABELS, CATEGORY_TINTS, guessCategory } from "../../lib/activity-text";
+import { buildRequest, formFromInput, newForm, payersOf, todayIso, totalOf, type ExpenseForm } from "../../lib/split-form";
+import { AMOUNT, payerChip, saveLabel, type Selected } from "../../lib/add-split";
+import { errorText, newIdempotencyKey, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
+import { applyScan, takeScan, type ScanHandoff } from "../../lib/scan";
+import { liveDraftFrom } from "../../lib/live";
+import { sessionStore } from "../../lib/return-to";
+import { to } from "../../lib/paths";
 
 type View = "main" | "paid" | "items";
 
@@ -181,7 +182,7 @@ function Add() {
           <span style={{ width: 44 }} />
         </header>
         <p className="empty">Make a group first — expenses live in a group (or with a friend).</p>
-        <button className="btn big" onClick={() => router.push("/groups")}>Go to Groups</button>
+        <button className="btn big" onClick={() => router.push(to("/groups"))}>Go to Groups</button>
       </div>
     );
   }
@@ -202,10 +203,10 @@ function Add() {
         ? await client.spliteco.editExpense(editId, built.request, { idempotencyKey: keyRef.current })
         : await client.spliteco.createExpense(group.group.id, built.request, { idempotencyKey: keyRef.current });
       keyRef.current = null;
-      if (editId) router.replace(`/expense?id=${encodeURIComponent(r.expense.id)}`);
+      if (editId) router.replace(to(`/expense?id=${encodeURIComponent(r.expense.id)}`));
       // Outside groups: back to the friend it was with.
       else if (group.group.kind === "direct") router.back();
-      else router.replace(`/group?id=${encodeURIComponent(group.group.id)}`);
+      else router.replace(to(`/group?id=${encodeURIComponent(group.group.id)}`));
     } catch (err) {
       setError(errorText(err));
       setBusy(false);
@@ -223,7 +224,7 @@ function Add() {
     setError(null);
     try {
       const r = await client.spliteco.openLive(group.group.id, draft.request, { idempotencyKey: newIdempotencyKey() });
-      router.push(`/live/${r.session.code}`);
+      router.push(to(`/live/${r.session.code}`));
     } catch (err) {
       setError(errorText(err));
       setLiveBusy(false);
@@ -275,7 +276,7 @@ function Add() {
             {editId ? (
               <span style={{ width: 38 }} />
             ) : (
-              <button className="add-round money" aria-label="Scan a bill" onClick={() => router.push(`/scan?group=${encodeURIComponent(group.group.id)}`)}>
+              <button className="add-round money" aria-label="Scan a bill" onClick={() => router.push(to(`/scan?group=${encodeURIComponent(group.group.id)}`))}>
                 <Icon name="camera" size={18} />
               </button>
             )}

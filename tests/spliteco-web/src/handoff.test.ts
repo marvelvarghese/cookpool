@@ -84,7 +84,7 @@ describe("the app's source", () => {
 
   it("works Settle up by the shared rules, with Spliteco's own tiles and slider (SL5)", () => {
     const page = readFileSync(`${app}/src/app/settle/page.tsx`, "utf8");
-    expect(page).toContain('from "@/lib/settle"');
+    expect(page).toContain('from "../../lib/settle"');
     expect(readFileSync(`${app}/src/lib/settle.ts`, "utf8")).toContain('export * from "@saas/spliteco-ui/settle"');
     expect(page).toContain('aria-label="How you paid"');
     expect(page).toContain("<Slider");

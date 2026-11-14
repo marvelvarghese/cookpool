@@ -8,9 +8,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { errorText, useSession } from "@/lib/session";
-import { rememberReturn, sessionStore } from "@/lib/return-to";
-import { safeTripecoTarget, tripecoHandoffUrl } from "@/lib/tripeco-link";
+import { errorText, useSession } from "../../../lib/session";
+import { rememberReturn, sessionStore } from "../../../lib/return-to";
+import { safeTripecoTarget, tripecoHandoffUrl } from "../../../lib/tripeco-link";
 
 export default function HandoffOutPage() {
   const router = useRouter();

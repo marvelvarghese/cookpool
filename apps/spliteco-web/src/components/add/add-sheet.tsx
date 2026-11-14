@@ -2,15 +2,15 @@
 
 import * as React from "react";
 import type { SplitecoSplitMethod } from "@saas/contracts/spliteco";
-import { Icon } from "@/components/icons";
-import { Avatar } from "@/components/ui";
+import { Icon } from "../icons";
+import { Avatar } from "../ui";
 import { useSheetDrag } from "@saas/gestures/react/sheet-drag";
 import { useRepeat } from "@saas/gestures/react/repeat";
 import { settleTransition, useLatest } from "@saas/gestures/react/motion";
 import { listenForDrags } from "@saas/gestures/gestures";
 import { CLICK_GUARD_MS } from "@saas/gestures/row-gestures";
 import { isSideways } from "@saas/gestures/rules";
-import { currencySymbol, moneyInput } from "@/lib/money";
+import { currencySymbol, moneyInput } from "../../lib/money";
 import {
   AMOUNT,
   METHODS,
@@ -36,8 +36,8 @@ import {
   type Key,
   type Row,
   type Selected,
-} from "@/lib/add-split";
-import { enteredItems, totalOf } from "@/lib/split-form";
+} from "../../lib/add-split";
+import { enteredItems, totalOf } from "../../lib/split-form";
 import type { FormCtx } from "./types";
 
 interface Props {

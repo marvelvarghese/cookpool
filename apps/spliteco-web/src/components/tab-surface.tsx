@@ -9,12 +9,12 @@ import { usePull } from "@saas/gestures/react/pull";
 import { HomeTab } from "./tabs/home-tab";
 import { GroupsTab } from "./tabs/groups-tab";
 import { ActivityTab } from "./tabs/activity-tab";
-import { PAGER_TABS } from "@/lib/tabs";
-import { pagerIndexOf, pagerPath, remindErrorText } from "@/lib/home";
-import { DelayedSends, UNDO_MS } from "@/lib/delayed";
-import { canRemind } from "@/lib/settle";
-import { errorReason, errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
+import { PAGER_TABS } from "../lib/tabs";
+import { pagerIndexOf, pagerPath, remindErrorText } from "../lib/home";
+import { DelayedSends, UNDO_MS } from "../lib/delayed";
+import { canRemind } from "../lib/settle";
+import { errorReason, errorText, newIdempotencyKey, useSession } from "../lib/session";
+import { useMe } from "../lib/me";
 
 export interface ToastValue {
   text: string;

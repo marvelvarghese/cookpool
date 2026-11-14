@@ -4,19 +4,20 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SplitecoExpenseResponse } from "@saas/contracts/spliteco";
-import { Icon } from "@/components/icons";
-import { Avatar, BackButton, Loading, Screen, Sheet, useLoad, useQueryParam, useToast } from "@/components/ui";
-import { whoPaid } from "@/components/expense-row";
-import { formatMoney, splitMoney } from "@/lib/money";
-import { signedShort } from "@/lib/home";
-import { nameOf, namesFrom } from "@/lib/people";
-import { CATEGORY_LABELS, longDate, timeAgo, viaChip } from "@/lib/activity-text";
-import { METHOD_LABELS } from "@/lib/split-form";
-import { historyText, myItems } from "@/lib/expense-view";
-import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
-import { RideProof } from "@/components/ride-proof";
-import { rideOf } from "@/lib/ride-view";
+import { Icon } from "../../components/icons";
+import { Avatar, BackButton, Loading, Screen, Sheet, useLoad, useQueryParam, useToast } from "../../components/ui";
+import { whoPaid } from "../../components/expense-row";
+import { formatMoney, splitMoney } from "../../lib/money";
+import { signedShort } from "../../lib/home";
+import { nameOf, namesFrom } from "../../lib/people";
+import { CATEGORY_LABELS, longDate, timeAgo, viaChip } from "../../lib/activity-text";
+import { METHOD_LABELS } from "../../lib/split-form";
+import { historyText, myItems } from "../../lib/expense-view";
+import { errorText, newIdempotencyKey, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
+import { RideProof } from "../../components/ride-proof";
+import { rideOf } from "../../lib/ride-view";
+import { to } from "../../lib/paths";
 
 export default function ExpensePage() {
   const id = useQueryParam("id");
@@ -86,7 +87,7 @@ function Expense({ data, me, reload, focusComment }: { data: SplitecoExpenseResp
         : await client.spliteco.restoreExpense(e.id, { idempotencyKey: key("restore") });
       setConfirm(false);
       say(kind === "delete" ? "Deleted — you can restore it for 30 days" : "Restored");
-      if (kind === "restore") router.replace(`/expense?id=${encodeURIComponent(r.expense.id)}`);
+      if (kind === "restore") router.replace(to(`/expense?id=${encodeURIComponent(r.expense.id)}`));
       reload();
     } catch (err) {
       setError(errorText(err));
@@ -113,17 +114,17 @@ function Expense({ data, me, reload, focusComment }: { data: SplitecoExpenseResp
   return (
     <>
       <header className="hdr">
-        <BackButton href={`/group?id=${encodeURIComponent(e.groupId)}`} label={`Back to ${e.groupName}`} />
+        <BackButton href={to(`/group?id=${encodeURIComponent(e.groupId)}`)} label={`Back to ${e.groupName}`} />
         <div className="inline">
           {writable && current ? (
             <>
-              <Link href={`/move?id=${encodeURIComponent(e.id)}`} className="iconbtn" aria-label="Move to another group"><Icon name="move" /></Link>
-              <Link href={`/share?expense=${encodeURIComponent(e.id)}`} className="iconbtn" aria-label="Share this expense"><Icon name="share" /></Link>
-              <Link href={`/add?edit=${encodeURIComponent(e.id)}`} className="iconbtn" aria-label="Edit this expense"><Icon name="edit" /></Link>
+              <Link href={to(`/move?id=${encodeURIComponent(e.id)}`)} className="iconbtn" aria-label="Move to another group"><Icon name="move" /></Link>
+              <Link href={to(`/share?expense=${encodeURIComponent(e.id)}`)} className="iconbtn" aria-label="Share this expense"><Icon name="share" /></Link>
+              <Link href={to(`/add?edit=${encodeURIComponent(e.id)}`)} className="iconbtn" aria-label="Edit this expense"><Icon name="edit" /></Link>
               <button className="iconbtn danger" aria-label="Delete this expense" onClick={() => setConfirm(true)}><Icon name="trash" /></button>
             </>
           ) : (
-            <Link href={`/share?expense=${encodeURIComponent(e.id)}`} className="iconbtn" aria-label="Share this expense"><Icon name="share" /></Link>
+            <Link href={to(`/share?expense=${encodeURIComponent(e.id)}`)} className="iconbtn" aria-label="Share this expense"><Icon name="share" /></Link>
           )}
         </div>
       </header>
@@ -139,7 +140,7 @@ function Expense({ data, me, reload, focusComment }: { data: SplitecoExpenseResp
         </div>
       ) : null}
       {e.state === "replaced" && e.currentId ? (
-        <Link href={`/expense?id=${encodeURIComponent(e.currentId)}`} className="infobox" style={{ display: "block" }}>
+        <Link href={to(`/expense?id=${encodeURIComponent(e.currentId)}`)} className="infobox" style={{ display: "block" }}>
           This is an older version — open the current one →
         </Link>
       ) : null}

@@ -8,10 +8,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { errorText, makeClient, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
-import { handoffNext, rememberBack, safeBack } from "@/lib/handoff";
-import { sessionStore } from "@/lib/return-to";
+import { errorText, makeClient, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
+import { handoffNext, rememberBack, safeBack } from "../../lib/handoff";
+import { sessionStore } from "../../lib/return-to";
 
 export default function HandoffPage() {
   const router = useRouter();

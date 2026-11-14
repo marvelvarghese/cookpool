@@ -1,9 +1,9 @@
 "use client";
 
-import { Avatar, AddsUpBar } from "@/components/ui";
-import { formatMoney } from "@/lib/money";
-import { nameOf } from "@/lib/people";
-import { payersOf, payersStatus, totalOf } from "@/lib/split-form";
+import { Avatar, AddsUpBar } from "../ui";
+import { formatMoney } from "../../lib/money";
+import { nameOf } from "../../lib/people";
+import { payersOf, payersStatus, totalOf } from "../../lib/split-form";
 import type { FormCtx } from "./types";
 
 /** Who paid: one person, or several with what each paid (it must add up to the total). */

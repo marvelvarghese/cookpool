@@ -3,13 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import type { SplitecoInsightsResponse } from "@saas/contracts/spliteco";
-import { Icon } from "@/components/icons";
-import { BackButton, Loading, Screen, useLoad, useQueryParam } from "@/components/ui";
-import { formatMoney, formatShort } from "@/lib/money";
-import { nameOf, namesFrom } from "@/lib/people";
-import { CATEGORY_LABELS, periodLabel } from "@/lib/activity-text";
-import { CHART_COLORS, barHeights, changePct, compactAmount, donutSegments, monthOf, percentLabels } from "@/lib/charts";
-import { useMe } from "@/lib/me";
+import { Icon } from "../../components/icons";
+import { BackButton, Loading, Screen, useLoad, useQueryParam } from "../../components/ui";
+import { formatMoney, formatShort } from "../../lib/money";
+import { nameOf, namesFrom } from "../../lib/people";
+import { CATEGORY_LABELS, periodLabel } from "../../lib/activity-text";
+import { CHART_COLORS, barHeights, changePct, compactAmount, donutSegments, monthOf, percentLabels } from "../../lib/charts";
+import { useMe } from "../../lib/me";
+import { to } from "../../lib/paths";
 
 export default function InsightsPage() {
   const groupParam = useQueryParam("group");
@@ -30,7 +31,7 @@ export default function InsightsPage() {
         <BackButton label="Back" />
         <div className="hdr-title"><h1 style={{ fontSize: 20, fontWeight: 600 }}>Insights</h1></div>
         {groupId ? (
-          <Link href={`/share?group=${encodeURIComponent(groupId)}`} className="iconbtn" aria-label="Export to CSV">
+          <Link href={to(`/share?group=${encodeURIComponent(groupId)}`)} className="iconbtn" aria-label="Export to CSV">
             <Icon name="download" />
           </Link>
         ) : (
@@ -174,7 +175,7 @@ function Insights({ data, me, groupName }: { data: SplitecoInsightsResponse; me:
         <section aria-label="Biggest expenses" className="list">
           <h2 className="eyebrow">Biggest this month</h2>
           {data.biggest.map((b) => (
-            <Link key={b.expense.id} href={`/expense?id=${encodeURIComponent(b.expense.id)}`} className="lrow">
+            <Link key={b.expense.id} href={to(`/expense?id=${encodeURIComponent(b.expense.id)}`)} className="lrow">
               <span className="main">
                 <span className="title">{b.expense.title}</span>
                 <span className="sub">{formatMoney(b.expense.totalMinor, cur)} · {b.expense.groupName}{b.expense.app === "cookpool" ? " · Cookpool" : ""}</span>

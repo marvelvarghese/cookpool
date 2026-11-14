@@ -1,8 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { Screen } from "@/components/ui";
-import { LiveScreen } from "@/components/live-screen";
+import { Screen } from "../../../components/ui";
+import { LiveScreen } from "../../../components/live-screen";
 
 // /live/{code}: the address a live split's QR code and invite link open.
 // Signed out, it goes through Sign in and comes back here (lib/return-to.ts).
