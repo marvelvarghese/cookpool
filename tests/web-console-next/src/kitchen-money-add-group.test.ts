@@ -27,10 +27,9 @@ function fakeApi(over: { create?: unknown; save?: unknown } = {}) {
 
 describe("Add group: entry points", () => {
   it("opens from + Group and the Add group row, both through the one route", () => {
-    expect(read("components/kitchen/money-native-ui.tsx")).toContain("go(MONEY_ADD_GROUP_HREF)");
+    // GroupsPage draws both (+ Group in the header, the Add group row) from the one `onAddGroup`.
     const ui = read("components/kitchen/money-native-ui.tsx");
-    expect(ui).toContain("onAddGroup={addGroup}");
-    expect(ui).toContain("MoneyHeader side={side} onSide={onSide} {...(side === \"groups\" ? { onAddGroup: addGroup }");
+    expect(ui).toContain("onAddGroup={() => router.push(MONEY_ADD_GROUP_HREF)}");
     expect(read("app/(kitchen)/money/add-group/page.tsx")).toContain("MoneyAddGroup");
     expect(read("components/kitchen/money-add-group-ui.tsx")).toContain("<AddGroupSheet open");
   });

@@ -79,8 +79,8 @@ describe("what /money's address names", () => {
 
   it("round-trips through moneyHref", () => {
     expect(moneyHref({ kind: "groups" })).toBe("/money");
-    expect(moneyHref({ kind: "people" })).toBe("/money?side=people");
-    expect(moneyHref({ kind: "person", subjectId: "usr_zoya" })).toBe("/money?person=usr_zoya");
+    expect(moneyHref({ kind: "people" })).toBe("/money/people");
+    expect(moneyHref({ kind: "person", subjectId: "usr_zoya" })).toBe("/money/people/usr_zoya");
   });
 
   it("opens a group on its Manage page", () => {
@@ -90,7 +90,7 @@ describe("what /money's address names", () => {
   it("sends + Group and Add group to the Add group route", () => {
     expect(MONEY_ADD_GROUP_HREF).toBe("/money/add-group");
     expect(existsSync(`${root}/app/(kitchen)/money/add-group/page.tsx`)).toBe(true);
-    expect(read("components/kitchen/money-native-ui.tsx")).toContain("go(MONEY_ADD_GROUP_HREF)");
+    expect(read("components/kitchen/money-native-ui.tsx")).toContain("router.push(MONEY_ADD_GROUP_HREF)");
   });
 });
 

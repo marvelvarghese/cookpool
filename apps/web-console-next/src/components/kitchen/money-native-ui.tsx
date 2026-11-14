@@ -4,7 +4,7 @@ import * as React from "react";
 // The boards draw Money in Plus Jakarta Sans 400/500/600 (variable, latin).
 import "@fontsource-variable/plus-jakarta-sans";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import type { SplitecoBalancesResponse, SplitecoPersonBalance } from "@saas/contracts/spliteco";
 import { GroupsPage, MoneyHeader } from "@saas/spliteco-ui/groups-ui";
 import { PeopleScreen, PersonScreen } from "@saas/spliteco-ui/people-ui";
@@ -13,8 +13,11 @@ import { ExpenseButton } from "@saas/spliteco-ui/expense-ui";
 import { settleCurrencies } from "@saas/spliteco-ui/settle-box";
 import { qk } from "@/lib/query";
 import { useSession } from "@/lib/session";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useProfile } from "./data";
+import { useBack } from "./back-ui";
+import { useKitchenRouter } from "./transition-ui";
 import {
   MONEY_ADD_GROUP_HREF,
   createExpenseFor,
@@ -22,7 +25,8 @@ import {
   idempotencyKeys,
   moneyGroupHref,
   moneyHref,
-  moneyViewFrom,
+  barOffset,
+  legacyMoneyHref,
   settleApiFor,
 } from "./money-native";
 
@@ -31,8 +35,44 @@ const openUpi = (url: string): void => {
   window.location.assign(url);
 };
 
-/** Clears the floating tab bar (68px, 14px from the bottom) with a margin. */
-const BAR_OFFSET = 104;
+/** The bottom safe-area inset in px (0 where there is none): read off a probe, as CSS `env()` cannot be read from JS. */
+function useSafeBottom(): number {
+  const [inset, setInset] = React.useState(0);
+  React.useEffect(() => {
+    const probe = document.createElement("div");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:fixed;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom)";
+    document.body.appendChild(probe);
+    const read = () => setInset(Math.round(parseFloat(getComputedStyle(probe).paddingBottom) || 0));
+    read();
+    window.addEventListener("resize", read);
+    return () => {
+      window.removeEventListener("resize", read);
+      probe.remove();
+    };
+  }, []);
+  return inset;
+}
+
+/** What every Money page reads and writes through: the client, the signed-in person, the shared pages' APIs. */
+function useMoney() {
+  const { client } = useSession();
+  const qc = useQueryClient();
+  const profile = useProfile();
+  const meId = profile.data?.id ?? null;
+  const [version, setVersion] = React.useState(0);
+  const keys = React.useMemo(() => idempotencyKeys(), []);
+  const settleApi = React.useMemo(() => settleApiFor(client, keys), [client, keys]);
+  const createExpense = React.useMemo(() => createExpenseFor(client, keys), [client, keys]);
+  // A new object makes the shared pages read the balances again (after a payment landed).
+  const peopleApi = React.useMemo(() => ({ balances: () => client.spliteco.balances() }), [client, version]);
+  const refresh = React.useCallback(() => {
+    setVersion((v) => v + 1);
+    void qc.invalidateQueries({ queryKey: ["money"] });
+  }, [qc]);
+  const bottomOffset = barOffset(useSafeBottom());
+  return { client, meId, settleApi, createExpense, peopleApi, refresh, bottomOffset };
+}
 
 /**
  * Money, native (money-native MY-8): the shared pages of `@saas/spliteco-ui`
@@ -41,25 +81,21 @@ const BAR_OFFSET = 104;
  * People, a person's page, the settle box and the expense box all read and
  * write through this app's client; nothing here opens the Spliteco app.
  *
- * The address is `/money` (Groups), `/money?side=people`, and
- * `/money?person=<subject id>` for a person's page.
+ * Every step is a route (MY-21), taken through the frame's router so it gets
+ * its transition and its place in the back trail: `/money` (Groups),
+ * `/money/people`, `/money/people/<subject id>`; Back (the arrow, the system's,
+ * the edge swipe) goes back through them. The first build's `?side=` and
+ * `?person=` addresses are sent to their routes.
  */
 export function MoneyNative() {
-  const router = useRouter();
+  const router = useKitchenRouter();
   const params = useSearchParams();
-  const view = moneyViewFrom(params);
-  const { client } = useSession();
+  const legacy = legacyMoneyHref(params);
+  React.useEffect(() => {
+    if (legacy) router.replace(legacy);
+  }, [legacy, router]);
+  const { client, meId, createExpense, refresh, bottomOffset } = useMoney();
   const { toast } = useToast();
-  const qc = useQueryClient();
-  const profile = useProfile();
-  const meId = profile.data?.id ?? null;
-
-  const [version, setVersion] = React.useState(0);
-  const keys = React.useMemo(() => idempotencyKeys(), []);
-  const settleApi = React.useMemo(() => settleApiFor(client, keys), [client, keys]);
-  const createExpense = React.useMemo(() => createExpenseFor(client, keys), [client, keys]);
-  // A new object makes the shared pages read the balances again (after a payment landed).
-  const peopleApi = React.useMemo(() => ({ balances: () => client.spliteco.balances() }), [client, version]);
 
   const groups = useQuery({ queryKey: qk.moneyGroups(), queryFn: async () => (await client.spliteco.groups()).groups });
   const details = useQueries({
@@ -67,44 +103,7 @@ export function MoneyNative() {
   });
   const expenseGroups = expenseGroupsFrom(details.map((d) => d.data));
 
-  const refresh = React.useCallback(() => {
-    setVersion((v) => v + 1);
-    void qc.invalidateQueries({ queryKey: ["money"] });
-  }, [qc]);
-
-  const go = (href: string) => router.push(href);
-  const onSide = (side: "groups" | "people") => router.replace(moneyHref({ kind: side }));
-  const addGroup = () => go(MONEY_ADD_GROUP_HREF);
-
-  const header = (side: "groups" | "people") => <MoneyHeader side={side} onSide={onSide} {...(side === "groups" ? { onAddGroup: addGroup } : {})} />;
-
-  if (view.kind === "person") {
-    return (
-      <PersonRoute
-        subjectId={view.subjectId}
-        meId={meId}
-        api={peopleApi}
-        settleApi={settleApi}
-        onBack={() => router.replace(moneyHref({ kind: "people" }))}
-        onRecorded={refresh}
-      />
-    );
-  }
-
-  if (view.kind === "people") {
-    const openPerson = (p: SplitecoPersonBalance) => go(moneyHref({ kind: "person", subjectId: p.subjectId }));
-    return (
-      <PeopleScreen
-        theme="cookpool"
-        api={peopleApi}
-        header={header("people")}
-        onOpenPerson={(id) => go(moneyHref({ kind: "person", subjectId: id }))}
-        onPay={openPerson}
-        onGotIt={openPerson}
-        floatingButton={<PeopleSettleUp api={peopleApi} settleApi={settleApi} meId={meId} onRecorded={refresh} />}
-      />
-    );
-  }
+  if (legacy) return <Skeleton className="h-8 w-32" aria-hidden />;
 
   if (groups.isError) {
     return (
@@ -121,16 +120,16 @@ export function MoneyNative() {
     <GroupsPage
       theme="cookpool"
       groups={groups.data ?? []}
-      onSide={onSide}
-      onOpenGroup={(id) => go(moneyGroupHref(id))}
-      onAddGroup={addGroup}
+      onSide={(side) => router.push(moneyHref({ kind: side }))}
+      onOpenGroup={(id) => router.push(moneyGroupHref(id))}
+      onAddGroup={() => router.push(MONEY_ADD_GROUP_HREF)}
       floatingButton={
         meId && expenseGroups.length > 0 ? (
           <ExpenseButton
             theme="cookpool"
             groups={expenseGroups}
             me={meId}
-            bottomOffset={BAR_OFFSET}
+            bottomOffset={bottomOffset}
             createExpense={createExpense}
             onSaved={() => {
               toast({ kind: "success", title: "Expense added" });
@@ -143,8 +142,26 @@ export function MoneyNative() {
   );
 }
 
+/** Money's People side, `/money/people`: everyone you split with, Pay or Got it, and the settle box. */
+export function MoneyPeople() {
+  const router = useKitchenRouter();
+  const { meId, settleApi, peopleApi, refresh, bottomOffset } = useMoney();
+  const open = (p: { subjectId: string }) => router.push(moneyHref({ kind: "person", subjectId: p.subjectId }));
+  return (
+    <PeopleScreen
+      theme="cookpool"
+      api={peopleApi}
+      header={<MoneyHeader side="people" onSide={(side) => router.push(moneyHref({ kind: side }))} />}
+      onOpenPerson={(id) => open({ subjectId: id })}
+      onPay={open}
+      onGotIt={open}
+      floatingButton={<PeopleSettleUp api={peopleApi} settleApi={settleApi} meId={meId} bottomOffset={bottomOffset} onRecorded={refresh} />}
+    />
+  );
+}
+
 /** People's "Settle up" (kind `people`): the simplified payments, each Paid or Got it. */
-function PeopleSettleUp({ api, settleApi, meId, onRecorded }: { api: { balances(): Promise<SplitecoBalancesResponse> }; settleApi: ReturnType<typeof settleApiFor>; meId: string | null; onRecorded: () => void }) {
+function PeopleSettleUp({ api, settleApi, meId, bottomOffset, onRecorded }: { api: { balances(): Promise<SplitecoBalancesResponse> }; settleApi: ReturnType<typeof settleApiFor>; meId: string | null; bottomOffset: number; onRecorded: () => void }) {
   const [people, setPeople] = React.useState<SplitecoPersonBalance[]>([]);
   React.useEffect(() => {
     let live = true;
@@ -157,11 +174,13 @@ function PeopleSettleUp({ api, settleApi, meId, onRecorded }: { api: { balances(
     };
   }, [api]);
   if (!meId || people.every((p) => p.settled)) return null;
-  return <SettleUpBox theme="cookpool" people={people} meId={meId} api={settleApi} bottomOffset={BAR_OFFSET} onRecorded={onRecorded} />;
+  return <SettleUpBox theme="cookpool" people={people} meId={meId} api={settleApi} bottomOffset={bottomOffset} onRecorded={onRecorded} />;
 }
 
-/** A person's page with its settle box: you pay them when you owe, "Got it" when they owe you. */
-function PersonRoute({ subjectId, meId, api, settleApi, onBack, onRecorded }: { subjectId: string; meId: string | null; api: { balances(): Promise<SplitecoBalancesResponse> }; settleApi: ReturnType<typeof settleApiFor>; onBack: () => void; onRecorded: () => void }) {
+/** A person's page, `/money/people/<subject id>`, with its settle box: you pay them when you owe, "Got it" when they owe you. */
+export function MoneyPerson({ subjectId }: { subjectId: string }) {
+  const goBack = useBack();
+  const { meId, settleApi, peopleApi: api, refresh, bottomOffset } = useMoney();
   const [person, setPerson] = React.useState<SplitecoPersonBalance | null>(null);
   React.useEffect(() => {
     let live = true;
@@ -180,10 +199,10 @@ function PersonRoute({ subjectId, meId, api, settleApi, onBack, onRecorded }: { 
       theme="cookpool"
       api={api}
       subjectId={subjectId}
-      onBack={onBack}
+      onBack={goBack}
       floatingButton={
         person && meId && settleCurrencies(person, direction).length > 0 ? (
-          <SettleBox theme="cookpool" person={person} meId={meId} direction={direction} api={settleApi} openUpi={openUpi} bottomOffset={BAR_OFFSET} onRecorded={onRecorded} />
+          <SettleBox theme="cookpool" person={person} meId={meId} direction={direction} api={settleApi} openUpi={openUpi} bottomOffset={bottomOffset} onRecorded={refresh} />
         ) : null
       }
     />

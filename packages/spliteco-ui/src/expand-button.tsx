@@ -216,7 +216,10 @@ export function ExpandButton({
           style={{
             position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, background: "transparent", color: look.onPrimary,
             font: "inherit", fontSize: 15, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-            cursor: "pointer", opacity: open ? 0 : 1, pointerEvents: open ? "none" : "auto", transition: fade,
+            cursor: "pointer", opacity: open ? 0 : 1,
+            // Live only once the box is back to a button: while it shrinks (`shown`) it is still a full-screen
+            // box, and a button that took taps there would swallow the next tap on the page, or reopen it (MY-21).
+            pointerEvents: open || shown ? "none" : "auto", transition: fade,
           }}
         >
           {kind === "expense" ? (

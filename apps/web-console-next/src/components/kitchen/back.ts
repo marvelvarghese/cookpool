@@ -99,6 +99,9 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/settle": () => "/people",
   // Settle up in a kitchen (cookpool-spliteco SE3): Money, where it is opened.
   "/money/settle": () => "/money",
+  // Money's People side (MY-21): back to Money's Groups; a person: back to People.
+  "/money/people": () => "/money",
+  "/money/people/:subjectId": () => "/money/people",
   // Add group from Money (money-native MY-8): back to Money.
   "/money/add-group": () => "/money",
   // Manage group (money-native MY-11): back to Money.

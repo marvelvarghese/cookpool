@@ -30,9 +30,15 @@ export const metadata: Metadata = {
 
 // `viewport-fit=cover` enables `env(safe-area-inset-*)` on notched devices;
 // theme-color tints the mobile browser chrome to match light/dark surfaces.
+// The app does not zoom (MY-21): `maximum-scale=1, user-scalable=no` stops the
+// pinch and the focus zoom in the installed app and on Android; iOS Safari may
+// still let a person pinch for accessibility, and blocking zoom has a cost
+// (WCAG 1.4.4), so browser text size is left alone (no fixed root font size).
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
