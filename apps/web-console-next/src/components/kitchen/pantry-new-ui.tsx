@@ -11,15 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentGroupSlugs } from "@/lib/recent-groups";
 import { useProfile } from "./data";
 import { IconBubble, KCard, K_BUTTON, K_BUTTON_QUIET, K_ROWS, K_SECTION } from "./kit";
-import { RING, SeeAllButton } from "./new-home-parts-ui";
+import { RING } from "./new-home-parts-ui";
 import { FromYourGroups } from "./groups-cooked-ui";
-import { sectionRows, usualNowRows } from "./pantry-look";
 import { useMemberNames, useMyRoles } from "./people-data";
-import { usePantries, usePantryItems, useUsualBucket, useUsuals } from "./pantry-data";
-import { USUAL_BUCKET_LABELS } from "@saas/contracts/kitchen-usuals";
+import { usePantries, usePantryItems, useUsuals } from "./pantry-data";
 import { usualFor } from "./quick-use";
-import { PERSONAL_PANTRY, pantryChips, pantryKey } from "./pantry";
-import { addItemHref, boughtHref, pantrySections, parseOpenParam, parseShow, pantryRow, showParams, type PantryRow, type PantryShow } from "./pantry-list";
+import { pantryChips, pantryKey } from "./pantry";
+import { KITCHEN_CHIPS, addItemHref, kitchenSplit, parseKitchenChip, parseOpenParam, parseShow, pantryRow, showParams, type KitchenChip, type PantryRow, type PantryShow } from "./pantry-list";
 import { tickPickedText } from "./tick-row";
 import { KitchenLogBar, KitchenTickRow, kitchenTickAmount, pickable, useKitchenTicks, useLogPicks } from "./kitchen-tick-ui";
 import type { PickLine } from "./kitchen-picks";
@@ -67,7 +65,14 @@ type Row = PantryRow & { item: ReachableItem };
  * search: Enter reads the sentence and ticks the rows it names. Use soon sits
  * in the rows (first, amber or red) with a stock bar under each name; the
  * filter chips and the Use soon strip are gone. Finished this week's button
- * adds the item to its pantry's shopping list.
+ * adds the item to its pantry's shopping list. *
+ * Since KC-10 (cookpool-kitchen-calm, the canvas's Kitchen board): the header
+ * is the switcher, the list, a round Search (the field shows once it is
+ * tapped, or with `?q=`) and a round + for Add item; + Groceries lives on the
+ * shopping list. Under it the chips All · Use soon · Running low, then two
+ * sections: Use first (due soon or past its date) and Shelf (the rest). Usual
+ * now and the per-pantry sections are gone; one pantry keeps its Always have
+ * under its rows.
  */
 export function NewPantry() {
   const pathname = usePathname();
@@ -80,7 +85,6 @@ export function NewPantry() {
   const sayShows = useSayItShows();
   const items = usePantryItems("all");
   const usuals = useUsuals();
-  const bucket = useUsualBucket();
   const recentSlugs = useRecentGroupSlugs();
   const ticks = useKitchenTicks();
   const logPicks = useLogPicks(ticks, { meId, names });
@@ -108,9 +112,13 @@ export function NewPantry() {
   const [sayMode, setSayMode] = React.useState(false);
   const [said, setSaid] = React.useState("");
   const openItemId = parseOpenParam(params?.get("open"))?.itemId ?? null;
-  const [openId, setOpenId] = React.useState<string | null>(openItemId);
+  const [, setOpenId] = React.useState<string | null>(openItemId);
   const searchRef = React.useRef<HTMLInputElement>(null);
   const focus = params?.get("focus") === "1";
+  // The board's chips (KC-10): `?filter=` on arrival, then this screen's choice.
+  const [chip, setChip] = React.useState<KitchenChip>(() => parseKitchenChip(params?.get("filter")));
+  // The search hides behind its round button until it is wanted (`?q=` and `?focus=1` open it).
+  const [searchOpen, setSearchOpen] = React.useState(() => focus || (params?.get("q") ?? "") !== "");
 
   // `?focus=1` and `?open=` are for arriving (Home's field, /use): used once, then dropped from the address.
   const dropParam = React.useCallback((name: string) => {
@@ -147,11 +155,10 @@ export function NewPantry() {
   );
   const searching = !sayMode && query.trim() !== "";
   const q = sayMode ? "" : query;
-  // Usual now (RV-10): on All only.
-  const usualNow = bucket ? usualNowRows(rows, usualList, { show, query: q }) : [];
   const byId = React.useMemo(() => new Map(rows.map((r) => [r.id, r] as const)), [rows]);
   const order = React.useMemo(() => (list ? pantryChips(list, recentSlugs).map((p) => p.key) : []), [list, recentSlugs]);
-  const sections = pantrySections(rows, { show, query: q, order, exclude: new Set(usualNow.map((r) => r.id)) });
+  // Use first and Shelf (KC-10): one pantry or all, the chip, the search.
+  const split = kitchenSplit(rows, { chip, pantry: view === ALL_VIEW ? null : view, query: q });
   const options = list ? switcherOptions({ pantries: list, rows, staples: staples.data, view, order }) : [];
   const title = kitchenTitle(view, list);
   // What the Log button logs: the picked rows, in the order they were picked.
@@ -228,9 +235,6 @@ export function NewPantry() {
   const loading = pantries.loading || items.loading || (!items.data && !items.error);
   const failed = !loading && (pantries.error || items.error || !list || !loaded);
   const nothingAnywhere = !loading && !failed && rows.length === 0 && view === ALL_VIEW;
-  // The pantries' sections: on All every pantry (its rows, three then See all, which switches to it, then its
-  // staples); on one pantry, "Items" with all its rows, then its staples. A pantry with no rows still shows its staples.
-  const keys = view === ALL_VIEW ? (show.kind === "all" ? orderedKeys(order) : sections.map((s) => s.key)) : [view];
   const listCount = shoppingCount(staples.data);
 
   return (
@@ -238,15 +242,34 @@ export function NewPantry() {
       <header className="flex items-center gap-2">
         <PantrySwitcher title={title} options={options} onPick={choose} />
         <ShoppingListLink count={listCount} />
-        <Link
-          href={boughtHref()}
-          className={cn("flex min-h-11 shrink-0 items-center gap-1.5 rounded-[14px] bg-primary pl-3 pr-3.5 text-[15px] font-medium text-primary-foreground transition-colors hover:bg-primary/90", RING)}
+        <button
+          type="button"
+          aria-label="Search"
+          aria-expanded={searchOpen || sayMode}
+          onClick={() => {
+            const next = !(searchOpen || sayMode);
+            setSearchOpen(next);
+            if (next) window.setTimeout(() => searchRef.current?.focus(), 0);
+            else {
+              setQuery("");
+              setSayMode(false);
+              setSaid("");
+            }
+          }}
+          className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full bg-card text-foreground shadow-cp-card", RING)}
         >
-          <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} aria-hidden />
-          Groceries
+          <Search className="h-5 w-5" aria-hidden />
+        </button>
+        <Link
+          href={addItemHref(view === ALL_VIEW ? { kind: "all" } : { kind: "pantry", key: view })}
+          aria-label="Add item"
+          className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90", RING)}
+        >
+          <Plus className="h-[22px] w-[22px]" strokeWidth={2.2} aria-hidden />
         </Link>
       </header>
 
+      {searchOpen || sayMode || query !== "" ? (
       <div className={cn("flex min-h-[52px] items-center gap-2.5 rounded-[18px] pr-1 shadow-cp-card focus-within:ring-2 focus-within:ring-ring", sayMode ? "bg-cp-accent-tint pl-4" : "bg-card pl-3.5")}>
         {sayMode ? null : <Search className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />}
         <label htmlFor="kitchen-field" className="sr-only">
@@ -295,6 +318,25 @@ export function NewPantry() {
           </button>
         ) : null}
       </div>
+      ) : null}
+
+      <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
+        {KITCHEN_CHIPS.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            aria-pressed={chip === c.key}
+            onClick={() => setChip(c.key)}
+            className={cn(
+              "h-9 rounded-full px-3.5 text-sm font-medium transition-colors",
+              chip === c.key ? "bg-primary text-primary-foreground" : "bg-card text-foreground shadow-cp-card",
+              RING,
+            )}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
 
       {loading ? (
         <PantrySkeleton />
@@ -319,50 +361,31 @@ export function NewPantry() {
         </>
       ) : (
         <>
-          {bucket && usualNow.length > 0 ? (
-            <section aria-labelledby="pantry-usual-now" className="flex flex-col gap-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 id="pantry-usual-now" className={K_SECTION}>
-                  Usual now <span className="font-normal text-muted-foreground">· {USUAL_BUCKET_LABELS[bucket]}</span>
-                </h2>
-                <span className="text-[13px] font-normal text-muted-foreground">{pickedIn(usualNow)}</span>
-              </div>
-              <div className={K_ROWS}>
-                <ul className="divide-y divide-cp-line">{usualNow.map((r) => rowFor(r))}</ul>
-              </div>
-            </section>
-          ) : null}
-
-          {(searching || show.kind === "soon" || show.kind === "low") && sections.length === 0 ? (
-            <NothingShown show={show} query={query} where={view === ALL_VIEW ? null : title} />
+          {split.useFirst.length === 0 && split.shelf.length === 0 ? (
+            <NothingShown show={chip === "all" ? { kind: "all" } : { kind: chip }} query={q} where={view === ALL_VIEW ? null : title} />
           ) : (
-            keys.map((key) => {
-              const s = sections.find((x) => x.key === key) ?? null;
-              const card = staplesFor(key);
-              if (!s && !card) return null;
-              const all = view !== ALL_VIEW;
-              const label = all ? "Items" : (s?.label ?? kitchenTitle(key, list));
-              const headingId = `pantry-section-${key}`;
-              const shownRows = s ? (all ? { rows: s.rows, more: false, label: "" } : sectionRows(s.rows, { all: false, searching, openId })) : null;
-              return (
-                <section key={key} aria-labelledby={headingId} className="flex flex-col gap-2">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <h2 id={headingId} className={cn(K_SECTION, "min-w-0 truncate")}>
-                      {label} <span className="font-normal tabular-nums text-muted-foreground">· {s?.count ?? 0}</span>
+            ([
+              ["kitchen-use-first", "Use first", split.useFirst],
+              ["kitchen-shelf", "Shelf", split.shelf],
+            ] as const).map(([id, label, of]) =>
+              of.length === 0 ? null : (
+                <section key={id} aria-labelledby={id} className="flex flex-col gap-2">
+                  <div className="flex items-baseline justify-between gap-2 px-1">
+                    <h2 id={id} className={K_SECTION}>
+                      {label}
                     </h2>
-                    <span className="shrink-0 text-[13px] font-normal text-muted-foreground">{s ? pickedIn(s.rows) : ""}</span>
+                    <span className="shrink-0 text-[13px] font-normal text-muted-foreground">{pickedIn(of)}</span>
                   </div>
-                  {s && shownRows && shownRows.rows.length > 0 ? (
-                    <div className={K_ROWS}>
-                      <ul className="divide-y divide-cp-line">{shownRows.rows.map((r) => rowFor(r))}</ul>
-                      {shownRows.more ? <SeeAllButton label={`See all ${s.count}`} all={false} onToggle={() => choose(key)} /> : null}
-                    </div>
-                  ) : null}
-                  {card}
+                  <div className={K_ROWS}>
+                    <ul className="divide-y divide-cp-line">{of.map((r) => rowFor(r))}</ul>
+                  </div>
                 </section>
-              );
-            })
+              ),
+            )
           )}
+
+          {/* One pantry's Always have, under its rows (RV-21). */}
+          {view !== ALL_VIEW ? staplesFor(view) : null}
 
           {/* Finished this week (PN-6), on All. */}
           {finishedSection}
@@ -377,11 +400,6 @@ export function NewPantry() {
       <KitchenLogBar lines={pickLines} onLog={() => logPicks(pickedRows)} aboveSessionBar={sessionUp} />
     </div>
   );
-}
-
-/** Every pantry's key in the sections' order: the groups as `order` has them, then yours ("Mine") last. */
-function orderedKeys(order: readonly string[]): string[] {
-  return [...order.filter((k) => k !== PERSONAL_PANTRY), ...(order.includes(PERSONAL_PANTRY) ? [PERSONAL_PANTRY] : [])];
 }
 
 /** The board's sparkle, filled while Say what you used is on. */

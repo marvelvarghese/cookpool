@@ -15,8 +15,12 @@ import {
   showParams,
   useByDay,
   useSoonCard,
+  KITCHEN_CHIPS,
+  kitchenSplit,
+  parseKitchenChip,
   type PantryShow,
 } from "@web-console-next/components/kitchen/pantry-list";
+import { pantryKey } from "@web-console-next/components/kitchen/pantry";
 import { sectionRows } from "@web-console-next/components/kitchen/pantry-look";
 import { readFileSync } from "node:fs";
 import { cwd } from "node:process";
@@ -103,7 +107,63 @@ describe("sections by pantry (RV-13, the board's one flat list)", () => {
   it("have no fold: the Kitchen draws no fold chevron and no kind sections", () => {
     const ui = readFileSync(`${cwd()}/../../apps/web-console-next/src/components/kitchen/pantry-new-ui.tsx`, "utf8");
     expect(ui).not.toMatch(/ChevronDown|kindSections|toggleFold|sectionOpen/);
-    expect(ui).toContain("pantrySections(");
+    expect(ui).toContain("kitchenSplit(");
+  });
+});
+
+describe("the Kitchen list (KC-10, the canvas's Kitchen board)", () => {
+  const items = [
+    makeItem({ name: "Toor dal" }),
+    makeItem({ name: "Milk", daysToUseBy: 0 }),
+    makeItem({ name: "Yogurt", daysToUseBy: -2 }),
+    makeItem({ name: "Spinach", daysToUseBy: 2 }),
+    makeItem({ name: "Atta", bought: "5", left: "0.6" }),
+    makeItem({ name: "Rice", pantry: PERSONAL_REF }),
+  ];
+  const rows = items.map((i) => row(i));
+  const names = (of: readonly { item: { name: string } }[]) => of.map((r) => r.item.name);
+
+  it("puts what is due soon or past its date in Use first, the rest on the Shelf", () => {
+    const { useFirst, shelf } = kitchenSplit(rows, { chip: "all", pantry: null });
+    expect(names(useFirst).sort()).toEqual(["Milk", "Spinach", "Yogurt"]);
+    expect(names(shelf).sort()).toEqual(["Atta", "Rice", "Toor dal"]);
+    // The most urgent first: past its date, then today, then in two days.
+    expect(names(useFirst)).toEqual(["Yogurt", "Milk", "Spinach"]);
+  });
+
+  it("narrows to the chip: Use soon keeps Use first, Running low keeps the low rows", () => {
+    const soon = kitchenSplit(rows, { chip: "soon", pantry: null });
+    expect(soon.shelf).toHaveLength(0);
+    expect(soon.useFirst).toHaveLength(3);
+    const low = kitchenSplit(rows, { chip: "low", pantry: null });
+    const lowRows = rows.filter((r) => r.status.low);
+    expect([...low.useFirst, ...low.shelf].map((r) => r.id).sort()).toEqual(lowRows.map((r) => r.id).sort());
+  });
+
+  it("narrows to one pantry and to the search", () => {
+    const mine = kitchenSplit(rows, { chip: "all", pantry: pantryKey(PERSONAL_REF) });
+    expect(names([...mine.useFirst, ...mine.shelf])).toEqual(["Rice"]);
+    const milk = kitchenSplit(rows, { chip: "all", pantry: null, query: "mil" });
+    expect(names(milk.useFirst)).toEqual(["Milk"]);
+    expect(milk.shelf).toHaveLength(0);
+  });
+
+  it("reads ?filter= as a chip, the old expired as Use soon", () => {
+    expect(parseKitchenChip("soon")).toBe("soon");
+    expect(parseKitchenChip("expired")).toBe("soon");
+    expect(parseKitchenChip("low")).toBe("low");
+    expect(parseKitchenChip(null)).toBe("all");
+    expect(KITCHEN_CHIPS.map((c) => c.label)).toEqual(["All", "Use soon", "Running low"]);
+  });
+
+  it("draws the board: round Search and + Add item, the chips, Use first and Shelf, no + Groceries", () => {
+    const ui = readFileSync(`${cwd()}/../../apps/web-console-next/src/components/kitchen/pantry-new-ui.tsx`, "utf8");
+    expect(ui).toContain('aria-label="Search"');
+    expect(ui).toContain('aria-label="Add item"');
+    expect(ui).toContain('"Use first"');
+    expect(ui).toContain('"Shelf"');
+    expect(ui).not.toContain("usualNowRows(");
+    expect(ui).not.toContain("href={boughtHref()}");
   });
 });
 
