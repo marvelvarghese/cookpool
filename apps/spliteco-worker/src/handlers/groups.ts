@@ -17,6 +17,7 @@ import {
   SPLITECO_LIMITS,
   type SplitecoCreateGroupResponse,
   type SplitecoDirectGroupResponse,
+  type SplitecoBalancesResponse,
   type SplitecoFriendBalance,
   type SplitecoFriendResponse,
   type SplitecoGroupResponse,
@@ -24,6 +25,7 @@ import {
   type SplitecoGroupsResponse,
   type SplitecoHomeResponse,
   type SplitecoMoney,
+  type SplitecoPersonBalance,
 } from "@saas/contracts/spliteco";
 import type { SplitecoTxnRecord } from "@saas/db/spliteco";
 import { pairLines } from "@saas/kitchen-engine/ledger";
@@ -400,6 +402,90 @@ export function handleFriend(ctx: RequestContext, usrParam: string): Promise<Res
       },
       ctx.requestId,
     );
+  });
+}
+
+/**
+ * GET /v1/spliteco/me/balances — everyone the caller shares a group with (or
+ * still has money with), each once: the net per currency, the groups behind
+ * it (Kitchen groups first, a row per shared group even at zero), and the
+ * payments the groups' plans have between the two. Built from the same
+ * pairwise lines as the friend read, so a person's net is the sum of the
+ * group rows. Money is never summed across currencies.
+ */
+export function handleBalances(ctx: RequestContext): Promise<Response> {
+  return withRepo(ctx, async (repo) => {
+    const all = await loadEverything(ctx, repo);
+    if (!all.ok) return all.response;
+    const me = ctx.actor.subjectId;
+    const people = new Map<string, Omit<SplitecoPersonBalance, "name" | "settled" | "upiVpa" | "lastRemindedAt" | "subjectId"> & { sharesNow: boolean }>();
+    const entry = (id: string) => {
+      let p = people.get(id);
+      if (!p) {
+        p = { balances: [], groups: [], plans: [], sharesNow: false };
+        people.set(id, p);
+      }
+      return p;
+    };
+    for (const group of all.groups) {
+      const rows = all.rowsByOrg.get(group.orgId) ?? [];
+      const currency = currencyOf(all.currencies, group.orgId);
+      const label = groupLabel(group);
+      const total = pairwise(rows, me);
+      const kitchen = group.madeIn === "cookpool" ? pairwise(bucketRows(rows, "kitchen"), me) : null;
+      const other = group.madeIn === "cookpool" ? pairwise(bucketRows(rows, "other"), me) : null;
+      const ids = new Set(group.members.map((m) => m.subjectId));
+      for (const [id, amount] of total) if (amount !== 0) ids.add(id);
+      ids.delete(me);
+      for (const id of ids) {
+        const p = entry(id);
+        const amount = total.get(id) ?? 0;
+        if (group.members.some((m) => m.subjectId === id)) p.sharesNow = true;
+        addMoney(p.balances, currency, amount);
+        p.groups.push({
+          groupId: group.publicId,
+          groupName: label,
+          kind: group.kind,
+          madeIn: group.madeIn,
+          currency,
+          amountMinor: amount,
+          buckets: kitchen && other ? { kitchen: kitchen.get(id) ?? 0, other: other.get(id) ?? 0 } : null,
+        });
+      }
+      for (const pl of bucketedPlan(rows, all.simplify.get(group.orgId) ?? true)) {
+        const otherId = pl.fromId === me ? pl.toId : pl.toId === me ? pl.fromId : null;
+        if (otherId === null) continue;
+        entry(otherId).plans.push({ groupId: group.publicId, groupName: label, currency, fromSubjectId: pl.fromId, toSubjectId: pl.toId, amountMinor: pl.amountMinor });
+      }
+    }
+    const ids = [...people.keys()];
+    const sharing = ids.filter((id) => people.get(id)!.sharesNow);
+    const [names, profiles, reminders] = await Promise.all([
+      ctx.people.names([me, ...ids]),
+      sharing.length > 0 ? repo.profiles(sharing) : Promise.resolve(new Map<string, { upiVpa: string | null }>()),
+      ids.length > 0 ? repo.lastReminders(me, ids) : Promise.resolve(new Map<string, { sentAt: string }>()),
+    ]);
+    const size = (p: SplitecoPersonBalance) => Math.max(0, ...p.balances.map((b) => Math.abs(b.amountMinor)));
+    const list: SplitecoPersonBalance[] = ids.map((subjectId) => {
+      const p = people.get(subjectId)!;
+      const balances = p.balances.filter((b) => b.amountMinor !== 0);
+      return {
+        subjectId,
+        name: names.get(subjectId) ?? null,
+        balances,
+        settled: balances.length === 0,
+        // Kitchen groups first (Cookpool's own balance), then by name.
+        groups: p.groups.sort((a, b) => Number(b.madeIn === "cookpool") - Number(a.madeIn === "cookpool") || a.groupName.localeCompare(b.groupName)),
+        plans: p.plans.sort((a, b) => b.amountMinor - a.amountMinor || a.groupName.localeCompare(b.groupName)),
+        upiVpa: p.sharesNow ? (profiles.get(subjectId)?.upiVpa ?? null) : null,
+        lastRemindedAt: reminders.get(subjectId)?.sentAt ?? null,
+      };
+    });
+    list.sort(
+      (a, b) =>
+        Number(a.settled) - Number(b.settled) || size(b) - size(a) || (a.name ?? a.subjectId).localeCompare(b.name ?? b.subjectId),
+    );
+    return successResponse<SplitecoBalancesResponse>({ me: { subjectId: me, name: names.get(me) ?? null }, people: list }, ctx.requestId);
   });
 }
 

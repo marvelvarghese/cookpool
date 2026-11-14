@@ -16,6 +16,8 @@
     "./money-tab-ui": "./src/money-tab-ui.tsx",
     "./inside-look": "./src/inside-look.ts",
     "./look": "./src/look.ts",
+    "./people": "./src/people.ts",
+    "./people-ui": "./src/people-ui.tsx",
     "./expand-button": "./src/expand-button.tsx"
   },
   "scripts": {

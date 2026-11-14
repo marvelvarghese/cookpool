@@ -94,6 +94,7 @@ export const DELEGATION_ALLOWLIST: readonly AllowEntry[] = [
   // money.read — Spliteco's reads (SE-6).
   { name: "spliteco.me.home", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/home$`) },
   { name: "spliteco.me.groups", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/groups$`) },
+  { name: "spliteco.me.balances", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/balances$`) },
   { name: "spliteco.me.activity", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/activity$`) },
   { name: "spliteco.me.search", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/search$`) },
   { name: "spliteco.me.friend", scopes: ["money.read"], methods: ["GET"], pattern: new RegExp(`${SPLITECO}/me/friends/usr_[^/]+$`) },

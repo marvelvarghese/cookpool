@@ -485,6 +485,57 @@ export interface SplitecoFriendResponse {
   plans: { groupId: string; groupName: string; currency: string; fromSubjectId: string; toSubjectId: string; amountMinor: number }[];
 }
 
+// ── Everyone's balances (money-native People page, MY-15) ────
+
+/** One group behind a person's net: what they and the caller owe each other there. */
+export interface SplitecoPersonGroupBalance {
+  groupId: string;
+  /** The hidden direct group reads "Outside groups". */
+  groupName: string;
+  kind: SplitecoGroupKind;
+  madeIn: SplitecoMadeIn;
+  currency: string;
+  /** Positive: they owe the caller in this group. May be 0 (shared, settled). */
+  amountMinor: number;
+  /**
+   * For a group made in Cookpool: the same amount split by balance, Kitchen
+   * first (`kitchen + other === amountMinor`). Null for Spliteco's groups.
+   */
+  buckets: { kitchen: number; other: number } | null;
+}
+
+/** A payment the group's plan has between the caller and the person. */
+export interface SplitecoPersonPlanLine {
+  groupId: string;
+  groupName: string;
+  currency: string;
+  fromSubjectId: string;
+  toSubjectId: string;
+  amountMinor: number;
+}
+
+export interface SplitecoPersonBalance extends SplitecoPerson {
+  /** Net per currency, never summed across currencies; positive: they owe the caller. Empty when settled. */
+  balances: SplitecoMoney[];
+  /** True when every currency nets to zero (they still share a group). */
+  settled: boolean;
+  /** Every group behind the net: Kitchen groups first, then by name. Σ per currency = `balances`. */
+  groups: SplitecoPersonGroupBalance[];
+  /** The plan's payments between the two, per group (simplified or pair by pair, as each group is set), largest first. */
+  plans: SplitecoPersonPlanLine[];
+  /** Their UPI ID, only while they still share a group with the caller. */
+  upiVpa: string | null;
+  /** When the caller last reminded them, if ever. */
+  lastRemindedAt: string | null;
+}
+
+/** GET /v1/spliteco/me/balances — no parameters. */
+export interface SplitecoBalancesResponse {
+  me: SplitecoPerson;
+  /** Each person once: who owes most (either way) first, settled people last by name. */
+  people: SplitecoPersonBalance[];
+}
+
 export interface SplitecoDirectGroupResponse {
   group: SplitecoGroupSummary;
 }
