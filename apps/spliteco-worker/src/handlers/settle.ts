@@ -1,6 +1,7 @@
 // Settling up (design §2, §0.9, §0.11; SE2):
 //
 //   POST /v1/spliteco/groups/{org}/settlements        the caller paid someone      spliteco.settlement.recorded
+//   POST /v1/spliteco/me/payments-received            someone paid the caller (Got it)  spliteco.settlement.recorded
 //   POST /v1/spliteco/settlements/{txn}/not-received  the person paid says no     spliteco.settlement.not_received
 //   GET  /v1/spliteco/groups/{org}/settle-plan        the plan, balance by balance
 //   PUT  /v1/spliteco/groups/{org}/settings           simplify debts on or off
@@ -22,6 +23,7 @@ import {
   type SplitecoGroupSettingsResponse,
   type SplitecoPayment,
   type SplitecoPaymentMethod,
+  type SplitecoReceivedPaymentResponse,
   type SplitecoSettlePlanResponse,
   type SplitecoSettlementResponse,
 } from "@saas/contracts/spliteco";
@@ -285,6 +287,218 @@ export async function handleCreateSettlement(ctx: RequestContext, request: Reque
       );
     }
     return successResponse<SplitecoSettlementResponse>({ payment }, ctx.requestId, result.replayed ? 200 : 201);
+  });
+}
+
+interface ParsedReceived {
+  fromSubjectId: string;
+  amountMinor: number;
+  currency: string | null;
+  method: (typeof SPLITECO_PAYMENT_METHODS)[number];
+  note: string | null;
+  bucket: "kitchen" | null;
+}
+
+function parseReceived(body: Record<string, unknown>): { ok: true; value: ParsedReceived } | { ok: false; fields: Fields["errors"] } {
+  const fields = new Fields();
+  const fromSubjectId = subjectId(fields, "fromSubjectId", body.fromSubjectId);
+  const amountMinor = minor(fields, "amountMinor", body.amountMinor, true);
+  const method = body.method === undefined || body.method === null ? "cash" : oneOf(fields, "method", body.method, SPLITECO_PAYMENT_METHODS);
+  const note = text(fields, "note", body.note, SPLITECO_LIMITS.note, true);
+  let currency: string | null = null;
+  if (body.currency !== undefined && body.currency !== null) {
+    if (typeof body.currency !== "string" || !/^[A-Z]{3}$/.test(body.currency)) fields.add("currency", "Must be a 3-letter currency code like INR");
+    else currency = body.currency;
+  }
+  let bucket: "kitchen" | null = null;
+  if (body.bucket !== undefined && body.bucket !== null) {
+    if (body.bucket !== "kitchen") fields.add("bucket", "Must be kitchen, or left out");
+    else bucket = "kitchen";
+  }
+  if (!fields.ok || fromSubjectId === undefined || amountMinor === undefined || !method || note === undefined) return { ok: false, fields: fields.errors };
+  return { ok: true, value: { fromSubjectId, amountMinor, currency, method, note, bucket } };
+}
+
+/**
+ * POST /v1/spliteco/me/payments-received (MY-16, Got it): `fromSubjectId` paid
+ * the caller. Recorded exactly as that person's own payment would be (the same
+ * settlement rows, from them to the caller), so the balance clears at once —
+ * like cash received in Spliteco. One payment per group they owe the caller in,
+ * Kitchen balances first (as MY-6's settle box fills them), never more than
+ * they owe. Written group by group; every group's first row carries the
+ * request's Idempotency-Key, so a retry returns what landed and writes the rest.
+ */
+export async function handleReceivedPayment(ctx: RequestContext, request: Request): Promise<Response> {
+  const refused = refuseAssistant(ctx);
+  if (refused) return refused;
+  const idem = requestIdempotencyKey(request, ctx.requestId);
+  if (!idem.ok) return idem.response;
+  const body = await readJsonObject(request);
+  if (!body) return validationError(ctx.requestId, { body: ["Must be a JSON object"] });
+  const parsed = parseReceived(body);
+  if (!parsed.ok) return validationError(ctx.requestId, parsed.fields);
+  const pay = parsed.value;
+  const me = ctx.actor.subjectId;
+  if (pay.fromSubjectId === me) {
+    return unprocessable(ctx.requestId, "A payment needs two different people", SPLITECO_ERROR_REASONS.SAME_PERSON);
+  }
+  const mine = await ctx.timings.measure("membership", () => ctx.groups.of(me));
+  if (!mine.ok) return unavailable(ctx.requestId);
+  // Only groups both are in, where the caller may record a payment (not a viewer).
+  const shared: MemberGroup[] = [];
+  for (const g of mine.groups) {
+    if (!g.members.some((m) => m.subjectId === pay.fromSubjectId)) continue;
+    if (pay.bucket === "kitchen" && g.madeIn !== "cookpool") continue;
+    if (await requireOrgAction(ctx, g.orgId, SETTLE_ACTION)) continue;
+    shared.push(g);
+  }
+  if (shared.length === 0) {
+    return unprocessable(ctx.requestId, "You can record a payment only from someone in a group with you", SPLITECO_ERROR_REASONS.NOT_IN_GROUP, {
+      subjectIds: [pay.fromSubjectId],
+    });
+  }
+  const orgIds = shared.map((g) => g.orgId);
+
+  return withRepo(ctx, async (repo) => {
+    // A retry finds what already landed: those groups are done, the rest is what is left.
+    const done: SplitecoPayment[] = [];
+    const doneOrgs = new Set<string>();
+    for (const g of mine.groups) {
+      const replay = await repo.findByIdemKey(g.orgId, idem.key);
+      if (!replay) continue;
+      if (replay.kind !== "settlement" || replay.createdBy !== me) {
+        return conflict(ctx.requestId, "This Idempotency-Key was already used for a different request", SPLITECO_ERROR_REASONS.IDEMPOTENCY_KEY_REUSED);
+      }
+      const payment = paymentOf(await rowsOfPayment(repo, replay));
+      if (!payment) return unavailable(ctx.requestId);
+      if (payment.fromSubjectId !== pay.fromSubjectId || payment.toSubjectId !== me) {
+        return conflict(ctx.requestId, "This Idempotency-Key was already used for a different request", SPLITECO_ERROR_REASONS.IDEMPOTENCY_KEY_REUSED);
+      }
+      done.push(payment);
+      doneOrgs.add(g.orgId);
+    }
+    const doneMinor = done.reduce((sum, p) => sum + p.amountMinor, 0);
+    const answer = (payments: SplitecoPayment[], status: number) => {
+      const ordered = [...payments].sort((a, b) => Number(isKitchenGroup(b.groupId)) - Number(isKitchenGroup(a.groupId)));
+      return successResponse<SplitecoReceivedPaymentResponse>(
+        { fromSubjectId: pay.fromSubjectId, amountMinor: payments.reduce((s, p) => s + p.amountMinor, 0), currency: payments[0]!.currency, payments: ordered },
+        ctx.requestId,
+        status,
+      );
+    };
+    const isKitchenGroup = (publicId: string) => shared.some((g) => g.publicId === publicId && g.madeIn === "cookpool");
+    let left = pay.amountMinor - doneMinor;
+    if (done.length > 0 && left === 0) return answer(done, 200);
+    if (left < 0) return conflict(ctx.requestId, "This Idempotency-Key was already used for a different request", SPLITECO_ERROR_REASONS.IDEMPOTENCY_KEY_REUSED);
+
+    const [rows, currencies, settings] = await ctx.timings.measure("db", () =>
+      Promise.all([repo.listTxns(orgIds), repo.currencies(orgIds), repo.groupSettings(orgIds)]),
+    );
+    const byOrg = new Map<string, SplitecoTxnRecord[]>();
+    for (const r of rows) byOrg.set(r.orgId, [...(byOrg.get(r.orgId) ?? []), r]);
+    // What they owe the caller, per group and balance (the writes already made are in `done`).
+    interface Slot { group: MemberGroup; bucket: SplitecoBucket; owed: number; currency: string; take: number }
+    const slots: Slot[] = [];
+    for (const g of shared) {
+      if (doneOrgs.has(g.orgId)) continue;
+      const owed = owedByBucket(byOrg.get(g.orgId) ?? [], pay.fromSubjectId, me, settings.get(g.orgId)?.simplifyDebts ?? true);
+      const currency = currencyOf(currencies, g.orgId);
+      for (const bucket of SETTLE_ORDER) {
+        if (pay.bucket === "kitchen" && bucket !== "kitchen") continue;
+        if (owed[bucket] > 0) slots.push({ group: g, bucket, owed: owed[bucket], currency, take: 0 });
+      }
+    }
+    const currencyNames = [...new Set(slots.map((s) => s.currency))];
+    let currency = pay.currency ?? done[0]?.currency ?? null;
+    if (currency === null && currencyNames.length > 1) {
+      return validationError(ctx.requestId, { currency: [`They owe you in more than one currency (${currencyNames.join(", ")}): say which`] });
+    }
+    currency ??= currencyNames[0] ?? null;
+    const usable = slots.filter((s) => s.currency === currency);
+    const owedMinor = usable.reduce((sum, s) => sum + s.owed, 0);
+    if (usable.length === 0) {
+      return conflict(ctx.requestId, "They don't owe you anything here", SPLITECO_ERROR_REASONS.NOTHING_OWED, { owed: { kitchen: 0, other: 0 }, owedMinor: 0 });
+    }
+    if (left > owedMinor) {
+      return unprocessable(ctx.requestId, `That is more than they owe you (${formatMinor(owedMinor, currency!)})`, SPLITECO_ERROR_REASONS.OVER_SETTLED, {
+        owed: { kitchen: usable.filter((s) => s.bucket === "kitchen").reduce((a, s) => a + s.owed, 0), other: usable.filter((s) => s.bucket === "other").reduce((a, s) => a + s.owed, 0) },
+        owedMinor,
+      });
+    }
+    // Kitchen balances first (Cookpool's groups, by name), then the others (the same order).
+    const order = [...usable].sort(
+      (a, b) =>
+        SETTLE_ORDER.indexOf(a.bucket) - SETTLE_ORDER.indexOf(b.bucket) ||
+        Number(b.group.madeIn === "cookpool") - Number(a.group.madeIn === "cookpool") ||
+        groupLabel(a.group).localeCompare(groupLabel(b.group)),
+    );
+    for (const slot of order) {
+      slot.take = Math.min(left, slot.owed);
+      left -= slot.take;
+    }
+
+    const now = ctx.now().toISOString();
+    const written: SplitecoPayment[] = [];
+    for (const g of shared) {
+      const parts = SETTLE_ORDER.map((bucket) => order.find((s) => s.group === g && s.bucket === bucket)).filter((s): s is Slot => !!s && s.take > 0);
+      if (parts.length === 0) continue;
+      const paymentId = asUuid(crypto.randomUUID());
+      const total = parts.reduce((sum, s) => sum + s.take, 0);
+      const txns: NewSplitecoTxn[] = parts.map((slot, i) => ({
+        id: i === 0 ? paymentId : asUuid(crypto.randomUUID()),
+        orgId: g.orgId,
+        kind: "settlement",
+        title: "Payment",
+        totalMinor: slot.take,
+        currency: slot.currency,
+        occurredAt: now,
+        createdBy: me,
+        createdAt: now,
+        note: pay.note,
+        idemKey: i === 0 ? idem.key : `${idem.key}:${slot.bucket}`,
+        app: pay.bucket === "kitchen" ? "cookpool" : "spliteco",
+        bucket: slot.bucket,
+        category: null,
+        method: pay.method,
+        sourceKind: PAYMENT_SOURCE_KIND,
+        sourceId: paymentId,
+        // Their payment to the caller: the same rows as `settle` writes when they pay.
+        splits: buildSettlement({ fromId: pay.fromSubjectId, toId: me, amountMinor: slot.take }),
+      }));
+      const result = await ctx.timings.measure("db", () =>
+        repo.write(
+          txns,
+          splitecoAudit(ctx, {
+            type: "spliteco.settlement.recorded",
+            orgId: g.orgId,
+            txnId: paymentId,
+            idemKey: idem.key,
+            description: `Payment ${txnPublicId(paymentId)}: ${me} recorded ${pay.fromSubjectId} paid them ${formatMinor(total, currency!)} by ${pay.method}`,
+            payload: {
+              fromSubjectId: pay.fromSubjectId,
+              toSubjectId: me,
+              amountMinor: total,
+              currency,
+              method: pay.method,
+              recordedByPayee: true,
+              parts: txns.map((t) => ({ txnId: txnPublicId(t.id), bucket: t.bucket, amountMinor: t.totalMinor })),
+            },
+          }),
+        ),
+      );
+      if (!result.ok) {
+        if (result.error.kind === "currency_mismatch") {
+          return unprocessable(ctx.requestId, `The group's ledger counts in ${result.error.currency ?? "another currency"}`, SPLITECO_ERROR_REASONS.CURRENCY_MISMATCH);
+        }
+        // Earlier groups stay written: the same key resumes from here.
+        return unavailable(ctx.requestId);
+      }
+      const stored = result.replayed ? await rowsOfPayment(repo, result.existing) : await repo.paymentRows(g.orgId, paymentId);
+      const payment = paymentOf(stored);
+      if (!payment) return unavailable(ctx.requestId);
+      written.push(payment);
+    }
+    return answer([...done, ...written], written.length > 0 ? 201 : 200);
   });
 }
 

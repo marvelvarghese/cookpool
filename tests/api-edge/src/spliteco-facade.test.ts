@@ -108,6 +108,7 @@ describe("the spliteco facade", () => {
     for (const [path, method] of [
       [`/v1/spliteco/groups/${ORG}/settlements`, "POST"],
       [`/v1/spliteco/settlements/txn_${"0".repeat(32)}/not-received`, "POST"],
+      ["/v1/spliteco/me/payments-received", "POST"],
       ["/v1/spliteco/me/profile", "PUT"],
       [`/v1/spliteco/groups/${ORG}/expenses`, "POST"],
     ] as const) {

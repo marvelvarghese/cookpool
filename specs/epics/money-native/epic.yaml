@@ -18,8 +18,8 @@ spec:
       exitCriteria: ["one worker read answers everyone's net balance", "Groups, People and a person's page render from real reads in both themes"]
       tasks: [MY-15, MY-4, MY-5]
     - name: "MY3 — settle and expense"
-      exitCriteria: ["the settle box records a payment and the expense box saves an Equal or Exact expense"]
-      tasks: [MY-6, MY-7]
+      exitCriteria: ["the settle box records a payment and Got it records one received, and the expense box saves an Equal or Exact expense"]
+      tasks: [MY-16, MY-6, MY-7]
     - name: "MY4 — Cookpool's Money is native"
       exitCriteria: ["stage's /money is the cream page with Cookpool's tab bar, and settling and adding an expense never leave Cookpool"]
       tasks: [MY-8]

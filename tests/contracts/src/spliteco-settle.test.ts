@@ -17,6 +17,7 @@ import {
   isUpiVpa,
 } from "@saas/contracts/spliteco";
 import { SETTLEMENT_METHODS } from "@saas/contracts/kitchen";
+import type { SplitecoReceivedPaymentRequest, SplitecoReceivedPaymentResponse } from "@saas/contracts/spliteco";
 
 describe("spliteco settle up (SE2)", () => {
   it("records UPI, cash or bank — Cookpool's methods without `other`", () => {
@@ -61,5 +62,15 @@ describe("spliteco settle up (SE2)", () => {
       expect(PUSH_TO_SUBJECT_KINDS as readonly string[]).not.toContain(kind);
     }
     expect(NOTIFICATIONS_INTERNAL_ACTOR_VALUES).toContain("spliteco-worker");
+  });
+});
+
+describe("a payment received (MY-16)", () => {
+  it("takes who paid and how much, and answers one payment per group", () => {
+    const body: SplitecoReceivedPaymentRequest = { fromSubjectId: "usr_a", amountMinor: 100, currency: "INR", method: "cash", bucket: "kitchen" };
+    const minimal: SplitecoReceivedPaymentRequest = { fromSubjectId: "usr_a", amountMinor: 100 };
+    const answer: SplitecoReceivedPaymentResponse = { fromSubjectId: "usr_a", amountMinor: 100, currency: "INR", payments: [] };
+    expect([body.method, minimal.method, answer.payments]).toEqual(["cash", undefined, []]);
+    expect(SPLITECO_PAYMENT_METHODS).toContain(body.method);
   });
 });

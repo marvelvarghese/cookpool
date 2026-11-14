@@ -30,6 +30,8 @@ import type {
   SplitecoReminderRequest,
   SplitecoReminderResponse,
   SplitecoSettlePlanResponse,
+  SplitecoReceivedPaymentRequest,
+  SplitecoReceivedPaymentResponse,
   SplitecoSettlementRequest,
   SplitecoSettlementResponse,
   SplitecoWriteResponse,
@@ -208,6 +210,15 @@ export class SplitecoClient {
       { method: "POST", path: `${BASE}/groups/${seg(groupId)}/settlements`, body },
       opts,
     );
+  }
+
+  /**
+   * POST /v1/spliteco/me/payments-received — record that someone paid you
+   * (Got it): one payment per group they owe you in, Kitchen first. Send an
+   * Idempotency-Key; a retry resumes. Never more than they owe you.
+   */
+  paymentReceived(body: SplitecoReceivedPaymentRequest, opts: RequestOptions = {}): Promise<SplitecoReceivedPaymentResponse> {
+    return this.transport.request<SplitecoReceivedPaymentResponse>({ method: "POST", path: `${BASE}/me/payments-received`, body }, opts);
   }
 
   /** POST /v1/spliteco/settlements/{txn}/not-received — the person paid says it never came; it is reversed. */

@@ -1,0 +1,30 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-16
+  title: "Record a payment received"
+spec:
+  goal: "spliteco-worker records a payment someone made to you, in one or more groups, so Got it clears their balance straight away, like cash received in Spliteco."
+  affects:
+    - default/cookpool/spliteco-worker
+    - default/cookpool/spliteco-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - apps/spliteco-worker/**
+    - tests/spliteco-worker/**
+    - apps/api-edge/**
+    - tests/api-edge/**
+    - packages/contracts/**
+    - tests/contracts/**
+    - packages/sdk/**
+    - specs/epics/money-native/**
+    - tasks/MY-16.TaskContract.yaml
+  doneWhen:
+    - "One new POST under /v1/spliteco/me records a payment from a named person to the caller, one record per group touched, Kitchen first, in the contract's types"
+    - "Only a member of the group is paid for, never more than they owe, never from an assistant; a retry with the same Idempotency-Key writes nothing twice"
+    - "The ledger effect equals the same payment made by them, and GET /v1/spliteco/me/balances shows the balance cleared"
+    - "The SDK client has a method for it; the worker, contracts, sdk and api-edge tests pass"
+  gates: []

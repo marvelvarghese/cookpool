@@ -683,6 +683,32 @@ export interface SplitecoSettlementResponse {
   payment: SplitecoPayment;
 }
 
+/**
+ * POST /v1/spliteco/me/payments-received (MY-16) — the caller got `amountMinor`
+ * from `fromSubjectId` (Got it). Recorded as the payment they made to the
+ * caller, one record per group they owe the caller in, Kitchen first, so their
+ * balance clears at once. Never more than they owe (422 `over_settled`).
+ */
+export interface SplitecoReceivedPaymentRequest {
+  fromSubjectId: string;
+  amountMinor: number;
+  /** Which currency it is in; left out only when they owe the caller in exactly one (else 422). */
+  currency?: string | null;
+  /** Left out: `cash`, the way a payment received is usually noted. */
+  method?: (typeof SPLITECO_PAYMENT_METHODS)[number] | null;
+  note?: string | null;
+  /** `kitchen`: clear the Kitchen balances only (never more than they hold). */
+  bucket?: "kitchen" | null;
+}
+
+export interface SplitecoReceivedPaymentResponse {
+  fromSubjectId: string;
+  amountMinor: number;
+  currency: string;
+  /** One payment per group touched, Kitchen groups first; each is what `settle` answers. */
+  payments: SplitecoPayment[];
+}
+
 /** The plan a group settles by, balance by balance (SE2). */
 export interface SplitecoSettlePlanResponse {
   groupId: string;

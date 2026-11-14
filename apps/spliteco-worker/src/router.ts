@@ -18,7 +18,7 @@ import { handleBalances, handleCreateGroup, handleDirectGroup, handleFriend, han
 import { handleExport, handleInsights } from "./handlers/insights.js";
 import { handleGetProfile, handlePutProfile, handleSendReminder } from "./handlers/reminders.js";
 import { handleLive, handleLiveClaim, handleLiveLock, handleOpenLive } from "./handlers/live.js";
-import { handleCreateSettlement, handleGroupSettings, handleNotReceived, handleSettlePlan } from "./handlers/settle.js";
+import { handleCreateSettlement, handleReceivedPayment, handleGroupSettings, handleNotReceived, handleSettlePlan } from "./handlers/settle.js";
 import { errorResponse, methodNotAllowed, routeNotFound, successResponse, unauthenticated, withTimings } from "./http.js";
 import { createPeople } from "./identity-client.js";
 import { generateRequestId } from "./ids.js";
@@ -64,6 +64,11 @@ const ROUTES: Route[] = [
     methods: { GET: (ctx) => handleGetProfile(ctx), PUT: (ctx, r) => handlePutProfile(ctx, r) },
   },
   // SE2: settle up, the plan, the simplify switch, not received, reminders.
+  {
+    name: "spliteco.me.payments_received",
+    pattern: new RegExp(`${P}/me/payments-received$`),
+    methods: { POST: (ctx, r) => handleReceivedPayment(ctx, r) },
+  },
   {
     name: "spliteco.group.settlements",
     pattern: new RegExp(`${P}/groups/${ID}/settlements$`),

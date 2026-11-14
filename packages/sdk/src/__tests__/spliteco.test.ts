@@ -36,6 +36,7 @@ describe("SplitecoClient", () => {
     ["export json", (c: Cookpool) => c.spliteco.exportJson(ORG), "GET", `/v1/spliteco/groups/${ORG}/export.json`],
     // SE2.
     ["settle", (c: Cookpool) => c.spliteco.settle(ORG, { toSubjectId: "usr_a", amountMinor: 100, method: "cash" }), "POST", `/v1/spliteco/groups/${ORG}/settlements`],
+    ["payment received", (c: Cookpool) => c.spliteco.paymentReceived({ fromSubjectId: "usr_a", amountMinor: 100 }), "POST", "/v1/spliteco/me/payments-received"],
     ["not received", (c: Cookpool) => c.spliteco.notReceived(TXN), "POST", `/v1/spliteco/settlements/${TXN}/not-received`],
     ["settle plan", (c: Cookpool) => c.spliteco.settlePlan(ORG), "GET", `/v1/spliteco/groups/${ORG}/settle-plan`],
     ["group settings", (c: Cookpool) => c.spliteco.setGroupSettings(ORG, { simplifyDebts: false }), "PUT", `/v1/spliteco/groups/${ORG}/settings`],
