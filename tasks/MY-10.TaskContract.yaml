@@ -14,6 +14,7 @@ spec:
     - tasks/MY-10.TaskContract.yaml
   doneWhen:
     - "A Start from Spliteco row opens a search list of the person's Spliteco groups, with already-added ones marked Added"
+    - "The currency defaults to the Spliteco group's main currency, nothing is greyed out, and it can be changed on the sheet; the group has that one currency"
     - "The name stays editable and renaming changes only the Cookpool group, never the Spliteco one"
     - "Add to Cookpool brings the people along; the food rule is still chosen on the same sheet"
     - "The web-console-next tests pass"

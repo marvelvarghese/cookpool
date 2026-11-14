@@ -19,6 +19,6 @@ spec:
   doneWhen:
     - "MoneyInside, the navy tab bar on /money and what only they used are deleted; nothing in web-console-next imports them"
     - "money-group-ui, settle-card and the /money/settle page stay or go by whether a caller is left, said in the PR"
-    - "SplitecoMoneyTab stays while Tripeco uses it, or goes with Tripeco's move"
+    - "SplitecoMoneyTab is not deleted: Tripeco moves to the new pages in its own epic, which removes it"
     - "Every web-console-next and spliteco-ui test file loads and passes"
   gates: []

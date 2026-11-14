@@ -15,8 +15,8 @@ spec:
       exitCriteria: ["the package draws a page in either theme from tokens", "the expanding button opens, closes and honours reduced motion, with content passed in"]
       tasks: [MY-2, MY-3]
     - name: "MY2 — the pages, read"
-      exitCriteria: ["Groups, People and a person's page render from real reads in both themes"]
-      tasks: [MY-4, MY-5]
+      exitCriteria: ["one worker read answers everyone's net balance", "Groups, People and a person's page render from real reads in both themes"]
+      tasks: [MY-15, MY-4, MY-5]
     - name: "MY3 — settle and expense"
       exitCriteria: ["the settle box records a payment and the expense box saves an Equal or Exact expense"]
       tasks: [MY-6, MY-7]

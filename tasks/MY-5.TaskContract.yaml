@@ -13,7 +13,7 @@ spec:
     - specs/epics/money-native/**
     - tasks/MY-5.TaskContract.yaml
   doneWhen:
-    - "People lists each person once across groups, with their net, the groups behind it and Pay when you owe or Got it when they owe"
+    - "People reads MY-15's one endpoint, no client-side joins, and lists each person once with their net, the groups behind it, Pay when you owe or Got it when they owe"
     - "A person's page shows the net and a row per group, the Kitchen first"
     - "Search narrows People by name; a settled person reads Settled with no button"
     - "The spliteco-ui tests pass"

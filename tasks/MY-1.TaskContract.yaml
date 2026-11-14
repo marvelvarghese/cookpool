@@ -12,6 +12,6 @@ spec:
     - tasks/MY-*.TaskContract.yaml
   doneWhen:
     - "specs/epics/money-native holds epic.yaml, README, design, plan, risks and status"
-    - "tasks/MY-1 to MY-14 each have a contract with doneWhen lines of 200 characters or less"
+    - "tasks/MY-1 to MY-15 each have a contract with doneWhen lines of 200 characters or less"
     - "money-inside's status marks MN-8 superseded by this epic"
   gates: []

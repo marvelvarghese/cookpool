@@ -1,10 +1,15 @@
 # money-native — risks and open questions
 
+**Answered by the owner (2026-11-14):**
+
+- **Currency.** A Spliteco group can hold several currencies; a Cookpool group has exactly one and every item in it uses it. It is picked on Add group (including Start from Spliteco, where nothing is greyed out and the default is the Spliteco group's main currency) and can be changed in the group's settings. It is not fixed once made.
+- **People data.** One new read in `spliteco-worker` for everyone's net balance across groups, as its own task and PR before People (MY-15 before MY-5). **Got it** records a received payment from them to you and clears the balance at once.
+- **Tripeco.** It moves to the new pages with theme `spliteco`, in a separate epic. `SplitecoMoneyTab` stays until then.
+
 **Open — not decided here (the owner's):**
 
-- **Q1 — A Spliteco group in a currency Cookpool does not offer.** Start from Spliteco (MY-10) carries the currency over, and the currency is fixed once made, but `GROUP_CURRENCIES` is a short list. *Default until answered:* the picker shows such a group greyed with "Currency not available in Cookpool yet", so nothing is created in a currency Cookpool cannot draw. Alternatives: add the currency to the list, or let it through with the code shown.
-- **Q2 — A real API for balances by person and for simplified payments.** People (MY-5) needs one net per person across groups with the groups behind it; `SplitecoFriendResponse` already has `byGroup` and `plans` per person, and the groups read has a plan per group, but the friends list is per currency and not one call for everyone. Simplified settling ("fewer payments") is each group's `plan`. *Default:* build People client-side from the groups reads plus `friend`; if that is too many reads, MY-5 stops and asks for one read in `spliteco-worker` (its own PR, not smuggled in). `Got it` needs the same answer: does it record a payment *from* them to you? *Default:* yes, a received payment, as cash received is in Spliteco.
-- **Q3 — Tripeco's Money tab uses the same components.** `apps/tripeco-web` mounts `SplitecoMoneyTab` in Deep ocean. *Default:* Tripeco keeps `SplitecoMoneyTab` untouched; MY-13 does not delete it. Alternative: Tripeco moves to the new pages with theme `spliteco` (a task in its own epic, as it needs its own tab bar and a Tripeco look).
+- **Q1 — Changing a group's currency once it has entries.** Entries are stored in the currency they were made in, so changing it re-labels money. *Default until answered:* allowed only while the group has no money entries; otherwise the setting warns and is blocked, with the reason. Alternatives: convert entries at a rate the owner sets, or start a new group.
+- **Q2 — A Spliteco group with several currencies, brought into one Cookpool group.** Start from Spliteco takes the main currency; entries in other currencies need a rule. *Default:* only the main currency's entries come along, and the sheet says so.
 
 **Risks:**
 
@@ -14,5 +19,6 @@
 - **The Kitchen first rule hides how Custom spreads.** The keypad shows the split (as the Settle_Custom board: Kitchen cleared, then Goa trip), so a partial payment is never a surprise.
 - **Motion.** The expanding box is the one animated surface; it has a reduce-motion fallback (MY-3) and is checked with the media query forced.
 - **Dark.** The boards draw Cookpool light only; Cookpool's dark theme is the host's, and MY-2 maps `cookpool` tokens through it. Check Money in dark before MY-8.
+- **The People read is a backend change** (MY-15): contract, route, SDK method and tests; the first worker change in this epic, kept in its own PR so it deploys on its own.
 - **Spliteco inside stays reachable for splits we do not support** (percent, shares, itemized): one quiet link, using the existing hand-off, until we decide otherwise.
 - **Not seen signed in on stage** until MY-8; the whole epic's native look is verified on stage only after the mount.
