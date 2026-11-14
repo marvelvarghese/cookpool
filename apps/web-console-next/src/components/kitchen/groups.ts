@@ -259,7 +259,7 @@ export const WASTE_RULES: readonly { id: WastePolicy; label: string; hint: strin
   {
     id: "split_equally",
     label: "Split equally",
-    hint: "Food that goes off is shared by everyone in the group.",
+    hint: "Food that goes off is shared by everyone.",
   },
   {
     id: "buyer_absorbs",
