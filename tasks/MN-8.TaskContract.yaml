@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MN-8
+  title: "Every Money feature inside Cookpool"
+spec:
+  goal: "Cookpool's Money opens a group, Add expense, an expense, Settle up and Scan as Spliteco's own screens under /money, never the Spliteco app."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - apps/web-console-next/**
+    - apps/spliteco-web/**
+    - tests/web-console-next/**
+    - tests/spliteco-web/**
+    - pnpm-lock.yaml
+    - specs/epics/money-inside/**
+    - tasks/MN-8.TaskContract.yaml
+  doneWhen:
+    - "On stage, Money's group, + Expense and Settle up open under /money with Cookpool's navy tab bar, and an expense added there shows in Spliteco"
+    - "Spliteco's stylesheet is scoped under .spx and restyles nothing else in Cookpool"
+    - "The web-console-next and spliteco-web tests pass"
+  gates: []

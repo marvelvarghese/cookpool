@@ -13,7 +13,8 @@ const nextConfig = {
   // deps, so register an extension alias and run the package through SWC.
   // `@saas/kitchen-engine` (Cookpool's money and ledger maths, CP-8) is the
   // same shape: source-mode TypeScript with `./*.js` specifiers.
-  transpilePackages: ["@saas/sdk", "@saas/kitchen-engine", "@saas/spliteco-ui"],
+  // `@saas/spliteco-web` (money-inside MN-8): Spliteco's own screens, shown inside Money.
+  transpilePackages: ["@saas/sdk", "@saas/kitchen-engine", "@saas/spliteco-ui", "@saas/spliteco-web", "@saas/gestures"],
   webpack(config) {
     config.resolve = config.resolve || {};
     config.resolve.extensionAlias = {

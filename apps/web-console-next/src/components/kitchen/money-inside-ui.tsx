@@ -5,24 +5,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { SplitecoMoneyTab, type SplitecoOpen } from "@saas/spliteco-ui/money-tab-ui";
 import { splitecoPath } from "@saas/spliteco-ui/money-tab";
 import { useSession } from "@/lib/session";
-import { useToast } from "@/components/ui/toast";
 import { useProfile } from "./data";
-import { handoffCode, moneyError } from "./kitchen-money-data";
-import { handoffUrlTo, splitecoOriginFor } from "./spliteco-link";
+import { splitecoToCookpool } from "./spliteco-paths";
 
 /**
  * Money, Spliteco inside (money-inside MN-3, the canvas's "Money, calmer" B
  * boards): the tab shows Spliteco's own Money screens in its Deep ocean, the
  * same as Tripeco's — read through this app's API client — with "‹ Cookpool"
- * back Home. Settle up, + Expense and a whole group open the Spliteco app,
- * signed in with a one-time code, and come back here. `?group=org_…` opens on
- * that group.
+ * back Home. Since MN-8, Settle up, + Expense and a whole group open
+ * Spliteco's own screens inside Cookpool (/money/settle-up, /money/add,
+ * /money/group), never the Spliteco app. `?group=org_…` opens on that group.
  */
 export function MoneyInside() {
   const router = useRouter();
   const params = useSearchParams();
-  const { client, target } = useSession();
-  const { toast } = useToast();
+  const { client } = useSession();
   const profile = useProfile();
   const api = React.useMemo(
     () => ({
@@ -33,23 +30,8 @@ export function MoneyInside() {
     }),
     [client],
   );
-  const busy = React.useRef(false);
-  const open = async (t: SplitecoOpen) => {
-    if (busy.current) return;
-    const origin = splitecoOriginFor(window.location.host, target.name);
-    if (!origin) {
-      toast({ kind: "error", title: "Spliteco isn't available here" });
-      return;
-    }
-    busy.current = true;
-    try {
-      const code = await handoffCode(client, origin);
-      window.location.assign(handoffUrlTo(origin, code, splitecoPath(t), window.location.href));
-    } catch (err) {
-      busy.current = false;
-      toast({ kind: "error", title: "Couldn't open Spliteco", description: moneyError(err) });
-    }
-  };
+  // Settle up, + Expense and a whole group open Spliteco's own screens here, under /money (MN-8).
+  const open = (t: SplitecoOpen) => router.push(splitecoToCookpool(splitecoPath(t)));
   const group = params?.get("group");
   return (
     <SplitecoMoneyTab
@@ -57,7 +39,7 @@ export function MoneyInside() {
       hostName="Cookpool"
       onBack={() => router.push("/home")}
       meId={profile.data?.id ?? null}
-      onOpen={(t) => void open(t)}
+      onOpen={open}
       initialGroupId={group && /^org_[A-Za-z0-9]{1,64}$/.test(group) ? group : null}
     />
   );

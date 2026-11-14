@@ -275,6 +275,6 @@ describe("the surface, from the source", () => {
   });
 
   it("sheets draw on the body, so the moving pager never carries them", () => {
-    expect(read("components/ui.tsx")).toContain("createPortal(sheet, document.body)");
+    expect(read("components/ui.tsx")).toContain('createPortal(sheet, document.querySelector<HTMLElement>("[data-spliteco-portal]") ?? document.body)');
   });
 });

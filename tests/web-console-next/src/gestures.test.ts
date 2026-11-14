@@ -44,6 +44,16 @@ describe("which screens pull to refresh", () => {
     "/settle",
     // Settle up in a kitchen (cookpool-spliteco SE3): a form, like Add a bill.
     "/money/settle",
+    // Spliteco's own screens inside Money (money-inside MN-8): they bring Spliteco's own pull, or are forms.
+    "/money/group",
+    "/money/add",
+    "/money/expense",
+    "/money/settle-up",
+    "/money/scan",
+    "/money/friend",
+    "/money/move",
+    "/money/share",
+    "/money/insights",
     "/you",
     "/you/settings",
     "/you/notifications",

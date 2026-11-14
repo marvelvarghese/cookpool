@@ -34,11 +34,12 @@ describe("More in Spliteco", () => {
     expect(MORE_IN_SPLITECO).toHaveLength(4);
   });
 
-  it("asks identity-worker for the code, then leaves for Spliteco", () => {
-    // money-inside MN-6: Money's Settle up, + Expense and the group open Spliteco this way.
+  it("is no longer how Money opens Settle up, + Expense or a group: they open inside Cookpool (MN-8)", () => {
     const src = read("components/kitchen/money-inside-ui.tsx");
-    expect(src).toContain("handoffCode(client, origin)");
-    expect(src).toContain("window.location.assign(handoffUrlTo(origin, code, splitecoPath(t), window.location.href))");
+    expect(src).not.toContain("handoffCode(");
+    expect(src).not.toContain("window.location.assign");
+    expect(src).toContain("router.push(splitecoToCookpool(splitecoPath(t)))");
+    // The handoff itself stays for the other places that still open the Spliteco app.
     expect(read("components/kitchen/kitchen-money-data.ts")).toContain("client.auth.createHandoff({ targetOrigin: origin })");
   });
 });

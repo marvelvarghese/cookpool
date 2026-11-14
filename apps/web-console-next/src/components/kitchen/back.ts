@@ -99,6 +99,17 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/settle": () => "/people",
   // Settle up in a kitchen (cookpool-spliteco SE3): Money, where it is opened.
   "/money/settle": () => "/money",
+  // Spliteco's own screens inside Money (money-inside MN-8): each back to the Money tab. Their own
+  // headers carry Spliteco's Back (to the group, say); the frame's parent is the tab.
+  "/money/group": () => "/money",
+  "/money/add": () => "/money",
+  "/money/expense": () => "/money",
+  "/money/settle-up": () => "/money",
+  "/money/scan": () => "/money",
+  "/money/friend": () => "/money",
+  "/money/move": () => "/money",
+  "/money/share": () => "/money",
+  "/money/insights": () => "/money",
 };
 
 /**
