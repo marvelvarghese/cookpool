@@ -11,3 +11,4 @@ export * from "./theme.js";
 export * from "./components.js";
 export * from "./look.js";
 export * from "./people.js";
+export * from "./expand-button.js";
