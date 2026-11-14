@@ -125,9 +125,9 @@ export default function KitchenLayout({ children }: { children: React.ReactNode 
           // The boards' page edge (RV-23): an 18 px gutter and 18 px on top in the new frame,
           // kept in `--cp-gutter` so a full-bleed strip can match it; today's 16/20 otherwise.
           // Money's shared pages carry the board's padding themselves (MY-21): no second one here,
-          // only the safe area (the page's own 120px bottom clears the tab bar).
+          // only the top safe area; the page's own end padding (`--cp-page-end`) clears the bar and the button.
           flush
-            ? "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] [--cp-gutter:0px]"
+            ? "pt-[env(safe-area-inset-top)] pb-0 [--cp-gutter:0px]"
             : cn(
                 frameNew
                   ? "px-[var(--cp-gutter)] pt-[calc(env(safe-area-inset-top)+18px)] [--cp-gutter:18px]"

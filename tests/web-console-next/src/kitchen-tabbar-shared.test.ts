@@ -78,7 +78,7 @@ describe("the tab bar's room as CSS variables (RV-19)", () => {
   };
 
   it("takes the bar's height and gap where it shows, and 0 where it is hidden", () => {
-    expect(rule('[data-tabbar="shown"]')).toContain("--cp-tabbar-space: calc(max(14px, env(safe-area-inset-bottom)) + 76px)");
+    expect(rule('[data-tabbar="shown"]')).toContain("--cp-tabbar-space: calc(var(--cp-bar-top) + 8px)");
     expect(rule('[data-tabbar="shown"]')).toContain("--cp-bottom-bar: var(--cp-tabbar-space)");
     const hidden = rule('[data-tabbar="hidden"]');
     expect(hidden).toContain("--cp-tabbar-space: 0px");

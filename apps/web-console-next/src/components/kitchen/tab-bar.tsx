@@ -201,10 +201,10 @@ function FloatingTabBar() {
       data-gestures="off"
       {...(board ? { "data-look": "cookpool", "data-money-bar": "", style: { fontFamily: BOARD_FONT, fontVariantNumeric: "tabular-nums", color: "var(--look-ink)" } } : {})}
       className={cn(
-        "fixed inset-x-3 bottom-[max(14px,env(safe-area-inset-bottom))] z-40 mx-auto max-w-lg",
+        "fixed inset-x-3 bottom-[var(--cp-bar-bottom)] z-40 mx-auto max-w-lg",
         board
-          ? "box-border h-[68px] rounded-[26px] bg-[var(--look-surface)] px-1.5 shadow-[0_8px_28px_rgba(0,0,0,.12)] min-[900px]:hidden"
-          : "h-[68px] rounded-[24px] bg-cp-nav-bg p-1.5 shadow-cp-nav min-[900px]:hidden",
+          ? "box-border h-[var(--cp-bar-h)] rounded-[26px] bg-[var(--look-surface)] px-1.5 shadow-[0_8px_28px_rgba(0,0,0,.12)] min-[900px]:hidden"
+          : "h-[var(--cp-bar-h)] rounded-[24px] bg-cp-nav-bg p-1.5 shadow-cp-nav min-[900px]:hidden",
       )}
     >
       {slideAt !== null ? (

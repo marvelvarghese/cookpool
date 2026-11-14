@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-24
+  title: "One tab bar offset and one font — the bar sits 14px from the edge, Plus Jakarta Sans everywhere"
+spec:
+  goal: "The floating tab bar sits 14px above the screen edge with the floating buttons 14px above it, all from one set of CSS variables; the whole console is set in Plus Jakarta Sans."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/spliteco-ui
+    - apps/web-console-next/**
+    - packages/spliteco-ui/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-24.TaskContract.yaml
+  doneWhen:
+    - "The bar's height, bottom offset and the floating buttons' offset are CSS variables on :root; the bar, the page end padding and Expense/Settle up read them, so the bar no longer rides the safe inset"
+    - "The root font is Plus Jakarta Sans 400/500/600 via next/font (swap, size-adjusted fallback, system fallback for Indic scripts); Outfit and per-page overrides are gone; amounts use tabular numbers"
+    - "Tests pin the variables and the root font; tests, typecheck, lint and orun validate pass"
+  gates: []

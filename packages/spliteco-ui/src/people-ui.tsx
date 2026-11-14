@@ -116,7 +116,7 @@ export function PeopleList({ theme, header, floatingButton, people, query, onQue
   const shown = searchPeople(people, query);
   return (
     <LookScope theme={theme} style={{ position: "relative", minHeight: "100%", fontFamily: FONT, fontVariantNumeric: "tabular-nums", lineHeight: "normal" }}>
-      <div data-page="people" style={{ padding: `${B.page.padTop}px ${B.page.padX}px 120px`, display: "flex", flexDirection: "column", gap: B.page.gapPeople }}>
+      <div data-page="people" style={{ padding: `${B.page.padTop}px ${B.page.padX}px var(--cp-page-end, 120px)`, display: "flex", flexDirection: "column", gap: B.page.gapPeople }}>
         {header}
         <label style={{ height: B.search.height, borderRadius: B.search.radius, background: look.surface, display: "flex", alignItems: "center", gap: 10, padding: "0 14px" }}>
           <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={look.muted} strokeWidth="2" strokeLinecap="round">
@@ -159,7 +159,7 @@ export function PersonPage({ theme, person, onBack, floatingButton }: PersonPage
   const v = personPage(person);
   return (
     <LookScope theme={theme} style={{ position: "relative", minHeight: "100%", fontFamily: FONT, fontVariantNumeric: "tabular-nums", lineHeight: "normal" }}>
-      <div data-page="person" style={{ padding: `${B.page.padTop}px ${B.page.padX}px 120px`, display: "flex", flexDirection: "column", gap: B.page.gapPerson }}>
+      <div data-page="person" style={{ padding: `${B.page.padTop}px ${B.page.padX}px var(--cp-page-end, 120px)`, display: "flex", flexDirection: "column", gap: B.page.gapPerson }}>
         <header style={{ display: "flex", alignItems: "center", gap: 8, height: 56 }}>
           <button type="button" aria-label="Back" onClick={onBack} style={{ width: 44, height: 44, marginLeft: -10, display: "flex", alignItems: "center", justifyContent: "center", flex: "none", border: 0, background: "transparent", cursor: "pointer" }}>
             <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={look.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

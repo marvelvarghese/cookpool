@@ -1,8 +1,6 @@
 "use client";
 
 import * as React from "react";
-// The boards draw Money in Plus Jakarta Sans 400/500/600 (variable, latin).
-import "@fontsource-variable/plus-jakarta-sans";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import type { SplitecoBalancesResponse, SplitecoPersonBalance } from "@saas/contracts/spliteco";
@@ -25,7 +23,6 @@ import {
   idempotencyKeys,
   moneyGroupHref,
   moneyHref,
-  barOffset,
   legacyMoneyHref,
   settleApiFor,
 } from "./money-native";
@@ -34,25 +31,6 @@ import {
 const openUpi = (url: string): void => {
   window.location.assign(url);
 };
-
-/** The bottom safe-area inset in px (0 where there is none): read off a probe, as CSS `env()` cannot be read from JS. */
-function useSafeBottom(): number {
-  const [inset, setInset] = React.useState(0);
-  React.useEffect(() => {
-    const probe = document.createElement("div");
-    probe.setAttribute("aria-hidden", "true");
-    probe.style.cssText = "position:fixed;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom)";
-    document.body.appendChild(probe);
-    const read = () => setInset(Math.round(parseFloat(getComputedStyle(probe).paddingBottom) || 0));
-    read();
-    window.addEventListener("resize", read);
-    return () => {
-      window.removeEventListener("resize", read);
-      probe.remove();
-    };
-  }, []);
-  return inset;
-}
 
 /** What every Money page reads and writes through: the client, the signed-in person, the shared pages' APIs. */
 function useMoney() {
@@ -70,8 +48,7 @@ function useMoney() {
     setVersion((v) => v + 1);
     void qc.invalidateQueries({ queryKey: ["money"] });
   }, [qc]);
-  const bottomOffset = barOffset(useSafeBottom());
-  return { client, meId, settleApi, createExpense, peopleApi, refresh, bottomOffset };
+  return { client, meId, settleApi, createExpense, peopleApi, refresh };
 }
 
 /**
@@ -94,7 +71,7 @@ export function MoneyNative() {
   React.useEffect(() => {
     if (legacy) router.replace(legacy);
   }, [legacy, router]);
-  const { client, meId, createExpense, refresh, bottomOffset } = useMoney();
+  const { client, meId, createExpense, refresh } = useMoney();
   const { toast } = useToast();
 
   const groups = useQuery({ queryKey: qk.moneyGroups(), queryFn: async () => (await client.spliteco.groups()).groups });
@@ -129,7 +106,6 @@ export function MoneyNative() {
             theme="cookpool"
             groups={expenseGroups}
             me={meId}
-            bottomOffset={bottomOffset}
             createExpense={createExpense}
             onSaved={() => {
               toast({ kind: "success", title: "Expense added" });
@@ -145,7 +121,7 @@ export function MoneyNative() {
 /** Money's People side, `/money/people`: everyone you split with, Pay or Got it, and the settle box. */
 export function MoneyPeople() {
   const router = useKitchenRouter();
-  const { meId, settleApi, peopleApi, refresh, bottomOffset } = useMoney();
+  const { meId, settleApi, peopleApi, refresh } = useMoney();
   const open = (p: { subjectId: string }) => router.push(moneyHref({ kind: "person", subjectId: p.subjectId }));
   return (
     <PeopleScreen
@@ -155,13 +131,13 @@ export function MoneyPeople() {
       onOpenPerson={(id) => open({ subjectId: id })}
       onPay={open}
       onGotIt={open}
-      floatingButton={<PeopleSettleUp api={peopleApi} settleApi={settleApi} meId={meId} bottomOffset={bottomOffset} onRecorded={refresh} />}
+      floatingButton={<PeopleSettleUp api={peopleApi} settleApi={settleApi} meId={meId} onRecorded={refresh} />}
     />
   );
 }
 
 /** People's "Settle up" (kind `people`): the simplified payments, each Paid or Got it. */
-function PeopleSettleUp({ api, settleApi, meId, bottomOffset, onRecorded }: { api: { balances(): Promise<SplitecoBalancesResponse> }; settleApi: ReturnType<typeof settleApiFor>; meId: string | null; bottomOffset: number; onRecorded: () => void }) {
+function PeopleSettleUp({ api, settleApi, meId, onRecorded }: { api: { balances(): Promise<SplitecoBalancesResponse> }; settleApi: ReturnType<typeof settleApiFor>; meId: string | null; onRecorded: () => void }) {
   const [people, setPeople] = React.useState<SplitecoPersonBalance[]>([]);
   React.useEffect(() => {
     let live = true;
@@ -174,13 +150,13 @@ function PeopleSettleUp({ api, settleApi, meId, bottomOffset, onRecorded }: { ap
     };
   }, [api]);
   if (!meId || people.every((p) => p.settled)) return null;
-  return <SettleUpBox theme="cookpool" people={people} meId={meId} api={settleApi} bottomOffset={bottomOffset} onRecorded={onRecorded} />;
+  return <SettleUpBox theme="cookpool" people={people} meId={meId} api={settleApi} onRecorded={onRecorded} />;
 }
 
 /** A person's page, `/money/people/<subject id>`, with its settle box: you pay them when you owe, "Got it" when they owe you. */
 export function MoneyPerson({ subjectId }: { subjectId: string }) {
   const goBack = useBack();
-  const { meId, settleApi, peopleApi: api, refresh, bottomOffset } = useMoney();
+  const { meId, settleApi, peopleApi: api, refresh } = useMoney();
   const [person, setPerson] = React.useState<SplitecoPersonBalance | null>(null);
   React.useEffect(() => {
     let live = true;
@@ -202,7 +178,7 @@ export function MoneyPerson({ subjectId }: { subjectId: string }) {
       onBack={goBack}
       floatingButton={
         person && meId && settleCurrencies(person, direction).length > 0 ? (
-          <SettleBox theme="cookpool" person={person} meId={meId} direction={direction} api={settleApi} openUpi={openUpi} bottomOffset={bottomOffset} onRecorded={refresh} />
+          <SettleBox theme="cookpool" person={person} meId={meId} direction={direction} api={settleApi} openUpi={openUpi} onRecorded={refresh} />
         ) : null
       }
     />

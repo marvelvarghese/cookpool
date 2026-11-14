@@ -1,7 +1,7 @@
 /**
  * Cookpool's look for the shared money screens (cookpool-spliteco SE3,
  * `packages/spliteco-ui`): every slot is the revamp's tokens and kit (RV-2) —
- * cards with no border and the soft shadow, rows split by `cp-line`, Outfit at
+ * cards with no border and the soft shadow, rows split by `cp-line`, Plus Jakarta Sans at
  * 400 and 500, the money colours (`cp-owed` back, `cp-owe` you owe), pills on
  * the tint and the accent for the one main action — and amounts print with
  * the engine's formatter, as everywhere else in Cookpool. No raw colours.

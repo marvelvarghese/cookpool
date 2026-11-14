@@ -119,19 +119,27 @@ describe("the tokens (design §1)", () => {
   });
 });
 
-describe("Outfit (design §2)", () => {
-  it("is self-hosted through next/font/local as --font-cookpool, replacing Plus Jakarta Sans", () => {
-    const theme = readFileSync(`${APP}/src/components/kitchen/theme.ts`, "utf8");
-    expect(theme).toContain('from "next/font/local"');
-    expect(theme).toContain("@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2");
-    expect(theme).toContain('variable: "--font-cookpool"');
-    expect(theme).not.toMatch(/plus-jakarta/);
+describe("one font (MY-24)", () => {
+  it("is Plus Jakarta Sans, self-hosted through next/font/local as --font-jakarta on <html>", () => {
+    const font = readFileSync(`${APP}/src/lib/font.ts`, "utf8");
+    expect(font).toContain('from "next/font/local"');
+    expect(font).toContain("@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2");
+    expect(font).toContain('variable: "--font-jakarta"');
+    expect(font).toContain('display: "swap"');
+    expect(font).toContain('adjustFontFallback: "Arial"');
+    expect(font).toContain('weight: "400 600"');
+    expect(readFileSync(`${APP}/src/app/layout.tsx`, "utf8")).toContain("className={plusJakartaSans.variable}");
+    const css = readFileSync(`${APP}/src/styles/globals.css`, "utf8");
+    // The root and the kitchen share the one `--font-sans`; the kitchen no longer sets its own.
+    expect(css).toContain("--font-sans: var(--font-jakarta), system-ui");
+    expect(css).not.toContain("--font-cookpool");
+    expect(css).not.toMatch(/"Inter"/);
+    expect(css).toMatch(/html,\s*body \{[^}]*font-family: var\(--font-sans\)[^}]*font-variant-numeric: tabular-nums/);
+    // Outfit is gone from the kitchen theme and the package list.
+    expect(readFileSync(`${APP}/src/components/kitchen/theme.ts`, "utf8")).not.toMatch(/outfit|localFont/i);
     const pkg = JSON.parse(readFileSync(`${APP}/package.json`, "utf8")) as { dependencies: Record<string, string> };
-    expect(pkg.dependencies["@fontsource-variable/outfit"]).toMatch(/^\d+\.\d+\.\d+$/);
-    // Plus Jakarta Sans is back for one reason only (money-native MY-18): the Money boards draw in it.
-    // The kitchen theme (theme.ts) still loads Outfit alone; only the Money page imports this font.
     expect(pkg.dependencies["@fontsource-variable/plus-jakarta-sans"]).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(readFileSync(`${APP}/src/components/kitchen/theme.ts`, "utf8")).not.toContain("plus-jakarta");
+    expect(pkg.dependencies["@fontsource-variable/outfit"]).toBeUndefined();
   });
 });
 
@@ -160,10 +168,11 @@ describe("the floating tab bar (design §3)", () => {
       React.createElement(PathnameContext.Provider, { value: path }, React.createElement(KitchenTabBar, { onAdd: () => undefined, addOpen: false, newFrame: frame })),
     );
 
-  it("floats 12px from the sides and 14px (or the safe area) from the bottom, radius 24, on nav-bg", () => {
+  it("floats 12px from the sides and 14px (`--cp-bar-bottom`) from the bottom, radius 24, on nav-bg", () => {
     const nav = bar("/home", true).match(/<nav[^>]*>/)![0];
     expect(nav).toContain("inset-x-3");
-    expect(nav).toContain("bottom-[max(14px,env(safe-area-inset-bottom))]");
+    expect(nav).toContain("bottom-[var(--cp-bar-bottom)]");
+    expect(nav).toContain("h-[var(--cp-bar-h)]");
     expect(nav).toContain("rounded-[24px]");
     expect(nav).toContain("bg-cp-nav-bg");
   });
