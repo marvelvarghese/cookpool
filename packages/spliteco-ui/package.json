@@ -14,7 +14,8 @@
     "./components": "./src/components.tsx",
     "./money-tab": "./src/money-tab.ts",
     "./money-tab-ui": "./src/money-tab-ui.tsx",
-    "./inside-look": "./src/inside-look.ts"
+    "./inside-look": "./src/inside-look.ts",
+    "./look": "./src/look.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

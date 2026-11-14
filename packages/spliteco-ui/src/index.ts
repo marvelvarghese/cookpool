@@ -9,3 +9,4 @@ export * from "./why.js";
 export * from "./bill.js";
 export * from "./theme.js";
 export * from "./components.js";
+export * from "./look.js";
