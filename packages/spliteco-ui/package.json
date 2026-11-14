@@ -19,7 +19,9 @@
     "./people": "./src/people.ts",
     "./people-ui": "./src/people-ui.tsx",
     "./expand-button": "./src/expand-button.tsx",
-    "./groups-ui": "./src/groups-ui.tsx"
+    "./groups-ui": "./src/groups-ui.tsx",
+    "./settle-box": "./src/settle-box.ts",
+    "./settle-box-ui": "./src/settle-box-ui.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
