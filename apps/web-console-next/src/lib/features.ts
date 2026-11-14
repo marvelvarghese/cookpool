@@ -40,6 +40,8 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/money/settle": "/home",
   // Add group from Money (money-native MY-8).
   "/money/add-group": "/home",
+  // Manage group (money-native MY-11): the new frame only.
+  "/money/group": "/home",
   "/you/settings": "/you",
   // The shopping run (cookpool-pantry PN-6): today's frame has none, so its visitor goes to the Pantry.
   "/pantry/run": "/pantry",

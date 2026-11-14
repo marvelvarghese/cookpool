@@ -27,6 +27,7 @@ One task per PR; one milestone in flight. A merge is a squash. Each rung leaves 
 
 ## MY5 — groups (`apps/web-console-next`)
 - **MY-9** — Add group (name, selectable currency, food rule, join link) over the existing creation. **Done when:** a group is made from Money.
+- **MY-17** — backend: one new `membership-worker` write, `POST /v1/organizations/{org}/members`, adds people by subject id from a Spliteco group the caller shares (invitations go by email; a Spliteco group read has none). **Done when:** each person is added or skipped with a reason, audited, idempotent. *MY-10 calls it after the group is created.*
 - **MY-10** — Start from Spliteco (the searchable list, editable name, people and currency carried). **Done when:** a Spliteco group becomes a Cookpool group; renaming it leaves Spliteco's name alone.
 - **MY-11** — Manage group (people, simplify, split default, food rule page, selectable currency, join link, leave). **Done when:** each row works for someone allowed to, and reads only for others.
 - *MY-10 and MY-11 each need MY-9's sheet or route; they do not need each other.*

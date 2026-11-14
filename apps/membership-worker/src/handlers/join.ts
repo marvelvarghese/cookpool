@@ -75,7 +75,7 @@ export interface JoinLinkDeps {
   checkEntitlement?: typeof checkBillingEntitlement;
 }
 
-function randomHex(bytes: number): string {
+export function randomHex(bytes: number): string {
   const buf = new Uint8Array(bytes);
   crypto.getRandomValues(buf);
   let hex = "";
@@ -94,7 +94,7 @@ interface Repos {
  * Run `fn` with the membership and events repositories: the injected ones in
  * tests, otherwise ones over PLATFORM_DB. Any throw becomes an opaque 500.
  */
-async function withRepos(
+export async function withRepos(
   env: Env,
   requestId: string,
   deps: JoinLinkDeps | undefined,
@@ -120,7 +120,7 @@ async function withRepos(
  * the org, then policy-worker on `action`. Any denial is the opaque 404.
  * Returns null on allow.
  */
-async function requireManager(
+export async function requireManager(
   env: Env,
   requestId: string,
   actor: ActorContext,

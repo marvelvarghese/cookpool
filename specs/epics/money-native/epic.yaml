@@ -25,7 +25,7 @@ spec:
       tasks: [MY-8]
     - name: "MY5 — groups"
       exitCriteria: ["a group can be added, started from Spliteco, and managed on stage"]
-      tasks: [MY-9, MY-10, MY-11]
+      tasks: [MY-9, MY-17, MY-10, MY-11]
     - name: "MY6 — one set of pages, old Money out"
       exitCriteria: ["the Spliteco app shows the shared pages in Deep ocean", "the old Money screens and the navy tab bar are gone from Cookpool"]
       tasks: [MY-12, MY-13, MY-14]

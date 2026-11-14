@@ -12,7 +12,7 @@ import { settleCurrencies } from "@saas/spliteco-ui/settle-box";
 import { qk } from "@/lib/query";
 import { useSession } from "@/lib/session";
 import { useToast } from "@/components/ui/toast";
-import { useGroups, useProfile } from "./data";
+import { useProfile } from "./data";
 import {
   MONEY_ADD_GROUP_HREF,
   createExpenseFor,
@@ -50,7 +50,6 @@ export function MoneyNative() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const profile = useProfile();
-  const orgs = useGroups();
   const meId = profile.data?.id ?? null;
 
   const [version, setVersion] = React.useState(0);
@@ -121,7 +120,7 @@ export function MoneyNative() {
       theme="cookpool"
       groups={groups.data ?? []}
       onSide={onSide}
-      onOpenGroup={(id) => go(moneyGroupHref(id, orgs.data))}
+      onOpenGroup={(id) => go(moneyGroupHref(id))}
       onAddGroup={addGroup}
       floatingButton={
         meId && expenseGroups.length > 0 ? (

@@ -16,9 +16,8 @@ import { settlementBody, type PaymentRequest, type SettleApi } from "@saas/split
 import type { ExpenseGroup } from "@saas/spliteco-ui/expense";
 
 /**
- * Where + Group and the Add group row go. MY-9 (Add group) replaces the page
- * at this route (`app/(kitchen)/money/add-group/page.tsx`); until then it
- * opens the existing New group dialog, so a group can still be made.
+ * Where + Group and the Add group row go: the Add group sheet (MY-9),
+ * hosted at `app/(kitchen)/money/add-group/page.tsx`.
  */
 export const MONEY_ADD_GROUP_HREF = "/money/add-group";
 
@@ -38,10 +37,9 @@ export function moneyHref(view: MoneyView): string {
   return view.kind === "people" ? "/money?side=people" : "/money";
 }
 
-/** A group's own page: its Cookpool slug when the group is one of the person's organizations, their list of groups otherwise. */
-export function moneyGroupHref(groupId: string, orgs: readonly { id: string; slug: string }[] | null | undefined): string {
-  const org = orgs?.find((o) => o.id === groupId);
-  return org ? `/groups/${encodeURIComponent(org.slug)}` : "/groups";
+/** A group's Manage page (MY-11): any group on Money's list opens it, by id. */
+export function moneyGroupHref(groupId: string): string {
+  return `/money/group?id=${encodeURIComponent(groupId)}`;
 }
 
 /** The expense box's groups from the groups' own reads: a Cookpool group has exactly one currency. */

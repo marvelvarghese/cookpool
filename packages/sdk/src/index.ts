@@ -162,6 +162,8 @@ export type {
   RemoveMemberResponse,
   AcceptInvitationRequest,
   AcceptInvitationResponse,
+  AddMembersRequest,
+  AddMembersResponse,
   JoinCodeResponse,
   JoinPreview,
   JoinRequest,

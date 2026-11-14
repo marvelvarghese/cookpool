@@ -51,6 +51,8 @@ export const STATIC_PAGES = Object.freeze([
   "/money",
   // Add group from Money (money-native MY-8; MY-9 replaces the page).
   "/money/add-group",
+  // Manage group from a group on Money (money-native MY-11).
+  "/money/group",
   // Settle up in a kitchen, on spliteco-worker (cookpool-spliteco SE3).
   "/money/settle",
   "/people",
