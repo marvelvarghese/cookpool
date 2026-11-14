@@ -140,6 +140,8 @@ function connectionRow(overrides?: Record<string, unknown>): Record<string, unkn
   };
 }
 
+// The event and its audit entry are one D1 batch of two inserts (packages/db appendEventWithAudit),
+// each returning its own row; they were one Postgres CTE returning both.
 const EVENT_ROW = {
   _event: {
     id: "evt", type: "scm.push", version: 1, source: "integrations-worker",
@@ -291,7 +293,8 @@ describe("inbox drain — attribute, lifecycle, normalize, emit", () => {
       if (text.includes("FROM integrations_github_installations WHERE installation_id"))
         return [installationRow()];
       if (text.includes("FROM integrations_connections WHERE id = $1")) return [connectionRow()];
-      if (text.includes("events_event_log")) return [EVENT_ROW];
+      if (text.includes("INSERT INTO events_audit_entries")) return [EVENT_ROW._audit];
+      if (text.includes("events_event_log")) return [EVENT_ROW._event];
       if (text.includes("UPDATE integrations_inbound_deliveries"))
         return [deliveryRow({ status: "emitted" })];
       return [];
@@ -331,7 +334,8 @@ describe("inbox drain — attribute, lifecycle, normalize, emit", () => {
             updated_at: NOW.toISOString(),
           },
         ];
-      if (text.includes("events_event_log")) return [EVENT_ROW];
+      if (text.includes("INSERT INTO events_audit_entries")) return [EVENT_ROW._audit];
+      if (text.includes("events_event_log")) return [EVENT_ROW._event];
       if (text.includes("UPDATE integrations_inbound_deliveries"))
         return [deliveryRow({ status: "emitted" })];
       return [];
@@ -372,8 +376,8 @@ describe("inbox drain — attribute, lifecycle, normalize, emit", () => {
       if (text.includes("FROM integrations_connections WHERE id = $1")) return [connectionRow()];
       if (text.includes("SET status = $3"))
         return [connectionRow({ status: "revoked", revoked_at: NOW.toISOString() })];
-      if (text.includes("events_event_log"))
-        return [{ ...EVENT_ROW, _event: { ...EVENT_ROW._event, type: "integration.revoked" } }];
+      if (text.includes("INSERT INTO events_audit_entries")) return [{ ...EVENT_ROW._audit, event_type: "integration.revoked" }];
+      if (text.includes("events_event_log")) return [{ ...EVENT_ROW._event, type: "integration.revoked" }];
       if (text.includes("UPDATE integrations_inbound_deliveries"))
         return [deliveryRow({ status: "emitted" })];
       return [];
@@ -404,7 +408,8 @@ describe("inbox drain — attribute, lifecycle, normalize, emit", () => {
           return [installationRow()];
         if (text.includes("FROM integrations_connections WHERE id = $1")) return [connectionRow()];
         if (text.includes("SET status = $3")) return [connectionRow({ status })];
-        if (text.includes("events_event_log")) return [EVENT_ROW];
+        if (text.includes("INSERT INTO events_audit_entries")) return [EVENT_ROW._audit];
+      if (text.includes("events_event_log")) return [EVENT_ROW._event];
         if (text.includes("UPDATE integrations_inbound_deliveries"))
           return [deliveryRow({ status: "emitted" })];
         return [];
@@ -500,7 +505,8 @@ describe("inbox drain — attribute, lifecycle, normalize, emit", () => {
       if (text.includes("FROM integrations_github_installations WHERE installation_id"))
         return [installationRow()];
       if (text.includes("FROM integrations_connections WHERE id = $1")) return [connectionRow()];
-      if (text.includes("events_event_log")) return [EVENT_ROW];
+      if (text.includes("INSERT INTO events_audit_entries")) return [EVENT_ROW._audit];
+      if (text.includes("events_event_log")) return [EVENT_ROW._event];
       if (text.includes("UPDATE integrations_inbound_deliveries")) return [deliveryRow()];
       return [];
     });
