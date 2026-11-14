@@ -227,6 +227,7 @@ const ALLOWED = [
   // Spliteco (SE-6): money.read's reads…
   "GET /v1/spliteco/me/home",
   "GET /v1/spliteco/me/groups",
+  "GET /v1/spliteco/me/balances",
   "GET /v1/spliteco/me/activity",
   "GET /v1/spliteco/me/search",
   `GET /v1/spliteco/me/friends/usr_${HEX}`,

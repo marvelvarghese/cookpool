@@ -22,6 +22,7 @@ const TXN = "txn_0123456789abcdef0123456789abcdef";
 describe("SplitecoClient", () => {
   it.each([
     ["home", (c: Cookpool) => c.spliteco.home(), "GET", "/v1/spliteco/me/home"],
+    ["balances", (c: Cookpool) => c.spliteco.balances(), "GET", "/v1/spliteco/me/balances"],
     ["groups", (c: Cookpool) => c.spliteco.groups(), "GET", "/v1/spliteco/me/groups"],
     ["group", (c: Cookpool) => c.spliteco.group(ORG), "GET", `/v1/spliteco/groups/${ORG}`],
     ["friend", (c: Cookpool) => c.spliteco.friend("usr_a"), "GET", "/v1/spliteco/me/friends/usr_a"],
