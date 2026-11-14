@@ -1,0 +1,31 @@
+apiVersion: orun.io/v1
+kind: Epic
+metadata:
+  name: money-native
+  key: MY
+spec:
+  title: "Money is a native Cookpool page, and the same pages dress for Spliteco"
+  summary: "Cookpool's Money stops being Spliteco's Deep ocean tab and becomes a Cookpool page: cream, herb green, Cookpool's tab bar, one 11px Powered by Spliteco line. Groups and People, a shared expanding button for Settle and Expense, Add group, Manage group. Every page reads colour tokens and takes a theme prop, so the Spliteco app shows the same pages in Deep ocean."
+  state: started
+  milestones:
+    - name: "MY0 — the spec"
+      exitCriteria: ["this doc set and tasks/MY-1..MY-14 are on main"]
+      tasks: [MY-1]
+    - name: "MY1 — one look, one button"
+      exitCriteria: ["the package draws a page in either theme from tokens", "the expanding button opens, closes and honours reduced motion, with content passed in"]
+      tasks: [MY-2, MY-3]
+    - name: "MY2 — the pages, read"
+      exitCriteria: ["one worker read answers everyone's net balance", "Groups, People and a person's page render from real reads in both themes"]
+      tasks: [MY-15, MY-4, MY-5]
+    - name: "MY3 — settle and expense"
+      exitCriteria: ["the settle box records a payment and the expense box saves an Equal or Exact expense"]
+      tasks: [MY-6, MY-7]
+    - name: "MY4 — Cookpool's Money is native"
+      exitCriteria: ["stage's /money is the cream page with Cookpool's tab bar, and settling and adding an expense never leave Cookpool"]
+      tasks: [MY-8]
+    - name: "MY5 — groups"
+      exitCriteria: ["a group can be added, started from Spliteco, and managed on stage"]
+      tasks: [MY-9, MY-10, MY-11]
+    - name: "MY6 — one set of pages, old Money out"
+      exitCriteria: ["the Spliteco app shows the shared pages in Deep ocean", "the old Money screens and the navy tab bar are gone from Cookpool"]
+      tasks: [MY-12, MY-13, MY-14]

@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-12
+  title: "The Spliteco app takes the pages"
+spec:
+  goal: "Spliteco's own app shows the same Money pages with theme spliteco, Deep ocean, so one set of pages serves both apps."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - specs/epics/money-native/**
+    - tasks/MY-12.TaskContract.yaml
+  doneWhen:
+    - "spliteco-web passes theme spliteco and its own client to the shared pages, and looks as it does today"
+    - "Powered by Spliteco does not show inside the Spliteco app"
+    - "The spliteco-web and spliteco-ui tests pass"
+  gates: []

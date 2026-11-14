@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-4
+  title: "Money's Groups page"
+spec:
+  goal: "The Money page shell and its Groups side: a title with one 11px Powered by Spliteco line, the Groups | People switch, the group list, + Group and an Add group row."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - specs/epics/money-native/**
+    - tasks/MY-4.TaskContract.yaml
+  doneWhen:
+    - "The title has one 11px Powered by Spliteco line and no other Spliteco mark on any page"
+    - "The open side of the switch is a tinted block with icon and label, the other folds to an icon"
+    - "Groups shows the net, one row per group with its balance or Settled, + Group at the top and an Add group row last"
+    - "The spliteco-ui tests pass"
+  gates: []

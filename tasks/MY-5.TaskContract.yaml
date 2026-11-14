@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-5
+  title: "People and a person's page"
+spec:
+  goal: "Money's People side lists everyone you split with across groups with Pay or Got it; a person's page shows the balance by group, Kitchen first."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - specs/epics/money-native/**
+    - tasks/MY-5.TaskContract.yaml
+  doneWhen:
+    - "People reads MY-15's one endpoint, no client-side joins, and lists each person once with their net, the groups behind it, Pay when you owe or Got it when they owe"
+    - "A person's page shows the net and a row per group, the Kitchen first"
+    - "Search narrows People by name; a settled person reads Settled with no button"
+    - "The spliteco-ui tests pass"
+  gates: []

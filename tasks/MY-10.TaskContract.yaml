@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-10
+  title: "Start from Spliteco"
+spec:
+  goal: "One row on Add group opens a searchable list of the person's Spliteco groups; picking one fills the name (still editable) and currency, brings the people, and the food rule is still chosen."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-10.TaskContract.yaml
+  doneWhen:
+    - "A Start from Spliteco row opens a search list of the person's Spliteco groups, with already-added ones marked Added"
+    - "The currency defaults to the Spliteco group's main currency, nothing is greyed out, and it can be changed on the sheet; the group has that one currency"
+    - "The name stays editable and renaming changes only the Cookpool group, never the Spliteco one"
+    - "Add to Cookpool brings the people along; the food rule is still chosen on the same sheet"
+    - "The web-console-next tests pass"
+  gates: []

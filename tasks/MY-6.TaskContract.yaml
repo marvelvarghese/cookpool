@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-6
+  title: "Settle box"
+spec:
+  goal: "From a person, or People's Settle up, the button opens a box: All, Kitchen only or Custom amount, Kitchen clears first; Paid records a payment you made in your own UPI app."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-6.TaskContract.yaml
+  doneWhen:
+    - "The box offers All, Kitchen only and Custom; Custom has a keypad and shows how the amount clears Kitchen first, then the others"
+    - "Paid records one payment per group touched, in that group's currency, and the page updates"
+    - "Nothing is paid inside Cookpool: UPI opens as in Spliteco's settle, the payment is only recorded"
+    - "The spliteco-ui and web-console-next tests pass"
+  gates: []

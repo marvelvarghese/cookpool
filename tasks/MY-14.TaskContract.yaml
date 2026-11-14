@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-14
+  title: "Money, native: close-out"
+spec:
+  goal: "The epic's status and README say what shipped, what departed from the design and what is still unseen on stage."
+  affects:
+    - specs/epics/money-native/**
+    - tasks/MY-14.TaskContract.yaml
+  doneWhen:
+    - "IMPLEMENTATION-STATUS lists every task with its PR and every departure"
+    - "The README Status says shipped, and epic.yaml state is completed"
+  gates: []

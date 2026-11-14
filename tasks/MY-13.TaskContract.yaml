@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-13
+  title: "Old Money out"
+spec:
+  goal: "The Deep ocean Money tab, its hand-off and the navy tab bar, and every old Money screen no page still calls, are gone from Cookpool."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - specs/epics/money-native/**
+    - tasks/MY-13.TaskContract.yaml
+  doneWhen:
+    - "MoneyInside, the navy tab bar on /money and what only they used are deleted; nothing in web-console-next imports them"
+    - "money-group-ui, settle-card and the /money/settle page stay or go by whether a caller is left, said in the PR"
+    - "SplitecoMoneyTab is not deleted: Tripeco moves to the new pages in its own epic, which removes it"
+    - "Every web-console-next and spliteco-ui test file loads and passes"
+  gates: []

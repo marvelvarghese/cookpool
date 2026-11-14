@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-2
+  title: "One look, two themes"
+spec:
+  goal: "Every Money page can read its colours from one token set and take a theme prop, cookpool or spliteco; Deep ocean comes from the existing inside-look."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - specs/epics/money-native/**
+    - tasks/MY-2.TaskContract.yaml
+  doneWhen:
+    - "look.ts holds the cookpool and spliteco tokens from the Theme_Tokens board, and a LookScope sets them for everything inside"
+    - "A page drawn inside either scope holds no colour of its own; Deep ocean is built from SPLITECO_INSIDE"
+    - "The spliteco-ui tests pass, including both themes' contrast on ink over surface"
+  gates: []

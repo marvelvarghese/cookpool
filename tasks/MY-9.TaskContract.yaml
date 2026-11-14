@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-9
+  title: "Add group"
+spec:
+  goal: "The + Group and Add group row open a sheet: name, currency (selectable), food that goes off (split equally or the buyer absorbs it), a join link; Create group makes the group."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-9.TaskContract.yaml
+  doneWhen:
+    - "The sheet reuses the new-group rules: name checks, currency list, WASTE_RULES, group creation then kitchen settings"
+    - "The currency is a selectable row, INR by default; the group has exactly one currency and every item in it uses it"
+    - "Create group opens the new group; if saving the food rule fails the group still exists and the person is told"
+    - "The web-console-next tests pass"
+  gates: []

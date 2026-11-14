@@ -1,0 +1,25 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-15
+  title: "Everyone's balances, one read"
+spec:
+  goal: "spliteco-worker answers one read with everyone you share a group with, their net per currency and the groups behind it, so People needs no client-side joins."
+  affects:
+    - default/cookpool/spliteco-worker
+    - default/cookpool/spliteco-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - apps/spliteco-worker/**
+    - tests/spliteco-worker/**
+    - packages/contracts/**
+    - tests/contracts/**
+    - packages/sdk/**
+    - specs/epics/money-native/**
+    - tasks/MY-15.TaskContract.yaml
+  doneWhen:
+    - "One new GET under /v1/spliteco/me returns each person once, with net per currency and a row per shared group, in the contract's types"
+    - "A person's net equals the sum of the group balances behind it, and a settled person is listed as settled"
+    - "The SDK client has a method for it; the worker, contracts and sdk tests pass"
+  gates: []

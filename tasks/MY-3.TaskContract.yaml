@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-3
+  title: "The one expanding button"
+spec:
+  goal: "One floating button, kinds settle, expense and people, grows into a box over a dimmed page and shrinks back; its content is passed in as props."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - specs/epics/money-native/**
+    - tasks/MY-3.TaskContract.yaml
+  doneWhen:
+    - "ExpandButton takes kind, label, theme and children for the box; the package holds no settle or expense content in it"
+    - "Opening dims the page, traps focus, closes on Escape, the dim and Close, and returns focus to the button"
+    - "With reduce motion the box appears and closes with no grow or shrink, only a fade of at most 120ms"
+    - "The spliteco-ui tests pass"
+  gates: []
