@@ -4,7 +4,12 @@
 
 @layer base {
   :root {
-    --font-sans: "Inter", system-ui, sans-serif;
+    /*
+     * The console's one font (MY-24): Plus Jakarta Sans, from next/font on <html> as
+     * `--font-jakarta` (app/layout.tsx). The system fonts after it carry what it
+     * does not cover (Devanagari and the other Indic scripts, CJK, Arabic, emoji).
+     */
+    --font-sans: var(--font-jakarta), system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
     /* Light theme — "paper" surface */
@@ -76,8 +81,6 @@
    */
   .cookpool {
     color-scheme: light;
-    --font-sans: var(--font-cookpool), system-ui, sans-serif;
-
     --background: 37.5 44.4% 96.5%; /* #FAF7F2 ground */
     --foreground: 146.7 16.4% 10.8%; /* #17201B ink */
     --card: 0 0% 100%; /* #FFFFFF */
@@ -405,6 +408,26 @@
   }
 
   /*
+   * The floating tab bar and the buttons above it (MY-24): ONE set of numbers, so
+   * the bar, the page's end padding and Expense / Settle up cannot drift apart.
+   * The bar sits `--cp-bar-bottom` (the boards' 14px) from the screen edge, and
+   * that is all: it is NOT also lifted by env(safe-area-inset-bottom) (that put it
+   * ~34pt up on a home-indicator iPhone, and the page's own safe-area padding then
+   * counted the inset a second time). The 14px clears the indicator, which lives
+   * in the last ~13px. `--cp-fab-bottom`: a floating button's bottom, 14px above
+   * the bar. `--cp-page-end`: the scroll area's end room, clearing that button.
+   */
+  :root {
+    --cp-bar-h: 68px;
+    --cp-bar-bottom: 14px;
+    --cp-bar-top: calc(var(--cp-bar-bottom) + var(--cp-bar-h));
+    --cp-fab-h: 52px;
+    --cp-fab-gap: 14px;
+    --cp-fab-bottom: calc(var(--cp-bar-top) + var(--cp-fab-gap));
+    --cp-page-end: calc(var(--cp-fab-bottom) + var(--cp-fab-h) + 12px);
+  }
+
+  /*
    * The floating tab bar's room (RV-19), from the kitchen layout's
    * `data-tabbar` (new frame only). `--cp-tabbar-space`: what the bar takes
    * from the bottom edge, 0 where a pushed screen hides it. `--cp-bottom-bar`:
@@ -412,8 +435,9 @@
    * with the safe area. `--cp-main-bottom`: the page's end padding.
    */
   [data-tabbar="shown"] {
-    --cp-tabbar-space: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
+    --cp-tabbar-space: calc(var(--cp-bar-top) + 8px);
     --cp-bottom-bar: var(--cp-tabbar-space);
+    --cp-main-bottom: calc(var(--cp-bar-top) + 24px);
   }
   [data-tabbar="hidden"] {
     --cp-tabbar-space: 0px;
@@ -441,6 +465,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    /* Amounts and counts line up, as on the Money boards (MY-24). */
+    font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
   }
   ::selection {

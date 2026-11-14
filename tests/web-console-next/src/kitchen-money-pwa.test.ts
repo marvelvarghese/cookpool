@@ -5,8 +5,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { cwd } from "node:process";
 import {
-  BAR_CLEARANCE,
-  barOffset,
   legacyMoneyHref,
   moneyGroupHref,
   moneyHref,
@@ -102,20 +100,33 @@ describe("Money sits in the frame once (no double padding)", () => {
   it("drops <main>'s side and top padding for them, keeping only the safe area", () => {
     const layout = read("app/(kitchen)/layout.tsx");
     expect(layout).toContain("const flush = moneyFlush(frameNew, pathname)");
-    expect(layout).toContain("pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] [--cp-gutter:0px]");
+    expect(layout).toContain("pt-[env(safe-area-inset-top)] pb-0 [--cp-gutter:0px]");
     expect(layout).toContain("min-[900px]:px-0 min-[900px]:pb-0 min-[900px]:pt-0");
     // The shared pages carry the boards' 20px sides and the room for the tab bar.
     const page = readFileSync(`${ui}/board.ts`, "utf8");
     expect(page).toContain("page: { padX: 20, padTop: 20");
   });
 
-  it("puts the floating buttons above the tab bar, which rides the safe area", () => {
-    expect(BAR_CLEARANCE).toBe(90);
-    expect(barOffset(0)).toBe(104);
-    expect(barOffset(14)).toBe(104);
-    expect(barOffset(34)).toBe(124);
-    expect(read("components/kitchen/money-native-ui.tsx")).toContain("bottomOffset={bottomOffset}");
-    expect(read("components/kitchen/tab-bar.tsx")).toContain("bottom-[max(14px,env(safe-area-inset-bottom))]");
+  it("sits the bar and the floating buttons on one set of variables, with a single offset", () => {
+    const css = read("styles/globals.css");
+    const vars = css.match(/:root \{\s*--cp-bar-h:[^}]*\}/)?.[0] ?? "";
+    expect(vars).toContain("--cp-bar-h: 68px");
+    expect(vars).toContain("--cp-bar-bottom: 14px");
+    expect(vars).toContain("--cp-bar-top: calc(var(--cp-bar-bottom) + var(--cp-bar-h))");
+    expect(vars).toContain("--cp-fab-gap: 14px");
+    expect(vars).toContain("--cp-fab-bottom: calc(var(--cp-bar-top) + var(--cp-fab-gap))");
+    expect(vars).toContain("--cp-page-end: calc(var(--cp-fab-bottom) + var(--cp-fab-h) + 12px)");
+    // The bar reads them; it is not also lifted by the safe inset, and neither is the page under it.
+    const bar = read("components/kitchen/tab-bar.tsx");
+    expect(bar).toContain("bottom-[var(--cp-bar-bottom)]");
+    expect(bar).toContain("h-[var(--cp-bar-h)]");
+    expect(bar).not.toMatch(/bottom-\[max\(14px,env/);
+    expect(css).toContain("--cp-main-bottom: calc(var(--cp-bar-top) + 24px)");
+    // Expense and Settle up default to the variable; the Money pages no longer measure the inset.
+    const button = readFileSync(`${ui}/expand-button.tsx`, "utf8");
+    expect(button).toContain('DEFAULT_BOTTOM = "var(--cp-fab-bottom, 96px)"');
+    expect(read("components/kitchen/money-native-ui.tsx")).not.toMatch(/bottomOffset|safe-area-inset/);
+    for (const page of ["groups-ui.tsx", "people-ui.tsx"]) expect(readFileSync(`${ui}/${page}`, "utf8")).toContain("var(--cp-page-end, 120px)");
   });
 });
 

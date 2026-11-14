@@ -64,7 +64,7 @@ describe("the boards' numbers", () => {
 
 describe("Groups holds Settle_Money", () => {
   it("page: padding 20 20, gap 20, tabular numbers, line-height normal, Plus Jakarta Sans", () => {
-    expect(tag(groupsHtml, 'data-page="groups"')).toMatch(/padding:20px 20px 120px;display:flex;flex-direction:column;gap:20px/);
+    expect(tag(groupsHtml, 'data-page="groups"')).toMatch(/padding:20px 20px var\(--cp-page-end, 120px\);display:flex;flex-direction:column;gap:20px/);
     const root = groupsHtml.match(/^<div data-look="cookpool" style="([^"]*)"/)![1]!;
     expect(root).toContain("font-variant-numeric:tabular-nums");
     expect(root).toContain("line-height:normal");

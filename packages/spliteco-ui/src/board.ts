@@ -4,8 +4,8 @@
 // drift from its board by a stray number. Colours are not here: they are the
 // `look` tokens (look.ts).
 
-/** Plus Jakarta Sans 400/500/600; the console and the Spliteco app both load it. */
-export const BOARD_FONT = "'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, sans-serif";
+/** Plus Jakarta Sans 400/500/600; the console sets `--font-sans` to it (next/font, MY-24); the Spliteco apps load it by name. */
+export const BOARD_FONT = "var(--font-sans, 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, sans-serif)";
 
 export const BOARD = Object.freeze({
   frame: { width: 390, height: 844 },

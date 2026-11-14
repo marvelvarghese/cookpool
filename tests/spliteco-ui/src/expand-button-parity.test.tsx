@@ -22,7 +22,12 @@ let host: HTMLDivElement;
 let root: Root;
 const show = (node: React.ReactNode) => act(() => { root.render(node); });
 const click = (el: Element) => act(() => { (el as HTMLElement).click(); });
-const px = (v: string) => parseFloat(v);
+/** A length in px: `var(--x, 96px)` takes its fallback (no stylesheet here), `calc(a + b)` sums. */
+const px = (v: string): number => {
+  const flat = v.replace(/var\([^,)]+,\s*([^)]+)\)/g, "$1");
+  const sum = flat.match(/^calc\((.+)\)$/);
+  return sum ? sum[1]!.split("+").reduce((t, n) => t + parseFloat(n), 0) : parseFloat(flat);
+};
 const box = () => host.querySelector<HTMLElement>("[data-expand-box]")!;
 /** left/top/width/height of the box as the board states them, from the left/right/bottom/height the button sets. */
 const rect = (el: HTMLElement) => {
@@ -42,7 +47,7 @@ const KINDS: Array<[ExpandButtonKind, number, number]> = [["settle", 170, 560], 
 
 describe("the button, closed and open (ExpandButton board)", () => {
   it.each(KINDS)("%s: closed 20/696 350x52 radius 12; open 12/%i 366x%i radius 20", (kind, top, height) => {
-    show(<ExpandButton kind={kind} label="x" theme="cookpool" reduceMotion={false}>y</ExpandButton>);
+    show(<ExpandButton kind={kind} label="x" theme="cookpool" reduceMotion={false} bottomOffset={96}>y</ExpandButton>);
     expect(rect(box())).toEqual({ left: 20, top: 696, width: 350, height: 52 });
     expect(box().style.borderRadius).toBe("12px");
     click(host.querySelector("button[aria-haspopup]")!);

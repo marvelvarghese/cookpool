@@ -418,7 +418,7 @@ export function GroupsPage({
       <div
         data-page="groups"
         style={{
-          padding: `${B.page.padTop}px ${B.page.padX}px 120px`,
+          padding: `${B.page.padTop}px ${B.page.padX}px var(--cp-page-end, 120px)`,
           display: "flex",
           flexDirection: "column",
           gap: B.page.gapGroups,

@@ -7,6 +7,7 @@
 // the shape of Spliteco's own client call), so Cookpool and the Spliteco app
 // both mount it. Colours are tokens only; the theme comes from the prop.
 
+import { BOARD_FONT } from "./board.js";
 import * as React from "react";
 import type { SplitecoExpenseRequest, SplitecoWriteResponse } from "@saas/contracts/spliteco";
 import { ExpandButton } from "./expand-button.js";
@@ -35,7 +36,7 @@ export interface ExpenseBoxProps extends ExpenseApi {
   onClose?: () => void;
 }
 
-const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
+const FONT = BOARD_FONT;
 // The ExpandButton board's markup, number for number: a 40px amount over a 14px note, two 52px tiles,
 // a 40px Equal | Exact switch, a 14px-radius card of 44px rows with 28px avatars, a 13px note, a 52px Save.
 const bare: React.CSSProperties = { border: 0, background: "transparent", color: "inherit", font: "inherit", padding: 0, margin: 0, outlineOffset: 2 };

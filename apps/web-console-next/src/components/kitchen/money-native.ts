@@ -51,19 +51,6 @@ export function legacyMoneyHref(params: { get(name: string): string | null } | n
   return view.kind === "groups" ? null : moneyHref(view);
 }
 
-/**
- * Where the floating buttons (Expense, Settle up, Pay) sit: over the tab bar,
- * which is 68px tall and `max(14px, safe inset)` from the bottom, with a 22px
- * margin above it (`BAR_CLEARANCE` over the bar's 14px). The bar rides the
- * home indicator's safe area on an installed phone, so the inset is measured
- * by the page (`useSafeBottom`) and passed here: 104 on a phone with none.
- */
-export const BAR_CLEARANCE = 90;
-
-export function barOffset(safeBottomPx: number): number {
-  return Math.max(14, safeBottomPx) + BAR_CLEARANCE;
-}
-
 /** A group's Manage page (MY-11): any group on Money's list opens it, by id. */
 export function moneyGroupHref(groupId: string): string {
   return `/money/group?id=${encodeURIComponent(groupId)}`;

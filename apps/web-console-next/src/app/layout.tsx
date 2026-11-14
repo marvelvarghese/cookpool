@@ -1,4 +1,5 @@
 import { lookScript } from "@/lib/look";
+import { plusJakartaSans } from "@/lib/font";
 import type { Metadata, Viewport } from "next";
 import "../styles/globals.css";
 import { Providers } from "./providers";
@@ -52,7 +53,7 @@ const STATIC_RSC = process.env.NODE_ENV === "production";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={plusJakartaSans.variable}>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         {/* Before anything else (PW-2): keep the install prompt, and keep a focused field above the keyboard. */}
         <script dangerouslySetInnerHTML={{ __html: appShellScript() }} />

@@ -7,6 +7,7 @@
 // dim, the focus and the keyboard; the host owns what is inside the box, which
 // it passes as children. Colours are the MY-2 tokens only (./look.ts).
 
+import { BOARD_FONT } from "./board.js";
 import * as React from "react";
 import { look, lookVars, type LookTheme } from "./look.js";
 import { MOTION } from "./motion.js";
@@ -53,9 +54,13 @@ export function useBoxHeight(height: number | null): void {
 export const BOX_HEIGHTS: Record<ExpandButtonKind, number> = { settle: 560, expense: 610, people: 430 };
 /** How far the open box's bottom sits above the closed button's bottom: 114 - 96. */
 export const OPEN_LIFT = 18;
+/** Where the closed button sits unless told: 14px above the app's floating tab bar (`--cp-fab-bottom`, MY-24). */
+export const DEFAULT_BOTTOM = "var(--cp-fab-bottom, 96px)";
+
+const px = (n: number | string): string => (typeof n === "number" ? `${n}px` : n);
 /** The dim over the page: the boards' literal rgba(27,36,32,.42), the same in both themes. */
 export const DIM = "rgba(27,36,32,.42)";
-export const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
+export const FONT = BOARD_FONT;
 
 export interface ExpandButtonProps {
   /** Which screen the button is on; it sets the icon (a plus for `expense`, a chevron otherwise). */
@@ -69,8 +74,12 @@ export interface ExpandButtonProps {
   children?: React.ReactNode | ((api: ExpandButtonApi) => React.ReactNode);
   /** Height of the open box in px (it never grows past the screen). Default: the board's, by kind (settle 560, expense 610, people 430). */
   boxHeight?: number;
-  /** Gap from the screen's bottom to the closed button, in px: the tab bar's height plus a margin. Default 96. */
-  bottomOffset?: number;
+  /**
+   * Gap from the screen's bottom to the closed button: a number of px, or a CSS length. Default
+   * `var(--cp-fab-bottom, 96px)`: the app sets that to 14px above its floating tab bar, from
+   * the same variables as the bar (MY-24); 96 where there are none.
+   */
+  bottomOffset?: number | string;
   /** Accessible name of the X. Default "Close". */
   closeLabel?: string;
   /** Controlled open state; left out, the button keeps its own. */
@@ -95,7 +104,7 @@ const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 export function ExpandButton({
-  kind, label, theme, title, children, boxHeight, bottomOffset = 96, closeLabel = "Close",
+  kind, label, theme, title, children, boxHeight, bottomOffset = DEFAULT_BOTTOM, closeLabel = "Close",
   open: controlled, defaultOpen = false, onOpenChange, contained = false, reduceMotion,
 }: ExpandButtonProps) {
   const [inner, setInner] = React.useState(defaultOpen);
@@ -175,8 +184,8 @@ export function ExpandButton({
     ? "none"
     : [...["left", "right", "bottom", "height"].map((p) => `${p} ${ms}ms ${EASE}`), `border-radius ${ms}ms ease`, `background-color ${ms}ms ease`].join(", ");
   const boxStyle: React.CSSProperties = open
-    ? { left: 12, right: 12, bottom: bottomOffset + OPEN_LIFT, height: openHeight, maxHeight: `calc(100% - ${bottomOffset + OPEN_LIFT + 24}px)`, borderRadius: 20, background: look.surface }
-    : { left: 20, right: 20, bottom: bottomOffset, height: 52, borderRadius: 12, background: look.primary };
+    ? { left: 12, right: 12, bottom: `calc(${px(bottomOffset)} + ${OPEN_LIFT}px)`, height: openHeight, maxHeight: `calc(100% - ${px(bottomOffset)} - ${OPEN_LIFT + 24}px)`, borderRadius: 20, background: look.surface }
+    : { left: 20, right: 20, bottom: px(bottomOffset), height: 52, borderRadius: 12, background: look.primary };
   const fade = `opacity ${EXPAND_FADE_MS}ms ease`;
   const icon = kind === "expense"
     ? <path d="M12 5v14M5 12h14" />
