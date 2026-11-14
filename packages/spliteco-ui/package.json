@@ -18,6 +18,7 @@
     "./look": "./src/look.ts",
     "./people": "./src/people.ts",
     "./people-ui": "./src/people-ui.tsx",
+    "./expand-button": "./src/expand-button.tsx",
     "./groups-ui": "./src/groups-ui.tsx"
   },
   "scripts": {
