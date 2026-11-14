@@ -17,7 +17,8 @@
     "./inside-look": "./src/inside-look.ts",
     "./look": "./src/look.ts",
     "./people": "./src/people.ts",
-    "./people-ui": "./src/people-ui.tsx"
+    "./people-ui": "./src/people-ui.tsx",
+    "./groups-ui": "./src/groups-ui.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
