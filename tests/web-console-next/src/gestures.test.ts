@@ -46,6 +46,8 @@ describe("which screens pull to refresh", () => {
     "/money/settle",
     // Add group from Money (money-native MY-8): a form.
     "/money/add-group",
+    // Manage group (money-native MY-11): switches and a sheet, not a list.
+    "/money/group",
     "/you",
     "/you/settings",
     "/you/notifications",

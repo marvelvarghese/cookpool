@@ -101,6 +101,8 @@ const PARENTS: Readonly<Record<string, ParentRule>> = {
   "/money/settle": () => "/money",
   // Add group from Money (money-native MY-8): back to Money.
   "/money/add-group": () => "/money",
+  // Manage group (money-native MY-11): back to Money.
+  "/money/group": () => "/money",
 };
 
 /**
