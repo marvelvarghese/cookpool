@@ -22,7 +22,7 @@ spec:
       - name: dev
         profile: verify
   parameters:
-    nodeVersion: "20"
+    nodeVersion: "22"  # node:sqlite (sqlite-schema.test.ts) needs Node 22.5+ (CI-1)
     pnpmVersion: "10.12.1"
     buildCommand: pnpm exec turbo run build --filter=./
     typecheckCommand: pnpm exec turbo run typecheck --filter=./
