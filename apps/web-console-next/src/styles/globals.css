@@ -222,13 +222,51 @@
   }
 
   /*
-   * Money, native (money-native MY-8): the shared Money pages draw with the
-   * `cookpool` tokens (`--look-*`, set inline by their LookScope from fixed
-   * light values). Inside Cookpool the tokens are Cookpool's own palette, so
-   * dark follows the device (and You's Appearance) with everything else. The
+   * Money, native (money-native MY-8, MY-18): the shared Money pages draw with
+   * the `cookpool` tokens (`--look-*`, set inline by their LookScope). In light
+   * they are the Theme_Tokens board's values exactly, so the pages are the
+   * boards pixel for pixel; Cookpool's own light palette is close to them but
+   * not the same. In dark (the device's, or You's Appearance) the same tokens
+   * map onto Cookpool's dark palette, which the boards do not draw. The
    * `!important` is what lets this stylesheet win over the inline values.
    */
   .cookpool [data-look="cookpool"] {
+    --look-bg: #F6F5F0 !important;
+    --look-surface: #FFFFFF !important;
+    --look-ink: #1B2420 !important;
+    --look-muted: #5E6862 !important;
+    --look-line: #EFEDE6 !important;
+    --look-primary: #1F7A4D !important;
+    --look-onPrimary: #FFFFFF !important;
+    --look-soft: #E3EFE7 !important;
+    --look-softInk: #1A6A43 !important;
+    --look-get: #1A6A43 !important;
+    --look-owe: #A3360A !important;
+    --look-money: #1A6A43 !important;
+    --look-navInk: #1F7A4D !important;
+    --look-grab: #D8D5CA !important;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    html:not([data-look="light"]) .cookpool-new [data-look="cookpool"] {
+      --look-bg: hsl(var(--background)) !important;
+      --look-surface: hsl(var(--cp-card)) !important;
+      --look-ink: hsl(var(--foreground)) !important;
+      --look-muted: hsl(var(--muted-foreground)) !important;
+      --look-line: hsl(var(--cp-line)) !important;
+      --look-primary: hsl(var(--primary)) !important;
+      --look-onPrimary: hsl(var(--primary-foreground)) !important;
+      --look-soft: hsl(var(--cp-accent-tint)) !important;
+      --look-softInk: hsl(var(--cp-accent-text)) !important;
+      --look-get: hsl(var(--cp-accent-text)) !important;
+      --look-owe: hsl(var(--cp-owe)) !important;
+      --look-money: hsl(var(--cp-accent-text)) !important;
+      --look-navInk: hsl(var(--primary)) !important;
+      --look-grab: hsl(var(--border)) !important;
+    }
+  }
+
+  html[data-look="dark"] .cookpool-new [data-look="cookpool"] {
     --look-bg: hsl(var(--background)) !important;
     --look-surface: hsl(var(--cp-card)) !important;
     --look-ink: hsl(var(--foreground)) !important;

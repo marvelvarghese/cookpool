@@ -128,7 +128,10 @@ describe("Outfit (design §2)", () => {
     expect(theme).not.toMatch(/plus-jakarta/);
     const pkg = JSON.parse(readFileSync(`${APP}/package.json`, "utf8")) as { dependencies: Record<string, string> };
     expect(pkg.dependencies["@fontsource-variable/outfit"]).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(pkg.dependencies["@fontsource-variable/plus-jakarta-sans"]).toBeUndefined();
+    // Plus Jakarta Sans is back for one reason only (money-native MY-18): the Money boards draw in it.
+    // The kitchen theme (theme.ts) still loads Outfit alone; only the Money page imports this font.
+    expect(pkg.dependencies["@fontsource-variable/plus-jakarta-sans"]).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(readFileSync(`${APP}/src/components/kitchen/theme.ts`, "utf8")).not.toContain("plus-jakarta");
   });
 });
 

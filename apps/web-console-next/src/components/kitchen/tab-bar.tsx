@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "./link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
+import { BOARD_FONT } from "@saas/spliteco-ui/board";
 import { cn } from "@/lib/cn";
 import { listenForDrags, prefersReducedMotion } from "@/lib/gestures";
 import { normalizePath, transitions } from "@/lib/transitions";
@@ -109,6 +110,8 @@ const BAR_PAD_PX = 6;
  */
 function FloatingTabBar() {
   const pathname = usePathname();
+  // Money's boards draw the bar on the page's surface with a tinted current tab (MY-18); the other tabs keep RV-2's.
+  const board = isMoneyBoardPath(pathname);
   const tabs = kitchenTabs(true).filter((item) => item.kind === "link");
   const active = tabs.findIndex((item) => isTabActiveIn(true, item.id, pathname));
   const nav = React.useRef<HTMLElement>(null);
@@ -196,16 +199,22 @@ function FloatingTabBar() {
       data-vt-keep="tabs"
       // Its drags are its own (the slide): the edge swipe never starts here.
       data-gestures="off"
+      {...(board ? { "data-look": "cookpool", "data-money-bar": "", style: { fontFamily: BOARD_FONT, fontVariantNumeric: "tabular-nums", color: "var(--look-ink)" } } : {})}
       className={cn(
         "fixed inset-x-3 bottom-[max(14px,env(safe-area-inset-bottom))] z-40 mx-auto max-w-lg",
-        "h-[68px] rounded-[24px] bg-cp-nav-bg p-1.5 shadow-cp-nav min-[900px]:hidden",
+        board
+          ? "box-border h-[68px] rounded-[26px] bg-[var(--look-surface)] px-1.5 shadow-[0_8px_28px_rgba(0,0,0,.12)] min-[900px]:hidden"
+          : "h-[68px] rounded-[24px] bg-cp-nav-bg p-1.5 shadow-cp-nav min-[900px]:hidden",
       )}
     >
       {slideAt !== null ? (
         <span
           aria-hidden
           data-tab-highlight=""
-          className="pointer-events-none absolute bottom-1.5 left-1.5 top-1.5 w-[calc((100%-12px)/5)] rounded-[18px] bg-primary transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none"
+          className={cn(
+            "pointer-events-none absolute w-[calc((100%-12px)/5)] transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
+            board ? "bottom-2 left-1.5 top-2 rounded-[18px] bg-[var(--look-soft)]" : "bottom-1.5 left-1.5 top-1.5 rounded-[18px] bg-primary",
+          )}
           style={{ transform: `translate3d(${slideAt * 100}%, 0, 0)` }}
         />
       ) : null}
@@ -219,13 +228,17 @@ function FloatingTabBar() {
                 href={item.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-[18px] text-[11px] font-medium transition-colors",
+                  "flex flex-col items-center justify-center rounded-[18px] text-[11px] transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  // While a slide is on, the fill is the gliding highlight's; the words follow it.
-                  slideAt === null ? (current ? "bg-primary text-primary-foreground" : "text-cp-nav-ink") : i === lit ? "text-primary-foreground" : "text-cp-nav-ink",
+                  board
+                    ? "mx-0 h-[52px] gap-[2px] leading-[normal] " +
+                        (slideAt === null ? (current ? "mx-[2px] bg-[var(--look-soft)] font-semibold text-[var(--look-navInk)]" : "font-medium text-[var(--look-muted)]") : i === lit ? "mx-[2px] font-semibold text-[var(--look-navInk)]" : "font-medium text-[var(--look-muted)]")
+                    : "min-h-[56px] gap-0.5 font-medium " +
+                      // While a slide is on, the fill is the gliding highlight's; the words follow it.
+                      (slideAt === null ? (current ? "bg-primary text-primary-foreground" : "text-cp-nav-ink") : i === lit ? "text-primary-foreground" : "text-cp-nav-ink"),
                 )}
               >
-                <Icon className="h-[22px] w-[22px]" strokeWidth={2} aria-hidden />
+                <Icon className="h-[22px] w-[22px]" strokeWidth={board ? 1.9 : 2} aria-hidden />
                 <span>{item.label}</span>
               </Link>
             </li>
@@ -234,4 +247,9 @@ function FloatingTabBar() {
       </ul>
     </nav>
   );
+}
+
+/** Money's own pages (`/money`, `/money?side=people`, a person's page): the boards' tab bar. */
+export function isMoneyBoardPath(pathname: string | null | undefined): boolean {
+  return pathname === "/money" || (pathname?.startsWith("/money/") ?? false);
 }

@@ -6,6 +6,7 @@
 
 import * as React from "react";
 import { SPLITECO_INSIDE as S } from "./inside-look.js";
+import { FOCUS_CSS } from "./board.js";
 
 export const LOOK_TOKENS = [
   "bg", "surface", "ink", "muted", "line", "primary", "onPrimary",
@@ -89,6 +90,7 @@ export function LookScope({ theme, children, className, style }: LookScopeProps)
       className,
       style: { ...lookVars(theme), background: look.bg, color: look.ink, ...style } as React.CSSProperties,
     },
+    React.createElement("style", { key: "focus", "data-focus-ring": "" }, FOCUS_CSS),
     children,
   );
 }

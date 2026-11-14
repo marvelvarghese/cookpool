@@ -61,13 +61,13 @@ describe("Money shell", () => {
   });
 
   it("+ Group shows only on Groups", () => {
-    expect(renderToStaticMarkup(<MoneyHeader side="groups" onSide={noop} onAddGroup={noop} />)).toContain("+ Group");
-    expect(renderToStaticMarkup(<MoneyHeader side="people" onSide={noop} onAddGroup={noop} />)).not.toContain("+ Group");
+    expect(renderToStaticMarkup(<MoneyHeader side="groups" onSide={noop} onAddGroup={noop} />)).toContain("add-group-top");
+    expect(renderToStaticMarkup(<MoneyHeader side="people" onSide={noop} onAddGroup={noop} />)).not.toContain("add-group-top");
     const people = renderToStaticMarkup(
       <PeopleList theme="cookpool" header={<MoneyHeader side="people" onSide={noop} onAddGroup={noop} />} people={[]} query="" onQuery={noop} onOpenPerson={noop} onPay={noop} onGotIt={noop} />,
     );
     expect(people).toContain("Powered by Spliteco");
-    expect(people).not.toContain("+ Group");
+    expect(people).not.toContain("add-group-top");
     expect(people).not.toContain("Add group");
   });
 });
@@ -77,7 +77,7 @@ describe("Groups", () => {
     const html = page(theme);
     expect(html).toContain("you owe"); // 520 - 1200 = net owe 680
     expect(html).toContain("₹680");
-    expect(html.indexOf("+ Group")).toBeLessThan(html.indexOf('data-group="org_a"'));
+    expect(html.indexOf("add-group-top")).toBeLessThan(html.indexOf('data-group="org_a"'));
     expect(html.lastIndexOf("Add group")).toBeGreaterThan(html.indexOf('data-group="org_c"'));
     expect(html.match(/data-group="/g)).toHaveLength(3);
   });
@@ -101,7 +101,7 @@ describe("Groups", () => {
     expect(html).not.toContain("data-group=");
     expect(html).not.toContain('data-net');
     expect(html).toContain("Add group");
-    expect(html).toContain("+ Group");
+    expect(html).toContain("add-group-top");
   });
 
   it("currencies are never summed", () => {
