@@ -52,8 +52,8 @@ const sideAnim: Record<Side, string> = {
 
 export const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { side?: Side; /** Replaces the scrim colour class (the default is black/50). */ scrimClassName?: string; /** Drops the built-in ✕ for a sheet that draws its own in its title row. */ bareClose?: boolean }
->(({ className, children, side = "left", scrimClassName, bareClose, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { side?: Side; /** Replaces the scrim colour class (the default is black/50). */ scrimClassName?: string; /** Drops the built-in ✕ for a sheet that draws its own in its title row. */ bareClose?: boolean; /** Inline style of the scrim (a sheet that sets its own dim timing). */ scrimStyle?: React.CSSProperties }
+>(({ className, children, side = "left", scrimClassName, scrimStyle, bareClose, ...props }, ref) => {
   const drag = useSheetDrag(side === "bottom");
   const { content } = drag;
   const contentRef = React.useCallback(
@@ -66,7 +66,7 @@ export const SheetContent = React.forwardRef<
   );
   return (
     <SheetPortal>
-      <SheetOverlay ref={drag.overlay} className={scrimClassName} />
+      <SheetOverlay ref={drag.overlay} className={scrimClassName} {...(scrimStyle ? { style: scrimStyle } : {})} />
       <DialogPrimitive.Content
         ref={contentRef}
         className={cn(

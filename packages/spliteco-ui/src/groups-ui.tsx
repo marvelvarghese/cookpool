@@ -11,6 +11,8 @@ import * as React from "react";
 import type { SplitecoGroupSummary } from "@saas/contracts/spliteco";
 import { BOARD, BOARD_FONT } from "./board.js";
 import { LookScope, look, type LookTheme } from "./look.js";
+import { pillOffset, sideDirection, transitionOf } from "./motion.js";
+import { Amount, useReducedMotion } from "./motion-ui.js";
 import {
   moneyTabGroups,
   moneyTotals,
@@ -72,17 +74,47 @@ const SIDES: { side: MoneySide; label: string }[] = [
   { side: "people", label: "People" },
 ];
 
-/** The Groups | People switch: the open side is a tinted block with icon and label, the other folds to its icon. */
+/** The side the switch last showed, so a switch that is mounted anew (each side is its own page) starts where the last one was and slides. */
+let lastShownSide: MoneySide | null = null;
+/** For tests: forget the remembered side. */
+export function resetMoneySwitchMemory(): void {
+  lastShownSide = null;
+}
+
+/** The Groups | People switch: the open side is a tinted pill that slides to the other side; its label and icon cross-fade. */
 export function MoneySwitch({
   side,
   onSide,
-}: Pick<MoneyHeaderProps, "side" | "onSide">) {
+  reduceMotion,
+}: Pick<MoneyHeaderProps, "side" | "onSide"> & { reduceMotion?: boolean }) {
+  const reduced = useReducedMotion(reduceMotion);
+  // First paint at the side shown last, then the current one a frame later, so the pill travels.
+  const [shown, setShown] = React.useState<MoneySide>(lastShownSide ?? side);
+  React.useEffect(() => {
+    lastShownSide = side;
+    if (shown === side) return;
+    if (typeof requestAnimationFrame !== "function") { setShown(side); return; }
+    const first = requestAnimationFrame(() => setShown(side));
+    return () => cancelAnimationFrame(first);
+  }, [side, shown]);
+  const travel = B.switch.foldedWidth + B.switch.gap;
+  const openWidth = `calc(100% - ${B.switch.foldedWidth + B.switch.gap}px)`;
+  const slide = reduced ? transitionOf("fade", ["opacity"], true) : transitionOf("geometry", ["transform"]);
+  const widthMove = reduced ? "none" : transitionOf("geometry", ["width"]);
+  const fade = transitionOf("fade", ["opacity", "color"], reduced);
+  // Which way the pill is going: from where it is to where it is asked to be; once it is there the last way stays.
+  const way = React.useRef<1 | -1>(1);
+  if (shown !== side) way.current = sideDirection(shown, side);
+  const direction = way.current;
   return (
     <div
       role="tablist"
       aria-label="Money"
       data-switch=""
+      data-side={shown}
+      data-direction={direction > 0 ? "forward" : "back"}
       style={{
+        position: "relative",
         display: "flex",
         gap: B.switch.gap,
         height: B.switch.height,
@@ -92,6 +124,22 @@ export function MoneySwitch({
         boxSizing: "border-box",
       }}
     >
+      <span
+        data-switch-pill=""
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: B.switch.pad,
+          bottom: B.switch.pad,
+          left: B.switch.pad,
+          width: `calc(100% - ${2 * B.switch.pad + travel}px)`,
+          borderRadius: B.switch.tabRadius,
+          background: look.soft,
+          transform: `translate3d(${pillOffset(shown, travel)}px,0,0)`,
+          transition: slide,
+          willChange: "transform",
+        }}
+      />
       {SIDES.map((s) => {
         const open = s.side === side;
         return (
@@ -105,12 +153,14 @@ export function MoneySwitch({
             data-open={open ? "true" : "false"}
             onClick={() => onSide(s.side)}
             style={{
-              flex: open ? 1 : "none",
-              width: open ? undefined : B.switch.foldedWidth,
+              position: "relative",
+              flex: "none",
+              width: open ? openWidth : B.switch.foldedWidth,
+              transition: widthMove,
               padding: 0,
               borderRadius: B.switch.tabRadius,
               border: 0,
-              background: open ? look.soft : "transparent",
+              background: "transparent",
               color: open ? look.softInk : look.muted,
               fontSize: B.switch.size,
               fontWeight: B.switch.weight,
@@ -119,11 +169,27 @@ export function MoneySwitch({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: B.switch.iconGap,
+              overflow: "hidden",
             }}
           >
-            <Icon side={s.side} />
-            {open ? <span>{s.label}</span> : null}
+            <span style={{ display: "flex", transition: fade }}>
+              <Icon side={s.side} />
+            </span>
+            <span
+              data-label=""
+              aria-hidden={open ? undefined : true}
+              style={{
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                maxWidth: open ? 120 : 0,
+                marginLeft: open ? B.switch.iconGap : 0,
+                opacity: open ? 1 : 0,
+                transition: reduced ? fade : `${transitionOf("fade", ["opacity"])}, ${transitionOf("geometry", ["max-width", "margin-left"])}`,
+              }}
+            >
+              {s.label}
+            </span>
           </button>
         );
       })}
@@ -280,7 +346,7 @@ function Net({ groups }: { groups: readonly SplitecoGroupSummary[] }) {
               color: NET_TONE[toneOf(t.minor)],
             }}
           >
-            {t.minor === 0 ? "Settled" : signedShort(t.minor, t.currency)}
+            <Amount value={t.minor} format={(m) => (m === 0 ? "Settled" : signedShort(m, t.currency))} />
           </span>
           <span style={{ fontSize: B.net.wordsSize, color: look.muted }}>
             {t.words}

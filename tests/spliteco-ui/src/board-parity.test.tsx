@@ -104,7 +104,7 @@ describe("Groups holds Settle_Money", () => {
     const folded = groupsHtml.match(/<button[^>]*data-side="people"[^>]*>.*?<\/button>/)![0];
     expect(open).toContain("border-radius:10px");
     expect(open).toContain("font-size:15px;font-weight:500");
-    expect(open).toContain("gap:8px");
+    expect(open).toContain("margin-left:8px");
     expect(open).toContain('width="20"');
     expect(folded).toContain("width:52px");
     expect(folded).toContain('width="20"');

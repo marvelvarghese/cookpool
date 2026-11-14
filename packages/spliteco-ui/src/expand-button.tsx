@@ -9,6 +9,8 @@
 
 import * as React from "react";
 import { look, lookVars, type LookTheme } from "./look.js";
+import { MOTION } from "./motion.js";
+import { usePrefersReducedMotion } from "./motion-ui.js";
 
 export type ExpandButtonKind = "settle" | "expense" | "people";
 
@@ -82,30 +84,15 @@ export interface ExpandButtonProps {
 }
 
 /** How long the grow and shrink take (ms), and the longest the reduce-motion fade may take. */
-export const EXPAND_MS = 450;
+export const EXPAND_MS = MOTION.geometryMs;
 export const EXPAND_FADE_MS = 120;
 
 /** Out of sight but still the dialog's name and in the reading order. */
 const HIDDEN: React.CSSProperties = { position: "absolute", width: 1, height: 1, margin: -1, padding: 0, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 };
 
-const EASE = "cubic-bezier(.2,.8,.2,1)";
+const EASE = MOTION.ease;
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
-
-function usePrefersReducedMotion(): boolean {
-  const query = "(prefers-reduced-motion: reduce)";
-  const get = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches;
-  const [reduced, setReduced] = React.useState(get);
-  React.useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia(query);
-    const onChange = () => setReduced(mq.matches);
-    onChange();
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
-  }, []);
-  return reduced;
-}
 
 export function ExpandButton({
   kind, label, theme, title, children, boxHeight, bottomOffset = 96, closeLabel = "Close",

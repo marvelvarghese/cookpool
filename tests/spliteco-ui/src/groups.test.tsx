@@ -38,18 +38,18 @@ describe("Money shell", () => {
     const folded = html.match(/<button[^>]*data-side="people"[^>]*>.*?<\/button>/)![0];
     expect(open).toContain('data-open="true"');
     expect(open).toContain("<svg");
-    expect(open).toContain("<span>Groups</span>");
-    expect(open).toContain("var(--look-soft)");
+    expect(open).toMatch(/<span data-label=""[^>]*opacity:1[^>]*>Groups<\/span>/);
+    expect(html).toMatch(/data-switch-pill[^>]*background:var\(--look-soft\)/);
     expect(folded).toContain('data-open="false"');
     expect(folded).toContain("<svg");
-    expect(folded).not.toContain("<span>People</span>");
+    expect(folded).toMatch(/<span data-label="" aria-hidden="true"[^>]*max-width:0[^>]*opacity:0[^>]*>People<\/span>/);
     expect(folded).toContain('aria-label="People"');
   });
 
   it("the switch flips: People open, Groups folded", () => {
     const html = renderToStaticMarkup(<MoneyHeader side="people" onSide={noop} />);
-    expect(html.match(/<button[^>]*data-side="people"[^>]*>.*?<\/button>/)![0]).toContain("<span>People</span>");
-    expect(html.match(/<button[^>]*data-side="groups"[^>]*>.*?<\/button>/)![0]).not.toContain("<span>Groups</span>");
+    expect(html.match(/<button[^>]*data-side="people"[^>]*>.*?<\/button>/)![0]).toMatch(/<span data-label=""[^>]*opacity:1[^>]*>People<\/span>/);
+    expect(html.match(/<button[^>]*data-side="groups"[^>]*>.*?<\/button>/)![0]).toMatch(/aria-hidden="true"[^>]*opacity:0/);
   });
 
   it("clicking a side calls onSide", () => {

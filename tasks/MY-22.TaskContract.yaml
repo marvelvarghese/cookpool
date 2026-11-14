@@ -1,0 +1,23 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-22
+  title: "Money moves: fluid motion across the Money pages"
+spec:
+  goal: "The Money pages move the way the ExpandButton does: one set of timings, a sliding Groups | People switch, pages that slide in and out, sheets that rise, pressed states, and a calm reduced-motion fallback."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/spliteco-ui-tests
+    - default/cookpool/web-console-next
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - apps/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-22.TaskContract.yaml
+  doneWhen:
+    - "One set of motion tokens beside look.ts (geometry .45s, fades .25s, small .15s); every page and primitive reads them"
+    - "The Groups | People pill slides, the label cross-fades and the page drifts 8-12px in the direction of the move"
+    - "Pages slide in from the right over .45s with the old one dimming; sheets rise from the bottom; both are interruptible"
+    - "Pressed states, switch knobs, changing balances and added or removed rows ease; reduced motion makes each instant or a .15s fade"
+    - "Tests pin the tokens, the pill's position and direction, interruptibility and reduced motion; tests, typecheck and lint pass"
+  gates: []
