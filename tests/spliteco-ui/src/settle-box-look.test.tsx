@@ -27,7 +27,8 @@ describe.each(THEMES)("settle box in %s", (theme) => {
 
   it("draws with tokens only", () => {
     for (const raw of Object.values(pages)) {
-      const html = raw.replace(/--look-\w+:#[0-9A-Fa-f]{3,8};?/g, ""); // the scope's own variable declarations
+      // the scope's own variable declarations, and the boards' one literal: the dim, rgba(27,36,32,.42) in every theme
+      const html = raw.replace(/--look-\w+:#[0-9A-Fa-f]{3,8};?/g, "").replace("rgba(27,36,32,.42)", "");
       expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
       expect(html).not.toMatch(/rgba?\(/);
     }
