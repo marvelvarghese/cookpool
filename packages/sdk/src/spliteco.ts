@@ -2,6 +2,7 @@ import type {
   SplitecoActivityResponse,
   SplitecoCommentRequest,
   SplitecoCommentResponse,
+  SplitecoBalancesResponse,
   SplitecoCreateGroupRequest,
   SplitecoCreateGroupResponse,
   SplitecoDirectGroupResponse,
@@ -53,6 +54,11 @@ export class SplitecoClient {
   /** GET /v1/spliteco/me/home — totals per currency and everyone you have money with. */
   home(opts: RequestOptions = {}): Promise<SplitecoHomeResponse> {
     return this.transport.request<SplitecoHomeResponse>({ method: "GET", path: `${BASE}/me/home` }, opts);
+  }
+
+  /** GET /v1/spliteco/me/balances — everyone you share a group with, one net per currency, the groups behind it and the plan. */
+  balances(opts: RequestOptions = {}): Promise<SplitecoBalancesResponse> {
+    return this.transport.request<SplitecoBalancesResponse>({ method: "GET", path: `${BASE}/me/balances` }, opts);
   }
 
   /** GET /v1/spliteco/me/groups — every group you're in (kitchens too) and your friends. */

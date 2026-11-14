@@ -14,7 +14,7 @@ import {
   handleMoveExpense,
   handleRestoreExpense,
 } from "./handlers/expenses.js";
-import { handleCreateGroup, handleDirectGroup, handleFriend, handleGroup, handleGroups, handleHome } from "./handlers/groups.js";
+import { handleBalances, handleCreateGroup, handleDirectGroup, handleFriend, handleGroup, handleGroups, handleHome } from "./handlers/groups.js";
 import { handleExport, handleInsights } from "./handlers/insights.js";
 import { handleGetProfile, handlePutProfile, handleSendReminder } from "./handlers/reminders.js";
 import { handleLive, handleLiveClaim, handleLiveLock, handleOpenLive } from "./handlers/live.js";
@@ -42,6 +42,7 @@ const ID = "([^/]+)";
 const ROUTES: Route[] = [
   { name: "spliteco.me.home", pattern: new RegExp(`${P}/me/home$`), methods: { GET: (ctx) => handleHome(ctx) } },
   { name: "spliteco.me.groups", pattern: new RegExp(`${P}/me/groups$`), methods: { GET: (ctx) => handleGroups(ctx) } },
+  { name: "spliteco.me.balances", pattern: new RegExp(`${P}/me/balances$`), methods: { GET: (ctx) => handleBalances(ctx) } },
   { name: "spliteco.me.activity", pattern: new RegExp(`${P}/me/activity$`), methods: { GET: (ctx) => handleMyActivity(ctx) } },
   // SE5: search, and an assistant's drafts.
   { name: "spliteco.me.search", pattern: new RegExp(`${P}/me/search$`), methods: { GET: (ctx, _r, _p, url) => handleSearch(ctx, url) } },
