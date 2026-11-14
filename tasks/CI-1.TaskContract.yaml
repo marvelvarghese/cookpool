@@ -10,5 +10,5 @@ spec:
     - tasks/CI-1.TaskContract.yaml
   doneWhen:
     - "Every tests/*/component.yaml uses profile verify, and a test fails if one goes back to quick-check"
-    - "Each test component's Verify job on the PR runs jest and passes"
+    - "Each test component's Verify job on the PR shows jest's Test Suites line and passes"
   gates: []
