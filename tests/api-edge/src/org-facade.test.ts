@@ -504,12 +504,12 @@ describe("api-edge org facade", () => {
       expect(membershipCalls[0]!.url).toContain("/v1/organizations/org_abc123/members");
     });
 
-    it("only allows GET method", async () => {
+    it("only allows GET and POST (add members, MY-17)", async () => {
       const { fetcher: identityFetcher } = createSessionFetcher("usr_abc123");
       const { fetcher: membershipFetcher } = createFakeFetcher();
 
       const request = new Request("https://api.example.com/v1/organizations/org_abc123/members", {
-        method: "POST",
+        method: "PUT",
         headers: { authorization: "Bearer sps_ses_abc.secret", "content-type": "application/json" },
         body: JSON.stringify({}),
       });
@@ -897,6 +897,28 @@ describe("api-edge org facade", () => {
 
       it("matches /v1/organizations/{orgId}/invitations/{invitationId}", () => {
         expect(isOrgRoute("/v1/organizations/org_abc/invitations/inv_def")).toBe(true);
+      });
+    });
+
+    describe("POST /v1/organizations/{orgId}/members (MY-17)", () => {
+      it("forwards the add-members body to MEMBERSHIP_WORKER with the actor", async () => {
+        const { fetcher: identityFetcher } = createSessionFetcher("usr_admin");
+        const { fetcher: membershipFetcher, calls: membershipCalls } = createFakeFetcher();
+        const request = new Request("https://api.example.com/v1/organizations/org_abc/members", {
+          method: "POST",
+          headers: { authorization: "Bearer sps_ses_abc.secret", "content-type": "application/json", "idempotency-key": "ikey_add_members_1" },
+          body: JSON.stringify({ sourceGroupId: "org_src", subjectIds: ["usr_a"] }),
+        });
+        const response = await handleOrgRoute(
+          request,
+          { IDENTITY_WORKER: identityFetcher, MEMBERSHIP_WORKER: membershipFetcher, ENVIRONMENT: "test" },
+          "req_test",
+          "/v1/organizations/org_abc/members",
+        );
+        expect(response.status).toBe(200);
+        expect(membershipCalls[0]!.url).toContain("/v1/organizations/org_abc/members");
+        expect(membershipCalls[0]!.init.method).toBe("POST");
+        expect(new Headers(membershipCalls[0]!.init.headers as HeadersInit).get("x-actor-subject-id")).toBe("usr_admin");
       });
     });
 

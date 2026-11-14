@@ -1,0 +1,30 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-17
+  title: "Add group members by subject id"
+spec:
+  goal: "membership-worker adds people who already share a Spliteco group with you to a Cookpool group by subject id, so Start from Spliteco brings the group's people across."
+  affects:
+    - default/cookpool/membership-worker
+    - default/cookpool/membership-worker-tests
+    - default/cookpool/contracts
+    - default/cookpool/contracts-tests
+    - default/cookpool/sdk
+    - default/cookpool/api-edge
+    - default/cookpool/api-edge-tests
+    - apps/membership-worker/**
+    - tests/membership-worker/**
+    - apps/api-edge/**
+    - tests/api-edge/**
+    - packages/contracts/**
+    - tests/contracts/**
+    - packages/sdk/**
+    - specs/epics/money-native/**
+    - tasks/MY-17.TaskContract.yaml
+  doneWhen:
+    - "One new POST on a group's members adds named people at once, only for an owner or admin of that group who is in the source Spliteco group the people come from"
+    - "Each person is added or skipped with a reason (not in source, already a member, groups per person, group full); one skip never fails the call"
+    - "The write is audited like other membership writes and a retry with the same Idempotency-Key writes nothing twice"
+    - "The SDK client has a method for it; the membership-worker, contracts, sdk and api-edge tests pass"
+  gates: []

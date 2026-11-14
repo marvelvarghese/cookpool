@@ -5,6 +5,7 @@ import { handleListOrganizations } from "./handlers/list-organizations.js";
 import { handleGetOrganization } from "./handlers/get-organization.js";
 import { handleListMembers } from "./handlers/list-members.js";
 import { handleUpdateMemberRole } from "./handlers/update-member-role.js";
+import { handleAddMembers } from "./handlers/add-members.js";
 import { handleRemoveMember } from "./handlers/remove-member.js";
 import { handleCreateInvitation } from "./handlers/create-invitation.js";
 import { handleListInvitations } from "./handlers/list-invitations.js";
@@ -290,6 +291,13 @@ export async function route(request: Request, env: Env): Promise<Response> {
           return errorResponse("unauthenticated", "Authentication required", 401, requestId);
         }
         return handleListMembers(env, requestId, actor, orgMembersMatch[1]!, url);
+      }
+      if (request.method === "POST") {
+        const actor = resolveActor(request);
+        if (!actor) {
+          return errorResponse("unauthenticated", "Authentication required", 401, requestId);
+        }
+        return handleAddMembers(request, env, requestId, actor, orgMembersMatch[1]!);
       }
       return methodNotAllowed(requestId);
     }

@@ -66,7 +66,7 @@ export async function handleOrgRoute(
     return errorResponse("unsupported", "Method not allowed", 405, requestId);
   }
 
-  if (ORG_MEMBERS_RE.test(pathname) && request.method !== "GET") {
+  if (ORG_MEMBERS_RE.test(pathname) && request.method !== "GET" && request.method !== "POST") {
     return errorResponse("unsupported", "Method not allowed", 405, requestId);
   }
 

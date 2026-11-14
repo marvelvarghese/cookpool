@@ -7,7 +7,7 @@
 | Field | Value |
 |-------|-------|
 | Status | 📝 Planned (2026-11-14) — the spec PR (MY-1) only; nothing built |
-| Cluster | **MY** (MY0–MY6, MY-1..MY-16) |
+| Cluster | **MY** (MY0–MY6, MY-1..MY-17) |
 | Owner(s) | `packages/spliteco-ui` (tokens, the expanding button, Groups, People, Person), `apps/web-console-next` (the host: `/money`, settle and expense wiring, Add group, Manage group), `apps/spliteco-worker` + contracts + sdk (the one People read, MY-15), `apps/spliteco-web` (takes the pages, MY-12), and their tests. One worker read (MY-15, everyone's balances); no migration. |
 | Builds on | `money-inside` (supersedes its "round two", MN-8, which was never built), `cookpool-spliteco` (SE3 shared package, the settle and balance logic), `cookpool-kitchen-calm` (the calm look and tab bar). |
 | Decisions locked | Ten, from the owner's approval of 2026-11-14 — see [design.md](design.md). |
