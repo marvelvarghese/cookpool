@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-21
+  title: "Money works as an installed app: page switches, one padding, no zoom"
+spec:
+  goal: "Run as an installed web app, Money's pages switch and go back through real routes, sit in the frame with the boards' padding once, and the app does not zoom."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/spliteco-ui
+    - apps/web-console-next/**
+    - packages/spliteco-ui/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-21.TaskContract.yaml
+  doneWhen:
+    - "Groups, People and a person are routes taken through the frame's router; the arrow, the system back and edge swipe go back one step; old ?side= and ?person= links redirect"
+    - "Money has no second padding: 20px sides from the shell edge, safe-area only on <main>, floating buttons above the tab bar and its inset, in light and dark"
+    - "Viewport has maximum-scale=1, user-scalable=no; root touch-action is manipulation; phone fields are 16px+; tests pin routes, padding and viewport; typecheck, lint and tests pass"
+  gates: []

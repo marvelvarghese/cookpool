@@ -457,6 +457,30 @@
   html {
     -webkit-tap-highlight-color: transparent;
   }
+  /*
+   * No pinch or double-tap zoom (MY-21): panning and scrolling stay, zooming
+   * goes. The root says it for the whole page, since a double-tap on text or
+   * empty space zooms from there; the controls below say it for themselves.
+   * The viewport meta (layout.tsx) blocks the pinch; this blocks the double-tap
+   * and the iOS fallbacks. Browser text size is untouched (no fixed html size).
+   */
+  html,
+  body {
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /*
+   * A field under 16px makes iOS zoom the page in when it is focused, and the
+   * zoom stays. On phones every text field is at least 16px.
+   */
+  @media (max-width: 899px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+    select,
+    textarea {
+      font-size: max(16px, 1em) !important;
+    }
+  }
   a,
   button,
   input,
