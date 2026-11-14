@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: KC-10
+  title: "The Kitchen list as the board draws it"
+spec:
+  goal: "The Kitchen page is the board's calm list: round Search and + in the header, All, Use soon and Running low chips, then Use first and Shelf."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - apps/web-console-next/**
+    - tests/web-console-next/**
+    - specs/epics/cookpool-kitchen-calm/**
+    - tasks/KC-10.TaskContract.yaml
+  doneWhen:
+    - "Stage's Kitchen shows the switcher, the list, a round Search and a round +, then the three chips"
+    - "Items due soon or past their date sit under Use first, the rest under Shelf, and each chip narrows both"
+    - "The web-console-next tests pass"
+  gates: []

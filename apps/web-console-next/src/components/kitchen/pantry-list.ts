@@ -377,6 +377,56 @@ export function pantrySections<T extends { id: string; item: Pick<KitchenItem, "
   return out.sort((a, b) => place(a) - place(b) || a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
 }
 
+// ── The Kitchen list (cookpool-kitchen-calm KC-10, the canvas's Kitchen board) ──
+
+/** The Kitchen's chips: All · Use soon · Running low. */
+export type KitchenChip = "all" | "soon" | "low";
+
+export const KITCHEN_CHIPS: readonly { key: KitchenChip; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "soon", label: "Use soon" },
+  { key: "low", label: "Running low" },
+];
+
+/** The chip `?filter=` names (the old frame's `expired` is Use soon); All otherwise. */
+export function parseKitchenChip(filter: string | null | undefined): KitchenChip {
+  if (filter === "soon" || filter === "expired") return "soon";
+  if (filter === "low") return "low";
+  return "all";
+}
+
+export interface KitchenSplit<T> {
+  /** Due soon or past its date, the most urgent first. */
+  useFirst: T[];
+  /** Everything else, the most urgent first, then by name. */
+  shelf: T[];
+}
+
+/**
+ * The board's two sections: Use first (soon or expired) and Shelf (the rest),
+ * narrowed to one pantry (`pantry`, null for all), to the chip and to the
+ * search. A row running low but in date stays on the Shelf, with its tag.
+ */
+export function kitchenSplit<T extends { id: string; item: Pick<KitchenItem, "name" | "category" | "daysToUseBy" | "pantry">; status: ItemStatus }>(
+  rows: readonly T[],
+  opts: { chip: KitchenChip; pantry: string | null; query?: string },
+): KitchenSplit<T> {
+  const query = opts.query ?? "";
+  const useFirst: T[] = [];
+  const shelf: T[] = [];
+  for (const r of rows) {
+    if (opts.pantry !== null && pantryKey(r.item.pantry) !== opts.pantry) continue;
+    if (!matchesQuery(r.item, query)) continue;
+    const first = r.status.soon || r.status.expired;
+    if (opts.chip === "soon" && !first) continue;
+    if (opts.chip === "low" && !r.status.low) continue;
+    (first ? useFirst : shelf).push(r);
+  }
+  useFirst.sort(byUrgencyThenName);
+  shelf.sort(byUrgencyThenName);
+  return { useFirst, shelf };
+}
+
 // ── The use-soon card (design §1.5) ───────────────────────────────
 
 export interface UseSoonCard {
