@@ -44,6 +44,8 @@ describe("which screens pull to refresh", () => {
     "/settle",
     // Settle up in a kitchen (cookpool-spliteco SE3): a form, like Add a bill.
     "/money/settle",
+    // Add group from Money (money-native MY-8): a form.
+    "/money/add-group",
     "/you",
     "/you/settings",
     "/you/notifications",

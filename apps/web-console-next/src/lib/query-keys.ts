@@ -47,6 +47,9 @@ export const qk = {
   // the "why" for one person, both under `kitchenMe()` so a ledger write
   // refreshes them together; a group's members, by name and role.
   kitchenMe: () => ["kitchenMe"] as const,
+  // Cookpool's native Money (MY-8): the groups list and each group, as spliteco-worker answers them.
+  moneyGroups: () => ["money", "groups"] as const,
+  moneyGroup: (groupId: string) => ["money", "group", groupId] as const,
   kitchenMyBalances: () => ["kitchenMe", "balances"] as const,
   kitchenPerson: (subjectId: string) => ["kitchenMe", "person", subjectId] as const,
   kitchenMembers: (orgId: string) => ["kitchenMembers", orgId] as const,

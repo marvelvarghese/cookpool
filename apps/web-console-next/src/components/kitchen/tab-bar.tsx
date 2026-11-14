@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { SPLITECO_INSIDE } from "@saas/spliteco-ui/inside-look";
 import Link from "./link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -188,9 +187,6 @@ function FloatingTabBar() {
   React.useEffect(() => setSlideAt(null), [pathname]);
 
   const lit = slideAt ?? active;
-  // Money is Spliteco inside (money-inside MN-3): the bar turns Spliteco's navy, the tab its gold.
-  const inside = pathname?.startsWith("/money") ?? false;
-  const S = SPLITECO_INSIDE;
   return (
     <nav
       ref={nav}
@@ -204,14 +200,13 @@ function FloatingTabBar() {
         "fixed inset-x-3 bottom-[max(14px,env(safe-area-inset-bottom))] z-40 mx-auto max-w-lg",
         "h-[68px] rounded-[24px] bg-cp-nav-bg p-1.5 shadow-cp-nav min-[900px]:hidden",
       )}
-      style={inside ? { background: S.card } : undefined}
     >
       {slideAt !== null ? (
         <span
           aria-hidden
           data-tab-highlight=""
           className="pointer-events-none absolute bottom-1.5 left-1.5 top-1.5 w-[calc((100%-12px)/5)] rounded-[18px] bg-primary transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none"
-          style={{ transform: `translate3d(${slideAt * 100}%, 0, 0)`, ...(inside ? { background: S.gold } : {}) }}
+          style={{ transform: `translate3d(${slideAt * 100}%, 0, 0)` }}
         />
       ) : null}
       <ul className="relative grid h-full grid-cols-5 items-center">
@@ -223,7 +218,6 @@ function FloatingTabBar() {
               <Link
                 href={item.href}
                 aria-current={current ? "page" : undefined}
-                style={inside ? (slideAt === null ? (current ? { background: S.gold, color: S.ground } : { color: S.muted }) : i === lit ? { color: S.ground } : { color: S.muted }) : undefined}
                 className={cn(
                   "flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-[18px] text-[11px] font-medium transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
