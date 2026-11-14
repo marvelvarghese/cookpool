@@ -38,6 +38,16 @@ export const NEW_FRAME_ONLY: Readonly<Record<string, string>> = {
   "/money": "/home",
   // Settle up in a kitchen, on spliteco-worker (cookpool-spliteco SE3): Money's.
   "/money/settle": "/home",
+  // Spliteco's own screens inside Money (money-inside MN-8).
+  "/money/group": "/home",
+  "/money/add": "/home",
+  "/money/expense": "/home",
+  "/money/settle-up": "/home",
+  "/money/scan": "/home",
+  "/money/friend": "/home",
+  "/money/move": "/home",
+  "/money/share": "/home",
+  "/money/insights": "/home",
   "/you/settings": "/you",
   // The shopping run (cookpool-pantry PN-6): today's frame has none, so its visitor goes to the Pantry.
   "/pantry/run": "/pantry",

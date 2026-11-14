@@ -643,6 +643,9 @@ importers:
       '@saas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@saas/gestures':
+        specifier: workspace:*
+        version: link:../../packages/gestures
       '@saas/kitchen-engine':
         specifier: workspace:*
         version: link:../../packages/kitchen-engine
@@ -652,6 +655,9 @@ importers:
       '@saas/spliteco-ui':
         specifier: workspace:*
         version: link:../../packages/spliteco-ui
+      '@saas/spliteco-web':
+        specifier: workspace:*
+        version: link:../spliteco-web
       '@simplewebauthn/browser':
         specifier: 14.0.0
         version: 14.0.0

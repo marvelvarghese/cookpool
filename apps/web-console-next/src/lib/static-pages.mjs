@@ -51,6 +51,16 @@ export const STATIC_PAGES = Object.freeze([
   "/money",
   // Settle up in a kitchen, on spliteco-worker (cookpool-spliteco SE3).
   "/money/settle",
+  // Spliteco's own screens inside Money (money-inside MN-8).
+  "/money/group",
+  "/money/add",
+  "/money/expense",
+  "/money/settle-up",
+  "/money/scan",
+  "/money/friend",
+  "/money/move",
+  "/money/share",
+  "/money/insights",
   "/people",
   "/people/:subjectId",
   "/pantry",

@@ -190,7 +190,9 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
       </section>
     </div>
   );
-  return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
+  if (typeof document === "undefined") return sheet;
+  // A host app that shows these screens (money-inside MN-8) marks where sheets go, inside its scoped wrapper.
+  return createPortal(sheet, document.querySelector<HTMLElement>("[data-spliteco-portal]") ?? document.body);
 }
 
 export function useToast(): [React.ReactNode, (text: string) => void] {
