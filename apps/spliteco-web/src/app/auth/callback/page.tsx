@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { sessionStore, takeReturn } from "@/lib/return-to";
-import { useSession } from "@/lib/session";
+import { sessionStore, takeReturn } from "../../../lib/return-to";
+import { useSession } from "../../../lib/session";
 
 // Where Google returns:
 // identity-worker redirects here with `#token=…` or `#error=…` in the

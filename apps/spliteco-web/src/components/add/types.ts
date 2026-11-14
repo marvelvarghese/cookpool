@@ -1,5 +1,5 @@
-import type { ExpenseForm } from "@/lib/split-form";
-import type { Names } from "@/lib/people";
+import type { ExpenseForm } from "../../lib/split-form";
+import type { Names } from "../../lib/people";
 
 /** What every view of the Add expense form shares. */
 export interface FormCtx {

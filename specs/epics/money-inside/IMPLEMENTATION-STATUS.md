@@ -26,3 +26,14 @@
 
 - ~~Remove Cookpool's old Money screens~~ (MN-6). The kitchen-only Settle page (`/money/settle`) stays: dishes and group settings link to it.
 - Settle inside the tab instead of opening Spliteco.
+
+## Round two — Money stays in Cookpool
+
+The owner asked for every Money feature inside Cookpool, with no trip to the
+Spliteco app. Spliteco's own screens are mounted in Cookpool rather than
+copied:
+
+| Task | What | State | PR |
+|---|---|---|---|
+| MN-7 | Spliteco's screens mountable: relative imports, links through `to()`, the session as context | shipped | this PR |
+| MN-8 | Cookpool mounts group, Add expense, expense, Settle up and Scan under /money; the tab stops handing off | planned | |

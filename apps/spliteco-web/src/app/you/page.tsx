@@ -3,12 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Icon } from "@/components/icons";
-import { Avatar, Screen, Sheet, useLoad } from "@/components/ui";
+import { Icon } from "../../components/icons";
+import { Avatar, Screen, Sheet, useLoad } from "../../components/ui";
 import { isUpiVpa } from "@saas/contracts/spliteco";
-import { applyTheme, readTheme, type ThemeChoice } from "@/lib/theme";
-import { errorText, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
+import { applyTheme, readTheme, type ThemeChoice } from "../../lib/theme";
+import { errorText, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
+import { to } from "../../lib/paths";
 
 export default function YouPage() {
   const { client, signOut } = useSession();
@@ -85,7 +86,7 @@ export default function YouPage() {
 
       <section aria-label="Connected apps" className="stack s4">
         <h2 className="eyebrow">Connected apps</h2>
-        <Link href="/groups" className="lrow">
+        <Link href={to("/groups")} className="lrow">
           <span className="cat" style={{ background: "rgba(76,201,138,0.14)", color: "#4CC98A" }}><Icon name="cookpool" /></span>
           <span className="main">
             <span className="title">Cookpool</span>
@@ -93,7 +94,7 @@ export default function YouPage() {
           </span>
           <Icon name="chevron" />
         </Link>
-        <Link href="/you/assistants" className="lrow">
+        <Link href={to("/you/assistants")} className="lrow">
           <span className="cat" style={{ background: "var(--cobalt-soft)", color: "var(--text)" }}><Icon name="sparkle" /></span>
           <span className="main">
             <span className="title">AI assistants</span>

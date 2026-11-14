@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { SPLITECO_CREATE_KINDS, type SplitecoCreateKind, type SplitecoGroupSummary, type SplitecoGroupsResponse } from "@saas/contracts/spliteco";
 import { Icon } from "../icons";
 import { Avatar, Loading, Sheet, type Load } from "../ui";
-import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { KIND_LABELS } from "@/lib/view";
-import { groupTint } from "@/lib/groups";
-import { fromKitchen, mainBalance, signedShort } from "@/lib/home";
+import { errorText, newIdempotencyKey, useSession } from "../../lib/session";
+import { KIND_LABELS } from "../../lib/view";
+import { groupTint } from "../../lib/groups";
+import { fromKitchen, mainBalance, signedShort } from "../../lib/home";
+import { to } from "../../lib/paths";
 
 /**
  * Groups (V2Home page 2, design §3): one line per group or friend — tile,
@@ -127,7 +128,7 @@ function Lists(props: {
             const b = mainBalance(f.balances);
             const amount = b ? signedShort(b.amountMinor, b.currency) : { text: "settled", tone: "even" as const };
             return (
-              <Link key={f.subjectId} href={`/friend?id=${encodeURIComponent(f.subjectId)}`} className="prow">
+              <Link key={f.subjectId} href={to(`/friend?id=${encodeURIComponent(f.subjectId)}`)} className="prow">
                 <Avatar id={f.subjectId} name={name} me={props.me} size={38} />
                 <span className="name">{name}</span>
                 {fromKitchen(f, data.groups) ? <span className="kdot" role="img" aria-label="From a Cookpool kitchen" /> : null}
@@ -152,7 +153,7 @@ function GroupRow({ g }: { g: SplitecoGroupSummary }) {
   const n = g.myBalanceMinor;
   const amount = n === 0 ? { text: "settled", tone: "even" as const } : signedShort(n, g.currency);
   return (
-    <Link href={`/group?id=${encodeURIComponent(g.id)}`} className="prow">
+    <Link href={to(`/group?id=${encodeURIComponent(g.id)}`)} className="prow">
       <span className="gtile" style={{ background: tint.bg, color: tint.fg }} aria-hidden="true">
         <Icon name={g.kind} size={20} />
       </span>
@@ -177,7 +178,7 @@ function CreateGroup({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       const r = await client.spliteco.createGroup({ name: name.trim(), kind }, { idempotencyKey: key.current });
-      router.push(`/group?id=${encodeURIComponent(r.group.id)}`);
+      router.push(to(`/group?id=${encodeURIComponent(r.group.id)}`));
     } catch (err) {
       setError(errorText(err));
       setBusy(false);
@@ -224,7 +225,7 @@ function JoinGroup({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       const r = await client.memberships.join(code.trim().toUpperCase(), { idempotencyKey: key.current });
-      router.push(`/group?id=${encodeURIComponent(r.orgId)}`);
+      router.push(to(`/group?id=${encodeURIComponent(r.orgId)}`));
     } catch (err) {
       setError(errorText(err));
       setBusy(false);

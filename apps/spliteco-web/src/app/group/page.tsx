@@ -4,23 +4,24 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SplitecoExpenseSummary, SplitecoGroupResponse } from "@saas/contracts/spliteco";
-import { Icon } from "@/components/icons";
-import { Avatar, BackButton, CategoryIcon, Loading, Screen, Sheet, useLoad, useQueryParam } from "@/components/ui";
-import { BucketLine } from "@/components/bucket-line";
-import { RemindButton } from "@/components/remind";
+import { Icon } from "../../components/icons";
+import { Avatar, BackButton, CategoryIcon, Loading, Screen, Sheet, useLoad, useQueryParam } from "../../components/ui";
+import { BucketLine } from "../../components/bucket-line";
+import { RemindButton } from "../../components/remind";
 import { SwipeRow } from "@saas/gestures/react/swipe-row";
 import { usePager } from "@saas/gestures/react/pager";
 import { usePull } from "@saas/gestures/react/pull";
-import { formatShort } from "@/lib/money";
-import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { namesFrom, nameOf, type Names } from "@/lib/people";
-import { groupTint } from "@/lib/groups";
-import { signedShort } from "@/lib/home";
-import { UNDO_MS } from "@/lib/delayed";
-import { RideProof } from "@/components/ride-proof";
-import { rideOf } from "@/lib/ride-view";
-import { BillDeletes, billMeta, billMonths, billShare, billWritable, holdHref, holdTiles, planRows, planTitle, type HoldTile } from "@/lib/group-view";
-import { useMe } from "@/lib/me";
+import { formatShort } from "../../lib/money";
+import { errorText, newIdempotencyKey, useSession } from "../../lib/session";
+import { namesFrom, nameOf, type Names } from "../../lib/people";
+import { groupTint } from "../../lib/groups";
+import { signedShort } from "../../lib/home";
+import { UNDO_MS } from "../../lib/delayed";
+import { RideProof } from "../../components/ride-proof";
+import { rideOf } from "../../lib/ride-view";
+import { BillDeletes, billMeta, billMonths, billShare, billWritable, holdHref, holdTiles, planRows, planTitle, type HoldTile } from "../../lib/group-view";
+import { useMe } from "../../lib/me";
+import { to } from "../../lib/paths";
 
 interface ToastValue {
   text: string;
@@ -44,10 +45,10 @@ export default function GroupPage() {
   return (
     <Screen nav={false}>
       <header className="hdr">
-        <BackButton href="/groups" label="Back to groups" />
+        <BackButton href={to("/groups")} label="Back to groups" />
         {load.data && g ? (
           <div className="hdr-actions">
-            <Link href={`/share?group=${encodeURIComponent(g.id)}`} className="iconbtn" aria-label="Share or export">
+            <Link href={to(`/share?group=${encodeURIComponent(g.id)}`)} className="iconbtn" aria-label="Share or export">
               <Icon name="share" size={18} />
             </Link>
             <button className="iconbtn" aria-label="Group settings" onClick={() => setSettings(true)}>
@@ -58,7 +59,7 @@ export default function GroupPage() {
       </header>
       {id ? <Loading load={load}>{load.data ? <Group data={load.data} me={me?.id ?? null} reload={load.reload} /> : null}</Loading> : null}
       {load.data && g ? (
-        <Link href={`/add?group=${encodeURIComponent(g.id)}`} className="add-pill">
+        <Link href={to(`/add?group=${encodeURIComponent(g.id)}`)} className="add-pill">
           <Icon name="plus" size={20} stroke={2.2} />
           Add
         </Link>
@@ -291,7 +292,7 @@ function BillRow({
       onFire={writable ? () => onDelete(e) : undefined}
       onHold={() => onHold(e)}
     >
-      <Link href={`/expense?id=${encodeURIComponent(e.id)}`} className="brow" aria-label={`${e.title}, ${meta}, ${share.label === "not involved" ? "not involved" : `${share.label} ${share.text}`}`}>
+      <Link href={to(`/expense?id=${encodeURIComponent(e.id)}`)} className="brow" aria-label={`${e.title}, ${meta}, ${share.label === "not involved" ? "not involved" : `${share.label} ${share.text}`}`}>
         <CategoryIcon expense={e} size={38} />
         <span className="main">
           <span className="title">{e.title}</span>
@@ -392,7 +393,7 @@ function Balances({ data, names, me, reload }: { data: SplitecoGroupResponse; na
             );
             const key = `${p.fromId}>${p.toId}`;
             return p.fromId === me && data.canWrite ? (
-              <Link key={key} href={`/settle?group=${encodeURIComponent(g.id)}&to=${encodeURIComponent(p.toId)}`} className="plan-row" aria-label={`You pay ${p.to} ${formatShort(p.amountMinor, g.currency)}`}>
+              <Link key={key} href={to(`/settle?group=${encodeURIComponent(g.id)}&to=${encodeURIComponent(p.toId)}`)} className="plan-row" aria-label={`You pay ${p.to} ${formatShort(p.amountMinor, g.currency)}`}>
                 {inner}
               </Link>
             ) : (
@@ -404,7 +405,7 @@ function Balances({ data, names, me, reload }: { data: SplitecoGroupResponse; na
         </div>
       )}
       {data.canWrite ? (
-        <Link href={`/settle?group=${encodeURIComponent(g.id)}`} className="settle-up">
+        <Link href={to(`/settle?group=${encodeURIComponent(g.id)}`)} className="settle-up">
           Settle up
         </Link>
       ) : (
@@ -488,7 +489,7 @@ function Settings({ data, onClose, onChanged, onInvite }: { data: SplitecoGroupR
             Invite
           </button>
         ) : null}
-        <button type="button" className="atile" onClick={() => router.push(`/insights?group=${encodeURIComponent(g.id)}`)}>
+        <button type="button" className="atile" onClick={() => router.push(to(`/insights?group=${encodeURIComponent(g.id)}`))}>
           <Icon name="pie" size={20} />
           Totals
         </button>

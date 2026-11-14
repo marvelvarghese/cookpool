@@ -8,6 +8,7 @@
 import type { SplitecoFriendBalance, SplitecoGroupSummary, SplitecoMoney } from "@saas/contracts/spliteco";
 import { formatShort } from "./money";
 import { PAGER_TABS, TABS, tabIndexOf } from "./tabs";
+import { to } from "./paths";
 
 // ── Tabs ↔ addresses ──────────────────────────────────────────────
 
@@ -89,8 +90,8 @@ export function planNote(p: Pick<SplitecoFriendBalance, "balances" | "subjectId"
  */
 export function settleHref(subjectId: string, groups: readonly Pick<SplitecoGroupSummary, "id" | "myPlan">[] | null): string {
   const owed = (groups ?? []).filter((g) => g.myPlan.some((p) => p.subjectId === subjectId && p.amountMinor < 0));
-  if (owed.length !== 1) return "/settle";
-  return `/settle?group=${encodeURIComponent(owed[0]!.id)}&to=${encodeURIComponent(subjectId)}`;
+  if (owed.length !== 1) return to("/settle");
+  return to(`/settle?group=${encodeURIComponent(owed[0]!.id)}&to=${encodeURIComponent(subjectId)}`);
 }
 
 /**

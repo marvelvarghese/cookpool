@@ -4,15 +4,16 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SplitecoFriendResponse } from "@saas/contracts/spliteco";
-import { Icon } from "@/components/icons";
-import { Avatar, BackButton, BigMoney, Loading, Screen, moneyList, useLoad, useQueryParam } from "@/components/ui";
-import { ExpenseRow } from "@/components/expense-row";
-import { formatMoney } from "@/lib/money";
-import { namesFrom } from "@/lib/people";
-import { shortDate } from "@/lib/activity-text";
-import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
-import { RemindButton } from "@/components/remind";
+import { Icon } from "../../components/icons";
+import { Avatar, BackButton, BigMoney, Loading, Screen, moneyList, useLoad, useQueryParam } from "../../components/ui";
+import { ExpenseRow } from "../../components/expense-row";
+import { formatMoney } from "../../lib/money";
+import { namesFrom } from "../../lib/people";
+import { shortDate } from "../../lib/activity-text";
+import { errorText, newIdempotencyKey, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
+import { RemindButton } from "../../components/remind";
+import { to } from "../../lib/paths";
 
 export default function FriendPage() {
   const id = useQueryParam("id");
@@ -21,7 +22,7 @@ export default function FriendPage() {
   return (
     <Screen nav={false}>
       <header className="hdr">
-        <BackButton href="/groups?tab=friends" label="Back to friends" />
+        <BackButton href={to("/groups?tab=friends")} label="Back to friends" />
       </header>
       {id ? <Loading load={load}>{load.data ? <Friend data={load.data} me={me?.id ?? null} reload={load.reload} /> : null}</Loading> : null}
     </Screen>
@@ -51,7 +52,7 @@ function Friend({ data, me, reload }: { data: SplitecoFriendResponse; me: string
     setError(null);
     try {
       const r = await client.spliteco.directGroup(data.friend.subjectId, { idempotencyKey: key.current });
-      router.push(`/add?group=${encodeURIComponent(r.group.id)}`);
+      router.push(to(`/add?group=${encodeURIComponent(r.group.id)}`));
     } catch (err) {
       setError(errorText(err));
       setBusy(false);
@@ -78,7 +79,7 @@ function Friend({ data, me, reload }: { data: SplitecoFriendResponse; me: string
         {data.byGroup.length > 0 ? (
           <div className="stack s8" style={{ fontSize: 14, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
             {data.byGroup.map((g) => (
-              <Link key={g.groupId} href={`/group?id=${encodeURIComponent(g.groupId)}`} className="row-between" style={{ color: "inherit", minHeight: 28 }}>
+              <Link key={g.groupId} href={to(`/group?id=${encodeURIComponent(g.groupId)}`)} className="row-between" style={{ color: "inherit", minHeight: 28 }}>
                 <span className="muted">{g.kind === "direct" ? "Outside groups" : `In ${g.groupName}`}</span>
                 <b className={g.amountMinor > 0 ? "get" : g.amountMinor < 0 ? "owe" : "even"}>{formatMoney(Math.abs(g.amountMinor), g.currency)}</b>
               </Link>
@@ -88,7 +89,7 @@ function Friend({ data, me, reload }: { data: SplitecoFriendResponse; me: string
         <div className="inline" style={{ flexWrap: "nowrap" }}>
           {iPay[0] ? (
             <Link
-              href={iPay.length === 1 ? `/settle?group=${encodeURIComponent(iPay[0].groupId)}&to=${encodeURIComponent(data.friend.subjectId)}` : "/settle"}
+              href={to(iPay.length === 1 ? `/settle?group=${encodeURIComponent(iPay[0].groupId)}&to=${encodeURIComponent(data.friend.subjectId)}` : "/settle")}
               className="btn flex1"
             >
               Settle up
@@ -131,7 +132,7 @@ function Friend({ data, me, reload }: { data: SplitecoFriendResponse; me: string
                 <ExpenseRow e={e} names={names} me={me} sub={`${shortDate(e.occurredAt)} · ${outsideRow ? "no group" : e.groupName}`} />
               </div>
               {outsideRow && !e.locked ? (
-                <Link href={`/move?id=${encodeURIComponent(e.id)}`} aria-label={`Move ${e.title} into a group`} className="pillbtn" style={{ height: 44, padding: "0 10px", background: "#1A3050", border: 0, color: "#93C5FD", fontSize: 12, fontWeight: 500 }}>
+                <Link href={to(`/move?id=${encodeURIComponent(e.id)}`)} aria-label={`Move ${e.title} into a group`} className="pillbtn" style={{ height: 44, padding: "0 10px", background: "#1A3050", border: 0, color: "#93C5FD", fontSize: 12, fontWeight: 500 }}>
                   <Icon name="move" size={14} />
                   Move
                 </Link>

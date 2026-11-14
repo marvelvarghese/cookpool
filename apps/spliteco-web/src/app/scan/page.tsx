@@ -1,13 +1,14 @@
 "use client";
 
+import { to } from "../../lib/paths";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SPLITECO_ADJUSTMENT_KINDS, type SplitecoAdjustmentKind } from "@saas/contracts/spliteco";
-import { Icon } from "@/components/icons";
-import { BackButton, Screen, useQueryParam } from "@/components/ui";
-import { formatMoney, moneyInput, parseMoney } from "@/lib/money";
-import { PhotoError, receiptImage } from "@/lib/photo";
-import { sessionStore } from "@/lib/return-to";
+import { Icon } from "../../components/icons";
+import { BackButton, Screen, useQueryParam } from "../../components/ui";
+import { formatMoney, moneyInput, parseMoney } from "../../lib/money";
+import { PhotoError, receiptImage } from "../../lib/photo";
+import { sessionStore } from "../../lib/return-to";
 import {
   addCharge,
   aiFallback,
@@ -22,8 +23,8 @@ import {
   stashScan,
   type ScanDraft,
   type ScanLine,
-} from "@/lib/scan";
-import { errorReason, errorText, useSession } from "@/lib/session";
+} from "../../lib/scan";
+import { errorReason, errorText, useSession } from "../../lib/session";
 import { CookpoolError } from "@saas/sdk";
 
 // Scan a receipt (SE4, design §5): a photo → Cookpool's receipt reader → a
@@ -86,11 +87,11 @@ function Scan() {
     }
   }
 
-  const byHand = () => router.replace(`/add?${groupId ? `group=${encodeURIComponent(groupId)}&` : ""}method=items`);
+  const byHand = () => router.replace(to(`/add?${groupId ? `group=${encodeURIComponent(groupId)}&` : ""}method=items`));
   const go = (how: "items" | "equal") => {
     if (!draft) return;
     stashScan(sessionStore(), { groupId, how, draft });
-    router.replace(`/add?${groupId ? `group=${encodeURIComponent(groupId)}&` : ""}method=${how}&from=scan`);
+    router.replace(to(`/add?${groupId ? `group=${encodeURIComponent(groupId)}&` : ""}method=${how}&from=scan`));
   };
 
   const pickers = (

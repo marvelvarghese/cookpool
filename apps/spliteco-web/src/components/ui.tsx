@@ -6,15 +6,16 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { SplitecoExpenseSummary, SplitecoMoney } from "@saas/contracts/spliteco";
 import { Icon, Mark } from "./icons";
-import { formatMoney, splitMoney } from "@/lib/money";
-import { initialOf, tintOf } from "@/lib/people";
-import { CATEGORY_TINTS } from "@/lib/activity-text";
-import { errorText, useSession } from "@/lib/session";
-import { rememberReturn, sessionStore } from "@/lib/return-to";
-import { readBack } from "@/lib/handoff";
-import { PAGER_TABS, TABS, nearestTab, pillPosition, showsAdd, tabIndexOf } from "@/lib/tabs";
+import { formatMoney, splitMoney } from "../lib/money";
+import { initialOf, tintOf } from "../lib/people";
+import { CATEGORY_TINTS } from "../lib/activity-text";
+import { errorText, useSession } from "../lib/session";
+import { rememberReturn, sessionStore } from "../lib/return-to";
+import { readBack } from "../lib/handoff";
+import { PAGER_TABS, TABS, nearestTab, pillPosition, showsAdd, tabIndexOf } from "../lib/tabs";
 import { useSheetDrag } from "@saas/gestures/react/sheet-drag";
 import { useEdgeBack } from "@saas/gestures/react/edge-back";
+import { to } from "../lib/paths";
 
 // ── Data ───────────────────────────────────────────────
 
@@ -238,7 +239,7 @@ export function TabBar({ position, dragging = false, onTab }: { position?: numbe
   return (
     <>
       {showsAdd(current) ? (
-        <Link href="/add" aria-label="Add an expense" className="add-fab">
+        <Link href={to("/add")} aria-label="Add an expense" className="add-fab">
           <Icon name="plus" size={26} stroke={2.2} />
         </Link>
       ) : null}
@@ -291,7 +292,7 @@ export function Screen({ children, nav = true, tight, back }: { children: React.
   const goBack = React.useCallback(() => {
     if (back) router.push(back);
     else if (window.history.length > 1) router.back();
-    else router.push("/");
+    else router.push(to("/"));
   }, [back, router]);
   const edge = useEdgeBack(goBack, !nav);
   return (

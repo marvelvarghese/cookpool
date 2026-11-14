@@ -20,15 +20,15 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SplitecoGroupResponse, SplitecoGroupsResponse, SplitecoSettlePlanResponse } from "@saas/contracts/spliteco";
-import { Avatar, BackButton, Loading, Screen, useLoad, useQueryParam, useToast } from "@/components/ui";
-import { Icon } from "@/components/icons";
+import { Avatar, BackButton, Loading, Screen, useLoad, useQueryParam, useToast } from "../../components/ui";
+import { Icon } from "../../components/icons";
 import { Slider } from "@saas/gestures/react/slider";
 import { useLatest } from "@saas/gestures/react/motion";
-import { formatMoney, formatShort, moneyInput, parseMoney } from "@/lib/money";
-import { nameOf, namesFrom } from "@/lib/people";
-import { errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
-import { payOptions, upiLink, upiUnavailable, type PayMethod } from "@/lib/settle";
+import { formatMoney, formatShort, moneyInput, parseMoney } from "../../lib/money";
+import { nameOf, namesFrom } from "../../lib/people";
+import { errorText, newIdempotencyKey, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
+import { payOptions, upiLink, upiUnavailable, type PayMethod } from "../../lib/settle";
 import {
   SlidePay,
   allocationShown,
@@ -41,7 +41,8 @@ import {
   upiTileState,
   type PayPart,
   type SlidePhase,
-} from "@/lib/slide-pay";
+} from "../../lib/slide-pay";
+import { to as toPath } from "../../lib/paths";
 
 export default function SettlePage() {
   const group = useQueryParam("group");
@@ -61,7 +62,7 @@ function Everywhere() {
   return (
     <>
       <header className="hdr">
-        <BackButton href="/" label="Back to Home" />
+        <BackButton href={toPath("/")} label="Back to Home" />
         <span className="hdr-title">Settle up</span>
         <span style={{ width: 44 }} />
       </header>
@@ -83,7 +84,7 @@ function OwedList({ data }: { data: SplitecoGroupsResponse }) {
           {lines.map(({ g, p }) => {
             const name = names.get(p.subjectId) ?? "Someone";
             return (
-              <Link key={`${g.id}-${p.subjectId}`} href={`/settle?group=${encodeURIComponent(g.id)}&to=${encodeURIComponent(p.subjectId)}`} className="lrow">
+              <Link key={`${g.id}-${p.subjectId}`} href={toPath(`/settle?group=${encodeURIComponent(g.id)}&to=${encodeURIComponent(p.subjectId)}`)} className="lrow">
                 <Avatar id={p.subjectId} name={name} me={null} />
                 <div className="main">
                   <span className="title">{name}</span>
@@ -106,7 +107,7 @@ function OwedList({ data }: { data: SplitecoGroupsResponse }) {
             {owedToMe.map(({ g, p }) => {
               const name = names.get(p.subjectId) ?? "Someone";
               return (
-                <Link key={`${g.id}-${p.subjectId}`} href={`/friend?id=${encodeURIComponent(p.subjectId)}`} className="lrow">
+                <Link key={`${g.id}-${p.subjectId}`} href={toPath(`/friend?id=${encodeURIComponent(p.subjectId)}`)} className="lrow">
                   <Avatar id={p.subjectId} name={name} me={null} />
                   <div className="main">
                     <span className="title">{name}</span>
@@ -132,10 +133,10 @@ function InGroup({ groupId, to }: { groupId: string; to: string | null }) {
   return (
     <>
       <header className="hdr">
-        <BackButton href={`/group?id=${encodeURIComponent(groupId)}`} label="Back to the group" />
+        <BackButton href={toPath(`/group?id=${encodeURIComponent(groupId)}`)} label="Back to the group" />
         <span className="hdr-title">Settle up</span>
         {to ? (
-          <Link href={`/settle?group=${encodeURIComponent(groupId)}`} style={{ fontSize: 14, fontWeight: 500, padding: "10px 0" }}>
+          <Link href={toPath(`/settle?group=${encodeURIComponent(groupId)}`)} style={{ fontSize: 14, fontWeight: 500, padding: "10px 0" }}>
             Change
           </Link>
         ) : (
@@ -166,7 +167,7 @@ function PickPayee({ group, plan, me }: { group: SplitecoGroupResponse; plan: Sp
         {options.map((o) => {
           const name = nameOf(names, o.toSubjectId, me);
           return (
-            <Link key={o.toSubjectId} href={`/settle?group=${encodeURIComponent(group.group.id)}&to=${encodeURIComponent(o.toSubjectId)}`} className="lrow">
+            <Link key={o.toSubjectId} href={toPath(`/settle?group=${encodeURIComponent(group.group.id)}&to=${encodeURIComponent(o.toSubjectId)}`)} className="lrow">
               <Avatar id={o.toSubjectId} name={name} me={me} />
               <div className="main">
                 <span className="title">{name}</span>
@@ -273,7 +274,7 @@ function Pay({ group, plan, to, me }: { group: SplitecoGroupResponse; plan: Spli
     return (
       <section className="stack" style={{ alignItems: "center", textAlign: "center" }}>
         <p className="empty">You don&apos;t owe {payee} anything in {groupName} right now.</p>
-        <Link href={`/group?id=${encodeURIComponent(group.group.id)}`} className="btn ghost">Back to the group</Link>
+        <Link href={toPath(`/group?id=${encodeURIComponent(group.group.id)}`)} className="btn ghost">Back to the group</Link>
       </section>
     );
   }
@@ -386,7 +387,7 @@ function Pay({ group, plan, to, me }: { group: SplitecoGroupResponse; plan: Spli
             ) : (
               <>
                 <span className="small dim">{payee} can mark it &ldquo;not received&rdquo;.</span>
-                <button type="button" className="undo" onClick={() => router.push(`/group?id=${encodeURIComponent(group.group.id)}`)}>Done</button>
+                <button type="button" className="undo" onClick={() => router.push(toPath(`/group?id=${encodeURIComponent(group.group.id)}`))}>Done</button>
               </>
             )}
           </div>

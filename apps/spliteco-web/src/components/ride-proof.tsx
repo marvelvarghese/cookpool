@@ -8,9 +8,9 @@
 import * as React from "react";
 import type { TripecoProof } from "@saas/sdk";
 import { Icon } from "./icons";
-import { useSession } from "@/lib/session";
-import { tripecoRideHref } from "@/lib/tripeco-link";
-import { rideLine } from "@/lib/ride-view";
+import { useSession } from "../lib/session";
+import { tripecoRideHref } from "../lib/tripeco-link";
+import { rideLine } from "../lib/ride-view";
 
 export function useRideProof(rideId: string | null): TripecoProof | null {
   const { client } = useSession();

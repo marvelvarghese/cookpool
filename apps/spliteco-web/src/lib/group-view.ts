@@ -6,6 +6,7 @@ import { formatShort } from "./money";
 import { nameOf, type Names } from "./people";
 import { signedShort, type Tone } from "./home";
 import { DelayedSends } from "./delayed";
+import { to } from "./paths";
 
 type Bill = Pick<SplitecoExpenseSummary, "app" | "locked" | "kind">;
 
@@ -32,14 +33,14 @@ export function holdHref(tile: HoldTile, expenseId: string): string {
   const id = encodeURIComponent(expenseId);
   switch (tile) {
     case "edit":
-      return `/add?edit=${id}`;
+      return to(`/add?edit=${id}`);
     case "move":
-      return `/move?id=${id}`;
+      return to(`/move?id=${id}`);
     case "comment":
-      return `/expense?id=${id}&comment=1`;
+      return to(`/expense?id=${id}&comment=1`);
     case "open":
     case "ride":
-      return `/expense?id=${id}`;
+      return to(`/expense?id=${id}`);
   }
 }
 

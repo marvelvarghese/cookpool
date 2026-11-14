@@ -7,8 +7,9 @@ import type { SplitecoFriendBalance, SplitecoGroupsResponse, SplitecoHomeRespons
 import { Icon, Mark } from "../icons";
 import { Avatar, Loading, Sheet, type Load } from "../ui";
 import { SwipeRow } from "@saas/gestures/react/swipe-row";
-import { formatShort } from "@/lib/money";
-import { HOME_PEOPLE, fromKitchen, mainBalance, netLabel, planNote, rowAction, settleHref, signedShort } from "@/lib/home";
+import { formatShort } from "../../lib/money";
+import { HOME_PEOPLE, fromKitchen, mainBalance, netLabel, planNote, rowAction, settleHref, signedShort } from "../../lib/home";
+import { to } from "../../lib/paths";
 
 type Groups = SplitecoGroupsResponse["groups"] | null;
 
@@ -37,7 +38,7 @@ export function HomeTab({
     <>
       <header className="home-hdr">
         <Mark size={30} />
-        <Link href="/you" aria-label="You">
+        <Link href={to("/you")} aria-label="You">
           <Avatar id={meId ?? "me"} name={data?.me.name ?? "You"} me={meId} size={36} />
         </Link>
       </header>
@@ -88,7 +89,7 @@ function Home({
 
       {data.people.length === 0 ? (
         <p className="empty">
-          Nobody owes anybody yet. <Link href="/add">Add an expense</Link>.
+          Nobody owes anybody yet. <Link href={to("/add")}>Add an expense</Link>.
         </p>
       ) : (
         <section aria-label="People" className="card flush">
@@ -102,15 +103,15 @@ function Home({
       )}
 
       <nav aria-label="More" className="tiles3">
-        <Link href="/scan" aria-label="Scan a bill">
+        <Link href={to("/scan")} aria-label="Scan a bill">
           <Icon name="bills" size={20} />
           Scan
         </Link>
-        <Link href="/live" aria-label="Split live">
+        <Link href={to("/live")} aria-label="Split live">
           <Icon name="live" size={20} />
           Live
         </Link>
-        <Link href="/insights">
+        <Link href={to("/insights")}>
           <Icon name="pie" size={20} />
           Insights
         </Link>
@@ -170,7 +171,7 @@ function PersonRow({
       onFire={action === "settle" ? () => router.push(href) : action === "remind" ? () => onRemind(p) : undefined}
       onHold={() => onHold(p)}
     >
-      <Link href={`/friend?id=${encodeURIComponent(p.subjectId)}`} className="prow">
+      <Link href={to(`/friend?id=${encodeURIComponent(p.subjectId)}`)} className="prow">
         <Avatar id={p.subjectId} name={name} me={me} size={38} />
         <span className="name">{name}</span>
         {fromKitchen(p, groups) ? <span className="kdot" role="img" aria-label="From a Cookpool kitchen" /> : null}
@@ -220,7 +221,7 @@ function HoldSheet({
           <Icon name="bell" size={22} />
           Remind
         </button>
-        <Link href={`/friend?id=${encodeURIComponent(p.subjectId)}`} className="atile">
+        <Link href={to(`/friend?id=${encodeURIComponent(p.subjectId)}`)} className="atile">
           <Icon name="chevron" size={22} />
           Open
         </Link>

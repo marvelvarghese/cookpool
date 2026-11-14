@@ -4,10 +4,11 @@ import Link from "next/link";
 import type { SplitecoExpenseSummary } from "@saas/contracts/spliteco";
 import { CategoryIcon } from "./ui";
 import { Icon } from "./icons";
-import { formatMoney } from "@/lib/money";
-import { nameOf, type Names } from "@/lib/people";
-import { expenseTags, myRowEffect } from "@/lib/view";
-import { monthShort, shortDate } from "@/lib/activity-text";
+import { formatMoney } from "../lib/money";
+import { nameOf, type Names } from "../lib/people";
+import { expenseTags, myRowEffect } from "../lib/view";
+import { monthShort, shortDate } from "../lib/activity-text";
+import { to } from "../lib/paths";
 
 /** "Anu paid ₹4,416.00", "You and Anu paid ₹2,960.00", "Meera paid Dev". */
 export function whoPaid(e: SplitecoExpenseSummary, names: Names, me: string | null): string {
@@ -26,7 +27,7 @@ export function ExpenseRow({ e, names, me, withDate, sub, kitchenGroup }: { e: S
   const tags = expenseTags(e, kitchenGroup);
   const d = new Date(e.occurredAt);
   return (
-    <Link href={`/expense?id=${encodeURIComponent(e.id)}`} className="lrow">
+    <Link href={to(`/expense?id=${encodeURIComponent(e.id)}`)} className="lrow">
       {withDate ? (
         <div className="datecol" aria-label={shortDate(e.occurredAt)}>
           <span className="m">{monthShort(e.occurredAt)}</span>

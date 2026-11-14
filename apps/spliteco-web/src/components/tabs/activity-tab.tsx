@@ -3,8 +3,9 @@
 import Link from "next/link";
 import type { SplitecoActivityResponse } from "@saas/contracts/spliteco";
 import { Avatar, Loading, type Load } from "../ui";
-import { activityAmount, activityLine, activityWhat, byDay, viaName } from "@/lib/activity-text";
-import { nameOf, namesFrom } from "@/lib/people";
+import { activityAmount, activityLine, activityWhat, byDay, viaName } from "../../lib/activity-text";
+import { nameOf, namesFrom } from "../../lib/people";
+import { to } from "../../lib/paths";
 
 /**
  * Activity (V2Home page 3, design §3): one line per change under a small
@@ -39,7 +40,7 @@ function Entries({ data, me }: { data: SplitecoActivityResponse; me: string | nu
               return (
                 <Link
                   key={`${e.txnId}-${e.action}`}
-                  href={`/expense?id=${encodeURIComponent(e.expenseId)}`}
+                  href={to(`/expense?id=${encodeURIComponent(e.expenseId)}`)}
                   className="prow"
                   aria-label={`${line.actor} ${line.text}${via ? `, via ${via}` : ""}. ${line.effect}.`}
                 >

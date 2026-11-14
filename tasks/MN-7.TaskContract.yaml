@@ -1,0 +1,19 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MN-7
+  title: "Spliteco's screens mountable by Cookpool"
+spec:
+  goal: "Spliteco's own screens can be shown inside another app: relative imports, links through one path mapper, the session as context."
+  affects:
+    - default/cookpool/spliteco-web
+    - default/cookpool/spliteco-web-tests
+    - apps/spliteco-web/**
+    - tests/spliteco-web/**
+    - specs/epics/money-inside/**
+    - tasks/MN-7.TaskContract.yaml
+  doneWhen:
+    - "No spliteco-web source imports through @/"
+    - "Every in-app link on group, add, settle, expense and scan goes through to(), and the Spliteco app is unchanged"
+    - "The spliteco-web tests pass"
+  gates: []

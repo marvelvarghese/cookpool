@@ -3,13 +3,13 @@
 import * as React from "react";
 import type { SplitecoAdjustmentKind, SplitecoItemShareMode } from "@saas/contracts/spliteco";
 import { owedBySplit } from "@saas/kitchen-engine/splits";
-import { Icon } from "@/components/icons";
-import { Avatar, BackButton, Sheet } from "@/components/ui";
+import { Icon } from "../icons";
+import { Avatar, BackButton, Sheet } from "../ui";
 import { usePager } from "@saas/gestures/react/pager";
 import { useHold } from "@saas/gestures/react/hold";
 import { useRepeat } from "@saas/gestures/react/repeat";
-import { formatMoney, formatShort } from "@/lib/money";
-import { nameOf, tintOf } from "@/lib/people";
+import { formatMoney, formatShort } from "../../lib/money";
+import { nameOf, tintOf } from "../../lib/people";
 import {
   adjustmentAmount,
   adjustmentsTotal,
@@ -23,7 +23,7 @@ import {
   type AdjustmentForm,
   type ItemForm,
   type ItemShareForm,
-} from "@/lib/split-form";
+} from "../../lib/split-form";
 import {
   DEFAULT_SHARE,
   FACE_EXACT_STEP,
@@ -40,9 +40,9 @@ import {
   splitEvenly,
   stepExact,
   switchMode,
-} from "@/lib/itemized";
-import { addEveryone, peopleOn, sameAsLast } from "@/lib/item-people";
-import { clampIndex, indexAfterRemove, itemHasProblem } from "@/lib/carousel";
+} from "../../lib/itemized";
+import { addEveryone, peopleOn, sameAsLast } from "../../lib/item-people";
+import { clampIndex, indexAfterRemove, itemHasProblem } from "../../lib/carousel";
 import type { FormCtx } from "./types";
 
 interface Props {

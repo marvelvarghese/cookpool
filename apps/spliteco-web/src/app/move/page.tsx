@@ -3,14 +3,15 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { SplitecoExpenseResponse, SplitecoGroupSummary } from "@saas/contracts/spliteco";
-import { Icon } from "@/components/icons";
-import { BackButton, Loading, Screen, useLoad, useQueryParam } from "@/components/ui";
-import { formatMoney } from "@/lib/money";
-import { listNames, nameOf, namesFrom } from "@/lib/people";
-import { shortDate } from "@/lib/activity-text";
-import { groupTint, missingMembers } from "@/lib/groups";
-import { errorReason, errorText, newIdempotencyKey, useSession } from "@/lib/session";
-import { useMe } from "@/lib/me";
+import { Icon } from "../../components/icons";
+import { BackButton, Loading, Screen, useLoad, useQueryParam } from "../../components/ui";
+import { formatMoney } from "../../lib/money";
+import { listNames, nameOf, namesFrom } from "../../lib/people";
+import { shortDate } from "../../lib/activity-text";
+import { groupTint, missingMembers } from "../../lib/groups";
+import { errorReason, errorText, newIdempotencyKey, useSession } from "../../lib/session";
+import { useMe } from "../../lib/me";
+import { to } from "../../lib/paths";
 
 interface Target {
   group: SplitecoGroupSummary;
@@ -66,7 +67,7 @@ function Move({ x, targets, fromDirect, me }: { x: SplitecoExpenseResponse; targ
     setError(null);
     try {
       const r = await client.spliteco.moveExpense(e.id, { toGroupId: target.group.id }, { idempotencyKey: key.current });
-      router.replace(`/expense?id=${encodeURIComponent(r.expense.id)}`);
+      router.replace(to(`/expense?id=${encodeURIComponent(r.expense.id)}`));
     } catch (err) {
       setError(errorReason(err) === "not_members" ? "Not everyone on it is a member of that group. Add them there first." : errorText(err));
       setBusy(false);

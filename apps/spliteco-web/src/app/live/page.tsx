@@ -1,7 +1,8 @@
 "use client";
 
-import { BackButton, Screen, useQueryParam } from "@/components/ui";
-import { JoinByCode, LiveScreen } from "@/components/live-screen";
+import { BackButton, Screen, useQueryParam } from "../../components/ui";
+import { JoinByCode, LiveScreen } from "../../components/live-screen";
+import { to } from "../../lib/paths";
 
 // /live?code=… opens a live split; /live alone asks for a code. Links and the
 // QR code use /live/{code} (./[code]/page.tsx).
@@ -15,7 +16,7 @@ export default function LivePage() {
       ) : (
         <div className="stack s14">
           <header className="hdr">
-            <BackButton label="Back" href="/" />
+            <BackButton label="Back" href={to("/")} />
             <div className="hdr-title"><h1>Join a live split</h1></div>
             <span style={{ width: 44 }} />
           </header>

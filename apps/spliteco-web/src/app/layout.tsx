@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/plus-jakarta-sans";
 import "./globals.css";
 import { Providers } from "./providers";
-import { THEME_SCRIPT } from "@/lib/theme";
+import { THEME_SCRIPT } from "../lib/theme";
 
 export const metadata: Metadata = {
   title: "Spliteco",
