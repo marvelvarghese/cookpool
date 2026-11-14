@@ -191,7 +191,8 @@ describe("what plays (transitionStyle)", () => {
   });
 
   it("keeps every step under 300 ms: tab 150, slides 280, down 240, desktop 120, reduced 100", () => {
-    for (const ms of Object.values(TRANSITION_MS)) expect(ms).toBeLessThan(300);
+    // Money's own kinds (MY-23) run on the motion tokens (.45s) and are pinned in kitchen-money-page-motion.test.ts.
+    for (const [style, ms] of Object.entries(TRANSITION_MS)) if (!/^(money|side)-/.test(style)) expect(ms).toBeLessThan(300);
     expect(TRANSITION_MS).toMatchObject({ tab: 150, forward: 280, back: 280, fade: 120, reduced: 100 });
   });
 
@@ -795,6 +796,7 @@ describe("the parts that stay put, and the stylesheet", () => {
 
   it("has a rule for every style, at its duration", () => {
     for (const [style, ms] of Object.entries(TRANSITION_MS)) {
+      if (/^(money|side)-/.test(style)) continue; // timed by variables from the tokens
       const own = rules.filter((r) => r.selector.includes(`html[data-vt="${style}"]`));
       expect([style, own.some((r) => r.body.includes(`${ms}ms`))]).toEqual([style, true]);
     }

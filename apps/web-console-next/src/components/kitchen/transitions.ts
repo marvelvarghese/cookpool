@@ -79,10 +79,16 @@ export function transitionKind(
 ): TransitionKind | null {
   if (!opts.newFrame || !isAppScreen(from)) return null;
   const a = normalizePath(from);
-  if (to === null) return a === SESSION_PATH ? "down" : "back";
+  if (to === null) {
+    if (a === SESSION_PATH) return "down";
+    const money = moneyKind(a, null);
+    return money === undefined ? "back" : money;
+  }
   if (!isAppScreen(to)) return null;
   const b = normalizePath(to);
   if (a === b) return null;
+  const money = moneyKind(a, b, opts.direction);
+  if (money !== undefined) return money;
   if (b === SESSION_PATH) return "up";
   if (a === SESSION_PATH) return "down";
   const aTab = isTabRoot(a);
@@ -91,6 +97,31 @@ export function transitionKind(
   if (opts.direction) return opts.direction;
   if (bTab && activeNewFrameTab(a) !== activeNewFrameTab(b)) return "tab";
   return routeDepth(b) < routeDepth(a) ? "back" : "forward";
+}
+
+const MONEY_SIDES: readonly string[] = ["/money", "/money/people"];
+const MONEY_SHEET = "/money/add-group";
+const inMoney = (path: string) => path === "/money" || path.startsWith("/money/");
+
+/**
+ * Money's own steps (MY-23): between Groups and People the page drifts (`side-next` / `side-prev`); into
+ * a group's Manage page or a person's page it slides in over the motion tokens (`money-forward`) and back
+ * reverses it (`money-back`); Add group is a sheet that rises by itself, so the page does not move (null).
+ * `undefined`: not a Money step, the route model carries on. With no `to` (the history's back), only the
+ * Money page `from` says what it is: People goes back to Groups, a deeper page back up.
+ */
+export function moneyKind(from: string, to: string | null, direction?: Direction): TransitionKind | null | undefined {
+  if (!inMoney(from)) return undefined;
+  if (to === null) {
+    if (from === MONEY_SHEET) return null;
+    if (from === "/money/people") return "side-prev";
+    return from === "/money" ? undefined : "money-back";
+  }
+  if (!inMoney(to)) return undefined;
+  if (to === MONEY_SHEET || from === MONEY_SHEET) return null;
+  if (MONEY_SIDES.includes(from) && MONEY_SIDES.includes(to)) return to === "/money/people" ? "side-next" : "side-prev";
+  if (direction) return direction === "back" ? "money-back" : "money-forward";
+  return routeDepth(to) < routeDepth(from) ? "money-back" : "money-forward";
 }
 
 /**

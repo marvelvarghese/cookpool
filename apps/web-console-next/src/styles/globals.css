@@ -628,6 +628,37 @@ html[data-vt="back"]::view-transition-old(root) {
 }
 html[data-vt="back"]::view-transition-new(root) { animation-name: kp-vt-from-left; animation-duration: 280ms; }
 
+/* Money (MY-23): the timings are the motion tokens' (`@saas/spliteco-ui/motion`), set on <html> by lib/transitions.ts.
+   money-forward: the page opens from the right over the geometry time while the old one shifts left 20% and dims;
+   money-back reverses it. side-next / side-prev: Groups and People cross-fade with a short drift the way the step went. */
+@keyframes kp-vt-money-to-left { to { transform: translateX(calc(var(--kp-motion-shift) * -1)); filter: brightness(0.9); } }
+@keyframes kp-vt-money-from-left { from { transform: translateX(calc(var(--kp-motion-shift) * -1)); filter: brightness(0.9); } }
+@keyframes kp-vt-drift-out-left { to { transform: translateX(calc(var(--kp-motion-drift) * -1)); opacity: 0; } }
+@keyframes kp-vt-drift-out-right { to { transform: translateX(var(--kp-motion-drift)); opacity: 0; } }
+@keyframes kp-vt-drift-in-right { from { transform: translateX(var(--kp-motion-drift)); opacity: 0; } }
+@keyframes kp-vt-drift-in-left { from { transform: translateX(calc(var(--kp-motion-drift) * -1)); opacity: 0; } }
+html[data-vt^="money-"]::view-transition-old(root),
+html[data-vt^="money-"]::view-transition-new(root),
+html[data-vt^="side-"]::view-transition-old(root),
+html[data-vt^="side-"]::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-timing-function: var(--kp-motion-ease);
+  animation-fill-mode: both;
+}
+html[data-vt="money-forward"]::view-transition-old(root) { animation-name: kp-vt-money-to-left; animation-duration: var(--kp-motion-geometry); }
+html[data-vt="money-forward"]::view-transition-new(root) { animation-name: kp-vt-from-right; animation-duration: var(--kp-motion-geometry); box-shadow: -10px 0 28px rgb(23 32 27 / 0.12); }
+html[data-vt="money-back"]::view-transition-old(root) { z-index: 1; animation-name: kp-vt-to-right; animation-duration: var(--kp-motion-geometry); box-shadow: -10px 0 28px rgb(23 32 27 / 0.12); }
+html[data-vt="money-back"]::view-transition-new(root) { animation-name: kp-vt-money-from-left; animation-duration: var(--kp-motion-geometry); }
+html[data-vt="side-next"]::view-transition-old(root) { animation-name: kp-vt-drift-out-left; animation-duration: var(--kp-motion-fade); }
+html[data-vt="side-next"]::view-transition-new(root) { animation-name: kp-vt-drift-in-right; animation-duration: var(--kp-motion-fade); }
+html[data-vt="side-prev"]::view-transition-old(root) { animation-name: kp-vt-drift-out-right; animation-duration: var(--kp-motion-fade); }
+html[data-vt="side-prev"]::view-transition-new(root) { animation-name: kp-vt-drift-in-left; animation-duration: var(--kp-motion-fade); }
+/* The Groups | People switch stays put across a side step: its pill slides in the live page. */
+html[data-vt^="side-"] [data-vt-keep="money-switch"] { view-transition-name: kp-money-switch; }
+html[data-vt^="side-"]::view-transition-group(kp-money-switch),
+html[data-vt^="side-"]::view-transition-new(kp-money-switch) { animation: none; }
+html[data-vt^="side-"]::view-transition-old(kp-money-switch) { animation: none; opacity: 0; }
+
 /* up: the cooking session rises from the bottom like a sheet; down: it slides away. */
 html[data-vt="up"]::view-transition-old(root) { animation-name: kp-vt-dim; animation-duration: 280ms; }
 html[data-vt="up"]::view-transition-new(root) {

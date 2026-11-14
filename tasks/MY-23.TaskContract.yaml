@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-23
+  title: "Money pages open and close with the motion tokens"
+spec:
+  goal: "Opening Manage group or a person's page slides it in from the right over the motion tokens while the old page shifts left and dims; back reverses it; Groups | People drifts the way the step went."
+  affects:
+    - default/cookpool/web-console-next
+    - default/cookpool/web-console-next-tests
+    - default/cookpool/spliteco-ui
+    - apps/web-console-next/**
+    - packages/spliteco-ui/**
+    - tests/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-23.TaskContract.yaml
+  doneWhen:
+    - "Money steps get their own transition kinds, timed from the MY-22 motion tokens (.45s slide, 20% shift and dim; .25s drift), set on <html> and read by the CSS"
+    - "Groups to People drifts left and back drifts right with the pill sliding; Add group (a sheet) does not slide the page; reduced motion is the plain fade"
+    - "Tests pin the route model, the tokens and the CSS; tests, typecheck, lint and orun validate pass"
+  gates: []

@@ -36,12 +36,13 @@
  *    the old page within 500 ms (no frame comes), it navigates without one.
  */
 
+import { MOTION } from "@saas/spliteco-ui/motion";
 import { INSTALLED_DISPLAY_MODES, isIos } from "./install";
 
 // ── Kinds and styles ──────────────────────────────────────────────
 
 /** What a step is (the route model's call): between tabs, deeper, back up, into the cooking session, out of it. */
-export type TransitionKind = "tab" | "forward" | "back" | "up" | "down";
+export type TransitionKind = "tab" | "forward" | "back" | "up" | "down" | "money-forward" | "money-back" | "side-next" | "side-prev";
 
 /**
  * What plays, on `<html data-vt>`: the kind on a phone, or one of three
@@ -62,6 +63,11 @@ export const TRANSITION_MS: Readonly<Record<TransitionStyle, number>> = {
   back: 280,
   up: 280,
   down: 240,
+  // Money (MY-23) runs on the product's motion tokens: pages slide over the geometry time, the Groups | People drift over the fade time.
+  "money-forward": MOTION.geometryMs,
+  "money-back": MOTION.geometryMs,
+  "side-next": MOTION.fadeMs,
+  "side-prev": MOTION.fadeMs,
   fade: 120,
   reduced: 100,
   swiped: 150,
@@ -549,7 +555,16 @@ export function browserTransitionEnv(): TransitionEnv {
     supported: () => typeof document.startViewTransition === "function",
     start: (update) => document.startViewTransition(update),
     setStyle(style) {
-      if (style) document.documentElement.setAttribute(VT_ATTR, style);
+      if (style) {
+        // The CSS reads Money's timings from the tokens, not from numbers of its own.
+        const root = document.documentElement.style;
+        root.setProperty("--kp-motion-ease", MOTION.ease);
+        root.setProperty("--kp-motion-geometry", `${MOTION.geometryMs}ms`);
+        root.setProperty("--kp-motion-fade", `${MOTION.fadeMs}ms`);
+        root.setProperty("--kp-motion-shift", `${MOTION.shiftPct}%`);
+        root.setProperty("--kp-motion-drift", `${MOTION.driftPx}px`);
+        document.documentElement.setAttribute(VT_ATTR, style);
+      }
       else document.documentElement.removeAttribute(VT_ATTR);
     },
     reducedMotion: () => matches("(prefers-reduced-motion: reduce)"),

@@ -53,9 +53,9 @@ describe("Money's pages are routes (switching pages, Back)", () => {
     for (const path of ["/money", "/money/people", "/money/people/usr_zoya", "/money/group", "/money/add-group"]) {
       expect(activeNewFrameTab(path)).toBe("money");
     }
-    expect(transitionKind("/money", "/money/people", { newFrame: true })).toBe("forward");
-    expect(transitionKind("/money/people", "/money", { newFrame: true })).toBe("back");
-    expect(transitionKind("/money/people/usr_zoya", "/money/people", { newFrame: true })).toBe("back");
+    expect(transitionKind("/money", "/money/people", { newFrame: true })).toBe("side-next");
+    expect(transitionKind("/money/people", "/money", { newFrame: true })).toBe("side-prev");
+    expect(transitionKind("/money/people/usr_zoya", "/money/people", { newFrame: true })).toBe("money-back");
     expect(transitionKind("/money/people", "/cook", { newFrame: true })).toBe("tab");
   });
 

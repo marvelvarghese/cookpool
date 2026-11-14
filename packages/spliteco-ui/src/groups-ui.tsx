@@ -111,6 +111,7 @@ export function MoneySwitch({
       role="tablist"
       aria-label="Money"
       data-switch=""
+      data-vt-keep="money-switch"
       data-side={shown}
       data-direction={direction > 0 ? "forward" : "back"}
       style={{
