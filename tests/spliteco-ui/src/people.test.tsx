@@ -112,7 +112,7 @@ describe("multi-currency", () => {
 
   it("the person's page has a net per currency and a row per group", () => {
     const v = personPage(abroad);
-    expect(v.nets.map((n) => [n.currency, n.text, n.words])).toEqual([["INR", "₹300", "Zoya owes you"], ["EUR", "€40", "you owe Zoya"]]);
+    expect(v.nets.map((n) => [n.currency, n.text, n.words])).toEqual([["INR", "+₹300", "Zoya owes you"], ["EUR", "−€40", "you owe Zoya"]]);
     expect(v.groups.map((g) => [g.label, g.text, g.currency])).toEqual([["Flat", "₹300", "INR"], ["Lisbon", "€40", "EUR"]]);
   });
 });
@@ -120,7 +120,7 @@ describe("multi-currency", () => {
 describe("a person's page", () => {
   it("shows the net and a row per group, the Kitchen first", () => {
     const v = personPage(dev);
-    expect(v.nets.map((n) => [n.text, n.words])).toEqual([["₹1,500", "you owe Dev"]]);
+    expect(v.nets.map((n) => [n.text, n.words])).toEqual([["−₹1,500", "you owe Dev"]]);
     expect(v.groups.map((g) => [g.label, g.text])).toEqual([["Kitchen · Flat 4B", "₹300"], ["Goa trip", "₹1,200"]]);
     const html = page("cookpool", dev);
     expect(html.indexOf("Kitchen · Flat 4B")).toBeLessThan(html.indexOf("Goa trip"));
@@ -142,7 +142,7 @@ describe("a person's page", () => {
   });
 
   it("a person who owes you reads as owed", () => {
-    expect(personPage(kiran).nets[0]).toMatchObject({ text: "₹520", words: "Kiran owes you", tone: "get" });
+    expect(personPage(kiran).nets[0]).toMatchObject({ text: "+₹520", words: "Kiran owes you", tone: "get" });
   });
 
   it.each(THEMES)("renders in %s with the settle slot and Back", (theme) => {

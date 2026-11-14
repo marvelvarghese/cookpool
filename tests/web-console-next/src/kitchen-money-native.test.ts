@@ -8,7 +8,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SplitecoGroupResponse, SplitecoGroupSummary } from "@saas/contracts/spliteco";
 import { GroupsPage } from "@saas/spliteco-ui/groups-ui";
-import { LOOK_TOKENS } from "@saas/spliteco-ui/look";
+import { LOOK_TOKENS, lookColours } from "@saas/spliteco-ui/look";
 import {
   MONEY_ADD_GROUP_HREF,
   createExpenseFor,
@@ -118,39 +118,45 @@ describe("Groups, drawn for Cookpool", () => {
   });
 });
 
-describe("dark, through Cookpool's own palettes", () => {
+describe("light is the boards' tokens, dark is Cookpool's own palettes", () => {
   const css = read("styles/globals.css");
   const block = (selector: string): string => {
     const start = css.indexOf(selector);
     expect(start).toBeGreaterThan(-1);
     return css.slice(start, css.indexOf("}", start));
   };
-  const map = block('.cookpool [data-look="cookpool"]');
+  const light = block('.cookpool [data-look="cookpool"]');
+  const darkSystem = block('html:not([data-look="light"]) .cookpool-new [data-look="cookpool"]');
+  const darkPinned = block('html[data-look="dark"] .cookpool-new [data-look="cookpool"]');
 
-  it("maps every look token onto a Cookpool variable", () => {
-    for (const token of LOOK_TOKENS) expect(map).toMatch(new RegExp(`--look-${token}: hsl\\(var\\(--[a-z-]+\\)\\) !important;`));
+  it("light holds the Theme_Tokens board's values exactly (MY-18)", () => {
+    const colours = lookColours("cookpool");
+    for (const token of LOOK_TOKENS) expect(light).toContain(`--look-${token}: ${colours[token]} !important;`);
+  });
+
+  it("dark maps every look token onto a Cookpool variable, in the device's dark and when pinned", () => {
+    for (const map of [darkSystem, darkPinned]) {
+      for (const token of LOOK_TOKENS) expect(map).toMatch(new RegExp(`--look-${token}: hsl\\(var\\(--[a-z-]+\\)\\) !important;`));
+    }
+    expect(darkSystem).toContain("--look-bg: hsl(var(--background))");
+    expect(darkSystem).toContain("--look-primary: hsl(var(--primary))");
+    const body = (b: string) => b.slice(b.indexOf("{")).replace(/\s+/g, "");
+    expect(body(darkSystem)).toBe(body(darkPinned));
   });
 
   it("maps to variables that Cookpool's dark palette redefines", () => {
-    const used = [...map.matchAll(/hsl\(var\((--[a-z-]+)\)\)/g)].map((m) => m[1]!);
+    const used = [...darkPinned.matchAll(/hsl\(var\((--[a-z-]+)\)\)/g)].map((m) => m[1]!);
     expect(new Set(used).size).toBeGreaterThan(8);
-    // The system-dark block and the pinned-dark block each redefine every variable the mapping reads, except those that are the same in dark.
-    const darkSystem = css.slice(css.indexOf("@media (prefers-color-scheme: dark)"), css.indexOf('/* KC-9'));
-    const darkPinned = css.slice(css.indexOf('html[data-look="dark"] .cookpool.cookpool-new'));
+    const darkSystemPalette = css.slice(css.indexOf("@media (prefers-color-scheme: dark)"), css.indexOf('/* KC-9'));
+    const darkPinnedPalette = css.slice(css.indexOf('html[data-look="dark"] .cookpool.cookpool-new'));
     for (const v of new Set(used)) {
-      expect(darkSystem).toContain(`${v}:`);
-      expect(darkPinned).toContain(`${v}:`);
+      expect(darkSystemPalette).toContain(`${v}:`);
+      expect(darkPinnedPalette).toContain(`${v}:`);
     }
   });
 
   it("lifts an open box over the tab bar, so Save and Paid are not covered", () => {
     expect(css).toMatch(/\[data-slot="floating-button"\]:has\(\[data-expand-button\]\[data-open="true"\]\) \{\s*z-index: 60 !important;/);
-  });
-
-  it("keeps light's mapping on Cookpool's cream and herb green", () => {
-    expect(map).toContain("--look-bg: hsl(var(--background))");
-    expect(map).toContain("--look-primary: hsl(var(--primary))");
-    expect(css).toMatch(/\.cookpool \{[^}]*--background: 37\.5 44\.4% 96\.5%/);
   });
 });
 

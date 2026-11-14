@@ -106,7 +106,7 @@ export function personPage(person: SplitecoPersonBalance): PersonPageView {
   const name = nameOf(person);
   const nets = personAmounts(person).map((a) => ({
     ...a,
-    text: formatShort(Math.abs(a.minor), a.currency),
+    text: signedShort(a.minor, a.currency),
     words: a.minor < 0 ? `you owe ${name}` : `${name} owes you`,
   }));
   return {

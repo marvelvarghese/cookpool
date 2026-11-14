@@ -9,6 +9,7 @@
 
 import * as React from "react";
 import type { SplitecoBalancesResponse, SplitecoPersonBalance } from "@saas/contracts/spliteco";
+import { BOARD, BOARD_FONT } from "./board.js";
 import { LookScope, look, type LookTheme } from "./look.js";
 import {
   findPerson,
@@ -24,7 +25,8 @@ export interface SplitecoPeopleApi {
   balances(): Promise<SplitecoBalancesResponse>;
 }
 
-const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
+const FONT = BOARD_FONT;
+const B = BOARD;
 const TONE = { get: look.get, owe: look.owe, even: look.muted } as const;
 
 const softButton: React.CSSProperties = {
@@ -36,7 +38,7 @@ const softButton: React.CSSProperties = {
   color: look.softInk,
   fontSize: 14,
   fontWeight: 500,
-  fontFamily: "inherit",
+  fontFamily: "inherit", fontVariantNumeric: "tabular-nums",
   cursor: "pointer",
   flex: "none",
   display: "flex",
@@ -91,8 +93,8 @@ export interface PeopleListProps {
 
 function Row({ row, first, onOpen, onAction }: { row: PersonRowView; first: boolean; onOpen: () => void; onAction: () => void }) {
   return (
-    <div data-person={row.subjectId} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 72, padding: "0 12px 0 16px", borderTop: first ? undefined : `1px solid ${look.line}` }}>
-      <button type="button" onClick={onOpen} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, border: 0, background: "transparent", color: look.ink, padding: 0, textAlign: "left", fontFamily: "inherit", cursor: "pointer", minHeight: 72 }}>
+    <div data-person={row.subjectId} style={{ boxSizing: "content-box", display: "flex", alignItems: "center", gap: 12, height: B.personRow.height, padding: `0 ${B.personRow.padRight}px 0 ${B.personRow.padLeft}px`, borderTop: first ? undefined : `1px solid ${look.line}` }}>
+      <button type="button" onClick={onOpen} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, border: 0, background: "transparent", color: look.ink, padding: 0, textAlign: "left", fontFamily: "inherit", fontVariantNumeric: "tabular-nums", cursor: "pointer", height: "100%" }}>
         <Avatar initial={row.initial} />
         <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
           <span style={{ fontSize: 15, fontWeight: 500 }}>{row.name}</span>
@@ -113,15 +115,15 @@ function Row({ row, first, onOpen, onAction }: { row: PersonRowView; first: bool
 export function PeopleList({ theme, header, floatingButton, people, query, onQuery, onOpenPerson, onPay, onGotIt }: PeopleListProps) {
   const shown = searchPeople(people, query);
   return (
-    <LookScope theme={theme} style={{ position: "relative", minHeight: "100%", fontFamily: FONT, fontVariantNumeric: "tabular-nums" }}>
-      <div data-page="people" style={{ padding: "20px 20px 120px", display: "flex", flexDirection: "column", gap: 16 }}>
+    <LookScope theme={theme} style={{ position: "relative", minHeight: "100%", fontFamily: FONT, fontVariantNumeric: "tabular-nums", lineHeight: "normal" }}>
+      <div data-page="people" style={{ padding: `${B.page.padTop}px ${B.page.padX}px 120px`, display: "flex", flexDirection: "column", gap: B.page.gapPeople }}>
         {header}
-        <label style={{ height: 48, borderRadius: 16, background: look.surface, display: "flex", alignItems: "center", gap: 10, padding: "0 14px" }}>
+        <label style={{ height: B.search.height, borderRadius: B.search.radius, background: look.surface, display: "flex", alignItems: "center", gap: 10, padding: "0 14px" }}>
           <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={look.muted} strokeWidth="2" strokeLinecap="round">
             <circle cx="11" cy="11" r="7" />
             <path d="M20 20l-4-4" />
           </svg>
-          <input aria-label="Search people" placeholder="Search people" value={query} onChange={(e) => onQuery(e.target.value)} style={{ flex: 1, border: 0, background: "transparent", fontSize: 16, color: look.ink, outline: "none", minWidth: 0, fontFamily: "inherit" }} />
+          <input aria-label="Search people" placeholder="Search people" value={query} onChange={(e) => onQuery(e.target.value)} style={{ flex: 1, border: 0, background: "transparent", fontSize: 16, color: look.ink, outline: "none", minWidth: 0, fontFamily: "inherit", fontVariantNumeric: "tabular-nums" }} />
         </label>
         {people.length === 0 ? (
           <div data-empty="people" style={{ background: look.surface, borderRadius: 22, padding: 20, fontSize: 15, color: look.muted }}>
@@ -156,8 +158,8 @@ export interface PersonPageProps {
 export function PersonPage({ theme, person, onBack, floatingButton }: PersonPageProps) {
   const v = personPage(person);
   return (
-    <LookScope theme={theme} style={{ position: "relative", minHeight: "100%", fontFamily: FONT, fontVariantNumeric: "tabular-nums" }}>
-      <div data-page="person" style={{ padding: "20px 20px 120px", display: "flex", flexDirection: "column", gap: 18 }}>
+    <LookScope theme={theme} style={{ position: "relative", minHeight: "100%", fontFamily: FONT, fontVariantNumeric: "tabular-nums", lineHeight: "normal" }}>
+      <div data-page="person" style={{ padding: `${B.page.padTop}px ${B.page.padX}px 120px`, display: "flex", flexDirection: "column", gap: B.page.gapPerson }}>
         <header style={{ display: "flex", alignItems: "center", gap: 8, height: 56 }}>
           <button type="button" aria-label="Back" onClick={onBack} style={{ width: 44, height: 44, marginLeft: -10, display: "flex", alignItems: "center", justifyContent: "center", flex: "none", border: 0, background: "transparent", cursor: "pointer" }}>
             <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={look.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -183,7 +185,7 @@ export function PersonPage({ theme, person, onBack, floatingButton }: PersonPage
           <h2 style={{ margin: 0, padding: "0 2px", fontSize: 13, fontWeight: 500, color: look.muted }}>By group · Kitchen first</h2>
           <div data-groups="" style={{ background: look.surface, borderRadius: 20, overflow: "hidden" }}>
             {v.groups.map((g, i) => (
-              <div key={g.groupId} data-group={g.groupId} data-currency={g.currency} style={{ display: "flex", alignItems: "center", height: 52, padding: "0 16px", borderTop: i === 0 ? undefined : `1px solid ${look.line}` }}>
+              <div key={g.groupId} data-group={g.groupId} data-currency={g.currency} style={{ boxSizing: "content-box", display: "flex", alignItems: "center", height: B.personGroupRow.height, padding: "0 16px", borderTop: i === 0 ? undefined : `1px solid ${look.line}` }}>
                 <span style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{g.label}</span>
                 <span style={{ fontSize: 15, fontWeight: 500, color: TONE[g.tone] }}>{g.text}</span>
               </div>

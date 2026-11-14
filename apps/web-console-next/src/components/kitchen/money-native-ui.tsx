@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+// The boards draw Money in Plus Jakarta Sans 400/500/600 (variable, latin).
+import "@fontsource-variable/plus-jakarta-sans";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { SplitecoBalancesResponse, SplitecoPersonBalance } from "@saas/contracts/spliteco";

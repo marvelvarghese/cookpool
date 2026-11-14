@@ -1,0 +1,20 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: MY-18
+  title: "Pixel parity: Money, Groups and People pages"
+spec:
+  goal: "The built Money, Groups and People pages match the approved boards pixel for pixel, in Cookpool and Spliteco looks, light and dark, with the measurements pinned by tests."
+  affects:
+    - default/cookpool/spliteco-ui
+    - default/cookpool/web-console-next
+    - packages/spliteco-ui/**
+    - tests/spliteco-ui/**
+    - apps/web-console-next/**
+    - specs/epics/money-native/**
+    - tasks/MY-18.TaskContract.yaml
+  doneWhen:
+    - "Every element of Money, Groups and People matches its board: sizes, paddings, radii, type, colours from tokens, heights, order; the PR lists each difference"
+    - "Cookpool dark maps the same tokens; focus rings and 44px tap targets are added without changing the pixels"
+    - "Tests pin token values, heights and radii; spliteco-ui tests, typecheck and lint pass"
+  gates: []
