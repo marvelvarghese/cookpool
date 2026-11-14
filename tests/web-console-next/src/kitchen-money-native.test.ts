@@ -89,7 +89,7 @@ describe("what /money's address names", () => {
     expect(moneyGroupHref("org_flat", undefined)).toBe("/groups");
   });
 
-  it("sends + Group and Add group to the stub route MY-9 replaces", () => {
+  it("sends + Group and Add group to the Add group route", () => {
     expect(MONEY_ADD_GROUP_HREF).toBe("/money/add-group");
     expect(existsSync(`${root}/app/(kitchen)/money/add-group/page.tsx`)).toBe(true);
     expect(read("components/kitchen/money-native-ui.tsx")).toContain("go(MONEY_ADD_GROUP_HREF)");

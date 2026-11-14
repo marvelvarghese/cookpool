@@ -16,9 +16,8 @@ import { settlementBody, type PaymentRequest, type SettleApi } from "@saas/split
 import type { ExpenseGroup } from "@saas/spliteco-ui/expense";
 
 /**
- * Where + Group and the Add group row go. MY-9 (Add group) replaces the page
- * at this route (`app/(kitchen)/money/add-group/page.tsx`); until then it
- * opens the existing New group dialog, so a group can still be made.
+ * Where + Group and the Add group row go: the Add group sheet (MY-9),
+ * hosted at `app/(kitchen)/money/add-group/page.tsx`.
  */
 export const MONEY_ADD_GROUP_HREF = "/money/add-group";
 
