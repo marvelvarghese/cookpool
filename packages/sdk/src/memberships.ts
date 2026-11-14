@@ -1,4 +1,6 @@
 import type {
+  AddMembersRequest,
+  AddMembersResponse,
   AcceptInvitationRequest,
   AcceptInvitationResponse,
   CreateInvitationRequest,
@@ -41,6 +43,18 @@ export class MembershipsClient {
         method: "GET",
         path: `/v1/organizations/${encodeURIComponent(orgId)}/members`,
       },
+      opts,
+    );
+  }
+
+  /**
+   * POST /v1/organizations/:orgId/members — add people by subject id from a
+   * Spliteco group you share (owner/admin of `orgId` only). Each person is
+   * added or skipped with a reason; send an Idempotency-Key.
+   */
+  addMembers(orgId: string, body: AddMembersRequest, opts: RequestOptions = {}): Promise<AddMembersResponse> {
+    return this.transport.request<AddMembersResponse>(
+      { method: "POST", path: `/v1/organizations/${encodeURIComponent(orgId)}/members`, body },
       opts,
     );
   }

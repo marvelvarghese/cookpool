@@ -4,6 +4,10 @@
 // the pinned ERROR_CODES set (no new codes: reasons ride in `details.reason`).
 
 import {
+  ADD_MEMBERS_MAX,
+  ADD_MEMBER_SKIP_REASONS,
+  type AddMembersRequest,
+  type AddMembersResponse,
   JOIN_PREVIEW_PUBLIC_KEYS,
   type JoinCodeResponse,
   type JoinPreview,
@@ -58,5 +62,19 @@ describe("contracts: join links", () => {
     expect(ERROR_CODES.NOT_FOUND).toBe("not_found");
     // The signed-out preview: an unknown code → 404, too many from one IP → 429.
     expect(ERROR_CODES.RATE_LIMITED).toBe("rate_limited");
+  });
+});
+
+describe("add members by subject id (MY-17)", () => {
+  it("names the skip reasons and the cap, and the request and answer line up", () => {
+    expect(ADD_MEMBER_SKIP_REASONS).toEqual(["not_in_source_group", "already_member", "groups_per_person", "group_full"]);
+    expect(ADD_MEMBERS_MAX).toBe(50);
+    const req: AddMembersRequest = { sourceGroupId: "org_src", subjectIds: ["usr_a", "usr_b"] };
+    const res: AddMembersResponse = {
+      orgId: "org_t",
+      added: [{ subjectId: req.subjectIds[0]!, memberId: "mem_1" }],
+      skipped: [{ subjectId: req.subjectIds[1]!, reason: "already_member" }],
+    };
+    expect(res.added.length + res.skipped.length).toBe(req.subjectIds.length);
   });
 });

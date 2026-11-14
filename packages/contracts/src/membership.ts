@@ -162,6 +162,32 @@ export interface JoinPreviewPublic {
 /** Every key {@link JoinPreviewPublic} has; anything else on the wire would be a leak. */
 export const JOIN_PREVIEW_PUBLIC_KEYS = ["groupName", "inviterFirstName", "memberCount"] as const;
 
+/** The most people one add-members call takes. */
+export const ADD_MEMBERS_MAX = 50;
+
+/** Why a person was not added (never fails the call). */
+export const ADD_MEMBER_SKIP_REASONS = ["not_in_source_group", "already_member", "groups_per_person", "group_full"] as const;
+export type AddMemberSkipReason = (typeof ADD_MEMBER_SKIP_REASONS)[number];
+
+/**
+ * POST /v1/organizations/:orgId/members (MY-17) — add people who already share
+ * a Spliteco group with the caller, by subject id, as members (`builder`).
+ * The caller must be an owner or admin of `:orgId` AND an active member of
+ * `sourceGroupId`, a Spliteco group; only people in that group are added. 200
+ * with who was added and who was skipped and why; one skip never fails it. A
+ * caller who is not allowed gets 404 (the group) or 403 `not_in_source_group`.
+ */
+export interface AddMembersRequest {
+  sourceGroupId: string;
+  subjectIds: string[];
+}
+
+export interface AddMembersResponse {
+  orgId: string;
+  added: { subjectId: string; memberId: string }[];
+  skipped: { subjectId: string; reason: AddMemberSkipReason }[];
+}
+
 /** POST /v1/join — the code is case-insensitive; spaces and dashes are ignored. */
 export interface JoinRequest {
   code: string;

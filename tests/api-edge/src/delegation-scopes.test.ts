@@ -135,6 +135,7 @@ describe("the auth routes and everything that is not the kitchen", () => {
     ["GET", "/v1/organizations"],
     ["POST", "/v1/organizations"],
     ["GET", `${O}/members`],
+    ["POST", `${O}/members`],
     ["POST", `${O}/invitations`],
     ["POST", "/v1/join"],
     ["POST", `${O}/leave`],

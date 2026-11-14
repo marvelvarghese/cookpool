@@ -128,6 +128,17 @@ describe("MembershipsClient", () => {
     expect(new Headers(calls[1]!.init.headers as HeadersInit).get("idempotency-key")).toBe("ikey_rot_1");
   });
 
+  it("addMembers posts the source group and subject ids to the group's members", async () => {
+    const answer = { orgId: "org_1", added: [{ subjectId: "usr_a", memberId: "mbr_1" }], skipped: [] };
+    const { fetch, calls } = captureFetch(jsonResponse(envelope(answer)));
+    const body = { sourceGroupId: "org_src", subjectIds: ["usr_a"] };
+    expect(await client(fetch).memberships.addMembers("org_1", body, { idempotencyKey: "ikey_add_1" })).toEqual(answer);
+    expect(calls[0]!.url).toBe("https://api.test/v1/organizations/org_1/members");
+    expect(calls[0]!.init.method).toBe("POST");
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual(body);
+    expect(new Headers(calls[0]!.init.headers as HeadersInit).get("idempotency-key")).toBe("ikey_add_1");
+  });
+
   it("previewJoin encodes the code into the path", async () => {
     const preview = { orgId: "org_1", name: "Flat 4B", slug: "flat-4b", memberCount: 3, alreadyMember: false };
     const { fetch, calls } = captureFetch(jsonResponse(envelope(preview)));
