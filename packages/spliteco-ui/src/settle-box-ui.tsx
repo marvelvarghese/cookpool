@@ -22,6 +22,7 @@ import {
   lineText,
   linesTotal,
   planRows,
+  receivedRequest,
   recordPayments,
   requestKey,
   requestsOf,
@@ -121,9 +122,11 @@ export function SettleContent({ person, meId, direction = "pay", currency: wante
   const total = linesTotal(lines);
   const who = direction === "pay" ? { fromSubjectId: meId, toSubjectId: person.subjectId } : { fromSubjectId: person.subjectId, toSubjectId: meId };
   const method: SettleMethod = flow.method === "cash" ? "cash" : "upi";
-  const requests = requestsOf(lines, who, method);
+  const requests: PaymentRequest[] = direction === "got" && total > 0
+    ? [receivedRequest(person.subjectId, meId, total, currency, method, mode === "kitchen" ? "kitchen" : null)]
+    : requestsOf(lines, who, method);
   const started = recorded.size > 0;
-  const keyOf = (l: SettleLine) => requestKey(requests.find((r) => r.groupId === l.groupId)!);
+  const keyOf = (l: SettleLine) => requestKey(requests.find((r) => r.groupId === l.groupId) ?? requests[0]!);
   const remaining = lines.filter((l) => !recorded.has(keyOf(l)));
   const remainingMinor = linesTotal(remaining);
   const link = direction === "pay" ? upiLink({ vpa: person.upiVpa, name, amountMinor: remainingMinor, note: "Settle up", currency }) : null;
@@ -132,11 +135,11 @@ export function SettleContent({ person, meId, direction = "pay", currency: wante
   async function record() {
     const outcome = await recordPayments(api, requests, recorded);
     setRecorded(new Set(outcome.recorded));
-    setFailed(new Map(outcome.failed.map((f) => [f.groupId, f.message])));
+    setFailed(new Map(outcome.failed.map((f) => [f.key, f.message])));
     if (outcome.failed.length > 0) {
-      const nameOf = (id: string) => lines.find((l) => l.groupId === id)?.label ?? id;
+      const failedKeys = new Set(outcome.failed.map((f) => f.key));
       const done = lines.filter((l) => outcome.recorded.includes(keyOf(l))).map((l) => l.label);
-      setFlow((s) => settleStep(s, { type: "failed", message: messageOf(outcome.failed.map((f) => nameOf(f.groupId)), done) }).state);
+      setFlow((s) => settleStep(s, { type: "failed", message: messageOf(lines.filter((l) => failedKeys.has(keyOf(l))).map((l) => l.label), done) }).state);
       return;
     }
     setPaidMinor(total);
@@ -256,9 +259,9 @@ export function SettleContent({ person, meId, direction = "pay", currency: wante
 
 type Status = "recorded" | "failed" | null;
 function statusOf(recorded: ReadonlySet<string>, failed: ReadonlyMap<string, string>, requests: readonly PaymentRequest[], l: SettleLine): Status {
-  const r = requests.find((x) => x.groupId === l.groupId);
-  if (r && recorded.has(requestKey(r))) return "recorded";
-  return failed.has(l.groupId) ? "failed" : null;
+  const key = requestKey(requests.find((x) => x.groupId === l.groupId) ?? requests[0]!);
+  if (recorded.has(key)) return "recorded";
+  return failed.has(key) ? "failed" : null;
 }
 
 function LineRow({ line, custom, first, status }: { line: SettleLine; custom: boolean; first: boolean; status: Status }) {

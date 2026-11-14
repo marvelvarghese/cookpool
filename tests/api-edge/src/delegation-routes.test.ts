@@ -248,6 +248,7 @@ const ALLOWED = [
 const SPLITECO_REFUSED = [
   `POST /v1/spliteco/groups/org_${HEX}/settlements`,
   `POST /v1/spliteco/settlements/txn_${HEX}/not-received`,
+  "POST /v1/spliteco/me/payments-received",
   `GET /v1/spliteco/groups/org_${HEX}/settle-plan`,
   "GET /v1/spliteco/me/profile",
   "PUT /v1/spliteco/me/profile",

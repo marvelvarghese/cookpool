@@ -21,7 +21,9 @@
     "./expand-button": "./src/expand-button.tsx",
     "./groups-ui": "./src/groups-ui.tsx",
     "./settle-box": "./src/settle-box.ts",
-    "./settle-box-ui": "./src/settle-box-ui.tsx"
+    "./settle-box-ui": "./src/settle-box-ui.tsx",
+    "./expense": "./src/expense.ts",
+    "./expense-ui": "./src/expense-ui.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

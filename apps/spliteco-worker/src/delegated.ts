@@ -46,6 +46,7 @@ const DRAFT_ONLY = new Set(["spliteco.group.expenses.post", "spliteco.expense.pu
 /** Settling up, and what a payment needs: an app's, never an assistant's. */
 const APP_ONLY = new Set([
   "spliteco.group.settlements.post",
+  "spliteco.me.payments_received.post",
   "spliteco.settlement.not_received.post",
   "spliteco.group.settle_plan.get",
   "spliteco.me.profile.get",

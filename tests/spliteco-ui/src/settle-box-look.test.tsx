@@ -6,7 +6,7 @@ import type { SplitecoPersonBalance, SplitecoPersonPlanLine } from "@saas/contra
 import { SettleBox, SettleContent, SettleUpContent } from "@saas/spliteco-ui/settle-box-ui";
 
 const THEMES = ["cookpool", "spliteco"] as const;
-const api = { recordPayment: async () => undefined };
+const api = { recordPayment: async () => undefined, paymentReceived: async () => undefined };
 const noop = () => undefined;
 
 const dev: SplitecoPersonBalance = {

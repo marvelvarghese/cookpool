@@ -7,9 +7,9 @@ import { jest } from "@jest/globals";
 import * as React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { SplitecoPersonBalance, SplitecoPersonGroupBalance, SplitecoPersonPlanLine } from "@saas/contracts/spliteco";
+import type { SplitecoReceivedPaymentRequest, SplitecoPersonBalance, SplitecoPersonGroupBalance, SplitecoPersonPlanLine } from "@saas/contracts/spliteco";
 import {
-  allocate, gotItRequests, keypadDisplay, keypadMinor, keypadPress, planRows, recordPayments, settleCurrencies, settleGroups, settlementBody,
+  allocate, gotItRequests, receivedBody, receivedRequest, keypadDisplay, keypadMinor, keypadPress, planRows, recordPayments, settleCurrencies, settleGroups, settlementBody,
   type PaymentRequest, type SettleApi,
 } from "@saas/spliteco-ui/settle-box";
 import { SettleBox, SettleContent, SettleUpBox, SettleUpContent } from "@saas/spliteco-ui/settle-box-ui";
@@ -123,6 +123,7 @@ describe("recording across groups", () => {
         calls.push(r.groupId);
         if (r.groupId === "org_goa" && goaFails) throw new Error("offline");
       },
+      paymentReceived: async () => undefined,
     };
     const first = await recordPayments(api, reqs);
     expect(first.recorded).toEqual([`org_k:${ME}:usr_dev`]);
@@ -133,13 +134,22 @@ describe("recording across groups", () => {
     expect(calls).toEqual(["org_k", "org_goa", "org_goa"]);
   });
 
-  it("Got it from a People row is one received record per group, in full", () => {
+  it("Got it from a People row is one received payment for everything they owe, in the currency", () => {
     const both = person("usr_kiran", "Kiran", [grp("org_goa", "Goa trip", 12000), kitchen(5000)]);
     const out = gotItRequests(both, ME, "INR");
-    expect(out.map((r) => [r.groupId, r.fromSubjectId, r.toSubjectId, r.amountMinor])).toEqual([
-      ["org_k", "usr_kiran", ME, 5000],
-      ["org_goa", "usr_kiran", ME, 12000],
-    ]);
+    expect(out).toHaveLength(1);
+    expect(receivedBody(out[0]!)).toEqual({ fromSubjectId: "usr_kiran", amountMinor: 17000, currency: "INR", method: "cash", note: null });
+  });
+
+  it("nothing owed, nothing to receive", () => {
+    expect(gotItRequests(dev, ME, "INR")).toEqual([]);
+  });
+
+  it("recordPayments sends a received request to paymentReceived and a payment you made to recordPayment", async () => {
+    const { api, calls, received } = recorder();
+    await recordPayments(api, [reqs[0]!, receivedRequest("usr_asha", ME, 12000, "INR", "cash")]);
+    expect(calls.map((c) => c.groupId)).toEqual(["org_k"]);
+    expect(received.map((b) => b.fromSubjectId)).toEqual(["usr_asha"]);
   });
 });
 
@@ -169,13 +179,17 @@ const text = () => host.textContent ?? "";
 
 function recorder(fail: (r: PaymentRequest, n: number) => boolean = () => false) {
   const calls: PaymentRequest[] = [];
+  const received: SplitecoReceivedPaymentRequest[] = [];
   const api: SettleApi = {
     recordPayment: async (r) => {
       calls.push(r);
       if (fail(r, calls.length)) throw new Error("offline");
     },
+    paymentReceived: async (body) => {
+      received.push(body);
+    },
   };
-  return { api, calls };
+  return { api, calls, received };
 }
 
 function mountContent(api: SettleApi, o: Partial<React.ComponentProps<typeof SettleContent>> = {}) {
@@ -298,13 +312,43 @@ describe("the settle box", () => {
     expect(onDone).toHaveBeenCalled();
   });
 
-  it("Got it records a payment from them to you", async () => {
-    const { api, calls } = recorder();
+  it("Got it records one received payment from them, through the new route", async () => {
+    const { api, calls, received } = recorder();
     mountContent(api, { person: asha, direction: "got" });
     await click(byText("Cash"));
     await click(byText("Got it ₹120"));
-    expect(calls.map((c) => [c.groupId, c.fromSubjectId, c.toSubjectId, c.amountMinor])).toEqual([["org_goa", "usr_asha", ME, 12000]]);
+    expect(calls).toEqual([]);
+    expect(received).toEqual([{ fromSubjectId: "usr_asha", amountMinor: 12000, currency: "INR", method: "cash", note: null }]);
     expect(text()).toContain("Asha paid you ₹120");
+  });
+
+  it("Got it Kitchen only asks the route to clear the Kitchen balances", async () => {
+    const { api, received } = recorder();
+    const kiran = person("usr_kiran", "Kiran", [grp("org_goa", "Goa trip", 12000), kitchen(5000)]);
+    mountContent(api, { person: kiran, direction: "got" });
+    await click(byText("Kitchen ₹50"));
+    await click(byText("Got it ₹50"));
+    expect(received).toEqual([{ fromSubjectId: "usr_kiran", amountMinor: 5000, currency: "INR", method: "upi", note: null, bucket: "kitchen" }]);
+  });
+
+  it("a failed Got it says Not recorded and tapping again sends it again", async () => {
+    let fail = true;
+    const calls: SplitecoReceivedPaymentRequest[] = [];
+    const api: SettleApi = {
+      recordPayment: async () => undefined,
+      paymentReceived: async (b) => {
+        calls.push(b);
+        if (fail) throw new Error("offline");
+      },
+    };
+    const { onRecorded } = mountContent(api, { person: asha, direction: "got" });
+    await click(byText("Got it ₹120"));
+    expect(host.querySelector("[data-error]")?.textContent).toBe("Not recorded: Goa trip.");
+    expect(onRecorded).not.toHaveBeenCalled();
+    fail = false;
+    await click(byText("Got it ₹120"));
+    expect(calls).toHaveLength(2);
+    expect(onRecorded).toHaveBeenCalledTimes(1);
   });
 
   it("Got it never opens a UPI app", async () => {
@@ -367,7 +411,7 @@ describe("Settle up", () => {
   });
 
   it("Paid records one payment per group in the plan; Got it records one from them to you", async () => {
-    const { api, calls } = recorder();
+    const { api, calls, received } = recorder();
     act(() => {
       root.render(<SettleUpContent theme="cookpool" people={people} meId={ME} api={api} onDone={() => undefined} />);
     });
@@ -375,18 +419,20 @@ describe("Settle up", () => {
     expect(calls.map((c) => [c.groupId, c.fromSubjectId, c.toSubjectId, c.amountMinor])).toEqual([["org_k", ME, "usr_dev", 30000], ["org_goa", ME, "usr_dev", 120000]]);
     expect(byText("Settle all 1")).toBeTruthy();
     await click(byText("Got it"));
-    expect(calls[2]).toMatchObject({ groupId: "org_goa", fromSubjectId: "usr_asha", toSubjectId: ME, amountMinor: 12000 });
+    expect(calls).toHaveLength(2);
+    expect(received).toEqual([{ fromSubjectId: "usr_asha", amountMinor: 12000, currency: "INR", method: "cash", note: null }]);
     expect(text()).toContain("All settled");
   });
 
   it("Settle all records everything and ends on All settled", async () => {
-    const { api, calls } = recorder();
+    const { api, calls, received } = recorder();
     const onRecorded = jest.fn();
     act(() => {
       root.render(<SettleUpContent theme="spliteco" people={people} meId={ME} api={api} onRecorded={onRecorded} onDone={() => undefined} />);
     });
     await click(byText("Settle all 2"));
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
+    expect(received).toHaveLength(1);
     expect(onRecorded).toHaveBeenCalled();
     expect(text()).toContain("All settled");
   });

@@ -5,7 +5,7 @@
 // which groups landed, so a retry sends only the rest. Nothing here fetches:
 // the host injects `recordPayment`.
 
-import type { SplitecoPersonBalance, SplitecoPersonPlanLine, SplitecoSettlementRequest } from "@saas/contracts/spliteco";
+import type { SplitecoPersonBalance, SplitecoPersonPlanLine, SplitecoReceivedPaymentRequest, SplitecoSettlementRequest } from "@saas/contracts/spliteco";
 import { formatShort } from "./money.js";
 import { kitchenGroupsFirst, groupLabel } from "./people.js";
 import { kitchenFirst } from "./settle.js";
@@ -15,9 +15,18 @@ export type SettleDirection = "pay" | "got";
 export type SettleMode = "all" | "kitchen" | "custom";
 export type SettleMethod = "upi" | "cash";
 
-/** One payment to record: `fromSubjectId` pays `toSubjectId` in one group. */
+/**
+ * One payment to record. `fromSubjectId` pays `toSubjectId` in one group; a
+ * payment you RECEIVED (`received`) is one request per person and currency,
+ * because Spliteco's route spreads it over their groups itself, Kitchen first.
+ */
 export interface PaymentRequest {
+  /** The group; for a received payment `received:<currency>`, only an id for the box's bookkeeping. */
   groupId: string;
+  received?: true;
+  currency?: string;
+  /** Received payments only: clear the Kitchen balances only. */
+  bucket?: "kitchen" | null;
   fromSubjectId: string;
   toSubjectId: string;
   amountMinor: number;
@@ -29,11 +38,22 @@ export interface PaymentRequest {
 
 /**
  * What the host injects. A payment you made is Spliteco's own settlement call
- * (`spliteco.settle(groupId, body)`). Got it is the same record the other way
- * (`fromSubjectId` is them): the host decides how to write it.
+ * (`recordPayment` → `spliteco.settle(groupId, settlementBody(request))`); a
+ * payment you received is MY-16's `spliteco.paymentReceived(body)`, taken as is.
  */
 export interface SettleApi {
   recordPayment(request: PaymentRequest): Promise<unknown>;
+  paymentReceived(body: SplitecoReceivedPaymentRequest): Promise<unknown>;
+}
+
+/** The body of `spliteco.paymentReceived` for a received request. */
+export function receivedBody(r: PaymentRequest): SplitecoReceivedPaymentRequest {
+  return { fromSubjectId: r.fromSubjectId, amountMinor: r.amountMinor, currency: r.currency ?? null, method: r.method, note: r.note ?? null, ...(r.bucket ? { bucket: r.bucket } : {}) };
+}
+
+/** One request for a payment received from `fromSubjectId`. */
+export function receivedRequest(fromSubjectId: string, toSubjectId: string, amountMinor: number, currency: string, method: SettleMethod, bucket: "kitchen" | null = null): PaymentRequest {
+  return { groupId: `received:${currency}`, received: true, currency, fromSubjectId, toSubjectId, amountMinor, method, ...(bucket ? { bucket } : {}) };
 }
 
 /** The body of Spliteco's settlement call for a request that is the caller paying. */
@@ -204,7 +224,7 @@ export async function recordPayments(
     const key = requestKey(r);
     if (done.has(key)) continue;
     try {
-      await api.recordPayment(r);
+      await (r.received ? api.paymentReceived(receivedBody(r)) : api.recordPayment(r));
       done.add(key);
     } catch (e) {
       failed.push({ key, groupId: r.groupId, message: e instanceof Error ? e.message : "Couldn't record this" });
@@ -215,9 +235,10 @@ export async function recordPayments(
 
 // ── Got it, straight from a People row ────────────────────
 
-/** Everything they owe you, one record per group, in a currency (all of it): what Got it on a People row records. */
-export function gotItRequests(person: Pick<SplitecoPersonBalance, "subjectId" | "groups">, meId: string, currency: string, method: SettleMethod = "upi"): PaymentRequest[] {
-  return requestsOf(allocate(settleGroups(person, "got", currency), "all"), { fromSubjectId: person.subjectId, toSubjectId: meId }, method);
+/** Everything they owe you in a currency, as the one received payment Spliteco spreads over their groups: what Got it on a People row records. */
+export function gotItRequests(person: Pick<SplitecoPersonBalance, "subjectId" | "groups">, meId: string, currency: string, method: SettleMethod = "cash"): PaymentRequest[] {
+  const total = sumOwed(settleGroups(person, "got", currency));
+  return total > 0 ? [receivedRequest(person.subjectId, meId, total, currency, method)] : [];
 }
 
 // ── Settle up (People's button) ───────────────────────────
@@ -262,7 +283,9 @@ export function planRows(people: readonly SplitecoPersonBalance[], meId: string,
         currency: e.currency,
         direction: e.direction,
         amountMinor: e.lines.reduce((s, l) => s + l.amountMinor, 0),
-        requests: e.lines.map((l) => ({ groupId: l.groupId, fromSubjectId: l.fromSubjectId, toSubjectId: l.toSubjectId, amountMinor: l.amountMinor, method })),
+        requests: e.direction === "got"
+          ? [receivedRequest(p.subjectId, meId, e.lines.reduce((t, l) => t + l.amountMinor, 0), e.currency, method === "upi" ? "cash" : method)]
+          : e.lines.map((l) => ({ groupId: l.groupId, fromSubjectId: l.fromSubjectId, toSubjectId: l.toSubjectId, amountMinor: l.amountMinor, method })),
       });
     }
   }
