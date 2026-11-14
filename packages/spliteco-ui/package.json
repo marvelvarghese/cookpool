@@ -15,7 +15,9 @@
     "./money-tab": "./src/money-tab.ts",
     "./money-tab-ui": "./src/money-tab-ui.tsx",
     "./inside-look": "./src/inside-look.ts",
-    "./look": "./src/look.ts"
+    "./look": "./src/look.ts",
+    "./people": "./src/people.ts",
+    "./people-ui": "./src/people-ui.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
