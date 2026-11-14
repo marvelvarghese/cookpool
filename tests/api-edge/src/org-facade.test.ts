@@ -434,7 +434,7 @@ describe("api-edge org facade", () => {
 
   describe("binding verification config", () => {
     it("wrangler.jsonc has stage MEMBERSHIP_WORKER binding to cookpool-membership-worker-stage", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -446,7 +446,7 @@ describe("api-edge org facade", () => {
     });
 
     it("wrangler.jsonc has prod MEMBERSHIP_WORKER binding to cookpool-membership-worker-prod", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -458,7 +458,7 @@ describe("api-edge org facade", () => {
     });
 
     it("stage does not bind to prod membership worker", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -470,7 +470,7 @@ describe("api-edge org facade", () => {
     });
 
     it("prod does not bind to stage membership worker", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 

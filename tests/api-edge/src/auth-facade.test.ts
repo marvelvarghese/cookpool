@@ -577,7 +577,7 @@ describe("api-edge auth facade", () => {
 
   describe("config verification", () => {
     it("wrangler.jsonc has stage service binding to cookpool-identity-worker-stage", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -589,7 +589,7 @@ describe("api-edge auth facade", () => {
     });
 
     it("wrangler.jsonc has prod service binding to cookpool-identity-worker-prod", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -601,7 +601,7 @@ describe("api-edge auth facade", () => {
     });
 
     it("stage does not bind to prod identity worker", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -612,7 +612,7 @@ describe("api-edge auth facade", () => {
     });
 
     it("prod does not bind to stage identity worker", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 

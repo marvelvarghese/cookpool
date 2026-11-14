@@ -17,7 +17,7 @@ spec:
   subscribe:
     environments:
       - name: dev
-        profile: quick-check
+        profile: verify
   parameters:
     nodeVersion: "22"
     pnpmVersion: "10.12.1"

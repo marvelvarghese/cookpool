@@ -1,0 +1,14 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: CI-1
+  title: "CI runs every test package's tests"
+spec:
+  goal: "Every test component runs its tests, build and typecheck in CI (the verify profile), and the three packages that were failing unseen pass."
+  affects:
+    - tests/**
+    - tasks/CI-1.TaskContract.yaml
+  doneWhen:
+    - "Every tests/*/component.yaml uses profile verify, and a test fails if one goes back to quick-check"
+    - "Each test component's Verify job on the PR shows jest's Test Suites line and passes"
+  gates: []

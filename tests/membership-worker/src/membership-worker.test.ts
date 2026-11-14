@@ -1189,7 +1189,7 @@ describe("pagination", () => {
 
 describe("wrangler config", () => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const raw = fs.readFileSync(path.resolve(__dirname, "../../../apps/membership-worker/wrangler.jsonc"), "utf8");
+  const raw = fs.readFileSync(path.resolve(__dirname, "../../../apps/membership-worker/wrangler.template.jsonc"), "utf8");
   // Strip single-line comments for JSONC parsing
   const config = JSON.parse(raw.replace(/^\s*\/\/.*$/gm, ""));
 
